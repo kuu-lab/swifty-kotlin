@@ -7,6 +7,7 @@
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
+| `real_programs/run.py` | – | Run the [23 pinned public Kotlin consumers](real_programs/round1/README.md) against Kotlin 2.3.10 and native O0/O2 with one fresh shared stdlib; compare exit code, stdout, and stderr |
 | `run_candidate_only.sh` | ✓ | Compile one Kotlin case without a JVM reference and compare stdout with its `.expected` file |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |

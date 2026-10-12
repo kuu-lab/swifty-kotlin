@@ -1,0 +1,809 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-1854",
+  "reference_kotlin_version": "2.3.10",
+  "cases": [
+    {
+      "name": "binary_search",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/binary_search/BinarySearch.kt",
+          "sha256": "69594aa4ea9e3a24d2399c651cf577705a194b69768bce18e2642ec53a90f21c",
+          "upstream_path": "src/main/kotlin/search/BinarySearch.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/search/BinarySearch.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/binary_search/Main.kt",
+        "sha256": "43b7a89b1b5eeb48f45815ca45aad9f9110352d9c237608919e5acde427245c5"
+      },
+      "license": {
+        "path": "corpus/binary_search/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/binary_search/expected.stdout",
+          "sha256": "44afc78e43fa3ec801952ecfc03e3c16f98bd6560212f3f9f61f0e4649af506f"
+        },
+        "stderr": {
+          "path": "corpus/binary_search/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "quick_sort",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/quick_sort/QuickSort.kt",
+          "sha256": "1225276867ffd8cc189ce7c8761b3e16b102f515b74074ac361f57b62dd95b9c",
+          "upstream_path": "src/main/kotlin/sort/QuickSort.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/sort/QuickSort.kt"
+        },
+        {
+          "path": "corpus/quick_sort/BubbleSort.kt",
+          "sha256": "95fb620184528e23c2a651e7e76f71173a3ab86c5bb458e52db39f0cb23e7936",
+          "upstream_path": "src/main/kotlin/sort/BubbleSort.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/sort/BubbleSort.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/quick_sort/Main.kt",
+        "sha256": "e53218a0ee8482ebe76723a81c8149ae667697138457b93d84cb19d2feb16ea0"
+      },
+      "license": {
+        "path": "corpus/quick_sort/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/quick_sort/expected.stdout",
+          "sha256": "f2eca3a152a5e7c97bf682e7fe571240a4cbf17d92b7e256ea58d7512e91a54c"
+        },
+        "stderr": {
+          "path": "corpus/quick_sort/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "edit_distance",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/edit_distance/EditDistance.kt",
+          "sha256": "d4c364fcb94e765a8026a9dd68911811e5ef1a8c229eee3b03b04cc6313f4a7b",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/EditDistance.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/EditDistance.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/edit_distance/Main.kt",
+        "sha256": "6998f58af1866ffb74fa247b8c2dc9442948622090d513f15893a55db184b957"
+      },
+      "license": {
+        "path": "corpus/edit_distance/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/edit_distance/expected.stdout",
+          "sha256": "9422b95a5e9325e99b4848aa8d911c6ddf0745dea8d00a54dc8915fa23de5d2f"
+        },
+        "stderr": {
+          "path": "corpus/edit_distance/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "knapsack",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/knapsack/ZeroOneKnapsackProblem.kt",
+          "sha256": "071d172a813c26d4ab6afbc8d5b3033a32715303a01b8c5b4985ab2b1620583d",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/ZeroOneKnapsackProblem.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/ZeroOneKnapsackProblem.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/knapsack/Main.kt",
+        "sha256": "4eb2b36b80b60b283ef86c01e67372433a2b9664b507a5b6a0fc4c50674ff567"
+      },
+      "license": {
+        "path": "corpus/knapsack/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/knapsack/expected.stdout",
+          "sha256": "cbdd19a3980a0d492694d4805af33ac243c847017d8a73a1c02ed1d88c45cb3e"
+        },
+        "stderr": {
+          "path": "corpus/knapsack/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "two_sum",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/two_sum/TwoSum.kt",
+          "sha256": "2ed4a9414ec632a2346fc78d464b4b2a520219926be97f14b83db3f624ad36d5",
+          "upstream_path": "src/main/kotlin/math/TwoSum.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/math/TwoSum.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/two_sum/Main.kt",
+        "sha256": "c13826b63338c287d44a1449d65f829932cf85c357239ec1379ca71fdb6aa653"
+      },
+      "license": {
+        "path": "corpus/two_sum/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/two_sum/expected.stdout",
+          "sha256": "8d66c089414bb76bc2ee5c11465c93257821752b4e08be4f1d70737b9fa10f0c"
+        },
+        "stderr": {
+          "path": "corpus/two_sum/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "lcs",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/lcs/LCS.kt",
+          "sha256": "344dfe7480d3cdf89262e0969ae979cd0915461cd944c9e29940e308e3b78c4d",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/LCS.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/LCS.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/lcs/Main.kt",
+        "sha256": "9c68e9dfb71c60e44712ecc467d9de8f27e9a8356971a329ae5e0b53c10dbc5c"
+      },
+      "license": {
+        "path": "corpus/lcs/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/lcs/expected.stdout",
+          "sha256": "7de1555df0c2700329e815b93b32c571c3ea54dc967b89e81ab73b9972b72d1d"
+        },
+        "stderr": {
+          "path": "corpus/lcs/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "rod_cutting",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/rod_cutting/RodCuttingProblem.kt",
+          "sha256": "4929ac0c8e22b229966c4916c68fe6db56f68880709b96a504c21b3e157dadad",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/RodCuttingProblem.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/RodCuttingProblem.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/rod_cutting/Main.kt",
+        "sha256": "4f123caf1c9424eb2493cccd34aefc2a8552e70efa7a57bcfeb7ccb84b3b0962"
+      },
+      "license": {
+        "path": "corpus/rod_cutting/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/rod_cutting/expected.stdout",
+          "sha256": "f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56"
+        },
+        "stderr": {
+          "path": "corpus/rod_cutting/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "matrix_chain",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/matrix_chain/MatrixChainMultiplication.kt",
+          "sha256": "b25bd342c75ccedc5cb5c08cbdb606ef4ba0e9a2053528febd5b617bac22b0f5",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/MatrixChainMultiplication.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/MatrixChainMultiplication.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/matrix_chain/Main.kt",
+        "sha256": "538f7f08eb3f10fa3aec6e701da068c0e8dcf692c408735de17f0cbcbe61ecf2"
+      },
+      "license": {
+        "path": "corpus/matrix_chain/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/matrix_chain/expected.stdout",
+          "sha256": "3b5f394310b939c5e9411bc90d6ec94420e2e79d229b4e369a5c0f30c16d5897"
+        },
+        "stderr": {
+          "path": "corpus/matrix_chain/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": [
+        "KUU-1855"
+      ]
+    },
+    {
+      "name": "median",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/median/Median.kt",
+          "sha256": "969d65628111c45aeca098a908445b271fd047eb478778a3c18c2e3477a5b113",
+          "upstream_path": "src/main/kotlin/math/Median.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/math/Median.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/median/Main.kt",
+        "sha256": "f1e81524737a70e9d7571fb01aedb96d79ad8561bc431ecae8b60ca6db713a22"
+      },
+      "license": {
+        "path": "corpus/median/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/median/expected.stdout",
+          "sha256": "f78590ebf2a26d3cf1a25786eb79872d02b41f9588c62554e01ac04861d3657e"
+        },
+        "stderr": {
+          "path": "corpus/median/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": [
+        "KUU-1859"
+      ]
+    },
+    {
+      "name": "factorial",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/factorial/Factorial.kt",
+          "sha256": "326e7049275942b5686d7e464e485a3067936ca743f6eb6949fb215268340196",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/Factorial.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/Factorial.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/factorial/Main.kt",
+        "sha256": "a2400a51f3f34a9e7e9abf921dc1205f7e7f1abf924eb8af09dfd2dcf3716b37"
+      },
+      "license": {
+        "path": "corpus/factorial/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/factorial/expected.stdout",
+          "sha256": "140154083d726867f5e43282aeaf021f9300ec6287d4d2c874493ee655a766e7"
+        },
+        "stderr": {
+          "path": "corpus/factorial/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "prime",
+      "repository": "TheAlgorithms/Kotlin",
+      "revision": "b913c1d85c972fd1e679c5d832d6458b21be8fb0",
+      "sources": [
+        {
+          "path": "corpus/prime/isPrime.kt",
+          "sha256": "08d57250937aa4251fe1f37a6857738837603b9f15a1fe6c2df3847aa2755b50",
+          "upstream_path": "src/main/kotlin/dynamicProgramming/isPrime.kt",
+          "url": "https://github.com/TheAlgorithms/Kotlin/blob/b913c1d85c972fd1e679c5d832d6458b21be8fb0/src/main/kotlin/dynamicProgramming/isPrime.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/prime/Main.kt",
+        "sha256": "ec986721402cfac797d7edf50d10573863dec1d33779a2882aafc27b1b2dcb53"
+      },
+      "license": {
+        "path": "corpus/prime/LICENSE.txt",
+        "sha256": "f1b0fa7c4e821bb14b1b4857b3d63248d4b81a9a5adfc8324312272a1a22a033",
+        "upstream_path": "LICENSE"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/prime/expected.stdout",
+          "sha256": "2f460786cc59111efbd308f23b452683beb699cc66f4e25b7bbba634ab2078f7"
+        },
+        "stderr": {
+          "path": "corpus/prime/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "linked_list",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/linked_list/SingleLinkedList.kt",
+          "sha256": "f5ae057082730d7cca9d0833af88682d62f93bfc65d9f7a3cb491525bca57631",
+          "upstream_path": "src/main/kotlin/structures/SingleLinkedList.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/SingleLinkedList.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/linked_list/Main.kt",
+        "sha256": "fde22ea992b32c74642028af5ba76b07385a30db16a5775a10e6cde2c9e65f04"
+      },
+      "license": {
+        "path": "corpus/linked_list/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/linked_list/expected.stdout",
+          "sha256": "49bb59c06ea82a6eeabaa2f243cb0210b13dab38dafebd4622ac40a897b03430"
+        },
+        "stderr": {
+          "path": "corpus/linked_list/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "queue",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/queue/Queue.kt",
+          "sha256": "6c4e9adb9d7cb12a7aac85a3fb1d6ad2d11d7cd9b9322f75fe5b3575eb391497",
+          "upstream_path": "src/main/kotlin/structures/Queue.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Queue.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/queue/Main.kt",
+        "sha256": "fdc6e1cea0dcf7fe7b09f8127bb5b4d090b5672ec60207f391f273acdc63cdd2"
+      },
+      "license": {
+        "path": "corpus/queue/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/queue/expected.stdout",
+          "sha256": "650a335d52f27588f4289c79aed77a053bd30f6c8bf1c48b5981f89bded2bd41"
+        },
+        "stderr": {
+          "path": "corpus/queue/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": [
+        "KUU-1858"
+      ]
+    },
+    {
+      "name": "stack",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/stack/Stack1.kt",
+          "sha256": "bd0612d569ac4d04450beb4c05d8b8b4587ab082aaaffac7c3a48913edae4f21",
+          "upstream_path": "src/main/kotlin/structures/Stack1.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Stack1.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/stack/Main.kt",
+        "sha256": "8b6c66878cee63421147bb53d25b316b06d57006185cef3b581c34e730852d21"
+      },
+      "license": {
+        "path": "corpus/stack/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/stack/expected.stdout",
+          "sha256": "6db02a3521d5f82ab95a5bd637ac913c5efbf08a2030953b11902d0c5fe11e62"
+        },
+        "stderr": {
+          "path": "corpus/stack/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": [
+        "KUU-1856",
+        "KUU-1857"
+      ]
+    },
+    {
+      "name": "graph",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/graph/Graph.kt",
+          "sha256": "d086ca71c673c51ee5195372b34dccd5ea1d1226bc3858234144c673ea006102",
+          "upstream_path": "src/main/kotlin/structures/Graph.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Graph.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/graph/Main.kt",
+        "sha256": "bc54e0696b073af33eb94f1947a757fd014cc0e77e35385a0a08d54b9f347548"
+      },
+      "license": {
+        "path": "corpus/graph/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/graph/expected.stdout",
+          "sha256": "d14400ab26e9376a25ad06543031141f27f7ba89c3bde48ca6dde69cceb0b348"
+        },
+        "stderr": {
+          "path": "corpus/graph/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": [
+        "KUU-1858",
+        "KUU-1860"
+      ]
+    },
+    {
+      "name": "matrix",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/matrix/Matrix.kt",
+          "sha256": "ec8107a6841ab648fc18633a318b3ec33f37028c4c1bd405dbd3a98851b79253",
+          "upstream_path": "src/main/kotlin/structures/Matrix.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Matrix.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/matrix/Main.kt",
+        "sha256": "d4b1114bba65e97dece3d26680f145bfb868897c613b45f93644f23965a6a6de"
+      },
+      "license": {
+        "path": "corpus/matrix/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/matrix/expected.stdout",
+          "sha256": "2c7229a2a140759eb18a387832a9514044351be2c1f38326ac6434227a502c7b"
+        },
+        "stderr": {
+          "path": "corpus/matrix/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": [
+        "KUU-1856"
+      ]
+    },
+    {
+      "name": "observer",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/observer/Observer.kt",
+          "sha256": "fd608da7c1d13b62a4b2364acec04ebba0ea1b734ca045b48d9eb26569c69ee2",
+          "upstream_path": "src/main/kotlin/design_patterns/Observer.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/Observer.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/observer/Main.kt",
+        "sha256": "a885a11da3784ac9e43923212fa391c66293a8eb32d5352b193eed4134da0ec2"
+      },
+      "license": {
+        "path": "corpus/observer/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/observer/expected.stdout",
+          "sha256": "aea7b6f214523d5634afe6432d767fe456320a3683bc4824191f51476b2d82c8"
+        },
+        "stderr": {
+          "path": "corpus/observer/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "strategy",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/strategy/Strategy.kt",
+          "sha256": "c1c23ef84f49fa7e4ab2039d93c7f39ee9a2d7fa7cbb41cc44c85addf069d92f",
+          "upstream_path": "src/main/kotlin/design_patterns/Strategy.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/Strategy.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/strategy/Main.kt",
+        "sha256": "8b2b738ff73670ecebd3c5dfbe5e9f008afc688f218b33733702461fbb95a436"
+      },
+      "license": {
+        "path": "corpus/strategy/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/strategy/expected.stdout",
+          "sha256": "aa1bd56f428848875711c0d7b0a6a06b8dd9784faf81b6c521325779c2373ad4"
+        },
+        "stderr": {
+          "path": "corpus/strategy/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "builder",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/builder/Builder.kt",
+          "sha256": "4c4039b16f5a28b1f8a0cbcf1adb5032d06758ef3eebaed2cf6d2f32b251b2cb",
+          "upstream_path": "src/main/kotlin/design_patterns/Builder.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/Builder.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/builder/Main.kt",
+        "sha256": "4fb8cec9b7f649ed47caf40e7d5cb4e226257862c699951ae1d9bb96eb39430e"
+      },
+      "license": {
+        "path": "corpus/builder/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/builder/expected.stdout",
+          "sha256": "7864cf6a139ca2824399470aa19eadce388717e6d3f8a3fe816219eca006b542"
+        },
+        "stderr": {
+          "path": "corpus/builder/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "decorator",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/decorator/Decorator.kt",
+          "sha256": "fc3464e8f5f4c8636116c1262be9f6e9a3df9da5c840a0016ab3f920b465c989",
+          "upstream_path": "src/main/kotlin/design_patterns/Decorator.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/Decorator.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/decorator/Main.kt",
+        "sha256": "f5e861dd1f8f06781b5efb5cd32d6415923bff7918f8d6f9551b4c62519718ac"
+      },
+      "license": {
+        "path": "corpus/decorator/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/decorator/expected.stdout",
+          "sha256": "c98c24b677eff44860afea6f493bbaec5bb1c4cbb209c6fc2bbb47f66ff2ad31"
+        },
+        "stderr": {
+          "path": "corpus/decorator/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "command",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/command/Command.kt",
+          "sha256": "aa6ff3835a39326ad5d4480087fa37a5c43aaa61c353026e8b1dbf83aef6d348",
+          "upstream_path": "src/main/kotlin/design_patterns/Command.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/Command.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/command/Main.kt",
+        "sha256": "e13c71a68e7807d21381553f6ff31b3a738552420cd66d9047e1b52686189df6"
+      },
+      "license": {
+        "path": "corpus/command/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/command/expected.stdout",
+          "sha256": "425f46213626e5da073769c737fef8cab4d93afd43c7f7f835abcf8aee41a2b5"
+        },
+        "stderr": {
+          "path": "corpus/command/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "memento",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/memento/Memento.kt",
+          "sha256": "43f5835bd73a841a2ba63c7de2299bec7b24305025381f763b077ff5dd84d645",
+          "upstream_path": "src/main/kotlin/design_patterns/Memento.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/Memento.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/memento/Main.kt",
+        "sha256": "0a276c021c2d1575dfbeabbf11bcb977850353d2a35a64f32a007780b3f01ac9"
+      },
+      "license": {
+        "path": "corpus/memento/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/memento/expected.stdout",
+          "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+        },
+        "stderr": {
+          "path": "corpus/memento/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    },
+    {
+      "name": "state",
+      "repository": "DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns",
+      "revision": "1f89f062a056e24cc289ffdd0c6e23cadf8df887",
+      "sources": [
+        {
+          "path": "corpus/state/State.kt",
+          "sha256": "c256017267a65c62d46b0883fba42c6b3671f924461c7b1117adce7e82dcb34c",
+          "upstream_path": "src/main/kotlin/design_patterns/State.kt",
+          "url": "https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/design_patterns/State.kt"
+        }
+      ],
+      "main": {
+        "path": "corpus/state/Main.kt",
+        "sha256": "b0c31999453d3e32f294d6aee0ae47dd03e80aa15d46d69f54f77af3a403b4e4"
+      },
+      "license": {
+        "path": "corpus/state/LICENSE.txt",
+        "sha256": "21d4ae847f1e4414497485fd7985015818093dcbbf93e6aeb2cf2babc26049e0",
+        "upstream_path": "LICENSE.txt"
+      },
+      "expected": {
+        "stdout": {
+          "path": "corpus/state/expected.stdout",
+          "sha256": "099a5d91361443a9ec3b6003b88d60a13ec995a26e381de275ae8bd6e0e653ed"
+        },
+        "stderr": {
+          "path": "corpus/state/expected.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "exit_code": 0
+      },
+      "related_issues": []
+    }
+  ]
+}
