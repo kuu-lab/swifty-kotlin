@@ -112,7 +112,7 @@ private func existingResourceURL(named name: String) -> URL? {
     return opened.url
 }
 
-// MARK: - kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR), see
+// kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR), see
 // AnnotationSemanticTests.testAnnotationSemanticSema and
 // Scripts/diff_cases/deprecated_apis.kt). These are real, still-present
 // (if force-deprecated) top-level stdlib functions, not part of File's own

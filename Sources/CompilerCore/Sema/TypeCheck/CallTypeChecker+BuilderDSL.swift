@@ -8,6 +8,7 @@ extension CallTypeChecker {
         _ id: ExprID,
         calleeName: InternedString?,
         args: [CallArgument],
+        range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
@@ -20,7 +21,7 @@ extension CallTypeChecker {
         }
 
         let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-        var matches: [(symbol: SymbolID, returnType: TypeID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int])] = []
+        var matches: [(symbol: SymbolID, returnType: TypeID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int], boundDiagnostic: Diagnostic?)] = []
 
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
@@ -101,13 +102,24 @@ extension CallTypeChecker {
                 }
                 return substitution[typeVar]
             }
-            matches.append((candidate, substitutedReturnType, substitutedTypeArguments, parameterMapping))
+            let boundDiagnostic = ctx.resolver.checkTypeParameterBounds(
+                signature: signature,
+                substitution: substitution,
+                typeVarBySymbol: ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),
+                range: range,
+                ctx: ctx.sema
+            )
+            matches.append((candidate, substitutedReturnType, substitutedTypeArguments, parameterMapping, boundDiagnostic))
         }
 
         guard matches.count == 1 else {
             return nil
         }
         let match = matches[0]
+        if let diagnostic = match.boundDiagnostic {
+            ctx.sema.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+        }
         ctx.sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -580,7 +592,7 @@ extension CallTypeChecker {
         var substitution: [TypeVarID: TypeID] = [:]
         var constraints: [VariableConstraint] = []
 
-        if let expectedType, ctx.useProperTypeInferenceConstraintsProcessing || ctx.useNewInference {
+        if let expectedType {
             constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                 subtype: signature.returnType,
                 supertype: expectedType,
@@ -598,11 +610,37 @@ extension CallTypeChecker {
         }
 
         if !constraints.isEmpty {
+            // Contextual upper bounds must also respect declared bounds, e.g.
+            // List<T> <: List<Any> with T : Number can choose Number, not Any.
+            var contextualVariables = Set(ctx.resolver.usedTypeVariables(from: constraints))
+            var visitedBounds: Set<SymbolID> = []
+            for _ in signature.typeParameterSymbols {
+                for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                    guard let variable = typeVarBySymbol[symbol], contextualVariables.contains(variable),
+                          visitedBounds.insert(symbol).inserted else { continue }
+                    let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                        ? signature.typeParameterUpperBoundsList[index] : []
+                    let symbolBounds = sema.symbols.typeParameterUpperBounds(for: symbol)
+                    for bound in signatureBounds + symbolBounds.filter({ !signatureBounds.contains($0) }) {
+                        let boundConstraints = ctx.resolver.decomposeSubtypeConstraint(
+                            subtype: sema.types.make(.typeParam(TypeParamType(symbol: symbol, nullability: .nonNull))),
+                            supertype: bound,
+                            typeVarBySymbol: typeVarBySymbol,
+                            typeSystem: sema.types,
+                            blameRange: nil
+                        )
+                        constraints.append(contentsOf: boundConstraints)
+                        contextualVariables.formUnion(ctx.resolver.usedTypeVariables(from: boundConstraints))
+                    }
+                }
+            }
             let solver = ConstraintSolver()
             let vars = ctx.resolver.usedTypeVariables(from: constraints)
             let result = solver.solve(vars: vars, constraints: constraints, typeSystem: sema.types)
             if result.isSuccess {
-                for (typeVar, typeID) in result.substitution where typeID != sema.types.errorType {
+                for (typeVar, typeID) in result.substitution
+                    where typeID != sema.types.errorType && substitution[typeVar] == nil
+                {
                     substitution[typeVar] = typeID
                 }
             }
@@ -619,6 +657,13 @@ extension CallTypeChecker {
             case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])),
             let receiverType = functionType.receiver
         else {
+            return substitution
+        }
+
+        // Fully contextualized receivers need no out-of-scope mutation preview.
+        guard typeVarBySymbol.contains(where: { symbol, variable in
+            substitution[variable] == nil && sema.types.typeContainsTypeParam(receiverType, symbol: symbol)
+        }) else {
             return substitution
         }
 
@@ -758,7 +803,10 @@ extension CallTypeChecker {
             return
         }
         guard case let .typeParam(typeParam) = driver.sema.types.kind(of: innerType),
-              let typeVar = typeVarBySymbol[typeParam.symbol]
+              let typeVar = typeVarBySymbol[typeParam.symbol],
+              // A syntax scan can miss scoped mutations or collect another
+              // receiver's calls. It must not replace explicit or contextual types.
+              substitution[typeVar] == nil
         else {
             return
         }

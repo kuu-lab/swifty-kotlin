@@ -38,7 +38,9 @@ extension NativeEmitter.FunctionEmissionContext {
             return declareExternalFunction(
                 named: effectiveName,
                 parameterTypes: parameterTypes,
-                returnType: int64Type
+                // Function addresses must agree with the flat String call's native pointer return.
+                returnType: NativeEmitter.flatStringReturnCallSpecs[effectiveName] != nil
+                    ? typeLowering?.dataPointerType : int64Type
             )
         }
         let maxArgsSeenInBody = maxKIRArgumentCountByExternalCallee[effectiveName] ?? 0
