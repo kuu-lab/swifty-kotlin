@@ -6,8 +6,6 @@ final class ExprTypeChecker {
         self.driver = driver
     }
 
-    // MARK: - Main Dispatch (from +ExprInference.swift)
-
     // swiftlint:disable:next cyclomatic_complexity
     func inferExpr(
         _ id: ExprID,
