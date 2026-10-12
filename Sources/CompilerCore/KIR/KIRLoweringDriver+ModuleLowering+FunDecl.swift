@@ -277,26 +277,10 @@ extension KIRLoweringDriver {
             }
         }
 
-        let kotlinTextPackage = [
-            interner.intern("kotlin"),
-            interner.intern("text"),
-        ]
-        if packageFQName == kotlinTextPackage {
-            // The String indent/format helpers are pure Kotlin; only the
-            // private __kk_string_* bridges are external and skipped by the
-            // external-function path. Public functions must be lowered so user
-            // calls dispatch through the source declarations.
-            return false
-        }
-
-        let kotlinTimePackage = [
-            interner.intern("kotlin"),
-            interner.intern("time"),
-        ]
-        if packageFQName == kotlinTimePackage {
-            return false
-        }
-
+        // The String indent/format helpers are pure Kotlin; only the
+        // private __kk_string_* bridges are external and skipped by the
+        // external-function path. Public functions must be lowered so user
+        // calls dispatch through the source declarations.
         return false
     }
 }
