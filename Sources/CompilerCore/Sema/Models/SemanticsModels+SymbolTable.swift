@@ -1142,8 +1142,6 @@ public final class SymbolTable {
         contractConditionEffects[function]
     }
 
-    // MARK: - Indexed queries
-
     /// Returns all symbol IDs of a given kind.
     public func symbols(ofKind kind: SymbolKind) -> [SymbolID] {
         byKind[kind] ?? []
