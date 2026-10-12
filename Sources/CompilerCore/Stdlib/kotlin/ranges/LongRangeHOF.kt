@@ -8,8 +8,6 @@ import kotlin.random.Random
 
 // MIGRATION-RANGE-002: LongRange higher-order functions, moved verbatim from RangeHOF.kt.
 
-// MARK: - LongRange
-
 // KSP-1287: Kotlin exposes exact LongRange overloads for the other signed
 // primitive integer types; widening preserves their values before membership.
 @kotlin.internal.InlineOnly
