@@ -115,9 +115,10 @@ matrix cells, with no source/artifact or O0/O2 divergence; three out-of-lane
 cases are excluded. The 52 failures are expected-contract mismatches or
 unmapped diagnostic codes in 13 fixtures whose native contracts are still
 marked `required-by-followup-not-yet-implemented`. The full run includes the
-KClass constructor-property fix and corrected unbound fixture source. The
-post-fix, fresh-artifact four-cell result for the focused annotation/reflection
-fixtures is saved separately in
+KClass constructor-property fix and corrected unbound fixture source; its Git
+revision and compiler-source hash are recorded in the evidence. It predates the
+PR's rebase onto the latest `master`. The post-rebase, fresh-artifact 12-cell
+result for the focused annotation/reflection fixtures is saved separately in
 `create-instance-postfix-matrix-results.json` (12/12 passed across
 `unbound_create_instance`, `reflection`, and `native_observations`). The run
 summaries under `.artifacts/js_annotations_matrix/<run-id>/` retain each
