@@ -78,7 +78,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Parameter building
 
     private func buildFunDeclParams(
         _ function: FunDecl,
@@ -139,7 +138,6 @@ extension KIRLoweringDriver {
         return params
     }
 
-    // MARK: - Default stub
 
     private func appendDefaultStub(
         symbol: SymbolID,
@@ -157,7 +155,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Body lowering
 
     private func lowerFunDeclBody(
         _ function: FunDecl,
