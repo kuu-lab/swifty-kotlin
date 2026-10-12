@@ -19,7 +19,7 @@ final class ControlFlowTypeChecker {
             return sema.types.errorType
         }
         guard sema.types.nullability(of: iterableType) != .nullable else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0172",
                 "The for-loop cannot iterate over a nullable receiver.",
                 range: ctx.ast.arena.exprRange(iterableExpr) ?? range
@@ -39,7 +39,7 @@ final class ControlFlowTypeChecker {
         ) {
             return elementType
         }
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0172",
             "The for-loop must have an 'iterator()' method.",
             range: ctx.ast.arena.exprRange(iterableExpr) ?? range
@@ -89,11 +89,11 @@ final class ControlFlowTypeChecker {
                 call: CallExpr(range: range, calleeName: iteratorName, args: []),
                 expectedType: nil,
                 implicitReceiverType: nonNullIterableType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
 
             if let diagnostic = iteratorResolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 return sema.types.errorType
             }
 
@@ -168,18 +168,18 @@ final class ControlFlowTypeChecker {
             call: CallExpr(range: range, calleeName: hasNextName, args: []),
             expectedType: nil,
             implicitReceiverType: iteratorType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         let nextResolved = ctx.resolver.resolveCall(
             candidates: nextCandidates,
             call: CallExpr(range: range, calleeName: nextName, args: []),
             expectedType: nil,
             implicitReceiverType: iteratorType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
 
         if let diagnostic = hasNextResolved.diagnostic ?? nextResolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             return sema.types.errorType
         }
 
@@ -356,7 +356,7 @@ final class ControlFlowTypeChecker {
             range: ast.arena.exprRange(conditionExpr) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         // Smart cast: apply condition branching to the while body (P5-66)
         let branch = ctx.dataFlow.branchOnCondition(
@@ -419,7 +419,7 @@ final class ControlFlowTypeChecker {
             range: ast.arena.exprRange(conditionExpr) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         for (name, local) in locals {
             if !local.isInitialized,
@@ -437,8 +437,6 @@ final class ControlFlowTypeChecker {
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }
-
-    // MARK: - Infinite-loop helpers
 
     /// Loop-carried writes invalidate assignment facts on later iterations
     /// and break paths, regardless of the body's final type.
@@ -635,7 +633,7 @@ final class ControlFlowTypeChecker {
                 }
             }
             return false
-        case .lambdaLiteral, .localFunDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
+        case .lambdaLiteral, .localFunDecl, .localNominalDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
             return false
         case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
             return false
@@ -666,7 +664,7 @@ final class ControlFlowTypeChecker {
                 range: ast.arena.exprRange(condition),
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(
@@ -703,7 +701,7 @@ final class ControlFlowTypeChecker {
                thenType != sema.types.errorType, thenType != sema.types.nothingType,
                retriableBranchExpr(elseExpr)
             {
-                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
                 var retryLocals = locals
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &retryLocals, sema: sema)
                 let retried = driver.inferExpr(
@@ -717,17 +715,17 @@ final class ControlFlowTypeChecker {
                     elseType = retried
                     elseLocals = retryLocals
                     if let elseRange = ast.arena.exprRange(elseExpr) {
-                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
+                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
                     }
                 } else {
-                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
             if expectedType == nil, thenType == sema.types.errorType,
                elseType != sema.types.errorType, elseType != sema.types.nothingType,
                retriableBranchExpr(thenExpr)
             {
-                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
                 var retryLocals = locals
                 driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &retryLocals, sema: sema)
                 let retried = driver.inferExpr(
@@ -741,10 +739,10 @@ final class ControlFlowTypeChecker {
                     thenType = retried
                     thenLocals = retryLocals
                     if let thenRange = ast.arena.exprRange(thenExpr) {
-                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
+                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
                     }
                 } else {
-                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
             resolvedType = sema.types.lub(contextualizeLongBranchLiterals(
@@ -922,7 +920,7 @@ final class ControlFlowTypeChecker {
             resolved = sema.types.errorType
         }
         if resolved == sema.types.errorType {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0085",
                 "Unresolved exception type '\(catchParamTypeDisplayName(paramType, ctx: ctx))' in catch clause.",
                 range: range
@@ -931,7 +929,7 @@ final class ControlFlowTypeChecker {
                   !sema.types.isSubtype(resolved, throwableType)
         {
             // KUU-1407: catch parameters must be subtypes of Throwable.
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0413",
                 "throwable type mismatch: actual type is '\(sema.types.renderType(resolved))'.",
                 range: range

@@ -381,38 +381,32 @@ public final class CodegenPhase: CompilerPhase {
         case let .nullAssert(operand, result):
             return "nullAssert operand=\(operand.rawValue) result=\(result.rawValue)"
         case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-            let args = arguments.map { String($0.rawValue) }.joined(separator: ",")
-            let symbolValue = symbol.map { String($0.rawValue) } ?? "_"
-            let resultValue = result.map { String($0.rawValue) } ?? "_"
-            let thrownResultValue = thrownResult.map { String($0.rawValue) } ?? "_"
+            let fields = serializeInlineCallFields(
+                symbol: symbol,
+                callee: callee,
+                arguments: arguments,
+                result: result,
+                thrownResult: thrownResult,
+                interner: interner,
+                functionLinkNames: functionLinkNames,
+                symbols: symbols
+            )
             let qualifiedSuperValue = qualifiedSuperType.map { String($0.rawValue) } ?? "_"
-            let calleeName = base64Encode(interner.resolve(callee))
-            let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
-            let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
-            let symbolFQName = symbol.flatMap {
-                inlineSymbolFQName($0, interner: interner, symbols: symbols)
-            }
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
-            return "call symbol=\(symbolValue) calleeB64=\(calleeName) args=[\(args)]"
-                + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
-                + " thrownResult=\(thrownResultValue) isSuperCall=\(isSuperCall ? 1 : 0)"
-                + " qualifiedSuperType=\(qualifiedSuperValue)" + linkField + symbolFQNameField
+            return "call symbol=\(fields.symbolValue) calleeB64=\(fields.calleeName) args=[\(fields.args)]"
+                + " result=\(fields.resultValue) canThrow=\(canThrow ? 1 : 0)"
+                + " thrownResult=\(fields.thrownResultValue) isSuperCall=\(isSuperCall ? 1 : 0)"
+                + " qualifiedSuperType=\(qualifiedSuperValue)" + fields.linkField + fields.symbolFQNameField
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-            let args = arguments.map { String($0.rawValue) }.joined(separator: ",")
-            let symbolValue = symbol.map { String($0.rawValue) } ?? "_"
-            let resultValue = result.map { String($0.rawValue) } ?? "_"
-            let thrownResultValue = thrownResult.map { String($0.rawValue) } ?? "_"
-            let calleeName = base64Encode(interner.resolve(callee))
-            let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
-            let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
-            let symbolFQName = symbol.flatMap {
-                inlineSymbolFQName($0, interner: interner, symbols: symbols)
-            }
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
+            let fields = serializeInlineCallFields(
+                symbol: symbol,
+                callee: callee,
+                arguments: arguments,
+                result: result,
+                thrownResult: thrownResult,
+                interner: interner,
+                functionLinkNames: functionLinkNames,
+                symbols: symbols
+            )
             let dispatchStr = switch dispatch {
             case let .vtable(slot):
                 "vtable:\(slot)"
@@ -421,27 +415,21 @@ public final class CodegenPhase: CompilerPhase {
             case let .itableDynamic(interfaceTypeID, methodSlot):
                 "itableDynamic:\(interfaceTypeID):\(methodSlot)"
             }
-            return "virtualCall symbol=\(symbolValue) calleeB64=\(calleeName)"
-                + " receiver=\(receiver.rawValue) args=[\(args)]"
-                + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
-                + " thrownResult=\(thrownResultValue) dispatch=\(dispatchStr)"
-                + linkField + symbolFQNameField
+            return "virtualCall symbol=\(fields.symbolValue) calleeB64=\(fields.calleeName)"
+                + " receiver=\(receiver.rawValue) args=[\(fields.args)]"
+                + " result=\(fields.resultValue) canThrow=\(canThrow ? 1 : 0)"
+                + " thrownResult=\(fields.thrownResultValue) dispatch=\(dispatchStr)"
+                + fields.linkField + fields.symbolFQNameField
         case let .jumpIfNotNull(value, target):
             return "jumpIfNotNull value=\(value.rawValue) target=\(target)"
         case let .copy(from, to):
             return "copy from=\(from.rawValue) to=\(to.rawValue)"
         case let .storeGlobal(value, symbol):
-            let symbolFQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols)
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
-            return "storeGlobal value=\(value.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
+            return "storeGlobal value=\(value.rawValue) symbol=\(symbol.rawValue)"
+                + inlineSymbolFQNameField(symbol, interner: interner, symbols: symbols)
         case let .loadGlobal(result, symbol):
-            let symbolFQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols)
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
-            return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
+            return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)"
+                + inlineSymbolFQNameField(symbol, interner: interner, symbols: symbols)
         case let .rethrow(value):
             return "rethrow value=\(value.rawValue)"
         case let .nonLocalReturn(value, target):
@@ -471,6 +459,41 @@ public final class CodegenPhase: CompilerPhase {
         case .endFinallyGuard:
             return "endFinallyGuard"
         }
+    }
+
+    /// Serialized field columns shared by `.call` and `.virtualCall`: both
+    /// record kinds lead with the same symbol/callee/args/result/throw/link
+    /// fields before appending their kind-specific fields.
+    private func serializeInlineCallFields(
+        symbol: SymbolID?,
+        callee: InternedString,
+        arguments: [KIRExprID],
+        result: KIRExprID?,
+        thrownResult: KIRExprID?,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        symbols: SymbolTable?
+    ) -> (args: String, symbolValue: String, resultValue: String, thrownResultValue: String, calleeName: String, linkField: String, symbolFQNameField: String) {
+        let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
+        let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
+        return (
+            args: arguments.map { String($0.rawValue) }.joined(separator: ","),
+            symbolValue: symbol.map { String($0.rawValue) } ?? "_",
+            resultValue: result.map { String($0.rawValue) } ?? "_",
+            thrownResultValue: thrownResult.map { String($0.rawValue) } ?? "_",
+            calleeName: base64Encode(interner.resolve(callee)),
+            linkField: linkField,
+            symbolFQNameField: inlineSymbolFQNameField(symbol, interner: interner, symbols: symbols)
+        )
+    }
+
+    private func inlineSymbolFQNameField(
+        _ symbol: SymbolID?,
+        interner: StringInterner,
+        symbols: SymbolTable?
+    ) -> String {
+        symbol.flatMap { inlineSymbolFQName($0, interner: interner, symbols: symbols) }
+            .map { " symbolFQNameB64=\(base64Encode($0))" } ?? ""
     }
 
     private func inlineReturnTargetLink(
@@ -634,9 +657,6 @@ public final class CodegenPhase: CompilerPhase {
         )
         return encoder.serializeIndexed(records)
     }
-
-    // MARK: - REFL-004: Runtime Reflection Metadata
-
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,
         functionLinkInfo: FunctionLinkInfo

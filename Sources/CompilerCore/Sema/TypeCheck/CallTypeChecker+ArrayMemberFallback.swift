@@ -480,9 +480,7 @@ extension CallTypeChecker {
         return primitiveMapping.first { $0.0 == className }?.1
     }
 
-    // MARK: - KFunction member call fallback (STDLIB-REFLECT-063)
-
-    /// Checks whether the receiver type is `kotlin.reflect.KFunction<*>`.
+    /// STDLIB-REFLECT-063: Checks whether the receiver type is `kotlin.reflect.KFunction<*>`.
     private func isKFunctionReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule

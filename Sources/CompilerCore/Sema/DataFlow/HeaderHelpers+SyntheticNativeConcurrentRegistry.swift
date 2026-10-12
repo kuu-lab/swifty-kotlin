@@ -52,7 +52,7 @@ extension DataFlowSemaPhase {
         )))
         // FutureState is source-backed. Keep only its early nominal anchor here
         // because Worker/Future registration runs before bundled headers are collected.
-        let futureStateSymbol = ensureNativeConcurrentEnum(
+        _ = ensureNativeConcurrentEnum(
             named: "FutureState",
             entries: [],
             in: nativeConcurrentPkg,
@@ -60,18 +60,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let futureStateType = types.make(.classType(ClassType(
-            classSymbol: futureStateSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
         for step in NativeConcurrentRegistrationStep.allCases {
             registerNativeConcurrentStep(
                 step,
                 packageFQName: nativeConcurrentPkg,
                 pkgSymbol: nativeConcurrentPkgSymbol,
                 transferModeType: transferModeType,
-                futureStateType: futureStateType,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -97,7 +91,6 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
         transferModeType: TypeID,
-        futureStateType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -366,7 +359,7 @@ extension DataFlowSemaPhase {
             if let pkgSymbol {
                 symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
             }
-            appendNativeConcurrentAnnotationMetadata(
+            appendStandardAnnotationMetadata(
                 to: threadLocalNativeAnnotationSymbol,
                 targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
                 retention: "AnnotationRetention.BINARY",
@@ -775,7 +768,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(companionType, for: companionSymbol)
 
-        // Worker.isTerminated: Boolean (property)
         registerNativeConcurrentReadOnlyProperty(
             ownerSymbol: workerSymbol,
             name: "isTerminated",
@@ -858,87 +850,6 @@ extension DataFlowSemaPhase {
     // MARK: - freeze / isFrozen
 
 
-    private func registerNativeConcurrentPackageExtensionProperty(
-        named name: String,
-        packageFQName: [InternedString],
-        receiverType: TypeID,
-        returnType: TypeID,
-        annotations: [MetadataAnnotationRecord] = [],
-        externalLinkName: String? = nil,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = packageFQName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { id in
-            symbols.symbol(id)?.kind == .property
-                && symbols.extensionPropertyReceiverType(for: id) == receiverType
-        }) {
-            symbols.setPropertyType(returnType, for: existing)
-            appendNativeConcurrentMetadataAnnotations(annotations, to: existing, symbols: symbols)
-            if let externalLinkName {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-            }
-            if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [],
-                        returnType: returnType
-                    ),
-                    for: getterSymbol
-                )
-                appendNativeConcurrentMetadataAnnotations(annotations, to: getterSymbol, symbols: symbols)
-                if let externalLinkName {
-                    symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
-                }
-            }
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
-        symbols.setPropertyType(returnType, for: propertySymbol)
-        symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
-        appendNativeConcurrentMetadataAnnotations(annotations, to: propertySymbol, symbols: symbols)
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        }
-
-        let getterAccessorName = interner.intern("$get")
-        let getterSymbol = symbols.define(
-            kind: .function,
-            name: getterAccessorName,
-            fqName: propertyFQName + [getterAccessorName],
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(propertySymbol, for: getterSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType
-            ),
-            for: getterSymbol
-        )
-        appendNativeConcurrentMetadataAnnotations(annotations, to: getterSymbol, symbols: symbols)
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
-        }
-        symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
-        symbols.setAccessorOwnerProperty(propertySymbol, for: getterSymbol)
-    }
 }
 
 /// Residual synthetic support for the source-backed `Future<T>` value class.

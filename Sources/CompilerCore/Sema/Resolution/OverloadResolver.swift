@@ -75,8 +75,6 @@ public struct ProbedCallResult {
 }
 
 final class OverloadResolver {
-    /// Optional sema cache context.  When non-nil the resolver checks the
-    /// call-resolution cache before performing full candidate evaluation.
     var cacheContext: SemaCacheContext?
 
     init() {}

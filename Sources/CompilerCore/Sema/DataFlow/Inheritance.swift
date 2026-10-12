@@ -736,11 +736,9 @@ extension DataFlowSemaPhase {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 validateAbstractOverridesForDecl(
                     declID: declID,
-                    file: file,
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
-                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -1294,11 +1292,9 @@ extension DataFlowSemaPhase {
 
     private func validateAbstractOverridesForDecl(
         declID: DeclID,
-        file: ASTFile,
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -1309,7 +1305,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Only check concrete class/object declarations (not abstract, not interface)
         guard symbolInfo.kind == .class || symbolInfo.kind == .object,
               !symbolInfo.flags.contains(.abstractType)
         else {
@@ -1350,7 +1345,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Collects the set of member names that this class provides via `override`.
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
@@ -1432,7 +1426,6 @@ extension DataFlowSemaPhase {
                 else {
                     continue
                 }
-                // Only check class and interface declarations that have supertypes
                 let hasSuperTypes: Bool
                 switch decl {
                 case let .classDecl(classDecl):

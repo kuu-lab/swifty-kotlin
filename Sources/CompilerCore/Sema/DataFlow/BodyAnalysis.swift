@@ -706,7 +706,6 @@ extension DataFlowSemaPhase {
         recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID? {
-        // Cycle detection
         guard !visited.contains(symbolID) else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-ALIAS-CYCLE",
@@ -715,7 +714,6 @@ extension DataFlowSemaPhase {
             )
             return nil
         }
-        // Depth limit
         guard depth < DataFlowSemaPhase.maxAliasExpansionDepth else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-ALIAS-DEPTH",
@@ -1084,7 +1082,6 @@ extension DataFlowSemaPhase {
 
         switch expr {
         case let .call(callee, _, _, _):
-            // Direct self call: `f(...)`.
             guard let calleeExpr = ast.arena.expr(callee),
                   case let .nameRef(name, _) = calleeExpr
             else { return false }
@@ -1092,7 +1089,6 @@ extension DataFlowSemaPhase {
 
         case let .memberCall(receiver, callee, _, _, _),
              let .safeMemberCall(receiver, callee, _, _, _):
-            // Qualified self call: `this.f(...)` / `this?.f(...)`.
             guard let receiverExpr = ast.arena.expr(receiver),
                   case .thisRef = receiverExpr
             else { return false }

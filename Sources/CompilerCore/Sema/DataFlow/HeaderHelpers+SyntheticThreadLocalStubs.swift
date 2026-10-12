@@ -1,5 +1,3 @@
-
-/// Synthetic stdlib stubs for java.lang.ThreadLocal and kotlin.concurrent.getOrSet.
 extension DataFlowSemaPhase {
     func registerSyntheticThreadLocalStubs(
         symbols: SymbolTable,

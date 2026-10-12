@@ -58,7 +58,7 @@ extension CallTypeChecker {
                 call: CallExpr(range: request.range, calleeName: request.calleeName, args: [],
                                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)),
                 expectedType: nil, implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             guard resolution.chosenCallee != nil else { return false }
             type = sema.types.substituteTypeParameters(

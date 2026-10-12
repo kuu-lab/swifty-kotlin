@@ -77,8 +77,6 @@ final class ComparableCharEscapeAnalyzer {
         return result
     }
 
-    // MARK: - candidate predicates
-
     private func isComparableCharType(_ type: TypeID?) -> Bool {
         guard let type,
               let comparableSymbol = types.comparableInterfaceSymbol,
@@ -121,8 +119,6 @@ final class ComparableCharEscapeAnalyzer {
         return symbol
     }
 
-    // MARK: - union-find over copy edges
-
     private func unionFind(_ symbol: SymbolID) -> SymbolID {
         var current = symbol
         while let parent = unionParent[current], parent != current {
@@ -144,8 +140,6 @@ final class ComparableCharEscapeAnalyzer {
         }
         return true
     }
-
-    // MARK: - structural traversal (shared by the collect and classify passes)
 
     /// Each direct child expression of `exprID`, with the depth delta and
     /// whether the child sits in a discarded-value statement position.
@@ -431,8 +425,6 @@ final class ComparableCharEscapeAnalyzer {
         )
     }
 
-    // MARK: - pass 1: collect candidates
-
     private func collectDecl(_ declID: DeclID, depth: Int) {
         eachDeclChild(of: declID, depth: depth + 1) { [self] exprID, exprDepth, _ in
             collectExpr(exprID, depth: exprDepth)
@@ -452,8 +444,6 @@ final class ComparableCharEscapeAnalyzer {
             collectExpr(child, depth: childDepth)
         }
     }
-
-    // MARK: - pass 2: classify uses
 
     private func classifyDecl(_ declID: DeclID, depth: Int) {
         eachDeclChild(of: declID, depth: depth + 1) { [self] exprID, exprDepth, isStatement in

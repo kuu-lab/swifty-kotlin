@@ -45,7 +45,6 @@ extension KotlinParser {
                 leadingRange: modifierRange.value
             )
         case .keyword(.fun):
-            // `fun interface` — consume `fun` as a modifier and parse as interface decl
             if stream.peek(1).kind == .keyword(.interface) {
                 _ = consumeToken(into: &modifierChildren, range: &modifierRange)
                 return parseNamedDeclaration(
@@ -133,7 +132,6 @@ extension KotlinParser {
         var range = RangeAccumulator(value: leadingRange)
         let supportsTypeParameters = kind == .classDecl || kind == .interfaceDecl
 
-        // Detect companion object: leading modifiers contain the `companion` keyword
         let isCompanionObject = kind == .objectDecl && leadingChildren.contains(where: { child in
             if case let .token(tokenID) = child,
                let token = arena.token(tokenID),
@@ -163,7 +161,7 @@ extension KotlinParser {
         // following annotated declaration remains outside this class.
         if kind == .classDecl, startsPrimaryConstructorHeader() {
             parseLeadingDeclarationPrefix(into: &children, range: &range)
-            _ = consumeToken(into: &children, range: &range) // constructor
+            _ = consumeToken(into: &children, range: &range)
             let parameters = parseBalancedGroup(
                 opening: .lParen, closing: .rParen, allowsPrimaryConstructorParameters: true
             )
@@ -194,22 +192,8 @@ extension KotlinParser {
                 continue
             }
             guard kind == .symbol(.at) else { return false }
-            offset += 1
-            if isAnnotationUseSiteTarget(stream.peek(offset)),
-               stream.peek(offset + 1).kind == .symbol(.colon) {
-                offset += 2
-            }
-            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
-            offset += 1
-            while stream.peek(offset).kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(offset + 1).kind) {
-                offset += 2
-            }
-            if stream.peek(offset).kind == .symbol(.lParen) {
-                offset = offsetPastBalancedGroup(from: offset,
-                    open: .symbol(.lParen), close: .symbol(.rParen))
-                guard stream.peek(offset - 1).kind == .symbol(.rParen) else { return false }
-            }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
         }
     }
 
@@ -238,7 +222,7 @@ extension KotlinParser {
             if case .symbol(.question) = stream.peek().kind {
                 _ = consumeToken(into: &children, range: &range)
             }
-            _ = consumeToken(into: &children, range: &range) // `.` or `?.`
+            _ = consumeToken(into: &children, range: &range)
         }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
@@ -266,9 +250,8 @@ extension KotlinParser {
         )
     }
 
-    /// Lookahead for `fun (Type).name(`: a parenthesized receiver group that is
-    /// followed by `.` / `?.` (optionally after a `?` nullability marker), as
-    /// opposed to the `(` that opens a value-parameter list.
+    /// Distinguishes a parenthesized receiver group followed by `.` / `?.` from
+    /// the `(` that opens a value-parameter list.
     private func parenthesizedReceiverPrecedesFunctionName() -> Bool {
         var offset = offsetPastBalancedGroup(from: 0, open: .symbol(.lParen), close: .symbol(.rParen))
         if stream.peek(offset).kind == .symbol(.question) {
@@ -329,8 +312,6 @@ extension KotlinParser {
         )
     }
 
-    /// Parse a single property accessor (`get() = expr` or `set(value) { ... }`)
-    /// into a dedicated `.propertyAccessor` CST node.
     private func parsePropertyAccessor(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var accessorChildren: [SyntaxChild] = []
         var accessorRange = RangeAccumulator()
@@ -348,9 +329,7 @@ extension KotlinParser {
         range.append(accessorNodeRange)
     }
 
-    /// Parse an explicit backing field declaration (`field = expr` or
-    /// `field: Type = expr`) into a dedicated `.propertyAccessor` CST node.
-    /// We reuse the `.propertyAccessor` kind so the AST builder can detect it
+    /// Reuses the `.propertyAccessor` kind so the AST builder can detect it
     /// via the leading `field` soft keyword.
     private func parseExplicitBackingField(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var fieldChildren: [SyntaxChild] = []
@@ -428,7 +407,6 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else if parseEnumHeaderTail(into: &children, range: &range) {
-            // The helper has already appended the enum body.
         } else {
             parseTail(inBlock: false, into: &children, range: &range)
         }
@@ -504,43 +482,15 @@ extension KotlinParser {
         return true
     }
 
-    /// Returns whether the current token starts an annotation-prefixed enum
-    /// entry. This lookahead mirrors the token shape consumed by
-    /// `consumeDeclarationAnnotationPrefixIfPresent` without mutating the
-    /// parser stream.
+    /// Mirrors the token shape consumed by `consumeDeclarationAnnotationPrefixIfPresent`
+    /// without mutating the parser stream.
     private func enumEntryStartsAfterLeadingAnnotations() -> Bool {
         guard stream.peek().kind == .symbol(.at) else { return false }
 
         var offset = 0
         while stream.peek(offset).kind == .symbol(.at) {
-            offset += 1
-
-            if isAnnotationUseSiteTarget(stream.peek(offset)),
-               stream.peek(offset + 1).kind == .symbol(.colon)
-            {
-                offset += 2
-            }
-
-            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
-            offset += 1
-            while stream.peek(offset).kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(offset + 1).kind)
-            {
-                offset += 2
-            }
-
-            if stream.peek(offset).kind == .symbol(.lParen) {
-                var depth = 0
-                repeat {
-                    let kind = stream.peek(offset).kind
-                    if kind == .symbol(.lParen) {
-                        depth += 1
-                    } else if kind == .symbol(.rParen) {
-                        depth -= 1
-                    }
-                    offset += 1
-                } while depth > 0 && stream.peek(offset - 1).kind != .eof
-            }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
         }
 
         let nextKind = stream.peek(offset).kind

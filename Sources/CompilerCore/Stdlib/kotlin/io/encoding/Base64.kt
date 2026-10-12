@@ -1,3 +1,8 @@
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Decoding adapted from Kotlin 2.3.10 commonMain/kotlin/io/encoding/Base64.kt.
+ */
 package kotlin.io.encoding
 
 import kotlin.internal.KsSymbolName
@@ -15,6 +20,9 @@ private const val URL_SAFE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno
 // otherwise share the standard alphabet.
 private const val MIME_LINE_LENGTH = 76
 private const val PEM_LINE_LENGTH = 64
+private const val BASE64_BITS_PER_BYTE = 8
+private const val BASE64_BITS_PER_SYMBOL = 6
+private const val BASE64_PAD_SYMBOL: Byte = 61
 
 public open class Base64 internal constructor(
     internal val alphabetChars: String,
@@ -73,7 +81,9 @@ public open class Base64 internal constructor(
 
     public open fun decode(source: ByteArray, startIndex: Int = 0, endIndex: Int = source.size): ByteArray {
         checkSourceBounds(source.size, startIndex, endIndex)
-        return decode(source.decodeToString(startIndex, endIndex))
+        val destination = ByteArray(decodedSize(source, startIndex, endIndex))
+        decodeImpl(source, destination, 0, startIndex, endIndex)
+        return destination
     }
 
     public open fun decodeIntoByteArray(
@@ -83,16 +93,13 @@ public open class Base64 internal constructor(
         startIndex: Int = 0,
         endIndex: Int = source.size
     ): Int {
-        val decoded = decode(source, startIndex, endIndex)
-        decoded.copyInto(destination, destinationOffset)
-        return decoded.size
+        checkSourceBounds(source.size, startIndex, endIndex)
+        checkDestinationBounds(destination.size, destinationOffset, decodedSize(source, startIndex, endIndex))
+        return decodeImpl(source, destination, destinationOffset, startIndex, endIndex)
     }
 
     public open fun decode(source: CharSequence, startIndex: Int = 0, endIndex: Int = source.length): ByteArray {
-        checkSourceBounds(source.length, startIndex, endIndex)
-        val text = source.toString().substring(startIndex, endIndex)
-        val sanitized = if (lineLength > 0) filterToAlphabet(text) else text
-        return decodeRaw(sanitized)
+        return decode(charsToBytes(source, startIndex, endIndex))
     }
 
     public open fun decodeIntoByteArray(
@@ -102,9 +109,7 @@ public open class Base64 internal constructor(
         startIndex: Int = 0,
         endIndex: Int = source.length
     ): Int {
-        val decoded = decode(source, startIndex, endIndex)
-        decoded.copyInto(destination, destinationOffset)
-        return decoded.size
+        return decodeIntoByteArray(charsToBytes(source, startIndex, endIndex), destination, destinationOffset)
     }
 
     private fun encodeRaw(source: ByteArray, startIndex: Int, endIndex: Int): String {
@@ -151,76 +156,188 @@ public open class Base64 internal constructor(
         return sb.toString()
     }
 
-    // RFC 2045 MIME decoders ignore every character outside the alphabet
-    // (whitespace, CRLF, control characters), rather than rejecting them.
-    private fun filterToAlphabet(source: String): String {
-        val sb = StringBuilder()
-        var i = 0
-        while (i < source.length) {
-            val c = source[i]
-            if (c == '=' || alphabetChars.indexOf(c) >= 0) {
-                sb.append(c)
+    private fun decodeImpl(
+        source: ByteArray,
+        destination: ByteArray,
+        destinationOffset: Int,
+        startIndex: Int,
+        endIndex: Int
+    ): Int {
+        var payload = 0
+        var byteStart = -BASE64_BITS_PER_BYTE
+        var sourceIndex = startIndex
+        var destinationIndex = destinationOffset
+        var hasPadding = false
+
+        while (sourceIndex < endIndex) {
+            if (byteStart == -BASE64_BITS_PER_BYTE && sourceIndex + 3 < endIndex) {
+                val symbol1 = decodeSymbol(source[sourceIndex++].toInt() and 0xFF)
+                val symbol2 = decodeSymbol(source[sourceIndex++].toInt() and 0xFF)
+                val symbol3 = decodeSymbol(source[sourceIndex++].toInt() and 0xFF)
+                val symbol4 = decodeSymbol(source[sourceIndex++].toInt() and 0xFF)
+                val bits = (symbol1 shl 18) or (symbol2 shl 12) or (symbol3 shl 6) or symbol4
+                if (bits >= 0) { // all base64 symbols
+                    destination[destinationIndex++] = (bits shr 16).toByte()
+                    destination[destinationIndex++] = (bits shr 8).toByte()
+                    destination[destinationIndex++] = bits.toByte()
+                    continue
+                }
+                sourceIndex -= 4
             }
-            i += 1
+
+            val symbol = source[sourceIndex].toInt() and 0xFF
+            val symbolBits = decodeSymbol(symbol)
+            if (symbolBits < 0) {
+                if (symbolBits == -2) {
+                    hasPadding = true
+                    sourceIndex = handlePaddingSymbol(source, sourceIndex, endIndex, byteStart)
+                    break
+                } else if (lineLength > 0) {
+                    sourceIndex += 1
+                    continue
+                } else {
+                    throw IllegalArgumentException("Invalid symbol '${symbol.toChar()}'(${symbol.toString(radix = 8)}) at index $sourceIndex")
+                }
+            } else {
+                sourceIndex += 1
+            }
+
+            payload = (payload shl BASE64_BITS_PER_SYMBOL) or symbolBits
+            byteStart += BASE64_BITS_PER_SYMBOL
+
+            if (byteStart >= 0) {
+                destination[destinationIndex++] = (payload ushr byteStart).toByte()
+
+                payload = payload and ((1 shl byteStart) - 1)
+                byteStart -= BASE64_BITS_PER_BYTE
+            }
         }
-        return sb.toString()
+
+        // pad or end of input
+
+        if (byteStart == -BASE64_BITS_PER_BYTE + BASE64_BITS_PER_SYMBOL) { // dangling single symbol, incorrectly encoded
+            throw IllegalArgumentException("The last unit of input does not have enough bits")
+        }
+        if (byteStart != -BASE64_BITS_PER_BYTE && !hasPadding && paddingOption == PaddingOption.PRESENT) {
+            throw IllegalArgumentException("The padding option is set to PRESENT, but the input is not properly padded")
+        }
+        if (payload != 0) { // the pad bits are non-zero
+            throw IllegalArgumentException("The pad bits must be zeros")
+        }
+
+        sourceIndex = skipIllegalSymbolsIfMime(source, sourceIndex, endIndex)
+        if (sourceIndex < endIndex) {
+            val symbol = source[sourceIndex].toInt() and 0xFF
+            throw IllegalArgumentException("Symbol '${symbol.toChar()}'(${symbol.toString(radix = 8)}) at index ${sourceIndex - 1} is prohibited after the pad character")
+        }
+
+        return destinationIndex - destinationOffset
     }
 
-    private fun decodeRaw(source: String): ByteArray {
-        var end = source.length
-        while (end > 0 && source[end - 1] == '=') end -= 1
-        val paddingCount = source.length - end
+    private fun decodedSize(source: ByteArray, startIndex: Int, endIndex: Int): Int {
+        var symbols = endIndex - startIndex
+        if (symbols == 0) {
+            return 0
+        }
+        if (symbols == 1) {
+            throw IllegalArgumentException("Input should have at least 2 symbols for Base64 decoding, startIndex: $startIndex, endIndex: $endIndex")
+        }
+        if (lineLength > 0) {
+            for (index in startIndex until endIndex) {
+                val symbol = source[index].toInt() and 0xFF
+                val symbolBits = decodeSymbol(symbol)
+                if (symbolBits < 0) {
+                    if (symbolBits == -2) {
+                        symbols -= endIndex - index
+                        break
+                    }
+                    symbols--
+                }
+            }
+        } else if (source[endIndex - 1] == BASE64_PAD_SYMBOL) {
+            symbols--
+            if (source[endIndex - 2] == BASE64_PAD_SYMBOL) {
+                symbols--
+            }
+        }
+        return ((symbols.toLong() * BASE64_BITS_PER_SYMBOL) / BASE64_BITS_PER_BYTE).toInt() // conversion due to possible Int overflow
+    }
 
+    private fun charsToBytes(source: CharSequence, startIndex: Int, endIndex: Int): ByteArray {
+        checkSourceBounds(source.length, startIndex, endIndex)
+
+        val byteArray = ByteArray(endIndex - startIndex)
+        var length = 0
+        for (index in startIndex until endIndex) {
+            val symbol = source[index].code
+            if (symbol <= 0xFF) {
+                byteArray[length++] = symbol.toByte()
+            } else {
+                // the replacement byte must be an illegal symbol
+                // so that mime skips it and basic throws with correct index
+                byteArray[length++] = 0x3F
+            }
+        }
+        return byteArray
+    }
+
+    private fun handlePaddingSymbol(source: ByteArray, padIndex: Int, endIndex: Int, byteStart: Int): Int {
+        return when (byteStart) {
+            -BASE64_BITS_PER_BYTE -> // =
+                throw IllegalArgumentException("Redundant pad character at index $padIndex")
+            -BASE64_BITS_PER_BYTE + BASE64_BITS_PER_SYMBOL -> // x=, dangling single symbol
+                padIndex + 1
+            -BASE64_BITS_PER_BYTE + 2 * BASE64_BITS_PER_SYMBOL - BASE64_BITS_PER_BYTE -> { // xx=
+                checkPaddingIsAllowed(padIndex)
+                val secondPadIndex = skipIllegalSymbolsIfMime(source, padIndex + 1, endIndex)
+                if (secondPadIndex == endIndex || source[secondPadIndex] != BASE64_PAD_SYMBOL) {
+                    throw IllegalArgumentException("Missing one pad character at index $secondPadIndex")
+                }
+                secondPadIndex + 1
+            }
+            -BASE64_BITS_PER_BYTE + 3 * BASE64_BITS_PER_SYMBOL - 2 * BASE64_BITS_PER_BYTE -> { // xxx=
+                checkPaddingIsAllowed(padIndex)
+                padIndex + 1
+            }
+            else ->
+                error("Unreachable")
+        }
+    }
+
+    private fun checkPaddingIsAllowed(padIndex: Int) {
         if (paddingOption == PaddingOption.ABSENT) {
-            if (paddingCount > 0) {
-                throw IllegalArgumentException("Unexpected base64 padding in ABSENT mode")
-            }
-        } else {
-            // PRESENT requires padding on decode: absent padding is only accepted
-            // when the input length already fills whole quanta.
-            if (paddingOption == PaddingOption.PRESENT && paddingCount == 0 && source.length % 4 != 0) {
-                throw IllegalArgumentException("Missing base64 padding")
-            }
-            // Padding that is present must be the correct amount completing the
-            // final quantum: one '=' after a 3-symbol tail, two after a 2-symbol tail.
-            val validPadding = when (paddingCount) {
-                0 -> true
-                1 -> end % 4 == 3
-                2 -> end % 4 == 2
-                else -> false
-            }
-            if (!validPadding) {
-                throw IllegalArgumentException("Illegal base64 padding")
-            }
+            throw IllegalArgumentException(
+                "The padding option is set to ABSENT, but the input has a pad character at index $padIndex"
+            )
         }
-        // A lone leftover symbol carries fewer than 8 bits and cannot form a byte.
-        if (end % 4 == 1) {
-            throw IllegalArgumentException("The last quantum of source does not have enough bits")
-        }
+    }
 
-        val bytes = ArrayList<Byte>()
-        var buffer = 0
-        var bitsCollected = 0
-        var i = 0
-        while (i < end) {
-            val c = source[i]
-            val value = alphabetChars.indexOf(c)
-            if (value < 0) {
-                throw IllegalArgumentException("Illegal base64 character in input")
-            }
-            buffer = (buffer shl 6) or value
-            bitsCollected += 6
-            if (bitsCollected >= 8) {
-                bitsCollected -= 8
-                bytes.add(((buffer shr bitsCollected) and 0xFF).toByte())
-            }
-            i += 1
+    private fun skipIllegalSymbolsIfMime(source: ByteArray, startIndex: Int, endIndex: Int): Int {
+        if (lineLength == 0) {
+            return startIndex
         }
-        return bytes.toByteArray()
+        var sourceIndex = startIndex
+        while (sourceIndex < endIndex) {
+            val symbol = source[sourceIndex].toInt() and 0xFF
+            if (decodeSymbol(symbol) != -1) {
+                return sourceIndex
+            }
+            sourceIndex += 1
+        }
+        return sourceIndex
+    }
+
+    private fun decodeSymbol(symbol: Int): Int =
+        if (symbol == 61) -2 else alphabetChars.indexOf(symbol.toChar())
+
+    private fun checkDestinationBounds(destinationSize: Int, destinationOffset: Int, capacityNeeded: Int) {
+        if (destinationOffset < 0 || destinationOffset > destinationSize || capacityNeeded > destinationSize - destinationOffset) {
+            throw IndexOutOfBoundsException("The destination array does not have enough capacity")
+        }
     }
 
     private fun checkSourceBounds(sourceSize: Int, startIndex: Int, endIndex: Int) {
-        if (startIndex < 0 || endIndex < 0 || startIndex > sourceSize || endIndex > sourceSize) {
+        if (startIndex < 0 || endIndex > sourceSize) {
             throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, size: $sourceSize")
         }
         if (startIndex > endIndex) {

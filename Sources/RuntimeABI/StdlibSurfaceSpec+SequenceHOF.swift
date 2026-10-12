@@ -1,5 +1,3 @@
-// MARK: - Sequence higher-order function surface
-//
 // Split from `StdlibSurfaceSpec.swift` so that parallel branches adding
 // `kotlin.sequences.Sequence` member entries do not collide on the same
 // central array. New `sequence(...)` entries go here.

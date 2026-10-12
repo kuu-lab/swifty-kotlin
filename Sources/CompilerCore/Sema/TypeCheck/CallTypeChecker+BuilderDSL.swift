@@ -1522,7 +1522,7 @@ extension CallTypeChecker {
         // send args already carry real types in the binding table, so consult
         // it first (same pattern as the sequence-builder yield scan above).
         var previewLocals = locals
-        let diagnosticEngine = ctx.semaCtx.diagnostics
+        let diagnosticEngine = ctx.sema.diagnostics
         let argumentTypes = sendArgumentExprs.compactMap { entry -> TypeID? in
             if let cached = sema.bindings.exprType(for: entry.expr),
                cached != sema.types.errorType
@@ -1716,7 +1716,7 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             var previewLocals = locals
-            let diagnosticEngine = ctx.semaCtx.diagnostics
+            let diagnosticEngine = ctx.sema.diagnostics
             let snapshot = diagnosticEngine.count
             _ = driver.inferExpr(
                 lambdaExprID,

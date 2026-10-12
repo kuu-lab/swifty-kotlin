@@ -79,7 +79,6 @@ extension KotlinParser {
             return parseLoopStatement(inBlock: inBlock)
         }
 
-        // Dispatch to dedicated structured parsers for major constructs
         switch stream.peek().kind {
         case .keyword(.if):
             return parseIfStatement(inBlock: inBlock)
@@ -187,9 +186,6 @@ extension KotlinParser {
         )
     }
 
-    // MARK: - Structured Control Flow Parsers
-
-    /// Parse a structured `if` expression: `if (condition) then-branch [else else-branch]`
     func parseIfStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: inBlock)
@@ -217,7 +213,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .ifExpr, range: range.value ?? invalidRange, children)
     }
 
-    /// Parse a structured `when` expression: `when [(subject)] { branches }`
     func parseWhenStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: inBlock)
@@ -245,7 +240,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenExpr, range: range.value ?? invalidRange, children)
     }
 
-    /// Parse a structured `try` expression with at least one catch or finally clause.
     func parseTryStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: inBlock)
@@ -287,8 +281,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .tryExpr, range: range.value ?? invalidRange, children)
     }
 
-    /// Appends a branch body for if/else. Can be a block, a nested control flow,
-    /// or a simple inline expression (stops before `else` if requested).
     func appendBranchBody(
         inBlock: Bool,
         into children: inout [SyntaxChild],
@@ -305,8 +297,6 @@ extension KotlinParser {
         )
     }
 
-    /// Appends a try/catch/finally body. Can be a block, a nested control flow,
-    /// or inline tokens (stops before `catch`/`finally`).
     func appendTryBody(
         inBlock: Bool,
         into children: inout [SyntaxChild],
@@ -322,8 +312,6 @@ extension KotlinParser {
         )
     }
 
-    /// Appends a control flow body (if/else branch or try/catch/finally body).
-    /// Can be a block, nested control flow, or inline tokens.
     private func appendControlFlowBody(
         inBlock: Bool,
         into children: inout [SyntaxChild],
@@ -366,8 +354,6 @@ extension KotlinParser {
         }
     }
 
-    /// Consume inline tokens for a non-block body of a control flow construct.
-    /// Stops at statement boundaries, and optionally before `else` or `catch`/`finally`.
     func consumeInlineBody(
         inBlock: Bool,
         into children: inout [SyntaxChild],
@@ -401,7 +387,6 @@ extension KotlinParser {
                 break
             }
 
-            // Handle nested blocks (e.g. trailing lambdas)
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
                 let block = parseBlock()
                 children.append(.node(block))
@@ -439,8 +424,6 @@ extension KotlinParser {
             }
         }
     }
-
-    // MARK: - when Entry Parsing
 
     private func parseWhenBody(inBlock: Bool) -> NodeID {
         var children: [SyntaxChild] = []
@@ -575,8 +558,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenCondition, range: range.value ?? invalidRange, children)
     }
 
-    // MARK: - Statement Classification (for non-dispatched cases)
-
     func classifyStatementLeadingToken(_ token: Token) -> SyntaxKind {
         switch token.kind {
         case .keyword(.if):
@@ -617,8 +598,6 @@ extension KotlinParser {
             return .statement
         }
     }
-
-    // MARK: - Loop Parsing
 
     func parseLoopStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
@@ -675,8 +654,7 @@ extension KotlinParser {
         }
     }
 
-    /// Appends a `do` loop body while keeping the trailing `while (...)`
-    /// condition outside of the body node.
+    /// Keeps the trailing `while (...)` condition outside of the body node.
     func appendDoWhileBody(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         if case .symbol(.lBrace) = stream.peek().kind {
             let block = parseBlock()
@@ -795,19 +773,14 @@ extension KotlinParser {
         }
     }
 
-    /// Outcome of scanning a modifier / context-parameter prefix: a genuine
-    /// declaration keyword follows it, the prefix does not introduce a
-    /// declaration, or the lookahead ran out of budget mid-scan.
     enum DeclarationPrefixVerdict: Equatable {
         case declaration
         case notDeclaration
         case overBudget
     }
 
-    /// Resolves the ambiguity in `isAmbiguousDeclarationPrefix` by scanning
-    /// past the modifier / context-parameter prefix at lookahead `offset`.
-    /// Results are memoized for every prefix token visited so expression-tail
-    /// recovery does not rescan each suffix of a long chain.
+    /// Memoized for every prefix token visited so expression-tail recovery
+    /// does not rescan each suffix of a long chain.
     func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
         if stream.peek(offset).kind.isLabelName,
            stream.peek(offset + 1).kind == .symbol(.at) {
@@ -911,8 +884,6 @@ extension KotlinParser {
         }
     }
 
-    /// Advances a lookahead offset past a balanced bracket group whose
-    /// opening symbol sits at `offset`, without consuming any tokens.
     func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
         var depth = 0
         var index = offset
@@ -929,10 +900,8 @@ extension KotlinParser {
         return index
     }
 
-    /// Whether `token` truly starts a new declaration for the purpose of
-    /// ending a statement/expression tail — deferring to
-    /// `startsGenuineDeclaration` lookahead only for the ambiguous modifier /
-    /// `context` prefixes, and otherwise trusting the caller's own check.
+    /// Defers to `startsGenuineDeclaration` lookahead only for ambiguous modifier /
+    /// `context` prefixes, trusting the caller's own check otherwise.
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
         guard isAmbiguousDeclarationPrefix(token) else {
             return true

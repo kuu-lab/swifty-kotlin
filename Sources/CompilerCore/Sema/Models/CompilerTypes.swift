@@ -55,9 +55,7 @@ public enum LazyDelegateThreadSafetyMode: Int, Equatable {
     case publication = 2
 }
 
-/// Format for diagnostic output.
 public enum DiagnosticsFormat: String, Equatable {
-    /// Default human-readable text format.
     case text
     /// JSON format conforming to the LSP diagnostic schema.
     case json
@@ -87,9 +85,7 @@ public struct CompilerOptions: Equatable {
         emit == .library || frontendFlags.contains("common-module")
     }
 
-    /// Additional search paths for Kotlin stdlib sources.
     public var stdlibSearchPaths: [String]
-    /// Whether to include stdlib search paths during compilation.
     public var includeStdlib: Bool
 
     /// Path to the incremental compilation cache directory, if any.
@@ -315,7 +311,6 @@ public struct CompilerOptions: Equatable {
             || frontendFlags.contains("unrestricted-builder-inference")
     }
 
-    /// Enables proper type inference constraints processing.
     public var useProperTypeInferenceConstraintsProcessing: Bool {
         frontendFlags.contains("ProperTypeInferenceConstraintsProcessing")
             || frontendFlags.contains("proper-type-inference-constraints-processing")

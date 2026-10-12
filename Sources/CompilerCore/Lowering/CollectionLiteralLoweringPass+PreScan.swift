@@ -344,8 +344,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    // MARK: - Static type based collection classification (LOWERING-001)
-
     /// Collect expression IDs referenced in a function's body that participate
     /// in collection-type propagation. This covers instruction kinds that
     /// produce or consume collection-typed operands (call, virtualCall, copy,

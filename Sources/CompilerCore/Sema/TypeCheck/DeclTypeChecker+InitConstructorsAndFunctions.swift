@@ -327,8 +327,6 @@ extension DeclTypeChecker {
         return nil
     }
 
-    // MARK: - Init Block & Secondary Constructor Type Checking
-
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`
     /// to property initializers and `init {}` blocks only — not to regular
     /// member functions. Property-backed parameters (`val`/`var`) are already
@@ -674,8 +672,6 @@ extension DeclTypeChecker {
             range: delegation.range
         )
     }
-
-    // MARK: - Function Declaration Type Checking
 
     /// - Parameter baseLocals: Seeds the function body's local-name resolution
     ///   with bindings from an enclosing scope. Empty for ordinary member
@@ -1127,7 +1123,7 @@ extension DeclTypeChecker {
                 returnsValue = boolValue
                 returnCondition = boolValue ? .returnsTrue : .returnsFalse
             } else if returnsArgs.count == 1,
-                      isNullLiteralExpr(returnsArgs[0].expr, ast: ast, interner: interner)
+                      isNullLiteralExpr(returnsArgs[0].expr, ast: ast)
             {
                 returnsValue = nil
                 returnCondition = .returnsNull
@@ -1296,12 +1292,12 @@ extension DeclTypeChecker {
         if case let .binary(.notEqual, lhsExprID, rhsExprID, _) = conditionExpr {
             let parameterName: InternedString? = if let lhsExpr = ast.arena.expr(lhsExprID),
                                                     case let .nameRef(name, _) = lhsExpr,
-                                                    isNullLiteralExpr(rhsExprID, ast: ast, interner: interner)
+                                                    isNullLiteralExpr(rhsExprID, ast: ast)
             {
                 name
             } else if let rhsExpr = ast.arena.expr(rhsExprID),
                       case let .nameRef(name, _) = rhsExpr,
-                      isNullLiteralExpr(lhsExprID, ast: ast, interner: interner)
+                      isNullLiteralExpr(lhsExprID, ast: ast)
             {
                 name
             } else {
@@ -1414,8 +1410,7 @@ extension DeclTypeChecker {
 
     private func isNullLiteralExpr(
         _ exprID: ExprID,
-        ast: ASTModule,
-        interner: StringInterner
+        ast: ASTModule
     ) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
         if case .nullLiteral = expr {

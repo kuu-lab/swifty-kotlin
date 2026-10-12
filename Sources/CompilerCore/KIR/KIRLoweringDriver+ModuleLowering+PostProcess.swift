@@ -12,21 +12,66 @@ extension KIRLoweringDriver {
 
         let interner = compilationCtx.interner
         let mainName = interner.intern("main")
+        var entrySymbol: SymbolID?
+        if compilationCtx.options.emit != .library {
+            // Match LinkPhase's first file-level entry. Other functions named
+            // main are ordinary Kotlin functions and must not restart the module.
+            entrySearch: for file in ast.sortedFiles {
+                for declID in file.topLevelDecls {
+                    guard case .funDecl? = ast.arena.decl(declID),
+                          let symbol = sema.bindings.declSymbols[declID],
+                          let function = arena.function(for: symbol) else { continue }
+                    let matchesEntry: Bool
+                    if let entry = compilationCtx.options.entryPointFQName {
+                        matchesEntry = sema.symbols.symbol(symbol)?.fqName.map(interner.resolve).joined(separator: ".") == entry
+                    } else {
+                        matchesEntry = function.name == mainName || interner.resolve(function.name) == "main"
+                    }
+                    if matchesEntry {
+                        entrySymbol = symbol
+                        break entrySearch
+                    }
+                }
+            }
+        }
+        var startupInitializers = allTopLevelInitInstructions
+        if entrySymbol != nil, !startupInitializers.isEmpty {
+            // Kotlin can call the selected main again as an ordinary function.
+            // Publish the guard before initialization to cover reentrant calls.
+            let flagName = interner.intern("$startupInitialized")
+            let flagSymbol = sema.symbols.define(
+                kind: .field, name: flagName,
+                fqName: [interner.intern(compilationCtx.options.moduleName), flagName],
+                declSite: nil, visibility: .private, flags: [.synthetic]
+            )
+            _ = arena.appendDecl(.global(KIRGlobal(symbol: flagSymbol, type: sema.types.booleanType)))
+            let flag = arena.appendTemporary(type: sema.types.booleanType)
+            let yes = arena.appendExpr(.boolLiteral(true), type: sema.types.booleanType)
+            let done = ctx.makeLoopLabel()
+            var guarded: KIRLoweringEmitContext = []
+            guarded.append(.loadGlobal(result: flag, symbol: flagSymbol))
+            guarded.append(.constValue(result: yes, value: .boolLiteral(true)))
+            guarded.append(.jumpIfEqual(lhs: flag, rhs: yes, target: done))
+            guarded.append(.storeGlobal(value: yes, symbol: flagSymbol))
+            let relocated = KIRLabelRelocation.relocatingLabels(
+                of: startupInitializers.instructions, toAvoidCollisionsWith: [.label(done)]
+            )
+            for (instruction, location) in zip(relocated, startupInitializers.instructionLocations) {
+                guarded.currentSourceRange = location
+                guarded.append(instruction)
+            }
+            guarded.currentSourceRange = nil
+            guarded.append(.label(done))
+            startupInitializers = guarded
+        }
 
         arena.transformFunctions { function in
             var updated = function
-
-            let matchesEntry: Bool
-            if let entry = compilationCtx.options.entryPointFQName {
-                matchesEntry = sema.symbols.symbol(function.symbol)?.fqName.map(interner.resolve).joined(separator: ".") == entry
-            } else {
-                matchesEntry = function.name == mainName
-            }
-            if matchesEntry, !allTopLevelInitInstructions.isEmpty {
+            if function.symbol == entrySymbol, !startupInitializers.isEmpty {
                 updated.replaceBody(injectTopLevelInits(
                     body: function.body,
                     bodyLocations: function.instructionLocations,
-                    inits: allTopLevelInitInstructions
+                    inits: startupInitializers
                 ))
             }
 

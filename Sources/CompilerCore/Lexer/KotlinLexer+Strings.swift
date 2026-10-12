@@ -350,7 +350,6 @@ extension KotlinLexer {
     /// Fewer `$` are treated as literal text.
     func scanMultiDollarString(leadingTrivia: [TriviaPiece], start: Int, dollarCount: Int) -> [Token] {
         let openStart = offset
-        // Skip the dollar prefix and opening quote
         offset += dollarCount + 1
         var tokens: [Token] = []
         tokens.append(
@@ -365,7 +364,6 @@ extension KotlinLexer {
         while offset < byteCount() {
             let ch = byte(at: offset)
 
-            // Closing quote
             if ch == 0x22 {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
@@ -379,13 +377,11 @@ extension KotlinLexer {
                 return tokens
             }
 
-            // Check for dollar sequences
             if ch == 0x24 {
                 scanDollarInterpolation(dollarCount: dollarCount, segmentStart: &segmentStart, tokens: &tokens)
                 continue
             }
 
-            // Escape sequences (same as regular strings)
             if ch == 0x5C {
                 if !scanStringEscape(segmentStart: &segmentStart) {
                     break
@@ -421,12 +417,10 @@ extension KotlinLexer {
         let consecutiveDollars = countConsecutiveDollars(at: offset)
         let afterDollars = offset + consecutiveDollars
 
-        // Expression interpolation: exactly dollarCount $ followed by {
         if consecutiveDollars >= dollarCount,
            afterDollars < byteCount(),
            byte(at: afterDollars) == 0x7B
         {
-            // Emit any literal dollars before the interpolation threshold
             let literalDollars = consecutiveDollars - dollarCount
             if literalDollars > 0 {
                 appendSegment(to: &tokens, from: segmentStart, to: offset + literalDollars, leadingTrivia: [])
@@ -434,7 +428,7 @@ extension KotlinLexer {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
             }
             let templateStart = offset + literalDollars
-            offset = afterDollars + 1 // skip past $...${
+            offset = afterDollars + 1
             tokens.append(
                 Token(
                     kind: .templateExprStart,
@@ -449,7 +443,6 @@ extension KotlinLexer {
             return
         }
 
-        // Simple name interpolation: exactly dollarCount $ followed by identifier start
         if consecutiveDollars >= dollarCount,
            afterDollars < byteCount(),
            isIdentifierStart(byte(at: afterDollars)),
@@ -479,7 +472,6 @@ extension KotlinLexer {
             return
         }
 
-        // Not enough dollars for interpolation — treat all as literal
         offset += consecutiveDollars
     }
 
@@ -531,7 +523,6 @@ extension KotlinLexer {
     /// Scans a multi-dollar raw (triple-quoted) string: `$$"""..."""`, `$$$"""..."""`, etc.
     func scanMultiDollarRawString(leadingTrivia: [TriviaPiece], start: Int, dollarCount: Int) -> [Token] {
         let quoteStart = offset
-        // Skip the dollar prefix and opening triple-quote
         offset += dollarCount + 3
         var tokens: [Token] = []
         tokens.append(

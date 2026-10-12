@@ -368,7 +368,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        guard let name = objectLiteralDeclarationName(from: sanitized[1]) else {
+        guard let name = tokenText( sanitized[1]) else {
             return nil
         }
 
@@ -780,16 +780,4 @@ extension BuildASTPhase.ExpressionParser {
         return nil
     }
 
-    private func objectLiteralDeclarationName(from token: Token) -> InternedString? {
-        switch token.kind {
-        case let .identifier(name), let .backtickedIdentifier(name):
-            name
-        case let .keyword(keyword):
-            interner.intern(keyword.rawValue)
-        case let .softKeyword(keyword):
-            interner.intern(keyword.rawValue)
-        default:
-            nil
-        }
-    }
 }

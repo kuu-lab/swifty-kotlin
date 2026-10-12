@@ -390,15 +390,6 @@ func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: In
             return runtimeCoroutineElementKeyHandle(for: receiver)
         }
         return unsafeBitCast(getter, to: Int.self)
-    case 3:
-        // KUU-1395: a dispatcher/interceptor element's `key` is
-        // ContinuationInterceptor.Key — kotlinx's CoroutineDispatcher passes
-        // it to AbstractCoroutineContextElement's constructor.
-        let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-            outThrown?.pointee = 0
-            return kk_continuation_interceptor_key()
-        }
-        return unsafeBitCast(getter, to: Int.self)
     default:
         return nil
     }

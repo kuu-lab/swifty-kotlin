@@ -79,10 +79,10 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: ctx.implicitReceiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
                 return ctx.sema.types.errorType
             }
@@ -94,13 +94,13 @@ extension CallTypeChecker {
                 sema: ctx.sema,
                 interner: ctx.interner,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             return bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
         }
@@ -210,7 +210,6 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
-        // Look up the callee name as an interface symbol.
         var interfaceCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .interface && symbol.flags.contains(.funInterface)
@@ -258,7 +257,6 @@ extension CallTypeChecker {
         }
         let samFTTypeID = sema.types.make(.functionType(samFT))
 
-        // Infer the lambda against the SAM function type.
         _ = driver.inferExpr(
             argExpr,
             ctx: ctx,
@@ -266,12 +264,10 @@ extension CallTypeChecker {
             expectedType: interfaceType
         )
 
-        // Mark the lambda as SAM-converted and bind the underlying function type.
         sema.bindings.markSamConversion(argExpr)
         sema.bindings.bindSamUnderlyingFunctionType(argExpr, type: samFTTypeID)
         sema.bindings.bindSamInterfaceType(argExpr, type: interfaceType)
 
-        // The whole call expression has the interface type.
         sema.bindings.bindExprType(id, type: interfaceType)
         return interfaceType
     }

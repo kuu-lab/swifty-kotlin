@@ -6,13 +6,10 @@ public final class TypeSystem {
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
 
-    /// The symbol ID of the synthetic `kotlin.Comparable` interface, set during registration.
     public internal(set) var comparableInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.Annotation` interface, set during registration.
     public internal(set) var annotationInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the source-backed `kotlin.AutoCloseable` interface.
     public internal(set) var closeableInterfaceSymbol: SymbolID?
 
     /// The symbol ID of the source-backed `kotlin.io.Closeable` interface.
@@ -22,7 +19,6 @@ public final class TypeSystem {
     /// the root `AutoCloseable` interface.
     public internal(set) var ioCloseableInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.CharSequence` interface, set during registration.
     public internal(set) var charSequenceInterfaceSymbol: SymbolID?
 
     /// Cached TypeID for source-backed `kotlin.AutoCloseable` (non-null).
@@ -44,7 +40,6 @@ public final class TypeSystem {
     /// `FunctionN` nominal and vice versa (KUU-1084).
     public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
-    /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 
     /// The symbol ID of the synthetic `kotlin.Number` abstract class, set during header registration.
@@ -246,9 +241,7 @@ public final class TypeSystem {
             // Unit has two states; platform nullability is conservatively nullable.
             return nullability == .nonNull ? unitType : make(.nullableUnit)
         case let .intersection(parts):
-            // For intersection types, apply nullability to each part
             if nullability == .nonNull {
-                // If intersection is already definitely non-null, return as-is
                 if parts.contains(where: { isDefinitelyNonNull($0) }) {
                     return type
                 }
@@ -367,71 +360,42 @@ public final class TypeSystem {
         return nominalTypeParameterSymbolsMap[nominal] ?? []
     }
 
-    /// Returns `true` when `type` structurally contains a reference to the
-    /// type parameter identified by `symbol`.
     public func typeContainsTypeParam(_ type: TypeID, symbol: SymbolID) -> Bool {
-        switch kind(of: type) {
-        case let .typeParam(tp):
-            return tp.symbol == symbol
-        case let .classType(ct):
-            return ct.args.contains { arg in
-                switch arg {
-                case let .invariant(inner), let .out(inner), let .in(inner):
-                    typeContainsTypeParam(inner, symbol: symbol)
-                case .star:
-                    false
-                }
-            }
-        case let .functionType(ft):
-            if ft.contextReceivers.contains(where: { typeContainsTypeParam($0, symbol: symbol) }) {
-                return true
-            }
-            if let receiver = ft.receiver, typeContainsTypeParam(receiver, symbol: symbol) {
-                return true
-            }
-            if ft.params.contains(where: { typeContainsTypeParam($0, symbol: symbol) }) {
-                return true
-            }
-            return typeContainsTypeParam(ft.returnType, symbol: symbol)
-        case let .kClassType(kc):
-            return typeContainsTypeParam(kc.argument, symbol: symbol)
-        case let .intersection(parts):
-            return parts.contains { typeContainsTypeParam($0, symbol: symbol) }
-        default:
-            return false
-        }
+        typeContainsTypeParam(type) { $0.symbol == symbol }
     }
 
-    /// Returns `true` when `type` structurally contains any type parameter
-    /// reference, i.e. it is not fully substituted with concrete types.
     public func typeContainsAnyTypeParam(_ type: TypeID) -> Bool {
+        typeContainsTypeParam(type) { _ in true }
+    }
+
+    private func typeContainsTypeParam(_ type: TypeID, where predicate: (TypeParamType) -> Bool) -> Bool {
         switch kind(of: type) {
-        case .typeParam:
-            return true
+        case let .typeParam(tp):
+            return predicate(tp)
         case let .classType(ct):
             return ct.args.contains { arg in
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
-                    typeContainsAnyTypeParam(inner)
+                    typeContainsTypeParam(inner, where: predicate)
                 case .star:
                     false
                 }
             }
         case let .functionType(ft):
-            if ft.contextReceivers.contains(where: { typeContainsAnyTypeParam($0) }) {
+            if ft.contextReceivers.contains(where: { typeContainsTypeParam($0, where: predicate) }) {
                 return true
             }
-            if let receiver = ft.receiver, typeContainsAnyTypeParam(receiver) {
+            if let receiver = ft.receiver, typeContainsTypeParam(receiver, where: predicate) {
                 return true
             }
-            if ft.params.contains(where: { typeContainsAnyTypeParam($0) }) {
+            if ft.params.contains(where: { typeContainsTypeParam($0, where: predicate) }) {
                 return true
             }
-            return typeContainsAnyTypeParam(ft.returnType)
+            return typeContainsTypeParam(ft.returnType, where: predicate)
         case let .kClassType(kc):
-            return typeContainsAnyTypeParam(kc.argument)
+            return typeContainsTypeParam(kc.argument, where: predicate)
         case let .intersection(parts):
-            return parts.contains { typeContainsAnyTypeParam($0) }
+            return parts.contains { typeContainsTypeParam($0, where: predicate) }
         default:
             return false
         }
@@ -447,8 +411,6 @@ public final class TypeSystem {
         return nominalSupertypeTypeArgsMap[child]?[parent] ?? []
     }
 
-    /// Creates a `KClass<T>` type for the given argument type.
-    /// In Kotlin, `T::class` has type `KClass<T>`.
     public func makeKClassType(argument: TypeID, nullability: Nullability = .nonNull) -> TypeID {
         make(.kClassType(KClassType(argument: argument, nullability: nullability)))
     }
@@ -560,7 +522,6 @@ public final class TypeSystem {
         }
     }
 
-    /// Substitutes a nominal owner's class type parameters in `type` using `ownerArgs`.
     public func substituteNominalTypeParameters(
         in type: TypeID,
         owner: SymbolID,

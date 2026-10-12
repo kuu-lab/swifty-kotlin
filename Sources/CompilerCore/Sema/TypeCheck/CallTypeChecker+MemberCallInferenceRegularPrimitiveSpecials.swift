@@ -393,7 +393,7 @@ extension CallTypeChecker {
                     sema: sema,
                     interner: interner,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType

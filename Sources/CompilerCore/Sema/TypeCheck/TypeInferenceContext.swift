@@ -20,7 +20,6 @@ struct SuspensionContext {
 struct TypeInferenceContext: CustomStringConvertible {
     let ast: ASTModule
     let sema: SemaModule
-    let semaCtx: SemaModule
     let resolver: OverloadResolver
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
