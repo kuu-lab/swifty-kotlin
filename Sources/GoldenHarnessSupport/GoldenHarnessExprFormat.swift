@@ -169,8 +169,6 @@ enum GoldenHarnessExprFormat {
         }
     }
 
-    // MARK: - Helper methods
-
     private static func renderLiteral<T>(_ type: String, _ value: T) -> String {
         return "\(type)(\(value))"
     }
