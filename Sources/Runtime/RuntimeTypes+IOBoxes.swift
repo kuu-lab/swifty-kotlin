@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - BufferedReader (STDLIB-567)
-
 /// Runtime box for `java.io.BufferedReader` returned by `File.bufferedReader()`.
 /// Wraps a streaming file reader, supporting `readLine()` and `readLines()`.
 final class RuntimeBufferedReaderBox {
@@ -218,8 +216,6 @@ final class RuntimeBufferedReaderBox {
     }
 }
 
-// MARK: - InputStream / OutputStream (STDLIB-IO-092)
-
 final class RuntimeInputStreamBox {
     private let data: Data
     private var offset: Int
@@ -362,8 +358,6 @@ final class RuntimeSequenceInputStreamBox {
         closed = true
     }
 }
-
-// MARK: - RuntimeOutputStreamSink (STDLIB-IO-ENC-FN-002)
 
 /// Pluggable back-end for `RuntimeOutputStreamBox`.  Concrete implementations
 /// may wrap a real `FileHandle` (normal file-backed streams) or provide a
@@ -536,8 +530,6 @@ final class RuntimeOutputStreamBox {
         return writer
     }
 }
-
-// MARK: - BufferedWriter (STDLIB-IO-091/093)
 
 /// Runtime box for `java.io.BufferedWriter` returned by `File.bufferedWriter()`.
 /// Wraps a streaming file writer, supporting `write()`, `newLine()`, `flush()`, and `close()`.
