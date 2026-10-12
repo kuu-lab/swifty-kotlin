@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - MetadataEncoder (Export)
-
 /// Encodes compiler symbols into `[MetadataRecord]` and serializes them to the text-based
 /// metadata format consumed by `MetadataDecoder`.
 package final class MetadataEncoder {
@@ -1639,8 +1637,6 @@ package final class MetadataEncoder {
         }
         return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
     }
-
-    // MARK: - Annotation Encoding
 
     private func encodeAnnotations(_ annotations: [MetadataAnnotationRecord]) -> String {
         annotations.map { encodeAnnotation($0) }.joined(separator: ";")
