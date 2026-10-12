@@ -24,8 +24,9 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
+        // Keep the class receiver addressable to nested lambdas that use `this@Class`.
         let classContext = ctx.withoutSuspensionContext()
-            .withOuterReceiver(label: classLabel, type: classType)
+            .withOuterReceiver(label: classLabel, type: classType, symbol: symbol)
             .copying(
                 scope: classScope,
                 implicitReceiverType: classType,

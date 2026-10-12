@@ -8,6 +8,22 @@ import Testing
 struct CodegenBackendVirtualDispatchTests {
 
     @Test(arguments: [true, false])
+    func testNestedRunForEachKeepsLabeledClassReceiverForGenericVisitor(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        let source = try diffCaseSource("kuu_1909_nested_run_foreach_this_printer.kt")
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU1909NestedLabeledClassReceiver",
+                expected: "3\n3\n3\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test(arguments: [true, false])
     func testNestedGenericOverridesDispatchThroughItable(allowDefaultStdlibLibrary: Bool) throws {
         try assertKotlinOutput(
             try diffCaseSource("generic_method_itable_dispatch.kt"),
