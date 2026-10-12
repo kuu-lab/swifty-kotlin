@@ -234,12 +234,23 @@ extension CallTypeChecker {
             {
                 interfaceArgs = expectedClassType.args
             } else {
-                interfaceArgs = inferInterfaceArgsFromLambdaAnnotations(
+                let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
                     interfaceSymID,
                     typeParameters: interfaceTypeParameters,
                     argExpr: argExpr,
                     ctx: ctx
                 )
+                if annotationArgs.count == interfaceTypeParameters.count {
+                    interfaceArgs = annotationArgs
+                } else {
+                    interfaceArgs = inferInterfaceArgsFromLambdaReturnType(
+                        interfaceSymID,
+                        typeParameters: interfaceTypeParameters,
+                        argExpr: argExpr,
+                        ctx: ctx,
+                        locals: locals
+                    ) ?? annotationArgs
+                }
             }
         } else {
             guard explicitTypeArgs.count == interfaceTypeParameters.count else {
@@ -305,6 +316,95 @@ extension CallTypeChecker {
         }
         let inferredArgs: [TypeArg] = typeParameters.compactMap { bindings[$0].map { .invariant($0) } }
         return inferredArgs.count == typeParameters.count ? inferredArgs : []
+    }
+
+    /// Infers a generic SAM constructor's type arguments from the lambda body's
+    /// result when neither an expected interface type nor parameter annotations
+    /// determine them (for example, `Parser { _: String -> ParserResult.Success(3, "") }`).
+    private func inferInterfaceArgsFromLambdaReturnType(
+        _ interfaceSymID: SymbolID,
+        typeParameters: [SymbolID],
+        argExpr: ExprID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> [TypeArg]? {
+        let sema = ctx.sema
+        guard !typeParameters.isEmpty,
+              case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(argExpr),
+              let signature = driver.helpers.samMethodSignature(for: interfaceSymID, sema: sema),
+              typeParameters.allSatisfy({ sema.types.typeContainsTypeParam(signature.returnType, symbol: $0) })
+        else {
+            return nil
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        guard typeParameters.allSatisfy({ typeVarBySymbol[$0] != nil }) else {
+            return nil
+        }
+        let provisionalType = sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymID,
+            args: typeParameters.map {
+                .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+            },
+            nullability: .nonNull
+        )))
+        guard let samFunctionType = driver.helpers.samFunctionType(for: provisionalType, sema: sema) else {
+            return nil
+        }
+
+        // Give the lambda its SAM input types but a top return type so its body
+        // is inferred without prematurely checking against unresolved T.
+        let returnProbeType = sema.types.make(.functionType(FunctionType(
+            contextReceivers: samFunctionType.contextReceivers,
+            receiver: samFunctionType.receiver,
+            params: samFunctionType.params,
+            returnType: sema.types.nullableAnyType,
+            isSuspend: samFunctionType.isSuspend,
+            isCallableReference: samFunctionType.isCallableReference,
+            nullability: samFunctionType.nullability,
+            throws: samFunctionType.throws
+        )))
+        let checkpoint = sema.diagnostics.checkpoint()
+        var probeLocals = locals
+        _ = driver.inferExpr(argExpr, ctx: ctx, locals: &probeLocals, expectedType: returnProbeType)
+        let bodyType = sema.bindings.exprType(for: bodyExpr)
+        sema.diagnostics.rollback(to: checkpoint)
+        guard let bodyType, bodyType != sema.types.errorType else {
+            return nil
+        }
+
+        let constraints = ctx.resolver.decomposeSubtypeConstraint(
+            subtype: bodyType,
+            supertype: signature.returnType,
+            typeVarBySymbol: typeVarBySymbol,
+            typeSystem: sema.types,
+            blameRange: ctx.ast.arena.exprRange(bodyExpr)
+        )
+        let variables = ctx.resolver.usedTypeVariables(from: constraints)
+        guard !variables.isEmpty else {
+            return nil
+        }
+        let solution = ConstraintSolver().solve(
+            vars: variables,
+            constraints: constraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else {
+            return nil
+        }
+
+        var inferredArgs: [TypeArg] = []
+        inferredArgs.reserveCapacity(typeParameters.count)
+        for typeParameter in typeParameters {
+            guard let variable = typeVarBySymbol[typeParameter],
+                  let type = solution.substitution[variable],
+                  type != sema.types.errorType
+            else {
+                return nil
+            }
+            inferredArgs.append(.invariant(type))
+        }
+        return inferredArgs
     }
 
     private func isSamConvertibleArgument(_ exprID: ExprID, ast: ASTModule) -> Bool {
