@@ -142,9 +142,13 @@ extension CallLowerer {
         // Extension `var` properties have no backing storage; assignment
         // routes to the registered setter accessor with the receiver as its
         // first argument. Prefer the identifier binding, with the selected
-        // callee as a fallback for call-bound property l-values.
+        // callee as a fallback for call-bound property l-values. Library
+        // imports also register member-property accessors in this table, so
+        // interface properties must continue to the itable dispatch path
+        // below instead of calling the interface setter directly.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
             ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+           sema.symbols.parentSymbol(for: propertySymbol).flatMap({ sema.symbols.symbol($0) })?.kind != .interface,
            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
         {
             let result = arena.appendTemporary(type: sema.types.unitType)
@@ -208,6 +212,7 @@ extension CallLowerer {
                 loweredReceiverID: receiverID,
                 loweredValueID: valueID,
                 sema: sema,
+                cache: driver.ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
@@ -771,6 +776,7 @@ extension CallLowerer {
                           loweredReceiverID: receiverID,
                           loweredValueID: newValue,
                           sema: sema,
+                          cache: driver.ctx.nominalDispatchCache,
                           arena: arena,
                           interner: interner,
                           instructions: &instructions
@@ -951,6 +957,7 @@ extension CallLowerer {
         loweredReceiverID: KIRExprID,
         loweredValueID: KIRExprID,
         sema: SemaModule,
+        cache: KIRNominalDispatchCache,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
@@ -965,7 +972,8 @@ extension CallLowerer {
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,
                   sema: sema,
-                  interner: interner
+                  interner: interner,
+                  cache: cache
               )
         else {
             return nil

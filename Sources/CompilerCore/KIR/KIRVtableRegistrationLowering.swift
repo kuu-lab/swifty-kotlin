@@ -17,6 +17,11 @@ final class KIRNominalDispatchCache {
     private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
     /// Interface → property → itable slot, built lazily from the slot table.
     private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
+    /// Interface → property-setter slot table, derived from the cached getter
+    /// table so eligibility, ordering, and the setter base stay in sync.
+    private var interfacePropertySetterSlotsByInterface: [SymbolID: [KIRInterfacePropertySetterSlot]] = [:]
+    /// Interface → property → setter itable slot, built lazily from the table.
+    private var interfacePropertySetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
 
     func vtableImplementations(
         for nominalSymbol: SymbolID,
@@ -111,6 +116,43 @@ final class KIRNominalDispatchCache {
             }
         }
         interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] = map
+        return map[interfaceProperty]
+    }
+
+    func interfacePropertySetterSlots(
+        for interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [KIRInterfacePropertySetterSlot] {
+        if let cached = interfacePropertySetterSlotsByInterface[interfaceSymbol] {
+            return cached
+        }
+        let getterSlots = interfacePropertyGetterSlots(
+            for: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        let computed = kirInterfacePropertySetterSlots(from: getterSlots, sema: sema)
+        interfacePropertySetterSlotsByInterface[interfaceSymbol] = computed
+        return computed
+    }
+
+    /// Itable slot of `interfaceProperty`'s setter on `interfaceSymbol`, or
+    /// nil when the property does not participate in interface dispatch.
+    func interfacePropertySetterSlot(
+        for interfaceProperty: SymbolID,
+        in interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int? {
+        if let map = interfacePropertySetterSlotByPropertyByInterface[interfaceSymbol] {
+            return map[interfaceProperty]
+        }
+        var map: [SymbolID: Int] = [:]
+        for slot in interfacePropertySetterSlots(for: interfaceSymbol, sema: sema, interner: interner) {
+            map[slot.propertySymbol] = slot.slot
+        }
+        interfacePropertySetterSlotByPropertyByInterface[interfaceSymbol] = map
         return map[interfaceProperty]
     }
 }
