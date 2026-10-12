@@ -303,6 +303,16 @@ extension ABILoweringPass {
         if let returnType = symbols.functionSignature(for: callSymbol)?.returnType {
             return returnType
         }
+        // External property bridges are emitted as calls to the property symbol
+        // itself, rather than to a getter accessor. Preserve their declared
+        // generic result type so ABI lowering can unbox a concrete use site.
+        if symbols.symbol(callSymbol)?.kind == .property,
+           let linkName = symbols.externalLinkName(for: callSymbol),
+           !linkName.isEmpty,
+           let returnType = symbols.propertyType(for: callSymbol)
+        {
+            return returnType
+        }
         // An interface property's dynamic getter has a synthetic ID even
         // when its declaration was imported from a library. The declaration
         // still carries the erased T return type needed to unbox Double and
