@@ -17,8 +17,6 @@ extension ExprTypeChecker {
         locals.memberFlow = state.members
     }
 
-    // MARK: - Binary Expression Inference
-
     // swiftlint:disable:next cyclomatic_complexity
     func inferBinaryExpr(
         _ id: ExprID,
@@ -988,6 +986,4 @@ extension ExprTypeChecker {
             || typeName == "CoroutineExceptionHandler"
             || typeName == "Job"
     }
-
-    // MARK: - Compound Assignment
 }
