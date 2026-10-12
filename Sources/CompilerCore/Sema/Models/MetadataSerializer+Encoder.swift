@@ -102,45 +102,14 @@ package final class MetadataEncoder {
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
-                // KSP-911: ULongArray(LongArray) is an internal storage
-                // constructor. Keep it in the stdlib object for source-backed
-                // implementation calls, but do not export it to consumers.
+                // KSP-911 / KSP-908 / KSP-1089 / KSP-1093: internal storage
+                // constructors. Keep them in the stdlib object for
+                // source-backed implementation calls and public initializer
+                // factories, but do not export them to consumers.
                 if includeNonPublic,
                    symbol.kind == .function,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "ULongArray"],
-                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
-                {
-                    return false
-                }
-                // KSP-908: UIntArray(IntArray) is an internal storage
-                // constructor. It must remain in the stdlib object for
-                // source-backed implementation calls, but must not be
-                // imported as a public overload by consumer modules.
-                if includeNonPublic,
-                   symbol.kind == .function,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "UIntArray"],
-                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
-                {
-                    return false
-                }
-                // KSP-1089: AtomicIntArray(IntArray) is an internal storage
-                // constructor. Keep it in the stdlib object for the public
-                // initializer factory, but do not export it to consumers.
-                if includeNonPublic,
-                   symbol.kind == .function,
-                   symbol.visibility != .public,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "concurrent", "AtomicIntArray"],
-                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
-                {
-                    return false
-                }
-                // KSP-1093: AtomicLongArray(LongArray) is an internal storage
-                // constructor. Keep it in the stdlib object for the public
-                // initializer factory, but do not export it to consumers.
-                if includeNonPublic,
-                   symbol.kind == .function,
-                   symbol.visibility != .public,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "concurrent", "AtomicLongArray"],
+                   let requiresNonPublic = Self.unexportedStorageConstructors[symbol.fqName.map { interner.resolve($0) }],
+                   !requiresNonPublic || symbol.visibility != .public,
                    symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
                 {
                     return false
@@ -1031,6 +1000,18 @@ package final class MetadataEncoder {
         }
         return entries.joined(separator: ",")
     }
+
+    /// Internal storage-constructor FQ names that stay in the stdlib object
+    /// for source-backed implementation calls but are not exported
+    /// (KSP-911, KSP-908, KSP-1089, KSP-1093). A `true` value additionally
+    /// limits the exclusion to non-public overloads, so the same-named public
+    /// initializer factory keeps exporting.
+    private static let unexportedStorageConstructors: [[String]: Bool] = [
+        ["kotlin", "ULongArray"]: false,
+        ["kotlin", "UIntArray"]: false,
+        ["kotlin", "concurrent", "AtomicIntArray"]: true,
+        ["kotlin", "concurrent", "AtomicLongArray"]: true,
+    ]
 
     /// Nominal kinds that carry layout information in metadata.
     private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
