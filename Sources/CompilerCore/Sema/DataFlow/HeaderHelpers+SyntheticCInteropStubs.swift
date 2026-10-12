@@ -684,8 +684,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - KUU-1375: CPointer members, placement, native heap, strings
-
         let cPointerStarType = registerCInteropCPointerMembers(
             cinteropPkg: cinteropPkg,
             cPointerSymbol: cPointerSymbol,
