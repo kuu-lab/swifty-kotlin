@@ -204,7 +204,7 @@ extension CallTypeChecker {
                     ulongType
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     uintType
-                } else if receiverForCheck == intType,
+                } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType),
                     rhsType == intType || rhsType == byteType || rhsType == shortType
                 {
                     intType
