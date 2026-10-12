@@ -292,11 +292,11 @@ public final class CodegenPhase: CompilerPhase {
             let inlineBody = module.inlineBodiesBeforeFinallyLowering[function.symbol]
                 ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                 ?? function.body
-            let readExpressions = Set(inlineBody.flatMap(inlineReadExpressions))
+            let referencedExpressions = Set(inlineBody.flatMap(inlineReferencedExpressions))
             let bodyLines = inlineBody.filter { instruction in
                 // Expanded lambdas need no address, and their standalone bodies may not be exported.
                 if case let .constValue(result, .symbolRef(_)) = instruction {
-                    return readExpressions.contains(result)
+                    return referencedExpressions.contains(result)
                 }
                 return true
             }.map { instruction in
@@ -323,7 +323,7 @@ public final class CodegenPhase: CompilerPhase {
         }
     }
 
-    private func inlineReadExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
+    private func inlineReferencedExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
         case let .jumpIfEqual(lhs, rhs, _), let .returnIfEqual(lhs, rhs), let .binary(_, lhs, rhs, _):
             [lhs, rhs]
@@ -333,7 +333,10 @@ public final class CodegenPhase: CompilerPhase {
             arguments
         case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
             [receiver] + arguments
-        case let .jumpIfNotNull(value, _), let .copy(value, _), let .storeGlobal(value, _),
+        case let .copy(from, to):
+            // Both operands can reference symbol-backed storage.
+            [from, to]
+        case let .jumpIfNotNull(value, _), let .storeGlobal(value, _),
              let .rethrow(value), let .returnValue(value), let .resumeNonLocalReturn(value):
             [value]
         case let .nonLocalReturn(value, _):
