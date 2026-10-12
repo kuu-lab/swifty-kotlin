@@ -45,12 +45,13 @@ final class KotlinParser {
             )
         }
 
+        let recoveryStartIndex = stream.index
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         while !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
             _ = consumeToken(into: &children, range: &range)
         }
-        if children.isEmpty, !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
+        if stream.index == recoveryStartIndex, !stream.atEOF() {
             _ = consumeToken(into: &children, range: &range)
         }
         return arena.appendNode(kind: kind, range: range.value ?? start, children)
