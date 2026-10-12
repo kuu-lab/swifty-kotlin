@@ -103,8 +103,6 @@ final class TypeCheckDriver {
         self.globalOptInMarkerNames = globalOptInMarkerNames
     }
 
-    // MARK: - Main Recursive Dispatch Entry Point
-
     func inferExpr(
         _ id: ExprID,
         ctx: TypeInferenceContext,
@@ -142,8 +140,6 @@ final class TypeCheckDriver {
             range: range
         )
     }
-
-    // MARK: - Module-Level Type Checking
 
     func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile]) {
         let invisibleAccessFiles = Set(files.compactMap { file -> Int32? in
@@ -362,8 +358,6 @@ final class TypeCheckDriver {
             }
         }
     }
-
-    // MARK: - Shared Utilities
 
     func emitSubtypeConstraint(
         left: TypeID,
