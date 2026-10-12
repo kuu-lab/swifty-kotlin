@@ -28,6 +28,7 @@ public extension RuntimeABISpec {
             name: "__kk_file_readText",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
+                RuntimeABIParameter(name: "charsetTag", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

@@ -2,15 +2,23 @@ package kotlin.io
 
 import java.io.File
 import kotlin.internal.KsSymbolName
+import kotlin.text.Charset
+import kotlin.text.Charsets
 
 // KSP-484: keep file-content access in the runtime, but move line iteration and
 // its empty/trailing-line policy into bundled Kotlin source.
 
 @KsSymbolName("__kk_file_readText")
-private external fun __kkFileReadText(file: File): String
+private external fun __kkFileReadText(file: File, charset: Charset): String
+
+public fun File.readText(): String =
+    __kkFileReadText(this, Charsets.UTF_8)
+
+public fun File.readText(charset: Charset): String =
+    __kkFileReadText(this, charset)
 
 private fun fileLines(file: File): List<String> {
-    val content = __kkFileReadText(file)
+    val content = file.readText()
     if (content.isEmpty()) return emptyList()
 
     // Match BufferedReader.readLine: LF, CR, and CRLF are all terminators
