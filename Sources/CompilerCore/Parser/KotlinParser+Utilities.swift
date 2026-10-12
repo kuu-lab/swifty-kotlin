@@ -101,7 +101,7 @@ extension KotlinParser {
     }
 
     func parseBalancedGroup(
-        opening: Symbol, closing: Symbol, allowsPrimaryConstructorParameters: Bool = false
+        opening: Symbol, closing: Symbol, allowsConstructorParameters: Bool = false
     ) -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -110,7 +110,7 @@ extension KotlinParser {
             return arena.appendNode(kind: .statement, range: invalidRange, [])
         }
 
-        let parsesConstructorParameters = allowsPrimaryConstructorParameters
+        let parsesConstructorParameters = allowsConstructorParameters
             && opening == .lParen && closing == .rParen
         var atConstructorParameterStart = true
         var constructorParameterPrefixEnd: Int?
@@ -127,7 +127,7 @@ extension KotlinParser {
             // comma may cross a declaration-looking newline. Keep the usual
             // recovery boundary for a missing ')' and following declarations.
             if parsesConstructorParameters, closingSymbols.count == 1, atConstructorParameterStart {
-                constructorParameterPrefixEnd = primaryConstructorParameterPrefixEnd()
+                constructorParameterPrefixEnd = lookaheadConstructorParameterPrefixEnd()
             }
             let isConstructorParameterPrefix = parsesConstructorParameters
                 && constructorParameterPrefixEnd.map { stream.index < $0 } == true
@@ -149,7 +149,7 @@ extension KotlinParser {
                         constructorInDefaultValue = true
                     } else if token.kind == .symbol(.lessThan) {
                         if !constructorInDefaultValue || constructorTypeArgumentDepth > 0
-                            || primaryConstructorDefaultStartsTypeArguments() {
+                            || constructorDefaultStartsTypeArguments() {
                             constructorTypeArgumentDepth += 1
                         }
                     } else if token.kind == .symbol(.greaterThan), constructorTypeArgumentDepth > 0 {
@@ -180,9 +180,9 @@ extension KotlinParser {
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
     }
 
-    /// Called once per parameter boundary; the cached end also covers
-    /// annotations/modifiers split across newlines.
-    private func primaryConstructorParameterPrefixEnd() -> Int? {
+    /// Called once per constructor parameter boundary; the cached end also
+    /// covers annotations/modifiers split across newlines.
+    private func lookaheadConstructorParameterPrefixEnd() -> Int? {
         var offset = 0
         var work = 0
         while true {
@@ -209,23 +209,23 @@ extension KotlinParser {
                 continue
             }
             // Modifier keywords can themselves be parameter names (`value:`).
-            if isPrimaryConstructorParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
+            if isConstructorParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
                 return stream.index + offset + 2
             }
-            if case let .keyword(keyword) = kind, isPrimaryConstructorParameterModifier(keyword) {
+            if case let .keyword(keyword) = kind, isConstructorParameterModifier(keyword) {
                 offset += 1
                 continue
             }
             if kind == .keyword(.val) || kind == .keyword(.var) {
                 offset += 1
             }
-            guard isPrimaryConstructorParameterName(stream.peek(offset).kind),
+            guard isConstructorParameterName(stream.peek(offset).kind),
                   stream.peek(offset + 1).kind == .symbol(.colon) else { return nil }
             return stream.index + offset + 2
         }
     }
 
-    private func isPrimaryConstructorParameterModifier(_ keyword: Keyword) -> Bool {
+    private func isConstructorParameterModifier(_ keyword: Keyword) -> Bool {
         switch keyword {
         case .public, .private, .internal, .protected, .override, .final, .open, .actual, .expect,
              .vararg, .noinline, .crossinline:
@@ -235,7 +235,7 @@ extension KotlinParser {
         }
     }
 
-    private func isPrimaryConstructorParameterName(_ kind: TokenKind) -> Bool {
+    private func isConstructorParameterName(_ kind: TokenKind) -> Bool {
         switch kind {
         case .identifier, .backtickedIdentifier, .softKeyword:
             true
@@ -246,7 +246,7 @@ extension KotlinParser {
         }
     }
 
-    private func primaryConstructorDefaultStartsTypeArguments() -> Bool {
+    private func constructorDefaultStartsTypeArguments() -> Bool {
         guard let anchor = lastConsumedToken, isIdentifierLike(anchor.kind) else { return false }
         var depth = 0
         // Bound this new lookup before calling the existing generic scanner.
