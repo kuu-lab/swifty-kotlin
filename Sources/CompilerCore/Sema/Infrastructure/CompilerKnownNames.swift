@@ -1242,21 +1242,6 @@ package struct KnownCompilerNames {
             || name == uintArray
     }
 
-    func isPrimitiveArrayConstructorTypeName(_ name: InternedString) -> Bool {
-        name == array
-            || name == intArray
-            || name == longArray
-            || name == shortArray
-            || name == byteArray
-            || name == ubyteArray
-            || name == ushortArray
-            || name == ulongArray
-            || name == doubleArray
-            || name == floatArray
-            || name == booleanArray
-            || name == charArray
-            || name == uintArray
-    }
 
     /// The set of stdlib collection factory function names used for marking
     /// collection literal expressions. Shared across call type-checking sites

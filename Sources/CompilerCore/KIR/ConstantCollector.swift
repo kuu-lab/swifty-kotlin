@@ -460,7 +460,7 @@ struct ConstantCollector {
             // nested `+` bound to a user-declared operator returning String
             // (e.g. `Int.plus(String)`) is not concat text — folding it would
             // drop the resolved call, so the subtree is not a constant.
-            guard isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+            guard Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
                   let lhsText = constantStringConcatOperandText(lhs, ast: ast, sema: sema, interner: interner),
                   let rhsText = constantStringConcatOperandText(rhs, ast: ast, sema: sema, interner: interner)
             else {
@@ -493,8 +493,9 @@ struct ConstantCollector {
     /// concatenation for constant-folding purposes: true only when Sema left
     /// it unbound (the lenient built-in concat path) or bound it to the
     /// stdlib `String.plus` member or the `kotlin.text.String?.plus` facade.
-    /// Mirrors `CallLowerer.isBuiltinStringPlusCallee`.
-    private func isBuiltinStringPlusCallee(
+    /// A user-declared operator that merely returns String keeps its resolved
+    /// call. Shared by `ConstantCollector` and `CallLowerer`.
+    static func isBuiltinStringPlusCallee(
         _ exprID: ExprID,
         sema: SemaModule,
         interner: StringInterner

@@ -703,7 +703,7 @@ extension OverloadResolver {
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: substitution,
             parameterMapping: parameterMapping,
-            usesVararg: normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
+            usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
         ))
     }
 
@@ -847,7 +847,7 @@ extension OverloadResolver {
         sema: SemaModule
     ) -> Bool {
         let typeSystem = sema.types
-        let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+        let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
         var processedAll = true
         for argIndex in call.args.indices {
             if ignoredIntegerLiteralArgumentIndices.contains(argIndex) { continue }
@@ -1322,8 +1322,8 @@ extension OverloadResolver {
                 // parameters are not supplied by the call and are optional (default
                 // or vararg). If every extra parameter is bound, the smaller
                 // candidate (e.g. a vararg overload) is not preferred.
-                let rhsDefaults = normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
-                let rhsVarargs = normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
+                let rhsDefaults = Self.normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
+                let rhsVarargs = Self.normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
                 var unboundFound = false
                 var extraAreOptional = true
                 for p in 0..<rhsCount {

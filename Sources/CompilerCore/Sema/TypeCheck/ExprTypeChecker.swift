@@ -1064,7 +1064,7 @@ final class ExprTypeChecker {
                     return
                 }
                 let hasBundledRangeCandidate = driver.callChecker
-                    .hasUIntRangeSourceBackedContainsCandidate(
+                    .hasIntRangeSourceBackedContainsCandidate(
                         receiverType: rangeSourceReceiverType,
                         argumentType: sema.types.makeNonNullable(elementType),
                         sema: sema,

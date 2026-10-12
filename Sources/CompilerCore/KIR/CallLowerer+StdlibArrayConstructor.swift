@@ -30,7 +30,7 @@ extension CallLowerer {
                 return false
             }
             let knownNames = KnownCompilerNames(interner: interner)
-            return knownNames.isPrimitiveArrayConstructorTypeName(symbol.name)
+            return knownNames.isArrayLikeName(symbol.name)
                 && ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(signature.returnType)
         }()
         guard (sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor
