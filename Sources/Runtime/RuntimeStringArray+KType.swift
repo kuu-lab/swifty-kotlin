@@ -1,8 +1,6 @@
 import Foundation
 import RuntimeABI
 
-// MARK: - REFL-005: KType and typeOf<T>()
-
 // Source-backed KType properties are dispatched through the interface itable.
 // Runtime-created KType boxes therefore register the same alphabetically sorted
 // getter slots that the compiler assigns to the bundled KType declaration.
@@ -231,8 +229,6 @@ public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNul
     let classifierRaw = __kk_kclass_create(typeToken, nameHint)
     return runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
 }
-
-// MARK: - KType / KTypeProjection Box Helpers
 
 private func runtimeKTypeBox(from raw: Int) -> RuntimeKTypeBox? {
     guard raw != 0, raw != runtimeNullSentinelInt,
