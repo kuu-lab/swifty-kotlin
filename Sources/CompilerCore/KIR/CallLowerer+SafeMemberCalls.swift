@@ -229,17 +229,9 @@ extension CallLowerer {
            args.isEmpty,
            sema.bindings.callBinding(for: exprID) == nil
         {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let uintType = sema.types.make(.primitive(.uint, .nonNull))
-            let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
-            let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
-            let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
+            if sema.types.isSigned(nonNullReceiverType) || sema.types.isUnsigned(nonNullReceiverType) {
                 let nonNullLabel = driver.ctx.makeLoopLabel()
                 let endLabel = driver.ctx.makeLoopLabel()
                 instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
@@ -346,16 +338,14 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
+            if sema.types.isSigned(nonNullReceiverType) || sema.types.isUnsigned(nonNullReceiverType) {
                 let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                 let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
                 let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
                 let isBitwiseReceiver = isShiftReceiver || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
-                let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
+                let isUnsignedReceiver = sema.types.isUnsigned(nonNullReceiverType)
                 let primitiveCallee: InternedString? = switch calleeStr {
                 case "plus":
                     interner.intern("kk_op_add")

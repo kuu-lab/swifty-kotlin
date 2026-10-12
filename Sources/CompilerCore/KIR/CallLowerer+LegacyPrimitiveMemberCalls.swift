@@ -205,7 +205,7 @@ extension CallLowerer {
             let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
             let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
             let isBitwiseReceiver = isShiftReceiver || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
-            let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
+            let isUnsignedReceiver = sema.types.isUnsigned(nonNullReceiverType)
             let primitiveCallee: InternedString? = switch calleeNameStr {
             case "plus":
                 interner.intern("kk_op_add")
