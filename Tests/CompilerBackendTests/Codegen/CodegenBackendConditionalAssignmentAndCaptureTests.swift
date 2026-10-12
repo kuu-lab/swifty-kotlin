@@ -44,6 +44,14 @@ struct CodegenBackendConditionalAssignmentAndCaptureTests {
     }
 
     @Test
+    func uninitializedValAssignmentsSurviveIfElseJoin() throws {
+        try checkExecution(
+            fixture: "kuu_1867_uninitialized_val_if_else.kt",
+            expected: "CDATA\nTEXT\n42\n17\nalpha\nbeta\n"
+        )
+    }
+
+    @Test
     func mutableCaptureInitializationDominatesSiblingBranches() throws {
         try checkExecution(
             fixture: "mutable_capture_conditional_initialization.kt",
