@@ -1,6 +1,5 @@
 
 extension KIRLoweringDriver {
-    // MARK: - Constructor lowering
 
     /// Lowers a single constructor (primary or secondary) into KIR declarations.
     func lowerConstructor(
@@ -798,7 +797,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Secondary constructor body emission
 
     func emitSecondaryConstructorBody(
         classDecl: ClassDecl,
@@ -1239,7 +1237,6 @@ extension KIRLoweringDriver {
         return [declID] + ctx.drainGeneratedCallableDecls()
     }
 
-    // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
 
     /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
     /// declared member and generated data-class component function, followed by
