@@ -24,7 +24,8 @@ func makeTestOptions(
     inputs: [String],
     outputPath: String,
     emit: EmitMode,
-    allowDefaultStdlibLibrary: Bool = true
+    allowDefaultStdlibLibrary: Bool = true,
+    optLevel: OptimizationLevel = .O0
 ) -> CompilerOptions {
     CompilerOptions(
         moduleName: moduleName,
@@ -32,6 +33,7 @@ func makeTestOptions(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
+        optLevel: optLevel,
         // Matches the makeCompilationContext default in Pipeline.swift: Backend
         // tests link the precompiled stdlib artifact rather than compiling
         // bundled Kotlin sources. Stated explicitly rather than left to
@@ -127,11 +129,16 @@ func compileAndRunKotlin(
     _ source: String,
     expectedOutput: String,
     moduleName: String = "ExecTest",
-    allowDefaultStdlibLibrary: Bool = true
+    allowDefaultStdlibLibrary: Bool = true,
+    optLevel: OptimizationLevel = .O0,
+    expectedStderr: String? = nil,
+    requireNoCompilerDiagnostics: Bool = false
 ) throws {
     try compileAndRunKotlinSources(
         [source], expectedOutput: expectedOutput, moduleName: moduleName,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+        optLevel: optLevel, expectedStderr: expectedStderr,
+        requireNoCompilerDiagnostics: requireNoCompilerDiagnostics
     )
 }
 
@@ -141,7 +148,10 @@ func compileAndRunKotlinSources(
     _ sources: [String],
     expectedOutput: String,
     moduleName: String,
-    allowDefaultStdlibLibrary: Bool
+    allowDefaultStdlibLibrary: Bool,
+    optLevel: OptimizationLevel = .O0,
+    expectedStderr: String? = nil,
+    requireNoCompilerDiagnostics: Bool = false
 ) throws {
     try withTemporaryFiles(contents: sources) { paths in
         let fm = FileManager.default
@@ -154,7 +164,8 @@ func compileAndRunKotlinSources(
             inputs: paths,
             outputPath: outputBase,
             emit: .executable,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+            optLevel: optLevel
         )
         if allowDefaultStdlibLibrary {
             guard let library = options.stdlibLibraryPath,
@@ -166,11 +177,23 @@ func compileAndRunKotlinSources(
         }
         let result = makeTestDriver().runForTesting(options: options)
         try assertCompilationSucceeded(result)
+        if requireNoCompilerDiagnostics, !result.diagnostics.isEmpty {
+            throw TestCompilationFailure(
+                description: "Expected no compiler diagnostics, got: "
+                    + formatDiagnostics(result.diagnostics)
+            )
+        }
 
         let runResult = try CommandRunner.run(executable: outputBase, arguments: [])
         guard runResult.exitCode == 0 else {
             throw TestCompilationFailure(
                 description: "Execution failed with exit \(runResult.exitCode): \(runResult.stderr)"
+            )
+        }
+        if let expectedStderr, runResult.stderr != expectedStderr {
+            throw TestCompilationFailure(
+                description: "Expected stderr \(String(reflecting: expectedStderr)) "
+                    + "but got \(String(reflecting: runResult.stderr))"
             )
         }
         let normalized = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
