@@ -6,7 +6,6 @@ import Darwin
 import Glibc
 #endif
 
-// MARK: - File I/O Runtime (STDLIB-320/321/322/323)
 
 final class RuntimeFileBox {
     let path: String
@@ -276,7 +275,6 @@ public func __kk_io_createTempFile(_ prefixRaw: Int, _ suffixRaw: Int, _ directo
     )
 }
 
-// MARK: - STDLIB-320: File constructor and basic operations
 
 @_cdecl("__kk_file_new")
 public func __kk_file_new(_ pathRaw: Int) -> Int {
@@ -395,7 +393,6 @@ public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePo
     }
 }
 
-// MARK: - STDLIB-321: File properties and existence checks
 
 @_cdecl("__kk_file_path")
 public func __kk_file_path(_ fileRaw: Int) -> Int {
@@ -405,7 +402,6 @@ public func __kk_file_path(_ fileRaw: Int) -> Int {
     return runtimeMakeUTF8StringRaw(file.path)
 }
 
-// MARK: - STDLIB-567: File.bufferedReader()
 
 private func runtimeBufferedReaderBox(from raw: Int) -> RuntimeBufferedReaderBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -477,7 +473,6 @@ public func __kk_buffered_reader_ready(_ readerRaw: Int) -> Int {
     return kk_box_bool(reader.ready() ? 1 : 0)
 }
 
-// MARK: - STDLIB-IO-FN-022: BufferedReader.iterator()
 //
 // Kotlin's `kotlin.io.BufferedReader.iterator()` operator extension returns an
 // `Iterator<String>` that yields successive lines from the receiver. The
@@ -553,7 +548,6 @@ public func __kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeBufferedLineIteratorBox(reader: reader))
 }
 
-// MARK: - STDLIB-IO-FN-040: Reader.useLines {}
 //
 // Kotlin's `kotlin.io.Reader.useLines(block)` extension passes the receiver's
 // remaining lines to `block` as a `Sequence<String>` and closes the receiver
@@ -591,7 +585,6 @@ public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ clos
     return result
 }
 
-// MARK: - STDLIB-IO-FN-017: Reader.forEachLine { line -> Unit }
 //
 // Kotlin's `kotlin.io.Reader.forEachLine(action)` extension reads lines from the
 // receiver one by one and invokes `action` with each line as a `String`. Iteration
@@ -625,7 +618,6 @@ public func __kk_buffered_reader_forEachLine(
     return 0
 }
 
-// MARK: - STDLIB-IO-FN-033: Reader.readText()
 //
 // Kotlin's `kotlin.io.Reader.readText(): String` extension drains the remaining
 // content of a `Reader` and returns it as a single `String`. In KSwiftK every
@@ -644,7 +636,6 @@ public func __kk_reader_readText(_ readerRaw: Int) -> Int {
     return runtimeMakeUTF8StringRaw(reader.readText())
 }
 
-// MARK: - STDLIB-IO-FN-007: InputStream.bufferedReader(charset)
 //
 // Kotlin's `InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader`
 // is a top-level extension in `kotlin.io`. Charset selection is delegated to
@@ -667,7 +658,6 @@ public func __kk_input_stream_bufferedReader(
     return registerRuntimeObject(RuntimeBufferedReaderBox(data: remaining))
 }
 
-// MARK: - STDLIB-IO-091: BufferedWriter
 
 private func runtimeBufferedWriterBox(from raw: Int) -> RuntimeBufferedWriterBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -730,7 +720,6 @@ public func __kk_buffered_writer_close(_ writerRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - STDLIB-IO-FN-006: Writer.buffered(bufferSize)
 
 @_cdecl("__kk_writer_buffered_default")
 public func __kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -881,7 +870,6 @@ public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ ou
     return stream.read(into: list)
 }
 
-// MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
 //
 // Kotlin defines:
 //   public fun InputStream.readBytes(): ByteArray
@@ -952,7 +940,6 @@ public func __kk_input_stream_close(_ streamRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - STDLIB-IO-FN-013: InputStream.copyTo(out, bufferSize)
 //
 // Kotlin signature:
 //   public fun InputStream.copyTo(
@@ -996,7 +983,6 @@ public func __kk_input_stream_copyTo(
     return kk_box_long(totalBytesCopied)
 }
 
-// MARK: - InputStream.buffered (STDLIB-IO-FN-003)
 //
 // Kotlin's `InputStream.buffered(bufferSize)` extension returns a
 // BufferedInputStream wrapping the underlying stream.  Since the byte-level
@@ -1041,7 +1027,6 @@ public func __kk_input_stream_buffered(_ streamRaw: Int, _ bufferSizeRaw: Int, _
     return streamRaw
 }
 
-// MARK: - SequenceInputStream (STDLIB-IO-092)
 
 private func runtimeSequenceInputStreamBox(from raw: Int) -> RuntimeSequenceInputStreamBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -1146,7 +1131,6 @@ public func __kk_output_stream_close(_ streamRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - STDLIB-IO-FN-009: OutputStream.bufferedWriter(charset)
 
 /// Maps Kotlin `Charset` tag (mirrors `kotlin.text.Charsets.*` IDs in the
 /// runtime ABI) to a Swift `String.Encoding`.  Mirrors the helper in
@@ -1184,7 +1168,6 @@ public func __kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: In
     return registerRuntimeObject(writer)
 }
 
-// MARK: - STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize)
 
 /// Returns an OutputStream that wraps the receiver with buffering. Because the
 /// underlying `RuntimeOutputStreamBox` is already streamed through the OS-level
@@ -1212,7 +1195,6 @@ public func __kk_output_stream_buffered_sized(_ streamRaw: Int, _ bufferSize: In
     return streamRaw
 }
 
-// MARK: - KSP-1553: kotlinx.io Sink.asOutputStream()
 
 /// `kotlinx.io.Sink.asOutputStream()` bridge. Receives the three Kotlin
 /// callbacks declared in `Stdlib/kotlinx/io/SinksJvm.kt` —
@@ -1242,7 +1224,6 @@ public func __kk_kotlin_sink_output_stream(
     return registerRuntimeObject(RuntimeOutputStreamBox(sink: sink))
 }
 
-// MARK: - STDLIB-IO-FN-014: Reader.copyTo(out: Writer, bufferSize) -> Long
 
 /// Kotlin's default buffer size for `kotlin.io.copyTo`.  Matches
 /// `kotlin.io.DEFAULT_BUFFER_SIZE` (16 KiB).
