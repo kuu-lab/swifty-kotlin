@@ -31,8 +31,6 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlin/BitOperations.kt) since KSP-643/KSP-644.
         // Use if-let instead of guard-return so future registrations below are not skipped.
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            // MARK: - Primitive Type Conversion Functions (STDLIB-PRIM-002)
-
             registerSyntheticCoercionFunction(
                 named: "toByte",
                 externalLinkName: "kk_int_to_byte",
