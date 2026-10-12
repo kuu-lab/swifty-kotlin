@@ -9,6 +9,26 @@ import Testing
 @Suite
 struct CodegenBackendCollectionSearchHOFRegressionTests {
 
+    @Test(arguments: [false, true], [false, true])
+    func codegenPrivateNestedContainsInFold(useArtifact: Bool, optimized: Bool) throws {
+        if useArtifact {
+            _ = try testStdlibArtifactPath()
+        }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/private_nested_contains_fold.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "PrivateNestedContainsFold",
+            expected: "13\n13\n3\n4\n23\n",
+            optLevel: optimized ? .O2 : .O0,
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
     @Test(arguments: [false, true])
     func codegenListBinarySearchByGenericSelector(useArtifact: Bool) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
