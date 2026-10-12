@@ -117,11 +117,12 @@ final class TestRunnerGenerator {
 
     private func collect(_ declarations: [DeclID], file: FileID) {
         guard let ast = context.ast, let sema = context.sema else { return }
+        let sourceFile = ast.file(for: file)
         for id in declarations {
             guard let declaration = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { continue }
             // Resolve against the complete table and the declaration's lexical
             // scope, without the legacy unscoped annotation fallback.
-            if let sourceFile = ast.sortedFiles.first(where: { $0.fileID == file }) {
+            if let sourceFile {
                 sourceTags[symbol] = Set(declaration.annotations.compactMap { annotation in
                     if annotation.name.contains("."), !["kotlin.test.Test", "kotlin.test.Ignore", "kotlin.test.BeforeTest", "kotlin.test.AfterTest"].contains(annotation.name) {
                         return nil
@@ -236,7 +237,7 @@ final class TestRunnerGenerator {
     private func addCase(_ test: Method, suite: Suite?, before: [Method], after: [Method], name: String, ignored: Bool, file: FileID) {
         let suffix = "\(suite?.id.rawValue ?? -1)_\(test.id.rawValue)".replacingOccurrences(of: "-", with: "n")
         let wrapper = Self.prefix + "case_" + suffix
-        let package = context.ast?.sortedFiles.first(where: { $0.fileID == file })?.packageFQName.map(context.interner.resolve).map(identifier).joined(separator: ".") ?? ""
+        let package = context.ast?.file(for: file)?.packageFQName.map(context.interner.resolve).map(identifier).joined(separator: ".") ?? ""
         cases.append(Case(name: name, wrapper: package.isEmpty ? wrapper : package + "." + wrapper,
                           file: file, offset: test.declaration.range.start.offset, ignored: ignored))
         if ignored { return }
@@ -245,7 +246,7 @@ final class TestRunnerGenerator {
             for method in before + [test] + after { addBridge(method) }
             let member = Self.prefix + "run_" + suffix
             insert("\nfun \(member)(): Unit {\n" + lifecycle(test.bridge + "()", before: before.map { $0.bridge + "()" }, after: after.map { $0.bridge + "()" }, name: name) + "\n}\n", into: suite)
-            let filePackage = context.ast?.sortedFiles.first(where: { $0.fileID == suite.file })?.packageFQName ?? []
+            let filePackage = context.ast?.file(for: suite.file)?.packageFQName ?? []
             let components = context.sema?.symbols.symbol(suite.symbol)?.fqName ?? []
             let receiver = components.dropFirst(filePackage.count).map { identifier(context.interner.resolve($0)) }.joined(separator: ".")
                 + (suite.isObject ? "" : "()")
