@@ -1,6 +1,3 @@
-
-// MARK: - provideDelegate operator support (PROP-007)
-
 extension KIRLoweringDriver {
     /// Emits a `__kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
     func emitKPropertyStubCreate(
