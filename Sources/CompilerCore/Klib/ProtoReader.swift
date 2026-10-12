@@ -121,6 +121,14 @@ package struct ProtoFields {
         }
     }
 
+    /// A message holding only `field`'s wire values, re-tagged as
+    /// `newField` — used to decode a renumbered oneof member.
+    package func retagged(_ field: Int, as newField: Int) -> ProtoFields {
+        var copy = ProtoFields()
+        copy.values[newField] = values[field]
+        return copy
+    }
+
     package func int32List(_ field: Int) throws -> [Int32] {
         try varintList(field).map { Int32(truncatingIfNeeded: $0) }
     }
