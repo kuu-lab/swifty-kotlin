@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Collection Types (STDLIB-001)
-
 /// Runtime box for `listOf(...)` / `mutableListOf(...)`.
 /// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
@@ -649,8 +647,6 @@ final class RuntimeListIteratorBox {
     }
 }
 
-// MARK: - RuntimeChildReferenceProviding conformances (ABI-004)
-//
 // These conformances enable the recursive BFS freeze in kk_freeze_object to
 // traverse all reachable object references when freezing an object graph.
 // Only types that store `Int` child handles need to conform.
