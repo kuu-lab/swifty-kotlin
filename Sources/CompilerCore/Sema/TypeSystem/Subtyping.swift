@@ -670,8 +670,10 @@ extension TypeSystem {
         }
         var queue = directNominalSupertypes(for: candidate)
         var visited: Set<SymbolID> = [candidate]
-        while let current = queue.first {
-            queue.removeFirst()
+        var head = 0
+        while head < queue.count {
+            let current = queue[head]
+            head += 1
             if current == base {
                 return true
             }
@@ -1007,8 +1009,10 @@ extension TypeSystem {
     func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
         var visited: Set<SymbolID> = [classType.classSymbol]
         var queue = directNominalSupertypes(for: classType.classSymbol)
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
+        var head = 0
+        while head < queue.count {
+            let current = queue[head]
+            head += 1
             guard visited.insert(current).inserted else { continue }
             if functionNArity(of: current) == arity,
                let args = liftedNominalSupertypeArgs(
