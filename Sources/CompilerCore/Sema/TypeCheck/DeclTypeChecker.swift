@@ -81,8 +81,6 @@ final class DeclTypeChecker {
         )
     }
 
-    // MARK: - Function Body Type Inference
-
     func inferFunctionBodyType(
         _ body: FunctionBody,
         ctx: TypeInferenceContext,
@@ -130,8 +128,6 @@ final class DeclTypeChecker {
             return ctx.sema.types.unitType
         }
     }
-
-    // MARK: - Property Type Checking
 
     func typeCheckPropertyDecl(
         _ property: PropertyDecl,
