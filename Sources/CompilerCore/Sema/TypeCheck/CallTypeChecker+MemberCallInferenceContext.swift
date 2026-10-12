@@ -424,6 +424,17 @@ extension CallTypeChecker {
         {
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
         }
+        if args.isEmpty {
+            switch sema.wellKnownSymbols.enumIntrinsic(for: chosen) {
+            case .enumValues:
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumValues)
+                sema.bindings.markCollectionExpr(id)
+            case .enumEntries:
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumEntries)
+            case .enumValueOf, .enumEntriesIntrinsic, .none:
+                break
+            }
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(
             in: signature.returnType,
