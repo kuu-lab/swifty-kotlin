@@ -341,7 +341,6 @@ public final class BuildASTPhase: CompilerPhase {
         }
     }
 
-    // MARK: - Sequential path
 
     private func runSequential(_ ctx: CompilationContext) {
         let arena = makeArena(ctx)
@@ -373,7 +372,6 @@ public final class BuildASTPhase: CompilerPhase {
         )
     }
 
-    // MARK: - Parallel path
 
     private func runParallel(_ ctx: CompilationContext, jobs: Int) throws {
         let arena = makeArena(ctx) // thread-safe with locks
@@ -431,7 +429,6 @@ public final class BuildASTPhase: CompilerPhase {
         return ASTArena()
     }
 
-    // MARK: - Per-file AST building (shared between sequential and parallel)
 
     func buildFileAST(
         fileID: FileID,
@@ -612,7 +609,6 @@ public final class BuildASTPhase: CompilerPhase {
         )
     }
 
-    // MARK: - Finalization (shared between sequential and parallel)
 
     private func finalizeAST(
         ctx: CompilationContext,
