@@ -90,8 +90,6 @@ extension NativeEmitter {
             )
         }
 
-        // MARK: - NativeEmitter forwards
-
         // The moved code was written against `self` (the emitter). These
         // forwards keep the extracted bodies verbatim instead of rewriting
         // every member reference to go through `emitter`.
