@@ -1574,6 +1574,4 @@ extension CallTypeChecker {
 
         return nil
     }
-
-    // MARK: - Array member fallback (STDLIB-087/088/089)
 }
