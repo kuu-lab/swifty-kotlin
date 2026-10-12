@@ -510,7 +510,7 @@ extension CallLowerer {
 
     /// Arithmetic member names that share the operator syntax's `.binary` lowering
     /// for Char / Float / Double receivers.
-    fileprivate func explicitFloatingOrCharArithmeticOp(_ name: String) -> KIRBinaryOp? {
+    func explicitFloatingOrCharArithmeticOp(_ name: String) -> KIRBinaryOp? {
         switch name {
         case "plus": .add
         case "minus": .subtract
