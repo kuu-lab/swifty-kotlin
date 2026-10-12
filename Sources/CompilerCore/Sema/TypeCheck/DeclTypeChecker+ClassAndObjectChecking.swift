@@ -507,6 +507,7 @@ extension DeclTypeChecker {
                 guard !driver.precheckedPropertyDecls.contains(declID) else {
                     continue
                 }
+                let diagnosticSnapshot = diagnostics.count
                 typeCheckBoundPropertyDecl(
                     property,
                     declID: declID,
@@ -516,11 +517,22 @@ extension DeclTypeChecker {
                     solver: solver,
                     diagnostics: diagnostics
                 )
+                if needsAccessorRecheck(property) {
+                    // A getter can still see inferred nested methods' header
+                    // placeholders. Keep its inferred type for other members,
+                    // then diagnose it after those method bodies are checked.
+                    diagnostics.truncate(to: diagnosticSnapshot)
+                }
 
             default:
                 continue
             }
         }
+    }
+
+    private func needsAccessorRecheck(_ property: PropertyDecl) -> Bool {
+        property.getter != nil && property.initializer == nil
+            && property.delegateExpression == nil && property.explicitBackingField == nil
     }
 
     func typeCheckClassLikeMembers(
@@ -570,6 +582,27 @@ extension DeclTypeChecker {
         // them before enclosing functions see the header's `Any?` placeholder.
         for declID in nestedClasses {
             typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
+        }
+
+        // Recheck computed properties before the authoritative function pass.
+        // Their first pass may have used a nested method's placeholder return
+        // type. Initializers and delegates retain their original single check.
+        for declID in memberProperties {
+            guard case let .propertyDecl(property)? = ast.arena.decl(declID),
+                  needsAccessorRecheck(property),
+                  let symbol = sema.bindings.declSymbols[declID]
+            else {
+                continue
+            }
+            typeCheckBoundPropertyDecl(
+                property,
+                declID: declID,
+                symbol: symbol,
+                ctx: ctx.with(currentDeclSymbol: symbol),
+                initialLocals: propertyInitializerLocals,
+                solver: solver,
+                diagnostics: diagnostics
+            )
         }
 
         for declID in memberFunctions {
