@@ -303,7 +303,6 @@ private let cinteropCVariableTypeID = runtimeStableNominalTypeID(fqName: "kotlin
 private let cinteropCPrimitiveVarTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.CPrimitiveVar")
 private let cinteropCPointedTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.CPointed")
 private let cinteropNativePointedTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.NativePointed")
-private let cinteropIntVarTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.IntVar")
 private let cinteropByteVarTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")
 
 /// Installs the MemScope/Arena/nativeHeap subtype edges once per metadata

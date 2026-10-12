@@ -16,13 +16,11 @@ extension DataFlowSemaPhase {
         let bundledIndex = context.bundledIndex
         let coroutinesPkg = context.coroutinesPkg
         let coroutineScopeType = context.coroutineScopeType!
-        let jobSymbol = context.jobSymbol!
         let jobType = context.jobType!
         let dispatcherSymbol = context.dispatcherSymbol!
         let dispatcherType = context.dispatcherType!
         let coroutineStartType = context.coroutineStartType!
         let deferredType = context.deferredType!
-        let continuationSymbol = context.continuationSymbol!
         let continuationType = context.continuationType!
         let continuationTypeParameterSymbol = context.continuationTypeParameterSymbol!
         let channelsPkg = context.channelsPkg
