@@ -3,7 +3,9 @@ import Foundation
 class RuntimeThrowableBox {
     let message: String?
     var cause: Int
-    let stackTraceAddresses: [Int]
+    var stackTraceAddresses: [Int]
+    var suppressionEnabled = true
+    var writableStackTrace = true
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []

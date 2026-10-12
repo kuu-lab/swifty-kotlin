@@ -203,10 +203,12 @@ func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
         return []
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        guard throwable.writableStackTrace else { return [] }
         let header = runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
         return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        guard object.throwableWritableStackTrace else { return [] }
         let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
         return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
@@ -403,6 +405,38 @@ public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int
     return throwableRaw
 }
 
+@_cdecl("__kk_throwable_set_options")
+public func __kk_throwable_set_options(
+    _ throwableRaw: Int,
+    _ suppressionEnabledRaw: Int,
+    _ writableStackTraceRaw: Int
+) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: ptr))
+          })
+    else {
+        return throwableRaw
+    }
+
+    let suppressionEnabled = suppressionEnabledRaw != 0
+    let writableStackTrace = writableStackTraceRaw != 0
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        throwable.suppressionEnabled = suppressionEnabled
+        throwable.writableStackTrace = writableStackTrace
+        if !writableStackTrace {
+            throwable.stackTraceAddresses = []
+        }
+    } else if let throwable = tryCast(ptr, to: RuntimeObjectBox.self) {
+        throwable.throwableSuppressionEnabled = suppressionEnabled
+        throwable.throwableWritableStackTrace = writableStackTrace
+        if !writableStackTrace {
+            throwable.throwableStackTraceAddresses = []
+        }
+    }
+    return throwableRaw
+}
+
 /// Storage bridge for `Throwable.addSuppressed`: appends to the suppressed list.
 @_cdecl("__kk_throwable_appendSuppressed")
 public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
@@ -428,8 +462,10 @@ public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw
     // remaining ABI-compatible with this non-throwing runtime entrypoint.
     guard throwableRaw != suppressedRaw else { return 0 }
     if let throwable = tryCast(throwablePtr, to: RuntimeThrowableBox.self) {
+        guard throwable.suppressionEnabled else { return 0 }
         throwable.suppressed.append(suppressedRaw)
     } else if let throwable = tryCast(throwablePtr, to: RuntimeObjectBox.self) {
+        guard throwable.throwableSuppressionEnabled else { return 0 }
         throwable.throwableSuppressed.append(suppressedRaw)
     } else {
         return 0
@@ -443,10 +479,10 @@ public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw
 public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
     let suppressed: [Int]
     if let throwable = runtimeThrowableBox(from: throwableRaw) {
-        suppressed = throwable.suppressed
+        suppressed = throwable.suppressionEnabled ? throwable.suppressed : []
     } else if let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
               let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        suppressed = object.throwableSuppressed
+        suppressed = object.throwableSuppressionEnabled ? object.throwableSuppressed : []
     } else {
         return runtimeAllocateArrayBox(length: 0)
     }
