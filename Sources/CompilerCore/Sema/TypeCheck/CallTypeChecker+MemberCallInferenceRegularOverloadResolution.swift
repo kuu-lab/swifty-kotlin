@@ -230,19 +230,23 @@ extension CallTypeChecker {
                 cachedNonLambdaArgTypes[index] = argTypes[index]
             }
         }
+        var argumentExpectedTypeOverrides: [Int: TypeID] = [:]
+        if isLongRangeLiteralContainsCall {
+            argumentExpectedTypeOverrides[0] = sema.types.longType
+        } else if isULongRangeLiteralContainsCall {
+            argumentExpectedTypeOverrides[0] = sema.types.ulongType
+        }
+        prepareSingleCandidateNestedCallExpectedTypes(
+            args: args,
+            candidates: candidates,
+            ctx: ctx,
+            expectedTypeOverrides: &argumentExpectedTypeOverrides
+        )
         let preparedArgs = prepareCallArguments(
             args: args,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
-            expectedTypeOverrides: {
-                if isLongRangeLiteralContainsCall {
-                    return [0: sema.types.longType]
-                }
-                if isULongRangeLiteralContainsCall {
-                    return [0: sema.types.ulongType]
-                }
-                return [:]
-            }(),
+            expectedTypeOverrides: argumentExpectedTypeOverrides,
             contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
