@@ -6,8 +6,6 @@ package enum MetadataModality: String {
     case abstract
 }
 
-// MARK: - Shared Metadata Record
-
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
 /// This is the single source of truth for what information survives the metadata round-trip.
 package struct MetadataRecord {
