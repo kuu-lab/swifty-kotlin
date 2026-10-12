@@ -6,8 +6,8 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     if lhs == rhs {
         return 0
     }
-    if let lhsString = runtimeStringFromRawValue(lhs),
-       let rhsString = runtimeStringFromRawValue(rhs)
+    if let lhsString = runtimeStringFromRaw(lhs),
+       let rhsString = runtimeStringFromRaw(rhs)
     {
         return runtimeCompareStrings(lhsString, rhsString)
     }
@@ -67,7 +67,7 @@ private func runtimeStringFromRuntimeValue(_ value: RuntimeValue) -> String? {
             hash: value.payload3
         )
     case RuntimeValue.rawTag:
-        return runtimeStringFromRawValue(value.payload0)
+        return runtimeStringFromRaw(value.payload0)
     default:
         return nil
     }
@@ -370,12 +370,4 @@ public func kk_primitive_compareTo(_ lhsRaw: Int, _ rhsRaw: Int, _ kindRaw: Int3
     runtimeComparePrimitiveValues(lhsRaw, rhsRaw, kind: runtimePrimitiveCompareKind(from: kindRaw))
 }
 
-private func runtimeStringFromRawValue(_ raw: Int) -> String? {
-    if raw == runtimeNullSentinelInt {
-        return nil
-    }
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    return extractString(from: pointer)
-}
+

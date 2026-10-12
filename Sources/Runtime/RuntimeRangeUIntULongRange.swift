@@ -370,7 +370,7 @@ public func __kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_ulong_step")
 public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
-    runtimeUnsignedStep(rangeRaw, stepValue)
+    __kk_uint_step(rangeRaw, stepValue)
 }
 
 @_cdecl("kk_range_step")

@@ -135,20 +135,14 @@ public func __kk_kclass_properties(_ kclassRaw: Int) -> Int {
 /// excluding extension properties.
 @_cdecl("__kk_kclass_member_properties")
 public func __kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
-    guard runtimeKClassBox(from: kclassRaw) != nil else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.properties(for: kclassRaw)))
+    __kk_kclass_properties(kclassRaw)
 }
 
 /// Returns the declared member properties of this KClass (own class only, not inherited).
 /// These are properties explicitly declared in this class, excluding superclass properties.
 @_cdecl("__kk_kclass_declared_member_properties")
 public func __kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
-    guard runtimeKClassBox(from: kclassRaw) != nil else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.properties(for: kclassRaw)))
+    __kk_kclass_properties(kclassRaw)
 }
 
 /// Returns all functions (including inherited) of this KClass as a runtime list.
@@ -165,20 +159,14 @@ public func __kk_kclass_functions(_ kclassRaw: Int) -> Int {
 /// These are functions declared in the class or its superclasses, excluding extensions.
 @_cdecl("__kk_kclass_member_functions")
 public func __kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
-    guard runtimeKClassBox(from: kclassRaw) != nil else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.functions(for: kclassRaw)))
+    __kk_kclass_functions(kclassRaw)
 }
 
 /// Returns the declared member functions of this KClass (own class only, not inherited).
 /// These are functions explicitly declared in this class, excluding superclass functions.
 @_cdecl("__kk_kclass_declared_member_functions")
 public func __kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
-    guard runtimeKClassBox(from: kclassRaw) != nil else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.functions(for: kclassRaw)))
+    __kk_kclass_functions(kclassRaw)
 }
 
 // MARK: - STDLIB-REFLECT-ABI-003: KClass.cast / KClass.safeCast
