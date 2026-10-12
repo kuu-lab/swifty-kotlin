@@ -168,9 +168,11 @@ public func kk_native_getStackTraceAddresses(_ throwableRaw: Int) -> Int {
        })
     {
         if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
-            addresses = throwable.stackTraceAddresses
+            addresses = throwable.writableStackTrace ? throwable.stackTraceAddresses : []
         } else if let throwable = tryCast(pointer, to: RuntimeObjectBox.self) {
-            addresses = throwable.throwableStackTraceAddresses ?? []
+            addresses = throwable.throwableWritableStackTrace
+                ? throwable.throwableStackTraceAddresses ?? []
+                : []
         } else {
             addresses = []
         }
@@ -188,6 +190,10 @@ public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
           }),
           let object = tryCast(pointer, to: RuntimeObjectBox.self)
     else {
+        return throwableRaw
+    }
+    guard object.throwableWritableStackTrace else {
+        object.throwableStackTraceAddresses = []
         return throwableRaw
     }
     if object.throwableStackTraceAddresses == nil {

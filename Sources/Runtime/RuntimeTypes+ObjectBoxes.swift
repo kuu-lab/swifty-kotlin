@@ -92,6 +92,8 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
     var throwableSuppressed: [Int]
+    var throwableSuppressionEnabled: Bool
+    var throwableWritableStackTrace: Bool
 
     init(length: Int, classID: Int64) {
         self.classID = classID
@@ -102,6 +104,8 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.throwableCause = 0
         self.throwableStackTraceAddresses = nil
         self.throwableSuppressed = []
+        self.throwableSuppressionEnabled = true
+        self.throwableWritableStackTrace = true
         super.init(length: length)
     }
 }
