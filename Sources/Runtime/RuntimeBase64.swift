@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Base64 Runtime (KSP-482)
 //
 // Encode/decode/padding logic now lives in pure Kotlin
 // (Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt). Only the
@@ -34,7 +33,6 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
 
     func write(_ data: Data) throws {
         let buf = pending + Array(data)
-        // Encode full 3-byte groups
         var idx = 0
         var encoded: [UInt8] = []
         while idx + 2 < buf.count {
@@ -54,7 +52,6 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
     }
 
     func flush() throws {
-        // Encode remaining pending bytes (0, 1, or 2)
         if !pending.isEmpty {
             var encoded: [UInt8] = []
             let b0 = pending[0]
