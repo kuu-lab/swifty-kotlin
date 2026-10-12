@@ -1,4 +1,3 @@
-// MARK: - Sequence Intermediate Operations (Lazy)
 
 @_cdecl("kk_sequence_map")
 public func kk_sequence_map(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
@@ -240,7 +239,6 @@ public func kk_sequence_dropWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     return registerRuntimeObject(newSeq)
 }
 
-// MARK: - Sequence Higher-Order Operations (STDLIB-271)
 
 @_cdecl("kk_sequence_mapNotNull")
 public func kk_sequence_mapNotNull(
@@ -485,7 +483,6 @@ public func kk_sequence_withIndex(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-// MARK: - kk_sequence_zipWithNext (STDLIB: Sequence.zipWithNext)
 
 public func kk_sequence_zipWithNext(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
@@ -574,7 +571,6 @@ public func kk_sequence_to_list(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer
     return registerRuntimeObject(list)
 }
 
-// MARK: - Sequence Sorting Operations (STDLIB-272)
 
 @_cdecl("kk_sequence_sorted")
 public func kk_sequence_sorted(_ seqRaw: Int) -> Int {
@@ -672,7 +668,6 @@ public func kk_sequence_sortedDescending(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-// MARK: - Sequence Shuffling Operations (STDLIB-SEQ-019)
 
 @_cdecl("kk_sequence_shuffled")
 public func kk_sequence_shuffled(_ seqRaw: Int) -> Int {
