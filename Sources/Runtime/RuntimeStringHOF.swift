@@ -10,7 +10,6 @@
 import Foundation
 
 
-// MARK: - STDLIB-192: equals(other)
 // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt).
 
