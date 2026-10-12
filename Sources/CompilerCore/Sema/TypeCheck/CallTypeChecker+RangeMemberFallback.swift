@@ -2,8 +2,6 @@
 import Foundation
 
 extension CallTypeChecker {
-    // MARK: - Range member fallback (STDLIB-090/091/092/093)
-
     /// IntRange/IntProgression members with bundled Kotlin source
     /// implementations (KSP-453) — see `isIntRangeSourceBackedHOF`.
     private static let intRangeSourceBackedHOFNames: Set<String> = [
