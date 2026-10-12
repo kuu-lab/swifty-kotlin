@@ -327,8 +327,6 @@ extension DeclTypeChecker {
         return nil
     }
 
-    // MARK: - Init Block & Secondary Constructor Type Checking
-
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`
     /// to property initializers and `init {}` blocks only — not to regular
     /// member functions. Property-backed parameters (`val`/`var`) are already
@@ -674,8 +672,6 @@ extension DeclTypeChecker {
             range: delegation.range
         )
     }
-
-    // MARK: - Function Declaration Type Checking
 
     /// - Parameter baseLocals: Seeds the function body's local-name resolution
     ///   with bindings from an enclosing scope. Empty for ordinary member
