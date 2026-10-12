@@ -793,8 +793,8 @@ extension TypeSystem {
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
-        // Prefer the strict result (unique most-specific ancestor with agreeing type
-        // arguments); fall back to the BFS approximation when several incomparable
+        // Prefer the unique most-specific ancestor with compatible type
+        // arguments; fall back to the BFS approximation when several incomparable
         // candidates remain.
         return commonNominalSupertype(types) ?? nearestCommonNominalSupertype(types)
     }
@@ -873,12 +873,11 @@ extension TypeSystem {
     /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
     /// input is a supertype of the other, but they share
     /// `CoroutineContext` above them. Collects the ancestor symbols
-    /// reachable from every input, keeps those whose substituted type args
-    /// agree across all inputs, and returns the single most specific
+    /// reachable from every input, keeps instantiations that accept all inputs
+    /// under the declared variance, and returns the single most specific
     /// candidate (a subtype of every other candidate). Returns `nil` for
-    /// non-class inputs, disagreeing args, or ambiguity — the caller then
-    /// falls back to `Any`, so this can only tighten results that would
-    /// otherwise widen to `Any`.
+    /// non-class inputs, incompatible args, or ambiguity — the caller then
+    /// uses the nearest-common-ancestor approximation.
     private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
         var ancestorSets: [Set<SymbolID>] = []
         for input in types {
@@ -896,10 +895,8 @@ extension TypeSystem {
         for rest in ancestorSets.dropFirst() {
             common.formIntersection(rest)
         }
-        var candidates: [TypeID] = []
+        var candidates: Set<TypeID> = []
         for ancestor in common {
-            var args: [TypeArg]?
-            var agrees = true
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
@@ -908,17 +905,15 @@ extension TypeSystem {
                           to: ancestor
                       )
                 else {
-                    agrees = false
-                    break
+                    continue
                 }
-                if let prev = args, prev != lifted {
-                    agrees = false
-                    break
+                // A later branch may provide the common instantiation:
+                // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
+                let candidate = make(.classType(ClassType(classSymbol: ancestor, args: lifted, nullability: .nonNull)))
+                if !candidates.contains(candidate), types.allSatisfy({ isSubtype($0, candidate) }) {
+                    candidates.insert(candidate)
                 }
-                args = args ?? lifted
             }
-            guard agrees, let args else { continue }
-            candidates.append(make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull))))
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
