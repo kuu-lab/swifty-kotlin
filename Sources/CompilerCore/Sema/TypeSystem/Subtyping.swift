@@ -873,12 +873,11 @@ extension TypeSystem {
     /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
     /// input is a supertype of the other, but they share
     /// `CoroutineContext` above them. Collects the ancestor symbols
-    /// reachable from every input, keeps those whose substituted type args
-    /// agree across all inputs, and returns the single most specific
-    /// candidate (a subtype of every other candidate). Returns `nil` for
-    /// non-class inputs, disagreeing args, or ambiguity — the caller then
-    /// falls back to `Any`, so this can only tighten results that would
-    /// otherwise widen to `Any`.
+    /// reachable from every input, combines differing declaration-site
+    /// covariant arguments with their LUB, and returns the single most
+    /// specific candidate (a subtype of every other candidate). Invariant or
+    /// contravariant argument disagreements remain conservative. Every
+    /// candidate is checked against every input before it is retained.
     private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
         var ancestorSets: [Set<SymbolID>] = []
         for input in types {
@@ -898,8 +897,8 @@ extension TypeSystem {
         }
         var candidates: [TypeID] = []
         for ancestor in common {
-            var args: [TypeArg]?
-            var agrees = true
+            var liftedArguments: [[TypeArg]] = []
+            var hasCompleteArguments = true
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
@@ -908,20 +907,57 @@ extension TypeSystem {
                           to: ancestor
                       )
                 else {
-                    agrees = false
+                    hasCompleteArguments = false
                     break
                 }
-                if let prev = args, prev != lifted {
-                    agrees = false
-                    break
-                }
-                args = args ?? lifted
+                liftedArguments.append(lifted)
             }
-            guard agrees, let args else { continue }
-            candidates.append(make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull))))
+            guard hasCompleteArguments,
+                  let args = commonNominalSupertypeArguments(liftedArguments, for: ancestor)
+            else {
+                continue
+            }
+            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            guard types.allSatisfy({ isSubtype($0, candidate) }) else { continue }
+            candidates.append(candidate)
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
+    }
+
+    private func commonNominalSupertypeArguments(
+        _ argumentSets: [[TypeArg]],
+        for nominal: SymbolID
+    ) -> [TypeArg]? {
+        guard let first = argumentSets.first,
+              argumentSets.allSatisfy({ $0.count == first.count })
+        else {
+            return nil
+        }
+
+        let variances = normalizedNominalVariances(for: nominal, arity: first.count)
+        var result: [TypeArg] = []
+        result.reserveCapacity(first.count)
+        for index in first.indices {
+            let arguments = argumentSets.map { $0[index] }
+            if arguments.dropFirst().allSatisfy({ $0 == arguments[0] }) {
+                result.append(arguments[0])
+                continue
+            }
+
+            guard variances[index] == .out else { return nil }
+            var projectedTypes: [TypeID] = []
+            for argument in arguments {
+                switch argument {
+                case let .invariant(type), let .out(type):
+                    projectedTypes.append(type)
+                case .in, .star:
+                    return nil
+                }
+            }
+            result.append(.out(lub(projectedTypes)))
+        }
+        return result
     }
 
     /// Arity of `kotlin.Function.FunctionN` when `classSymbol` is one of the
