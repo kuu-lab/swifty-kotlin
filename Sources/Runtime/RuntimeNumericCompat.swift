@@ -673,7 +673,6 @@ public func __kk_math_pow_float_int(_ base: Int, _ exp: Int) -> Int {
     kk_float_to_bits(powf(kk_bits_to_float(base), Float(exp)))
 }
 
-// MARK: - minOf/maxOf Float/Double (STDLIB-COMP-FN NaN & signed-zero semantics)
 //
 // Kotlin's minOf(Float, Float) / maxOf(Float, Float) delegate to Java's
 // Math.min/Math.max on JVM, whose semantics differ from a plain `<`/`>`
@@ -795,7 +794,6 @@ public func __kk_math_cbrt(_ value: Int) -> Int {
     kk_double_to_bits(cbrt(kk_bits_to_double(value)))
 }
 
-// MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Double)
 
 @_cdecl("__kk_math_acosh")
 public func __kk_math_acosh(_ value: Int) -> Int {
@@ -832,7 +830,6 @@ public func __kk_math_atan2(_ y: Int, _ x: Int) -> Int {
     kk_double_to_bits(atan2(kk_bits_to_double(y), kk_bits_to_double(x)))
 }
 
-// MARK: - STDLIB-431: exp/ln/log functions
 
 @_cdecl("__kk_math_exp")
 public func __kk_math_exp(_ value: Int) -> Int {
@@ -888,7 +885,6 @@ public func __kk_math_log(_ x: Int, _ base: Int) -> Int {
     return kk_double_to_bits(log(rawX) / log(rawBase))
 }
 
-// MARK: - STDLIB-432: hypot
 
 @_cdecl("__kk_math_hypot")
 public func __kk_math_hypot(_ x: Int, _ y: Int) -> Int {
@@ -897,7 +893,6 @@ public func __kk_math_hypot(_ x: Int, _ y: Int) -> Int {
     return kk_double_to_bits(hypot(rawX, rawY))
 }
 
-// MARK: - STDLIB-500~509: Float trig/math overloads
 
 //
 // Float values are transported as bit-encoded Int (intptr_t), just like Double.
@@ -945,7 +940,6 @@ public func __kk_math_cbrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, cbrtf)
 }
 
-// MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Float)
 
 @_cdecl("__kk_math_acosh_float")
 public func __kk_math_acosh_float(_ v: Int) -> Int {
@@ -1004,7 +998,6 @@ public func __kk_math_floor_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, floorf)
 }
 
-// MARK: - STDLIB-430: additional Float overloads (exp, expm1, ln, ln1p, log2, log10, log, hypot)
 
 @_cdecl("__kk_math_exp_float")
 public func __kk_math_exp_float(_ value: Int) -> Int {
@@ -1067,7 +1060,6 @@ public func __kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
     return kk_float_to_bits(hypot(rawX, rawY))
 }
 
-// MARK: - STDLIB-510~511: roundToInt / roundToLong extensions
 
 // Kotlin's roundToInt/roundToLong use Math.round() semantics: ties round
 // towards positive infinity. For Float and Double, we use bit-manipulation
@@ -1167,7 +1159,6 @@ public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePoin
     return Int(r)
 }
 
-// MARK: - STDLIB-512~513: ulp / nextUp / nextDown extensions
 
 @_cdecl("__kk_double_ulp")
 public func __kk_double_ulp(_ value: Int) -> Int {
@@ -1201,7 +1192,6 @@ public func __kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
-// MARK: - STDLIB-NUM-130: Floating-point precision — toBits
 //
 // KSP-646: isNaN / isInfinite / isFinite are implemented in bundled Kotlin
 // (Stdlib/kotlin/util/Numbers.kt) on top of toRawBits(), so no runtime export
@@ -1255,7 +1245,6 @@ public func __kk_float_fromBits(_ bits: Int) -> Int {
     Int(UInt32(truncatingIfNeeded: bits))
 }
 
-// MARK: - STDLIB-514: truncate, IEEErem, nextTowards
 
 @_cdecl("__kk_math_truncate")
 public func __kk_math_truncate(_ value: Int) -> Int {
@@ -1402,7 +1391,6 @@ public func kk_long_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
 }
 
-// MARK: - Double arithmetic ops (bit-encoded intptr_t ABI)
 
 @_cdecl("kk_op_dadd")
 public func kk_op_dadd(_ lhs: Int, _ rhs: Int) -> Int {
@@ -1475,7 +1463,6 @@ public func kk_op_dge(_ lhs: Int, _ rhs: Int) -> Int {
     kk_bits_to_double(lhs) >= kk_bits_to_double(rhs) ? 1 : 0
 }
 
-// MARK: - Float arithmetic ops (bit-encoded intptr_t ABI)
 
 @_cdecl("kk_op_fadd")
 public func kk_op_fadd(_ lhs: Int, _ rhs: Int) -> Int {
@@ -1548,7 +1535,6 @@ public func kk_op_fge(_ lhs: Int, _ rhs: Int) -> Int {
     kk_bits_to_float(lhs) >= kk_bits_to_float(rhs) ? 1 : 0
 }
 
-// MARK: - Int/Long comparison ops
 
 @_cdecl("kk_op_eq")
 public func kk_op_eq(_ lhs: Int, _ rhs: Int) -> Int {
@@ -1580,7 +1566,6 @@ public func kk_op_ge(_ lhs: Int, _ rhs: Int) -> Int {
     lhs >= rhs ? 1 : 0
 }
 
-// MARK: - Unsigned comparison ops (UInt/ULong/UByte/UShort)
 //
 // UByte/UShort/UInt are always zero-extended into this 64-bit container, so
 // their positive range never sets bit 63 and kk_op_lt/le/gt/ge above already
@@ -1609,7 +1594,6 @@ public func kk_op_uge(_ lhs: Int, _ rhs: Int) -> Int {
     UInt(bitPattern: lhs) >= UInt(bitPattern: rhs) ? 1 : 0
 }
 
-// MARK: - Int/Long arithmetic ops (flooring division and modulo)
 
 // PEC-NUM-0002: `floorDiv`/`mod` by zero throw ArithmeticException("/ by zero")
 // like `/`/`%`; outThrown is set and 0 is returned when rhs == 0.
@@ -1711,7 +1695,6 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutableP
     runtimeFloorMod(lhs, rhs, outThrown)
 }
 
-// MARK: - Char operations
 
 @_cdecl("__kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
