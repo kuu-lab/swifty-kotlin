@@ -12,29 +12,6 @@ import Testing
 // undefined `<propertyName>` symbol and the program failed to link
 // (`KSWIFTK-LINK-0001`); the object-side getters were never registered in the
 // itable either.
-private func runInterfacePropertyDispatchCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    outputPath: String
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: .executable,
-        target: defaultTargetTriple()
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    try CodegenPhase().run(ctx)
-    return ctx
-}
 
 @Suite
 struct CodegenBackendInterfacePropertyDispatchTests {

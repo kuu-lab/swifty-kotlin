@@ -10,9 +10,6 @@ private let lambdaThatThrows: @convention(c) (Int, Int, UnsafeMutablePointer<Int
     return 0
 }
 
-private let throwingGroupByParity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value % 2
-}
 
 private func makeList(_ elements: [Int]) -> Int {
     let array = kk_array_new(elements.count)

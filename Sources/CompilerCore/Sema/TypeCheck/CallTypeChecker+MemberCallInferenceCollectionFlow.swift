@@ -27,7 +27,6 @@ extension CallTypeChecker {
     ]
 
     private static let flowHOFNames: Set<String> = ["map", "filter", "collect"]
-    private static let mapOnlyCollectionHOFNames: Set<String> = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
 
     /// Members the collection fast path may claim for a `Map` receiver.
     /// `Map<K, V>` is not an `Iterable` in Kotlin, so Iterable/Collection-only

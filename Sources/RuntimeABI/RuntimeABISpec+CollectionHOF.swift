@@ -247,14 +247,6 @@ isThrowing: false
         )
     }
 
-    private static func stdlibListHOFName(_ memberName: String, arity: Int, fallback: String) -> String {
-        StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
-            ownerKind: .list,
-            memberName: memberName,
-            arity: arity,
-            fallback: fallback
-        )
-    }
 
     static let collectionHOFFunctions: [RuntimeABIFunctionSpec] = {
         let before = [

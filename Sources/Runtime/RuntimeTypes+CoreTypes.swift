@@ -57,7 +57,6 @@ typealias KKClosureFunctionEntryPoint3 = @convention(c) (Int, Int, Int, Int, Uns
 typealias KKClosureFunctionEntryPoint4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint5 = @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureFunctionEntryPoint6 = @convention(c) (Int, Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
-typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
 final class RuntimeStringBox {
     let value: String
