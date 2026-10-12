@@ -415,81 +415,6 @@ extension DataFlowSemaPhase {
         return functionSymbol
     }
 
-    func registerNativeConcurrentPackageFunction(
-        named name: String,
-        packageFQName: [InternedString],
-        receiverType: TypeID?,
-        returnType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        defaultValues: [Bool]? = nil,
-        typeParameterSymbols: [SymbolID],
-        annotations: [MetadataAnnotationRecord] = [],
-        externalLinkName: String? = nil,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        let parameterTypes = parameters.map(\.type)
-        guard symbols.lookupAll(fqName: functionFQName).first(where: { id in
-            guard let signature = symbols.functionSignature(for: id) else { return false }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes == parameterTypes
-                && signature.returnType == returnType
-                && signature.typeParameterSymbols == typeParameterSymbols
-        }) == nil else {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-
-        let valueParameterSymbols = parameters.map { parameter in
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            symbols.setPropertyType(parameter.type, for: parameterSymbol)
-            return parameterSymbol
-        }
-        for typeParameterSymbol in typeParameterSymbols {
-            symbols.setParentSymbol(functionSymbol, for: typeParameterSymbol)
-        }
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        }
-        appendNativeConcurrentMetadataAnnotations(annotations, to: functionSymbol, symbols: symbols)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: defaultValues
-                    ?? Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
-                typeParameterSymbols: typeParameterSymbols,
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
-    }
 
 
     func appendNativeConcurrentMetadataAnnotations(
@@ -500,19 +425,6 @@ extension DataFlowSemaPhase {
         appendSyntheticMetadataAnnotations(records, to: symbol, symbols: symbols)
     }
 
-    func nativeConcurrentDeprecatedErrorAnnotation(
-        message: String,
-        replaceWith: String
-    ) -> MetadataAnnotationRecord {
-        MetadataAnnotationRecord(
-            annotationFQName: "kotlin.Deprecated",
-            arguments: [
-                "message = \"\(message)\"",
-                "replaceWith = ReplaceWith(\"\(replaceWith)\")",
-                "level = DeprecationLevel.ERROR",
-            ]
-        )
-    }
 
     func registerNativeConcurrentReadOnlyProperty(
         ownerSymbol: SymbolID,

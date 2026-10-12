@@ -280,23 +280,4 @@ extension DataFlowSemaPhase {
     }
 }
 
-private extension FunctionSignature {
-    func withReceiverType(_ receiverType: TypeID?) -> FunctionSignature {
-        FunctionSignature(
-            receiverType: receiverType,
-            parameterTypes: parameterTypes,
-            returnType: returnType,
-            isSuspend: isSuspend,
-            canThrow: canThrow,
-            valueParameterSymbols: valueParameterSymbols,
-            valueParameterHasDefaultValues: valueParameterHasDefaultValues,
-            valueParameterIsVararg: valueParameterIsVararg,
-            typeParameterSymbols: typeParameterSymbols,
-            reifiedTypeParameterIndices: reifiedTypeParameterIndices,
-            typeParameterUpperBounds: typeParameterUpperBounds,
-            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
-            classTypeParameterCount: classTypeParameterCount
-        )
-    }
-}
 
