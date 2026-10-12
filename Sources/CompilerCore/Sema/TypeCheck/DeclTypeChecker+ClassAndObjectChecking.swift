@@ -283,26 +283,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        let sema = ctx.sema
-        let objectType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
-        let objectScope = buildClassMemberScope(
-            ownerSymbol: symbol,
-            ownerType: objectType,
-            memberFunctions: objectDecl.memberFunctions,
-            memberProperties: objectDecl.memberProperties,
-            nestedClasses: objectDecl.nestedClasses,
-            nestedObjects: objectDecl.nestedObjects,
-            ctx: ctx
-        )
-        let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let objectCtx = ctx.withoutSuspensionContext()
-            .withOuterReceiver(label: objectLabel, type: objectType)
-            .copying(
-                scope: objectScope,
-                implicitReceiverType: objectType,
-                currentDeclSymbol: symbol,
-                enclosingClassSymbol: symbol
-            )
+        let objectCtx = makeObjectTypeCheckContext(objectDecl: objectDecl, symbol: symbol, ctx: ctx)
 
         validateClassLikeHeaderOptInTypes(
             symbol: symbol,

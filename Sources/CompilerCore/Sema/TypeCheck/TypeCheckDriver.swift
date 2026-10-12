@@ -241,58 +241,58 @@ final class TypeCheckDriver {
 
         // Revisit property initializers until their inferred property
         // dependencies have types. Calls are eligible only when every
-        // candidate has a concrete declared return type; arbitrary control flow,
-        // unresolved references, inferred-return calls and cycles stay on the
-        // source-order pass.
-        var didPrecheckProperty: Bool
+        // candidate has a concrete declared return type. Include companion and
+        // nested object properties before any caller can observe their header
+        // placeholders. Unresolved references, inferred-return calls and cycles
+        // stay on the source-order pass.
+        var previousPrecheckedCount: Int
         repeat {
-            didPrecheckProperty = false
+            previousPrecheckedCount = precheckedPropertyDecls.count
             for file in files {
                 guard let inferCtx = inferenceContext(for: file) else { continue }
                 for declID in file.topLevelDecls {
                     guard !precheckedPropertyDecls.contains(declID),
                           let decl = ast.arena.decl(declID),
-                          case let .propertyDecl(property) = decl,
-                          declChecker.canSafelyPrecheckInferredProperty(property, in: inferCtx),
                           let symbol = sema.bindings.declSymbols[declID]
                     else {
                         continue
                     }
-                    declChecker.typeCheckBoundPropertyDecl(
-                        property,
-                        declID: declID,
-                        symbol: symbol,
-                        ctx: inferCtx.with(currentDeclSymbol: symbol),
-                        solver: solver,
-                        diagnostics: diagnostics
-                    )
-                    precheckedPropertyDecls.insert(declID)
-                    didPrecheckProperty = true
+                    switch decl {
+                    case let .propertyDecl(property):
+                        guard declChecker.canSafelyPrecheckInferredProperty(property, in: inferCtx) else {
+                            continue
+                        }
+                        declChecker.typeCheckBoundPropertyDecl(
+                            property,
+                            declID: declID,
+                            symbol: symbol,
+                            ctx: inferCtx.with(currentDeclSymbol: symbol),
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
+                        precheckedPropertyDecls.insert(declID)
+                    case let .classDecl(classDecl):
+                        declChecker.precheckIndependentClassMemberProperties(
+                            classDecl,
+                            symbol: symbol,
+                            ctx: inferCtx,
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
+                    case let .objectDecl(objectDecl):
+                        declChecker.precheckIndependentObjectMemberProperties(
+                            objectDecl,
+                            symbol: symbol,
+                            ctx: inferCtx,
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
+                    default:
+                        continue
+                    }
                 }
             }
-        } while didPrecheckProperty
-
-        // Resolve simple inferred member properties in later classes before an
-        // earlier file's function body observes their header placeholders.
-        // Each class helper repeats until its inferred member dependencies are
-        // concrete or the remaining expressions are outside the safe subset.
-        for file in files {
-            guard let inferCtx = inferenceContext(for: file) else { continue }
-            for declID in file.topLevelDecls {
-                guard case let .classDecl(classDecl)? = ast.arena.decl(declID),
-                      let symbol = sema.bindings.declSymbols[declID]
-                else {
-                    continue
-                }
-                declChecker.precheckIndependentClassMemberProperties(
-                    classDecl,
-                    symbol: symbol,
-                    ctx: inferCtx,
-                    solver: solver,
-                    diagnostics: diagnostics
-                )
-            }
-        }
+        } while precheckedPropertyDecls.count > previousPrecheckedCount
 
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
