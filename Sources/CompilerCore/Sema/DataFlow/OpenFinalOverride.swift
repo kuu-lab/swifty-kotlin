@@ -43,8 +43,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Per-declaration dispatch
-
     private func validateOFODecl(
         _ declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -97,8 +95,6 @@ extension DataFlowSemaPhase {
             validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)
         }
     }
-
-    // MARK: - DATA-CTOR: data class primary constructor parameter validation
 
     private func validateDataClassConstructorParams(
         classDecl: ClassDecl,
@@ -159,8 +155,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Declaration info extraction
-
     private struct OFODeclInfo {
         let memberFunctions: [DeclID]
         let memberProperties: [DeclID]
@@ -197,8 +191,6 @@ extension DataFlowSemaPhase {
             nil
         }
     }
-
-    // MARK: - Check 1: supertype openness
 
     private func validateSupertypesAreOpen(
         symbol: SymbolID,
@@ -267,8 +259,6 @@ extension DataFlowSemaPhase {
         if sym.flags.contains(.openType) { return true }
         return false
     }
-
-    // MARK: - Check 2 & 3: member override constraints
 
     private func validateMemberOverrides(
         _ memberDeclIDs: [DeclID],
@@ -396,8 +386,6 @@ extension DataFlowSemaPhase {
         return .public // Default visibility
     }
 
-    // MARK: - Check 7: visibility constraints validation
-
     private func validateVisibilityConstraints(
         memberMeta: MemberMeta,
         ownerSymbol: SymbolID,
@@ -432,8 +420,6 @@ extension DataFlowSemaPhase {
         case .public: return "public"
         }
     }
-
-    // MARK: - Check 6: modifier combination validation
 
     private func validateModifierCombinations(
         memberMeta: MemberMeta,
@@ -510,8 +496,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Check: 'protected' is not applicable inside 'interface'
-
     private func validateInterfaceProtectedMembers(
         _ interfaceDecl: InterfaceDecl,
         ctx: OpenFinalOverrideContext
@@ -573,8 +557,6 @@ extension DataFlowSemaPhase {
         return modifiers.contains(.protected) ? range : nil
     }
 
-    // MARK: - Check 5: override openness validation
-
     private func validateOverrideOpenness(
         memberMeta: MemberMeta,
         memberSymbol: SymbolID,
@@ -605,8 +587,6 @@ extension DataFlowSemaPhase {
             }
         }
     }
-
-    // MARK: - Check 4: abstract override constraints
 
     private func validateAbstractOverrideConstraints(
         memberMeta: MemberMeta,
@@ -654,8 +634,6 @@ extension DataFlowSemaPhase {
             )
         }
     }
-
-    // MARK: - Check 2: override target is not final
 
     private func validateOverrideTarget(
         memberName: InternedString,
@@ -707,8 +685,6 @@ extension DataFlowSemaPhase {
             range: memberRange
         )
     }
-
-    // MARK: - Check 2a: return type covariance
 
     private func validateReturnTypeCovariance(
         childReturnType: TypeID,
@@ -787,8 +763,6 @@ extension DataFlowSemaPhase {
             range: memberRange
         )
     }
-
-    // MARK: - Check 2c: exception type covariance
 
     private func validateExceptionTypeCovariance(
         memberName: InternedString,
@@ -1063,8 +1037,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    // MARK: - Check 2b: visibility expansion
-
     private func validateVisibilityExpansion(
         childVisibility: Visibility,
         childOwnerSymbol: SymbolID,
@@ -1236,8 +1208,6 @@ extension DataFlowSemaPhase {
         return childIndex >= parentIndex
     }
 
-    // MARK: - Check 3: missing override modifier
-
     private func validateMissingOverride(
         memberName: InternedString,
         memberRange: SourceRange,
@@ -1327,8 +1297,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Overridability check
-
     /// A member is overridable when it belongs to an interface,
     /// is explicitly `open`, is `abstract`, or is a non-final
     /// `override` (override members are implicitly open in Kotlin
@@ -1346,8 +1314,6 @@ extension DataFlowSemaPhase {
         }
         return false
     }
-
-    // MARK: - Inherited member lookup (BFS)
 
     private struct OFOInheritedMember {
         let memberID: SymbolID
