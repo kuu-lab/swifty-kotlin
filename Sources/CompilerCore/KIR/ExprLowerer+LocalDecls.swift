@@ -521,7 +521,10 @@ extension ExprLowerer {
                     // leave sentinel-equal bits in the `Long?` slot, which
                     // every null check then reads as `null` (KUU-854).
                     let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
-                    case .nullableUnit, .any, .classType, .functionType, .typeParam:
+                    // String has its own aggregate kind instead of `.classType`.
+                    // It still needs declared-type storage when a nullable local
+                    // starts as `null`, so later assignments update the local slot.
+                    case .nullableUnit, .any, .classType, .functionType, .stringStruct, .typeParam:
                         true
                     default:
                         false
