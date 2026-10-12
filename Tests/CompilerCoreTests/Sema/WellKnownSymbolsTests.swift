@@ -98,5 +98,36 @@ struct WellKnownSymbolsTests {
             "ee<Direction>() must take the enumEntries intrinsic path"
         )
     }
+
+    @Test
+    func fullyQualifiedEnumCollectionCallsStayOnIntrinsicPath() throws {
+        let source = """
+        enum class Direction { NORTH, SOUTH }
+        fun values() = kotlin.enumValues<Direction>()
+        fun entries() = kotlin.enums.enumEntries<Direction>()
+        """
+        let (sema, interner) = try Self.fixture.make(source: source)
+
+        let valuesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("enumValues"),
+        ]))
+        let entriesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("enums"), interner.intern("enumEntries"),
+        ]))
+        #expect(
+            sema.bindings.callBindings.contains {
+                sema.bindings.stdlibSpecialCallKind(for: $0.key) == .enumValues
+                    && $0.value.chosenCallee == valuesSymbol
+            },
+            "kotlin.enumValues<Direction>() must take the enumValues intrinsic path"
+        )
+        #expect(
+            sema.bindings.callBindings.contains {
+                sema.bindings.stdlibSpecialCallKind(for: $0.key) == .enumEntries
+                    && $0.value.chosenCallee == entriesSymbol
+            },
+            "kotlin.enums.enumEntries<Direction>() must take the enumEntries intrinsic path"
+        )
+    }
 }
 #endif

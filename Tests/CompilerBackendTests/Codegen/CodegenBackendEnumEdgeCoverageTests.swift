@@ -112,5 +112,22 @@ struct CodegenBackendEnumEdgeCoverageTests {
                 + "\n"
         )
     }
+
+    @Test
+    func testFullyQualifiedEnumValuesAndEntriesCalls() throws {
+        let source = """
+        enum class Color { RED, GREEN, BLUE }
+        fun main() {
+            println(kotlin.enumValues<Color>().size)
+            println(kotlin.enums.enumEntries<Color>().size)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FullyQualifiedEnumValuesAndEntries",
+            expected: "3\n3\n"
+        )
+    }
 }
 #endif
