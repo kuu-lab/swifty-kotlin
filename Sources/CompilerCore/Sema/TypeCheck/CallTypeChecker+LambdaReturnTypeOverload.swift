@@ -425,7 +425,7 @@ extension CallTypeChecker {
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
 
@@ -448,7 +448,7 @@ extension CallTypeChecker {
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: candidateArgumentTypes,
             ignoringLambdaReturnTypeArgumentIndices: inputOnlyLambdaIndices,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         let viableSymbols = probe.viableCandidates.map(\.symbol)
         if viableSymbols.isEmpty {
@@ -458,7 +458,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
         if viableSymbols.count == 1 {
@@ -468,7 +468,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
         guard lambdaLiteralIndices.count == 1,
@@ -489,7 +489,7 @@ extension CallTypeChecker {
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
         guard viableSymbols.contains(where: {
@@ -513,7 +513,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
         if refinedCandidates.count == 1 {
@@ -523,7 +523,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
         return ambiguousCallResult(range: range, candidateSymbols: refinedCandidates, sema: ctx.sema)

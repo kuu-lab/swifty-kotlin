@@ -66,7 +66,7 @@ extension ControlFlowTypeChecker {
                     // Data class componentN() is synthesized during lowering; fall back to Any
                     componentType = sema.types.anyType
                 } else {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0086",
                         "Type does not have a 'component\(componentIndex)()' operator for destructuring.",
                         range: range
@@ -154,7 +154,7 @@ extension ControlFlowTypeChecker {
                 // Data class componentN() is synthesized during lowering; fall back to Any
                 componentType = sema.types.anyType
             } else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0087",
                     "Iterable element type does not have a 'component\(componentIndex)()' operator for destructuring.",
                     range: range

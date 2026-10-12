@@ -29,14 +29,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
             resolver.cacheContext = semaCacheContext
         }
         let dataFlow = DataFlowAnalyzer()
-        let semaCtx = SemaModule(
-            symbols: sema.symbols,
-            types: sema.types,
-            bindings: sema.bindings,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
-
         let lazyBoundDecls = collectLazyBoundObjectLiteralDecls(ast: ast)
 
         // Run consistency checks for active declarations only, so incremental
@@ -58,7 +50,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         let driver = TypeCheckDriver(
             ast: ast,
             sema: sema,
-            semaCtx: semaCtx,
             sourceManager: ctx.sourceManager,
             solver: solver,
             resolver: resolver,

@@ -81,7 +81,7 @@ extension CallTypeChecker {
                         range: ast.arena.exprRange(args[0].expr) ?? range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
 
                     // Infer remaining arguments with the resolved type.
@@ -98,7 +98,7 @@ extension CallTypeChecker {
                             range: ast.arena.exprRange(args[i].expr) ?? range,
                             solver: ConstraintSolver(),
                             sema: sema,
-                            diagnostics: ctx.semaCtx.diagnostics
+                            diagnostics: ctx.sema.diagnostics
                         )
                     }
 

@@ -55,7 +55,7 @@ extension CallTypeChecker {
             return nil
         }
         guard explicitTypeArgs.count == 1 else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "Expected exactly one type argument for `\(interner.resolve(calleeName))`.",
                 range: range
@@ -82,7 +82,7 @@ extension CallTypeChecker {
                   }) {
             enumType = typeArg
         } else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "`\(interner.resolve(calleeName))` requires exactly one non-nullable enum type argument.",
                 range: range

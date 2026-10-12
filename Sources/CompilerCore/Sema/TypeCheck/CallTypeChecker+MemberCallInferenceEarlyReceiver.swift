@@ -159,7 +159,7 @@ extension CallTypeChecker {
                     for: memberSymbol,
                     name: interner.resolve(calleeName),
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }

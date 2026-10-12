@@ -165,7 +165,7 @@ extension CallTypeChecker {
                         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
                         sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: recovered.receiverSymbol)
                     } else if let diagnostic = resolved.diagnostic {
-                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        ctx.sema.diagnostics.emit(diagnostic)
                         sema.bindings.bindExprType(id, type: sema.types.errorType)
                         return sema.types.errorType
                     }
@@ -221,13 +221,13 @@ extension CallTypeChecker {
                 }
             }
             if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
             guard let chosen = resolved.chosenCallee else {
                 let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0023",
                     "Unresolved function '\(nameStr)'.",
                     range: range
@@ -274,13 +274,13 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {

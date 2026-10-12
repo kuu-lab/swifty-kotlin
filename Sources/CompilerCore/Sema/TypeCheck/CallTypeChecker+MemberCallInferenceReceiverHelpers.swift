@@ -782,7 +782,7 @@ extension CallTypeChecker {
             return nil
         }
         guard args.count == 1 else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "No viable overload found for call.",
                 range: range

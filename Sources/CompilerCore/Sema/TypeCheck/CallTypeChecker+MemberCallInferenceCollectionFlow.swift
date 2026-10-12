@@ -588,7 +588,7 @@ extension CallTypeChecker {
                     for: bundledCallee,
                     ctx: ctx,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             return bundledFlowType

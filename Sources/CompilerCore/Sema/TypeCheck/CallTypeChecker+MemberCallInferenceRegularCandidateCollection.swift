@@ -72,7 +72,7 @@ extension CallTypeChecker {
                                enclosingClass: ctx.enclosingClassSymbol
                            )
                         {
-                            driver.helpers.emitVisibilityError(for: propSym, name: interner.resolve(calleeName), range: range, diagnostics: ctx.semaCtx.diagnostics)
+                            driver.helpers.emitVisibilityError(for: propSym, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
                             return ([], companionReceiverType, driver.helpers.bindAndReturnErrorType(id, sema: sema))
                         }
                         driver.helpers.checkDeprecation(
@@ -80,13 +80,13 @@ extension CallTypeChecker {
                             sema: sema,
                             interner: interner,
                             range: range,
-                            diagnostics: ctx.semaCtx.diagnostics
+                            diagnostics: ctx.sema.diagnostics
                         )
                         driver.helpers.checkOptIn(
                             for: propSymbol,
                             ctx: ctx,
                             range: range,
-                            diagnostics: ctx.semaCtx.diagnostics
+                            diagnostics: ctx.sema.diagnostics
                         )
                         // Re-bind receiver to companion type for correct KIR lowering
                         sema.bindings.bindExprType(receiverID, type: companionTypeForExtensionLookup)

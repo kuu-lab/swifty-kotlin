@@ -26,7 +26,7 @@ final class DeclTypeChecker {
             type,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
     }
 
@@ -77,7 +77,7 @@ final class DeclTypeChecker {
             forClassLike: symbol,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
     }
 
@@ -102,7 +102,7 @@ final class DeclTypeChecker {
             for exprID in exprIDs {
                 if !canComplete {
                     if let stmtRange = ctx.ast.arena.exprRange(exprID) {
-                        ctx.semaCtx.diagnostics.warning(
+                        ctx.sema.diagnostics.warning(
                             "KSWIFTK-SEMA-0096",
                             "Unreachable code.",
                             range: stmtRange

@@ -38,7 +38,7 @@ extension CallTypeChecker {
                     args.count == 1 ? 0 : nil
                 }
                 guard let lambdaArgumentIndex else {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
                         range: range
@@ -53,7 +53,7 @@ extension CallTypeChecker {
                 }
                 let argumentExprID = args[lambdaArgumentIndex].expr
                 guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
                         range: range
@@ -120,7 +120,7 @@ extension CallTypeChecker {
         {
             let argumentExprID = args[0].expr
             guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for call.",
                     range: range
@@ -209,7 +209,7 @@ extension CallTypeChecker {
         {
             let argumentExprID = args[0].expr
             guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for call.",
                     range: range

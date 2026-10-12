@@ -1179,7 +1179,7 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         ) {
-            ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
+            ctx.sema.diagnostics.emit(projectionDiagnostic)
             let invalidType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
             sema.bindings.bindExprType(exprID, type: invalidType)
             return invalidType
@@ -1239,7 +1239,7 @@ extension CallTypeChecker {
                 )
                 if !sema.types.isSubtype(substitutedType, substitutedBound) {
                     if let diagnosticRange {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-BOUND",
                             "Type argument does not satisfy upper bound constraint.",
                             range: diagnosticRange

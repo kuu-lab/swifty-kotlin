@@ -79,10 +79,10 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: ctx.implicitReceiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
                 return ctx.sema.types.errorType
             }
@@ -94,13 +94,13 @@ extension CallTypeChecker {
                 sema: ctx.sema,
                 interner: ctx.interner,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             return bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
         }

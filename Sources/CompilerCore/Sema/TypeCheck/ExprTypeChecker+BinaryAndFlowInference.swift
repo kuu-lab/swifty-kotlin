@@ -52,7 +52,7 @@ extension ExprTypeChecker {
                 range: ast.arena.exprRange(lhsID) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             let lhsBranch = ctx.dataFlow.branchOnCondition(
                 lhsID,
@@ -77,7 +77,7 @@ extension ExprTypeChecker {
                 range: ast.arena.exprRange(rhsID) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -189,7 +189,7 @@ extension ExprTypeChecker {
             if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema) {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "Identity equality for arguments of types '\(lhsName)' and '\(rhsName)' is prohibited.",
                     range: range
@@ -198,7 +198,7 @@ extension ExprTypeChecker {
                 return sema.types.errorType
             }
             if identityEqualityHasDistinctSingletonTypes(lhsType, rhsType, sema: sema) {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated singleton types.",
                     range: range
@@ -216,7 +216,7 @@ extension ExprTypeChecker {
                sema: sema
            )
         {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "Operator '\(op == .equal ? "==" : "!=")' cannot be applied to unrelated types.",
                 range: range
@@ -338,7 +338,7 @@ extension ExprTypeChecker {
         if !lhsIsPrimitive, !lhsIsAny, !rhsIsAny, operatorCandidates.isEmpty, lhs != sema.types.errorType, rhs != sema.types.errorType {
             switch op {
             case .add, .subtract, .multiply, .divide, .modulo:
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                     range: range
@@ -369,7 +369,7 @@ extension ExprTypeChecker {
                 ),
                 expectedType: operatorExpectedType,
                 implicitReceiverType: lhs,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if isSeqLhs, resolved.chosenCallee == nil {
                 sema.bindings.bindExprType(id, type: lhs)
@@ -388,7 +388,7 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                 }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
@@ -405,7 +405,7 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                         range: range
@@ -476,7 +476,7 @@ extension ExprTypeChecker {
                 } == true
         )
         if hasInvalidTextAddition || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                 range: range
@@ -521,7 +521,7 @@ extension ExprTypeChecker {
         }()
 
         if !allowsMixedSignedness, (lhsIsSigned && rhsIsUnsigned) || (lhsIsUnsigned && rhsIsSigned) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0043",
                 "Operator '\(interner.resolve(operatorName))' cannot be applied to '(signed, unsigned)' or '(unsigned, signed)' types.",
                 range: range
@@ -589,13 +589,13 @@ extension ExprTypeChecker {
                 left: lhs, right: boolType,
                 range: ast.arena.exprRange(lhsID) ?? range,
                 solver: ConstraintSolver(), sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.emitSubtypeConstraint(
                 left: rhs, right: boolType,
                 range: ast.arena.exprRange(rhsID) ?? range,
                 solver: ConstraintSolver(), sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             type = boolType
         case .elvis:

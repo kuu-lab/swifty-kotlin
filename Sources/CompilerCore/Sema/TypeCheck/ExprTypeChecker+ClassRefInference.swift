@@ -80,16 +80,16 @@ extension ExprTypeChecker {
             ) else {
                 driver.helpers.emitVisibilityError(
                     for: symbol, name: ctx.interner.resolve(symbol.name), range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             driver.helpers.checkDeprecation(
                 for: symbolID, sema: sema, interner: ctx.interner, range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
-                for: symbolID, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics
+                for: symbolID, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindIdentifier(expr, symbol: symbolID)
             sema.bindings.bindExprType(expr, type: sema.types.make(.classType(ClassType(classSymbol: symbolID))))
@@ -117,7 +117,7 @@ extension ExprTypeChecker {
                   sym.kind == .typeParameter else { continue }
             if !sym.flags.contains(.reifiedTypeParameter) {
                 let name = interner.resolve(sym.name)
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-REIFIED",
                     "Cannot use 'T::class' on non-reified type parameter '\(name)'.",
                     range: range
@@ -218,7 +218,7 @@ extension ExprTypeChecker {
             isFlowNonNull = false
         }
         if !isFlowNonNull, classRefReceiverCanBeNull(receiverType, sema: sema, visited: &visited) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-CLASS-REF-NULLABLE",
                 "Expression in a class literal has a nullable type. Use '!!' to make it non-nullable.",
                 range: range

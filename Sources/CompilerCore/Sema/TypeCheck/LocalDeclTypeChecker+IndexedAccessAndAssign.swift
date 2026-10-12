@@ -201,7 +201,7 @@ extension LocalDeclTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee,
                let signature = sema.symbols.functionSignature(for: chosen)
@@ -255,7 +255,7 @@ extension LocalDeclTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: receiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = resolved.chosenCallee,
                    let signature = sema.symbols.functionSignature(for: chosen)
@@ -288,14 +288,14 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         if sema.types.isSubtype(receiverType, sema.types.stringType) {
             sema.bindings.bindExprType(id, type: sema.types.charType)
             return sema.types.charType
         }
         guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "Unresolved member function 'get'.",
                 range: range
@@ -485,7 +485,7 @@ extension LocalDeclTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 // Record the resolved call so KIR lowering can dispatch correctly
@@ -511,7 +511,7 @@ extension LocalDeclTypeChecker {
             return sema.types.errorType
         }
         guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "Unresolved member function 'set'.",
                 range: range
@@ -525,7 +525,7 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         let elementExpectedType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
@@ -537,7 +537,7 @@ extension LocalDeclTypeChecker {
                 range: ast.arena.exprRange(valueExpr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
