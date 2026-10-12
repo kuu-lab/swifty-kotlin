@@ -212,6 +212,12 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         runtimeElementKeyHash(tripleBox.thirdValue.legacyRawValue, into: &hasher, depth: depth + 1)
         return
     }
+    if let entry = runtimeMapEntryValues(rawValue: value) {
+        hasher.combine(14)
+        runtimeElementKeyHash(entry.key, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(entry.value, into: &hasher, depth: depth + 1)
+        return
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         hasher.combine(9)
         hasher.combine(localeBox.language)

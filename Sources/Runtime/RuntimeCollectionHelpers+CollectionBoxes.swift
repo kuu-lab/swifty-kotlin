@@ -91,6 +91,17 @@ func runtimeIsMapEntry(rawValue: Int) -> Bool {
     runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
 }
 
+@inline(__always)
+func runtimeMapEntryValues(rawValue: Int) -> (key: Int, value: Int)? {
+    guard runtimeIsMapEntry(rawValue: rawValue),
+          let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+          let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    else {
+        return nil
+    }
+    return (pairBox.first, kk_pair_second(rawValue))
+}
+
 func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
