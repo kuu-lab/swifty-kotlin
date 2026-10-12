@@ -303,13 +303,17 @@ public func __kk_file_new_parent_child(_ parentRaw: Int, _ childRaw: Int) -> Int
 }
 
 @_cdecl("__kk_file_readText")
-public func __kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+public func __kk_file_readText(
+    _ fileRaw: Int,
+    _ charsetTag: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readText received invalid File handle")
     }
     do {
-        let content = try String(contentsOfFile: file.path, encoding: .utf8)
+        let content = try String(contentsOfFile: file.path, encoding: outputStreamEncoding(for: charsetTag))
         return runtimeMakeUTF8StringRaw(content)
     } catch {
         outThrown?.pointee = runtimeAllocateFileSystemException(
