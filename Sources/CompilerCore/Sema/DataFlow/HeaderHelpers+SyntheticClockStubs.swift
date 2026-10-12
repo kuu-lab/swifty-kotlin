@@ -26,15 +26,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Instant class (registered by registerSyntheticInstantStubs)
-
         _ = ensureClassSymbol(
             named: "Instant",
             in: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
-        // MARK: - Clock interface
 
         let clockSymbol = ensureInterfaceSymbol(
             named: "Clock",
