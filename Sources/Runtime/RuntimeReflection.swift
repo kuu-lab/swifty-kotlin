@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Runtime Reflection (REFL-004)
 
 private let runtimeHiddenAnnotationFQNames: Set<String> = [
     "kotlin.Metadata",
@@ -75,7 +74,6 @@ public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
     return kclass.metadata?.typeParameterCount ?? 0
 }
 
-// MARK: - Annotation Reflection (STDLIB-REFLECT-065)
 
 /// Returns the annotations list for a KClass as a RuntimeListBox.
 /// Each element is a RuntimeAnnotationBox raw handle.
@@ -218,13 +216,11 @@ public func __kk_kclass_register_single_annotation(
     return 0
 }
 
-// MARK: - KFunction Dynamic Call (STDLIB-REFLECT-067)
 
 private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
     resolveRuntimeHandle(raw, as: RuntimeKFunctionBox.self)
 }
 
-// MARK: - KParameter (STDLIB-REFLECT-063)
 
 /// Creates and registers a KParameter box.
 /// - Parameters:
@@ -326,7 +322,6 @@ public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
     }
 }
 
-// MARK: - KFunction Factory (STDLIB-REFLECT-063)
 
 /// Creates and registers a KFunction box.
 /// - Parameters:
@@ -489,7 +484,6 @@ public func __kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-// MARK: KFunction.call() — arity 0
 
 @_cdecl("__kk_kfunction_call_0")
 public func __kk_kfunction_call_0(
@@ -520,7 +514,6 @@ public func __kk_kfunction_call_0(
     }
 }
 
-// MARK: KFunction.call() — arity 1
 
 @_cdecl("__kk_kfunction_call_1")
 public func __kk_kfunction_call_1(
@@ -552,7 +545,6 @@ public func __kk_kfunction_call_1(
     }
 }
 
-// MARK: KFunction.call() — arity 2
 
 @_cdecl("__kk_kfunction_call_2")
 public func __kk_kfunction_call_2(
@@ -585,7 +577,6 @@ public func __kk_kfunction_call_2(
     }
 }
 
-// MARK: KFunction.call() — arity 3
 
 @_cdecl("__kk_kfunction_call_3")
 public func __kk_kfunction_call_3(
@@ -619,7 +610,6 @@ public func __kk_kfunction_call_3(
     }
 }
 
-// MARK: KFunction.call() — vararg (list-based)
 
 /// Dispatches to the appropriate arity overload by unpacking a runtime List.
 @_cdecl("__kk_kfunction_call_vararg")
@@ -670,7 +660,6 @@ public func __kk_kfunction_call_vararg(
     }
 }
 
-// MARK: - STDLIB-REFLECT-066: KType toString
 
 func runtimeKTypeProjectionToString(_ box: RuntimeKTypeProjectionBox) -> String {
     if box.variance == nil {
@@ -806,7 +795,6 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
     return baseName + arguments + nullableSuffix
 }
 
-// MARK: - KConstructor (STDLIB-REFLECT-064)
 
 /// Creates and registers a KConstructor box.
 /// - Parameters:
