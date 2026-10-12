@@ -108,7 +108,12 @@ extension BuildASTPhase {
 
         func parse() -> ExprID? {
             let expression = parseAssignmentOrExpression()
-            if expression != nil, let unexpected = current() {
+            if let expression,
+               let unexpected = current(),
+               let expressionRange = astArena.exprRange(expression),
+               expressionRange.end.offset == unexpected.range.start.offset,
+               isInfixIdentifierToken(unexpected)
+            {
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0018",
                     "Unexpected token after expression.",
