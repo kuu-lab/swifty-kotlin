@@ -618,33 +618,14 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func topLevelDelegateIndex(in tokens: [Token]) -> Int? {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BuildASTPhase.BracketDepth()
         for (index, token) in tokens.enumerated() {
             if case .softKeyword(.by) = token.kind,
-               parenDepth == 0,
-               bracketDepth == 0,
-               braceDepth == 0
+               depth.isBracketBraceParenTopLevel
             {
                 return index
             }
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
         return nil
     }
@@ -654,27 +635,10 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BuildASTPhase.BracketDepth()
         if startIndex > 0 {
             for token in tokens[..<startIndex] {
-                switch token.kind {
-                case .symbol(.lParen):
-                    parenDepth += 1
-                case .symbol(.rParen):
-                    parenDepth = max(0, parenDepth - 1)
-                case .symbol(.lBracket):
-                    bracketDepth += 1
-                case .symbol(.rBracket):
-                    bracketDepth = max(0, bracketDepth - 1)
-                case .symbol(.lBrace):
-                    braceDepth += 1
-                case .symbol(.rBrace):
-                    braceDepth = max(0, braceDepth - 1)
-                default:
-                    break
-                }
+                depth.track(token.kind)
             }
         }
 
@@ -687,30 +651,13 @@ extension BuildASTPhase.ExpressionParser {
                 false
             }
             if isAccessorKeyword,
-               parenDepth == 0,
-               bracketDepth == 0,
-               braceDepth == 0,
+               depth.isBracketBraceParenTopLevel,
                index + 1 < tokens.count,
                tokens[index + 1].kind == .symbol(.lParen)
             {
                 return index
             }
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
         return nil
     }
