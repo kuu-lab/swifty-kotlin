@@ -411,8 +411,6 @@ public func __kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
     return runtimeMakeStringRaw(lhs + rhs)
 }
 
-// MARK: - String nullable receiver helpers
-
 @_cdecl("kk_string_isNullOrEmpty_flat")
 public func kk_string_isNullOrEmpty_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -450,8 +448,6 @@ public func kk_string_isNullOrBlank_flat(
     )
     return str.allSatisfy(\.isWhitespace) ? 1 : 0
 }
-
-// MARK: - STDLIB-534: String?.orEmpty()
 
 @_cdecl("kk_string_orEmpty_flat")
 public func kk_string_orEmpty_flat(
