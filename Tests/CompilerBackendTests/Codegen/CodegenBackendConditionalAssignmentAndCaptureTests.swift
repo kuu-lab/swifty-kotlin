@@ -58,4 +58,12 @@ struct CodegenBackendConditionalAssignmentAndCaptureTests {
             expected: "a\nb\nb\na\n11\n12\n13\n12\n"
         )
     }
+
+    @Test
+    func nullableStringVariableInitializedWithNullCanBeReassigned() throws {
+        try checkExecution(
+            fixture: "kuu1853_nullable_string_assignment.kt",
+            expected: "x\ndirect\n1\ntrue\nupdated\n"
+        )
+    }
 }
