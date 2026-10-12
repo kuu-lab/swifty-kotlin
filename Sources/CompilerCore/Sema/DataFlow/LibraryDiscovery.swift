@@ -357,6 +357,15 @@ extension DataFlowSemaPhase {
         let libraryRoot = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
         var isValid = true
 
+        func reportManifestPathIssue(_ message: String) {
+            if isStdlibArtifact {
+                diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
+                isValid = false
+            } else {
+                diagnostics.warning("KSWIFTK-LIB-0014", message, range: nil)
+            }
+        }
+
         let metadataURL = URL(fileURLWithPath: metadataPath).resolvingSymlinksInPath().standardizedFileURL
         if !CompilerFileSystem.isContained(metadataURL, in: libraryRoot) {
             diagnostics.error(
@@ -405,13 +414,9 @@ extension DataFlowSemaPhase {
                     )
                     isValid = false
                 } else if !CompilerFileSystem.isRegularFile(at: resolvedObjURL, fileManager: fm) {
-                    let message = "Object file is missing or is not a regular file at '\(relativePath)' referenced by \(libName)/manifest.json"
-                    if isStdlibArtifact {
-                        diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
-                        isValid = false
-                    } else {
-                        diagnostics.warning("KSWIFTK-LIB-0014", message, range: nil)
-                    }
+                    reportManifestPathIssue(
+                        "Object file is missing or is not a regular file at '\(relativePath)' referenced by \(libName)/manifest.json"
+                    )
                 }
             }
         }
@@ -428,21 +433,13 @@ extension DataFlowSemaPhase {
             } else {
                 var isDirectory: ObjCBool = false
                 if !fm.fileExists(atPath: inlineDirURL.path, isDirectory: &isDirectory) {
-                    let message = "Inline KIR directory not found at '\(inlineDir)' referenced by \(libName)/manifest.json"
-                    if isStdlibArtifact {
-                        diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
-                        isValid = false
-                    } else {
-                        diagnostics.warning("KSWIFTK-LIB-0014", message, range: nil)
-                    }
+                    reportManifestPathIssue(
+                        "Inline KIR directory not found at '\(inlineDir)' referenced by \(libName)/manifest.json"
+                    )
                 } else if !isDirectory.boolValue {
-                    let message = "Inline KIR path '\(inlineDir)' is not a directory in \(libName)/manifest.json"
-                    if isStdlibArtifact {
-                        diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
-                        isValid = false
-                    } else {
-                        diagnostics.warning("KSWIFTK-LIB-0014", message, range: nil)
-                    }
+                    reportManifestPathIssue(
+                        "Inline KIR path '\(inlineDir)' is not a directory in \(libName)/manifest.json"
+                    )
                 }
             }
         }
