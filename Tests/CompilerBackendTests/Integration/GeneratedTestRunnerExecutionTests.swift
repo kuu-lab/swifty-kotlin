@@ -174,6 +174,34 @@ struct GeneratedTestRunnerExecutionTests {
         """)
     }
 
+    @Test(arguments: [false, true])
+    func resolvesWrappersAndSuitesAcrossPackages(fromSource: Bool) throws {
+        let result = try compileAndRun([("alpha.kt", """
+        package alpha
+        import kotlin.test.Test
+        class AlphaSuite { @Test fun member() { println("alpha.suite") } }
+        @Test fun fileTest() { println("alpha.file") }
+        """), ("beta.kt", """
+        package beta
+        import kotlin.test.Test
+        class BetaSuite { @Test fun member() { println("beta.suite") } }
+        @Test fun fileTest() { println("beta.file") }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == """
+        alpha.suite
+        PASS alpha.AlphaSuite.member
+        alpha.file
+        PASS alpha.fileTest [alpha.kt]
+        beta.suite
+        PASS beta.BetaSuite.member
+        beta.file
+        PASS beta.fileTest [beta.kt]
+        Tests: 4 passed, 0 failed, 0 skipped
+
+        """)
+    }
+
     @Test
     func importsDefaultPackageWrappersAndRunsAnEmptySuite() throws {
         let result = try compileAndRun([("root.kt", """
