@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Sequence Types (STDLIB-003)
-
 /// Represents a lazy operation in a sequence chain.
 /// Each step stores its kind (source, map, filter, take) and a function pointer
 /// for map/filter transformations. Lazy semantics: no evaluation until terminal.
