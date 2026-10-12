@@ -438,8 +438,6 @@ final class ControlFlowTypeChecker {
         return resultType
     }
 
-    // MARK: - Infinite-loop helpers
-
     /// Loop-carried writes invalidate assignment facts on later iterations
     /// and break paths, regardless of the body's final type.
     func invalidateNullableControlFlowAssignments(_ expression: ExprID, ctx: TypeInferenceContext, locals: inout LocalBindings) {
