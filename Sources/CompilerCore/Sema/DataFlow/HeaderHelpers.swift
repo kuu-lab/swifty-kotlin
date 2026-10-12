@@ -529,16 +529,15 @@ extension DataFlowSemaPhase {
             }
         }
         if newKind == .property {
-            if newIsExtensionProperty, let symbols {
-                return nonPackageExisting.contains { sym in
-                    if isCallableLike(sym.kind) { return false }
-                    if sym.kind == .property {
-                        return !sym.flags.contains(.synthetic) && !symbols.hasExtensionPropertyReceiver(sym.id)
-                    }
-                    return true
+            return nonPackageExisting.contains { existing in
+                if isCallableLike(existing.kind) { return false }
+                guard existing.kind == .property else { return true }
+                if newIsExtensionProperty {
+                    return false
                 }
+                return !existing.flags.contains(.synthetic)
+                    && !(symbols?.hasExtensionPropertyReceiver(existing.id) ?? false)
             }
-            return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
             return nonPackageExisting.contains {
