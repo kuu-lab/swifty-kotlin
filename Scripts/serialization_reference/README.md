@@ -3,9 +3,10 @@
 This directory pins serialization 1.10.0 source/ABI evidence and real JVM
 references for KUU-1724. Full API compatibility remains unfinished.
 
-KUU-1745 adds the bounded primitive descriptor factory implementation. The
+KUU-1745 adds the bounded primitive descriptor factory implementation, and
+KUU-1746 adds the `SerialDescriptor.nullable` / `nonNullOriginal` wrappers. The
 immutable dump inventory remains reproducible with `implementation: unmapped`;
-`implementations.json` is a separate overlay linking two JVM/KLIB factory IDs to
+`implementations.json` is a separate overlay linking eight JVM/KLIB declaration IDs to
 bundled source, fixtures, and the source/cache/separate-library O0/O2 test suite.
 `verify` checks those IDs and paths without changing the upstream inventory.
 The rest of serialization is still incomplete.
@@ -33,6 +34,15 @@ factory projects the Native registry's 30 reserved names and serializer display
 names directly; it does not construct unimplemented builtin serializers. `verify`
 compares the projection with that registry. The internal descriptor follows the
 upstream implementation and opts into the bundled interface's subclass marker.
+The nullable extension preserves the upstream delegation, identity, equality,
+hash/display, and eager name-cache behavior. Its public fixture compares with
+the locked published JVM artifact. An internal fixture additionally checks
+cache-set identity, no repeated name reads, duplicate removal, and snapshot
+retention. The KSwiftK unit relocates the three internal implementation bodies
+into a test-only package, changing only their package declarations to avoid
+colliding with the production declarations in the stdlib artifact. Public
+source/cache/library tests exercise the production package. External-module tests
+still reject the internal wrapper, marker, and helper.
 
 The eight reference modules are core, JSON, CBOR, ProtoBuf/schema, Properties,
 json-io, json-okio, and HOCON. External JVM dependencies are Okio 3.9.0,
@@ -57,6 +67,10 @@ python3 Scripts/serialization_reference/reference.py run \
 python3 Scripts/serialization_reference/reference.py run --case primitive-descriptor \
   --cache /tmp/serialization-jars --kotlin-home /path/to/kotlinc-2.3.10 \
   --output /tmp/primitive-descriptor-reference
+
+python3 Scripts/serialization_reference/reference.py run --case nullable-descriptor \
+  --cache /tmp/serialization-jars --kotlin-home /path/to/kotlinc-2.3.10 \
+  --output /tmp/nullable-descriptor-reference
 ```
 
 `fetch` requires network access to Maven Central. `verify` and `run` are offline

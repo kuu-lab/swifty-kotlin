@@ -52,6 +52,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
+        sourceManager: SourceManager? = nil,
         localTypeParameters: [InternedString: SymbolID] = [:],
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
@@ -146,7 +147,12 @@ extension DataFlowSemaPhase {
                 }
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
-                if resolved.flags.contains(.importedLibrary), let usageRange {
+                let isBundledDeclaration = (symbols.sourceFileID(for: resolved.id) ?? resolved.declSite?.start.file)
+                    .map { sourceManager?.origin(of: $0)?.isBundledStdlib == true } == true
+                // Header resolution has no enclosing-class context here. The
+                // source-origin check enforces the stdlib's internal module
+                // boundary; private/protected source access uses type checking.
+                if resolved.flags.contains(.importedLibrary) || (isBundledDeclaration && resolved.visibility == .internal), let usageRange {
                     let fileID = usageRange.start.file
                     let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
                         KnownCompilerAnnotation.suppress.matches(annotation.name)
@@ -157,6 +163,7 @@ extension DataFlowSemaPhase {
                     } == true
                     let checker = VisibilityChecker(
                         symbols: symbols,
+                        sourceManager: sourceManager,
                         invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
                     )
                     if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
@@ -184,6 +191,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -260,6 +268,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -286,6 +295,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -306,6 +316,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
@@ -322,6 +333,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -340,6 +352,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
@@ -365,6 +378,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
@@ -383,6 +397,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
@@ -577,6 +592,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
+        sourceManager: SourceManager? = nil,
         localTypeParameters: [InternedString: SymbolID] = [:],
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
@@ -596,6 +612,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -612,6 +629,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -628,6 +646,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
