@@ -36,7 +36,6 @@ public final class PhaseTimer {
 
     public init() {}
 
-    // MARK: - Recording
 
     /// Mark the beginning of a phase.
     public func beginPhase(_ name: String) {
@@ -70,7 +69,6 @@ public final class PhaseTimer {
         ))
     }
 
-    // MARK: - Access
 
     /// All recorded phase timings.
     public var phaseRecords: [PhaseRecord] {
@@ -87,7 +85,6 @@ public final class PhaseTimer {
         Double(totalNanos) / 1_000_000.0
     }
 
-    // MARK: - Summary output
 
     /// Pad or truncate `text` to exactly `width` characters (left-aligned).
     private func pad(_ text: String, to width: Int) -> String {
