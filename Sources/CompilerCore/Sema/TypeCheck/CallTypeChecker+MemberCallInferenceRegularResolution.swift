@@ -109,14 +109,23 @@ extension CallTypeChecker {
                     expectedType: sema.types.ulongType
                 )
             }
-            // Speculative declaration checks can leave a name reference bound
-            // to a placeholder type. Read its current local/member type again.
+            // Speculative declaration checks can leave names bound to
+            // placeholder types and nested calls bound to ErrorType before an
+            // inferred member is available. Re-read names and retry inferable
+            // nested calls whose cached result still contains an error.
             let inferredType: TypeID
             if case .nameRef = ast.arena.expr(arg.expr) {
                 inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            } else if let boundType = sema.bindings.exprType(for: arg.expr) {
+                if typeContainsErrorType(boundType, sema: sema),
+                   isInferableNestedCallExpr(arg.expr, ast: ast)
+                {
+                    inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                } else {
+                    inferredType = boundType
+                }
             } else {
-                inferredType = sema.bindings.exprType(for: arg.expr)
-                    ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
             }
             if calleeName == knownNames.coerceIn,
                let rangeType = floatingPointRangeArgumentType(
