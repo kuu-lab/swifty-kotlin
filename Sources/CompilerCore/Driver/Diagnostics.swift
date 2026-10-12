@@ -474,8 +474,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
     }
 
-    // MARK: - JSON diagnostic output (LSP-compatible)
-
     /// LSP severity codes: 1 = Error, 2 = Warning, 3 = Information, 4 = Hint.
     private func lspSeverity(for severity: DiagnosticSeverity) -> Int {
         switch severity {
