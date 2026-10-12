@@ -918,6 +918,16 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
+        // Imported member properties have no accessor AST. Their metadata
+        // registers the setter that must also observe bare receiver-DSL writes.
+        // Backing-field symbols stay on the storage path inside the setter.
+        if let property = sema.symbols.symbol(propertySymbol),
+           property.kind == .property, property.flags.contains(.importedLibrary),
+           let setter = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol),
+           let linkName = sema.symbols.externalLinkName(for: setter), !linkName.isEmpty
+        {
+            return true
+        }
         // CLASS-008: a synthetic forwarding property for `by` delegation has
         // no `.propertyDecl` AST node for the loop below to find — its setter
         // writes through the delegate field, not a real backing field.
