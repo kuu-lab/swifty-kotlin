@@ -13,7 +13,6 @@ private final class RuntimeResumeContinuationBox: @unchecked Sendable {
     }
 }
 
-// MARK: - CORO-004: Cooperative Sync Gate
 
 /// One-shot gate for cooperative producer/consumer synchronization.
 ///
