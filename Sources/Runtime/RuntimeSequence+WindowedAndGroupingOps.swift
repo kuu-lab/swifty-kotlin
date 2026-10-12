@@ -1,4 +1,3 @@
-// MARK: - Sequence Operations: chunked/windowed/onEach (STDLIB-276)
 
 public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     let chunkSize = max(1, size)
@@ -156,7 +155,6 @@ public func kk_sequence_onEach(
     return registerRuntimeObject(newSeq)
 }
 
-// MARK: - Sequence Terminal Operations: toSet/toMap/groupBy/maxOrNull/minOrNull/flatten (STDLIB-470)
 
 @_cdecl("kk_sequence_toSet")
 public func kk_sequence_toSet(_ seqRaw: Int) -> Int {
@@ -385,7 +383,6 @@ public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
-// MARK: - Sequence plus/minus Operations (STDLIB-561, STDLIB-562)
 //
 // IMPORTANT: Both plus and minus eagerly materialize the entire input
 // sequence via evaluateSequence.  Unlike Kotlin's stdlib (which returns
