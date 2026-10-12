@@ -198,6 +198,10 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullValue, to: nullableResult))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
+                // Unbox the nullable receiver before passing it to the Boolean
+                // intrinsic, which expects a non-null primitive value.
+                let nonNullReceiver = arena.appendTemporary(type: sema.types.booleanType)
+                instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
                 let nonNullResult = arena.appendTemporary(type: sema.types.booleanType)
                 let argumentIDs: [KIRExprID]
                 if args.isEmpty {
@@ -213,7 +217,7 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: boolCallee,
-                    arguments: [loweredReceiverID] + argumentIDs,
+                    arguments: [nonNullReceiver] + argumentIDs,
                     result: nonNullResult,
                     canThrow: false,
                     thrownResult: nil
