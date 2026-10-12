@@ -745,7 +745,15 @@ final class ControlFlowTypeChecker {
                     ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
-            resolvedType = sema.types.lub(contextualizeLongBranchLiterals(
+            let joinedRangeType = bindJoinedRangeExpressionMetadata(
+                id,
+                thenExpr: thenExpr,
+                thenType: thenType,
+                elseExpr: elseExpr,
+                elseType: elseType,
+                ctx: ctx
+            )
+            resolvedType = joinedRangeType ?? sema.types.lub(contextualizeLongBranchLiterals(
                 expressions: [thenExpr, elseExpr], types: [thenType, elseType], ctx: ctx
             ))
             // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
@@ -795,6 +803,83 @@ final class ControlFlowTypeChecker {
         }
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    private func bindJoinedRangeExpressionMetadata(
+        _ resultExpr: ExprID,
+        thenExpr: ExprID,
+        thenType: TypeID,
+        elseExpr: ExprID,
+        elseType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let branches: [(expr: ExprID, type: TypeID)] = [
+            (thenExpr, thenType),
+            (elseExpr, elseType),
+        ].filter { $0.type != sema.types.nothingType }
+        guard let first = branches.first,
+              branches.allSatisfy({ sema.bindings.isRangeExpr($0.expr) })
+        else {
+            return nil
+        }
+
+        // `rangeTo` keeps the scalar Sema type while `rangeUntil` returns a
+        // nominal range type. Normalize both through the call-argument view
+        // before joining so an if-expression can retain the common range type.
+        let sourceRangeTypes = branches.map {
+            driver.callChecker.sourceLevelRangeArgumentType(
+                $0.expr,
+                inferredType: $0.type,
+                ctx: ctx
+            )
+        }
+        guard let resultType = sourceRangeTypes.first,
+              sourceRangeTypes.allSatisfy({ $0 == resultType })
+        else {
+            return nil
+        }
+
+        let isCharRange = sema.bindings.isCharRangeExpr(first.expr)
+        let isUIntRange = sema.bindings.isUIntRangeExpr(first.expr)
+        let isULongRange = sema.bindings.isULongRangeExpr(first.expr)
+        let isFloatingPointRange = sema.bindings.isFloatingPointRangeExpr(first.expr)
+        guard branches.allSatisfy({
+            sema.bindings.isCharRangeExpr($0.expr) == isCharRange
+                && sema.bindings.isUIntRangeExpr($0.expr) == isUIntRange
+                && sema.bindings.isULongRangeExpr($0.expr) == isULongRange
+                && sema.bindings.isFloatingPointRangeExpr($0.expr) == isFloatingPointRange
+        }) else {
+            return nil
+        }
+
+        let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: first.expr)
+        let isOpenFloatingPointRange = sema.bindings.isOpenFloatingPointRangeExpr(first.expr)
+        guard !isFloatingPointRange || branches.allSatisfy({
+            sema.bindings.floatingPointRangeElementType(forExpr: $0.expr) == floatingPointElementType
+                && sema.bindings.isOpenFloatingPointRangeExpr($0.expr) == isOpenFloatingPointRange
+        }) else {
+            return nil
+        }
+
+        sema.bindings.markRangeExpr(resultExpr)
+        if isCharRange {
+            sema.bindings.markCharRangeExpr(resultExpr)
+        }
+        if isUIntRange {
+            sema.bindings.markUIntRangeExpr(resultExpr)
+        }
+        if isULongRange {
+            sema.bindings.markULongRangeExpr(resultExpr)
+        }
+        if isFloatingPointRange, let floatingPointElementType {
+            sema.bindings.bindFloatingPointRangeElementType(
+                floatingPointElementType,
+                forExpr: resultExpr,
+                endExclusive: isOpenFloatingPointRange
+            )
+        }
+        return resultType
     }
 
     func inferTryExpr(

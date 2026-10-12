@@ -183,6 +183,13 @@ extension CallTypeChecker {
                         explicitTypeArgs: explicitTypeArgs,
                         sema: sema
                     )
+                case .ifExpr:
+                    contextualArgExpectedTypes[index] = uniformContextualParameterType(
+                        for: argument,
+                        at: index,
+                        candidates: expectedTypeCandidates,
+                        ctx: ctx
+                    )
                 case let .lambdaLiteral(lambdaParams, _, _, _):
                     // Prove non-escaping invocation before checking the lambda body.
                     if !expectedTypeCandidates.isEmpty, expectedTypeCandidates.allSatisfy({ candidate in
