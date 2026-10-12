@@ -238,6 +238,20 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        let enumEntryCandidates = Set(candidates.compactMap { candidate -> SymbolID? in
+            guard sema.symbols.enumOwnerSymbol(for: candidate) != nil else { return nil }
+            // Linked expect/actual declarations denote the same entry.
+            return sema.symbols.actualSymbol(for: candidate.id) ?? candidate.id
+        })
+        if enumEntryCandidates.count > 1 {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous reference '\(interner.resolve(name))'.",
+                range: nameRange
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let preferredCandidate = candidates.first(where: { symbol in
             switch symbol.kind {
             case .property, .field, .backingField, .object, .class, .interface, .enumClass:
