@@ -5,7 +5,6 @@ import Foundation
 //
 // Split out from `RuntimeSequence.swift`.
 
-// MARK: - Sequence Builder (sequence { yield(x) })
 
 /// Resolve a raw handle to a RuntimeSequenceCoroutineBuilderProxy, or nil.
 private func runtimeCoroutineBuilderProxy(from rawValue: Int) -> RuntimeSequenceCoroutineBuilderProxy? {
@@ -72,7 +71,6 @@ public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int 
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yield received invalid builder handle")
 }
 
-// MARK: - yieldAll(iterable) (STDLIB-553)
 
 @_cdecl("__kk_sequence_builder_yieldAll_checked")
 public func __kk_sequence_builder_yieldAll_checked(
@@ -188,7 +186,6 @@ public func __kk_sequence_builder_build_coro(_ entryPointRaw: Int, _ functionID:
     return registerRuntimeObject(seq)
 }
 
-// MARK: - Iterator Builder (iterator { yield(x) }) (STDLIB-331/564)
 // Continuation-based lazy iteration. The legacy direct ABI path uses a
 // dedicated producer thread; compiler-generated builders use the CPS entry
 // point below.
@@ -262,7 +259,6 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_next received invalid iterator handle")
 }
 
-// MARK: - CORO-004 Phase 2: suspension-aware iterator builder consumer API
 //
 // These entry points are for future compiler use when the for-loop lowering is
 // updated to handle COROUTINE_SUSPENDED returns from hasNext/next.  They must
