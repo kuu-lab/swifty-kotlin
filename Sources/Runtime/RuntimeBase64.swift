@@ -13,11 +13,6 @@ private func base64StringFromRaw(_ raw: Int) -> String? {
     return extractString(from: ptr)
 }
 
-private func base64OutputStreamBoxFromRaw(_ raw: Int) -> RuntimeOutputStreamBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeOutputStreamBox.self)
-}
-
 /// A `RuntimeOutputStreamSink` that base64-encodes all written data and
 /// forwards the result to a downstream `RuntimeOutputStreamBox`.
 final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
@@ -87,7 +82,7 @@ private func makeBase64EncodingOutputStream(
     alphabet: [UInt8],
     addPadding: Bool
 ) -> RuntimeOutputStreamBox? {
-    guard let downstream = base64OutputStreamBoxFromRaw(streamRaw) else {
+    guard let downstream = runtimeOutputStreamBox(from: streamRaw) else {
         return nil
     }
     let sink = RuntimeBase64EncodingOutputStreamSink(

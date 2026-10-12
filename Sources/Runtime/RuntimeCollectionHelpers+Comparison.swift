@@ -11,39 +11,8 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     {
         return runtimeCompareStrings(lhsString, rhsString)
     }
-    if let lhsScalar = runtimeComparableScalarValue(from: lhs),
-       let rhsScalar = runtimeComparableScalarValue(from: rhs)
-    {
-        switch (lhsScalar, rhsScalar) {
-        case let (.floating(lhsValue), .floating(rhsValue)):
-            return runtimeCompareFloatingValues(lhsValue, rhsValue)
-        case let (.floating(lhsValue), .integer(rhsValue)):
-            return runtimeCompareFloatingValues(lhsValue, Double(rhsValue))
-        case let (.floating(lhsValue), .unsignedInteger(rhsValue)):
-            return runtimeCompareFloatingValues(lhsValue, Double(rhsValue))
-        case let (.integer(lhsValue), .floating(rhsValue)):
-            return runtimeCompareFloatingValues(Double(lhsValue), rhsValue)
-        case let (.unsignedInteger(lhsValue), .floating(rhsValue)):
-            return runtimeCompareFloatingValues(Double(lhsValue), rhsValue)
-        case let (.integer(lhsValue), .integer(rhsValue)):
-            if lhsValue == rhsValue {
-                return 0
-            }
-            return lhsValue < rhsValue ? -1 : 1
-        case let (.unsignedInteger(lhsValue), .unsignedInteger(rhsValue)):
-            if lhsValue == rhsValue {
-                return 0
-            }
-            return lhsValue < rhsValue ? -1 : 1
-        // Mixed signed/unsigned integers only arise when comparing values of
-        // statically-incompatible Kotlin types (e.g. Long vs ULong through a
-        // type-erased Comparable); there is no principled ordering, so fall
-        // back to a Double approximation rather than crashing.
-        case let (.integer(lhsValue), .unsignedInteger(rhsValue)):
-            return runtimeCompareFloatingValues(Double(lhsValue), Double(rhsValue))
-        case let (.unsignedInteger(lhsValue), .integer(rhsValue)):
-            return runtimeCompareFloatingValues(Double(lhsValue), Double(rhsValue))
-        }
+    if let scalarResult = runtimeCompareScalarValues(lhs, rhs) {
+        return scalarResult
     }
     if let comparableResult = runtimeCompareComparableValues(lhs: lhs, rhs: rhs) {
         return comparableResult
@@ -268,6 +237,48 @@ private func runtimeComparableScalarValue(from raw: Int) -> RuntimeComparableSca
         return .integer(charBox.value)
     }
     return nil
+}
+
+/// Compares two raw values that both decode to boxed numeric scalars.
+/// Returns nil when either side is not a numeric scalar so callers can fall
+/// through to `Comparable` dispatch or identity ordering. Shared by
+/// `runtimeCompareValues` and `kk_compare_any`.
+func runtimeCompareScalarValues(_ lhs: Int, _ rhs: Int) -> Int? {
+    guard let lhsScalar = runtimeComparableScalarValue(from: lhs),
+          let rhsScalar = runtimeComparableScalarValue(from: rhs)
+    else {
+        return nil
+    }
+    switch (lhsScalar, rhsScalar) {
+    case let (.floating(lhsValue), .floating(rhsValue)):
+        return runtimeCompareFloatingValues(lhsValue, rhsValue)
+    case let (.floating(lhsValue), .integer(rhsValue)):
+        return runtimeCompareFloatingValues(lhsValue, Double(rhsValue))
+    case let (.floating(lhsValue), .unsignedInteger(rhsValue)):
+        return runtimeCompareFloatingValues(lhsValue, Double(rhsValue))
+    case let (.integer(lhsValue), .floating(rhsValue)):
+        return runtimeCompareFloatingValues(Double(lhsValue), rhsValue)
+    case let (.unsignedInteger(lhsValue), .floating(rhsValue)):
+        return runtimeCompareFloatingValues(Double(lhsValue), rhsValue)
+    case let (.integer(lhsValue), .integer(rhsValue)):
+        if lhsValue == rhsValue {
+            return 0
+        }
+        return lhsValue < rhsValue ? -1 : 1
+    case let (.unsignedInteger(lhsValue), .unsignedInteger(rhsValue)):
+        if lhsValue == rhsValue {
+            return 0
+        }
+        return lhsValue < rhsValue ? -1 : 1
+    // Mixed signed/unsigned integers only arise when comparing values of
+    // statically-incompatible Kotlin types (e.g. Long vs ULong through a
+    // type-erased Comparable); there is no principled ordering, so fall
+    // back to a Double approximation rather than crashing.
+    case let (.integer(lhsValue), .unsignedInteger(rhsValue)):
+        return runtimeCompareFloatingValues(Double(lhsValue), Double(rhsValue))
+    case let (.unsignedInteger(lhsValue), .integer(rhsValue)):
+        return runtimeCompareFloatingValues(Double(lhsValue), Double(rhsValue))
+    }
 }
 
 @inline(__always)

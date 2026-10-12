@@ -311,10 +311,6 @@ func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeRangeIteratorBox.self)
 }
 
-private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
-    resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
-}
-
 @_cdecl("kk_dispatch_error")
 public func kk_dispatch_error() -> Int {
     runtimeStructuredPanic("Virtual dispatch failed: method not found in vtable/itable")

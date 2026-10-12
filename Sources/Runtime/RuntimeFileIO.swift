@@ -427,7 +427,7 @@ private func runtimeByteArrayBytes(from raw: Int) -> [UInt8]? {
     return nil
 }
 
-private func runtimeOutputStreamBox(from raw: Int) -> RuntimeOutputStreamBox? {
+func runtimeOutputStreamBox(from raw: Int) -> RuntimeOutputStreamBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeOutputStreamBox.self)
 }

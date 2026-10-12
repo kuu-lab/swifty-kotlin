@@ -153,7 +153,7 @@ extension KmValueParameter {
 
 extension KmFunction {
     init(_ box: RuntimeKFunctionBox, annotations: [KmAnnotation] = []) {
-        let parameters = box.parameterRaws.compactMap(runtimeMetadataKParameterBox(from:)).map(KmValueParameter.init)
+        let parameters = box.parameterRaws.compactMap(runtimeKParameterBox(from:)).map(KmValueParameter.init)
         self.init(
             name: runtimeMetadataString(from: box.nameRaw) ?? "",
             returnType: runtimeMetadataString(from: box.returnTypeRaw),
@@ -171,7 +171,7 @@ extension KmConstructor {
             KmValueParameter(name: runtimeMetadataString(from: raw), type: nil, isOptional: false, kind: .value)
         }
         let declaringClassName: String?
-        if let kclass = runtimeMetadataKClassBox(from: box.declaringClassRaw) {
+        if let kclass = runtimeKClassBox(from: box.declaringClassRaw) {
             declaringClassName = kclass.metadata?.qualifiedName ?? runtimeMetadataString(from: box.returnTypeRaw)
         } else {
             declaringClassName = runtimeMetadataString(from: box.returnTypeRaw)
@@ -196,10 +196,3 @@ private func runtimeMetadataString(from raw: Int) -> String? {
     return extractString(from: ptr)
 }
 
-private func runtimeMetadataKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
-    resolveRuntimeHandle(raw, as: RuntimeKParameterBox.self)
-}
-
-private func runtimeMetadataKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
-}

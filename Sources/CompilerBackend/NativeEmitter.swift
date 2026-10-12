@@ -1031,9 +1031,6 @@ struct NativeEmitter {
     }
 
     func targetTripleString() -> String {
-        if let osVersion = target.osVersion, !osVersion.isEmpty {
-            return "\(target.arch)-\(target.vendor)-\(target.os)\(osVersion)"
-        }
-        return "\(target.arch)-\(target.vendor)-\(target.os)"
+        CodegenRuntimeSupport.targetTripleString(target)
     }
 }
