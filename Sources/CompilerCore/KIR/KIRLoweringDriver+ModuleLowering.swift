@@ -252,7 +252,6 @@ extension KIRLoweringDriver {
         return result
     }
 
-    // MARK: - Per-file top-level declaration lowering
 
     private func lowerTopLevelDecls(
         file: ASTFile,
@@ -322,7 +321,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Interface declaration
 
     private func lowerTopLevelInterfaceDecl(
         _ interfaceDecl: InterfaceDecl,
@@ -359,7 +357,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Object declaration
 
     private func lowerTopLevelObjectDecl(
         _ objectDecl: ObjectDecl,
@@ -410,7 +407,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Companion initializer calls
 
     private func emitSyntheticTopLevelExternalPropertyInitializers(
         arena: KIRArena,
