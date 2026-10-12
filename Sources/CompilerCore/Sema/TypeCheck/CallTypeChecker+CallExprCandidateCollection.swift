@@ -202,7 +202,7 @@ extension CallTypeChecker {
             }
             // If all candidates were blocked by DslMarker, emit a specific diagnostic.
             if candidates.isEmpty, !dslBlockedCandidates.isEmpty {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-DSLMARKER",
                     "'@DslMarker' implicit access to '\(interner.resolve(calleeName))' from outer receiver is restricted. Use explicit receiver.",
                     range: range
@@ -288,7 +288,7 @@ extension CallTypeChecker {
                         // target, so it must not blot out a real candidate.
                         if candidates.isEmpty {
                             let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                            ctx.semaCtx.diagnostics.error(
+                            ctx.sema.diagnostics.error(
                                 "KSWIFTK-SEMA-ABSTRACT",
                                 "Cannot create an instance of abstract class '\(className)'.",
                                 range: range
@@ -386,7 +386,7 @@ extension CallTypeChecker {
                         sema: sema,
                         visited: [],
                         depth: 0,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     ),
                        case let .classType(classType) = sema.types.kind(of: expanded)
                     {

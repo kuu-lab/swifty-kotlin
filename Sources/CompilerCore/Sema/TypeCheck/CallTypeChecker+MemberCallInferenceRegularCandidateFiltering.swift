@@ -256,7 +256,7 @@ extension CallTypeChecker {
             // isNullOrEmpty overloads. They are still lowered through synthetic
             // typed-receiver fallbacks here, but a bare null receiver must see the
             // same ambiguous overload set as kotlinc.
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution.",
                 range: range
@@ -275,7 +275,7 @@ extension CallTypeChecker {
                 : lookupReceiverType
             if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
                 if !explicitTypeArgs.isEmpty {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
                         range: range

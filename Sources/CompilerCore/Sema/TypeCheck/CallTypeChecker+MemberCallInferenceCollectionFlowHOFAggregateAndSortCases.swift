@@ -5,7 +5,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         switch calleeStr {
         case "fold":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -28,7 +28,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "foldIndexed":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -51,7 +51,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "foldRight":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -71,7 +71,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "foldRightIndexed":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -91,7 +91,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceRight":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -118,7 +118,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceRightIndexed":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -145,7 +145,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceRightIndexedOrNull":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -172,7 +172,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceRightOrNull":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -199,7 +199,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduce":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -221,7 +221,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceOrNull":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "reduceOrNull() expects 1 argument (a lambda), but \(args.count) were supplied.",
                     range: ast.arena.exprRange(id)
@@ -243,7 +243,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceIndexed":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -265,7 +265,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "reduceIndexedOrNull":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -287,7 +287,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "scan", "runningFold":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "\(calleeStr)() expects 2 arguments (initial value and a lambda), but \(args.count) were supplied.",
                     range: ast.arena.exprRange(id)
@@ -325,7 +325,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "runningFoldIndexed", "scanIndexed":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "\(calleeStr)() expects 2 arguments (initial value and a lambda), but \(args.count) were supplied.",
                     range: ast.arena.exprRange(id)
@@ -363,7 +363,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "runningReduce":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "runningReduce() expects 1 argument (a lambda), but \(args.count) were supplied.",
                     range: ast.arena.exprRange(id)
@@ -425,7 +425,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "runningReduceIndexed":
             guard args.count == 1 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "runningReduceIndexed() expects 1 argument (a lambda), but \(args.count) were supplied.",
                     range: ast.arena.exprRange(id)
@@ -726,7 +726,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     isNominalComparable = false
                 }
                 if !isPrimitiveComparable, !isNominalComparable {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-BOUND",
                         "Type argument does not satisfy upper bound constraint.",
                         range: ast.arena.exprRange(id)
@@ -769,7 +769,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     nullability: .nonNull
                 )))
                 if !sema.types.isSubtype(collectionElementType, comparableElementType) {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-BOUND",
                         "Type argument does not satisfy upper bound constraint.",
                         range: ast.arena.exprRange(id)

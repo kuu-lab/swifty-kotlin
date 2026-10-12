@@ -21,7 +21,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             {
                 let explicitElemType = driver.helpers.resolveTypeRef(firstTypeArgID, ast: ast, sema: sema, interner: interner)
                 if !receiverClassifier.isCollectionLikeType(explicitElemType) {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0024",
                         "Unresolved member function 'flatten'.",
                         range: range
@@ -35,7 +35,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             if !isSequenceReceiver && extractedInner == sema.types.anyType
                 && collectionElementType != sema.types.anyType
                 && !receiverClassifier.isCollectionLikeType(collectionElementType) {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "Unresolved member function 'flatten'.",
                     range: range
@@ -87,7 +87,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                 }
                 if satisfiedConstraintCount != 1 {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0024",
                         "Unresolved member function 'flatten'.",
                         range: range
@@ -382,7 +382,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     guard let sequenceSumOfType = bindSequenceSumOfSourceForSelectorType(
                         selectorReturnType: selectorType
                     , locals: &locals) else {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0024",
                             "No viable overload found for call.",
                             range: ast.arena.exprRange(id)
@@ -427,7 +427,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                    !selectorHasIterableSumOfOverload,
                    selectorType != sema.types.errorType
                 {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0024",
                         "No viable overload found for call.",
                         range: ast.arena.exprRange(id)
@@ -556,7 +556,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     nullability: .nonNull
                 )))
                 if !sema.types.isSubtype(collectionElementType, comparableElementType) {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-BOUND",
                         "Type argument does not satisfy upper bound constraint.",
                         range: ast.arena.exprRange(id)
@@ -584,7 +584,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         case "maxBy", "minBy", "maxByOrNull", "minByOrNull":
             guard args.count == 1 else {
                 let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -633,7 +633,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     isNominalComparable = false
                 }
                 if selectorType != sema.types.anyType, !isPrimitiveComparable, !isNominalComparable {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-BOUND",
                         "Type argument does not satisfy upper bound constraint.",
                         range: ast.arena.exprRange(id)
@@ -711,7 +711,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         case "maxOfOrNull", "minOfOrNull":
             guard args.count == 1 else {
                 let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)
@@ -762,7 +762,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         isNominalComparable = false
                     }
                     if selectorType != sema.types.anyType, !isPrimitiveComparable, !isNominalComparable {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-BOUND",
                             "Type argument does not satisfy upper bound constraint.",
                             range: ast.arena.exprRange(id)
@@ -985,7 +985,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "mapTo", "mapIndexedTo", "mapNotNullTo", "flatMapTo", "flatMapIndexedTo":
             guard args.count == 2 else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "\(calleeStr)() expects 2 arguments (destination and a lambda), but \(args.count) were supplied.",
                     range: ast.arena.exprRange(id)

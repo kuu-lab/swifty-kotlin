@@ -275,7 +275,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                sema.bindings.callBindings[id] == nil,
                ["sum", "average"].contains(calleeStr)
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",
                     "No viable overload found for call.",
                     range: ast.arena.exprRange(id)

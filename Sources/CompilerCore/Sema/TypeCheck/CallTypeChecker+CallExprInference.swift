@@ -574,10 +574,10 @@ extension CallTypeChecker {
         }
 
         if let firstInvisible = callInvisible.first, let calleeName {
-            driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.semaCtx.diagnostics)
+            driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
         } else {
             let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0023",
                 "Unresolved function '\(nameStr)'.",
                 range: range

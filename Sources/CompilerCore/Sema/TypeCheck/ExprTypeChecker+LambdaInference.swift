@@ -241,7 +241,7 @@ extension ExprTypeChecker {
             ) {
                 return annotated
             }
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0025",
                 "Lambda parameter '\(ctx.interner.resolve(effectiveParams[offset]))' is declared as "
                     + "'\(describe(annotated, ctx: ctx))' but '\(describe(declared, ctx: ctx))' is expected.",
@@ -426,7 +426,7 @@ extension ExprTypeChecker {
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
                     sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             sema.bindings.markSamConversion(id)
@@ -489,7 +489,7 @@ extension ExprTypeChecker {
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
                     sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             // When the expected return type is an unresolved type parameter,

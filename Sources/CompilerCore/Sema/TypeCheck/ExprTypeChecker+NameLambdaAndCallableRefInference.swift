@@ -22,7 +22,7 @@ extension ExprTypeChecker {
            !isQualifier || sema.symbols.symbol(local.symbol)?.kind != .function
         {
             if !local.isInitialized {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",
                     range: nameRange
@@ -145,7 +145,7 @@ extension ExprTypeChecker {
             }
         }
         if candidates.isEmpty, !dslBlockedIDs.isEmpty {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-DSLMARKER",
                 "'@DslMarker' implicit access to '\(interner.resolve(name))' from outer receiver is restricted. Use explicit receiver.",
                 range: nameRange
@@ -191,30 +191,30 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner,
                     range: nameRange,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 driver.helpers.checkOptIn(
                     for: result.symbol,
                     ctx: ctx,
                     range: nameRange,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindExprType(id, type: result.type)
                 return result.type
             } else if let firstInvisible = invisibleSyms.first {
-                driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(name), range: nameRange, diagnostics: ctx.semaCtx.diagnostics)
+                driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(name), range: nameRange, diagnostics: ctx.sema.diagnostics)
             } else if name == knownNames.field {
                 // Kotlin's `field` identifier is only valid inside property
                 // getter/setter bodies where it refers to the backing field.
                 // Emit a targeted diagnostic instead of the generic
                 // "Unresolved reference" error.
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-FIELD",
                     "'field' can only be used inside a property getter or setter body.",
                     range: nameRange
                 )
             } else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0022",
                     "Unresolved reference '\(interner.resolve(name))'.",
                     range: nameRange
@@ -244,20 +244,20 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 range: nameRange,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: preferredCandidate.id,
                 ctx: ctx,
                 range: nameRange,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             // DEBT-SEMA-003: a property's initializer referencing the property's
             // own symbol reads it before it has ever been assigned a value.
             if let initializingPropertySymbol = ctx.initializingPropertySymbol,
                preferredCandidate.id == initializingPropertySymbol
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",
                     range: nameRange
@@ -315,13 +315,13 @@ extension ExprTypeChecker {
             sema.bindings.bindIdentifier(id, symbol: result.symbol)
             driver.helpers.checkDeprecation(
                 for: result.symbol, sema: sema, interner: interner,
-                range: nameRange, diagnostics: ctx.semaCtx.diagnostics
+                range: nameRange, diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: result.symbol,
                 ctx: ctx,
                 range: nameRange,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindExprType(id, type: result.type)
             return result.type
@@ -430,7 +430,7 @@ extension ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: nonNullReceiver,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
@@ -448,7 +448,7 @@ extension ExprTypeChecker {
             return memberType
         }
         if emitDiagnosticOnFailure {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '\(resolvedName)'.",
                 range: nameRange

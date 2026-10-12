@@ -245,7 +245,7 @@ extension CallTypeChecker {
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
-                        ctx: ctx.semaCtx
+                        ctx: ctx.sema
                     )
                     if let chosen = resolved.chosenCallee {
                         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
@@ -352,7 +352,7 @@ extension CallTypeChecker {
                     ),
                     expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: outerReceiver.type,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if resolvedOuter.chosenCallee == nil {
                     var seenExtensionReceivers = Set<TypeID>()
@@ -373,7 +373,7 @@ extension CallTypeChecker {
                             ),
                             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                             implicitReceiverType: receiverType,
-                            ctx: ctx.semaCtx
+                            ctx: ctx.sema
                         )
                         if let chosen = resolvedExtension.chosenCallee {
                             let resultType = bindCallAndResolveReturnType(

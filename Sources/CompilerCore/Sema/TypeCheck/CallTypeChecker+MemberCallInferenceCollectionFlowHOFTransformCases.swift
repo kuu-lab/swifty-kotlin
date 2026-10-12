@@ -343,7 +343,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         // non-null numeric element types. Do not let the
                         // legacy name-based fallback accept String, nullable,
                         // or otherwise unsupported Iterable receivers.
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0024",
                             "No viable overload found for call.",
                             range: ast.arena.exprRange(id)

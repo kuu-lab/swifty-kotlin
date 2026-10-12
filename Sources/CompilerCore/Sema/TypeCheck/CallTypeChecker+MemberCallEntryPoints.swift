@@ -43,7 +43,7 @@ extension CallTypeChecker {
             }
         }
         guard isInfix else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0307",
                 "'infix' modifier is required on '\(ctx.interner.resolve(calleeName))'.",
                 range: range

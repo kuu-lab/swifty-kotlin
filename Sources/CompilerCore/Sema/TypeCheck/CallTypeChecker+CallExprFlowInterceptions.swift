@@ -35,7 +35,7 @@ extension CallTypeChecker {
         {
             let flowLambdaExprID = args[0].expr
             guard isValidBuilderLambdaArgument(flowLambdaExprID, ast: ast) else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for call.",
                     range: range

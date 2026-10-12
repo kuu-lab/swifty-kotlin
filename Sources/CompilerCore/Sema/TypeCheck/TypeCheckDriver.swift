@@ -45,7 +45,6 @@ final class TypeCheckDriver {
 
     let ast: ASTModule
     let sema: SemaModule
-    let semaCtx: SemaModule
     let sourceManager: SourceManager?
     let solver: ConstraintSolver
     let resolver: OverloadResolver
@@ -77,7 +76,6 @@ final class TypeCheckDriver {
     init(
         ast: ASTModule,
         sema: SemaModule,
-        semaCtx: SemaModule,
         sourceManager: SourceManager? = nil,
         solver: ConstraintSolver,
         resolver: OverloadResolver,
@@ -92,7 +90,6 @@ final class TypeCheckDriver {
     ) {
         self.ast = ast
         self.sema = sema
-        self.semaCtx = semaCtx
         self.sourceManager = sourceManager
         self.solver = solver
         self.resolver = resolver
@@ -171,7 +168,7 @@ final class TypeCheckDriver {
                 return nil
             }
             return TypeInferenceContext(
-                ast: ast, sema: sema, semaCtx: semaCtx,
+                ast: ast, sema: sema,
                 resolver: resolver, dataFlow: dataFlow,
                 interner: interner, scope: fileScope,
                 implicitReceiverType: nil,

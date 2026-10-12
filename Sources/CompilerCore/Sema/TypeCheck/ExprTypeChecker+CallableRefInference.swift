@@ -106,7 +106,7 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
                 usageRange: range
             )
@@ -123,7 +123,7 @@ extension ExprTypeChecker {
                     argumentCounts = nil
                 }
                 if let argumentCounts, argumentCounts.expected != argumentCounts.actual {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0062",
                         "Type argument count mismatch: expected \(argumentCounts.expected) but got \(argumentCounts.actual).",
                         range: range
@@ -673,7 +673,7 @@ extension ExprTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 resultType = expectedSamInterfaceType ?? expectedFunctionType
             }
@@ -727,7 +727,7 @@ extension ExprTypeChecker {
                     ) {
                         inferredType = specializedType
                     } else {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-TYPE-0001",
                             "Type constraint could not be satisfied.",
                             range: range
@@ -784,7 +784,7 @@ extension ExprTypeChecker {
         }
 
         if candidates.isEmpty {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '::\(interner.resolve(member))'.",
                 range: range
@@ -859,7 +859,7 @@ extension ExprTypeChecker {
             } ?? type
         }
         guard let expectedType = contextualType, case .functionType = sema.types.kind(of: expectedType) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",
                 range: range
@@ -881,7 +881,7 @@ extension ExprTypeChecker {
             range: range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         sema.bindings.bindPrimitiveOperatorCallableRef(id, op: op)
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)

@@ -294,7 +294,7 @@ extension CallTypeChecker {
         if let diagnostic = resolved.diagnostic,
            diagnostic.code == "KSWIFTK-SEMA-0003"
         {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             return (candidates, preparedArgs, resolved, driver.helpers.bindAndReturnErrorType(id, sema: sema))
         }
         // A same-named member that cannot accept the call must not hide an
@@ -344,7 +344,7 @@ extension CallTypeChecker {
                 call: CallExpr(range: range, calleeName: calleeName, args: preparedArgs.argTypes.map { CallArg(type: $0) }),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             ).viableCandidates.isEmpty {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }

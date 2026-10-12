@@ -138,10 +138,10 @@ extension CallTypeChecker {
             ),
             expectedType: expectedType,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -256,7 +256,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -402,7 +402,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -1264,7 +1264,7 @@ extension CallTypeChecker {
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
 

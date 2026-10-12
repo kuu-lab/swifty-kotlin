@@ -10,7 +10,7 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let target = driver.helpers.resolveTypeRef(
             receiverTypeRef, ast: ctx.ast, sema: sema, interner: ctx.interner,
-            scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics,
+            scope: ctx.scope, diagnostics: ctx.sema.diagnostics,
             inferenceContext: ctx, usageRange: range
         )
         if target == sema.types.errorType {
@@ -23,7 +23,7 @@ extension ExprTypeChecker {
               owner.args.count == 1,
               isConcreteClassLiteralType(target, arraySymbol: owner.classSymbol, sema: sema)
         else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Only concrete Array types may have type arguments on the left-hand side of '::class'.",
                 range: range

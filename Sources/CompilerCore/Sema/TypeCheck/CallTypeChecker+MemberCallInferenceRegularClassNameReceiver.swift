@@ -41,7 +41,7 @@ extension CallTypeChecker {
                    enclosingClass: ctx.enclosingClassSymbol
                )
             {
-                driver.helpers.emitVisibilityError(for: memberSymbol, name: interner.resolve(calleeName), range: range, diagnostics: ctx.semaCtx.diagnostics)
+                driver.helpers.emitVisibilityError(for: memberSymbol, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
@@ -83,7 +83,7 @@ extension CallTypeChecker {
                         for: firstInvisible,
                         name: interner.resolve(calleeName),
                         range: range,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
@@ -104,7 +104,7 @@ extension CallTypeChecker {
                         ctx: sema
                     )
                     if let diagnostic = resolved.diagnostic {
-                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        ctx.sema.diagnostics.emit(diagnostic)
                         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                     }
                     if let chosen = resolved.chosenCallee,
@@ -219,7 +219,7 @@ extension CallTypeChecker {
                         for: firstInvisible,
                         name: interner.resolve(calleeName),
                         range: range,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
@@ -241,7 +241,7 @@ extension CallTypeChecker {
                         ctx: sema
                     )
                     if let diagnostic = resolved.diagnostic {
-                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        ctx.sema.diagnostics.emit(diagnostic)
                         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                     }
                     if let chosen = resolved.chosenCallee,
@@ -270,13 +270,13 @@ extension CallTypeChecker {
                             sema: sema,
                             interner: interner,
                             range: range,
-                            diagnostics: ctx.semaCtx.diagnostics
+                            diagnostics: ctx.sema.diagnostics
                         )
                         driver.helpers.checkOptIn(
                             for: chosen,
                             ctx: ctx,
                             range: range,
-                            diagnostics: ctx.semaCtx.diagnostics
+                            diagnostics: ctx.sema.diagnostics
                         )
                         sema.bindings.bindExprType(receiverID, type: ownerType)
                         sema.bindings.bindExprType(id, type: resultType)
@@ -346,7 +346,7 @@ extension CallTypeChecker {
                 {
                     driver.helpers.emitVisibilityError(
                         for: nestedSymbol, name: interner.resolve(calleeName),
-                        range: range, diagnostics: ctx.semaCtx.diagnostics
+                        range: range, diagnostics: ctx.sema.diagnostics
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
@@ -385,7 +385,7 @@ extension CallTypeChecker {
             if !nestedCtorCandidates.isEmpty {
                 let (visibleNested, invisibleNested) = ctx.filterByVisibility(nestedCtorCandidates)
                 if let firstInvisible = invisibleNested.first {
-                    driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.semaCtx.diagnostics)
+                    driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
                 if !visibleNested.isEmpty {
@@ -431,7 +431,7 @@ extension CallTypeChecker {
                         ctx: sema
                     )
                     if let diagnostic = resolved.diagnostic {
-                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        ctx.sema.diagnostics.emit(diagnostic)
                         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                     }
                     if let chosen = resolved.chosenCallee,

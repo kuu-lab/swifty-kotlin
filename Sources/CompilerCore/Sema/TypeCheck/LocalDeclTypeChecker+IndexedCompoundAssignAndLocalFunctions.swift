@@ -41,7 +41,7 @@ extension LocalDeclTypeChecker {
         // real Kotlin's own restriction that `set` is inaccessible on an out-projected
         // array (`Array<*>` prohibits writes for the same variance-safety reason).
         if isStarProjectedArrayReceiver(receiverType, sema: sema, interner: ctx.interner) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-STAR-PROJECTED-WRITE",
                 "Compound assignment to an element of a star-projected array ('Array<*>') is not allowed: the element type is erased, so it cannot be determined which primitive representation to read and write.",
                 range: range
@@ -64,7 +64,7 @@ extension LocalDeclTypeChecker {
             driver.emitSubtypeConstraint(
                 left: indexTypes[0], right: intType,
                 range: ctx.ast.arena.exprRange(indices[0]) ?? range,
-                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics
             )
         }
 
@@ -138,12 +138,12 @@ extension LocalDeclTypeChecker {
                 driver.emitSubtypeConstraint(
                     left: valueType, right: elementType,
                     range: ctx.ast.arena.exprRange(valueExpr) ?? range,
-                    solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                    solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics
                 )
             }
             driver.emitSubtypeConstraint(
                 left: resultType, right: elementType, range: range,
-                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics
             )
         }
 
@@ -195,7 +195,7 @@ extension LocalDeclTypeChecker {
                 return .builtin
             }
             guard sema.types.isSubtype(returnType, elementType) else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0303",
                     "Operator '\(interner.resolve(name))' result type must be assignable to the left-hand side.",
                     range: range
@@ -223,7 +223,7 @@ extension LocalDeclTypeChecker {
 
         if let (call, returnType) = inPlace {
             guard sema.types.isSubtype(returnType, sema.types.unitType) else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0300",
                     "Operator '\(interner.resolve(assignNames[0]))' used in compound assignment must return Unit.",
                     range: range
@@ -236,7 +236,7 @@ extension LocalDeclTypeChecker {
                     op: driver.helpers.compoundAssignToBinaryOp(op), lhs: elementType, rhs: valueType, sema: sema
                 )
             if binary != nil || builtinCharOffset, receiverSupportsIndexedSet(receiverType, ctx: ctx) {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0302",
                     "Assignment operator is ambiguous because both '\(interner.resolve(assignNames[0]))' and the corresponding binary operator are applicable.",
                     range: range
@@ -294,7 +294,7 @@ extension LocalDeclTypeChecker {
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
             call: CallExpr(range: range, calleeName: names[0], args: args),
-            expectedType: nil, implicitReceiverType: elementType, ctx: ctx.semaCtx
+            expectedType: nil, implicitReceiverType: elementType, ctx: ctx.sema
         )
         guard resolved.diagnostic == nil,
               let chosen = resolved.chosenCallee,
@@ -399,7 +399,7 @@ extension LocalDeclTypeChecker {
         let resolved = ctx.resolver.resolveCall(
             candidates: setCandidates,
             call: CallExpr(range: range, calleeName: setName, args: callArgs),
-            expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.semaCtx
+            expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.sema
         )
         guard let chosenSet = resolved.chosenCallee else {
             reportMissingIndexedSetOperator(range: range, ctx: ctx)
@@ -422,7 +422,7 @@ extension LocalDeclTypeChecker {
     }
 
     private func reportMissingIndexedSetOperator(range: SourceRange, ctx: TypeInferenceContext) {
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0002",
             "No viable overload found for operator 'set'.",
             range: range
@@ -451,7 +451,7 @@ extension LocalDeclTypeChecker {
         let resolved = ctx.resolver.resolveCall(
             candidates: getCandidates,
             call: CallExpr(range: range, calleeName: getName, args: callArgs),
-            expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.semaCtx
+            expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.sema
         )
         guard let chosen = resolved.chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosen)
@@ -509,7 +509,7 @@ extension LocalDeclTypeChecker {
         let receiverType = receiverTypeRef.map {
             driver.helpers.resolveTypeRef(
                 $0, ast: ast, sema: sema, interner: interner, scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics, inferenceContext: ctx, usageRange: range
+                diagnostics: ctx.sema.diagnostics, inferenceContext: ctx, usageRange: range
             )
         }
         var parameterTypes: [TypeID] = []
@@ -522,7 +522,7 @@ extension LocalDeclTypeChecker {
                     sema: sema,
                     interner: interner,
                     scope: ctx.scope,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     inferenceContext: ctx,
                     usageRange: range
                 )
@@ -552,7 +552,7 @@ extension LocalDeclTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
                 usageRange: range
             )

@@ -70,7 +70,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         symbols: sema.symbols,
                         interner: interner
                     )
-                    ctx.semaCtx.diagnostics.emit(Diagnostic(
+                    ctx.sema.diagnostics.emit(Diagnostic(
                         severity: .error,
                         code: "KSWIFTK-TYPE-0001",
                         message: "Type mismatch: destination has type '\(actualTypeName)', but '\(requiredTypeName)' is required for '\(calleeStr)'.",
@@ -362,7 +362,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     )
                 }
                 if let reinferExpectedType {
-                    let reinferDiagnosticsCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                    let reinferDiagnosticsCheckpoint = ctx.sema.diagnostics.checkpoint()
                     let reinferredType = driver.inferExpr(
                         args[0].expr,
                         ctx: ctx,
@@ -392,7 +392,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         // restore the destination-shaped lambda
                         // expectation so the original failure still
                         // diagnoses at the transform.
-                        ctx.semaCtx.diagnostics.rollback(to: reinferDiagnosticsCheckpoint)
+                        ctx.sema.diagnostics.rollback(to: reinferDiagnosticsCheckpoint)
                         _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     }
                 } else {
