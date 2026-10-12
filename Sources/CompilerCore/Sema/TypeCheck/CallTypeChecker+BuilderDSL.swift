@@ -881,114 +881,54 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns `Map<K, V>` for `buildMap` where K, V are extracted from `MutableMap<K, V>` receiver type.
-    func builderDSLBuildMapReturnType(
+    /// Returns the read-only collection type matching the builder's `Mutable*` receiver type:
+    /// `List<E>` for `buildList`, `Set<E>` for `buildSet`, `Map<K, V>` for `buildMap`.
+    func builderDSLBuildReturnType(
+        kind: BuilderDSLKind,
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let mutableMapFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableMap"),
-        ]
-        let mapFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Map"),
-        ]
-        guard let mutableMapSymbol = sema.symbols.lookup(fqName: mutableMapFQName),
-              let mapSymbol = sema.symbols.lookup(fqName: mapFQName)
+        let knownNames = KnownCompilerNames(interner: interner)
+        let mutableFQName: [InternedString]
+        let readOnlyFQName: [InternedString]
+        switch kind {
+        case .buildList:
+            mutableFQName = knownNames.kotlinCollectionsMutableListFQName
+            readOnlyFQName = knownNames.kotlinCollectionsListFQName
+        case .buildSet:
+            mutableFQName = knownNames.kotlinCollectionsMutableSetFQName
+            readOnlyFQName = knownNames.kotlinCollectionsSetFQName
+        case .buildMap:
+            mutableFQName = knownNames.kotlinCollectionsMutableMapFQName
+            readOnlyFQName = knownNames.kotlinCollectionsMapFQName
+        }
+        guard let mutableSymbol = sema.symbols.lookup(fqName: mutableFQName),
+              let readOnlySymbol = sema.symbols.lookup(fqName: readOnlyFQName)
         else {
             return sema.types.anyType
         }
-        let (keyType, valueType): (TypeID, TypeID) = if case let .classType(ct) = sema.types.kind(of: receiverType),
-                                                        ct.classSymbol == mutableMapSymbol,
-                                                        ct.args.count >= 2,
-                                                        case let .invariant(k) = ct.args[0],
-                                                        case let .invariant(v) = ct.args[1]
+        let argCount = kind == .buildMap ? 2 : 1
+        let elementTypes: [TypeID] = if case let .classType(ct) = sema.types.kind(of: receiverType),
+                                        ct.classSymbol == mutableSymbol,
+                                        ct.args.count >= argCount,
+                                        ct.args.prefix(argCount).allSatisfy({ arg in
+                                            if case .invariant = arg { return true }
+                                            return false
+                                        })
         {
-            (k, v)
+            ct.args.prefix(argCount).map { arg in
+                switch arg {
+                case let .invariant(type): type
+                default: sema.types.anyType
+                }
+            }
         } else {
-            (sema.types.anyType, sema.types.anyType)
+            Array(repeating: sema.types.anyType, count: argCount)
         }
         return sema.types.make(.classType(ClassType(
-            classSymbol: mapSymbol,
-            args: [.out(keyType), .out(valueType)],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Returns `Set<E>` for `buildSet` where E is extracted from `MutableSet<E>` receiver type.
-    func builderDSLBuildSetReturnType(
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let mutableSetFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableSet"),
-        ]
-        let setFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Set"),
-        ]
-        guard let mutableSetSymbol = sema.symbols.lookup(fqName: mutableSetFQName),
-              let setSymbol = sema.symbols.lookup(fqName: setFQName)
-        else {
-            return sema.types.anyType
-        }
-        let elementType: TypeID = if case let .classType(ct) = sema.types.kind(of: receiverType),
-                                     ct.classSymbol == mutableSetSymbol,
-                                     let firstArg = ct.args.first,
-                                     case let .invariant(elemType) = firstArg
-        {
-            elemType
-        } else {
-            sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: setSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Returns `List<E>` for `buildList` where E is extracted from `MutableList<E>` receiver type.
-    func builderDSLBuildListReturnType(
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let mutableListFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableList"),
-        ]
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let mutableListSymbol = sema.symbols.lookup(fqName: mutableListFQName),
-              let listSymbol = sema.symbols.lookup(fqName: listFQName)
-        else {
-            return sema.types.anyType
-        }
-        let elementType: TypeID = if case let .classType(ct) = sema.types.kind(of: receiverType),
-                                     ct.classSymbol == mutableListSymbol,
-                                     let firstArg = ct.args.first,
-                                     case let .invariant(elemType) = firstArg
-        {
-            elemType
-        } else {
-            sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(elementType)],
+            classSymbol: readOnlySymbol,
+            args: elementTypes.map { .out($0) },
             nullability: .nonNull
         )))
     }

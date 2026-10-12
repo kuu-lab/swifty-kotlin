@@ -87,6 +87,49 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    @Test
+    func wildcardImportFromObjectIsDiagnosed() throws {
+        let source = """
+        package probes
+        import probes.Holder.*
+
+        @AliasedAnn(1)
+        class ViaStar
+
+        object Holder {
+            annotation class AliasedAnn(val v: Int)
+        }
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0027" }
+        #expect(diagnostics.count == 1, "Expected the object wildcard import to be rejected: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.first?.message == "Cannot import on demand from object 'Holder'.")
+    }
+
+    @Test
+    func explicitAndAliasedNestedObjectImportsResolve() throws {
+        let source = """
+        package probes
+        import probes.Holder.AliasedAnn
+        import probes.Holder.AliasedAnn as RenamedAnn
+
+        @AliasedAnn(1)
+        class ViaExplicit
+
+        @RenamedAnn(2)
+        class ViaAlias
+
+        object Holder {
+            annotation class AliasedAnn(val v: Int)
+        }
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: ["import importfixture.library.*", "import importfixture.library"])
     func sourcePackageImportFallbackStillContributesMembers(importDirective: String) throws {
         let sources = [

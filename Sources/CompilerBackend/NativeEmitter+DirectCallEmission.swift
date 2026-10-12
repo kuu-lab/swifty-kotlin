@@ -478,50 +478,8 @@ extension NativeEmitter.FunctionEmissionContext {
             } else {
                 storeResult(result, zeroValue)
             }
-            if usesThrownChannel,
-               let thrownSlotPointer,
-               let thrownValue = bindings.buildLoad(
-                   builder,
-                   type: int64Type,
-                   pointer: thrownSlotPointer,
-                   name: "thrown_val_\(instructionIndex)"
-               )
-            {
-                if let thrownResult {
-                    if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                        _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
-                    } else {
-                        storeResult(thrownResult, thrownValue)
-                    }
-                } else if let hasThrown = buildThrownSlotCondition(
-                    from: thrownValue,
-                    name: "has_thrown_\(instructionIndex)"
-                ),
-                    let thrownBlock = bindings.appendBasicBlock(
-                        context: context,
-                        function: llvmFunction.value,
-                        name: "thrown_\(instructionIndex)"
-                    ),
-                    let continueBlock = bindings.appendBasicBlock(
-                        context: context,
-                        function: llvmFunction.value,
-                        name: "call_cont_\(instructionIndex)"
-                    )
-                {
-                    _ = bindings.buildCondBr(
-                        builder,
-                        condition: hasThrown,
-                        thenBlock: thrownBlock,
-                        elseBlock: continueBlock
-                    )
-
-                    bindings.positionBuilder(builder, at: thrownBlock)
-                    storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
-                    _ = bindings.buildRet(builder, value: zeroReturnValue)
-
-                    currentBlock = continueBlock
-                    bindings.positionBuilder(builder, at: continueBlock)
-                }
+            if usesThrownChannel {
+                handleThrownSlot(thrownSlotPointer, thrownResult: thrownResult, instructionIndex: instructionIndex)
             }
             return
         }
@@ -892,50 +850,8 @@ extension NativeEmitter.FunctionEmissionContext {
             )
         }
         if usesThrownChannel,
-           let thrownSlotPointer,
-           let thrownValue = bindings.buildLoad(
-               builder,
-               type: int64Type,
-               pointer: thrownSlotPointer,
-               name: "thrown_val_\(instructionIndex)"
-           )
+           !handleThrownSlot(thrownSlotPointer, thrownResult: thrownResult, instructionIndex: instructionIndex)
         {
-            if let thrownResult {
-                if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                    _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
-                } else {
-                    storeResult(thrownResult, thrownValue)
-                }
-            } else if let hasThrown = buildThrownSlotCondition(
-                from: thrownValue,
-                name: "has_thrown_\(instructionIndex)"
-            ),
-                let thrownBlock = bindings.appendBasicBlock(
-                    context: context,
-                    function: llvmFunction.value,
-                    name: "thrown_\(instructionIndex)"
-                ),
-                let continueBlock = bindings.appendBasicBlock(
-                    context: context,
-                    function: llvmFunction.value,
-                    name: "call_cont_\(instructionIndex)"
-                )
-            {
-                _ = bindings.buildCondBr(
-                    builder,
-                    condition: hasThrown,
-                    thenBlock: thrownBlock,
-                    elseBlock: continueBlock
-                )
-
-                bindings.positionBuilder(builder, at: thrownBlock)
-                storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
-                _ = bindings.buildRet(builder, value: zeroReturnValue)
-
-                currentBlock = continueBlock
-                bindings.positionBuilder(builder, at: continueBlock)
-            }
-        } else if usesThrownChannel {
             storeResult(thrownResult, zeroValue)
         }
     }
