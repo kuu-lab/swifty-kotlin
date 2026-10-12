@@ -1,6 +1,5 @@
 
 extension CallLowerer {
-    // MARK: - Array Operations
 
     func lowerIndexedCompoundAssignExpr(
         _ exprID: ExprID,
