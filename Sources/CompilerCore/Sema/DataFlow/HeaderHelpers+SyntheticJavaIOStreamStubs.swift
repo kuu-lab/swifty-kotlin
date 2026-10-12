@@ -111,8 +111,6 @@ extension DataFlowSemaPhase {
         )
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
 
-        // MARK: - File (bare shell + path + constructors only; see header doc)
-
         let fileSymbol = ensureClassSymbol(
             named: "File",
             in: javaIOPkg,
@@ -334,8 +332,6 @@ extension DataFlowSemaPhase {
         }
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
 
-        // MARK: - Reader / BufferedReader types (STDLIB-567)
-
         // `java.io.Reader` is the abstract supertype of `BufferedReader` and is
         // the receiver of `kotlin.io` extension functions such as
         // `Reader.readText()` (STDLIB-IO-FN-033). We register it as a synthetic
@@ -527,8 +523,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Writer / BufferedWriter types (STDLIB-IO-091/093)
-
         let writerSymbol = ensureClassSymbol(
             named: "Writer",
             in: javaIOPkg,
@@ -604,10 +598,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // MARK: - InputStream / OutputStream (STDLIB-IO-092)
-
-        // MARK: - Resource access (STDLIB-IO-093; unrelated to File, historically co-located)
 
         let javaLangPkg = ensurePackage(
             path: ["java", "lang"],
@@ -790,8 +780,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
-        //
         // Kotlin defines:
         //   public fun InputStream.readBytes(): ByteArray
         //
@@ -856,8 +844,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - BufferedInputStream and InputStream.buffered() (STDLIB-IO-FN-003)
-        //
         // Kotlin defines:
         //   public inline fun InputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedInputStream
         // We model BufferedInputStream as a java.io.InputStream subtype and expose
@@ -1120,8 +1106,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - OutputStream.bufferedWriter(charset) (STDLIB-IO-FN-009)
-        //
         // Kotlin signature: `public fun OutputStream.bufferedWriter(
         //     charset: Charset = Charsets.UTF_8
         // ): BufferedWriter`  declared in the `kotlin.io` package.
@@ -1160,8 +1144,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Reader.readText() (STDLIB-IO-FN-033)
-        //
         // Kotlin signature: `public fun Reader.readText(): String` declared in
         // the `kotlin.io` package. Reads the entire remaining content of the
         // receiver into a single `String`. Mirrors the stdlib semantics of
@@ -1178,8 +1160,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Reader.copyTo(out: Writer, bufferSize: Int) -> Long  (STDLIB-IO-FN-014)
-        //
         // Kotlin signature:
         //   public fun Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long
         // declared in the `kotlin.io` package.  Copies the receiver's remaining
@@ -1222,8 +1202,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - ByteArray.inputStream() and ByteArray.inputStream(offset, length) (STDLIB-IO-FN-020 / STDLIB-IO-FN-021)
-        //
         // Kotlin stdlib declares two overloads in kotlin.io:
         //   fun ByteArray.inputStream(): ByteArrayInputStream
         //   fun ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream
@@ -1264,7 +1242,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // MARK: - kotlin.io.Writer.buffered (STDLIB-IO-FN-006)
         // Writer.buffered(): BufferedWriter
         // Writer.buffered(bufferSize: Int): BufferedWriter
         registerFilePackageExtensionFunction(
@@ -1314,8 +1291,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Private Helpers
 
     func resolveListSymbol(
         symbols: SymbolTable,
