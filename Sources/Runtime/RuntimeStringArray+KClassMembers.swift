@@ -1,7 +1,6 @@
 import Foundation
 import RuntimeABI
 
-// MARK: - REFL-005: KClass.isInstance, members, constructors
 
 /// Checks if a value is an instance of the type represented by this KClass.
 /// Delegates to the existing `kk_op_is` runtime type check using the KClass
@@ -118,7 +117,6 @@ public func __kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
     return runtimeKConstructorRegistry.primaryConstructor(for: kclassRaw) ?? runtimeNullSentinelInt
 }
 
-// MARK: - STDLIB-REFLECT-061: KClass member access (properties, functions, etc.)
 
 /// Returns all properties (including inherited) of this KClass as a runtime list.
 /// Returns registered `RuntimeKPropertyStub` handles only.
@@ -181,7 +179,6 @@ public func __kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.functions(for: kclassRaw)))
 }
 
-// MARK: - STDLIB-REFLECT-ABI-003: KClass.cast / KClass.safeCast
 
 /// Casts `valueRaw` to the type represented by this KClass.
 /// If the value is an instance of the type, returns it unchanged.
