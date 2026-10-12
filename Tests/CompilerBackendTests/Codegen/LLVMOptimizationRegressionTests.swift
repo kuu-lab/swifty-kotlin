@@ -9,6 +9,45 @@ import Testing
 /// pipeline first ran against the bundled standard library.
 @Suite
 struct LLVMOptimizationRegressionTests {
+    @Test(arguments: [0, 1, 2, 3])
+    func integerPrintlnEmitsObjectAtEachOptimizationLevel(optimization: Int) throws {
+        try withTemporaryFile(contents: "fun main() { println(1+1) }\n") { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent("integer-println-\(UUID().uuidString).o").path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let context = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "IntegerPrintlnObject", inputs: [path], outputPath: outputPath,
+                    emit: .object, target: TargetTriple.hostDefault(),
+                    optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+                    allowDefaultStdlibLibrary: false
+                ),
+                sourceManager: SourceManager(), diagnostics: DiagnosticEngine(), interner: StringInterner()
+            )
+            try runToKIR(context)
+            try LoweringPhase().run(context)
+            try CodegenPhase().run(context)
+            #expect(!context.diagnostics.hasError)
+            let generatedPath = try #require(context.generatedObjectPath)
+            #expect(!(try Data(contentsOf: URL(fileURLWithPath: generatedPath))).isEmpty)
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func optimizedLocaleToStringUsesTheFlatRuntimeABI(stdlibFromSource: Bool) throws {
+        try assertOutput(
+            """
+            import java.util.Locale
+            fun main() {
+                println(1+1)
+                println(Locale("en", "US").toString())
+            }
+            """,
+            moduleName: "OptimizedLocaleToString", expected: "2\nen_US\n",
+            optimization: .O2, stdlibFromSource: stdlibFromSource
+        )
+    }
+
     @Test(arguments: [0, 2])
     func annotatedSecondaryConstructorsKeepTheirDelegation(optimization: Int) throws {
         let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
