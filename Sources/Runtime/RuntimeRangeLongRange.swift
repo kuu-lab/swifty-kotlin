@@ -4,7 +4,6 @@
 // HOF logic and range-handle validation live in RuntimeRangeSharedHOF.swift.
 // These @_cdecl functions are thin ABI entry points.
 
-// MARK: - LongRange (STDLIB-RANGE-035)
 
 @_cdecl("__kk_long_rangeTo")
 public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
@@ -147,9 +146,7 @@ public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
     }
 }
 
-// MARK: - IntRange toIntArray (STDLIB-RANGE-034)
 
-// MARK: - ULongRange count, iterator, hasNext, next (STDLIB-RANGE-037)
 
 @_cdecl("__kk_ulong_range_iterator")
 public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
@@ -203,7 +200,6 @@ public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
     return current
 }
 
-// MARK: - IntRange reversed (STDLIB-093)
 
 @_cdecl("__kk_range_reversed")
 public func kk_range_reversed(_ rangeRaw: Int) -> Int {
