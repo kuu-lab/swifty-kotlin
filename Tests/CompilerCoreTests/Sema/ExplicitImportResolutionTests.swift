@@ -108,6 +108,48 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func bundledJvmAnnotationsContinuationAndCoroutineIntrinsicsAreImportable(useArtifact: Bool) throws {
+        let sources = [
+            """
+            @file:JvmName("KUU1851JvmMarkers")
+            @file:JvmMultifileClass
+            import kotlin.jvm.JvmName
+            import kotlin.jvm.JvmMultifileClass
+            import kotlin.jvm.JvmOverloads
+
+            @JvmName("renamed")
+            @JvmOverloads
+            fun named(value: Int = 0): Int = value
+            """,
+            """
+            import kotlin.jvm.JvmInline
+            import kotlin.jvm.JvmStatic
+            import kotlin.jvm.JvmField
+
+            @JvmInline value class Wrapped(val value: Int)
+
+            object Holder {
+                @JvmStatic fun staticMethod() = Unit
+                @JvmField val field = 1
+            }
+            """,
+            """
+            import kotlin.coroutines.Continuation
+            import kotlinx.coroutines.intrinsics.startCoroutineCancellable
+
+            fun start(block: suspend () -> Unit, completion: Continuation<Unit>) {
+                block.startCoroutineCancellable(completion)
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test
     func wildcardImportResolvesPrecompiledLibraryPackage() throws {
         let source = """
