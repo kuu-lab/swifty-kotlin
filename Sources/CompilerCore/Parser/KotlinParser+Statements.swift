@@ -909,6 +909,35 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
+    private func isTrailingLambdaInfixContinuation(_ token: Token) -> Bool {
+        guard !hasLeadingNewline(token) else { return false }
+        switch token.kind {
+        case .identifier, .backtickedIdentifier:
+            return canStartInfixCallArgument(stream.peek(1).kind)
+        default:
+            return false
+        }
+    }
+
+    private func canStartInfixCallArgument(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .identifier, .backtickedIdentifier,
+             .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral,
+             .keyword(.true), .keyword(.false), .keyword(.null), .keyword(.if), .keyword(.when),
+             .keyword(.try), .keyword(.throw), .keyword(.return), .keyword(.for), .keyword(.while),
+             .keyword(.do), .keyword(.super), .keyword(.this), .keyword(.object),
+             .symbol(.lParen), .symbol(.lBrace), .symbol(.lBracket), .symbol(.minus), .symbol(.plus),
+             .symbol(.bang), .symbol(.doubleColon),
+             .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote,
+             .softKeyword:
+            return true
+        case let .keyword(keyword):
+            return Self.isDeclarationModifierKeyword(keyword)
+        default:
+            return false
+        }
+    }
+
     func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false) {
         var progress = false
         var sawAssignment = false
@@ -954,6 +983,12 @@ extension KotlinParser {
                 if nextAfterBlock.kind == .symbol(.lParen),
                    !hasLeadingNewline(nextAfterBlock)
                 {
+                    continue
+                }
+                // A trailing-lambda call can be the receiver of an infix call,
+                // as in items.joinToString { it } to other. Keep the infix
+                // name and its operand in the same expression-bodied declaration.
+                if isTrailingLambdaInfixContinuation(nextAfterBlock) {
                     continue
                 }
                 break
