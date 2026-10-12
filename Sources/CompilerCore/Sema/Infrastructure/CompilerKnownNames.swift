@@ -1028,13 +1028,9 @@ package struct KnownCompilerNames {
         sequenceScope = interner.intern("SequenceScope")
         closedFloatingPointRange = interner.intern("ClosedFloatingPointRange")
         self.kotlin = kotlin
-        let kotlinEnums = interner.intern("enums")
-        enumIntrinsicFQNames = [
-            [kotlin, enumValues],
-            [kotlin, enumValueOf],
-            [kotlin, kotlinEnums, enumEntries],
-            [kotlin, kotlinEnums, enumEntriesIntrinsic],
-        ]
+        enumIntrinsicFQNames = Set(WellKnownEnumIntrinsic.allCases.map {
+            $0.fqNameParts.map(interner.intern)
+        })
         sequences = interner.intern("sequences")
         initName = interner.intern("<init>")
         invoke = interner.intern("invoke")
