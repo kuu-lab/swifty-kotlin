@@ -270,6 +270,18 @@ struct TypeCheckScopeBuilder {
                 continue
             }
 
+            if importDecl.isWildcard, validatesImports,
+               let importedObject = resolved.first(where: { sema.symbols.symbol($0)?.kind == .object }),
+               let object = sema.symbols.symbol(importedObject)
+            {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0027",
+                    "Cannot import on demand from object '\(interner.resolve(object.name))'.",
+                    range: importDecl.range
+                )
+                continue
+            }
+
             let hasPackageImport = resolved.contains { symbolID in
                 sema.symbols.symbol(symbolID)?.kind == .package
             }

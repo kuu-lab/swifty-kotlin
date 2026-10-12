@@ -388,6 +388,12 @@ enum DiagnosticRegistry {
             summary: "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0027",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot import on demand from an object."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0031",
             pass: "SEMA",
             defaultSeverity: .error,
