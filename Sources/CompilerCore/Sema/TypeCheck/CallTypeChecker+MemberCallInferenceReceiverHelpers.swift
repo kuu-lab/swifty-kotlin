@@ -140,10 +140,14 @@ extension CallTypeChecker {
                     {
                         continue
                     }
-                    if case .typeParam = sema.types.kind(of: actual) {
-                        continue
-                    }
-                    if case .typeParam = sema.types.kind(of: expected) {
+                    // Lambda argument types may have been inferred before a
+                    // generic extension receiver is substituted. A function
+                    // parameter such as `(T) -> Boolean` cannot be compared
+                    // against `(Int) -> Boolean` yet; let overload resolution
+                    // solve T from the receiver and check the lambda then.
+                    if sema.types.typeContainsAnyTypeParam(actual)
+                        || sema.types.typeContainsAnyTypeParam(expected)
+                    {
                         continue
                     }
                     guard sema.types.isSubtype(actual, expected) else {
