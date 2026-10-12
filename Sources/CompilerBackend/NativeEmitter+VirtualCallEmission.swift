@@ -672,50 +672,8 @@ extension NativeEmitter.FunctionEmissionContext {
         }
         storeResult(result, mergedValue)
 
-        if usesThrownChannel,
-           let thrownSlotPointer,
-           let thrownValue = bindings.buildLoad(
-               builder,
-               type: int64Type,
-               pointer: thrownSlotPointer,
-               name: "vthrown_val_\(instructionIndex)"
-           )
-        {
-            if let thrownResult {
-                if let alloca = copyTargetAllocas[thrownResult.rawValue] {
-                    _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
-                } else {
-                    storeResult(thrownResult, thrownValue)
-                }
-            } else if let hasThrown = buildThrownSlotCondition(
-                from: thrownValue,
-                name: "vhas_thrown_\(instructionIndex)"
-            ),
-                let thrownBlock = bindings.appendBasicBlock(
-                    context: context,
-                    function: llvmFunction.value,
-                    name: "vthrown_\(instructionIndex)"
-                ),
-                let continueBlock = bindings.appendBasicBlock(
-                    context: context,
-                    function: llvmFunction.value,
-                    name: "vcall_cont_\(instructionIndex)"
-                )
-            {
-                _ = bindings.buildCondBr(
-                    builder,
-                    condition: hasThrown,
-                    thenBlock: thrownBlock,
-                    elseBlock: continueBlock
-                )
-
-                bindings.positionBuilder(builder, at: thrownBlock)
-                storeOutThrownIfNonNull(thrownValue, suffix: "vthrow_\(instructionIndex)")
-                _ = bindings.buildRet(builder, value: zeroReturnValue)
-
-                currentBlock = continueBlock
-                bindings.positionBuilder(builder, at: continueBlock)
-            }
+        if usesThrownChannel {
+            handleThrownSlot(thrownSlotPointer, thrownResult: thrownResult, instructionIndex: instructionIndex, namePrefix: "v")
         }
     }
 
