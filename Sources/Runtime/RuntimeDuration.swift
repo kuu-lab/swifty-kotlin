@@ -1,8 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - kotlin.time.Duration Runtime (STDLIB-230/231)
-
 /// Mirrors the Kotlin value-class payload: signed count plus a low-bit ms tag.
 final class RuntimeDurationBox {
     let rawValue: Int64
@@ -592,8 +590,6 @@ public func kk_duration_toDuration_double(_ valueBits: Int, _ unitOrdinal: Int) 
         ))
 }
 
-// MARK: - Duration properties
-
 @_cdecl("kk_duration_inWholeMilliseconds")
 public func kk_duration_inWholeMilliseconds(_ durationRaw: Int) -> Int {
     Int(runtimeDurationWholeValue(from: durationRaw, unitScale: 1_000_000))
@@ -747,8 +743,6 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
     }
     return Int(nanoseconds)
 }
-
-// MARK: - Duration advanced operations (STDLIB-TIME-082)
 
 public func kk_duration_absoluteValue(_ durationRaw: Int) -> Int {
     let raw = runtimeDurationRawValue(from: durationRaw)
