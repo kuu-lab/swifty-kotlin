@@ -20,7 +20,6 @@
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
-    // MARK: - REFL-005: KClass.findAnnotation / findAssociatedObject Lowering
 
     func lowerKClassReifiedTypeNameHint(
         exprID: ExprID,
@@ -226,8 +225,6 @@ extension CallLowerer {
             return result
         }
     }
-
-    // MARK: - REFL-005: KClass variable receiver member calls
 
     /// Lowers `kclassVar.findAnnotation<A>()` / `kclassVar.findAssociatedObject<A>()`
     /// where the receiver is a local variable of type KClass<T>, not a direct
