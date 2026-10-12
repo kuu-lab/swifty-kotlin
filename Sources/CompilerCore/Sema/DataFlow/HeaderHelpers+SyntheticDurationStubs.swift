@@ -201,8 +201,6 @@ extension DataFlowSemaPhase {
         return kotlinTimeFQ
     }
 
-    // MARK: - Duration member method registration (STDLIB-TIME-082)
-
     /// Registers a receiver-less bridge function at package scope. Unlike
     /// registerDurationMemberMethod (which passes the receiver's internal handle
     /// as the native call's first argument), this has no receiver at all, so it
