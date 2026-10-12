@@ -330,6 +330,63 @@ extension CallLowerer {
             }
         }
 
+        // Char/Float/Double arithmetic member calls share the same primitive
+        // lowering as operator syntax. Keep the argument behind the safe-call
+        // null check, then feed a non-null receiver to operator lowering so
+        // nullable boxing is removed before the intrinsic reads its bits.
+        let chosenArithmeticCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+        let isSourceArithmeticExtension = chosenArithmeticCallee.map {
+            sema.symbols.isSourceBackedSymbol($0)
+                && sema.symbols.functionSignature(for: $0)?.receiverType != nil
+        } == true
+        if !isSourceArithmeticExtension,
+           args.count == 1,
+           let binaryOp = explicitFloatingOrCharArithmeticOp(calleeStr),
+           isNumericPrimitiveOperand(args[0].expr, sema: sema),
+           !(sema.bindings.isRangeExpr(receiverExpr)
+               || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
+        {
+            let floatType = sema.types.make(.primitive(.float, .nonNull))
+            let doubleType = sema.types.make(.primitive(.double, .nonNull))
+            let receiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            )
+            if receiverType == sema.types.charType
+                || receiverType == floatType
+                || receiverType == doubleType
+            {
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.anyType)
+                let nullableResultType = sema.types.makeNullable(callResultType)
+                let nullValue = arena.appendExpr(.unit, type: nullableResultType)
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+                instructions.append(.constValue(result: nullValue, value: .null))
+                let nullableResult = arena.appendTemporary(type: nullableResultType)
+                instructions.append(.copy(from: nullValue, to: nullableResult))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+
+                let nonNullReceiver = arena.appendTemporary(type: receiverType)
+                instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
+                let loweredArgument = driver.lowerExpr(
+                    args[0].expr,
+                    shared: shared,
+                    emit: &instructions
+                )
+                let nonNullResult = arena.appendTemporary(type: callResultType)
+                instructions.append(.binary(
+                    op: binaryOp,
+                    lhs: nonNullReceiver,
+                    rhs: loweredArgument,
+                    result: nonNullResult
+                ))
+                instructions.append(.copy(from: nonNullResult, to: nullableResult))
+                instructions.append(.label(endLabel))
+                return nullableResult
+            }
+        }
+
         // Primitive arithmetic/infix member functions on numeric receivers.
         if args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
