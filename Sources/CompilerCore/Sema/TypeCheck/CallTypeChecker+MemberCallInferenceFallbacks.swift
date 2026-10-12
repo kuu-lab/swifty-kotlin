@@ -766,9 +766,7 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion constants (STDLIB-153)
-    //
-    // Double (KSP-833) and Float (KSP-847) constants are now source-backed
+    // STDLIB-153: Double (KSP-833) and Float (KSP-847) constants are now source-backed
     // (see Stdlib/kotlin/Double/Companion/Companion.kt and
     // Stdlib/kotlin/Float/Companion/Companion.kt), so this fallback is
     // reserved for compiler-primitive numeric types that have not yet been
