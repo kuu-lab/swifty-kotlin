@@ -34,7 +34,7 @@ extension DeclTypeChecker {
                 for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount) { propertyScope.insert(parameter) }
                 if let receiver = signature.receiverType {
                     for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
-                        where !ctx.sema.types.typeContainsTypeParam(receiver, symbol: parameter) {
+                        where !ctx.sema.types.typeContainsTypeParamThroughUpperBounds(receiver, symbol: parameter) {
                         diagnostics.error("KSWIFTK-SEMA-0005", "Property type parameter must occur in its receiver type.", range: property.range)
                     }
                 }
