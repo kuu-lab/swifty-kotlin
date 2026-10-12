@@ -10,7 +10,6 @@ import Foundation
 // Split out from `RuntimeCoroutine.swift` to keep each runtime source
 // scoped to a single coroutine concern.
 
-// MARK: - Flow Runtime (STDLIB-088: Cold/Lazy Stream Semantics)
 
 /// CORO-003: pthread key for the flow collect stack (replaces threadDictionary).
 private let runtimeFlowCollectStackPthreadKey: pthread_key_t = makePthreadKey()
@@ -1588,8 +1587,6 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
     return 0
 }
 
-// MARK: - Flow Terminal Operators (STDLIB-088)
-
 /// Prepare take counters for the given op chain.
 private func runtimeFlowInitTakeCounters(_ ops: [RuntimeFlowOp]) -> [Int: Int] {
     var takeCounters: [Int: Int] = [:]
@@ -1722,9 +1719,6 @@ public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -
 // (Stdlib/kotlinx/coroutines/flow/StateFlow.kt), so the runtime handle and
 // kk_mutable_state_flow_* / kk_state_flow_value / kk_flow_state_in C bridges
 // have been removed.
-
-// MARK: - Advanced Flow Operators (STDLIB-FLOW-176)
-
 
 private func runtimeFlowEvaluateFlatMapConcat(
     sourceHandle: Int,
@@ -1893,8 +1887,6 @@ private func runtimeFlowEvaluateCombine(
     }
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
 }
-
-// MARK: @_cdecl exports
 
 /// Create a flow that represents flatMapConcat applied to an existing flow.
 /// mapperFnPtr: (closureRaw, value, outThrown) -> innerFlowHandle
