@@ -192,22 +192,8 @@ extension KotlinParser {
                 continue
             }
             guard kind == .symbol(.at) else { return false }
-            offset += 1
-            if isAnnotationUseSiteTarget(stream.peek(offset)),
-               stream.peek(offset + 1).kind == .symbol(.colon) {
-                offset += 2
-            }
-            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
-            offset += 1
-            while stream.peek(offset).kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(offset + 1).kind) {
-                offset += 2
-            }
-            if stream.peek(offset).kind == .symbol(.lParen) {
-                offset = offsetPastBalancedGroup(from: offset,
-                    open: .symbol(.lParen), close: .symbol(.rParen))
-                guard stream.peek(offset - 1).kind == .symbol(.rParen) else { return false }
-            }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
         }
     }
 
@@ -503,34 +489,8 @@ extension KotlinParser {
 
         var offset = 0
         while stream.peek(offset).kind == .symbol(.at) {
-            offset += 1
-
-            if isAnnotationUseSiteTarget(stream.peek(offset)),
-               stream.peek(offset + 1).kind == .symbol(.colon)
-            {
-                offset += 2
-            }
-
-            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
-            offset += 1
-            while stream.peek(offset).kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(offset + 1).kind)
-            {
-                offset += 2
-            }
-
-            if stream.peek(offset).kind == .symbol(.lParen) {
-                var depth = 0
-                repeat {
-                    let kind = stream.peek(offset).kind
-                    if kind == .symbol(.lParen) {
-                        depth += 1
-                    } else if kind == .symbol(.rParen) {
-                        depth -= 1
-                    }
-                    offset += 1
-                } while depth > 0 && stream.peek(offset - 1).kind != .eof
-            }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
         }
 
         let nextKind = stream.peek(offset).kind

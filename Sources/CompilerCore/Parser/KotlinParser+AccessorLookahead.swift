@@ -7,20 +7,8 @@ extension KotlinParser {
         // Skip annotations without consuming them: an annotation on the next
         // declaration must not be absorbed into the preceding property.
         while stream.peek(offset).kind == .symbol(.at) {
-            offset += 1
-            if isAnnotationUseSiteTarget(stream.peek(offset)),
-               stream.peek(offset + 1).kind == .symbol(.colon) {
-                offset += 2
-            }
-            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
-            offset += 1
-            while stream.peek(offset).kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(offset + 1).kind) {
-                offset += 2
-            }
-            if stream.peek(offset).kind == .symbol(.lParen) {
-                offset = offsetPastBalancedGroup(from: offset, open: .symbol(.lParen), close: .symbol(.rParen))
-            }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
         }
         visibilityPrefix: while true {
             guard case let .keyword(keyword) = stream.peek(offset).kind else { break }

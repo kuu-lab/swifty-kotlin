@@ -75,6 +75,31 @@ extension KotlinParser {
         }
     }
 
+    /// Offset just past the annotation prefix starting at the `@` seen at
+    /// `offset`: an optional use-site target (`@field:`), the qualified
+    /// annotation name, and an optional balanced argument group. Mirrors the
+    /// token shape consumed by `consumeDeclarationAnnotationPrefixIfPresent`
+    /// without mutating the parser stream. Returns nil when the qualified
+    /// name is missing.
+    func offsetPastAnnotationPrefix(from offset: Int) -> Int? {
+        var cursor = offset + 1
+        if isAnnotationUseSiteTarget(stream.peek(cursor)),
+           stream.peek(cursor + 1).kind == .symbol(.colon) {
+            cursor += 2
+        }
+        guard isIdentifierLike(stream.peek(cursor).kind) else { return nil }
+        cursor += 1
+        while stream.peek(cursor).kind == .symbol(.dot),
+              isIdentifierLike(stream.peek(cursor + 1).kind) {
+            cursor += 2
+        }
+        if stream.peek(cursor).kind == .symbol(.lParen) {
+            cursor = offsetPastBalancedGroup(from: cursor,
+                                             open: .symbol(.lParen), close: .symbol(.rParen))
+        }
+        return cursor
+    }
+
     func parseBalancedGroup(
         opening: Symbol, closing: Symbol, allowsPrimaryConstructorParameters: Bool = false
     ) -> NodeID {
