@@ -2547,60 +2547,57 @@ struct RuntimeStringArrayTests {
         _ pairRaw: Int,
         offset: Int,
         match: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) {
-        #expect(pairRaw != runtimeNullSentinelInt)
+        #expect(pairRaw != runtimeNullSentinelInt, sourceLocation: sourceLocation)
         guard pairRaw != runtimeNullSentinelInt,
               let pairPtr = UnsafeMutableRawPointer(bitPattern: pairRaw),
               let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
         else {
-            Issue.record("Expected RuntimePairBox result")
+            Issue.record("Expected RuntimePairBox result", sourceLocation: sourceLocation)
             return
         }
-        #expect(pairBox.firstValue.tag == RuntimeValue.rawTag)
-        #expect(pairBox.firstValue.payload0 == offset)
-        #expect(pairBox.secondValue.tag == RuntimeValue.stringTag)
-        #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == match)
-        #expect(kk_pair_first(pairRaw) == offset)
-        #expect(runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function) == match)
+        #expect(pairBox.firstValue.tag == RuntimeValue.rawTag, sourceLocation: sourceLocation)
+        #expect(pairBox.firstValue.payload0 == offset, sourceLocation: sourceLocation)
+        #expect(pairBox.secondValue.tag == RuntimeValue.stringTag, sourceLocation: sourceLocation)
+        #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == match, sourceLocation: sourceLocation)
+        #expect(kk_pair_first(pairRaw) == offset, sourceLocation: sourceLocation)
+        #expect(runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function) == match, sourceLocation: sourceLocation)
     }
 
     private func assertStringValueSequence(
         _ sequenceRaw: Int,
         equals expected: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) {
         guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            Issue.record("Expected a RuntimeSequenceBox")
+            Issue.record("Expected a RuntimeSequenceBox", sourceLocation: sourceLocation)
             return
         }
         guard case let .valueSource(values)? = sequence.steps.first else {
-            Issue.record("Expected aggregate RuntimeValue sequence source")
+            Issue.record("Expected aggregate RuntimeValue sequence source", sourceLocation: sourceLocation)
             return
         }
-        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue) == expected)
+        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count), sourceLocation: sourceLocation)
+        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue) == expected, sourceLocation: sourceLocation)
     }
 
     private func assertRawValueSequence(
         _ sequenceRaw: Int,
         equals expected: [Int],
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) {
         guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            Issue.record("Expected a RuntimeSequenceBox")
+            Issue.record("Expected a RuntimeSequenceBox", sourceLocation: sourceLocation)
             return
         }
         guard case let .valueSource(values)? = sequence.steps.first else {
-            Issue.record("Expected aggregate RuntimeValue sequence source")
+            Issue.record("Expected aggregate RuntimeValue sequence source", sourceLocation: sourceLocation)
             return
         }
-        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.rawTag, count: expected.count))
-        #expect(values.map(\.payload0) == expected)
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw) == expected)
+        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.rawTag, count: expected.count), sourceLocation: sourceLocation)
+        #expect(values.map(\.payload0) == expected, sourceLocation: sourceLocation)
+        #expect(runtimeSequenceSourceElements(from: sequenceRaw) == expected, sourceLocation: sourceLocation)
     }
 
     private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {

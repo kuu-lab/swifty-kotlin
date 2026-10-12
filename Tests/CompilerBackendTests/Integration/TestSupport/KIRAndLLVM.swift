@@ -11,20 +11,26 @@ func findKIRFunction(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
+    fileID: StaticString = #fileID,
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> KIRFunction {
-    try CompilerTestSupport.findKIRFunction(named: name, in: module, interner: interner, file: file, line: line)
+    try CompilerTestSupport.findKIRFunction(
+        named: name, in: module, interner: interner, fileID: fileID, file: file, line: line
+    )
 }
 
 func findKIRFunctionBody(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
+    fileID: StaticString = #fileID,
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> [KIRInstruction] {
-    try CompilerTestSupport.findKIRFunctionBody(named: name, in: module, interner: interner, file: file, line: line)
+    try CompilerTestSupport.findKIRFunctionBody(
+        named: name, in: module, interner: interner, fileID: fileID, file: file, line: line
+    )
 }
 
 func extractCallees(
