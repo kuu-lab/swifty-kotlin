@@ -96,6 +96,28 @@ extension CallTypeChecker {
                     argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
                 )
             default:
+                if let expectedType = expectedTypeOverrides[index],
+                   isInferableNestedCallExpr(argument.expr, ast: ast)
+                {
+                    let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    let contextualType = driver.inferExpr(
+                        argument.expr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: expectedType
+                    )
+                    let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
+                        $0.severity == .error
+                    }
+                    if contextualType != sema.types.errorType,
+                       !emittedError,
+                       let argumentRange = ast.arena.exprRange(argument.expr)
+                    {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                    }
+                    inferredNonLambdaArgTypes[index] = contextualType
+                    continue
+                }
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
                 }

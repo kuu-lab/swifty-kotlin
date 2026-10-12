@@ -5,6 +5,46 @@
 /// overrides that `prepareCallArguments` consumes.
 /// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
+    /// A single outer candidate supplies an unambiguous expected type for
+    /// each nested call argument. Member calls need this context too: their
+    /// arguments are first inferred to collect candidates, then prepared again
+    /// after the selected receiver and candidate set are known.
+    func prepareSingleCandidateNestedCallExpectedTypes(
+        args: [CallArgument],
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext,
+        expectedTypeOverrides: inout [Int: TypeID]
+    ) {
+        guard candidates.count == 1,
+              let candidate = candidates.first,
+              let signature = ctx.sema.symbols.functionSignature(for: candidate)
+        else {
+            return
+        }
+        let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+        for index in args.indices {
+            guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast),
+                  let parameterIndex = parameterMapping?[index],
+                  parameterIndex < signature.parameterTypes.count,
+                  let parameterType = contextualCallArgumentType(
+                      args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                  ),
+                  !ctx.resolver.containsTypeVariable(
+                      parameterType,
+                      typeVarBySymbol: typeVarBySymbol,
+                      typeSystem: ctx.sema.types
+                  )
+            else {
+                continue
+            }
+            if let existing = expectedTypeOverrides[index], existing != parameterType {
+                continue
+            }
+            expectedTypeOverrides[index] = parameterType
+        }
+    }
+
     func prepareCallExprArgumentContexts(
         args: [CallArgument],
         ctx: TypeInferenceContext,
@@ -302,43 +342,14 @@ extension CallTypeChecker {
                 expectedTypeOverrides[index] = substitutedType
             }
         }
-        // A single outer candidate provides an unambiguous expected type for
-        // each nested call argument. Forward it before eager inference so
-        // `accept(Box(Impl()))` can infer `Box<Thing>` from `accept`'s
-        // `Box<Thing>` parameter instead of committing to invariant `Box<Impl>`.
         // With multiple candidates, their parameter types may differ and must
         // not steer a shared argument toward one overload.
-        if candidates.count == 1,
-           let candidate = candidates.first,
-           let signature = sema.symbols.functionSignature(for: candidate)
-        {
-            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-            let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
-            for index in args.indices {
-                guard isInferableNestedCallExpr(args[index].expr, ast: ast),
-                      let parameterIndex = parameterMapping?[index],
-                      parameterIndex < signature.parameterTypes.count
-                else {
-                    continue
-                }
-                guard let parameterType = contextualCallArgumentType(
-                    args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
-                ) else {
-                    continue
-                }
-                guard !ctx.resolver.containsTypeVariable(
-                    parameterType,
-                    typeVarBySymbol: typeVarBySymbol,
-                    typeSystem: sema.types
-                ) else {
-                    continue
-                }
-                if let existing = expectedTypeOverrides[index], existing != parameterType {
-                    continue
-                }
-                expectedTypeOverrides[index] = parameterType
-            }
-        }
+        prepareSingleCandidateNestedCallExpectedTypes(
+            args: args,
+            candidates: candidates,
+            ctx: ctx,
+            expectedTypeOverrides: &expectedTypeOverrides
+        )
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType
         {

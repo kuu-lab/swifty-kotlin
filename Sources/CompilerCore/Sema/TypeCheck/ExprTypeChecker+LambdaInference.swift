@@ -387,6 +387,11 @@ extension ExprTypeChecker {
         let inferredBodyType = sema.types.lub(
             [fallthroughType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
         )
+        // Range expressions use a scalar Sema type plus a marker, while Kotlin
+        // lambdas expose their nominal range type to surrounding calls.
+        let sourceLevelInferredBodyType = driver.callChecker.sourceLevelRangeArgumentType(
+            body, inferredType: inferredBodyType, ctx: bodyCtx
+        )
         // STDLIB-592 definite assignment: record which outer-scope locals this
         // lambda body unconditionally initializes, mirroring the blockExpr merge
         // in ExprTypeChecker.swift. `locals` itself is never mutated here -- the
@@ -421,7 +426,7 @@ extension ExprTypeChecker {
             // ordinary Unit-returning lambdas (e.g. a Boolean-valued CAS call).
             if expectedFunctionType.returnType != sema.types.unitType {
                 driver.emitSubtypeConstraint(
-                    left: inferredBodyType,
+                    left: sourceLevelInferredBodyType,
                     right: expectedFunctionType.returnType,
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
@@ -443,7 +448,7 @@ extension ExprTypeChecker {
                session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
             {
                 session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
-                    subtype: inferredBodyType,
+                    subtype: sourceLevelInferredBodyType,
                     supertype: expectedFunctionType.returnType,
                     typeVarBySymbol: session.typeVarBySymbol,
                     typeSystem: sema.types,
@@ -455,9 +460,9 @@ extension ExprTypeChecker {
             }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = expectedTypeIsHintOnly
-                ? inferredBodyType
+                ? sourceLevelInferredBodyType
                 : inferOptimizedReturnType(
-                    inferredBodyType: inferredBodyType,
+                    inferredBodyType: sourceLevelInferredBodyType,
                     expectedReturnType: expectedFunctionType.returnType,
                     sema: sema
                 )
@@ -545,7 +550,7 @@ extension ExprTypeChecker {
 
         let inferredFunctionType = sema.types.make(.functionType(FunctionType(
             params: parameterTypes,
-            returnType: inferredBodyType,
+            returnType: sourceLevelInferredBodyType,
             isSuspend: false,
             nullability: .nonNull
         )))
