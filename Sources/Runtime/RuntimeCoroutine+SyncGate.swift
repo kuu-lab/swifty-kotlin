@@ -314,24 +314,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
         }
     }
 
-    /// Install the current continuation state for the given task key.
-    static func installCurrent(_ state: RuntimeContinuationState?, forTask key: RuntimeTaskKey) {
-        taskStateLock.lock()
-        if let state {
-            taskStateMap[key] = state
-        } else {
-            taskStateMap.removeValue(forKey: key)
-        }
-        taskStateLock.unlock()
-    }
-
-    /// Remove the current continuation state for the given task key.
-    static func removeCurrent(forTask key: RuntimeTaskKey) {
-        taskStateLock.lock()
-        taskStateMap.removeValue(forKey: key)
-        taskStateLock.unlock()
-    }
-
     func scheduleDelay(milliseconds: Int) {
         if let scheduler = scope?.testSchedulerIfPresent() {
             scheduler.schedule(after: Int64(max(0, milliseconds))) { [weak self] in
