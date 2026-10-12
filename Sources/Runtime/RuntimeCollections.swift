@@ -310,7 +310,6 @@ func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
     return (normalizedKeys, normalizedValues)
 }
 
-// MARK: - List Functions (STDLIB-001)
 
 @_cdecl("__kk_list_of")
 public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
@@ -789,7 +788,6 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
     return runtimeMakeStringPointer(str)
 }
 
-// MARK: - List toMap (STDLIB-200)
 
 @inline(__always)
 func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
@@ -1286,7 +1284,6 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     return old.legacyRawValue
 }
 
-// MARK: - MutableList bulk operations (STDLIB-207)
 
 @_cdecl("__kk_mutable_list_addAll")
 public func kk_mutable_list_addAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
@@ -1413,7 +1410,6 @@ public func kk_mutable_list_as_reversed(_ listRaw: Int) -> Int {
     )
 }
 
-// MARK: - asSequence (STDLIB-471)
 
 @_cdecl("kk_list_asSequence")
 public func kk_list_asSequence(_ listRaw: Int) -> Int {
@@ -1441,7 +1437,6 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-// MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)
 
 /// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).
 /// LinkedHashSet copy-constructor storage, also used by `Iterable.toMutableSet()`.
