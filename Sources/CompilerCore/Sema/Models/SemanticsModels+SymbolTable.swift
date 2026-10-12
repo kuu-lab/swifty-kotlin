@@ -448,18 +448,20 @@ public final class SymbolTable {
             if isExtensionProperty {
                 // Extension properties are disambiguated by receiver type at
                 // call sites, the same way overloaded extension functions
-                // are (e.g. `val Int.seconds` and `val Long.seconds`), so two
-                // extension properties sharing a short name may coexist as
-                // separate symbols. A non-extension property at the same FQ
-                // name is still a genuine clash: it has no receiver to
-                // disambiguate by. Mirrors the diagnostic-level check in
-                // HeaderHelpers.hasDeclarationConflict.
+                // are (e.g. `val Int.seconds` and `val Long.seconds`), and a
+                // same-named top-level property occupies a separate lookup
+                // path. Either kind of property can therefore coexist with
+                // an extension property. Mirrors the diagnostic-level check
+                // in HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || (existing.kind == .property && (existing.flags.contains(.synthetic) || hasExtensionPropertyReceiver(existing.id)))
+                        || existing.kind == .property
                 }
             }
-            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
+            return existingNonPackage.allSatisfy { existing in
+                isCallableLike(existing.kind)
+                    || (existing.kind == .property && hasExtensionPropertyReceiver(existing.id))
+            }
         }
         if isCallableLike(kind) {
             // Allow functions/constructors to coexist with nominal types and
