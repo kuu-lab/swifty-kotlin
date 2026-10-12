@@ -1304,11 +1304,15 @@ extension DataFlowSemaPhase {
         }
 
         guard symbolInfo.kind == .class || symbolInfo.kind == .object,
-              !symbolInfo.flags.contains(.abstractType)
+              !symbolInfo.flags.contains(.abstractType),
+              !symbolInfo.flags.contains(.expectDeclaration)
         else {
             return
         }
 
+        // An expect declaration describes the common API but does not provide
+        // the platform implementation. Check inherited abstract obligations
+        // on its actual declaration, where the implementation is available.
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
