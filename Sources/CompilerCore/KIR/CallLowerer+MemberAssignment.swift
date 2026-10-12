@@ -28,7 +28,6 @@ extension CallLowerer {
         return symbol.fqName == expectedFQName
     }
 
-    // MARK: - Member Assignment
 
     func lowerMemberAssignExpr(
         _ exprID: ExprID,
@@ -313,7 +312,6 @@ extension CallLowerer {
         return unit
     }
 
-    // MARK: - Member Compound Assignment
 
     /// Lowers `receiver.field op= value` (and the desugared form of
     /// `receiver.field++` / `receiver.field--`) as load -> compute -> store,
