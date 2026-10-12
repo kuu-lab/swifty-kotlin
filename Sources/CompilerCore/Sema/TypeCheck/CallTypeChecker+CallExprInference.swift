@@ -61,6 +61,7 @@ extension CallTypeChecker {
             id,
             calleeName: calleeName,
             args: args,
+            range: range,
             ctx: ctx,
             locals: &locals,
             expectedType: expectedType,
