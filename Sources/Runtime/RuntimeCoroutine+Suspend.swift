@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - Coroutine yield()
 
 /// Cooperatively yields the current coroutine, allowing other coroutines to run.
 /// This is the lowering target for `kotlinx.coroutines.yield()`.
@@ -31,7 +30,6 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
     return Int(bitPattern: kk_coroutine_suspended())
 }
 
-// MARK: - withTimeout / withTimeoutOrNull
 
 /// Runs a timeout block on a deadline, preserving its result or failure unless
 /// this deadline expires first.
@@ -183,7 +181,6 @@ public func kk_with_timeout_or_null_throwing(
     return outcome.result
 }
 
-// MARK: - Suspend Entry Loop
 
 func runSuspendEntryLoop(
     entryPointRaw: Int,
@@ -572,7 +569,6 @@ func runSuspendEntryLoopWithContinuation(
     return 0
 }
 
-// MARK: - STDLIB-CORO-068: Suspend Function Invocation
 
 /// Invoke a suspend function with 0 arguments using continuation-passing style.
 /// This is the runtime implementation for `kk_suspend_function_invoke_0`.
