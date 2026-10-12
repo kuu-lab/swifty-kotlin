@@ -341,8 +341,6 @@ extension KotlinLexer {
         }
     }
 
-    // MARK: - Multi-dollar string support (Kotlin 2.1+)
-
     /// Scans a multi-dollar single-line string: `$$"..."`, `$$$"..."`, etc.
     /// The `dollarCount` is the number of `$` in the prefix (e.g. 2 for `$$`).
     /// Only `dollarCount` consecutive `$` followed by `{` triggers interpolation.
