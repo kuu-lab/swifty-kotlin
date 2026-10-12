@@ -223,7 +223,13 @@ extension TypeSystem {
             guard nullabilitySubtype(leftClass.nullability, rightClass.nullability) else {
                 return false
             }
-            if leftClass.classSymbol != rightClass.classSymbol {
+            // Matching expect/actual declarations have distinct symbols, but
+            // their class types represent the same nominal Kotlin type.
+            let isLinkedExpectActualPair = areLinkedExpectActualClassSymbols(
+                leftClass.classSymbol,
+                rightClass.classSymbol
+            )
+            if leftClass.classSymbol != rightClass.classSymbol && !isLinkedExpectActualPair {
                 guard isNominalSubtypeSymbol(leftClass.classSymbol, of: rightClass.classSymbol) else {
                     return false
                 }
@@ -250,20 +256,23 @@ extension TypeSystem {
             if leftClass.args.count != rightClass.args.count {
                 return false
             }
+            let nominalOwner = symbolTable?.actualSymbol(for: leftClass.classSymbol)
+                ?? symbolTable?.actualSymbol(for: rightClass.classSymbol)
+                ?? leftClass.classSymbol
+            let typeParameterSymbols = nominalTypeParameterSymbols(for: nominalOwner)
             let declarationVariances = normalizedNominalVariances(
-                for: leftClass.classSymbol,
+                for: nominalOwner,
                 arity: leftClass.args.count
             )
             for index in 0 ..< leftClass.args.count {
                 let lhsProjection: Projection
                 if case .star = leftClass.args[index] {
-                    let parameters = nominalTypeParameterSymbols(for: leftClass.classSymbol)
-                    let bounds = parameters.indices.contains(index)
-                        ? symbolTable?.typeParameterUpperBounds(for: parameters[index]) ?? [] : []
-                    let variables = makeTypeVarBySymbol(parameters)
+                    let bounds = typeParameterSymbols.indices.contains(index)
+                        ? symbolTable?.typeParameterUpperBounds(for: typeParameterSymbols[index]) ?? [] : []
+                    let variables = makeTypeVarBySymbol(typeParameterSymbols)
                     var substitution: [TypeVarID: TypeID] = [:]
                     var unresolvedStars: [SymbolID: TypeVarID] = [:]
-                    for (parameter, argument) in zip(parameters, leftClass.args) {
+                    for (parameter, argument) in zip(typeParameterSymbols, leftClass.args) {
                         guard let variable = variables[parameter] else { continue }
                         switch argument {
                         case let .invariant(type), let .out(type): substitution[variable] = type
@@ -671,6 +680,12 @@ extension TypeSystem {
             }
         }
         return false
+    }
+
+    private func areLinkedExpectActualClassSymbols(_ lhs: SymbolID, _ rhs: SymbolID) -> Bool {
+        guard let symbolTable else { return false }
+        return symbolTable.actualSymbol(for: lhs) == rhs
+            || symbolTable.actualSymbol(for: rhs) == lhs
     }
 
     enum Projection {
