@@ -382,8 +382,6 @@ public func __kk_throwable_toString(
     return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
 }
 
-// MARK: - Advanced exception features (STDLIB-EXCEPT-105)
-
 /// Storage bridge for `Throwable.initCause`: overwrites the cause slot.
 @_cdecl("__kk_throwable_setCause")
 public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
