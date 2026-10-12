@@ -460,7 +460,6 @@ public final class SymbolTable {
                 }
             }
             return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
-                && !existingNonPackageKinds.contains(.property)
         }
         if isCallableLike(kind) {
             // Allow functions/constructors to coexist with nominal types and
