@@ -7,4 +7,6 @@ public object System {
     private external fun __gc()
 
     public fun gc(): Unit = __gc()
+
+    public fun exit(status: Int): Unit = kotlin.system.exitProcess(status)
 }

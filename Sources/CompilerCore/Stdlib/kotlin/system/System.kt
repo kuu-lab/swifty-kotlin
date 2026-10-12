@@ -20,4 +20,6 @@ public object System {
     public fun nanoTime(): Long = __nanoTime()
 
     public fun processStartNanos(): Long = __processStartNanos()
+
+    public fun exit(status: Int): Unit = java.lang.System.exit(status)
 }
