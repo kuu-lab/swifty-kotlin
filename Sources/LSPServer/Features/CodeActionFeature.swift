@@ -28,12 +28,9 @@ public enum CodeActionFeature {
             else {
                 return nil
             }
-            let lspDiagnostic = LSPDiagnostic(
-                range: LSPConvert.range(primaryRange, sourceManager),
-                severity: severity(for: diagnostic.severity).rawValue,
-                code: diagnostic.code,
-                source: "kswiftk",
-                message: diagnostic.message
+            let lspDiagnostic = LSPConvert.diagnostic(
+                diagnostic,
+                range: LSPConvert.range(primaryRange, sourceManager)
             )
             return (diagnostic, lspDiagnostic)
         }
@@ -235,15 +232,6 @@ public enum CodeActionFeature {
         guard let only, !only.isEmpty else { return true }
         return only.contains { requested in
             kind == requested || kind.hasPrefix(requested + ".")
-        }
-    }
-
-    private static func severity(for severity: DiagnosticSeverity) -> LSPDiagnosticSeverity {
-        switch severity {
-        case .error: .error
-        case .warning: .warning
-        case .note: .information
-        case .info: .hint
         }
     }
 
