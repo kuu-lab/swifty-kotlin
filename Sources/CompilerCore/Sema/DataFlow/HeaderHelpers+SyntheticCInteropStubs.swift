@@ -569,1560 +569,171 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([arenaBaseSymbol], for: memScopeSymbol)
         types.setNominalDirectSupertypes([arenaBaseSymbol], for: memScopeSymbol)
 
-        let memScopedName = interner.intern("memScoped")
-        let memScopedFQName = cinteropPkg + [memScopedName]
-        if symbols.lookupAll(fqName: memScopedFQName).contains(where: { symbolID in
-            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
-            return sig.receiverType == nil && sig.parameterTypes.count == 1 && sig.typeParameterSymbols.count == 1
-        }) {
-        } else {
-            let memScopedRName = interner.intern("R")
-            let memScopedRFQName = memScopedFQName + [memScopedRName]
-            let memScopedRSymbol = symbols.define(
-                kind: .typeParameter,
-                name: memScopedRName,
-                fqName: memScopedRFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let memScopedRType = types.make(.typeParam(TypeParamType(
-                symbol: memScopedRSymbol,
-                nullability: .nonNull
-            )))
-            let memScopedBlockType = types.make(.functionType(FunctionType(
-                receiver: memScopeType,
-                params: [],
-                returnType: memScopedRType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memScopedBlockName = interner.intern("block")
-            let memScopedBlockSymbol = symbols.define(
-                kind: .valueParameter,
-                name: memScopedBlockName,
-                fqName: memScopedFQName + [memScopedBlockName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let memScopedSymbolID = symbols.define(
-                kind: .function,
-                name: memScopedName,
-                fqName: memScopedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: cinteropPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memScopedSymbolID)
-            }
-            symbols.setParentSymbol(memScopedSymbolID, for: memScopedRSymbol)
-            symbols.setParentSymbol(memScopedSymbolID, for: memScopedBlockSymbol)
-            symbols.setPropertyType(memScopedBlockType, for: memScopedBlockSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: nil,
-                    parameterTypes: [memScopedBlockType],
-                    returnType: memScopedRType,
-                    isSuspend: false,
-                    valueParameterSymbols: [memScopedBlockSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [memScopedRSymbol],
-                    typeParameterUpperBoundsList: [[]],
-                    classTypeParameterCount: 0
-                ),
-                for: memScopedSymbolID
-            )
-        }
-
-
-
-
-
-
-
-
-
-
-        configureSingleTypeParameterNominal(
-            ownerSymbol: cValuesRefSymbol,
-            fqName: cinteropPkg + [interner.intern("CValuesRef")],
-            parameterName: "T",
-            supertype: nil,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        symbols.insertFlags([.abstractType], for: cValuesRefSymbol)
-        if let cValuesRefTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cValuesRefSymbol).first {
-            symbols.setTypeParameterUpperBounds([cPointedType], for: cValuesRefTypeParameterSymbol)
-            let cValuesRefTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: cValuesRefTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            _ = types.make(.classType(ClassType(
-                classSymbol: cValuesRefSymbol,
-                args: [.invariant(cValuesRefTypeParameterType)],
-                nullability: .nonNull
-            )))
-            _ = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(cValuesRefTypeParameterType)],
-                nullability: .nonNull
-            )))
-
-
-        }
-        configureSingleTypeParameterNominal(
-            ownerSymbol: cValueSymbol,
-            fqName: cinteropPkg + [interner.intern("CValue")],
-            parameterName: "T",
-            supertype: cValuesSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        symbols.insertFlags([.abstractType], for: cValueSymbol)
-        if let cValueTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cValueSymbol).first {
-            symbols.setTypeParameterUpperBounds([cVariableType], for: cValueTypeParameterSymbol)
-            let cValueTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: cValueTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            _ = types.make(.classType(ClassType(
-                classSymbol: cValueSymbol,
-                args: [.invariant(cValueTypeParameterType)],
-                nullability: .nonNull
-            )))
-
-        }
-
-        let pointerToLongFunctionName = interner.intern("toLong")
-        let pointerToLongFunctionFQName = cinteropPkg + [pointerToLongFunctionName]
-        let pointerToLongTypeParameterName = interner.intern("T")
-        let pointerToLongTypeParameterFQName = pointerToLongFunctionFQName + [pointerToLongTypeParameterName]
-        let pointerToLongTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
-            fqName: pointerToLongTypeParameterFQName
-        ) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: pointerToLongTypeParameterName,
-                fqName: pointerToLongTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.insertFlags([.synthetic], for: pointerToLongTypeParameterSymbol)
-        symbols.setTypeParameterUpperBounds([cPointedType], for: pointerToLongTypeParameterSymbol)
-        let pointerToLongTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: pointerToLongTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let pointerToLongNullableReceiverType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(pointerToLongTypeParameterType)],
-            nullability: .nullable
-        )))
-        registerSyntheticNativeTopLevelFunction(
-            named: "toLong",
-            packageFQName: cinteropPkg,
-            receiverType: pointerToLongNullableReceiverType,
-            parameters: [],
-            returnType: types.longType,
-            typeParameterSymbols: [pointerToLongTypeParameterSymbol],
-            typeParameterUpperBoundsList: [[cPointedType]],
-            externalLinkName: "kk_cpointer_toLong",
-            flags: [.synthetic, .inlineFunction],
-            symbols: symbols,
-            interner: interner
-        )
-        let unwrapHolderFunctionName = interner.intern("unwrapKotlinObjectHolder")
-        let unwrapHolderFunctionFQName = cinteropPkg + [unwrapHolderFunctionName]
-        let unwrapHolderTypeParameterName = interner.intern("T")
-        let unwrapHolderTypeParameterFQName = unwrapHolderFunctionFQName + [unwrapHolderTypeParameterName]
-        let unwrapHolderTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
-            fqName: unwrapHolderTypeParameterFQName
-        ) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: unwrapHolderTypeParameterName,
-                fqName: unwrapHolderTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: unwrapHolderTypeParameterSymbol)
-        symbols.setTypeParameterUpperBounds([types.anyType], for: unwrapHolderTypeParameterSymbol)
-        _ = types.make(.typeParam(TypeParamType(
-            symbol: unwrapHolderTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        _ = if let cOpaquePointerSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("COpaquePointer")]) {
-            types.make(.classType(ClassType(
-                classSymbol: cOpaquePointerSymbol,
-                args: [],
-                nullability: .nullable
-            )))
-        } else {
-            types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.star],
-                nullability: .nullable
-            )))
-        }
-
-        configureSingleTypeParameterNominal(
-            ownerSymbol: cPointerVarOfSymbol,
-            fqName: cinteropPkg + [interner.intern("CPointerVarOf")],
-            parameterName: "T",
-            supertype: cVariableSymbol,
-            supertypeIsGeneric: false,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        if let cPointerVarOfTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cPointerVarOfSymbol).first {
-            symbols.setParentSymbol(cPointerVarOfSymbol, for: cPointerVarOfTypeParameterSymbol)
-            let cPointerStarType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.star],
-                nullability: .nonNull
-            )))
-            symbols.setTypeParameterUpperBounds([cPointerStarType], for: cPointerVarOfTypeParameterSymbol)
-            let cPointerVarOfTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: cPointerVarOfTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            _ = types.make(.classType(ClassType(
-                classSymbol: cPointerVarOfSymbol,
-                args: [.invariant(cPointerVarOfTypeParameterType)],
-                nullability: .nonNull
-            )))
-
-        }
-        let cPointerVarOfCompanionName = interner.intern("Companion")
-        let cPointerVarOfCompanionFQName = cinteropPkg + [interner.intern("CPointerVarOf"), cPointerVarOfCompanionName]
-        let cPointerVarOfCompanionSymbol: SymbolID
-        if let existingCompanion = symbols.companionObjectSymbol(for: cPointerVarOfSymbol) {
-            cPointerVarOfCompanionSymbol = existingCompanion
-        } else if let existing = symbols.lookup(fqName: cPointerVarOfCompanionFQName),
-                  symbols.symbol(existing)?.kind == .object
-        {
-            cPointerVarOfCompanionSymbol = existing
-        } else {
-            cPointerVarOfCompanionSymbol = symbols.define(
-                kind: .object,
-                name: cPointerVarOfCompanionName,
-                fqName: cPointerVarOfCompanionFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .static]
-            )
-        }
-        symbols.setParentSymbol(cPointerVarOfSymbol, for: cPointerVarOfCompanionSymbol)
-        symbols.setCompanionObjectSymbol(cPointerVarOfCompanionSymbol, for: cPointerVarOfSymbol)
-        let cPointerVarOfCompanionType = types.make(.classType(ClassType(
-            classSymbol: cPointerVarOfCompanionSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(cPointerVarOfCompanionType, for: cPointerVarOfCompanionSymbol)
-        symbols.setDirectSupertypes([cVariableTypeSymbol], for: cPointerVarOfCompanionSymbol)
-        types.setNominalDirectSupertypes([cVariableTypeSymbol], for: cPointerVarOfCompanionSymbol)
-
-        configureSingleTypeParameterNominal(
-            ownerSymbol: cFunctionSymbol,
-            fqName: cinteropPkg + [interner.intern("CFunction")],
-            parameterName: "T",
-            supertype: cPointedSymbol,
-            supertypeIsGeneric: false,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        if let cFunctionTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cFunctionSymbol).first {
-            symbols.setTypeParameterUpperBounds([types.anyType], for: cFunctionTypeParameterSymbol)
-            let cFunctionTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: cFunctionTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            let cFunctionType = types.make(.classType(ClassType(
-                classSymbol: cFunctionSymbol,
-                args: [.invariant(cFunctionTypeParameterType)],
-                nullability: .nonNull
-            )))
-            registerNativeConcurrentConstructor(
-                ownerSymbol: cFunctionSymbol,
-                ownerType: cFunctionType,
-                parameters: [(name: "rawPtr", type: nativePtrType)],
-                defaultValues: [false],
-                typeParameterSymbols: [cFunctionTypeParameterSymbol],
-                classTypeParameterCount: 1,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        configureSingleTypeParameterNominal(
-            ownerSymbol: booleanVarOfSymbol,
-            fqName: cinteropPkg + [interner.intern("BooleanVarOf")],
-            parameterName: "T",
-            supertype: cPrimitiveVarSymbol,
-            supertypeIsGeneric: false,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        if let booleanVarOfTypeParameterSymbol = types.nominalTypeParameterSymbols(for: booleanVarOfSymbol).first {
-            symbols.setTypeParameterUpperBounds([types.booleanType], for: booleanVarOfTypeParameterSymbol)
-            let booleanVarOfTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: booleanVarOfTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            let booleanVarOfType = types.make(.classType(ClassType(
-                classSymbol: booleanVarOfSymbol,
-                args: [.invariant(booleanVarOfTypeParameterType)],
-                nullability: .nonNull
-            )))
-            registerNativeConcurrentConstructor(
-                ownerSymbol: booleanVarOfSymbol,
-                ownerType: booleanVarOfType,
-                parameters: [(name: "rawPtr", type: nativePtrType)],
-                defaultValues: [false],
-                typeParameterSymbols: [booleanVarOfTypeParameterSymbol],
-                classTypeParameterCount: 1,
-                symbols: symbols,
-                interner: interner
-            )
-
-        }
-        configureSingleTypeParameterNominal(
-            ownerSymbol: byteVarOfSymbol,
-            fqName: cinteropPkg + [interner.intern("ByteVarOf")],
-            parameterName: "T",
-            supertype: cPrimitiveVarSymbol,
-            supertypeIsGeneric: false,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        if let byteVarOfTypeParameterSymbol = types.nominalTypeParameterSymbols(for: byteVarOfSymbol).first {
-            symbols.setTypeParameterUpperBounds([types.byteType], for: byteVarOfTypeParameterSymbol)
-            let byteVarOfTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: byteVarOfTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            let byteVarOfType = types.make(.classType(ClassType(
-                classSymbol: byteVarOfSymbol,
-                args: [.invariant(byteVarOfTypeParameterType)],
-                nullability: .nonNull
-            )))
-            registerNativeConcurrentConstructor(
-                ownerSymbol: byteVarOfSymbol,
-                ownerType: byteVarOfType,
-                parameters: [(name: "rawPtr", type: nativePtrType)],
-                defaultValues: [false],
-                typeParameterSymbols: [byteVarOfTypeParameterSymbol],
-                classTypeParameterCount: 1,
-                symbols: symbols,
-                interner: interner
-            )
-
-        }
-        let booleanVarType = types.make(.classType(ClassType(
-            classSymbol: booleanVarOfSymbol,
-            args: [.invariant(types.booleanType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticCInteropTypeAlias(
-            named: "BooleanVar",
-            in: cinteropPkg,
-            packageSymbol: cinteropPkgSymbol,
-            underlyingType: booleanVarType,
-            symbols: symbols,
-            interner: interner
-        )
-        let byteVarType = types.make(.classType(ClassType(
-            classSymbol: byteVarOfSymbol,
-            args: [.invariant(types.byteType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticCInteropTypeAlias(
-            named: "ByteVar",
-            in: cinteropPkg,
-            packageSymbol: cinteropPkgSymbol,
-            underlyingType: byteVarType,
-            symbols: symbols,
-            interner: interner
-        )
-        _ = types.make(.classType(ClassType(
-            classSymbol: cValuesSymbol,
-            args: [.invariant(byteVarType)],
-            nullability: .nonNull
-        )))
-
-        // NOTE: ByteArray.toKString() with no explicit args is covered by the
-        // ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence) overload
-        // registered above (all three parameters have default values).
-        // Registering a separate zero-parameter overload here would cause ambiguity
-        // when calling bytes.toKString() with no arguments.
-        let byteArrayReceiverType = syntheticClassType(
-            packagePath: ["kotlin"],
-            name: "ByteArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        let byteArrayToCValuesReturnType = types.make(.classType(ClassType(
-            classSymbol: cValuesSymbol,
-            args: [.invariant(byteVarType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeTopLevelFunction(
-            named: "toCValues",
-            packageFQName: cinteropPkg,
-            receiverType: byteArrayReceiverType,
-            parameters: [],
-            returnType: byteArrayToCValuesReturnType,
-            externalLinkName: "kk_byteArray_toCValues",
-            symbols: symbols,
-            interner: interner
-        )
-
-        let cOpaquePointerUnderlyingType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.out(cPointedType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticCInteropTypeAlias(
-            named: "COpaquePointer",
-            in: cinteropPkg,
-            packageSymbol: cinteropPkgSymbol,
-            underlyingType: cOpaquePointerUnderlyingType,
-            symbols: symbols,
-            interner: interner
-        )
-        let pinnedFQName = cinteropPkg + [interner.intern("Pinned")]
-        let pinnedTypeParameterName = interner.intern("T")
-        let pinnedTypeParameterFQName = pinnedFQName + [pinnedTypeParameterName]
-        let pinnedTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: pinnedTypeParameterFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: pinnedTypeParameterName,
-                fqName: pinnedTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: pinnedTypeParameterSymbol)
-        let pinnedTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: pinnedTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let pinnedType = types.make(.classType(ClassType(
-            classSymbol: pinnedSymbol,
-            args: [.invariant(pinnedTypeParameterType)],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(pinnedType, for: pinnedSymbol)
-        types.setNominalTypeParameterSymbols([pinnedTypeParameterSymbol], for: pinnedSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: pinnedSymbol)
-
-        let pinName = interner.intern("pin")
-        let pinFQName = cinteropPkg + [pinName]
-        let pinTypeParameterName = interner.intern("T")
-        let pinTypeParameterFQName = pinFQName + [pinTypeParameterName]
-        let pinTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: pinTypeParameterFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: pinTypeParameterName,
-                fqName: pinTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: pinTypeParameterSymbol)
-        let pinTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: pinTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let pinReturnType = types.make(.classType(ClassType(
-            classSymbol: pinnedSymbol,
-            args: [.invariant(pinTypeParameterType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeTopLevelFunction(
-            named: "pin",
-            packageFQName: cinteropPkg,
-            receiverType: pinTypeParameterType,
-            parameters: [],
-            returnType: pinReturnType,
-            typeParameterSymbols: [pinTypeParameterSymbol],
-            typeParameterUpperBoundsList: [[types.anyType]],
-            externalLinkName: "kk_pin_object",
-            flags: [.synthetic, .inlineFunction],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticNativeMemberFunction(
-            named: "get",
-            ownerSymbol: pinnedSymbol,
-            receiverType: pinnedType,
-            parameters: [],
-            returnType: pinnedTypeParameterType,
-            typeParameterSymbols: [pinnedTypeParameterSymbol],
-            typeParameterUpperBoundsList: [[types.anyType]],
-            classTypeParameterCount: 1,
-            externalLinkName: "kk_pinned_get",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticNativeMemberFunction(
-            named: "unpin",
-            ownerSymbol: pinnedSymbol,
-            receiverType: pinnedType,
-            parameters: [],
-            returnType: types.unitType,
-            typeParameterSymbols: [pinnedTypeParameterSymbol],
-            typeParameterUpperBoundsList: [[types.anyType]],
-            classTypeParameterCount: 1,
-            externalLinkName: "kk_unpin_object",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // fun <T : Any, R> T.usePinned(block: (Pinned<T>) -> R): R — STDLIB-CINTEROP-FN-042
-        // Pins the receiver, invokes block with the Pinned<T> handle, and unpins it in a
-        // finally block. Special-cased as a scope function (like Closeable.use); inline-
-        // expanded by CallLowerer, no runtime call for usePinned itself.
-        let usePinnedName = interner.intern("usePinned")
-        let usePinnedFQName = cinteropPkg + [usePinnedName]
-        if symbols.lookup(fqName: usePinnedFQName) == nil {
-            let usePinnedTypeParameterName = interner.intern("T")
-            let usePinnedReturnTypeParameterName = interner.intern("R")
-            let usePinnedTypeParameterSymbol = symbols.define(
-                kind: .typeParameter,
-                name: usePinnedTypeParameterName,
-                fqName: usePinnedFQName + [usePinnedTypeParameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let usePinnedReturnTypeParameterSymbol = symbols.define(
-                kind: .typeParameter,
-                name: usePinnedReturnTypeParameterName,
-                fqName: usePinnedFQName + [usePinnedReturnTypeParameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            symbols.setTypeParameterUpperBounds([types.anyType], for: usePinnedTypeParameterSymbol)
-
-            let usePinnedTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: usePinnedTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            let usePinnedReturnTypeParameterType = types.make(.typeParam(TypeParamType(
-                symbol: usePinnedReturnTypeParameterSymbol,
-                nullability: .nonNull
-            )))
-            let usePinnedBlockParameterType = types.make(.classType(ClassType(
-                classSymbol: pinnedSymbol,
-                args: [.invariant(usePinnedTypeParameterType)],
-                nullability: .nonNull
-            )))
-            let usePinnedBlockType = types.make(.functionType(FunctionType(
-                params: [usePinnedBlockParameterType],
-                returnType: usePinnedReturnTypeParameterType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-
-            let usePinnedBlockParamName = interner.intern("block")
-            let usePinnedBlockParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: usePinnedBlockParamName,
-                fqName: usePinnedFQName + [usePinnedBlockParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-
-            let usePinnedSymbol = symbols.define(
-                kind: .function,
-                name: usePinnedName,
-                fqName: usePinnedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let cinteropPkgSymbol {
-                symbols.setParentSymbol(cinteropPkgSymbol, for: usePinnedSymbol)
-            }
-            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedTypeParameterSymbol)
-            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedReturnTypeParameterSymbol)
-            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedBlockParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: usePinnedTypeParameterType,
-                    parameterTypes: [usePinnedBlockType],
-                    returnType: usePinnedReturnTypeParameterType,
-                    isSuspend: false,
-                    valueParameterSymbols: [usePinnedBlockParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [usePinnedTypeParameterSymbol, usePinnedReturnTypeParameterSymbol],
-                    typeParameterUpperBoundsList: [[types.anyType], []],
-                    classTypeParameterCount: 0
-                ),
-                for: usePinnedSymbol
-            )
-        }
-
-        let cOpaquePointerVarUnderlyingType = types.make(.classType(ClassType(
-            classSymbol: cPointerVarOfSymbol,
-            args: [.invariant(cOpaquePointerUnderlyingType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticCInteropTypeAlias(
-            named: "COpaquePointerVar",
-            in: cinteropPkg,
-            packageSymbol: cinteropPkgSymbol,
-            underlyingType: cOpaquePointerVarUnderlyingType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCInteropSingleTypeParameterTypeAlias(
-            named: "CArrayPointer",
-            in: cinteropPkg,
-            packageSymbol: cinteropPkgSymbol,
-            parameterName: "T",
-            targetSymbol: cPointerSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticCInteropSingleTypeParameterTypeAlias(
-            named: "CArrayPointerVar",
-            in: cinteropPkg,
-            packageSymbol: cinteropPkgSymbol,
-            parameterName: "T",
-            targetSymbol: cPointerVarSymbol,
+        registerCInteropMemScopedStub(
+            cinteropPkg: cinteropPkg,
+            memScopeType: memScopeType,
             symbols: symbols,
             types: types,
             interner: interner
         )
 
-        // KUU-1375: primitive `*Var` classes subtype `CPrimitiveVar` (which is a
-        // `CVariable`) so `alloc<IntVar>()` satisfies its `T : CVariable` bound
-        // and each carries a `var value` bridging to kk_cvar_*_load/_store.
-        let primitiveVarKinds: [(name: String, valueType: TypeID, linkPrefix: String)] = [
-            (name: "UByteVar", valueType: types.ubyteType, linkPrefix: "kk_cvar_ubyte"),
-            (name: "ShortVar", valueType: types.shortType, linkPrefix: "kk_cvar_short"),
-            (name: "UShortVar", valueType: types.ushortType, linkPrefix: "kk_cvar_ushort"),
-            (name: "IntVar", valueType: types.intType, linkPrefix: "kk_cvar_int"),
-            (name: "UIntVar", valueType: types.uintType, linkPrefix: "kk_cvar_uint"),
-            (name: "LongVar", valueType: types.longType, linkPrefix: "kk_cvar_long"),
-            (name: "ULongVar", valueType: types.ulongType, linkPrefix: "kk_cvar_ulong"),
-            (name: "FloatVar", valueType: types.floatType, linkPrefix: "kk_cvar_float"),
-            (name: "DoubleVar", valueType: types.doubleType, linkPrefix: "kk_cvar_double"),
-        ]
-        for (primitiveVar, primitiveValueType, linkPrefix) in primitiveVarKinds {
-            let symbol = ensureClassSymbol(
-                named: primitiveVar,
-                in: cinteropPkg,
-                symbols: symbols,
-                interner: interner
-            )
-            if let cinteropPkgSymbol {
-                symbols.setParentSymbol(cinteropPkgSymbol, for: symbol)
-            }
-            let type = types.make(.classType(ClassType(
-                classSymbol: symbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            symbols.setPropertyType(type, for: symbol)
-            symbols.setDirectSupertypes([cPrimitiveVarSymbol], for: symbol)
-            types.setNominalDirectSupertypes([cPrimitiveVarSymbol], for: symbol)
-            registerAtomicValueProperty(
-                ownerSymbol: symbol,
-                valueType: primitiveValueType,
-                getterLinkName: "\(linkPrefix)_load",
-                symbols: symbols,
-                interner: interner
-            )
-            // val <var>.ptr: CPointer<var> / val <var>.rawPtr: NativePtr
-            let primitivePtrType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(type)],
-                nullability: .nonNull
-            )))
-            registerAtomicReadOnlyProperty(
-                ownerSymbol: symbol,
-                propertyName: "ptr",
-                valueType: primitivePtrType,
-                getterLinkName: "kk_cvar_ptr",
-                symbols: symbols,
-                interner: interner
-            )
-            registerAtomicReadOnlyProperty(
-                ownerSymbol: symbol,
-                propertyName: "rawPtr",
-                valueType: nativePtrType,
-                getterLinkName: "kk_cvar_raw_ptr",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        // BooleanVarOf<T>/ByteVarOf<T> already subtype CPrimitiveVar; they just
-        // need the `value` bridge. CPointerVarOf<T> stores a pointer word.
-        registerAtomicValueProperty(
-            ownerSymbol: booleanVarOfSymbol,
-            valueType: types.booleanType,
-            getterLinkName: "kk_cvar_bool_load",
+        registerCInteropCValuesShapes(
+            cinteropPkg: cinteropPkg,
+            cValuesRefSymbol: cValuesRefSymbol,
+            cValueSymbol: cValueSymbol,
+            cValuesSymbol: cValuesSymbol,
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
+            cVariableType: cVariableType,
             symbols: symbols,
+            types: types,
             interner: interner
         )
-        registerAtomicValueProperty(
-            ownerSymbol: byteVarOfSymbol,
-            valueType: types.byteType,
-            getterLinkName: "kk_cvar_byte_load",
+
+        registerCInteropPointerConversionStubs(
+            cinteropPkg: cinteropPkg,
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
             symbols: symbols,
+            types: types,
             interner: interner
         )
-        if let cPointerVarOfT = types.nominalTypeParameterSymbols(for: cPointerVarOfSymbol).first {
-            let cPointerVarOfTType = types.make(.typeParam(TypeParamType(
-                symbol: cPointerVarOfT,
-                nullability: .nonNull
-            )))
-            registerAtomicValueProperty(
-                ownerSymbol: cPointerVarOfSymbol,
-                valueType: cPointerVarOfTType,
-                getterLinkName: "kk_cvar_cpointer_load",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        // val <var>.ptr / <var>.rawPtr on the generic and aggregate var classes
-        // (class type-param substitution fills in the concrete pointee).
-        for genericVarSymbol in [booleanVarOfSymbol, byteVarOfSymbol, cPointerVarOfSymbol] {
-            guard let tSym = types.nominalTypeParameterSymbols(for: genericVarSymbol).first
-            else { continue }
-            let tType = types.make(.typeParam(TypeParamType(symbol: tSym, nullability: .nonNull)))
-            let genericVarType = types.make(.classType(ClassType(
-                classSymbol: genericVarSymbol,
-                args: [.invariant(tType)],
-                nullability: .nonNull
-            )))
-            let genericPtrType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(genericVarType)],
-                nullability: .nonNull
-            )))
-            registerAtomicReadOnlyProperty(
-                ownerSymbol: genericVarSymbol,
-                propertyName: "ptr",
-                valueType: genericPtrType,
-                getterLinkName: "kk_cvar_ptr",
-                symbols: symbols,
-                interner: interner
-            )
-            registerAtomicReadOnlyProperty(
-                ownerSymbol: genericVarSymbol,
-                propertyName: "rawPtr",
-                valueType: nativePtrType,
-                getterLinkName: "kk_cvar_raw_ptr",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        for aggregateVarSymbol in [cStructVarSymbol, cEnumVarSymbol, cVariableSymbol] {
-            guard let info = symbols.symbol(aggregateVarSymbol) else { continue }
-            let aggregateVarType = types.make(.classType(ClassType(
-                classSymbol: aggregateVarSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let aggregatePtrType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(aggregateVarType)],
-                nullability: .nonNull
-            )))
-            registerAtomicReadOnlyProperty(
-                ownerSymbol: aggregateVarSymbol,
-                propertyName: "ptr",
-                valueType: aggregatePtrType,
-                getterLinkName: "kk_cvar_ptr",
-                symbols: symbols,
-                interner: interner
-            )
-            registerAtomicReadOnlyProperty(
-                ownerSymbol: aggregateVarSymbol,
-                propertyName: "rawPtr",
-                valueType: nativePtrType,
-                getterLinkName: "kk_cvar_raw_ptr",
-                symbols: symbols,
-                interner: interner
-            )
-            _ = info
-        }
-        if let uShortVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
-            let uShortVarType = types.make(.classType(ClassType(
-                classSymbol: uShortVarSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            _ = types.make(.classType(ClassType(
-                classSymbol: cValuesSymbol,
-                args: [.invariant(uShortVarType)],
-                nullability: .nonNull
-            )))
 
-        }
-        if let uIntVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UIntVar")]) {
-            let uIntVarType = types.make(.classType(ClassType(
-                classSymbol: uIntVarSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let uIntArrayReceiverType = syntheticClassType(
-                packagePath: ["kotlin"],
-                name: "UIntArray",
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-            let uIntArrayToCValuesReturnType = types.make(.classType(ClassType(
-                classSymbol: cValuesSymbol,
-                args: [.invariant(uIntVarType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toCValues",
-                packageFQName: cinteropPkg,
-                receiverType: uIntArrayReceiverType,
-                parameters: [],
-                returnType: uIntArrayToCValuesReturnType,
-                externalLinkName: "kk_uIntArray_toCValues",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        registerCInteropVarOfShapes(
+            cinteropPkg: cinteropPkg,
+            cPointerVarOfSymbol: cPointerVarOfSymbol,
+            cFunctionSymbol: cFunctionSymbol,
+            booleanVarOfSymbol: booleanVarOfSymbol,
+            byteVarOfSymbol: byteVarOfSymbol,
+            cVariableSymbol: cVariableSymbol,
+            cVariableTypeSymbol: cVariableTypeSymbol,
+            cPrimitiveVarSymbol: cPrimitiveVarSymbol,
+            cPointedSymbol: cPointedSymbol,
+            cPointerSymbol: cPointerSymbol,
+            nativePtrType: nativePtrType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
-        if let uLongVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("ULongVar")]) {
-            let uLongVarType = types.make(.classType(ClassType(
-                classSymbol: uLongVarSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let uLongArrayReceiverType = syntheticClassType(
-                packagePath: ["kotlin"],
-                name: "ULongArray",
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-            let uLongArrayToCValuesReturnType = types.make(.classType(ClassType(
-                classSymbol: cValuesSymbol,
-                args: [.invariant(uLongVarType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toCValues",
-                packageFQName: cinteropPkg,
-                receiverType: uLongArrayReceiverType,
-                parameters: [],
-                returnType: uLongArrayToCValuesReturnType,
-                externalLinkName: "kk_uLongArray_toCValues",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        if let intVarSymbolForUtf32 = symbols.lookup(fqName: cinteropPkg + [interner.intern("IntVar")]) {
-            let intVarTypeForUtf32 = types.make(.classType(ClassType(
-                classSymbol: intVarSymbolForUtf32,
-                args: [],
-                nullability: .nonNull
-            )))
-            let toKStringFromUtf32ReceiverType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(intVarTypeForUtf32)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toKStringFromUtf32",
-                packageFQName: cinteropPkg,
-                receiverType: toKStringFromUtf32ReceiverType,
-                parameters: [],
-                returnType: types.stringType,
-                externalLinkName: "kk_cpointer_toKStringFromUtf32",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        let cOpaquePointerUnderlyingType = registerCInteropPrimitiveTypeAliases(
+            cinteropPkg: cinteropPkg,
+            cinteropPkgSymbol: cinteropPkgSymbol,
+            booleanVarOfSymbol: booleanVarOfSymbol,
+            byteVarOfSymbol: byteVarOfSymbol,
+            cValuesSymbol: cValuesSymbol,
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
-        if let shortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("ShortVar")]) {
-            let shortVarTypeForToKString = types.make(.classType(ClassType(
-                classSymbol: shortVarSymbolForToKString,
-                args: [],
-                nullability: .nonNull
-            )))
-            let toKStringShortVarReceiverType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(shortVarTypeForToKString)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toKString",
-                packageFQName: cinteropPkg,
-                receiverType: toKStringShortVarReceiverType,
-                parameters: [],
-                returnType: types.stringType,
-                externalLinkName: "kk_cpointer_toKStringFromUtf16",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        registerCInteropPinnedStubs(
+            cinteropPkg: cinteropPkg,
+            pinnedSymbol: pinnedSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
-        if let uShortVarSymbolForUtf16 = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
-            let uShortVarTypeForUtf16 = types.make(.classType(ClassType(
-                classSymbol: uShortVarSymbolForUtf16,
-                args: [],
-                nullability: .nonNull
-            )))
-            let toKStringFromUtf16UShortReceiverType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(uShortVarTypeForUtf16)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toKStringFromUtf16",
-                packageFQName: cinteropPkg,
-                receiverType: toKStringFromUtf16UShortReceiverType,
-                parameters: [],
-                returnType: types.stringType,
-                externalLinkName: "kk_cpointer_toKStringFromUtf16",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        // STDLIB-CINTEROP-FN-032: Alias for toKStringFromUtf16(): reuses the same UTF-16 runtime decoder.
-        if let uShortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
-            let uShortVarTypeForToKString = types.make(.classType(ClassType(
-                classSymbol: uShortVarSymbolForToKString,
-                args: [],
-                nullability: .nonNull
-            )))
-            let toKStringUShortVarReceiverType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(uShortVarTypeForToKString)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toKString",
-                packageFQName: cinteropPkg,
-                receiverType: toKStringUShortVarReceiverType,
-                parameters: [],
-                returnType: types.stringType,
-                externalLinkName: "kk_cpointer_toKStringFromUtf16",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        if let uByteVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UByteVar")]) {
-            let uByteVarType = types.make(.classType(ClassType(
-                classSymbol: uByteVarSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let uByteArrayReceiverType = syntheticClassType(
-                packagePath: ["kotlin"],
-                name: "UByteArray",
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-            let uByteArrayToCValuesReturnType = types.make(.classType(ClassType(
-                classSymbol: cValuesSymbol,
-                args: [.invariant(uByteVarType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toCValues",
-                packageFQName: cinteropPkg,
-                receiverType: uByteArrayReceiverType,
-                parameters: [],
-                returnType: uByteArrayToCValuesReturnType,
-                externalLinkName: "kk_uByteArray_toCValues",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        registerCInteropUsePinnedStub(
+            cinteropPkg: cinteropPkg,
+            cinteropPkgSymbol: cinteropPkgSymbol,
+            pinnedSymbol: pinnedSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerCInteropPointerAliases(
+            cinteropPkg: cinteropPkg,
+            cinteropPkgSymbol: cinteropPkgSymbol,
+            cOpaquePointerUnderlyingType: cOpaquePointerUnderlyingType,
+            cPointerVarOfSymbol: cPointerVarOfSymbol,
+            cPointerSymbol: cPointerSymbol,
+            cPointerVarSymbol: cPointerVarSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerCInteropPrimitiveVarStubs(
+            cinteropPkg: cinteropPkg,
+            cinteropPkgSymbol: cinteropPkgSymbol,
+            cPrimitiveVarSymbol: cPrimitiveVarSymbol,
+            cPointerSymbol: cPointerSymbol,
+            nativePtrType: nativePtrType,
+            booleanVarOfSymbol: booleanVarOfSymbol,
+            byteVarOfSymbol: byteVarOfSymbol,
+            cPointerVarOfSymbol: cPointerVarOfSymbol,
+            cStructVarSymbol: cStructVarSymbol,
+            cEnumVarSymbol: cEnumVarSymbol,
+            cVariableSymbol: cVariableSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerCInteropUnsignedVarStubs(
+            cinteropPkg: cinteropPkg,
+            cValuesSymbol: cValuesSymbol,
+            cPointerSymbol: cPointerSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // MARK: - KUU-1375: CPointer members, placement, native heap, strings
 
-        // `class CPointer<T : CPointed>`: declare T so member lookups can
-        // substitute the pointee type for `pointed`, `get`, and `reinterpret`.
-        configureSingleTypeParameterNominal(
-            ownerSymbol: cPointerSymbol,
-            fqName: cinteropPkg + [interner.intern("CPointer")],
-            parameterName: "T",
-            supertype: nil,
+        let cPointerStarType = registerCInteropCPointerMembers(
+            cinteropPkg: cinteropPkg,
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
+            byteVarOfSymbol: byteVarOfSymbol,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        var cPointerElementType = cPointedType
-        if let cPointerTypeParameter = types.nominalTypeParameterSymbols(for: cPointerSymbol).first {
-            symbols.setTypeParameterUpperBounds([cPointedType], for: cPointerTypeParameter)
-            cPointerElementType = types.make(.typeParam(TypeParamType(
-                symbol: cPointerTypeParameter,
-                nullability: .nonNull
-            )))
-        }
-        let cPointerGenericType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(cPointerElementType)],
-            nullability: .nonNull
-        )))
-        let cPointerStarType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
 
-        // val CPointer<T>.pointed: T — reads the pointee var box via
-        // kk_cpointer_pointed (structural CVariable value on the same address).
-        registerAtomicReadOnlyProperty(
-            ownerSymbol: cPointerSymbol,
-            propertyName: "pointed",
-            valueType: cPointerElementType,
-            getterLinkName: "kk_cpointer_pointed",
-            symbols: symbols,
-            interner: interner
-        )
-        // operator fun CPointer<T>.get(index: Int): T — element access scaled by
-        // the pointee layout inside kk_cpointer_get.
-        registerSyntheticNativeMemberFunction(
-            named: "get",
-            ownerSymbol: cPointerSymbol,
-            receiverType: cPointerGenericType,
-            parameters: [(name: "index", type: types.intType)],
-            returnType: cPointerElementType,
-            typeParameterSymbols: types.nominalTypeParameterSymbols(for: cPointerSymbol),
-            typeParameterUpperBoundsList: [[cPointedType]],
-            classTypeParameterCount: 1,
-            flags: [.synthetic, .operatorFunction],
-            externalLinkName: "kk_cpointer_get",
-            symbols: symbols,
-            interner: interner
-        )
-        let reinterpretRName = interner.intern("R")
-        let reinterpretFunctionFQName = cinteropPkg + [interner.intern("CPointer"), interner.intern("reinterpret")]
-        let reinterpretRSymbol: SymbolID = if let existing = symbols.lookup(fqName: reinterpretFunctionFQName + [reinterpretRName]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: reinterpretRName,
-                fqName: reinterpretFunctionFQName + [reinterpretRName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cPointedType], for: reinterpretRSymbol)
-        let reinterpretRType = types.make(.typeParam(TypeParamType(
-            symbol: reinterpretRSymbol,
-            nullability: .nonNull
-        )))
-        let reinterpretReturnType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(reinterpretRType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeMemberFunction(
-            named: "reinterpret",
-            ownerSymbol: cPointerSymbol,
-            receiverType: cPointerGenericType,
-            parameters: [],
-            returnType: reinterpretReturnType,
-            typeParameterSymbols: types.nominalTypeParameterSymbols(for: cPointerSymbol) + [reinterpretRSymbol],
-            typeParameterUpperBoundsList: [[cPointedType], [cPointedType]],
-            classTypeParameterCount: 1,
-            reifiedTypeParameterIndices: [1],
-            externalLinkName: "kk_cpointer_reinterpret",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // fun CPointer<ByteVar>.toKString(): String — UTF-8 decode; upstream
-        // kotlinx.cinterop maps `char *` ByteVar pointers through this.
-        // ByteVar is a typealias for ByteVarOf<Byte>, so the concrete nominal
-        // must be used here — a ClassType built on the alias symbol cannot
-        // satisfy bound checks or member lookups.
-        do {
-            let byteVarTypeForToKString = types.make(.classType(ClassType(
-                classSymbol: byteVarOfSymbol,
-                args: [.invariant(types.byteType)],
-                nullability: .nonNull
-            )))
-            let toKStringByteVarReceiverType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(byteVarTypeForToKString)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeTopLevelFunction(
-                named: "toKString",
-                packageFQName: cinteropPkg,
-                receiverType: toKStringByteVarReceiverType,
-                parameters: [],
-                returnType: types.stringType,
-                externalLinkName: "kk_cpointer_toKString",
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // fun <reified T : CVariable> NativePlacement.alloc(): T — arena or
-        // native-heap allocation depending on the receiver placement.
-        let allocTName = interner.intern("T")
-        let allocFunctionFQName = cinteropPkg + [interner.intern("NativePlacement"), interner.intern("alloc")]
-        let placementAllocT: SymbolID = if let existing = symbols.lookup(fqName: allocFunctionFQName + [allocTName]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: allocTName,
-                fqName: allocFunctionFQName + [allocTName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cVariableType], for: placementAllocT)
-        let placementAllocTType = types.make(.typeParam(TypeParamType(
-            symbol: placementAllocT,
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeMemberFunction(
-            named: "alloc",
-            ownerSymbol: nativePlacementSymbol,
-            receiverType: nativePlacementType,
-            parameters: [],
-            returnType: placementAllocTType,
-            typeParameterSymbols: [placementAllocT],
-            typeParameterUpperBoundsList: [[cVariableType]],
-            reifiedTypeParameterIndices: [0],
-            flags: [.synthetic, .inlineFunction],
-            externalLinkName: "kk_arena_alloc_var",
-            symbols: symbols,
-            interner: interner
-        )
-        // fun <reified T : CVariable> NativePlacement.allocArray(length: Long): CPointer<T>
-        let allocArrayTName = interner.intern("T")
-        let allocArrayFunctionFQName = cinteropPkg + [interner.intern("NativePlacement"), interner.intern("allocArray")]
-        let placementAllocArrayT: SymbolID = if let existing = symbols.lookup(fqName: allocArrayFunctionFQName + [allocArrayTName]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: allocArrayTName,
-                fqName: allocArrayFunctionFQName + [allocArrayTName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cVariableType], for: placementAllocArrayT)
-        let placementAllocArrayTType = types.make(.typeParam(TypeParamType(
-            symbol: placementAllocArrayT,
-            nullability: .nonNull
-        )))
-        let allocArrayReturnType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(placementAllocArrayTType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeMemberFunction(
-            named: "allocArray",
-            ownerSymbol: nativePlacementSymbol,
-            receiverType: nativePlacementType,
-            parameters: [(name: "length", type: types.longType)],
-            returnType: allocArrayReturnType,
-            typeParameterSymbols: [placementAllocArrayT],
-            typeParameterUpperBoundsList: [[cVariableType]],
-            reifiedTypeParameterIndices: [0],
-            flags: [.synthetic, .inlineFunction],
-            externalLinkName: "kk_arena_alloc_array",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticNativeMemberFunction(
-            named: "allocRaw",
-            ownerSymbol: nativePlacementSymbol,
-            receiverType: nativePlacementType,
-            parameters: [
-                (name: "size", type: types.longType),
-                (name: "align", type: types.intType),
-            ],
-            returnType: nativePtrType,
-            externalLinkName: "kk_arena_alloc_raw",
-            symbols: symbols,
-            interner: interner
-        )
-        // NOTE: upstream also declares `alloc(size: Long, align: Int)` on
-        // NativePlacement returning COpaquePointer. Omitted here — the bridge
-        // returns a NativePtr box, and `allocRaw` covers the raw path.
-
-        registerSyntheticNativeMemberFunction(
-            named: "free",
-            ownerSymbol: nativeFreeablePlacementSymbol,
-            receiverType: nativeFreeablePlacementType,
-            parameters: [(name: "ptr", type: types.makeNullable(cPointerStarType))],
-            returnType: types.unitType,
-            externalLinkName: "kk_native_placement_free",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticNativeMemberFunction(
-            named: "free",
-            ownerSymbol: nativeFreeablePlacementSymbol,
-            receiverType: nativeFreeablePlacementType,
-            parameters: [(name: "ptr", type: nativePtrType)],
-            returnType: types.unitType,
-            externalLinkName: "kk_native_placement_free",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // fun AutofreeScope.clear() — runs deferred blocks and frees every
-        // arena allocation; a throwing deferred block propagates.
-        registerSyntheticNativeMemberFunction(
-            named: "clear",
-            ownerSymbol: autofreeScopeSymbol,
-            receiverType: autofreeScopeType,
-            parameters: [],
-            returnType: types.unitType,
-            externalLinkName: "kk_arena_clear",
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-        // fun DeferScope.defer(block: () -> Unit) — LIFO cleanup on clear().
-        let deferBlockType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeMemberFunction(
-            named: "defer",
-            ownerSymbol: deferScopeSymbol,
-            receiverType: deferScopeType,
-            parameters: [(name: "block", type: deferBlockType)],
-            returnType: types.unitType,
-            externalLinkName: "kk_defer_scope_defer",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Arena() / MemScope() — user-facing scope values backed by
-        // kk_arena_new / kk_memscope_new arena boxes.
-        registerNativeConcurrentConstructor(
-            ownerSymbol: arenaSymbol,
-            ownerType: arenaType,
-            externalLinkName: "kk_arena_new",
-            parameters: [],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerNativeConcurrentConstructor(
-            ownerSymbol: memScopeSymbol,
-            ownerType: memScopeType,
-            externalLinkName: "kk_memscope_new",
-            parameters: [],
-            defaultValues: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // val nativeHeap: NativeFreeablePlacement — zero-argument bridge read.
-        let nativeHeapPropertyName = interner.intern("nativeHeap")
-        let nativeHeapPropertyFQName = cinteropPkg + [nativeHeapPropertyName]
-        if symbols.lookupAll(fqName: nativeHeapPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-        } else {
-            let nativeHeapPropertySymbol = symbols.define(
-                kind: .property,
-                name: nativeHeapPropertyName,
-                fqName: nativeHeapPropertyFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            if let cinteropPkgSymbol {
-                symbols.setParentSymbol(cinteropPkgSymbol, for: nativeHeapPropertySymbol)
-            }
-            symbols.setPropertyType(nativeFreeablePlacementType, for: nativeHeapPropertySymbol)
-            symbols.setExternalLinkName("kk_native_heap_get", for: nativeHeapPropertySymbol)
-        }
-
-        registerSyntheticNativeMemberFunction(
-            named: "toLong",
-            ownerSymbol: nativePtrSymbol,
-            receiverType: nativePtrType,
-            parameters: [],
-            returnType: types.longType,
-            externalLinkName: "kk_native_ptr_toLong",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticNativeTopLevelFunction(
-            named: "nativeNullPtr",
-            packageFQName: cinteropPkg,
-            receiverType: nil,
-            parameters: [],
-            returnType: nativePtrType,
-            externalLinkName: "kk_native_null_ptr",
-            symbols: symbols,
-            interner: interner
-        )
-        let sizeOfName = interner.intern("sizeOf")
-        let sizeOfFQName = cinteropPkg + [sizeOfName]
-        let sizeOfT: SymbolID = if let existing = symbols.lookup(fqName: sizeOfFQName + [interner.intern("T")]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: interner.intern("T"),
-                fqName: sizeOfFQName + [interner.intern("T")],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cVariableType], for: sizeOfT)
-        registerSyntheticNativeTopLevelFunction(
-            named: "sizeOf",
-            packageFQName: cinteropPkg,
-            receiverType: nil,
-            parameters: [],
-            returnType: types.longType,
-            typeParameterSymbols: [sizeOfT],
-            typeParameterUpperBoundsList: [[cVariableType]],
-            reifiedTypeParameterIndices: [0],
-            externalLinkName: "kk_cinterop_sizeof",
-            symbols: symbols,
-            interner: interner
-        )
-        let alignOfName = interner.intern("alignOf")
-        let alignOfFQName = cinteropPkg + [alignOfName]
-        let alignOfT: SymbolID = if let existing = symbols.lookup(fqName: alignOfFQName + [interner.intern("T")]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: interner.intern("T"),
-                fqName: alignOfFQName + [interner.intern("T")],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cVariableType], for: alignOfT)
-        registerSyntheticNativeTopLevelFunction(
-            named: "alignOf",
-            packageFQName: cinteropPkg,
-            receiverType: nil,
-            parameters: [],
-            returnType: types.longType,
-            typeParameterSymbols: [alignOfT],
-            typeParameterUpperBoundsList: [[cVariableType]],
-            reifiedTypeParameterIndices: [0],
-            externalLinkName: "kk_cinterop_alignof",
-            symbols: symbols,
-            interner: interner
-        )
-        let interpretCPointerName = interner.intern("interpretCPointer")
-        let interpretCPointerFQName = cinteropPkg + [interpretCPointerName]
-        let interpretCPointerT: SymbolID = if let existing = symbols.lookup(fqName: interpretCPointerFQName + [interner.intern("T")]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: interner.intern("T"),
-                fqName: interpretCPointerFQName + [interner.intern("T")],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cPointedType], for: interpretCPointerT)
-        let interpretCPointerTType = types.make(.typeParam(TypeParamType(
-            symbol: interpretCPointerT,
-            nullability: .nonNull
-        )))
-        let interpretCPointerReturnType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(interpretCPointerTType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeTopLevelFunction(
-            named: "interpretCPointer",
-            packageFQName: cinteropPkg,
-            receiverType: nil,
-            parameters: [(name: "rawPtr", type: nativePtrType)],
-            returnType: interpretCPointerReturnType,
-            typeParameterSymbols: [interpretCPointerT],
-            typeParameterUpperBoundsList: [[cPointedType]],
-            reifiedTypeParameterIndices: [0],
-            externalLinkName: "kk_interpret_cpointer",
-            symbols: symbols,
-            interner: interner
-        )
-        let longToCPointerName = interner.intern("toCPointer")
-        let longToCPointerFQName = cinteropPkg + [longToCPointerName]
-        let longToCPointerT: SymbolID = if let existing = symbols.lookup(fqName: longToCPointerFQName + [interner.intern("T")]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: interner.intern("T"),
-                fqName: longToCPointerFQName + [interner.intern("T")],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([cPointedType], for: longToCPointerT)
-        let longToCPointerTType = types.make(.typeParam(TypeParamType(
-            symbol: longToCPointerT,
-            nullability: .nonNull
-        )))
-        let longToCPointerReturnType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(longToCPointerTType)],
-            nullability: .nullable
-        )))
-        registerSyntheticNativeTopLevelFunction(
-            named: "toCPointer",
-            packageFQName: cinteropPkg,
-            receiverType: types.longType,
-            parameters: [],
-            returnType: longToCPointerReturnType,
-            typeParameterSymbols: [longToCPointerT],
-            typeParameterUpperBoundsList: [[cPointedType]],
-            externalLinkName: "kk_long_to_cpointer",
-            flags: [.synthetic, .inlineFunction],
-            symbols: symbols,
-            interner: interner
-        )
-        // val String.cstr: CPointer<ByteVar> — member extension on MemScope so
-        // `s.cstr` inside memScoped picks the arena-allocated UTF-8 buffer.
-        // ByteVar is a typealias for ByteVarOf<Byte>; build the arg on the
-        // concrete nominal so bound checks and member lookups resolve.
-        do {
-            let byteVarForCstr = types.make(.classType(ClassType(
-                classSymbol: byteVarOfSymbol,
-                args: [.invariant(types.byteType)],
-                nullability: .nonNull
-            )))
-            let cstrReturnType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(byteVarForCstr)],
-                nullability: .nonNull
-            )))
-            let cstrPropertyName = interner.intern("cstr")
-            let cstrPropertyFQName = cinteropPkg + [interner.intern("MemScope"), cstrPropertyName]
-            if symbols.lookupAll(fqName: cstrPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-            } else {
-                let cstrPropertySymbol = symbols.define(
-                    kind: .property,
-                    name: cstrPropertyName,
-                    fqName: cstrPropertyFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .memberExtension]
-                )
-                symbols.setParentSymbol(memScopeSymbol, for: cstrPropertySymbol)
-                symbols.setExtensionPropertyReceiverType(types.stringType, for: cstrPropertySymbol)
-                symbols.setPropertyType(cstrReturnType, for: cstrPropertySymbol)
-                symbols.setExternalLinkName("kk_string_to_cptr", for: cstrPropertySymbol)
-                let cstrGetterName = interner.intern("$get")
-                let cstrGetterSymbol = symbols.define(
-                    kind: .function,
-                    name: cstrGetterName,
-                    fqName: cstrPropertyFQName + [cstrGetterName],
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(cstrPropertySymbol, for: cstrGetterSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: types.stringType,
-                        parameterTypes: [],
-                        returnType: cstrReturnType
-                    ),
-                    for: cstrGetterSymbol
-                )
-                symbols.setExternalLinkName("kk_string_to_cptr", for: cstrGetterSymbol)
-                symbols.setExtensionPropertyGetterAccessor(cstrGetterSymbol, for: cstrPropertySymbol)
-                symbols.setAccessorOwnerProperty(cstrPropertySymbol, for: cstrGetterSymbol)
-            }
-        }
-        configureSingleTypeParameterNominal(
-            ownerSymbol: cValuesSymbol,
-            fqName: cinteropPkg + [interner.intern("CValues")],
-            parameterName: "T",
-            supertype: nil,
+        registerCInteropPlacementScopeMembers(
+            cinteropPkg: cinteropPkg,
+            cinteropPkgSymbol: cinteropPkgSymbol,
+            cVariableType: cVariableType,
+            cPointerSymbol: cPointerSymbol,
+            cPointerStarType: cPointerStarType,
+            nativePlacementSymbol: nativePlacementSymbol,
+            nativePlacementType: nativePlacementType,
+            nativeFreeablePlacementSymbol: nativeFreeablePlacementSymbol,
+            nativeFreeablePlacementType: nativeFreeablePlacementType,
+            deferScopeSymbol: deferScopeSymbol,
+            deferScopeType: deferScopeType,
+            autofreeScopeSymbol: autofreeScopeSymbol,
+            autofreeScopeType: autofreeScopeType,
+            arenaSymbol: arenaSymbol,
+            arenaType: arenaType,
+            memScopeSymbol: memScopeSymbol,
+            memScopeType: memScopeType,
+            nativePtrType: nativePtrType,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        if let cValuesT = types.nominalTypeParameterSymbols(for: cValuesSymbol).first {
-            let cValuesTType = types.make(.typeParam(TypeParamType(
-                symbol: cValuesT,
-                nullability: .nonNull
-            )))
-            let cValuesGenericType = types.make(.classType(ClassType(
-                classSymbol: cValuesSymbol,
-                args: [.invariant(cValuesTType)],
-                nullability: .nonNull
-            )))
-            let getPointerReturnType = types.make(.classType(ClassType(
-                classSymbol: cPointerSymbol,
-                args: [.invariant(cValuesTType)],
-                nullability: .nonNull
-            )))
-            registerSyntheticNativeMemberFunction(
-                named: "getPointer",
-                ownerSymbol: cValuesSymbol,
-                receiverType: cValuesGenericType,
-                parameters: [(name: "scope", type: nativePlacementType)],
-                returnType: getPointerReturnType,
-                typeParameterSymbols: [cValuesT],
-                classTypeParameterCount: 1,
-                externalLinkName: "kk_cvalues_get_pointer",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+
+        registerCInteropPointerUtilityFunctions(
+            cinteropPkg: cinteropPkg,
+            nativePtrSymbol: nativePtrSymbol,
+            nativePtrType: nativePtrType,
+            cVariableType: cVariableType,
+            cPointedType: cPointedType,
+            cPointerSymbol: cPointerSymbol,
+            byteVarOfSymbol: byteVarOfSymbol,
+            memScopeSymbol: memScopeSymbol,
+            cValuesSymbol: cValuesSymbol,
+            nativePlacementType: nativePlacementType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 }
