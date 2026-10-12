@@ -632,6 +632,4 @@ extension ControlFlowTypeChecker {
             return type
         }
     }
-
-    // MARK: - Destructuring Declarations
 }
