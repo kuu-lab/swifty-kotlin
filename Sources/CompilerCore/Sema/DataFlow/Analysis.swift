@@ -228,8 +228,8 @@ final class DataFlowAnalyzer {
             let testedCall: ExprID?
             let trueResult: ContractReturnCondition
             var falseResult: ContractReturnCondition
-            if isNullLiteral(rhsID, ast: ast, interner: interner) || isNullLiteral(lhsID, ast: ast, interner: interner) {
-                testedCall = isNullLiteral(rhsID, ast: ast, interner: interner) ? lhsID : rhsID
+            if isNullLiteral(rhsID, ast: ast) || isNullLiteral(lhsID, ast: ast) {
+                testedCall = isNullLiteral(rhsID, ast: ast) ? lhsID : rhsID
                 trueResult = .returnsNull
                 falseResult = .returnsNotNull
             } else if let value = booleanLiteral(rhsID, ast: ast, interner: interner) {
@@ -328,9 +328,9 @@ final class DataFlowAnalyzer {
         interner: StringInterner
     ) -> ConditionBranch? {
         let variableID: ExprID
-        if isNullLiteral(rhsID, ast: ast, interner: interner) {
+        if isNullLiteral(rhsID, ast: ast) {
             variableID = lhsID
-        } else if isNullLiteral(lhsID, ast: ast, interner: interner) {
+        } else if isNullLiteral(lhsID, ast: ast) {
             variableID = rhsID
         } else {
             return nil
@@ -661,7 +661,7 @@ final class DataFlowAnalyzer {
         return narrowed
     }
 
-    private func isNullLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool {
+    private func isNullLiteral(_ id: ExprID, ast: ASTModule) -> Bool {
         guard let expr = ast.arena.expr(id),
               case .nullLiteral = expr
         else {

@@ -1241,8 +1241,7 @@ extension ExprTypeChecker {
                name: functionDecl.name,
                parameterCount: functionDecl.valueParams.count,
                ownerSymbol: objectSymbol,
-               sema: sema,
-               interner: interner
+               sema: sema
            )
         {
             flags.insert(.operatorFunction)
@@ -1254,8 +1253,7 @@ extension ExprTypeChecker {
         name: InternedString,
         parameterCount: Int,
         ownerSymbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> Bool {
         var stack = sema.symbols.directSupertypes(for: ownerSymbol)
         var visited: Set<SymbolID> = []

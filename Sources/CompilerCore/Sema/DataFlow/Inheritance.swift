@@ -736,11 +736,9 @@ extension DataFlowSemaPhase {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 validateAbstractOverridesForDecl(
                     declID: declID,
-                    file: file,
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
-                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -1292,11 +1290,9 @@ extension DataFlowSemaPhase {
 
     private func validateAbstractOverridesForDecl(
         declID: DeclID,
-        file: ASTFile,
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {

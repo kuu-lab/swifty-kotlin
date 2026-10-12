@@ -69,7 +69,7 @@ enum GoldenHarnessTargetSection {
                     origin: origin
                 )
             }
-            rendered.append((key, renderTarget(symbol, key: key, origin: origin, ctx: ctx, sema: sema, interner: interner)))
+            rendered.append((key, renderTarget(symbol, key: key, origin: origin, ctx: ctx, sema: sema)))
         }
 
         return rendered
@@ -139,8 +139,7 @@ enum GoldenHarnessTargetSection {
         key: String,
         origin: GoldenSymbolOrigin,
         ctx: StableRenderContext,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> String {
         var parts = [
             "target fq=\(key)",

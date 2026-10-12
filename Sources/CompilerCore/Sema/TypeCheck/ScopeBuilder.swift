@@ -341,7 +341,7 @@ struct TypeCheckScopeBuilder {
             // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get)
             // out of the library package mapping. Source-backed operator extensions
             // remain so they are visible to other bundled source in the same package.
-            if isSyntheticOperatorExtensionToExclude(symbol.id, sema: sema, interner: interner) {
+            if isSyntheticOperatorExtensionToExclude(symbol.id, sema: sema) {
                 continue
             }
             mapping[candidatePackage, default: []].append(symbol.id)
@@ -356,8 +356,7 @@ struct TypeCheckScopeBuilder {
     /// fallback paths.
     private func isSyntheticOperatorExtensionToExclude(
         _ symbolID: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID),
               symbol.kind == .function,
@@ -386,7 +385,7 @@ struct TypeCheckScopeBuilder {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema, interner: interner) {
+        if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema) {
             return true
         }
 

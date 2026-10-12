@@ -881,9 +881,9 @@ final class KlibBodyLowerer {
             }
             return translateExpression(result, into: &body)
 
-        case .vararg(let elementType, let elements):
+        case .vararg(_, let elements):
             return translateVararg(
-                elementType: elementType, elements: elements,
+                elements: elements,
                 resultType: resultType, into: &body
             )
 
@@ -1504,7 +1504,6 @@ final class KlibBodyLowerer {
     // MARK: - Varargs
 
     private func translateVararg(
-        elementType: Int32,
         elements: [KlibVarargElement],
         resultType: TypeID,
         into body: inout KIRLoweringEmitContext

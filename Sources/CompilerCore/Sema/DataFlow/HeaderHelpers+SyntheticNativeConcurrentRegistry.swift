@@ -52,7 +52,7 @@ extension DataFlowSemaPhase {
         )))
         // FutureState is source-backed. Keep only its early nominal anchor here
         // because Worker/Future registration runs before bundled headers are collected.
-        let futureStateSymbol = ensureNativeConcurrentEnum(
+        _ = ensureNativeConcurrentEnum(
             named: "FutureState",
             entries: [],
             in: nativeConcurrentPkg,
@@ -60,18 +60,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let futureStateType = types.make(.classType(ClassType(
-            classSymbol: futureStateSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
         for step in NativeConcurrentRegistrationStep.allCases {
             registerNativeConcurrentStep(
                 step,
                 packageFQName: nativeConcurrentPkg,
                 pkgSymbol: nativeConcurrentPkgSymbol,
                 transferModeType: transferModeType,
-                futureStateType: futureStateType,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -97,7 +91,6 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
         transferModeType: TypeID,
-        futureStateType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner

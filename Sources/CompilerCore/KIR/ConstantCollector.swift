@@ -221,7 +221,7 @@ struct ConstantCollector {
             guard let interner, canFoldMemberCall?(exprID) != false else { return nil }
             return literalConstantMemberCall(receiver: receiver, callee: callee, args: args, ast: ast, interner: interner)
         case let .stringTemplate(parts, _):
-            return literalConstantStringTemplate(parts, ast: ast)
+            return literalConstantStringTemplate(parts)
         default:
             return nil
         }
@@ -426,7 +426,7 @@ struct ConstantCollector {
 
     /// A string template with no interpolated parts (e.g. produced by macro
     /// expansion of a plain string literal) folds to its literal text.
-    private func literalConstantStringTemplate(_ parts: [StringTemplatePart], ast: ASTModule) -> KIRExprKind? {
+    private func literalConstantStringTemplate(_ parts: [StringTemplatePart]) -> KIRExprKind? {
         guard parts.count == 1, case let .literal(text) = parts[0] else {
             return nil
         }
