@@ -22,7 +22,7 @@ public inline operator fun LongRange.contains(value: Int): Boolean =
 public inline operator fun LongRange.contains(value: Short): Boolean =
     this.contains(value.toLong())
 
-public fun LongRange.forEach(action: (Long) -> Unit) {
+public inline fun LongRange.forEach(action: (Long) -> Unit) {
     for (element in this) { action(element) }
 }
 

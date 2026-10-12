@@ -99,6 +99,18 @@ struct InlineNonLocalReturnTypeTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
     }
 
+    @Test(arguments: ["crossinline", "noinline"])
+    func longRangeForEachPreservesRestrictedReturnBoundary(parameterModifier: String) throws {
+        let ctx = makeContextFromSource("""
+        inline fun invoke(\(parameterModifier) action: () -> Unit) {
+            (1L..3L).forEach { action() }
+        }
+        fun caller() { invoke { return } }
+        """, allowDefaultStdlibLibrary: false)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
+    }
+
     @Test(arguments: [false, true])
     func flowCollectBareReturnIsRejected(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary {

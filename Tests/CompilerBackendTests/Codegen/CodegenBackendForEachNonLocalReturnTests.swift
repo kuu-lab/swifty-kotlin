@@ -75,5 +75,31 @@ struct CodegenBackendForEachNonLocalReturnTests {
             allowDefaultStdlibLibrary: false
         )
     }
+
+    @Test(arguments: [false, true])
+    func testLongRangeForEachNonLocalReturns(usePrecompiledStdlib: Bool) throws {
+        let source = try diffCaseSource("long_range_foreach_non_local_return.kt", file: #filePath)
+        let stdlibLibraryPath = usePrecompiledStdlib ? try testStdlibArtifactPath() : nil
+        try withTemporaryFile(contents: source) { path in
+            for optLevel in [OptimizationLevel.O0, .O2] {
+                let output = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = try runCodegenPipeline(
+                    inputPath: path,
+                    moduleName: "LongRangeForEachNonLocalReturn",
+                    outputPath: output,
+                    optLevel: optLevel,
+                    allowDefaultStdlibLibrary: false,
+                    stdlibLibraryPath: stdlibLibraryPath
+                )
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "2\n222\n6\n")
+                #expect(result.stderr.isEmpty)
+            }
+        }
+    }
 }
 #endif
