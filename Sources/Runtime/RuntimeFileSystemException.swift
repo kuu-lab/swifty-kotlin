@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - kotlin.io filesystem exceptions (KSP-619 / BUG-016)
-//
 // Storage for the `kotlin.io.FileSystemException` hierarchy declared in
 // Sources/CompilerCore/Stdlib/kotlin/io/FileSystemException.kt. Both Kotlin
 // `throw FileAlreadyExistsException(file)` sites and runtime-internal failures
@@ -96,8 +94,6 @@ private func runtimeFileHandle(path: String) -> Int {
     registerRuntimeObject(RuntimeFileBox(path))
 }
 
-// MARK: - Runtime-internal allocation helpers
-
 func runtimeAllocateFileSystemException(file: String, other: String? = nil, reason: String? = nil) -> Int {
     registerRuntimeObject(RuntimeFileSystemExceptionBox(
         fileRaw: runtimeFileHandle(path: file),
@@ -109,8 +105,6 @@ func runtimeAllocateFileSystemException(file: String, other: String? = nil, reas
 
 
 
-// MARK: - Kotlin-facing bridges
-//
 // One entry point per (class, arity): the constructor overloads declared in
 // Stdlib/kotlin/io/FileSystemException.kt bind to these directly.
 
