@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - kotlinx-metadata compatible runtime models
-
 public struct KmAnnotation: Codable, Equatable, Sendable {
     public let className: String
     public let arguments: [String]
@@ -135,8 +133,6 @@ public struct KotlinMetadata: Codable, Equatable, Sendable {
         self.compilerPlugins = compilerPlugins
     }
 }
-
-// MARK: - Runtime box conversion helpers
 
 extension KmValueParameter {
     init(_ box: RuntimeKParameterBox) {
