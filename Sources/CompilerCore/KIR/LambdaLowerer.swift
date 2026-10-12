@@ -668,8 +668,6 @@ final class LambdaLowerer {
         }
     }
 
-    // MARK: - Non-Capturing Lambda Optimization
-
     /// Lowers a non-capturing lambda with optimized function pointer generation
     private func lowerNonCapturingLambda(
         exprID: ExprID,
