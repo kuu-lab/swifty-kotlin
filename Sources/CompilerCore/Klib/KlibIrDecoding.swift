@@ -424,12 +424,9 @@ package enum KlibIrDecoding {
     }
 
     private static func loop(_ proto: ProtoFields) throws -> KlibLoop {
-        guard let condition = try proto.message(2) else {
-            throw KlibIrDecodeError.missing("loop.condition")
-        }
         return try KlibLoop(
             loopId: proto.int32(1) ?? 0,
-            condition: expression(condition),
+            condition: proto.required(2, name: "loop.condition", expression),
             label: proto.int32(3),
             body: proto.decoded(4, expression),
             originName: proto.int32(5)
@@ -441,11 +438,8 @@ package enum KlibIrDecoding {
             return .expression(try expression(expr))
         }
         if let spread = try proto.message(2) {
-            guard let exprProto = try spread.message(1) else {
-                throw KlibIrDecodeError.missing("spread_element.expression")
-            }
             return .spread(
-                expression: try expression(exprProto),
+                expression: try spread.required(1, name: "spread_element.expression", expression),
                 globalCoordinates: spread.globalCoordinates(2),
                 localCoordinates: spread.localCoordinates(3)
             )
@@ -515,8 +509,7 @@ package enum KlibIrDecoding {
             )
         }
         if let value = try proto.message(12) {
-            guard let argument = try value.message(1) else { throw KlibIrDecodeError.missing("get_class.argument") }
-            return .getClass(argument: try expression(argument))
+            return .getClass(argument: try value.required(1, name: "get_class.argument", expression))
         }
         if let value = try proto.message(13) {
             return .getEnumValue(symbol: try value.symbol(1, name: "get_enum_value.symbol"))
@@ -576,23 +569,20 @@ package enum KlibIrDecoding {
             return .stringConcat(arguments: try expressionList(value, field: 1))
         }
         if let value = try proto.message(23) {
-            guard let thrown = try value.message(1) else { throw KlibIrDecodeError.missing("throw.value") }
-            return .throw(value: try expression(thrown))
+            return .throw(value: try value.required(1, name: "throw.value", expression))
         }
         if let value = try proto.message(24) {
-            guard let result = try value.message(1) else { throw KlibIrDecodeError.missing("try.result") }
             return .try(
-                result: try expression(result),
+                result: try value.required(1, name: "try.result", expression),
                 catches: try statementList(value, field: 2),
                 finally: try optionalExpression(value, field: 3)
             )
         }
         if let value = try proto.message(25) {
-            guard let argument = try value.message(3) else { throw KlibIrDecodeError.missing("type_op.argument") }
             return .typeOp(
                 operator: value.int32(1).flatMap { KlibTypeOperator(rawValue: Int($0)) } ?? .implicitCast,
                 operandType: value.int32(2) ?? 0,
-                argument: try expression(argument)
+                argument: try value.required(3, name: "type_op.argument", expression)
             )
         }
         if let value = try proto.message(26) {
@@ -611,17 +601,15 @@ package enum KlibIrDecoding {
             return .while(loop: try protoMessageLoop(value))
         }
         if let value = try proto.message(29) {
-            guard let receiver = try value.message(2) else { throw KlibIrDecodeError.missing("dynamic_member.receiver") }
             return .dynamicMember(
                 memberName: value.int32(1) ?? 0,
-                receiver: try expression(receiver)
+                receiver: try value.required(2, name: "dynamic_member.receiver", expression)
             )
         }
         if let value = try proto.message(30) {
-            guard let receiver = try value.message(2) else { throw KlibIrDecodeError.missing("dynamic_operator.receiver") }
             return .dynamicOperator(
                 operator: value.int32(1).flatMap { KlibDynamicOperator(rawValue: Int($0)) } ?? .invoke,
-                receiver: try expression(receiver),
+                receiver: try value.required(2, name: "dynamic_operator.receiver", expression),
                 arguments: try expressionList(value, field: 3)
             )
         }
@@ -643,9 +631,8 @@ package enum KlibIrDecoding {
             )
         }
         if let value = try proto.message(33) {
-            guard let functionProto = try value.message(1) else { throw KlibIrDecodeError.missing("function_expression.function") }
             return .functionExpression(
-                function: try function(functionProto),
+                function: try value.required(1, name: "function_expression.function", function),
                 originName: value.int32(2) ?? 0
             )
         }
@@ -695,13 +682,11 @@ package enum KlibIrDecoding {
     }
 
     private static func protoMessageLoop(_ proto: ProtoFields) throws -> KlibLoop {
-        guard let loopProto = try proto.message(1) else { throw KlibIrDecodeError.missing("loop") }
-        return try loop(loopProto)
+        try proto.required(1, name: "loop", loop)
     }
 
     private static func protoSetterFunction(_ proto: ProtoFields) throws -> KlibFunction? {
-        guard let setter = try proto.message(4) else { return nil }
-        return try function(setter)
+        try proto.decoded(4, function)
     }
 
     private static func inlinedFunctionBlock(_ value: ProtoFields) throws -> KlibIrExpressionKind {
@@ -763,11 +748,10 @@ package enum KlibIrDecoding {
         } else if let value = try proto.message(13) {
             kind = .when(branches: try statementList(value, field: 1), originName: value.int32(2))
         } else if let value = try proto.message(14) {
-            guard let argument = try value.message(3) else { throw KlibIrDecodeError.missing("type_op.argument") }
             kind = .typeOp(
                 operator: value.int32(1).flatMap { KlibTypeOperator(rawValue: Int($0)) } ?? .implicitCast,
                 operandType: value.int32(2) ?? 0,
-                argument: try expression(argument)
+                argument: try value.required(3, name: "type_op.argument", expression)
             )
         } else if let value = try proto.message(15) {
             kind = .getField(
@@ -784,8 +768,7 @@ package enum KlibIrDecoding {
         } else if let value = try proto.message(17) {
             kind = .getObject(symbol: try value.symbol(1, name: "get_object.symbol"))
         } else if let value = try proto.message(18) {
-            guard let argument = try value.message(1) else { throw KlibIrDecodeError.missing("get_class.argument") }
-            kind = .getClass(argument: try expression(argument))
+            kind = .getClass(argument: try value.required(1, name: "get_class.argument", expression))
         } else if let value = try proto.message(19) {
             kind = .classReference(
                 classSymbol: try value.symbol(1, name: "class_reference.class_symbol"),
@@ -818,12 +801,10 @@ package enum KlibIrDecoding {
         } else if let value = try proto.message(29) {
             kind = .stringConcat(arguments: try expressionList(value, field: 1))
         } else if let value = try proto.message(30) {
-            guard let thrown = try value.message(1) else { throw KlibIrDecodeError.missing("throw.value") }
-            kind = .throw(value: try expression(thrown))
+            kind = .throw(value: try value.required(1, name: "throw.value", expression))
         } else if let value = try proto.message(31) {
-            guard let result = try value.message(1) else { throw KlibIrDecodeError.missing("try.result") }
             kind = .try(
-                result: try expression(result),
+                result: try value.required(1, name: "try.result", expression),
                 catches: try statementList(value, field: 2),
                 finally: try optionalExpression(value, field: 3)
             )
@@ -833,13 +814,11 @@ package enum KlibIrDecoding {
                 elements: try value.decodedList(2, varargElement)
             )
         } else if let value = try proto.message(33) {
-            guard let receiver = try value.message(2) else { throw KlibIrDecodeError.missing("dynamic_member.receiver") }
-            kind = .dynamicMember(memberName: value.int32(1) ?? 0, receiver: try expression(receiver))
+            kind = .dynamicMember(memberName: value.int32(1) ?? 0, receiver: try value.required(2, name: "dynamic_member.receiver", expression))
         } else if let value = try proto.message(34) {
-            guard let receiver = try value.message(2) else { throw KlibIrDecodeError.missing("dynamic_operator.receiver") }
             kind = .dynamicOperator(
                 operator: value.int32(1).flatMap { KlibDynamicOperator(rawValue: Int($0)) } ?? .invoke,
-                receiver: try expression(receiver),
+                receiver: try value.required(2, name: "dynamic_operator.receiver", expression),
                 arguments: try expressionList(value, field: 3)
             )
         } else if let value = try proto.message(35) {
@@ -851,8 +830,7 @@ package enum KlibIrDecoding {
                 originName: value.int32(5)
             )
         } else if let value = try proto.message(36) {
-            guard let functionProto = try value.message(1) else { throw KlibIrDecodeError.missing("function_expression.function") }
-            kind = .functionExpression(function: try function(functionProto), originName: value.int32(2) ?? 0)
+            kind = .functionExpression(function: try value.required(1, name: "function_expression.function", function), originName: value.int32(2) ?? 0)
         } else if let value = try proto.message(37) {
             kind = .errorExpression(description: value.int32(1) ?? 0)
         } else if let value = try proto.message(38) {
