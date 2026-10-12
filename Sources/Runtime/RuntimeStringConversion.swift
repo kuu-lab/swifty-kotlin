@@ -397,8 +397,6 @@ public func __kk_string_toDoubleOrNull_flat(
     __kk_string_toDoubleOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
-// MARK: - STDLIB-420 String.toLong / toLongOrNull / toFloat / toFloatOrNull
-
 #if !arch(arm64) && !arch(x86_64)
 #error("Long conversion assumes 64-bit Int")
 #endif
@@ -626,8 +624,6 @@ public func __kk_string_toByteOrNull(_ strRaw: Int) -> Int {
     }
     return Int(value)
 }
-
-// MARK: - STDLIB-TEXT-FN-083: String.toBigDecimal()
 
 /// BigDecimal is represented as a boxed string in KSwiftK.
 /// The runtime validates the format and stores the string representation.
