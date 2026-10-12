@@ -400,6 +400,11 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.third, 0))
         return Int(hash)
     }
+    if let entry = runtimeMapEntryValues(rawValue: value) {
+        let keyHash = Int32(truncatingIfNeeded: kk_any_hashCode(entry.key, 0))
+        let valueHash = Int32(truncatingIfNeeded: kk_any_hashCode(entry.value, 0))
+        return Int(keyHash ^ valueHash)
+    }
     // Nominal objects honor user overrides and data-class structural hashes;
     // plain classes inherit Any's identity hash, matching runtimeValuesEqual.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
