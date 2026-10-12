@@ -3,7 +3,6 @@
 //
 // Split out from `RuntimeCollections.swift`.
 
-// MARK: - Set Functions (STDLIB-001)
 
 @_cdecl("__kk_set_of")
 public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
@@ -231,7 +230,6 @@ public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int
     return 1
 }
 
-// MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
 public func kk_mutable_set_add(
@@ -384,7 +382,6 @@ public func kk_mutable_set_retainAll(
     return set.count != originalCount ? 1 : 0
 }
 
-// MARK: - Map Functions (STDLIB-001)
 
 private func runtimeMapOf(
     keysArrayRaw: Int,
