@@ -484,14 +484,6 @@ extension CallTypeChecker {
             || memberName == "lastOrNull"
     }
 
-    private func isLongProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        guard argCount == 0 else { return false }
-        return memberName == "first"
-            || memberName == "firstOrNull"
-            || memberName == "last"
-            || memberName == "lastOrNull"
-    }
-
     private func isUnsignedProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
         if memberName == "iterator" {
             return argCount == 0
@@ -766,7 +758,7 @@ extension CallTypeChecker {
             || (rangeKind == .charProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longProgression
-                && isLongProgressionSourceBackedHOF(memberName, argCount: args.count))
+                && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longRange
                 && isLongRangeSourceBackedHOF(memberName, argCount: args.count)
                 && isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema))
@@ -1125,26 +1117,6 @@ extension CallTypeChecker {
             .contains(signature.parameterTypes[0])
     }
 
-    func hasUIntRangeSourceBackedContainsCandidate(
-        receiverType: TypeID,
-        argumentType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        collectRangeSourceExtensionCandidates(
-            named: interner.intern("contains"),
-            receiverType: receiverType,
-            sema: sema,
-            interner: interner
-        ).contains { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate),
-                  signature.parameterTypes.count == 1
-            else {
-                return false
-            }
-            return signature.parameterTypes[0] == argumentType
-        }
-    }
 
     func isUIntRangeCrossTypeContainsCandidate(_ candidate: SymbolID, sema: SemaModule) -> Bool {
         guard let signature = sema.symbols.functionSignature(for: candidate),

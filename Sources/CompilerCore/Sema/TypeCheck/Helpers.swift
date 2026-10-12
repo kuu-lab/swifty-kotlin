@@ -1039,7 +1039,7 @@ struct TypeCheckHelpers {
         }
     }
 
-    private func resolveTypeParameterSymbol(
+    func resolveTypeParameterSymbol(
         _ name: InternedString,
         scope: Scope,
         sema: SemaModule

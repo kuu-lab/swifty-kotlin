@@ -48,7 +48,7 @@ final class LambdaLowerer {
         // to flat aggregate by the backend at function entry. Unboxing them here
         // again would pass an already-flat aggregate to kk_string_to_flat and
         // crash, so skip the KIR-level unboxing only for those parameters.
-        if isRawCallbackParameter, isNonNullableStringStruct(rawKind) {
+        if isRawCallbackParameter, BoxingCalleeTable.isNonNullableStringStruct(rawKind) {
             return exprID
         }
         let unboxCallee: InternedString? = {
@@ -81,12 +81,6 @@ final class LambdaLowerer {
         return normalizedExpr
     }
 
-    private func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
-        guard case let .stringStruct(nullability) = kind else {
-            return false
-        }
-        return nullability == .nonNull
-    }
 
     /// Best-effort scan for whether a lowered lambda body performs a call that
     /// requires a suspend context (`.await()`/`.join()`/`delay`/`yield`/a generic

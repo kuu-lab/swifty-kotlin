@@ -46,7 +46,7 @@ extension CallTypeChecker {
         let hasSourceBackedArrayConstructor: Bool = {
             if args.count == 1,
                let calleeName,
-               knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+               knownNames.isArrayLikeName(calleeName),
                !sourceBackedArrayConstructors.isEmpty
             {
                 let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
@@ -60,7 +60,7 @@ extension CallTypeChecker {
             return !sourceBackedArrayConstructors.isEmpty
         }()
         if let calleeName,
-           knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+           knownNames.isArrayLikeName(calleeName),
            args.count == 1 || args.count == 2,
            locals[calleeName] == nil,
            !hasSourceBackedArrayConstructor

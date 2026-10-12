@@ -259,7 +259,6 @@ extension DataFlowSemaPhase {
 
 
 
-
     func nativeConcurrentCPointerType(
         pointeeType: TypeID,
         symbols: SymbolTable,
@@ -416,7 +415,6 @@ extension DataFlowSemaPhase {
     }
 
 
-
     func appendNativeConcurrentMetadataAnnotations(
         _ records: [MetadataAnnotationRecord],
         to symbol: SymbolID,
@@ -455,27 +453,4 @@ extension DataFlowSemaPhase {
     }
 
 
-    func appendNativeConcurrentAnnotationMetadata(
-        to symbol: SymbolID,
-        targets: [String],
-        retention: String,
-        symbols: SymbolTable
-    ) {
-        var annotations = symbols.annotations(for: symbol)
-        let targetRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.annotation.Target",
-            arguments: targets
-        )
-        if !annotations.contains(targetRecord) {
-            annotations.append(targetRecord)
-        }
-        let retentionRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.annotation.Retention",
-            arguments: [retention]
-        )
-        if !annotations.contains(retentionRecord) {
-            annotations.append(retentionRecord)
-        }
-        symbols.setAnnotations(annotations, for: symbol)
-    }
 }

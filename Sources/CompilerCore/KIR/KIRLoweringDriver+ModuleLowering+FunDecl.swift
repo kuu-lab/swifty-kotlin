@@ -98,7 +98,7 @@ extension KIRLoweringDriver {
                     exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
                 )
             }
-            let isVararg = callSupportLowerer.normalizeBoolFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+            let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
                 if index < isVararg.count, isVararg[index] {

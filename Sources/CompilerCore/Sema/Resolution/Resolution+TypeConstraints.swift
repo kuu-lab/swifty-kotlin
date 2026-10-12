@@ -79,8 +79,8 @@ extension OverloadResolver {
             return callArgs.isEmpty ? [:] : nil
         }
 
-        let hasDefaultValues = normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
-        let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
+        let hasDefaultValues = Self.normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
+        let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
         let paramNames = parameterNames(
             for: signature,
             symbols: symbols,
@@ -274,7 +274,7 @@ extension OverloadResolver {
         return mapping
     }
 
-    func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
+    static func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
         if flags.count == count {
             return flags
         }

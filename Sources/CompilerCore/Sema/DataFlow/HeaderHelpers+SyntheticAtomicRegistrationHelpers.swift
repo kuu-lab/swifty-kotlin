@@ -5,28 +5,6 @@
 /// array (`HeaderHelpers+SyntheticAtomicArrayStubs.swift`) registrations, so these
 /// stay `internal` rather than `private`.
 extension DataFlowSemaPhase {
-    func ensureAtomicPackage(
-        path: [String],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        var fqName: [InternedString] = []
-        for component in path {
-            let interned = interner.intern(component)
-            fqName.append(interned)
-            if symbols.lookup(fqName: fqName) == nil {
-                _ = symbols.define(
-                    kind: .package,
-                    name: interned,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-        }
-        return fqName
-    }
 
     func registerAtomicConstructor(
         ownerSymbol: SymbolID,

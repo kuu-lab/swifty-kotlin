@@ -366,7 +366,7 @@ extension DataFlowSemaPhase {
             if let pkgSymbol {
                 symbols.setParentSymbol(pkgSymbol, for: threadLocalNativeAnnotationSymbol)
             }
-            appendNativeConcurrentAnnotationMetadata(
+            appendStandardAnnotationMetadata(
                 to: threadLocalNativeAnnotationSymbol,
                 targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
                 retention: "AnnotationRetention.BINARY",
