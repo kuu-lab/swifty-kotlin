@@ -471,7 +471,7 @@ extension KotlinParser {
             return !enumEntryStartsAfterLeadingAnnotations()
         }
         if case .softKeyword(.context) = kind {
-            return true
+            return declarationPrefixVerdict(at: 0) == .declaration
         }
         guard case let .keyword(keyword) = kind, isDeclarationKeyword(keyword) else {
             return false

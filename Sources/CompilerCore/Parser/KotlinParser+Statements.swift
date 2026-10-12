@@ -48,7 +48,13 @@ extension KotlinParser {
             // declaration after it is valid (e.g. `class A { class B { } class C }`).
             let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
             let precededByBlockClose = lastConsumedToken?.kind == .symbol(.rBrace)
-            if isDeclarationStart(token.kind), !isObjectExpressionStart(token),
+            let hasContextDeclarationPrefix: Bool
+            if case .softKeyword(.context) = token.kind {
+                hasContextDeclarationPrefix = declarationPrefixVerdict(at: 0) == .declaration
+            } else {
+                hasContextDeclarationPrefix = true
+            }
+            if isDeclarationStart(token.kind), hasContextDeclarationPrefix, !isObjectExpressionStart(token),
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
                 children.append(.node(parseDeclaration()))

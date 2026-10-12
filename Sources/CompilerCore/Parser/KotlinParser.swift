@@ -111,17 +111,19 @@ final class KotlinParser {
             case .keyword(.import):
                 node = parseImportHeader()
             case _ where isDeclarationStart(token.kind):
-                if isAmbiguousDeclarationPrefix(token),
-                   declarationPrefixVerdict(at: 0) == .overBudget {
-                    // The prefix ran out of lookahead budget; consume it as
-                    // statements so recovery stays iterative instead of
-                    // rescanning the same run through parseDeclaration.
-                    node = parseTopLevelStatement()
+                if case .softKeyword(.context) = token.kind {
+                    switch declarationPrefixVerdict(at: 0) {
+                    case .declaration:
+                        node = parseDeclaration()
+                    case .notDeclaration, .overBudget:
+                        // `context` can also be an ordinary identifier at the
+                        // start of an expression. Recover over-budget prefixes
+                        // iteratively through the statement parser.
+                        node = parseTopLevelStatement()
+                    }
                 } else {
                     node = parseDeclaration()
                 }
-            case .softKeyword(.context):
-                node = parseDeclaration()
             default:
                 node = parseTopLevelStatement()
             }
