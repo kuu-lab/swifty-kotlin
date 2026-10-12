@@ -1,4 +1,3 @@
-// MARK: - Sequence Terminal Operations: first/firstOrNull/last/count (STDLIB-273)
 
 @_cdecl("kk_sequence_first")
 public func kk_sequence_first(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -203,7 +202,6 @@ public func kk_sequence_count(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
     return count
 }
 
-// MARK: - Sequence Terminal Operations: contains/indexOf/elementAt/sum/average/toMutableList/toMutableSet/unzip
 
 @_cdecl("kk_sequence_contains")
 public func kk_sequence_contains(_ seqRaw: Int, _ element: Int) -> Int {
@@ -510,7 +508,6 @@ public func kk_sequence_unzip(_ seqRaw: Int) -> Int {
     )
 }
 
-// MARK: - Sequence Terminal Operations: any/all/none/reduce (STDLIB-274)
 
 @_cdecl("kk_sequence_any")
 public func kk_sequence_any(
