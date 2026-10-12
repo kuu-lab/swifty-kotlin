@@ -153,15 +153,7 @@ public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
 
 @_cdecl("__kk_ulong_range_iterator")
 public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
-    if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
-        return rangeRaw
-    }
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        return 0
-    }
-    return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
-    )
+    kk_long_range_iterator(rangeRaw)
 }
 
 @_cdecl("__kk_ulong_range_hasNext")

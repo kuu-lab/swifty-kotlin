@@ -10,10 +10,6 @@ private func runtimeShouldExposeAnnotation(fqName: String) -> Bool {
     !runtimeHiddenAnnotationFQNames.contains(fqName)
 }
 
-func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
-}
-
 private extension RuntimeKClassBox {
     var reflectionSimpleName: String {
         if let metadata {

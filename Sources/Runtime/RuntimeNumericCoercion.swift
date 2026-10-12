@@ -258,7 +258,7 @@ public func kk_ushort_to_ulong(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_char")
 public func kk_int_to_char(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: kk_unbox_int(value)))
+    kk_int_to_ushort(value)
 }
 
 // MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
