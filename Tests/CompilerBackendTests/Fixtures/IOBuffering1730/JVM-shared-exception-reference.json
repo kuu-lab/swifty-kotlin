@@ -1,0 +1,13 @@
+{
+  "status": "ACTUAL_JVM_SHARED_IOEXCEPTION_AND_LEGACY_EOF_ALIAS_ONLY;NATIVE_EXTRA_NOT_EXECUTED",
+  "receipt_sha256": "d031da3f22d0681791ea53ea8c0741aa069bd8aced588cdd33803ae90a57fcac",
+  "rows": 8,
+  "bytes": 193,
+  "stdout_sha256": "0569c0d9b0c73d07ed7d15761f3f10fbf7a646358c73a931193f93393455783f",
+  "compile_run_exits": [
+    0,
+    0
+  ],
+  "Native_runtime_expected_is_NOT_this_stdout": true,
+  "JVM_EOF_alias_has_Native_extra_constructor": false
+}

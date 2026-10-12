@@ -190,6 +190,26 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLabelDenotesFunction(label) == false
     }
 
+    /// DFA already narrows the immutable `this` local in branch and surviving
+    /// guard paths. Keep bare-name lookup on that same receiver value; outer
+    /// tower entries and ordinary user locals (including escaped `this`) stay
+    /// unchanged. The local receiver type is the established stable flow result.
+    func syncingImplicitReceiver(from locals: LocalBindings) -> TypeInferenceContext {
+        guard let receiverType = implicitReceiverType,
+              let thisLocal = locals[interner.intern("this")],
+              !thisLocal.isMutable, thisLocal.isInitialized,
+              thisLocal.type != receiverType, thisLocal.type != sema.types.errorType,
+              sema.types.isSubtype(thisLocal.type, receiverType)
+        else { return self }
+        let receiverOwner = SyntheticSymbolScheme.receiverParameterOwner(for: thisLocal.symbol)
+        let isDeclarationReceiver = receiverOwner != nil
+            && (receiverOwner == currentDeclSymbol || receiverOwner == enclosingFunctionSymbol)
+        guard isDeclarationReceiver || implicitReceiverStack.last?.symbol == thisLocal.symbol else {
+            return self
+        }
+        return copying(implicitReceiverType: thisLocal.type)
+    }
+
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
         var copy = self; copy.currentDeclSymbol = newSymbol; return copy
     }

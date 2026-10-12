@@ -74,6 +74,7 @@ public fun Sink.writeLongLe(long: Long) {
  * @throws IllegalStateException when the sink is closed.
  * @throws IOException when some I/O error occurs.
  */
+@OptIn(DelicateIoApi::class, UnsafeIoApi::class)
 public fun Sink.writeDecimalLong(long: Long) {
     var v = long
     if (v == 0L) {
@@ -153,6 +154,7 @@ public fun Sink.writeDecimalLong(long: Long) {
  * @throws IllegalStateException when the sink is closed.
  * @throws IOException when some I/O error occurs.
  */
+@OptIn(DelicateIoApi::class, UnsafeIoApi::class)
 public fun Sink.writeHexadecimalUnsignedLong(long: Long) {
     var v = long
     if (v == 0L) {
@@ -353,7 +355,7 @@ public fun Sink.writeDoubleLe(double: Double) {
  * @throws IllegalStateException when the sink is closed.
  * @throws IOException when some I/O error occurs.
  */
-@OptIn(ExperimentalContracts::class)
+@OptIn(InternalIoApi::class, ExperimentalContracts::class)
 public inline fun Sink.writeToInternalBuffer(lambda: (Buffer) -> Unit) {
     contract {
         callsInPlace(lambda, InvocationKind.EXACTLY_ONCE)

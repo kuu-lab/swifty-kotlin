@@ -200,8 +200,11 @@ extension KIRLoweringDriver {
 
         guard let initializer = propertyDecl.initializer else { return }
 
+        // Folding a literal read within this module does not initialize the
+        // property's exported storage. Ordinary vals still need a write for
+        // consumers that load their value without compile-time const metadata.
         let needsInit = propertyConstantInitializers[symbol] == nil
-            || (sema.symbols.symbol(symbol)?.flags.contains(.mutable) == true)
+            || (sema.symbols.symbol(symbol)?.flags.contains(.constValue) != true)
         guard needsInit else { return }
         ctx.resetScopeForFunction()
         ctx.beginCallableLoweringScope()
