@@ -163,7 +163,7 @@ extension KotlinParser {
             parseLeadingDeclarationPrefix(into: &children, range: &range)
             _ = consumeToken(into: &children, range: &range)
             let parameters = parseBalancedGroup(
-                opening: .lParen, closing: .rParen, allowsPrimaryConstructorParameters: true
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
             )
             children.append(.node(parameters))
             range.append(childRange(.node(parameters)))
@@ -568,7 +568,9 @@ extension KotlinParser {
         _ = consumeToken(into: &children, range: &range)
 
         if case .symbol(.lParen) = stream.peek().kind {
-            children.append(.node(parseBalancedGroup(opening: .lParen, closing: .rParen)))
+            children.append(.node(parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
+            )))
             if let last = children.last {
                 range.append(childRange(last))
             }

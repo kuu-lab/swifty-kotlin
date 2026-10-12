@@ -472,7 +472,8 @@ extension BuildASTPhase {
         switch kind {
         case .keyword(.class), .keyword(.object), .keyword(.interface),
              .keyword(.fun), .keyword(.val), .keyword(.var),
-             .keyword(.typealias), .keyword(.enum), .keyword(.companion):
+             .keyword(.typealias), .keyword(.enum), .keyword(.companion),
+             .keyword(.constructor), .softKeyword(.constructor):
             true
         default:
             false
