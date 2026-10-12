@@ -24,17 +24,10 @@ func findKIRFunction(
     guard let function = findAllKIRFunctions(in: module).first(where: { function in
         interner.resolve(function.name) == name
     }) else {
-        // 非テストターゲットでは TestingMacros が使えないため #require の代わりに
-        // Issue.record + throw でテスト失敗とする。
-        Issue.record(
+        // Issue.record だけでは実行が続くため #require と同様に throw で中断する。
+        recordTestIssue(
             "KIR function '\(name)' not found in module",
-            severity: .error,
-            sourceLocation: SourceLocation(
-                fileID: fileID.description,
-                filePath: file.description,
-                line: Int(line),
-                column: 1
-            )
+            fileID: fileID, file: file, line: line
         )
         throw MissingKIRFunctionError(name: name)
     }

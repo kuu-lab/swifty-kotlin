@@ -3,7 +3,24 @@
 import Testing
 
 // 非テストターゲットでは TestingMacros プラグインがロードされないため、
-// `#expect` ではなく `Issue.record` (sourceLocation 明示) で失敗を記録する。
+// `#expect`/`#require` ではなく `Issue.record` (sourceLocation 明示) で失敗を記録する。
+func recordTestIssue(
+    _ comment: Comment,
+    fileID: StaticString,
+    file: StaticString,
+    line: UInt
+) {
+    Issue.record(
+        comment,
+        sourceLocation: SourceLocation(
+            fileID: fileID.description,
+            filePath: file.description,
+            line: Int(line),
+            column: 1
+        )
+    )
+}
+
 func assertHasDiagnostic(
     _ code: String,
     in ctx: CompilationContext,
@@ -13,15 +30,9 @@ func assertHasDiagnostic(
 ) {
     let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
     if !found {
-        Issue.record(
+        recordTestIssue(
             "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))",
-            severity: .error,
-            sourceLocation: SourceLocation(
-                fileID: fileID.description,
-                filePath: file.description,
-                line: Int(line),
-                column: 1
-            )
+            fileID: fileID, file: file, line: line
         )
     }
 }
@@ -35,15 +46,9 @@ func assertNoDiagnostic(
 ) {
     let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
     if found {
-        Issue.record(
+        recordTestIssue(
             "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))",
-            severity: .error,
-            sourceLocation: SourceLocation(
-                fileID: fileID.description,
-                filePath: file.description,
-                line: Int(line),
-                column: 1
-            )
+            fileID: fileID, file: file, line: line
         )
     }
 }
