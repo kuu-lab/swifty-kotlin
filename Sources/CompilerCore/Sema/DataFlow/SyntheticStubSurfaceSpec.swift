@@ -148,24 +148,6 @@ struct SyntheticConstructorStubSpec: Sendable {
     }
 }
 
-struct SyntheticPropertyStubSpec: Sendable {
-    let name: String
-    let propertyType: SyntheticStubTypeRef
-    let externalLinkName: String?
-    let flags: SymbolFlags
-
-    init(
-        name: String,
-        propertyType: SyntheticStubTypeRef,
-        externalLinkName: String? = nil,
-        flags: SymbolFlags = [.synthetic]
-    ) {
-        self.name = name
-        self.propertyType = propertyType
-        self.externalLinkName = externalLinkName
-        self.flags = flags
-    }
-}
 
 struct SyntheticStubRegistrationContext {
     let ownerFQName: [InternedString]
@@ -552,53 +534,6 @@ extension DataFlowSemaPhase {
         return functionSymbol
     }
 
-    @discardableResult
-    private func registerSyntheticPropertyStub(
-        _ spec: SyntheticPropertyStubSpec,
-        context: SyntheticStubRegistrationContext,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> SymbolID? {
-        guard let propertyType = resolveSyntheticStubType(
-            spec.propertyType,
-            context: context,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        ) else {
-            return nil
-        }
-
-        let name = interner.intern(spec.name)
-        let fqName = context.ownerFQName + [name]
-        if let existing = symbols.lookupAll(fqName: fqName).first(where: {
-            symbols.symbol($0)?.kind == .property
-        }) {
-            symbols.setPropertyType(propertyType, for: existing)
-            if let externalLinkName = spec.externalLinkName {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-            }
-            return existing
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: spec.flags
-        )
-        if let parentSymbol = context.parentSymbol, parentSymbol != .invalid {
-            symbols.setParentSymbol(parentSymbol, for: propertySymbol)
-        }
-        symbols.setPropertyType(propertyType, for: propertySymbol)
-        if let externalLinkName = spec.externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        }
-        return propertySymbol
-    }
 
     private func resolveSyntheticStubType(
         _ ref: SyntheticStubTypeRef,
