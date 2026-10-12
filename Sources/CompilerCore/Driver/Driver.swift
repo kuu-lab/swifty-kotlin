@@ -960,9 +960,14 @@ public final class CompilerDriver {
             if let receiver {
                 collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
             }
-        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _):
+        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _, typeParams):
             if let receiverType {
                 collectTypeRefDependencies(typeRefID: receiverType, ast: ast, interner: interner, depended: &depended)
+            }
+            for typeParam in typeParams {
+                for bound in typeParam.upperBounds {
+                    collectTypeRefDependencies(typeRefID: bound, ast: ast, interner: interner, depended: &depended)
+                }
             }
             collectValueParameterDependencies(valueParams, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
             if let returnType {
