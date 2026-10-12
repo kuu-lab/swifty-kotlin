@@ -108,6 +108,13 @@ extension BuildASTPhase {
 
         func parse() -> ExprID? {
             let expression = parseAssignmentOrExpression()
+            if expression != nil, let unexpected = current() {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0018",
+                    "Unexpected token after expression.",
+                    range: unexpected.range
+                )
+            }
             if expression == nil, let first = tokens.first {
                 switch first.kind {
                 case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
@@ -215,6 +222,8 @@ extension BuildASTPhase {
             guard infixPrecedence >= minPrecedence,
                   let token = current(),
                   isInfixIdentifierToken(token),
+                  let lhsRange = astArena.exprRange(lhs),
+                  lhsRange.end.offset < token.range.start.offset,
                   newlineBeforeInfixContinuesExpression(token),
                   let nextToken = peek(1),
                   canStartExpression(nextToken)

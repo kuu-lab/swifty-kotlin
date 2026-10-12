@@ -271,6 +271,12 @@ enum DiagnosticRegistry {
             summary: "Imports are only allowed in the beginning of file."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0018",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Unexpected token after expression."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

@@ -80,5 +80,43 @@ struct CallArgumentParsingTests {
         #expect(diagnostic.primaryRange?.start.offset == 4)
         #expect(diagnostic.primaryRange?.end.offset == 5)
     }
+
+    @Test
+    func rejectsFloatingLiteralFollowedByIdentifier() throws {
+        let lexed = lex("1e5e5")
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: ASTArena(),
+            diagnostics: lexed.diagnostics
+        )
+
+        #expect(parser.parse() != nil)
+        let diagnostic = try #require(lexed.diagnostics.diagnostics.first {
+            $0.code == "KSWIFTK-PARSE-0018"
+        })
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.message == "Unexpected token after expression.")
+        #expect(diagnostic.primaryRange?.start.offset == 3)
+    }
+
+    @Test
+    func frontendRejectsKuu1884MinimalReproduction() throws {
+        let source = """
+        fun main() {
+            val f = 1e5e5
+            println(f)
+        }
+        """
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+
+        let diagnostics = context.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-PARSE-0018"
+        }
+        #expect(diagnostics.count == 1)
+        let diagnostic = try #require(diagnostics.first)
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.primaryRange?.start.offset == "fun main() {\n    val f = 1e5".utf8.count)
+    }
 }
 #endif
