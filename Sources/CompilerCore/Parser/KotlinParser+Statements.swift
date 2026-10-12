@@ -917,9 +917,11 @@ extension KotlinParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        var templateExpressionDepth = 0
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+                && templateExpressionDepth == 0
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
@@ -979,6 +981,10 @@ extension KotlinParser {
                 braceDepth += 1
             case .symbol(.rBrace):
                 braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart:
+                templateExpressionDepth += 1
+            case .templateExprEnd:
+                templateExpressionDepth = max(0, templateExpressionDepth - 1)
             default:
                 break
             }
@@ -987,6 +993,7 @@ extension KotlinParser {
             }
             if !inBlock, hasLeadingNewline(stream.peek()) {
                 let stillGrouped = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
+                    || templateExpressionDepth > 0
                 if stillGrouped {
                     continue
                 }
