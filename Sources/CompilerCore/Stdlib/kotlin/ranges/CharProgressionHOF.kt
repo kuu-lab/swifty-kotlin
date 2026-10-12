@@ -8,8 +8,6 @@ import kotlin.random.Random
 
 // MIGRATION-RANGE-002: CharProgression higher-order functions, moved verbatim from RangeHOF.kt.
 
-// MARK: - CharProgression
-
 private fun charProgressionDescription(progression: CharProgression): String {
     val step = progression.step
     return if (step > 0) {
