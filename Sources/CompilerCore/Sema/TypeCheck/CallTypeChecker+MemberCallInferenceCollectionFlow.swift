@@ -248,6 +248,10 @@ extension CallTypeChecker {
         } else {
             activeCollectionHOFNames.remove("mapIndexedNotNull")
             activeCollectionHOFNames.remove("dropLastWhile")
+            // KUU-1846: union/intersect/subtract are Iterable/Set operations,
+            // not Sequence members. Let regular resolution report an
+            // unresolved member instead of binding a phantom collection call.
+            activeCollectionHOFNames.subtract(["intersect", "union", "subtract"])
             // These eager operations are unavailable on Kotlin Sequence.
             activeCollectionHOFNames.remove("takeLastWhile")
             activeCollectionHOFNames.remove("reversed")

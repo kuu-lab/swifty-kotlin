@@ -97,8 +97,6 @@ extension CallLowerer {
                 runtimeCallee = "kk_sequence_min"
             } else if calleeName == interner.intern("max") {
                 runtimeCallee = "kk_sequence_max"
-            } else if calleeName == interner.intern("intersect") {
-                runtimeCallee = "kk_sequence_intersect"
             } else if calleeName == interner.intern("any") {
                 runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_any" : "kk_sequence_any"
             } else if calleeName == interner.intern("all") {
@@ -149,10 +147,6 @@ extension CallLowerer {
                 runtimeCallee = "kk_sequence_minus"
             } else if calleeName == interner.intern("reduceOrNull") {
                 runtimeCallee = "kk_sequence_reduceOrNull"
-            } else if calleeName == interner.intern("union") {
-                runtimeCallee = "kk_sequence_union"
-            } else if calleeName == interner.intern("subtract") {
-                runtimeCallee = "kk_sequence_subtract"
             } else if calleeName == interner.intern("reduceRight") {
                 runtimeCallee = "kk_sequence_reduceRight"
             } else if calleeName == interner.intern("reduce") {

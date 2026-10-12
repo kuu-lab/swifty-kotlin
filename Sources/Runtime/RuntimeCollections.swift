@@ -249,19 +249,6 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     hasher.combine(Int(bitPattern: pointer))
 }
 
-/// Extracts elements from an opaque `otherRaw` handle that may be either a
-/// set or a list box.  Used by intersect / union / subtract to avoid
-/// duplicating the same unboxing logic.
-func runtimeUnboxCollectionElements(_ otherRaw: Int) -> [Int] {
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        return otherSet.elements
-    }
-    if let otherList = runtimeListBox(from: otherRaw) {
-        return otherList.elements
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: unexpected runtime handle in runtimeUnboxCollectionElements – neither set nor list")
-}
-
 func runtimeDeduplicatePreservingOrder(_ elements: [Int]) -> [Int] {
     var seen = Set<RuntimeElementKey>()
     seen.reserveCapacity(elements.count)
