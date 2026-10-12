@@ -106,14 +106,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_safe_cast"),
         ]
 
-        // Callees that retrieve an element from a generic collection. After
-        // 75507ca0d, kk_mutable_list_add boxes primitives for type erasure, so
-        // these accessors may return a boxed pointer even when the KIR result
-        // type is a non-null primitive. Unbox at the retrieval site so that all
-        // downstream uses of the element (arithmetic, comparisons, calls) see
-        // the plain primitive value.
+        // Callees that retrieve an element from a generic collection. List and
+        // map values are boxed for type erasure, so these accessors may return a
+        // boxed pointer even when the KIR result type is a non-null primitive.
+        // Unbox at the retrieval site so downstream arithmetic, comparisons,
+        // and calls see the plain primitive value.
         let collectionElementAccessorCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_list_get"),
+            ctx.interner.intern("__kk_map_get"),
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
