@@ -77,8 +77,6 @@ enum GoldenHarnessTargetSection {
             .map(\.line)
     }
 
-    // MARK: - Resolution
-
     /// `target` is either a complete meaning key (`fq[kind=…;…]`, the exact
     /// string a `call=`/`ref=`/`symbol fq=` field prints) or a bare FQName
     /// (`kotlin.Any`). The bare form must resolve to exactly one symbol —
@@ -131,8 +129,6 @@ enum GoldenHarnessTargetSection {
         }
         return candidates.sorted()
     }
-
-    // MARK: - Rendering
 
     private static func renderTarget(
         _ symbol: SemanticSymbol,
