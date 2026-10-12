@@ -3,8 +3,6 @@
 
 import Foundation
 
-// MARK: - Format parser internals
-
 private struct RuntimeFormatSpecifier {
     let explicitArgumentIndex: Int?
     let flags: String
@@ -957,8 +955,6 @@ private func runtimeNumericValueAllowsZeroPadding(_ value: String) -> Bool {
     return unwrapped != "nan" && unwrapped != "infinity"
 }
 
-// MARK: - %h / %H (hex hashCode)
-
 private func runtimeFormatArgumentIsNull(_ value: RuntimeValue) -> Bool {
     switch value.tag {
     case RuntimeValue.stringTag, RuntimeValue.charTag:
@@ -1007,8 +1003,6 @@ private func runtimeFormatHashConversion(
         return specifier.conversion.isUppercase ? rendered.uppercased() : rendered
     }
 }
-
-// MARK: - %t / %T date-time conversions
 
 private struct RuntimeFormatDateTimeInstant {
     let epochMilliseconds: Int64
@@ -1189,8 +1183,6 @@ private func runtimeRenderDateTime(
 
     return field(conversion)
 }
-
-// MARK: - Public @_cdecl functions: String.format
 
 @_cdecl("__kk_string_format_flat")
 public func __kk_string_format_flat(
