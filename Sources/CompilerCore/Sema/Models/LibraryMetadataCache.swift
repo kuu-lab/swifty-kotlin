@@ -12,8 +12,6 @@ import Foundation
 final class LibraryMetadataCache {
     init() {}
 
-    // MARK: - Manifest cache (libraryDir → single entry with mtime + target)
-
     private struct ManifestCacheEntry {
         let mtimeNanos: Int64
         let targetString: String
@@ -49,8 +47,6 @@ final class LibraryMetadataCache {
         let targetStr = "\(target.arch)-\(target.vendor)-\(target.os)"
         manifestCache[libraryDir] = ManifestCacheEntry(mtimeNanos: mtime, targetString: targetStr, info: info)
     }
-
-    // MARK: - Metadata records cache (metadataPath → single entry with mtime + interner)
 
     private struct MetadataCacheEntry {
         let mtimeNanos: Int64
@@ -121,8 +117,6 @@ final class LibraryMetadataCache {
         indexedMetadataCache[metadataPath] = IndexedMetadataCacheEntry(mtimeNanos: mtime, file: file)
     }
 
-    // MARK: - Type signature memoization (signature string + TypeSystem identity)
-
     /// TypeID values are indices into a specific TypeSystem's internal storage,
     /// and class-type signatures embed SymbolIDs from a specific SymbolTable.
     /// We must scope the signature cache per both TypeSystem and SymbolTable
@@ -166,8 +160,6 @@ final class LibraryMetadataCache {
         }
         signatureCache[signature] = result
     }
-
-    // MARK: - Statistics
 
     var manifestCacheCount: Int {
         manifestCache.count
