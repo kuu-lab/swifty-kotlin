@@ -658,8 +658,6 @@ extension DeclTypeChecker {
         }
     }
 
-    // MARK: - Class Member Scope Building
-
     func buildClassMemberScope(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
