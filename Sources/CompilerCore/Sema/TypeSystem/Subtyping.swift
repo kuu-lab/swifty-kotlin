@@ -127,67 +127,30 @@ extension TypeSystem {
             // if Annotation was explicitly added to supertypes.
         }
 
-        // primitive <: Comparable<same_primitive>
-        // All Kotlin primitive types (Int, Long, Double, Float, Char, Boolean, etc.) implement Comparable<Self>.
-        if case let .primitive(_, leftNullability) = lhs,
-           case let .classType(rightClass) = rhs,
-           let comparableSym = comparableInterfaceSymbol,
-           rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           case let .in(argType) = rightClass.args[0],
-           argType == subtype,
-           nullabilitySubtype(leftNullability, rightClass.nullability)
-        {
-            return true
-        }
-
-        // primitive / String <: Comparable<*>: the star projection erases the
-        // type argument, so every Comparable<Self> primitive satisfies it.
+        // primitive / String <: Comparable<Self>, and both satisfy
+        // Comparable<*>: all Kotlin primitive types (Int, Long, Double, Float,
+        // Char, Boolean, etc.) implement Comparable<Self>, and String is an
+        // aggregate value in the compiler but remains a source-level
+        // kotlin.String implementing Comparable<String>. A star projection
+        // erases the type argument, so every Comparable<Self> type satisfies it.
         if case let .classType(rightClass) = rhs,
            let comparableSym = comparableInterfaceSymbol,
            rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           case .star = rightClass.args[0]
+           rightClass.args.count == 1
         {
             switch lhs {
-            case let .primitive(_, leftNullability):
-                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
-            case let .stringStruct(leftNullability):
-                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
+            case let .primitive(_, leftNullability), let .stringStruct(leftNullability):
+                guard nullabilitySubtype(leftNullability, rightClass.nullability) else { break }
+                switch rightClass.args[0] {
+                case let .in(argType), let .invariant(argType):
+                    return argType == subtype
+                case .star:
+                    return true
+                case .out:
+                    return false
+                }
             default:
                 break
-            }
-        }
-
-        // Support for invariant Comparable bounds (backward compatibility)
-        if case let .primitive(_, leftNullability) = lhs,
-           case let .classType(rightClass) = rhs,
-           let comparableSym = comparableInterfaceSymbol,
-           rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           case let .invariant(argType) = rightClass.args[0],
-           argType == subtype,
-           nullabilitySubtype(leftNullability, rightClass.nullability)
-        {
-            return true
-        }
-
-        // String is an aggregate value in the compiler, but it remains a
-        // source-level kotlin.String and implements Comparable<String>.
-        if case let .stringStruct(leftNullability) = lhs,
-           case let .classType(rightClass) = rhs,
-           let comparableSym = comparableInterfaceSymbol,
-           rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           nullabilitySubtype(leftNullability, rightClass.nullability)
-        {
-            switch rightClass.args[0] {
-            case let .in(argType), let .invariant(argType):
-                return argType == subtype
-            case .star:
-                return true
-            case .out:
-                return false
             }
         }
 
