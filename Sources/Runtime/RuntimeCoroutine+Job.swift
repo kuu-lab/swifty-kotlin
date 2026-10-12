@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - Structured Concurrency (P5-89)
 
 private enum RuntimeJobState: Equatable, Sendable {
     case new
