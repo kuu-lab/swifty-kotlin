@@ -249,79 +249,24 @@ isThrowing: false
 
 
     static let collectionHOFFunctions: [RuntimeABIFunctionSpec] = {
-        let before = [
-            "kk_list_forEach",
-        ]
-        let destinationLambdaParams = [
-            RuntimeABIParameter(name: "listRaw", type: .intptr),
-            RuntimeABIParameter(name: "destRaw", type: .intptr),
+        func iterableSpec(_ name: String, parameters: [RuntimeABIParameter]) -> RuntimeABIFunctionSpec {
+            RuntimeABIFunctionSpec(
+                name: name,
+                parameters: parameters,
+                returnType: .intptr,
+                section: "Collection"
+            )
+        }
+        let iterableLambdaParams = [
+            RuntimeABIParameter(name: "iterableRaw", type: .intptr),
             RuntimeABIParameter(name: "fnPtr", type: .intptr),
             RuntimeABIParameter(name: "closureRaw", type: .intptr),
             RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ]
-        let requireNoNullsSpec = RuntimeABIFunctionSpec(
-            name: "__kk_iterable_requireNoNulls",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-
-        let firstNotNullOfSpec = RuntimeABIFunctionSpec(
-            name: "__kk_iterable_firstNotNullOf",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let firstNotNullOfOrNullSpec = RuntimeABIFunctionSpec(
-            name: "__kk_iterable_firstNotNullOfOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let iterableAllSpec = RuntimeABIFunctionSpec(
-            name: "__kk_iterable_all",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let iterableAnySpec = RuntimeABIFunctionSpec(
-            name: "__kk_iterable_any",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let iterableLastSpec = RuntimeABIFunctionSpec(
-            name: "__kk_iterable_last",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
+        let iterableOutThrownParams = [
+            RuntimeABIParameter(name: "iterableRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ]
 
         let listWindowChunkReceiverSizeParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -355,7 +300,6 @@ isThrowing: false
             RuntimeABIParameter(name: "listRaw", type: .intptr),
             RuntimeABIParameter(name: "otherRaw", type: .intptr),
         ]
-        let legacyListZipTransformSpec = listZipTransformSpec
         let listWindowChunkBridgeSpecs = [
             RuntimeABIFunctionSpec(
                 name: "__kk_list_chunked",
@@ -479,14 +423,6 @@ isThrowing: false
             listDropWhileSpec,
             listDropLastWhileSpec,
         ]
-        let maxOrNullSpec = listMaxOrNullSpec
-        let minOrNullSpec = listMinOrNullSpec
-        let maxSpec = listMaxSpec
-        let minSpec = listMinSpec
-        let sortedSpec = listSortedSpec
-        let sortedPrimitiveSpec = listSortedPrimitiveSpec
-        let shuffledSpec = listShuffledSpec
-        let shuffledRandomSpec = listShuffledRandomSpec
         let randomSpec = RuntimeABIFunctionSpec(
             name: "kk_list_random",
             parameters: [
@@ -505,25 +441,26 @@ isThrowing: false
             section: "Collection",
             isThrowing: false
         )
-        let genericAfter = [listSortedBySpec, listSortedByPrimitiveSpec]
-        var functions: [RuntimeABIFunctionSpec] = []
-        functions.append(contentsOf: before.map { hofSpec($0) })
-        functions.append(contentsOf: [requireNoNullsSpec])
-        functions.append(contentsOf: [
-                firstNotNullOfSpec, firstNotNullOfOrNullSpec,
-                iterableAllSpec, iterableAnySpec, iterableLastSpec,
-            ])
-        functions.append(contentsOf: genericAfter)
-
-        functions.append(contentsOf: [legacyListZipTransformSpec]
+        return [
+            hofSpec("kk_list_forEach"),
+            iterableSpec("__kk_iterable_requireNoNulls", parameters: iterableOutThrownParams),
+            iterableSpec("__kk_iterable_firstNotNullOf", parameters: iterableLambdaParams),
+            iterableSpec("__kk_iterable_firstNotNullOfOrNull", parameters: iterableLambdaParams),
+            iterableSpec("__kk_iterable_all", parameters: iterableLambdaParams),
+            iterableSpec("__kk_iterable_any", parameters: iterableLambdaParams),
+            iterableSpec("__kk_iterable_last", parameters: iterableOutThrownParams),
+            listSortedBySpec,
+            listSortedByPrimitiveSpec,
+            listZipTransformSpec,
+        ]
             + listWindowChunkBridgeSpecs
             + [
                 asReversedSpec, mutableAsReversedSpec,
-                maxOrNullSpec, minOrNullSpec,
-                maxSpec, minSpec,
-                sortedSpec,
-                sortedPrimitiveSpec,
-                shuffledSpec, shuffledRandomSpec, randomSpec, randomOrNullSpec,
+                listMaxOrNullSpec, listMinOrNullSpec,
+                listMaxSpec, listMinSpec,
+                listSortedSpec,
+                listSortedPrimitiveSpec,
+                listShuffledSpec, listShuffledRandomSpec, randomSpec, randomOrNullSpec,
             ]
             + listSliceTakeDropSpecs
             + [
@@ -634,7 +571,6 @@ isThrowing: false
                     isThrowing: false
                 ),
                 // STDLIB-533: List?.orEmpty()
-            ])
-        return functions
+            ]
     }()
 }
