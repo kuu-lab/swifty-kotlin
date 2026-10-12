@@ -245,7 +245,6 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     return __kk_kclass_create(fallbackToken, nameHint)
 }
 
-// MARK: - KSP-496: KClass-handle-based simpleName / qualifiedName bridges
 //
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
 // a bare type token + name hint known at the `T::class` call site), these take
@@ -276,7 +275,6 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }
 
-// MARK: - REFL-004: KClass Binary Metadata Accessors
 
 /// Registers runtime reflection metadata for a type identified by `typeToken`.
 /// Called during module initialization to populate the global metadata registry
@@ -449,7 +447,6 @@ public func __kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
     return metadata.isEnumClass ? 1 : 0
 }
 
-// MARK: - STDLIB-REFLECT-067: KClass type-kind introspection
 
 /// Returns 1 if the KClass represents an inner class, 0 otherwise.
 @_cdecl("__kk_kclass_is_inner")
@@ -491,7 +488,6 @@ public func __kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
     return metadata.isAbstract ? 1 : 0
 }
 
-// MARK: - STDLIB-REFLECT-060: KClass basic reflection features
 
 /// Returns 1 if the KClass represents a final class, 0 otherwise.
 /// A class is final if it is not abstract, not open, and not an interface.
