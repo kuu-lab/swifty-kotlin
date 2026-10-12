@@ -234,7 +234,7 @@ struct NativeEmitter {
             for declaration in module.arena.declarations {
                 guard case let .function(function) = declaration,
                       rawSymbols.contains(function.symbol),
-                      Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner)
+                      Self.isSyntheticCallbackFunction(function, symbols: symbols)
                 else {
                     continue
                 }
@@ -248,7 +248,7 @@ struct NativeEmitter {
                     continue
                 }
                 let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
-                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner) {
+                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols) {
                     rawSymbols.insert(function.symbol)
                 }
             }
@@ -362,8 +362,7 @@ struct NativeEmitter {
 
     private static func isSyntheticCallbackFunction(
         _ function: KIRFunction,
-        symbols: SymbolTable?,
-        interner: StringInterner
+        symbols: SymbolTable?
     ) -> Bool {
         guard let symbols else { return true }
         guard let symbolInfo = symbols.symbol(function.symbol) else { return false }

@@ -28,8 +28,7 @@ extension DataFlowSemaPhase {
 
         guard let inlinePath = resolvedImportedInlineKIRPath(
             binding,
-            diagnostics: diagnostics,
-            interner: interner
+            diagnostics: diagnostics
         ) else {
             return
         }
@@ -145,8 +144,7 @@ extension DataFlowSemaPhase {
             }
             guard let inlinePath = resolvedImportedInlineKIRPath(
                 binding,
-                diagnostics: diagnostics,
-                interner: interner
+                diagnostics: diagnostics
             ) else {
                 return nil
             }
@@ -199,8 +197,7 @@ extension DataFlowSemaPhase {
 
     private func resolvedImportedInlineKIRPath(
         _ binding: ImportedLibraryBinding,
-        diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        diagnostics: DiagnosticEngine
     ) -> String? {
         let record = binding.record
         guard let inlineDir = binding.inlineKIRDir else { return nil }

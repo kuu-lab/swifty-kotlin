@@ -744,8 +744,7 @@ extension CallLowerer {
         boxCallee: InternedString,
         sema: SemaModule,
         arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        interner: StringInterner
     ) -> KIRCallableValueInfo {
         let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
         let adapterName = interner.intern("kk_generate_sequence_box_adapter_\(adapterSymbol.rawValue)")
@@ -932,8 +931,7 @@ extension CallLowerer {
                 boxCallee: boxCallee,
                 sema: sema,
                 arena: arena,
-                interner: interner,
-                instructions: &instructions
+                interner: interner
             )
             let adapterExpr = arena.appendExpr(
                 .symbolRef(adapterInfo.symbol),

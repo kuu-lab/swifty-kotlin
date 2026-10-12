@@ -592,7 +592,7 @@ private func cinteropLoadValue(_ varHandle: Int, _ read: (UnsafeRawPointer) -> I
 }
 
 @inline(__always)
-private func cinteropStoreValue(_ varHandle: Int, _ value: Int, _ write: (UnsafeMutableRawPointer) -> Void) -> Int {
+private func cinteropStoreValue(_ varHandle: Int, _ write: (UnsafeMutableRawPointer) -> Void) -> Int {
     guard let box = resolveCInteropVarBox(from: varHandle),
           let ptr = UnsafeMutableRawPointer(bitPattern: box.address)
     else {
@@ -612,7 +612,7 @@ public func kk_cvar_bool_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_bool_store")
 public func kk_cvar_bool_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: UInt8(kk_unbox_bool(value) != 0 ? 1 : 0), as: UInt8.self)
     }
 }
@@ -624,7 +624,7 @@ public func kk_cvar_byte_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_byte_store")
 public func kk_cvar_byte_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: UInt8(truncatingIfNeeded: kk_unbox_int(value)), as: UInt8.self)
     }
 }
@@ -636,7 +636,7 @@ public func kk_cvar_ubyte_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_ubyte_store")
 public func kk_cvar_ubyte_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: UInt8(truncatingIfNeeded: kk_unbox_int(value)), as: UInt8.self)
     }
 }
@@ -648,7 +648,7 @@ public func kk_cvar_short_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_short_store")
 public func kk_cvar_short_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: Int16(truncatingIfNeeded: kk_unbox_int(value)), as: Int16.self)
     }
 }
@@ -660,7 +660,7 @@ public func kk_cvar_ushort_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_ushort_store")
 public func kk_cvar_ushort_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: UInt16(truncatingIfNeeded: kk_unbox_int(value)), as: UInt16.self)
     }
 }
@@ -672,7 +672,7 @@ public func kk_cvar_int_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_int_store")
 public func kk_cvar_int_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: Int32(truncatingIfNeeded: kk_unbox_int(value)), as: Int32.self)
     }
 }
@@ -684,7 +684,7 @@ public func kk_cvar_uint_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_uint_store")
 public func kk_cvar_uint_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: UInt32(truncatingIfNeeded: kk_unbox_int(value)), as: UInt32.self)
     }
 }
@@ -696,7 +696,7 @@ public func kk_cvar_long_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_long_store")
 public func kk_cvar_long_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: Int64(kk_unbox_long(value)), as: Int64.self)
     }
 }
@@ -708,7 +708,7 @@ public func kk_cvar_ulong_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_ulong_store")
 public func kk_cvar_ulong_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(of: UInt64(bitPattern: Int64(kk_unbox_ulong(value))), as: UInt64.self)
     }
 }
@@ -722,7 +722,7 @@ public func kk_cvar_float_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_float_store")
 public func kk_cvar_float_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(
             of: Float(bitPattern: UInt32(truncatingIfNeeded: kk_unbox_float(value))),
             as: Float.self
@@ -739,7 +739,7 @@ public func kk_cvar_double_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_double_store")
 public func kk_cvar_double_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         ptr.storeBytes(
             of: Double(bitPattern: UInt64(truncatingIfNeeded: kk_unbox_double(value))),
             as: Double.self
@@ -763,7 +763,7 @@ public func kk_cvar_cpointer_load(_ varHandle: Int) -> Int {
 
 @_cdecl("kk_cvar_cpointer_store")
 public func kk_cvar_cpointer_store(_ varHandle: Int, _ value: Int) -> Int {
-    cinteropStoreValue(varHandle, value) { ptr in
+    cinteropStoreValue(varHandle) { ptr in
         let address: UInt
         if let box = resolveCPointerBox(from: value) {
             address = box.address
