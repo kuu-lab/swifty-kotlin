@@ -1,5 +1,44 @@
 
 extension CallTypeChecker {
+    /// Nominal context for a nested SAM constructor before eager inference.
+    /// Abstain when a same-named callable could take precedence over the interface.
+    func inferableSamConstructorSymbol(_ exprID: ExprID, ctx: TypeInferenceContext) -> SymbolID? {
+        guard let expr = ctx.ast.arena.expr(exprID),
+              case let .call(callee, typeArgs, args, _) = expr,
+              typeArgs.isEmpty,
+              args.count == 1,
+              isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
+              let calleeExpr = ctx.ast.arena.expr(callee),
+              case let .nameRef(calleeName, _) = calleeExpr
+        else {
+            return nil
+        }
+        var visibleCallables = ctx.filterByVisibility(
+            ctx.cachedScopeLookup(calleeName).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.kind == .function || symbol.kind == .constructor
+            }
+        ).visible
+        if visibleCallables.isEmpty {
+            visibleCallables = ctx.sema.symbols.lookupAll(fqName: [calleeName]).filter { candidate in
+                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
+                return symbol.kind == .function || symbol.kind == .constructor
+            }
+        }
+        guard visibleCallables.isEmpty else { return nil }
+        var interfaces = ctx.cachedScopeLookup(calleeName).filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+        }
+        if interfaces.isEmpty {
+            interfaces = ctx.sema.symbols.lookupAll(fqName: [ctx.interner.intern("kotlin"), calleeName]).filter { candidate in
+                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
+                return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+            }
+        }
+        return interfaces.count == 1 ? interfaces.first : nil
+    }
+
     func inferSamConvertedCallExpr(
         _ id: ExprID,
         calleeName: InternedString,
