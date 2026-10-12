@@ -709,6 +709,15 @@ extension ExprTypeChecker {
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
                 sema: sema
             )
+            if let expectedFunctionType,
+               let unitCoercedType = driver.helpers.unitCoercedCallableReferenceType(
+                   inferredType,
+                   expectedFunctionType: expectedFunctionType,
+                   sema: sema
+               )
+            {
+                inferredType = unitCoercedType
+            }
             let resultType: TypeID
             // An expected type that still mentions type parameters belongs to a
             // generic signature whose type arguments are inferred from this very

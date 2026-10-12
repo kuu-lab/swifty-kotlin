@@ -338,14 +338,9 @@ extension TypeSystem {
             for (leftParam, rightParam) in zip(leftParams, rightParams) where !isSubtype(rightParam, leftParam) {
                 return false
             }
-            // Kotlin allows a lambda literal wherever a Unit-returning function type
-            // is expected regardless of the lambda's own inferred return type -- the
-            // last expression's value is simply discarded (e.g. `repeat(3) { i ->
-            // someCallReturningInt(i) }` passed to `action: (Int) -> Unit`). Skip the
-            // return-type check in that case instead of requiring true subtyping.
-            if rightFunction.returnType == unitType {
-                return true
-            }
+            // Lambda bodies and direct callable references apply Unit coercion
+            // while being checked against their expected type. A function value
+            // with another return type is not itself a subtype of a Unit function.
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
