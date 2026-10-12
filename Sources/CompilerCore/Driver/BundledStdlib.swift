@@ -15,7 +15,6 @@ package enum BundledStdlib {
     // (KSP-501), and list sorting/extrema HOFs are in ListSortingHOF.kt and
     // ListExtremaHOF.kt. The remaining collection HOFs (filter, set) are in
     // ListFilterHOF.kt and SetHOF.kt respectively.
-    static let kotlinCollectionsSource = ""
 
     // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
     // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
@@ -24,7 +23,6 @@ package enum BundledStdlib {
     // indent / trimIndent / trimMargin / prependIndent / replaceIndent(ByMargin) have been
     // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
     // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
-    static let kotlinTextSource = ""
 
     /// Errors that can occur while loading bundled stdlib sources from the
     /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`

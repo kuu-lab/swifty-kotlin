@@ -960,7 +960,6 @@ func runtimeInvokeSuspendLauncherThunk(
         return invoke(captures[0], captures[1], captures[2], captures[3], receiver, outThrown)
     default:
         runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
-        return 0
     }
 }
 
