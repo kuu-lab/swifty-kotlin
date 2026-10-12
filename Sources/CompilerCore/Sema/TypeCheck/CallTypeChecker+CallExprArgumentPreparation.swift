@@ -273,8 +273,8 @@ extension CallTypeChecker {
         // type `D<T, Unit>`. The block above skips expected-type seeding
         // when explicit args are present because they take precedence, so
         // derive the substitution from the explicit arguments themselves.
-        // An override is only applied when every candidate that maps the
-        // argument position agrees on the substituted parameter type —
+        // An override is only applied when every candidate that supplies
+        // contextual evidence agrees on the substituted parameter type —
         // otherwise a context derived for one overload would poison the
         // argument for another (e.g. the `Map` overload's expected type
         // breaking `Int`-typed arguments for the `Int` overload).
@@ -315,6 +315,16 @@ extension CallTypeChecker {
                         substitution: substitution,
                         typeVarBySymbol: typeVarBySymbol
                     )
+                    // A known SAM constructor cannot get its interface type
+                    // arguments from an unrelated overload parameter, such as
+                    // the Int capacity overload beside Comparator<in T>?.
+                    if let samSymbol = inferableSamConstructorSymbol(args[index].expr, ctx: ctx) {
+                        guard let contextualClass = resolveClassType(substitutedType, sema: sema),
+                              contextualClass.classSymbol == samSymbol
+                        else {
+                            continue
+                        }
+                    }
                     // A substituted parameter still carrying candidate-owned
                     // type variables is not usable as contextual evidence;
                     // that candidate abstains rather than vetoing.
