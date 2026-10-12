@@ -732,25 +732,14 @@ extension KotlinParser {
         in tokens: C,
         before endIndex: C.Index
     ) -> Bool where C.Element == Token {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
         var index = tokens.startIndex
         while index != endIndex {
             let kind = tokens[index].kind
-            let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
-            if isTopLevel, kind == .keyword(.do) {
+            if depth.isTopLevel, kind == .keyword(.do) {
                 return true
             }
-            switch kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            default: break
-            }
+            depth.track(kind)
             index = tokens.index(after: index)
         }
         return false
@@ -817,6 +806,36 @@ extension KotlinParser {
             start: SourceLocation(file: FileID.invalid, offset: 0),
             end: SourceLocation(file: FileID.invalid, offset: 0)
         )
+    }
+
+    /// Bracket nesting tracked while flat-scanning tokens. Unmatched closers
+    /// clamp at zero so one-sided groups cannot drive a count negative. Each
+    /// loop reads only the counters it needs: `isTopLevel` deliberately
+    /// excludes `angle`, because an unmatched `<`/`>` may be a comparison
+    /// operator rather than a type-argument list.
+    struct BracketDepth {
+        var angle = 0
+        var paren = 0
+        var bracket = 0
+        var brace = 0
+
+        var isTopLevel: Bool {
+            paren == 0 && bracket == 0 && brace == 0
+        }
+
+        mutating func track(_ kind: TokenKind) {
+            switch kind {
+            case .symbol(.lessThan): angle += 1
+            case .symbol(.greaterThan): angle = max(0, angle - 1)
+            case .symbol(.lParen): paren += 1
+            case .symbol(.rParen): paren = max(0, paren - 1)
+            case .symbol(.lBracket): bracket += 1
+            case .symbol(.rBracket): bracket = max(0, bracket - 1)
+            case .symbol(.lBrace): brace += 1
+            case .symbol(.rBrace): brace = max(0, brace - 1)
+            default: break
+            }
+        }
     }
 }
 
