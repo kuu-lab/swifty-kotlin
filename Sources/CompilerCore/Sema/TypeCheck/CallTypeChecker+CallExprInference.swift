@@ -432,6 +432,7 @@ extension CallTypeChecker {
         /// must still apply to them.
         var mergedImplicitReceiverMembers: [SymbolID] = []
         var callInvisible: [SemanticSymbol] = []
+        var knownApplicableImplicitMembers: Set<SymbolID> = []
 
         if let inferred = collectCallExprCandidates(
             id,
@@ -448,7 +449,8 @@ extension CallTypeChecker {
             callImplicitReceiverType: &callImplicitReceiverType,
             memberExtensionReceiverMarks: &memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: &mergedImplicitReceiverMembers,
-            callInvisible: &callInvisible
+            callInvisible: &callInvisible,
+            knownApplicableImplicitMembers: &knownApplicableImplicitMembers
         ) {
             return inferred
         }
@@ -580,6 +582,7 @@ extension CallTypeChecker {
             callImplicitReceiverType: callImplicitReceiverType,
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,
+            knownApplicableImplicitMembers: knownApplicableImplicitMembers,
             expectedTypeOverrides: expectedTypeOverrides,
             preparedArgs: preparedArgs,
             argTypes: argTypes

@@ -44,11 +44,13 @@ extension BuildASTPhase {
                 return nil
             }
 
+            var isLateinit = false
             var startIndex = statementTokens.startIndex
             while startIndex < statementTokens.endIndex,
                   case let .keyword(keyword) = statementTokens[startIndex].kind,
                   KotlinParser.isDeclarationModifierKeyword(keyword)
             {
+                if keyword == .lateinit { isLateinit = true }
                 startIndex = statementTokens.index(after: startIndex)
             }
             guard startIndex < statementTokens.endIndex else {
@@ -174,6 +176,7 @@ extension BuildASTPhase {
                 typeAnnotation: typeAnnotation,
                 initializer: initializerExpr,
                 isDelegated: isDelegated,
+                isLateinit: isLateinit,
                 range: range
             ))
         }

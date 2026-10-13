@@ -200,6 +200,25 @@ extension LambdaLowerer {
             return
         }
 
+        // Array factories such as the non-reified `emptyArray<T>()` still
+        // need a reified caller's component token to describe the allocation.
+        // The callee itself does not advertise a reified type parameter, so
+        // collect the reified parameters carried by its Array result type.
+        if case .call = expr,
+           let resultType = sema.bindings.exprTypes[exprID],
+           let interner = sema.interner,
+           referenceArrayElementType(
+               sema.types.makeNonNullable(resultType), sema: sema, interner: interner
+           ) != nil
+        {
+            collectReifiedTypeParameterSymbols(
+                in: resultType,
+                sema: sema,
+                referenced: &referenced,
+                seen: &seen
+            )
+        }
+
         switch expr {
         case .nullLiteral, .intLiteral,
              .longLiteral,
@@ -369,7 +388,7 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: bodyExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: conditionExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer {
                 collectBoundIdentifierSymbols(in: initializer, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
@@ -710,7 +729,7 @@ extension LambdaLowerer {
             return containsImplicitReceiverReference(in: bodyExpr, ast: ast)
                 || containsImplicitReceiverReference(in: conditionExpr, ast: ast)
 
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             guard let initializer else {
                 return false
             }

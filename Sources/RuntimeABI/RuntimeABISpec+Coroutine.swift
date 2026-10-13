@@ -324,6 +324,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_run_blocking_context",
+            parameters: [
+                RuntimeABIParameter(name: "context", type: .intptr),
+                RuntimeABIParameter(name: "fnOrBox", type: .intptr),
+                RuntimeABIParameter(name: "env", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_kxmini_run_blocking",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),

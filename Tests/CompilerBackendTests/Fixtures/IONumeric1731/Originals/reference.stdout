@@ -1,0 +1,294 @@
+BEGIN:kotlinx_io_sources_primitives
+255
+65535
+4294967295
+18446744073709551615
+4660
+305419896
+81985529216486895
+65535
+4294967295
+18446744073709551615
+1.5
+-2.5
+-2147483648
+Infinity
+true
+eof
+END:kotlinx_io_sources_primitives
+BEGIN:kotlinx_io_sources_arrays
+9, 1, 2, 3, 4, 5, 9
+true
+-1
+Source exhausted before reading 7 bytes. Only -1 bytes were read.
+1, 2, 3, 4, 5, 9, 9
+true
+0
+exact-eof
+1, 2, 3
+4, 5
+0
+byteCount (-1) < 0
+3
+1, 2, 3
+2
+1, 4, 5
+
+1
+1, 9, 9
+2, 3, 4, 5
+negative-index
+large-index
+reversed-index
+1, 2, 3, 4, 5
+9, 1, 2, 3, 4, 5, 9
+true
+-1
+Source exhausted before reading 7 bytes. Only -1 bytes were read.
+1, 2, 3, 4, 5, 9, 9
+true
+0
+exact-eof
+1, 2, 3
+4, 5
+0
+byteCount (-1) < 0
+2
+1, 2, 9
+2
+1, 3, 4
+5
+1
+1, 9, 9
+2, 3, 4, 5
+negative-index
+large-index
+reversed-index
+1, 2, 3, 4, 5
+6, 7
+END:kotlinx_io_sources_arrays
+BEGIN:kotlinx_io_sources_numbers
+0
+!
+0
+!
+123
+;
+-42
+;
+9223372036854775807
+!
+-9223372036854775808
+!
+number:Number too large: 9223372036854775808
+9223372036854775808!
+number:Number too large: -9223372036854775809
+-9223372036854775809!
+number:Number too large: 9999999999999999999
+999999999999999999999
+number:Expected a digit or '-' but was 0x2b
++1
+number:Expected a digit or '-' but was 0x78
+x
+number:Expected a digit but was 0x78
+-x
+eof
+-
+eof
+
+0
+!
+43981
+;
+9223372036854775807
+
+-9223372036854775808
+!
+-1
+!
+15
+;
+number:Number too large: 10000000000000000
+10000000000000000!
+number:Number too large: ffffffffffffffffF
+FFFFFFFFFFFFFFFFF!
+0
+x12
+number:Expected leading [0-9a-fA-F] character but was 0x2d
+-1
+number:Expected leading [0-9a-fA-F] character but was 0x67
+g
+eof
+
+0
+!
+0
+!
+123
+;
+-42
+;
+9223372036854775807
+!
+-9223372036854775808
+!
+number:Number too large: 9223372036854775808
+9223372036854775808!
+number:Number too large: -9223372036854775809
+-9223372036854775809!
+number:Number too large: 9999999999999999999
+999999999999999999999
+number:Expected a digit or '-' but was 0x2b
++1
+number:Expected a digit or '-' but was 0x78
+x
+number:Expected a digit but was 0x78
+-x
+eof
+-
+eof
+
+0
+!
+43981
+;
+9223372036854775807
+
+-9223372036854775808
+!
+-1
+!
+15
+;
+number:Number too large: 10000000000000000
+10000000000000000!
+number:Number too large: ffffffffffffffffF
+FFFFFFFFFFFFFFFFF!
+0
+x12
+number:Expected leading [0-9a-fA-F] character but was 0x2d
+-1
+number:Expected leading [0-9a-fA-F] character but was 0x67
+g
+eof
+
+END:kotlinx_io_sources_numbers
+BEGIN:kotlinx_io_sources_search
+byteCount: -1 < 0
+true
+false
+1
+-1
+3
+-1
+-1
+-1
+-1
+startIndex (-1) is not within the range [0..endIndex(9223372036854775807))
+startIndex (3) is not within the range [0..endIndex(2))
+startIndex (0) and endIndex (-1) should be non negative
+1
+3
+1
+byteCount: -9223372036854775806 < 0
+-1
+0
+3
+7
+ByteString(size=3 hex=010203)
+ByteString(size=4 hex=02030204)
+false
+ByteString(size=0)
+byteCount: -1
+true
+false
+1
+-1
+3
+-1
+-1
+-1
+-1
+startIndex (-1) is not within the range [0..endIndex(9223372036854775807))
+startIndex (3) is not within the range [0..endIndex(2))
+startIndex (0) and endIndex (-1) should be non negative
+1
+3
+1
+byteCount: -9223372036854775806
+-1
+0
+3
+7
+ByteString(size=3 hex=010203)
+ByteString(size=4 hex=02030204)
+false
+ByteString(size=0)
+1
+0
+4
+-1
+2, 3
+2
+7, 8
+3
+12
+34
+
+null
+END:kotlinx_io_sources_search
+BEGIN:kotlinx_io_sinks_endianness
+52,18,4,3,2,1,8,7,6,5,4,3,2,1
+-1,-85,-51,-34,-83,-66,-17,1,2,3,4,5,6,7,8,52,18,4,3,2,1,8,7,6,5,4,3,2,1
+63,-64,0,0,64,4,0,0,0,0,0,0,0,0,-64,63,0,0,0,0,0,0,4,64,127,-128,0,0,-1,-16,0,0,0,0,0,0
+3
+3
+65,66,67
+END:kotlinx_io_sinks_endianness
+BEGIN:kotlinx_io_sinks_decimal_hex
+0
+1
+9
+10
+99
+100
+99999999
+100000000
+123456789
+-1
+-9
+-10
+-12345
+9223372036854775807
+-9223372036854775807
+-9223372036854775808
+0
+1
+f
+10
+ff
+100
+fff
+1000
+7fffffff
+80000000
+ffffffff
+100000000
+ffffffffffffffff
+8000000000000000
+7fffffffffffffff
+77
+1
+7
+END:kotlinx_io_sinks_decimal_hex
+BEGIN:kotlinx_io_sinks_bytearray
+hello
+!!
+
+0
+ioobe: startIndex (-1) and endIndex (1) are not within the range [0..size(1))
+ioobe2: startIndex (0) and endIndex (5) are not within the range [0..size(1))
+iae: startIndex (2) > endIndex (1)
+ioobe3: startIndex (-2) and endIndex (1) are not within the range [0..size(1))
+0
+END:kotlinx_io_sinks_bytearray

@@ -53,7 +53,7 @@ struct GenericGetterNullableTraversalTests {
         }
         let locals = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
-            guard case let .localDecl(name, _, _, _, _, _) = ast.arena.expr(id),
+            guard case let .localDecl(name, _, _, _, _, _, _) = ast.arena.expr(id),
                   ctx.interner.resolve(name) == "node", isUserSourceExpr(id, in: ctx)
             else { return nil }
             return id

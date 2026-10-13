@@ -26,6 +26,8 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
     let context: RuntimeCoroutineContext
+    /// Opt-in inherited scheduling for children of context-aware runBlocking.
+    var blockingScheduler: RuntimeBlockingScheduler?
     /// The Job this scope installs into its block's coroutine context
     /// (KUU-964). `coroutineScope { }`/`supervisorScope { }` create a fresh
     /// child job at scope entry so `currentCoroutineContext().job` resolves
@@ -630,6 +632,7 @@ public func kk_coroutine_scope_async_with_cont(
     // DeferredCoroutine contract), so `this` and any nested builder observe a
     // child scope whose Job is the task's — not the receiver scope's.
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     state.launcherArgs[Int64(scopeSlotRaw)] = Int64(childHandle)
@@ -698,6 +701,7 @@ public func kk_coroutine_scope_async(
     // Same DeferredCoroutine contract as the continuation path: the block runs
     // on a child scope whose context Job is this task's job.
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     return runtimeScopeAsync(
@@ -796,6 +800,7 @@ private func runtimeScopeLaunch(
         ?? runtimeAsyncTask(from: context.jobHandleRaw)?.completionJob ?? scope.job
     let parent = contextParent === runtimeNonCancellableJob ? nil : contextParent
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     // Whether the child is additionally registered into `scope` for
@@ -873,26 +878,39 @@ private func runtimeScopeAsync(
     let handle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
     prepare?(task, handle)
     if registerWithScope { scope.registerChild(handle) }
+    let blockingChildScheduler = scope.blockingScheduler.map { inherited in
+        runtimeBlockingScheduler(
+            context: context,
+            fallbackLoop: inherited.eventLoop ?? RuntimeEventLoop.current ?? RuntimeEventLoop()
+        )
+    }
     let work: @Sendable () -> Void = {
         guard task.markStarted() else { return }
         let savedKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
         let savedJob = RuntimeJobHandle.current
         let savedDispatcher = RuntimeDispatcher.current
+        let savedEventLoop = RuntimeEventLoop.current
         let workKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
         defer {
             RuntimeCoroutineScope.removeScope(forTask: workKey)
             RuntimeCoroutineScopeTaskKey.installKey(savedKey)
             RuntimeJobHandle.current = savedJob
             RuntimeDispatcher.current = savedDispatcher
+            RuntimeEventLoop.current = savedEventLoop
         }
-        if context.dispatcher != 0 {
+        if let scheduler = blockingChildScheduler {
+            RuntimeDispatcher.current = scheduler.dispatcher
+            RuntimeEventLoop.current = scheduler.eventLoop
+        } else if context.dispatcher != 0 {
             RuntimeDispatcher.current = runtimeResolveDispatcher(from: context.dispatcher)
         }
         RuntimeJobHandle.current = task.completionJob
         body(task)
     }
     let schedule: @Sendable () -> Void = {
-        if context.dispatcher != 0 {
+        if let scheduler = blockingChildScheduler {
+            scheduler.scheduleChild(work)
+        } else if context.dispatcher != 0 {
             runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
         } else if let scheduler = scope.testSchedulerIfPresent() {
             scheduler.schedule(after: 0, action: work)

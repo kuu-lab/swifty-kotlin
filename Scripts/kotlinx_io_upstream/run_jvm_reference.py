@@ -39,15 +39,18 @@ def verify_file(path: Path, record: dict) -> None:
             raise ValueError(f"Git blob mismatch: {path}")
 
 
-def execute(command: list[str], output: Path, stage: str, timeout: float, environment: dict | None = None) -> int:
+def execute(command: list[str], output: Path, stage: str, timeout: float, environment: dict | None = None,
+            working_directory: Path | None = None) -> int:
     (output / f"{stage}.command.json").write_text(json.dumps(command, indent=2) + "\n")
     started = time.monotonic()
     timed_out = False
     overrides = environment or {}
+    if working_directory is not None:
+        (output / f"{stage}.cwd.json").write_text(json.dumps(str(working_directory.resolve())) + "\n")
     (output / f"{stage}.env.json").write_text(json.dumps(overrides, indent=2) + "\n")
     with (output / f"{stage}.stdout").open("wb") as stdout, (output / f"{stage}.stderr").open("wb") as stderr:
         child = subprocess.Popen(command, stdout=stdout, stderr=stderr, start_new_session=True,
-            env={**os.environ, **overrides})
+            env={**os.environ, **overrides}, cwd=working_directory)
         try:
             code = child.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
