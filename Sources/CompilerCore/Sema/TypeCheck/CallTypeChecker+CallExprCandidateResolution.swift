@@ -22,8 +22,7 @@ extension CallTypeChecker {
         knownApplicableImplicitMembers: Set<SymbolID>,
         expectedTypeOverrides: [Int: TypeID],
         preparedArgs: PreparedCallArguments,
-        argTypes: [TypeID],
-        knownApplicableImplicitMembers: Set<SymbolID>
+        argTypes: [TypeID]
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema

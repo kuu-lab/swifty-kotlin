@@ -558,8 +558,7 @@ extension CallTypeChecker {
             knownApplicableImplicitMembers: knownApplicableImplicitMembers,
             expectedTypeOverrides: expectedTypeOverrides,
             preparedArgs: preparedArgs,
-            argTypes: argTypes,
-            knownApplicableImplicitMembers: knownApplicableImplicitMembers
+            argTypes: argTypes
         ) {
             return inferred
         }

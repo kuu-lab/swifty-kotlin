@@ -91,7 +91,6 @@ extension DataFlowSemaPhase {
         let ownerNominalTypeParametersSignature: String?
         let nominalSupertypeSignatures: [String]
         let constValueLiteral: String?
-        let isInnerClass: Bool
         /// Declaration-order type parameters of a nominal type, encoded as
         /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
         let nominalTypeParameters: String?
@@ -159,7 +158,6 @@ extension DataFlowSemaPhase {
             ownerNominalTypeParametersSignature: String? = nil,
             nominalSupertypeSignatures: [String] = [],
             constValueLiteral: String? = nil,
-            isInnerClass: Bool = false,
             nominalTypeParameters: String? = nil
         ) {
             self.kind = kind
@@ -224,7 +222,6 @@ extension DataFlowSemaPhase {
         self.ownerNominalTypeParametersSignature = ownerNominalTypeParametersSignature
             self.nominalSupertypeSignatures = nominalSupertypeSignatures
             self.constValueLiteral = constValueLiteral
-            self.isInnerClass = isInnerClass
             self.nominalTypeParameters = nominalTypeParameters
         }
     }
