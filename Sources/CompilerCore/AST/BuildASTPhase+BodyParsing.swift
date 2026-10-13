@@ -265,14 +265,16 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let raw = skipLeadingLocalAnnotations(raw, interner: interner)
-        let filtered = skipLeadingLocalAnnotations(filtered, interner: interner)
-        if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
-            return expr
-        }
+        // Local nominals retain header annotations for declaration validation.
+        // Other local statement forms still use the annotation-stripping path.
         if let expr = Self.parseLocalNominalDeclExpr(
             from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
         ) {
+            return expr
+        }
+        let raw = skipLeadingLocalAnnotations(raw, interner: interner)
+        let filtered = skipLeadingLocalAnnotations(filtered, interner: interner)
+        if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
         if let expr = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {

@@ -301,6 +301,7 @@ extension ExprTypeChecker {
             }
             lexicalScope = scope.parent
         }
+        sema.bindings.deferLocalAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
         DataFlowSemaPhase().registerPrimaryConstructorPropertyAnnotations(
             for: classDecl, ast: ast, symbols: sema.symbols, types: sema.types, bindings: sema.bindings,
             sourceManager: ctx.visibilityChecker.sourceManager, diagnostics: ctx.sema.diagnostics, interner: interner,

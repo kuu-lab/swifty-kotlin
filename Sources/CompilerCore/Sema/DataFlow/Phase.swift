@@ -714,6 +714,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             validateAnnotationTargets(
                 ast: ast,
                 symbols: symbols,
+                types: types,
                 bindings: bindings,
                 diagnostics: ctx.diagnostics,
                 interner: ctx.interner
