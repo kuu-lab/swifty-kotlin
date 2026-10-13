@@ -265,6 +265,15 @@ extension CallTypeChecker {
             return nil
         }
         let scopedExtensionCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
+        // Receiver lambdas expose their owner's member extensions through the
+        // dispatch receiver rather than the lexical/import scope. Keep those
+        // candidates when an explicit receiver's ordinary members cannot
+        // accept the call (e.g. Parser.parse(source) beside State.Parser.parse()).
+        let dispatchExtensionCandidates = Set(collectDispatchReceiverMemberExtensionCandidates(
+            named: calleeName,
+            extensionReceiverType: memberLookupType,
+            ctx: ctx
+        ))
         let allowsImportlessAtomicExtensions = isAtomicMigrationReceiver(memberLookupType, sema: sema, interner: interner)
         var allCandidates = collectExtensionCallCandidates(
             named: calleeName,
@@ -278,6 +287,7 @@ extension CallTypeChecker {
         ).filter { candidate in
             !sema.symbols.isSourceBackedSymbol(candidate)
                 || scopedExtensionCandidates.contains(candidate)
+                || dispatchExtensionCandidates.contains(candidate)
                 || locals[calleeName]?.symbol == candidate
                 || allowsImportlessAtomicExtensions
         }
