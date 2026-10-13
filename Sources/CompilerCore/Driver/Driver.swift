@@ -883,7 +883,7 @@ public final class CompilerDriver {
         case let .whileExpr(condition, body, _, _), let .doWhileExpr(body, condition, _, _):
             collectExpr(condition)
             collectExpr(body)
-        case let .localDecl(_, _, typeAnnotation, initializer, _, _):
+        case let .localDecl(_, _, typeAnnotation, initializer, _, _, _):
             if let typeAnnotation {
                 collectTypeRef(typeAnnotation)
             }

@@ -138,6 +138,14 @@ extension LambdaLowerer {
             callArguments.append(normalizedParamExpr)
         }
 
+        if let signature = sema.symbols.functionSignature(for: lambdaSymbol) {
+            callArguments = packOrdinaryCallableVarargValues(
+                callArguments, targetSymbol: lambdaSymbol,
+                parameterOffset: callArguments.count - signature.parameterTypes.count, resultType: lambdaReturnType,
+                sema: sema, arena: arena, interner: interner, instructions: &body
+            )
+        }
+
         let callResult = arena.appendTemporary(type: lambdaReturnType)
         let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.constValue(result: thrownResult, value: .null))

@@ -86,7 +86,7 @@ extension DataFlowSemaPhase {
             fqName: enumFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: [.synthetic, .abstractType]
         )
         if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
             symbols.setParentSymbol(pkg, for: symbol)

@@ -100,6 +100,10 @@ public func kk_coroutine_call_direct_suspend(
         childState.builderContext = callerState.builderContext
         childState.flowCollectContext = callerState.flowCollectContext
         childState.resumesInline = callerState.resumesInline
+        if let scheduler = callerState.blockingScheduler {
+            childState.blockingScheduler = scheduler
+            childState.eventLoop = callerState.eventLoop
+        }
         callerState.bindSuspendedCallChild(childState)
     }
     let completion = RuntimeDirectSuspendCompletion()
