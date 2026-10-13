@@ -1,0 +1,41 @@
+{
+  "recorded_utc": "2026-10-11T02:03:52.335384+00:00",
+  "issue": "KUU-1763",
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "api_rows": 6,
+  "original_test_ids": 25,
+  "source_files": {
+    "bytestring/apple/src/ByteStringApple.kt": "3662052c919af14244ec8cdfa450f5c29b9fe6d2d9d52082350b235a59776c78",
+    "core/apple/src/AppleCore.kt": "e2e01fa258124d0504cf25a93b4bf2387180f55308330cbad56051ae103b2f78",
+    "core/apple/src/SourcesApple.kt": "395decd3b93bb43fd0ba4dfda49a04256df6ba7a7988009df2ed46656a9bef7d",
+    "core/apple/src/SinksApple.kt": "7179ec4c54d81f8c53eef421dd2ccdf21f5f7b0a4662ed06283335cd806d350f",
+    "core/apple/src/BuffersApple.kt": "493778462247ed2f964c44f6479dcd43b1ba98929e2f5d064a7ed2bc4b0a23a5",
+    "bytestring/apple/test/ByteStringAppleTest.kt": "db1e588c7bb7d5a8299602111c43a51b3ad353ad49d05b5b2058f9304d1c527a",
+    "core/apple/test/NSInputStreamSourceTest.kt": "8d9cc441568543fdbf35edbffd31ec64c243156baf539664f9825d2d48c3a533",
+    "core/apple/test/NSOutputStreamSinkTest.kt": "834c8aedacbf91b32c1e147c966a88fa4cb81503dbe2175b111b9cba95c828df",
+    "core/apple/test/SinkNSOutputStreamTest.kt": "3794605c9d61316bc4a47c92bc1070a1a2f5a7c1c2176cf131e02b995c81876c",
+    "core/apple/test/SourceNSInputStreamTest.kt": "3e28345e7b58b20279b0dd5683f47bbd98f36af0bd3800f735f26358a98189ef"
+  },
+  "prior_reference_run": "https://github.com/kuu-lab/swifty-kotlin/actions/runs/38073241455",
+  "prior_reference_target": "macos_arm64",
+  "prior_reference_files": {
+    "summary.json": "d9154979e3c7d1a3c439d3915363af5f9d2ebec78c19ccb12c19166751bd1330",
+    "execution-map.json": "cd1533b27a458191a70c4bf1f6a98b3249b50bd76ccfac3ae8a0e59636f05c3c",
+    "sdk-verification.json": "43a9df9a46fdbc1a31971fcb6d10d0c690f4f695f2a124216a4e4580bd9b307e",
+    "environment.json": "08dca435df9adc52f7274f9f900cac7afe0863a3b51bb816c1983986d9a05eb0",
+    "run.stdout": "225d3cb16d3a73f51b46cebc0764f9157c5c15673a61255d2b997a2af48307f1",
+    "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "candidate_execution": "NOT_RUN",
+  "worktree_mutation": 0,
+  "implementation": "PENDING_REAL_FOUNDATION_BINDINGS",
+  "required_lanes": [
+    "source O0",
+    "source O2",
+    "stdlib-kklib O0",
+    "stdlib-kklib O2",
+    "separate-producer-consumer O0",
+    "separate-producer-consumer O2"
+  ],
+  "excluded_api_rows": 0
+}
