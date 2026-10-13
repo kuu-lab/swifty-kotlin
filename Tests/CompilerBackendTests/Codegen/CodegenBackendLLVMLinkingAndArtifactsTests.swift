@@ -88,43 +88,6 @@ private func expectStringLengthBuiltinsLowered(in ir: String) {
     }
 }
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags,
-        stdlibLibraryPath: try testStdlibArtifactPath()
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendLLVMLinkingAndArtifactsTests {
     @Test
@@ -179,7 +142,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringLengthIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -206,7 +170,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringLengthLambdaIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -241,7 +206,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringLengthPrimitiveIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -269,7 +235,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "NullSafeStringLengthIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -304,7 +271,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringVirtualDispatchIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -352,7 +320,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "AnySmartCastStringLengthIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -387,7 +356,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringPrefixSuffixSourceBackedIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -419,7 +389,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringReplaceRangeFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -446,7 +417,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringReplaceCharIgnoreCaseFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -474,7 +446,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringIfBlankEmptyFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -506,7 +479,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringReplaceFirstCharFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -554,7 +528,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringCommonPrefixSuffixFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -583,7 +558,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringFormatFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -629,7 +605,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringIndentKotlinIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -663,7 +640,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringTrimPredicateFlatIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)

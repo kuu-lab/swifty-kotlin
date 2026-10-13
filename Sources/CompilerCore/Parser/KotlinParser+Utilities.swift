@@ -24,9 +24,8 @@ extension KotlinParser {
             return false
         }
 
-        _ = consumeToken(into: &children, range: &range) // '@'
+        _ = consumeToken(into: &children, range: &range)
 
-        // Optional use-site target: `@get:`, `@field:`, `@file:`, etc.
         let first = stream.peek()
         if isAnnotationUseSiteTarget(first),
            stream.peek(1).kind == .symbol(.colon)
@@ -35,18 +34,16 @@ extension KotlinParser {
             _ = consumeToken(into: &children, range: &range)
         }
 
-        // Qualified annotation name: `Foo`, `kotlin.Deprecated`, etc.
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
             while stream.peek().kind == .symbol(.dot),
                   isIdentifierLike(stream.peek(1).kind)
             {
-                _ = consumeToken(into: &children, range: &range) // '.'
-                _ = consumeToken(into: &children, range: &range) // name segment
+                _ = consumeToken(into: &children, range: &range)
+                _ = consumeToken(into: &children, range: &range)
             }
         }
 
-        // Optional annotation argument list: `(...)`, allowing nested parens.
         if stream.peek().kind == .symbol(.lParen) {
             var depth = 0
             while !stream.atEOF() {
@@ -158,9 +155,8 @@ extension KotlinParser {
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
     }
 
-    /// Returns an absolute end index only for a parameter prefix ending in
-    /// `name:`, without consuming tokens. Called once per parameter boundary;
-    /// the cached end also covers annotations/modifiers split across newlines.
+    /// Called once per parameter boundary; the cached end also covers
+    /// annotations/modifiers split across newlines.
     private func primaryConstructorParameterPrefixEnd() -> Int? {
         var offset = 0
         var work = 0
@@ -736,8 +732,8 @@ extension KotlinParser {
     }
 
 
-    /// The last `limit` tokens of `children` (in source order), stopping at the
-    /// most recent nested node so only the flat tail of the statement is seen.
+    /// Stops at the most recent nested node so only the flat tail of the
+    /// statement is seen.
     private func trailingTokens(of children: [SyntaxChild], limit: Int) -> [Token] {
         var collected: [Token] = []
         for child in children.reversed() {
@@ -805,7 +801,6 @@ enum ParserBoundaryPolicy {
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
     ]
 
-    /// Keywords used as error-recovery synchronization points.
     /// Excludes `.enum` because `enum` is a soft modifier (always followed by `class`)
     /// and was not a synchronization point in the original implementation.
     private static let synchronizationKeywords: Set<Keyword> = [
@@ -884,8 +879,6 @@ enum ParserBoundaryPolicy {
         return false
     }
 
-    /// Whether a newline following the just-consumed token continues the current
-    /// expression instead of ending the declaration.
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
         if case let .symbol(symbol) = kind {
             return danglingContinuationSymbols.contains(symbol)

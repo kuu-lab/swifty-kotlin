@@ -38,26 +38,6 @@ private func runExceptionDiscriminationCodegenPipeline(
 
 @Suite
 struct CodegenBackendExceptionSiblingTypeDiscriminationTests {
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runExceptionDiscriminationCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCatchClauseDoesNotWronglyMatchUnrelatedSiblingException() throws {

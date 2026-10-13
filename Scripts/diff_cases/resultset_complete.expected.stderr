@@ -1,0 +1,102 @@
+Scripts/diff_cases/resultset_complete.kt:8:1: error KSWIFTK-SEMA-0024: Unresolved import path.
+import java.sql.ResultSetMetaData
+^
+Scripts/diff_cases/resultset_complete.kt:30:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    insert.setString(2, "Alice")
+    ^
+Scripts/diff_cases/resultset_complete.kt:33:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    insert.setBoolean(5, true)
+    ^
+Scripts/diff_cases/resultset_complete.kt:34:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    insert.setString(6, "2023-01-01")
+    ^
+Scripts/diff_cases/resultset_complete.kt:38:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(1, 4) // INTEGER
+    ^
+Scripts/diff_cases/resultset_complete.kt:39:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(2, 12) // VARCHAR
+    ^
+Scripts/diff_cases/resultset_complete.kt:40:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(3, 4) // INTEGER
+    ^
+Scripts/diff_cases/resultset_complete.kt:41:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(4, 8) // DOUBLE
+    ^
+Scripts/diff_cases/resultset_complete.kt:42:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(5, 16) // BOOLEAN
+    ^
+Scripts/diff_cases/resultset_complete.kt:43:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(6, 12) // VARCHAR
+    ^
+Scripts/diff_cases/resultset_complete.kt:53:5: error KSWIFTK-SEMA-0024: Unresolved member function 'beforeFirst'.
+    resultSet.beforeFirst()
+    ^
+Scripts/diff_cases/resultset_complete.kt:61:18: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
+    val active = resultSet.getBoolean(5)
+                 ^
+Scripts/diff_cases/resultset_complete.kt:72:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // false
+            ^
+Scripts/diff_cases/resultset_complete.kt:78:18: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val nullId = resultSet.getInt("id")
+                 ^
+Scripts/diff_cases/resultset_complete.kt:79:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // true
+            ^
+Scripts/diff_cases/resultset_complete.kt:81:20: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val nullName = resultSet.getString("name")
+                   ^
+Scripts/diff_cases/resultset_complete.kt:82:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // true
+            ^
+Scripts/diff_cases/resultset_complete.kt:84:19: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val nullAge = resultSet.getInt("age")
+                  ^
+Scripts/diff_cases/resultset_complete.kt:85:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // true
+            ^
+Scripts/diff_cases/resultset_complete.kt:87:21: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val nullScore = resultSet.getDouble("score")
+                    ^
+Scripts/diff_cases/resultset_complete.kt:88:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // true
+            ^
+Scripts/diff_cases/resultset_complete.kt:90:22: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
+    val nullActive = resultSet.getBoolean("active")
+                     ^
+Scripts/diff_cases/resultset_complete.kt:91:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // true
+            ^
+Scripts/diff_cases/resultset_complete.kt:93:25: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val nullCreatedAt = resultSet.getString("created_at")
+                        ^
+Scripts/diff_cases/resultset_complete.kt:94:13: error KSWIFTK-SEMA-0024: Unresolved member function 'wasNull'.
+    println(resultSet.wasNull()) // true
+            ^
+Scripts/diff_cases/resultset_complete.kt:97:20: error KSWIFTK-SEMA-0024: Unresolved member function 'getMetaData'.
+    val metaData = resultSet.getMetaData()
+                   ^
+Scripts/diff_cases/resultset_complete.kt:133:5: error KSWIFTK-SEMA-0024: Unresolved member function 'beforeFirst'.
+    resultSet.beforeFirst()
+    ^
+Scripts/diff_cases/resultset_complete.kt:136:17: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val intId = resultSet.getInt("id")
+                ^
+Scripts/diff_cases/resultset_complete.kt:137:18: error KSWIFTK-SEMA-0024: Unresolved member function 'getLong'.
+    val longId = resultSet.getLong("id")
+                 ^
+Scripts/diff_cases/resultset_complete.kt:138:22: error KSWIFTK-SEMA-0024: Unresolved member function 'getFloat'.
+    val floatScore = resultSet.getFloat("score")
+                     ^
+Scripts/diff_cases/resultset_complete.kt:139:23: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val doubleScore = resultSet.getDouble("score")
+                      ^
+Scripts/diff_cases/resultset_complete.kt:147:22: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
+    val boolActive = resultSet.getBoolean("active")
+                     ^
+Scripts/diff_cases/resultset_complete.kt:148:21: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val intActive = resultSet.getInt("active")
+                    ^
+Scripts/diff_cases/resultset_complete.kt:164:9: error KSWIFTK-SEMA-0002: No viable overload found for call.
+        resultSet.getString("nonexistent_column")
+        ^

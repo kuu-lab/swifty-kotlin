@@ -722,16 +722,6 @@ extension NativeEmitter {
             }
         }
 
-        func buildEntrySlot(name: String, type: LLVMCAPIBindings.LLVMTypeRef? = nil) -> LLVMCAPIBindings.LLVMValueRef? {
-            bindings.buildEntryAlloca(
-                type: type ?? int64Type,
-                name: name,
-                entryBlock: entryBlock,
-                allocaBuilder: allocaBuilder,
-                fallbackBuilder: builder
-            )
-        }
-
         var labelBlocks: [Int32: LLVMCAPIBindings.LLVMBasicBlockRef] = [:]
         for instruction in function.body {
             guard case let .label(id) = instruction else {
@@ -1020,139 +1010,19 @@ extension NativeEmitter {
             return declared
         }
 
-        func stringAggregateFields(
-            _ value: LLVMCAPIBindings.LLVMValueRef,
-            suffix: String
-        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
-            // `value`'s KIR-level semantic type may be String (i.e. isStringAggregateExpr
-            // returned true) even when this particular expression was materialized as a
-            // raw (boxed) Int64 handle rather than a flat struct — e.g. a HOF lambda
-            // parameter sourced from a collection element. Extracting a struct field from
-            // a non-aggregate LLVM value crashes LLVM, so confirm the actual LLVM value is
-            // an aggregate first, bridging from the raw handle when it is not.
-            let aggregate: LLVMCAPIBindings.LLVMValueRef
-            if bindings.isAggregateStructValue(value) {
-                aggregate = value
-            } else if let bridged = bridgeRuntimeRawToStringAggregate(value, suffix: "\(suffix)_from_raw") {
-                aggregate = bridged
-            } else {
-                return nil
+        let stringAggregateBridge = StringAggregateBridgeContext(
+            emitter: self,
+            state: builderState,
+            typeSystem: typeSystem,
+            outParameterPointerType: outThrownPointerType,
+            declareTypedExternalFunction: { name, parameterTypes, returnType in
+                declareExternalFunction(
+                    named: name,
+                    parameterTypes: parameterTypes,
+                    returnType: returnType
+                )
             }
-            guard let data = bindings.buildExtractValue(builder, aggregate: aggregate, index: 0, name: "str_data_\(suffix)"),
-                  let length = bindings.buildExtractValue(builder, aggregate: aggregate, index: 1, name: "str_length_\(suffix)"),
-                  let byteCount = bindings.buildExtractValue(builder, aggregate: aggregate, index: 2, name: "str_bytes_\(suffix)"),
-                  let hash = bindings.buildExtractValue(builder, aggregate: aggregate, index: 3, name: "str_hash_\(suffix)")
-            else {
-                return nil
-            }
-            return [data, length, byteCount, hash]
-        }
-
-        func bridgeStringAggregateToRuntimeRaw(
-            _ value: LLVMCAPIBindings.LLVMValueRef,
-            suffix: String
-        ) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let typeLowering,
-                  let fields = stringAggregateFields(value, suffix: "\(suffix)_to_raw"),
-                  let bridgeFunction = declareExternalFunction(
-                      named: "kk_string_from_flat",
-                      parameterTypes: [
-                          typeLowering.dataPointerType,
-                          int64Type,
-                          int64Type,
-                          int64Type,
-                      ],
-                      returnType: int64Type
-                  )
-            else {
-                return nil
-            }
-            return bindings.buildCall(
-                builder,
-                functionType: bridgeFunction.type,
-                callee: bridgeFunction.value,
-                arguments: fields,
-                name: "string_raw_\(suffix)"
-            ).flatMap { raw in
-                // String? uses null data in aggregate form and the runtime null
-                // sentinel at erased/raw boundaries.
-                guard let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
-                      let isNull = bindings.buildICmpEqual(
-                          builder,
-                          lhs: fields[0],
-                          rhs: nullData,
-                          name: "string_raw_isnull_\(suffix)"
-                      ),
-                      let sentinel = bindings.constInt(int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true)
-                else {
-                    return raw
-                }
-                return bindings.buildSelect(
-                    builder,
-                    condition: isNull,
-                    thenValue: sentinel,
-                    elseValue: raw,
-                    name: "string_raw_nullable_\(suffix)"
-                ) ?? raw
-            }
-        }
-
-        func bridgeRuntimeRawToStringAggregate(
-            _ raw: LLVMCAPIBindings.LLVMValueRef,
-            suffix: String
-        ) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let typeLowering,
-                  let lengthSlot = allocateI64Slot(name: "string_bridge_length_\(suffix)"),
-                  let byteCountSlot = allocateI64Slot(name: "string_bridge_bytes_\(suffix)"),
-                  let hashSlot = allocateI64Slot(name: "string_bridge_hash_\(suffix)"),
-                  let bridgeFunction = declareExternalFunction(
-                      named: "kk_string_to_flat",
-                      parameterTypes: [
-                          int64Type,
-                          outThrownPointerType,
-                          outThrownPointerType,
-                          outThrownPointerType,
-                      ],
-                      returnType: typeLowering.dataPointerType
-                  ),
-                  let data = bindings.buildCall(
-                      builder,
-                      functionType: bridgeFunction.type,
-                      callee: bridgeFunction.value,
-                      arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
-                      name: "string_bridge_data_\(suffix)"
-                  ),
-                  let length = bindings.buildLoad(
-                      builder,
-                      type: int64Type,
-                      pointer: lengthSlot,
-                      name: "string_bridge_length_val_\(suffix)"
-                  ),
-                  let byteCount = bindings.buildLoad(
-                      builder,
-                      type: int64Type,
-                      pointer: byteCountSlot,
-                      name: "string_bridge_bytes_val_\(suffix)"
-                  ),
-                  let hash = bindings.buildLoad(
-                      builder,
-                      type: int64Type,
-                      pointer: hashSlot,
-                      name: "string_bridge_hash_val_\(suffix)"
-                  )
-            else {
-                return nil
-            }
-            return buildStringAggregate(
-                builder: builder,
-                lowering: typeLowering,
-                data: data,
-                length: length,
-                byteCount: byteCount,
-                hash: hash,
-                name: "string_bridge_\(suffix)"
-            )
-        }
+        )
 
         /// BUG-B: `.length` on a String must throw `NullPointerException`
         /// when the value is *actually* null at runtime, regardless of its
@@ -1176,7 +1046,7 @@ extension NativeEmitter {
             instructionIndex: Int
         ) -> Bool {
             guard let typeLowering,
-                  let fields = stringAggregateFields(receiverValue, suffix: "len_npe_\(instructionIndex)"),
+                  let fields = stringAggregateBridge.stringAggregateFields(receiverValue, suffix: "len_npe_\(instructionIndex)"),
                   let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
                   let isNull = bindings.buildICmpEqual(
                       builder, lhs: fields[0], rhs: nullData, name: "len_npe_isnull_\(instructionIndex)"
@@ -1229,18 +1099,8 @@ extension NativeEmitter {
             return true
         }
 
-        func isStringAggregateType(_ type: TypeID?) -> Bool {
-            guard let type,
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: type)
-            else {
-                return false
-            }
-            return typeLowering != nil
-        }
-
         func isStringAggregateExpr(_ id: KIRExprID) -> Bool {
-            isStringAggregateType(module.arena.exprType(id))
+            stringAggregateBridge.isStringAggregateType(module.arena.exprType(id))
         }
 
         func isPrimitiveType(_ type: TypeID?) -> Bool {
@@ -1291,21 +1151,21 @@ extension NativeEmitter {
             to toType: TypeID?,
             suffix: String
         ) -> LLVMCAPIBindings.LLVMValueRef {
-            if isStringAggregateType(fromType), !isStringAggregateType(toType) {
-                return bridgeStringAggregateToRuntimeRaw(value, suffix: suffix) ?? value
+            if stringAggregateBridge.isStringAggregateType(fromType), !stringAggregateBridge.isStringAggregateType(toType) {
+                return stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(value, suffix: suffix) ?? value
             }
-            if !isStringAggregateType(fromType), isStringAggregateType(toType) {
-                return bridgeRuntimeRawToStringAggregate(value, suffix: suffix) ?? value
+            if !stringAggregateBridge.isStringAggregateType(fromType), stringAggregateBridge.isStringAggregateType(toType) {
+                return stringAggregateBridge.bridgeRuntimeRawToStringAggregate(value, suffix: suffix) ?? value
             }
             return value
         }
 
         if usesRuntimeCallbackRawABI {
-            for (index, parameter) in function.params.enumerated() where isStringAggregateType(parameter.type) {
+            for (index, parameter) in function.params.enumerated() where stringAggregateBridge.isStringAggregateType(parameter.type) {
                 guard let rawValue = parameterValues[parameter.symbol] else {
                     continue
                 }
-                parameterValues[parameter.symbol] = bridgeRuntimeRawToStringAggregate(
+                parameterValues[parameter.symbol] = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                     rawValue,
                     suffix: "runtime_callback_param_\(index)"
                 ) ?? rawValue
@@ -1365,16 +1225,16 @@ extension NativeEmitter {
                        )
                     {
                         stringValue = nullString
-                    } else if isStringAggregateType(argumentTypes[index]) {
+                    } else if stringAggregateBridge.isStringAggregateType(argumentTypes[index]) {
                         stringValue = argumentValues[index]
                     } else if isCharSequenceRuntimeStringType(argumentTypes[index]),
-                              let bridged = bridgeRuntimeRawToStringAggregate(
+                              let bridged = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                                   argumentValues[index],
                                   suffix: "\(suffix)_arg\(index)_charseq"
                               ) {
                         stringValue = bridged
                     } else if !isPrimitiveType(argumentTypes[index]),
-                              let bridged = bridgeRuntimeRawToStringAggregate(
+                              let bridged = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                                   argumentValues[index],
                                   suffix: "\(suffix)_arg\(index)_raw"
                               ) {
@@ -1385,7 +1245,7 @@ extension NativeEmitter {
                     } else {
                         return nil
                     }
-                    guard let fields = stringAggregateFields(stringValue, suffix: "\(suffix)_arg\(index)") else { return nil }
+                    guard let fields = stringAggregateBridge.stringAggregateFields(stringValue, suffix: "\(suffix)_arg\(index)") else { return nil }
                     flattened.append(contentsOf: fields)
                 } else {
                     flattened.append(argumentValues[index])
@@ -1395,7 +1255,7 @@ extension NativeEmitter {
         }
 
         func allocateI64Slot(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let slot = buildEntrySlot(name: name) else {
+            guard let slot = stringAggregateBridge.buildEntrySlot(name: name) else {
                 return nil
             }
             _ = bindings.buildStore(builder, value: zeroValue, pointer: slot)
@@ -1572,9 +1432,9 @@ extension NativeEmitter {
                     return false
                 }
                 let storedValue: LLVMCAPIBindings.LLVMValueRef
-                if isStringAggregateType(module.arena.exprType(result)) {
+                if stringAggregateBridge.isStringAggregateType(module.arena.exprType(result)) {
                     storedValue = aggregate
-                } else if let raw = bridgeStringAggregateToRuntimeRaw(
+                } else if let raw = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                     aggregate,
                     suffix: "\(spec.flatName)_result_\(instructionIndex)"
                 ) {
@@ -1652,7 +1512,7 @@ extension NativeEmitter {
                    isStringAggregateExpr(result),
                    let scalarValue
                 {
-                    storedScalarValue = bridgeRuntimeRawToStringAggregate(
+                    storedScalarValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         scalarValue,
                         suffix: "\(spec.flatName)_result_\(instructionIndex)"
                     ) ?? scalarValue
@@ -1802,7 +1662,7 @@ extension NativeEmitter {
                             // bundled Kotlin declarations are Float/Double-typed.
                             return typeSystem.intType
                         }
-                        if isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
+                        if stringAggregateBridge.isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
                             return typeSystem.intType
                         }
                         return kotlinType
@@ -1816,7 +1676,7 @@ extension NativeEmitter {
                     // Keep the raw-bit return type aligned with RuntimeABI when an
                     // inline precompiled body retains the helper's source symbol.
                     resolvedReturnType = typeSystem.intType
-                } else if isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
+                } else if stringAggregateBridge.isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
                     resolvedReturnType = typeSystem.intType
                 } else {
                     resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType
@@ -2016,15 +1876,15 @@ extension NativeEmitter {
             // erased type) is read back as its data pointer, and a raw handle
             // stored where aggregate fields are expected is read as garbage.
             if let value,
-               bindings.isAggregateStructValue(value) != isStringAggregateType(module.arena.exprType(result))
+               bindings.isAggregateStructValue(value) != stringAggregateBridge.isStringAggregateType(module.arena.exprType(result))
             {
-                if isStringAggregateType(module.arena.exprType(result)) {
-                    storedValue = bridgeRuntimeRawToStringAggregate(
+                if stringAggregateBridge.isStringAggregateType(module.arena.exprType(result)) {
+                    storedValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         value,
                         suffix: nameCounter.nextName("store_result_raw_")
                     ) ?? value
                 } else {
-                    storedValue = bridgeStringAggregateToRuntimeRaw(
+                    storedValue = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                         value,
                         suffix: nameCounter.nextName("store_result_flat_")
                     ) ?? value
@@ -2038,10 +1898,10 @@ extension NativeEmitter {
                 // string aggregate has to be bridged back first, otherwise the
                 // 32-byte struct is written over the slot and its neighbours.
                 var globalValue = storedValue
-                if isStringAggregateType(module.arena.exprType(result)),
+                if stringAggregateBridge.isStringAggregateType(module.arena.exprType(result)),
                    bindings.isAggregateStructValue(storedValue)
                 {
-                    globalValue = bridgeStringAggregateToRuntimeRaw(
+                    globalValue = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                         storedValue,
                         suffix: nameCounter.nextName("store_result_global_")
                     ) ?? storedValue
@@ -2141,7 +2001,7 @@ extension NativeEmitter {
                 argumentCount: 1,
                 appendThrownChannel: false
             ),
-                  let markerSlot = buildEntrySlot(name: "soe_marker"),
+                  let markerSlot = stringAggregateBridge.buildEntrySlot(name: "soe_marker"),
                   let markerValue = bindings.buildPtrToInt(
                       builder,
                       value: markerSlot,
@@ -2342,7 +2202,7 @@ extension NativeEmitter {
                             defaultType: int64Type
                         )
                         let localAlloca = copyTargetAllocas[result.rawValue]
-                            ?? buildEntrySlot(name: "dbg_\(varName)", type: debugStorageType)
+                            ?? stringAggregateBridge.buildEntrySlot(name: "dbg_\(varName)", type: debugStorageType)
                         if let localAlloca {
                             if copyTargetAllocas[result.rawValue] == nil {
                                 _ = bindings.buildStore(builder, value: constLLVMValue, pointer: localAlloca)
@@ -2411,7 +2271,7 @@ extension NativeEmitter {
                     argumentCount: 1,
                     appendThrownChannel: true
                 ) {
-                    let thrownSlot = buildEntrySlot(name: "notnull_thrown_\(instructionIndex)")
+                    let thrownSlot = stringAggregateBridge.buildEntrySlot(name: "notnull_thrown_\(instructionIndex)")
                     if let thrownSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                         let callValue = bindings.buildCall(
@@ -2538,7 +2398,7 @@ extension NativeEmitter {
                 // through the same struct shape never starts throwing.
                 if Self.isStringLengthAggregateAccessorName(externalCalleeName),
                    argumentValues.count == 1,
-                   isStringAggregateType(argumentTypes.first ?? nil),
+                   stringAggregateBridge.isStringAggregateType(argumentTypes.first ?? nil),
                    emitThrowingStringLength(
                        receiverValue: argumentValues[0],
                        result: result,
@@ -2566,7 +2426,7 @@ extension NativeEmitter {
                 // outThrown channel, so the call now appends a thrown slot like
                 // every other throwing runtime entry point.
                 if calleeName == "kk_channel_receive" {
-                    let outValueSlot = buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
+                    let outValueSlot = stringAggregateBridge.buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
                     if let outValueSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
                     }
@@ -2574,7 +2434,7 @@ extension NativeEmitter {
                     receiveArgs.append(outValueSlot ?? nullThrownPointer)
                     var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                     if usesThrownChannel {
-                        if let thrownSlot = buildEntrySlot(name: "thrown_slot_\(instructionIndex)") {
+                        if let thrownSlot = stringAggregateBridge.buildEntrySlot(name: "thrown_slot_\(instructionIndex)") {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             receiveArgs.append(thrownSlot)
                             thrownSlotPointer = thrownSlot
@@ -2855,21 +2715,21 @@ extension NativeEmitter {
                             return argumentValue
                         }
                         if isRuntimeCallbackRawABIInternalCall {
-                            guard isStringAggregateType(argumentType) else {
+                            guard stringAggregateBridge.isStringAggregateType(argumentType) else {
                                 return argumentValue
                             }
-                            return bridgeStringAggregateToRuntimeRaw(
+                            return stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                                 argumentValue,
                                 suffix: "\(instructionIndex)_runtime_callback_arg\(index)"
                             ) ?? argumentValue
                         }
-                        if isStringAggregateType(argumentType), !isStringAggregateType(parameterType) {
-                            return bridgeStringAggregateToRuntimeRaw(
+                        if stringAggregateBridge.isStringAggregateType(argumentType), !stringAggregateBridge.isStringAggregateType(parameterType) {
+                            return stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                                 argumentValue,
                                 suffix: "\(instructionIndex)_internal_arg\(index)"
                             ) ?? argumentValue
                         }
-                        if !isStringAggregateType(argumentType), isStringAggregateType(parameterType) {
+                        if !stringAggregateBridge.isStringAggregateType(argumentType), stringAggregateBridge.isStringAggregateType(parameterType) {
                             if arguments.indices.contains(index),
                                isZeroConstant(arguments[index]),
                                let typeLowering,
@@ -2881,7 +2741,7 @@ extension NativeEmitter {
                             {
                                 return nullString
                             }
-                            return bridgeRuntimeRawToStringAggregate(
+                            return stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                                 argumentValue,
                                 suffix: "\(instructionIndex)_internal_arg\(index)"
                             ) ?? argumentValue
@@ -2893,10 +2753,10 @@ extension NativeEmitter {
                 if shouldBridgeExternalStringABI {
                     callArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
                         let (argumentValue, argumentType) = pair
-                        guard isStringAggregateType(argumentType) else {
+                        guard stringAggregateBridge.isStringAggregateType(argumentType) else {
                             return argumentValue
                         }
-                        return bridgeStringAggregateToRuntimeRaw(
+                        return stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             argumentValue,
                             suffix: "\(instructionIndex)_arg\(index)"
                         ) ?? argumentValue
@@ -2905,7 +2765,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = buildEntrySlot(name: "thrown_slot_\(instructionIndex)")
+                        let thrownSlot = stringAggregateBridge.buildEntrySlot(name: "thrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
@@ -2936,7 +2796,7 @@ extension NativeEmitter {
                    isStringAggregateExpr(result),
                    let callValue
                 {
-                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                    storedCallValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         callValue,
                         suffix: "\(instructionIndex)_runtime_callback_result"
                     ) ?? callValue
@@ -2948,44 +2808,44 @@ extension NativeEmitter {
                 } else if isInternalCall,
                    let result,
                    let returnType = internalSignature?.returnType,
-                   isStringAggregateType(returnType),
+                   stringAggregateBridge.isStringAggregateType(returnType),
                    !isStringAggregateExpr(result),
                    let callValue
                 {
-                    storedCallValue = bridgeStringAggregateToRuntimeRaw(
+                    storedCallValue = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                         callValue,
                         suffix: "\(instructionIndex)_internal_result"
                     ) ?? callValue
                 } else if isInternalCall,
                           let result,
                           let returnType = internalSignature?.returnType,
-                          !isStringAggregateType(returnType),
+                          !stringAggregateBridge.isStringAggregateType(returnType),
                           isStringAggregateExpr(result),
                           let callValue
                 {
-                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                    storedCallValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         callValue,
                         suffix: "\(instructionIndex)_internal_result"
                     ) ?? callValue
                 } else if sourceExternalCallSignature != nil,
                           let result,
                           let returnType = sourceExternalCallSignature?.returnType,
-                          isStringAggregateType(returnType),
+                          stringAggregateBridge.isStringAggregateType(returnType),
                           !isStringAggregateExpr(result),
                           let callValue
                 {
-                    storedCallValue = bridgeStringAggregateToRuntimeRaw(
+                    storedCallValue = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                         callValue,
                         suffix: "\(instructionIndex)_source_external_result"
                     ) ?? callValue
                 } else if sourceExternalCallSignature != nil,
                           let result,
                           let returnType = sourceExternalCallSignature?.returnType,
-                          !isStringAggregateType(returnType),
+                          !stringAggregateBridge.isStringAggregateType(returnType),
                           isStringAggregateExpr(result),
                           let callValue
                 {
-                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                    storedCallValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         callValue,
                         suffix: "\(instructionIndex)_source_external_result"
                     ) ?? callValue
@@ -2994,7 +2854,7 @@ extension NativeEmitter {
                    isStringAggregateExpr(result),
                    let callValue
                 {
-                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                    storedCallValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         callValue,
                         suffix: "\(instructionIndex)_result"
                     ) ?? callValue
@@ -3093,10 +2953,10 @@ extension NativeEmitter {
                        let symbol,
                        let property = symbols?.propertySymbol(forAccessor: symbol)
                     {
-                        return isStringAggregateType(symbols?.propertyType(for: property))
+                        return stringAggregateBridge.isStringAggregateType(symbols?.propertyType(for: property))
                     }
                     if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
-                        return isStringAggregateType(signature.returnType)
+                        return stringAggregateBridge.isStringAggregateType(signature.returnType)
                     }
                     return nil
                 }()
@@ -3139,7 +2999,7 @@ extension NativeEmitter {
                     && argumentValues.count == 1
                     && typeLowering != nil
                     && (virtualCallDeclaredAggregateResult
-                        ?? isStringAggregateType(result.flatMap { module.arena.exprType($0) }))
+                        ?? stringAggregateBridge.isStringAggregateType(result.flatMap { module.arena.exprType($0) }))
                 let isThrowableToStringVirtualCall: Bool = {
                     guard case .vtable = dispatch,
                           let symbols
@@ -3206,9 +3066,9 @@ extension NativeEmitter {
                           let linkName = symbols.externalLinkName(for: effectiveSymbol),
                           linkName.hasPrefix("kk_fn_"),
                           (
-                              isStringAggregateType(signature.returnType)
-                                  || [signature.receiverType].compactMap { $0 }.contains(where: isStringAggregateType)
-                                  || signature.parameterTypes.contains(where: isStringAggregateType)
+                              stringAggregateBridge.isStringAggregateType(signature.returnType)
+                                  || [signature.receiverType].compactMap { $0 }.contains(where: stringAggregateBridge.isStringAggregateType)
+                                  || signature.parameterTypes.contains(where: stringAggregateBridge.isStringAggregateType)
                           )
                     else {
                         return nil
@@ -3357,10 +3217,10 @@ extension NativeEmitter {
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
                         let (argumentValue, argumentType) = pair
-                        guard isStringAggregateType(argumentType) else {
+                        guard stringAggregateBridge.isStringAggregateType(argumentType) else {
                             return argumentValue
                         }
-                        return bridgeStringAggregateToRuntimeRaw(
+                        return stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             argumentValue,
                             suffix: "\(instructionIndex)_virtual_callback_arg\(index)"
                         ) ?? argumentValue
@@ -3368,10 +3228,10 @@ extension NativeEmitter {
                 } else if shouldBridgeVirtualExternalStringABI {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
                         let (argumentValue, argumentType) = pair
-                        guard isStringAggregateType(argumentType) else {
+                        guard stringAggregateBridge.isStringAggregateType(argumentType) else {
                             return argumentValue
                         }
-                        return bridgeStringAggregateToRuntimeRaw(
+                        return stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             argumentValue,
                             suffix: "\(instructionIndex)_virtual_arg\(index)"
                         ) ?? argumentValue
@@ -3639,7 +3499,7 @@ extension NativeEmitter {
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
-                        let thrownSlot = buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
+                        let thrownSlot = stringAggregateBridge.buildEntrySlot(name: "vthrown_slot_\(instructionIndex)")
                         if let thrownSlot {
                             _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
                             callArguments.append(thrownSlot)
@@ -3678,7 +3538,7 @@ extension NativeEmitter {
                    let vCallValue
                 {
                     mergedValue = isStringAggregateExpr(result)
-                        ? bridgeRuntimeRawToStringAggregate(
+                        ? stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                             vCallValue,
                             suffix: "\(instructionIndex)_virtual_throwable_message"
                         ) ?? vCallValue
@@ -3688,7 +3548,7 @@ extension NativeEmitter {
                    isStringAggregateExpr(result),
                    let vCallValue
                 {
-                    mergedValue = bridgeRuntimeRawToStringAggregate(
+                    mergedValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                         vCallValue,
                         suffix: "\(instructionIndex)_virtual_callback_result"
                     ) ?? vCallValue
@@ -3707,20 +3567,20 @@ extension NativeEmitter {
                 } else if let result,
                           let resultExprType = module.arena.exprType(result),
                           let vCallValue,
-                          isStringAggregateType(resultExprType) != bindings.isAggregateStructValue(vCallValue)
+                          stringAggregateBridge.isStringAggregateType(resultExprType) != bindings.isAggregateStructValue(vCallValue)
                 {
                     // The emitted callee ABI and the result's expected
                     // representation can disagree on string-aggregate-ness for
                     // itable or source-backed virtual calls — e.g. a flat
                     // aggregate getter result consumed as the raw i64 handle by
                     // a generic caller. Normalize by the value's actual shape.
-                    if isStringAggregateType(resultExprType) {
-                        mergedValue = bridgeRuntimeRawToStringAggregate(
+                    if stringAggregateBridge.isStringAggregateType(resultExprType) {
+                        mergedValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                             vCallValue,
                             suffix: "\(instructionIndex)_virtual_result"
                         ) ?? vCallValue
                     } else {
-                        mergedValue = bridgeStringAggregateToRuntimeRaw(
+                        mergedValue = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             vCallValue,
                             suffix: "\(instructionIndex)_virtual_flat_result"
                         ) ?? vCallValue
@@ -3868,21 +3728,21 @@ extension NativeEmitter {
                    case let .symbolRef(targetSymbol) = targetExpr,
                    let globalPtr = globalVariables[targetSymbol]
                 {
-                    if isStringAggregateType(fromType) {
-                        copySource = bridgeStringAggregateToRuntimeRaw(
+                    if stringAggregateBridge.isStringAggregateType(fromType) {
+                        copySource = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             copySource,
                             suffix: "copy_global_\(instructionIndex)"
                         ) ?? copySource
                     }
                     _ = bindings.buildStore(builder, value: copySource, pointer: globalPtr)
                 } else {
-                    if isStringAggregateType(fromType), !isStringAggregateType(toType) {
-                        copySource = bridgeStringAggregateToRuntimeRaw(
+                    if stringAggregateBridge.isStringAggregateType(fromType), !stringAggregateBridge.isStringAggregateType(toType) {
+                        copySource = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             copySource,
                             suffix: "copy_\(instructionIndex)"
                         ) ?? copySource
-                    } else if !isStringAggregateType(fromType), isStringAggregateType(toType) {
-                        copySource = bridgeRuntimeRawToStringAggregate(
+                    } else if !stringAggregateBridge.isStringAggregateType(fromType), stringAggregateBridge.isStringAggregateType(toType) {
+                        copySource = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                             copySource,
                             suffix: "copy_\(instructionIndex)"
                         ) ?? copySource
@@ -3899,8 +3759,8 @@ extension NativeEmitter {
                     continue
                 }
                 var resolved = resolveValue(value)
-                if isStringAggregateType(module.arena.exprType(value)) {
-                    resolved = bridgeStringAggregateToRuntimeRaw(
+                if stringAggregateBridge.isStringAggregateType(module.arena.exprType(value)) {
+                    resolved = stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                         resolved,
                         suffix: "store_global_\(instructionIndex)"
                     ) ?? resolved
@@ -3918,8 +3778,8 @@ extension NativeEmitter {
                         builder, type: int64Type, pointer: globalPtr,
                         name: nameCounter.nextName("load_global_")
                     ) {
-                        let loadedValue = if isStringAggregateType(module.arena.exprType(result)) {
-                            bridgeRuntimeRawToStringAggregate(
+                        let loadedValue = if stringAggregateBridge.isStringAggregateType(module.arena.exprType(result)) {
+                            stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                                 loaded,
                                 suffix: "load_global_\(instructionIndex)"
                             ) ?? loaded
@@ -3929,8 +3789,8 @@ extension NativeEmitter {
                         storeResult(result, loadedValue)
                     }
                 } else {
-                    let missingValue = if isStringAggregateType(module.arena.exprType(result)) {
-                        bridgeRuntimeRawToStringAggregate(
+                    let missingValue = if stringAggregateBridge.isStringAggregateType(module.arena.exprType(result)) {
+                        stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                             zeroValue,
                             suffix: "load_global_missing_\(instructionIndex)"
                         ) ?? zeroValue
@@ -3986,7 +3846,7 @@ extension NativeEmitter {
                 }
                 let resolvedReturnValue = resolveValue(value)
                 let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
-                    bridgeStringAggregateToRuntimeRaw(
+                    stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                         resolvedReturnValue,
                         suffix: "return_\(instructionIndex)"
                     ) ?? resolvedReturnValue
@@ -4016,7 +3876,7 @@ extension NativeEmitter {
                 if let value {
                     let resolvedReturnValue = resolveValue(value)
                     let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
-                        bridgeStringAggregateToRuntimeRaw(
+                        stringAggregateBridge.bridgeStringAggregateToRuntimeRaw(
                             resolvedReturnValue,
                             suffix: "nonlocal_return_\(instructionIndex)"
                         ) ?? resolvedReturnValue

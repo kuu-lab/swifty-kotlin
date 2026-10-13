@@ -9,16 +9,11 @@ struct DeclarationPositionValidator {
     let interner: StringInterner
     let diagnostics: DiagnosticEngine?
 
-    /// Syntactic owner a declaration is written inside.
     enum OwnerSite: Equatable {
-        /// Top level of a Kotlin source file.
         case file
-        /// A function/accessor/init body (a local declaration).
         case function
-        /// Member of a nominal declaration.
         case nominal(NominalSite)
 
-        /// Display name used in "not applicable inside 'X'" diagnostics.
         var insideName: String {
             switch self {
             case .file:
@@ -43,9 +38,7 @@ struct DeclarationPositionValidator {
         }
 
         var kind: Kind
-        /// `true` for members of a local class / local named object.
         var isLocal: Bool
-        /// Modifiers of the enclosing declaration (for expect-member rules).
         var ownerModifiers: Modifiers
         /// `true` when the owner has `init` blocks or secondary constructors
         /// that can assign stored member properties imperatively.
@@ -73,8 +66,6 @@ struct DeclarationPositionValidator {
 
     // MARK: - Entry points
 
-    /// Validate one declaration in the given syntactic site, then recurse
-    /// into its members.
     func validate(declID: DeclID, site: OwnerSite) {
         guard let decl = astArena.decl(declID) else {
             return
@@ -872,8 +863,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// Interface-member and nominal-member modifier restrictions shared by
-    /// functions, properties, classes and objects.
     private func validateInterfaceMemberModifiers(
         _ modifiers: Modifiers,
         site: NominalSite,
@@ -899,7 +888,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// Member-site restrictions applied to nested nominal declarations.
     private func validateMemberSiteModifiers(
         _ modifiers: Modifiers,
         site: NominalSite,
@@ -996,7 +984,6 @@ struct DeclarationPositionValidator {
         "compareTo", "equals", "provideDelegate", "getValue", "setValue",
     ]
 
-    /// Modifier spellings keyed by bit, in declaration order, for iteration.
     private static let funImpossibleModifiers: [(Modifiers, String)] = [
         (.data, "data"), (.sealed, "sealed"), (.inner, "inner"),
         (.enumModifier, "enum"), (.value, "value"), (.annotationClass, "annotation"),
@@ -1064,8 +1051,6 @@ struct DeclarationPositionValidator {
         (.noinline, "noinline"), (.funModifier, "fun"),
     ]
 
-    /// Position-restricted modifiers on a local class (`inside 'function'`
-    /// diagnostics are emitted separately for `final`/`inner`).
     /// `actual` is omitted: the orphan-actual symbol check
     /// (KSWIFTK-SEMA-0410) reports it with better context.
     private static let localClassForbiddenModifiers: [(Modifiers, String)] = [
@@ -1074,8 +1059,7 @@ struct DeclarationPositionValidator {
         (.sealed, "sealed"), (.enumModifier, "enum"),
     ]
 
-    /// Position-restricted modifiers on a local named object. Kind-impossible
-    /// modifiers are already covered by `objectImpossibleModifiers`.
+    /// Kind-impossible modifiers are already covered by `objectImpossibleModifiers`.
     private static let localNominalForbiddenModifiers: [(Modifiers, String)] = [
         (.public, "public"), (.private, "private"), (.internal, "internal"),
         (.protected, "protected"), (.expect, "expect"),

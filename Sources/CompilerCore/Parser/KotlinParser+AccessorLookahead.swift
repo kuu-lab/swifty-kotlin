@@ -1,7 +1,6 @@
 extension KotlinParser {
-    /// Returns `true` when `token` looks like the start of a property accessor
-    /// (`get()` or `set(...)` followed by `=` or `{`). Used to absorb
-    /// newline-separated accessor lines into the property declaration CST node.
+    /// Used to absorb newline-separated accessor lines into the property
+    /// declaration CST node.
     func isPropertyAccessorStart(_ token: Token) -> Bool {
         var offset = 0
         var hasVisibilityModifier = false
@@ -55,9 +54,8 @@ extension KotlinParser {
         }
     }
 
-    /// Returns `true` when the current token is the `field` soft keyword
-    /// followed by `=` or `:`, indicating an explicit backing field declaration
-    /// (Kotlin 2.0 feature).  Example: `field = ""` or `field: String = ""`.
+    /// Explicit backing field declaration (Kotlin 2.0 feature):
+    /// `field = ""` or `field: String = ""`.
     func isExplicitBackingFieldStart(_ token: Token) -> Bool {
         guard case .softKeyword(.field) = token.kind else { return false }
         let next = stream.peek(1)
@@ -69,8 +67,6 @@ extension KotlinParser {
         }
     }
 
-    /// Checks whether the tokens starting at `stream.peek(1)` form a
-    /// well-formed accessor header `(...)` followed by `=` or `{`.
     private func isAccessorHeaderFollowedByBody(at start: Int) -> Bool {
         guard stream.peek(start + 1).kind == .symbol(.lParen) else {
             return false
@@ -97,7 +93,6 @@ extension KotlinParser {
         return false
     }
 
-    /// Returns `true` when the given token can begin an accessor body (`=` or `{`).
     private func isAccessorBodyStart(_ token: Token) -> Bool {
         switch token.kind {
         case .symbol(.assign), .symbol(.lBrace):
