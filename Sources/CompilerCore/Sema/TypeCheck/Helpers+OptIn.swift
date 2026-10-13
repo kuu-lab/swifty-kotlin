@@ -362,8 +362,16 @@ extension TypeCheckHelpers {
         return copy
     }
 
+    func localFunctionOptInContext(_ ctx: TypeInferenceContext) -> TypeInferenceContext {
+        var copy = ctx
+        // A local extension changes currentDeclSymbol for receiver resolution,
+        // but its body still inherits the enclosing declaration's opt-ins.
+        copy.inheritedOptInMarkers = activeOptInMarkers(in: ctx)
+        return copy
+    }
+
     private func activeOptInMarkers(in ctx: TypeInferenceContext) -> Set<SymbolID> {
-        var markers = ctx.accessorOptInMarkers
+        var markers = ctx.accessorOptInMarkers.union(ctx.inheritedOptInMarkers)
         let file = currentFile(in: ctx)
 
         for markerName in ctx.globalOptInMarkerNames {

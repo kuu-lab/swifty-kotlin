@@ -292,11 +292,12 @@ extension DataFlowSemaPhase {
         if let ownerFQName = symbols.symbol(ownerSymbol)?.fqName,
            unsignedRangeFQNames.contains(ownerFQName) {
             let isEmptyName = interner.intern("isEmpty")
-            for extensionSymbol in symbols.allSymbols() {
+            for memberID in symbols.children(of: ownerSymbol) {
+                guard let extensionSymbol = symbols.symbol(memberID) else { continue }
                 guard extensionSymbol.kind == .function,
                       !extensionSymbol.flags.contains(.synthetic),
                       extensionSymbol.name == isEmptyName,
-                      symbols.parentSymbol(for: extensionSymbol.id) == ownerSymbol
+                      symbols.parentSymbolIfKnown(for: extensionSymbol.id) == ownerSymbol
                 else {
                     continue
                 }

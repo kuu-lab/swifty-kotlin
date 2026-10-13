@@ -110,6 +110,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     let globalOptInMarkerNames: [String]
     /// Opt-ins granted only inside the current accessor body.
     var accessorOptInMarkers: Set<SymbolID> = []
+    /// Opt-ins retained when local functions replace the current declaration.
+    var inheritedOptInMarkers: Set<SymbolID> = []
     /// Set of DslMarker annotation FQ names active on the current implicit receiver.
     /// When a nested lambda introduces a receiver whose class carries the same
     /// DslMarker annotation as an outer receiver, the outer receiver is hidden

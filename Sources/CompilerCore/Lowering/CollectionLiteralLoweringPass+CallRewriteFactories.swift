@@ -245,6 +245,7 @@ extension CollectionLiteralConstructionLoweringPass {
         let isHashSetConstructor = isHashSetConstructor(
             callee: callee,
             symbol: symbol,
+            arguments: arguments,
             result: result,
             module: module,
             lookup: lookup,

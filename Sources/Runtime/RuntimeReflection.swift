@@ -9,10 +9,6 @@ private func runtimeShouldExposeAnnotation(fqName: String) -> Bool {
     !runtimeHiddenAnnotationFQNames.contains(fqName)
 }
 
-private func runtimeReflectionKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
-}
-
 private extension RuntimeKClassBox {
     var reflectionSimpleName: String {
         if let metadata {
@@ -68,7 +64,7 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {
+    guard let kclass = runtimeKClassBox(from: kclassRaw) else {
         return 0
     }
     return kclass.metadata?.typeParameterCount ?? 0
@@ -81,7 +77,7 @@ public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
 /// - Returns: Opaque pointer to a RuntimeListBox of annotation handles.
 @_cdecl("__kk_kclass_get_annotations")
 public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+    guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata
     else {
         // Return empty list.
@@ -128,7 +124,7 @@ public func __kk_kcallable_register_single_annotation(
 /// - Returns: Opaque pointer to a RuntimeAnnotationBox, or null sentinel if not found.
 @_cdecl("__kk_kclass_find_annotation")
 public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+    guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata,
           let searchName = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
     else {
@@ -155,7 +151,7 @@ public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int
 /// this returns null unless a future emitter stores a runtime object handle.
 @_cdecl("__kk_kclass_find_associated_object")
 public func __kk_kclass_find_associated_object(_ kclassRaw: Int, _ keyNameRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+    guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata,
           let keyName = extractString(from: UnsafeMutableRawPointer(bitPattern: keyNameRaw))
     else {
@@ -251,7 +247,7 @@ public func __kk_kparameter_create(
     return registerRuntimeObject(box, typeID: kParameterRuntimeTypeID)
 }
 
-private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
+func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
     resolveRuntimeHandle(raw, as: RuntimeKParameterBox.self)
 }
 

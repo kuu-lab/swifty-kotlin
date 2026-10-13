@@ -70,6 +70,21 @@ public final class PhaseTimer {
     }
 
 
+    /// Measure synchronous work on the pipeline thread. With no timer, avoid
+    /// reading the clock. Failed operations still contribute a timing record.
+    public static func measureSubPhase<T>(
+        _ name: String,
+        timer: PhaseTimer?,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        guard let timer else { return try body() }
+        let start = DispatchTime.now().uptimeNanoseconds
+        defer {
+            timer.recordSubPhase(name, startTime: start, endTime: DispatchTime.now().uptimeNanoseconds)
+        }
+        return try body()
+    }
+
     /// All recorded phase timings.
     public var phaseRecords: [PhaseRecord] {
         records

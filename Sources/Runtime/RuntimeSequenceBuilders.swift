@@ -190,7 +190,7 @@ public func __kk_sequence_builder_build_coro(_ entryPointRaw: Int, _ functionID:
 // dedicated producer thread; compiler-generated builders use the CPS entry
 // point below.
 
-private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
+func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
 }
 
