@@ -58,6 +58,7 @@ struct NativeEmitter {
         let int64DIType: LLVMCAPIBindings.LLVMMetadataRef?
     }
 
+    let phaseTimer: PhaseTimer?
     let target: TargetTriple
     let optLevel: OptimizationLevel
     let debugInfo: Bool
@@ -90,8 +91,10 @@ struct NativeEmitter {
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        linkOnceODRSymbols: Set<SymbolID> = []
+        linkOnceODRSymbols: Set<SymbolID> = [],
+        phaseTimer: PhaseTimer? = nil
     ) {
+        self.phaseTimer = phaseTimer
         self.target = target
         self.optLevel = optLevel
         self.debugInfo = debugInfo
@@ -421,7 +424,9 @@ struct NativeEmitter {
     }
 
     func emitLLVMIR(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try withSubPhaseTiming("emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -435,26 +440,34 @@ struct NativeEmitter {
             bindings.setTarget(built.module, triple: triple)
 
             if optLevel != .O0 {
-                let targetMachine = try configuredTargetMachine(for: built.module)
+                let targetMachine = try withSubPhaseTiming("initTarget", timer: phaseTimer) {
+                    try configuredTargetMachine(for: built.module)
+                }
                 defer { bindings.disposeTargetMachine(targetMachine) }
-                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
-                    throw LLVMBackendError.nativeEmissionFailed(error)
+                try withSubPhaseTiming("opt", timer: phaseTimer) {
+                    if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                        throw LLVMBackendError.nativeEmissionFailed(error)
+                    }
                 }
             }
 
-            guard let llvmIR = bindings.printModule(built.module) else {
-                throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
-            }
-            do {
-                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            } catch {
-                throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            try withSubPhaseTiming("write", timer: phaseTimer) {
+                guard let llvmIR = bindings.printModule(built.module) else {
+                    throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
+                }
+                do {
+                    try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                } catch {
+                    throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+                }
             }
         }
     }
 
     func emitObject(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try withSubPhaseTiming("emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -464,15 +477,20 @@ struct NativeEmitter {
         // on Linux. Keep module construction parallel, but serialize only the
         // target-machine section that is not thread-safe.
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            let targetMachine = try configuredTargetMachine(for: built.module)
+            let targetMachine = try withSubPhaseTiming("initTarget", timer: phaseTimer) {
+                try configuredTargetMachine(for: built.module)
+            }
             defer { bindings.disposeTargetMachine(targetMachine) }
 
-            if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
-                throw LLVMBackendError.nativeEmissionFailed(error)
+            try withSubPhaseTiming("opt", timer: phaseTimer) {
+                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                    throw LLVMBackendError.nativeEmissionFailed(error)
+                }
             }
-
-            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
-                throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+            try withSubPhaseTiming("write", timer: phaseTimer) {
+                if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
+                    throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+                }
             }
         }
     }

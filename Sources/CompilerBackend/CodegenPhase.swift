@@ -12,15 +12,19 @@ public final class CodegenPhase: CompilerPhase {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }
         let fileFacadeNamesByFileID = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        let backend = try makeBackend(ctx: ctx)
+        let backend = try withSubPhaseTiming("init", timer: ctx.phaseTimer) {
+            try makeBackend(ctx: ctx)
+        }
         // Shared by the reflection records, inline-KIR artifacts, and library
         // metadata: the map is a pure function of module + interner + symbols.
-        let functionLinkInfo = makeFunctionLinkInfo(
-            module: kir,
-            ctx: ctx,
-            fileFacadeNamesByFileID: fileFacadeNamesByFileID
-        )
-        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
+        let (functionLinkInfo, reflectionRecords) = withSubPhaseTiming("prepareMetadata", timer: ctx.phaseTimer) {
+            let functionLinkInfo = makeFunctionLinkInfo(
+                module: kir,
+                ctx: ctx,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID
+            )
+            return (functionLinkInfo, buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo))
+        }
 
         do {
             switch ctx.options.emit {
@@ -168,42 +172,44 @@ public final class CodegenPhase: CompilerPhase {
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
-        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
+        try withSubPhaseTiming("writeLibraryMetadata", timer: ctx.phaseTimer) {
+            try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
 
-        let manifestPath = outputDir + "/manifest.json"
-        let metadataPath = outputDir + "/metadata.bin"
+            let manifestPath = outputDir + "/manifest.json"
+            let metadataPath = outputDir + "/metadata.bin"
 
-        let targetString = "\(ctx.options.target.arch)-\(ctx.options.target.vendor)-\(ctx.options.target.os)"
-        var manifestDict: [String: Any] = [
-            "formatVersion": 1,
-            "moduleName": ctx.options.moduleName,
-            "kotlinLanguageVersion": "2.3.10",
-            "compilerVersion": CompilerBuildInfo.version,
-            "target": targetString,
-            "objects": ["objects/\(ctx.options.moduleName)_0.o"],
-            "metadata": "metadata.bin",
-            "inlineKIRDir": "inline-kir"
-        ]
-        if ctx.options.stdlibOnly {
-            manifestDict["libraryKind"] = "stdlib"
-            manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            let targetString = "\(ctx.options.target.arch)-\(ctx.options.target.vendor)-\(ctx.options.target.os)"
+            var manifestDict: [String: Any] = [
+                "formatVersion": 1,
+                "moduleName": ctx.options.moduleName,
+                "kotlinLanguageVersion": "2.3.10",
+                "compilerVersion": CompilerBuildInfo.version,
+                "target": targetString,
+                "objects": ["objects/\(ctx.options.moduleName)_0.o"],
+                "metadata": "metadata.bin",
+                "inlineKIRDir": "inline-kir"
+            ]
+            if ctx.options.stdlibOnly {
+                manifestDict["libraryKind"] = "stdlib"
+                manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
+            }
+            if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
+                guard case let .function(function) = declaration,
+                      ctx.interner.resolve(function.name).hasPrefix("__kk_library_top_level_init_")
+                else { return nil }
+                return function
+            }).first,
+               let linkName = functionLinkInfo.functionLinkNamesBySymbol[topLevelInitializer.symbol] {
+                manifestDict["topLevelInitializerLinkName"] = linkName
+            }
+            let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
+            var manifestString = String(data: manifestData, encoding: .utf8) ?? ""
+            manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
+            try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
+
+            let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
+            try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
         }
-        if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
-            guard case let .function(function) = declaration,
-                  ctx.interner.resolve(function.name).hasPrefix("__kk_library_top_level_init_")
-            else { return nil }
-            return function
-        }).first,
-           let linkName = functionLinkInfo.functionLinkNamesBySymbol[topLevelInitializer.symbol] {
-            manifestDict["topLevelInitializerLinkName"] = linkName
-        }
-        let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
-        var manifestString = String(data: manifestData, encoding: .utf8) ?? ""
-        manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
-        try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
-
-        let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
-        try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
     }
 
     private func makeBackend(ctx: CompilationContext) throws -> LLVMBackend {
@@ -212,7 +218,8 @@ public final class CodegenPhase: CompilerPhase {
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
             diagnostics: ctx.diagnostics,
-            moduleName: ctx.options.moduleName
+            moduleName: ctx.options.moduleName,
+            phaseTimer: ctx.phaseTimer
         )
     }
 
