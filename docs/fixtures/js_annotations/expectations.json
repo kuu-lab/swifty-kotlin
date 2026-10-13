@@ -1179,6 +1179,29 @@
           "stderr": ""
         }
       }
+    },
+    {
+      "id": "unbound_create_instance",
+      "source": "valid/unbound_create_instance.kt",
+      "sourceSha256": "dec2b43b5bd13053391e90316803b8631273e29c244ac330d62a3470f4bb8d39",
+      "lanes": [
+        "native-compat"
+      ],
+      "provenance": {
+        "contract": "../../js-annotations-contract-2.3.10.md",
+        "basis": "Typed-unbound KClass<ExportedBox>::createInstance receiver and return metadata; contract section 4 assigns .kklib coverage to KUU-1616."
+      },
+      "nativeContract": {
+        "compile": {
+          "exitCode": 0,
+          "diagnostics": []
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "createInstance:7\n",
+          "stderr": ""
+        }
+      }
     }
   ]
 }

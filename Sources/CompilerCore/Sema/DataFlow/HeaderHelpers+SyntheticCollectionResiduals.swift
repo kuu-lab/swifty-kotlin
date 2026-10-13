@@ -179,7 +179,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `kotlin.collections.RandomAccess` marker interface surface.
     private func registerSyntheticRandomAccessStub(
         symbols: SymbolTable,
         types: TypeSystem,

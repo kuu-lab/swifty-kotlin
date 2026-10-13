@@ -1,7 +1,6 @@
 import Foundation
 import RuntimeABI
 
-// MARK: - Regex Runtime Types
 
 final class RuntimeRegexBox {
     let regex: NSRegularExpression
@@ -133,7 +132,6 @@ final class RuntimeMatchGroupBox {
     }
 }
 
-// MARK: - Private Helpers
 
 /// Fixed ICU/NSRegularExpression pattern that never matches any input.
 ///
@@ -572,7 +570,6 @@ private func boundedMatches(
     return timedOut ? nil : matches
 }
 
-// MARK: - STDLIB-100: Regex constructor, matches, contains
 
 @_cdecl("__kk_regex_create_flat")
 public func kk_regex_create_flat(
@@ -647,7 +644,6 @@ private func runtimeStringContainsRegex(_ rawStr: String, _ regexRaw: Int) -> In
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
-// MARK: - STDLIB-101: Regex.find / Regex.findAll
 
 @_cdecl("__kk_regex_find_flat")
 public func kk_regex_find_flat(
@@ -703,7 +699,6 @@ private func runtimeRegexFindAll(_ regexRaw: Int, input rawStr: String) -> Int {
     return regexMakeListRaw(matchResults)
 }
 
-// MARK: - STDLIB-102: String.replace(Regex) / String.split(Regex)
 
 @_cdecl("__kk_string_replace_regex")
 public func kk_string_replace_regex(
@@ -795,7 +790,6 @@ private func runtimeStringSplitRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     return regexMakeStringListRaw(parts)
 }
 
-// MARK: - STDLIB-351: Regex.replace(input) { matchResult -> replacement }
 
 @_cdecl("__kk_regex_replace_lambda")
 public func kk_regex_replace_lambda(
@@ -834,7 +828,6 @@ public func kk_regex_replace_lambda(
     return runtimeMakeUTF8StringRaw(result)
 }
 
-// MARK: - STDLIB-350: Regex.matchEntire
 
 @_cdecl("__kk_regex_matchEntire_flat")
 public func kk_regex_matchEntire_flat(
@@ -871,7 +864,6 @@ private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> I
     return registerRuntimeObject(matchResult)
 }
 
-// MARK: - STDLIB-480: Regex(pattern, option) / Regex.containsMatchIn
 
 // Named constants for Kotlin `RegexOption` enum ordinals.
 // These must stay in sync with the enum entry declaration order in
@@ -1053,7 +1045,6 @@ private func runtimeRegexContainsMatchIn(_ regexRaw: Int, input rawInput: String
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
-// MARK: - STDLIB-103: String.toRegex() / Regex.pattern
 
 @_cdecl("__kk_string_toRegex_flat")
 public func kk_string_toRegex_flat(
@@ -1063,14 +1054,10 @@ public func kk_string_toRegex_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreate(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: outThrown
-    )
+    kk_regex_create_flat(data, length, byteCount, hash, outThrown)
 }
 
 
-// MARK: - KSP-486: raw regex / match data bridges
 //
 // The public `Regex.pattern` / `Regex.options` / `Regex.groupNames` accessors and
 // the whole MatchResult / MatchGroup / MatchGroupCollection / Destructured API
@@ -1095,7 +1082,6 @@ public func __kk_regex_option_mask(_ regexRaw: Int) -> Int {
     return mask
 }
 
-// MARK: - STDLIB-101: MatchResult raw group data
 
 /// Number of groups in the match, including group 0 (the entire match).
 @_cdecl("__kk_match_result_group_count")
@@ -1200,7 +1186,6 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     return registerRuntimeObject(makeMatchResult(from: result, in: inputString, regexBox: regexBox, inputUTF16Count: utf16Count))
 }
 
-// MARK: - STDLIB-REGEX-094: Regex.fromLiteral / Regex.matches / String.replaceFirst(Regex)
 
 /// Regex.Companion.fromLiteral(literal: String) -> Regex
 ///
@@ -1283,7 +1268,6 @@ public func kk_string_replaceFirst_regex(
     return runtimeMakeUTF8StringRaw(result)
 }
 
-// MARK: - STDLIB-REGEX-098: Regex.matches(input)
 
 /// Regex.matches(input): Boolean
 /// Returns true if the entire input string is matched by this regex.
@@ -1328,7 +1312,6 @@ private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int
     return kk_box_bool(matched ? 1 : 0)
 }
 
-// MARK: - STDLIB-TEXT-TYPE-010: MatchResult.Destructured
 
 // `MatchResult.Destructured` carries no state beyond the match it destructures,
 // so it is represented by the MatchResult object itself. `component1()`..

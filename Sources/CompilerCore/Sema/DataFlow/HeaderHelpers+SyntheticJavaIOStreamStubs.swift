@@ -111,8 +111,6 @@ extension DataFlowSemaPhase {
         )
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
 
-        // MARK: - File (bare shell + path + constructors only; see header doc)
-
         let fileSymbol = ensureClassSymbol(
             named: "File",
             in: javaIOPkg,
@@ -334,8 +332,6 @@ extension DataFlowSemaPhase {
         }
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
 
-        // MARK: - Reader / BufferedReader types (STDLIB-567)
-
         // `java.io.Reader` is the abstract supertype of `BufferedReader` and is
         // the receiver of `kotlin.io` extension functions such as
         // `Reader.readText()` (STDLIB-IO-FN-033). We register it as a synthetic
@@ -366,7 +362,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(readerType, for: readerSymbol)
         symbols.setPropertyType(bufferedReaderType, for: bufferedReaderSymbol)
 
-        // BufferedReader.readLine() -> String?
         registerFileMemberFunction(
             named: "readLine",
             externalLinkName: "__kk_buffered_reader_readLine",
@@ -378,7 +373,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedReader.readLines() -> List<String>
         registerFileMemberFunction(
             named: "readLines",
             externalLinkName: "__kk_buffered_reader_readLines",
@@ -390,7 +384,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedReader.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "__kk_buffered_reader_close",
@@ -413,7 +406,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
         types.setNominalDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
 
-        // BufferedReader.read() -> Int  (STDLIB-IO-091)
         registerFileMemberFunction(
             named: "read",
             externalLinkName: "__kk_buffered_reader_read",
@@ -425,7 +417,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedReader.ready() -> Boolean  (STDLIB-IO-091)
         registerFileMemberFunction(
             named: "ready",
             externalLinkName: "__kk_buffered_reader_ready",
@@ -532,8 +523,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Writer / BufferedWriter types (STDLIB-IO-091/093)
-
         let writerSymbol = ensureClassSymbol(
             named: "Writer",
             in: javaIOPkg,
@@ -566,7 +555,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
         types.setNominalDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
 
-        // BufferedWriter.write(text: String) -> Unit
         registerFileMemberFunction(
             named: "write",
             externalLinkName: "__kk_buffered_writer_write",
@@ -578,7 +566,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedWriter.newLine() -> Unit
         registerFileMemberFunction(
             named: "newLine",
             externalLinkName: "__kk_buffered_writer_new_line",
@@ -590,7 +577,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedWriter.flush() -> Unit
         registerFileMemberFunction(
             named: "flush",
             externalLinkName: "__kk_buffered_writer_flush",
@@ -602,7 +588,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "__kk_buffered_writer_close",
@@ -613,10 +598,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // MARK: - InputStream / OutputStream (STDLIB-IO-092)
-
-        // MARK: - Resource access (STDLIB-IO-093; unrelated to File, historically co-located)
 
         let javaLangPkg = ensurePackage(
             path: ["java", "lang"],
@@ -799,8 +780,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
-        //
         // Kotlin defines:
         //   public fun InputStream.readBytes(): ByteArray
         //
@@ -865,8 +844,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - BufferedInputStream and InputStream.buffered() (STDLIB-IO-FN-003)
-        //
         // Kotlin defines:
         //   public inline fun InputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedInputStream
         // We model BufferedInputStream as a java.io.InputStream subtype and expose
@@ -1129,8 +1106,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - OutputStream.bufferedWriter(charset) (STDLIB-IO-FN-009)
-        //
         // Kotlin signature: `public fun OutputStream.bufferedWriter(
         //     charset: Charset = Charsets.UTF_8
         // ): BufferedWriter`  declared in the `kotlin.io` package.
@@ -1169,8 +1144,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Reader.readText() (STDLIB-IO-FN-033)
-        //
         // Kotlin signature: `public fun Reader.readText(): String` declared in
         // the `kotlin.io` package. Reads the entire remaining content of the
         // receiver into a single `String`. Mirrors the stdlib semantics of
@@ -1187,8 +1160,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Reader.copyTo(out: Writer, bufferSize: Int) -> Long  (STDLIB-IO-FN-014)
-        //
         // Kotlin signature:
         //   public fun Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long
         // declared in the `kotlin.io` package.  Copies the receiver's remaining
@@ -1231,8 +1202,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - ByteArray.inputStream() and ByteArray.inputStream(offset, length) (STDLIB-IO-FN-020 / STDLIB-IO-FN-021)
-        //
         // Kotlin stdlib declares two overloads in kotlin.io:
         //   fun ByteArray.inputStream(): ByteArrayInputStream
         //   fun ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream
@@ -1273,7 +1242,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // MARK: - kotlin.io.Writer.buffered (STDLIB-IO-FN-006)
         // Writer.buffered(): BufferedWriter
         // Writer.buffered(bufferSize: Int): BufferedWriter
         registerFilePackageExtensionFunction(
@@ -1323,8 +1291,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Private Helpers
 
     func resolveListSymbol(
         symbols: SymbolTable,

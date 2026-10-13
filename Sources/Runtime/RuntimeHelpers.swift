@@ -476,8 +476,6 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
     return anyObject as? T
 }
 
-// MARK: - UTF-16 Substring Helper (Kotlin-compatible indexing)
-
 /// Extracts a substring from `source` using UTF-16 code unit indices,
 /// approximating Kotlin's `CharSequence.subSequence(startIndex, endIndex)` semantics.
 ///
@@ -533,28 +531,6 @@ private let runtimeCharSequenceInterfaceTypeID =
 private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 private typealias RuntimeCharSequenceLength = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
-func runtimeCharSequenceText(from raw: Int) -> String? {
-    guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let stringBox = object as? RuntimeStringBox {
-        return stringBox.value
-    }
-    if let builderBox = object as? RuntimeStringBuilderBox {
-        return builderBox.stringValue
-    }
-    guard let units = runtimeCharSequenceItableCodeUnits(raw: raw) else {
-        return nil
-    }
-    return String(decoding: units, as: UTF16.self)
-}
 
 /// UTF-16 code units of a String or StringBuilder box without round-tripping
 /// through a materialized String. String boxes serve their lazily cached

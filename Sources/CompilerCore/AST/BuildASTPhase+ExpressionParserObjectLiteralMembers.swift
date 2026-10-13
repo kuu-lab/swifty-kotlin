@@ -337,7 +337,7 @@ extension BuildASTPhase.ExpressionParser {
         // check must not fire on this shared parsing path.
         guard !tokens.isEmpty,
               let localDeclExprID = parseLocalDeclFromSlice(
-                  tokens, suppressesLocalModifierDiagnostics: true
+                  tokens, suppressesLocalModifierDiagnostics: true, requiresCompleteInitializer: true
               ),
               let localDeclExpr = astArena.expr(localDeclExprID),
               case let .localDecl(name, isMutable, typeAnnotation, initializer, _, _) = localDeclExpr
@@ -358,6 +358,14 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        var depth = BuildASTPhase.BracketDepth()
+        for token in sanitized {
+            if token.kind == .symbol(.assign), depth.isAtTopLevel {
+                return nil
+            }
+            depth.track(token.kind)
+        }
+
         let isMutable: Bool
         switch sanitized[0].kind {
         case .keyword(.val):
@@ -368,7 +376,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        guard let name = objectLiteralDeclarationName(from: sanitized[1]) else {
+        guard let name = tokenText( sanitized[1]) else {
             return nil
         }
 
@@ -380,15 +388,13 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         let typeTokens = Array(sanitized.dropFirst(3))
-        guard !typeTokens.isEmpty,
-              let typeStart = typeTokens.first?.range,
-              let typeRef = BuildASTPhase.ExpressionParser(
-                  tokens: typeTokens[...],
-                  interner: interner,
-                  astArena: astArena,
-                  diagnostics: diagnostics
-              ).parseTypeReference(typeStart)
-        else {
+        guard let typeStart = typeTokens.first?.range else {
+            return nil
+        }
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: typeTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
+        guard let typeRef = parser.parseTypeReference(typeStart), parser.index == typeTokens.endIndex else {
             return nil
         }
         return (name, isMutable, typeRef)
@@ -479,14 +485,22 @@ extension BuildASTPhase.ExpressionParser {
         switch tokens[startIndex].kind {
         case .symbol(.assign):
             let exprStart = startIndex + 1
-            let nextAccessorIndex = topLevelAccessorStartIndex(in: tokens, from: exprStart) ?? tokens.count
-            let exprTokens = strippingMemberSeparatorSemicolons(tokens[exprStart ..< nextAccessorIndex])
+            var searchIndex = exprStart
+            while let nextAccessorIndex = topLevelAccessorStartIndex(in: tokens, from: searchIndex) {
+                let prefixTokens = strippingMemberSeparatorSemicolons(tokens[exprStart ..< nextAccessorIndex])
+                if let expression = parseObjectLiteralExpression(from: prefixTokens, requiresCompleteExpression: true),
+                   let range = astArena.exprRange(expression) {
+                    return (.expr(expression, range), nextAccessorIndex)
+                }
+                searchIndex = nextAccessorIndex + 1
+            }
+            let exprTokens = strippingMemberSeparatorSemicolons(tokens[exprStart...])
             guard let exprID = parseObjectLiteralExpression(from: exprTokens),
                   let range = astArena.exprRange(exprID)
             else {
                 return nil
             }
-            return (.expr(exprID, range), nextAccessorIndex)
+            return (.expr(exprID, range), tokens.count)
 
         case .symbol(.lBrace):
             guard let blockEndIndex = matchingBraceIndex(in: tokens, openIndex: startIndex),
@@ -506,16 +520,25 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    private func parseObjectLiteralExpression(from tokens: [Token]) -> ExprID? {
+    private func parseObjectLiteralExpression(
+        from tokens: [Token],
+        requiresCompleteExpression: Bool = false
+    ) -> ExprID? {
         guard !tokens.isEmpty else {
             return nil
         }
-        return BuildASTPhase.ExpressionParser(
+        let parser = BuildASTPhase.ExpressionParser(
             tokens: tokens[...],
             interner: interner,
             astArena: astArena,
-            diagnostics: diagnostics
-        ).parse()
+            diagnostics: requiresCompleteExpression ? nil : diagnostics
+        )
+        guard let expression = parser.parse() else { return nil }
+        if requiresCompleteExpression,
+           parser.index != tokens.endIndex || parser.hasIncompleteExpression {
+            return nil
+        }
+        return expression
     }
 
     private func parseObjectLiteralBlockBody(from tokens: [Token]) -> FunctionBody? {
@@ -604,7 +627,7 @@ extension BuildASTPhase.ExpressionParser {
             return true
         }
 
-        guard let accessorStart = topLevelAccessorStartIndex(in: combined, from: 0) else {
+        guard let accessorStart = topLevelAccessorStartIndex(in: combined, from: 0, allowIncompleteHeader: true) else {
             return false
         }
         let openParenIndex = accessorStart + 1
@@ -618,63 +641,36 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func topLevelDelegateIndex(in tokens: [Token]) -> Int? {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BuildASTPhase.BracketDepth()
         for (index, token) in tokens.enumerated() {
+            if token.kind == .symbol(.assign), depth.isBracketBraceParenTopLevel {
+                // After `=`, `by` belongs to the initializer (for example,
+                // `object : Iface by impl {}`), not to the member property.
+                return nil
+            }
             if case .softKeyword(.by) = token.kind,
-               parenDepth == 0,
-               bracketDepth == 0,
-               braceDepth == 0
+               depth.isBracketBraceParenTopLevel
             {
                 return index
             }
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
         return nil
     }
 
-    private func topLevelAccessorStartIndex(in tokens: [Token], from startIndex: Int) -> Int? {
+    private func topLevelAccessorStartIndex(
+        in tokens: [Token],
+        from startIndex: Int,
+        allowIncompleteHeader: Bool = false
+    ) -> Int? {
         guard startIndex < tokens.count else {
             return nil
         }
 
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BuildASTPhase.BracketDepth()
         if startIndex > 0 {
             for token in tokens[..<startIndex] {
-                switch token.kind {
-                case .symbol(.lParen):
-                    parenDepth += 1
-                case .symbol(.rParen):
-                    parenDepth = max(0, parenDepth - 1)
-                case .symbol(.lBracket):
-                    bracketDepth += 1
-                case .symbol(.rBracket):
-                    bracketDepth = max(0, bracketDepth - 1)
-                case .symbol(.lBrace):
-                    braceDepth += 1
-                case .symbol(.rBrace):
-                    braceDepth = max(0, braceDepth - 1)
-                default:
-                    break
-                }
+                depth.track(token.kind)
             }
         }
 
@@ -687,30 +683,36 @@ extension BuildASTPhase.ExpressionParser {
                 false
             }
             if isAccessorKeyword,
-               parenDepth == 0,
-               bracketDepth == 0,
-               braceDepth == 0,
+               depth.isBracketBraceParenTopLevel,
                index + 1 < tokens.count,
                tokens[index + 1].kind == .symbol(.lParen)
             {
-                return index
+                // A pending operand or navigation keeps get/set in the expression,
+                // including calls with trailing lambdas that resemble accessor bodies.
+                if index > 0 {
+                    let previous = tokens[index - 1].kind
+                    if BuildASTPhase.isStatementContinuationAtLineEnd(previous)
+                        || previous == .symbol(.bang)
+                    {
+                        continue
+                    }
+                }
+                if let closeParen = matchingParenIndex(in: tokens, openIndex: index + 1) {
+                    let bodyStart = closeParen + 1
+                    if bodyStart < tokens.count {
+                        switch tokens[bodyStart].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            return index
+                        default:
+                            break
+                        }
+                    } else if allowIncompleteHeader {
+                        // The following statement group may supply a block body.
+                        return index
+                    }
+                }
             }
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
         return nil
     }
@@ -780,16 +782,4 @@ extension BuildASTPhase.ExpressionParser {
         return nil
     }
 
-    private func objectLiteralDeclarationName(from token: Token) -> InternedString? {
-        switch token.kind {
-        case let .identifier(name), let .backtickedIdentifier(name):
-            name
-        case let .keyword(keyword):
-            interner.intern(keyword.rawValue)
-        case let .softKeyword(keyword):
-            interner.intern(keyword.rawValue)
-        default:
-            nil
-        }
-    }
 }

@@ -20,7 +20,6 @@
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
-    // MARK: - REFL-005: KClass.findAnnotation / findAssociatedObject Lowering
 
     func lowerKClassReifiedTypeNameHint(
         exprID: ExprID,
@@ -183,7 +182,7 @@ extension CallLowerer {
             // STDLIB-REFLECT-065: findAnnotation<T>() is a reified intrinsic with
             // no value parameters — the annotation class to search for comes from
             // the reified `T` recorded in `findAnnotationSearchType(for:)` (see
-            // `bindKClassFindAnnotationCall`), not from the argument list.
+            // the resolved CallBinding), not from the value-argument list.
             let searchType = sema.bindings.findAnnotationSearchType(for: exprID)
                 .map { sema.types.makeNonNullable($0) }
             let token: KIRExprKind
@@ -231,8 +230,6 @@ extension CallLowerer {
             return result
         }
     }
-
-    // MARK: - REFL-005: KClass variable receiver member calls
 
     /// Lowers `kclassVar.findAnnotation<A>()` / `kclassVar.findAssociatedObject<A>()`
     /// where the receiver is a local variable of type KClass<T>, not a direct

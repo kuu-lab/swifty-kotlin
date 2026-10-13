@@ -112,8 +112,6 @@ public final class Server: @unchecked Sendable {
         return nil
     }
 
-    // MARK: - Lifecycle
-
     private func handleInitialize(id: Any?) {
         let capabilities = ServerCapabilities(
             textDocumentSync: 1, // full document sync
@@ -128,8 +126,6 @@ public final class Server: @unchecked Sendable {
         )
         respond(id: id, result: JSONCoding.toObject(result) ?? NSNull())
     }
-
-    // MARK: - Document synchronization
 
     private func handleDidOpen(_ params: Any?) {
         guard let params, let parsed = JSONCoding.decode(DidOpenTextDocumentParams.self, from: params) else {
@@ -204,8 +200,6 @@ public final class Server: @unchecked Sendable {
         publishLock.unlock()
     }
 
-    // MARK: - Language features
-
     private func handleHover(id: Any?, _ params: Any?) {
         guard
             let params,
@@ -266,8 +260,6 @@ public final class Server: @unchecked Sendable {
         let actions = CodeActionFeature.codeActions(for: analysis, params: parsed)
         respond(id: id, result: JSONCoding.toObject(actions) ?? [Any]())
     }
-
-    // MARK: - Analysis helpers
 
     private func ensureAnalysis(uri: String) -> Analyzer.Analysis? {
         stateLock.lock()
@@ -407,8 +399,6 @@ public final class Server: @unchecked Sendable {
         let params = PublishDiagnosticsParams(uri: uri, version: version, diagnostics: diagnostics)
         notify(method: "textDocument/publishDiagnostics", params: JSONCoding.toObject(params) ?? [String: Any]())
     }
-
-    // MARK: - Message helpers
 
     private func respond(id: Any?, result: Any) {
         guard let id else { return }

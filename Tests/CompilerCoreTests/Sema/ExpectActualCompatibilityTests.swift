@@ -5,8 +5,9 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
-    @Test func testImportedExpectLinksToLocalActual() throws {
-        let libraryDirectory = try makeImportedExpectLibrary()
+    @Test(arguments: [false, true])
+    func testImportedExpectLinksToLocalActual(indexed: Bool) throws {
+        let libraryDirectory = try makeImportedExpectLibrary(indexed: indexed)
         defer { try? FileManager.default.removeItem(at: libraryDirectory) }
 
         try withTemporaryFile(
@@ -39,8 +40,9 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
-    @Test func testImportedExpectWithoutLocalActualIsUnresolved() throws {
-        let libraryDirectory = try makeImportedExpectLibrary()
+    @Test(arguments: [false, true])
+    func testImportedExpectWithoutLocalActualIsUnresolved(indexed: Bool) throws {
+        let libraryDirectory = try makeImportedExpectLibrary(indexed: indexed)
         defer { try? FileManager.default.removeItem(at: libraryDirectory) }
 
         try withTemporaryFile(contents: "package sample.kmp\nfun main() = 0") { path in
@@ -440,6 +442,79 @@ struct ExpectActualCompatibilityTests {
         #expect(Set(chosenConstructorCalls) == actualConstructors, "Calls should bind only actual constructors: \(chosenConstructorCalls)")
     }
 
+    @Test func testActualFunctionCanConstructItsLinkedClassReturnType() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect class RL { fun lock() }
+            expect fun mk(): RL
+            """,
+            """
+            package sample.kmp
+            actual class RL { actual fun lock() {} }
+            actual fun mk(): RL = RL()
+            fun u(): RL = RL()
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Paired class construction should satisfy the actual function return type: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let classFQName = [ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("RL")]
+        let classSymbols = sema.symbols.lookupAll(fqName: classFQName).compactMap { sema.symbols.symbol($0) }
+        let expectClass = try #require(classSymbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualClass = try #require(classSymbols.first { $0.flags.contains(.actualDeclaration) })
+        let expectType = sema.types.make(.classType(ClassType(classSymbol: expectClass.id, args: [], nullability: .nonNull)))
+        let actualType = sema.types.make(.classType(ClassType(classSymbol: actualClass.id, args: [], nullability: .nonNull)))
+        #expect(sema.types.isSubtype(expectType, actualType))
+        #expect(sema.types.isSubtype(actualType, expectType))
+    }
+
+    @Test func testTopLevelInitializerFlowsIntoLinkedActualReturnType() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect class RL
+            expect fun mk(): RL
+            """,
+            """
+            package sample.kmp
+            actual class RL
+            private val shared = RL()
+            actual fun mk(): RL = shared
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "A value of the paired actual class should satisfy the linked return type: \(errors)")
+    }
+
+    @Test func testGenericActualCallAcceptsLinkedClassArgument() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect open class S()
+            expect inline fun <T> synchronized(lock: S, block: () -> T): T
+            """,
+            """
+            package sample.kmp
+            actual open class S()
+            actual inline fun <T> synchronized(lock: S, block: () -> T): T = block()
+            fun use(): Int {
+                val m = S()
+                return synchronized(m) { 42 }
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "An actual class value should satisfy the paired generic function parameter: \(errors)")
+    }
+
     @Test func testSubclassInheritsActualClassLayoutWhenExpectAndActualShareModule() throws {
         let ctx = makeContextFromSource(
             """
@@ -634,7 +709,7 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
-    private func makeImportedExpectLibrary() throws -> URL {
+    private func makeImportedExpectLibrary(indexed: Bool) throws -> URL {
         let libraryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kklib")
         try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
@@ -650,7 +725,8 @@ struct ExpectActualCompatibilityTests {
             typeSignature: "F0<I>",
             isExpect: true
         )
-        let metadata = MetadataEncoder().serialize([record])
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed([record]) : encoder.serialize([record])
         try manifest.write(to: libraryDirectory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         return libraryDirectory

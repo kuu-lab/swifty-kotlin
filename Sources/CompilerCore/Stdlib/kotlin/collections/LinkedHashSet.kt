@@ -14,6 +14,7 @@ import kotlin.internal.KsSymbolName
 
 /**
  * Insertion-ordered mutable set.
+ * KUU-1940: preserve the distinct HashSet superclass, matching kotlin-jvm.
  *
  * Construction is lowered to the runtime set entry points
  * (`__kk_linked_hash_set_of` for the empty/capacity forms,
@@ -52,7 +53,7 @@ private external fun <E> __kkLinkedHashSetContains(
 @KsSymbolName("__kk_set_is_empty")
 private external fun <E> __kkLinkedHashSetIsEmpty(set: LinkedHashSet<E>): Boolean
 
-public open class LinkedHashSet<E> : MutableSet<E> {
+public open class LinkedHashSet<E> : HashSet<E>, MutableSet<E> {
     init {
         __kkLinkedHashSetInit(this)
     }

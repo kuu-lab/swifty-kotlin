@@ -191,6 +191,15 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
     }
+    if runtimeIsMapEntry(rawValue: lhs) || runtimeIsMapEntry(rawValue: rhs) {
+        guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
+              let rhsEntry = runtimeMapEntryValues(rawValue: rhs)
+        else {
+            return false
+        }
+        return runtimeValuesEqual(lhsEntry.key, rhsEntry.key)
+            && runtimeValuesEqual(lhsEntry.value, rhsEntry.value)
+    }
     if let lhsType = tryCast(lhsPtr, to: RuntimeKTypeBox.self),
        let rhsType = tryCast(rhsPtr, to: RuntimeKTypeBox.self) {
         return runtimeKTypeEquals(lhsType, rhsType)

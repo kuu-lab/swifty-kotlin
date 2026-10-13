@@ -4,19 +4,83 @@
 /// Split out from `CollectionLiteralLoweringPass+CallRewrite.swift` to
 /// keep the giant `rewriteCalls` body file scoped only to the rewrite
 /// dispatcher.
+extension CollectionLiteralLoweringSupport {
+    /// Resolved constructor ownership or result types take precedence over
+    /// legacy bare collection names, including for source-defined user classes.
+    func isStdlibCollectionConstructor(
+        symbol: SymbolID?,
+        className: InternedString,
+        result: KIRExprID?,
+        arena: KIRArena,
+        sema: SemaModule?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let sema else { return true }
+        let expectedFQName = [interner.intern("kotlin"), interner.intern("collections"), className]
+        func matchesCollectionClass(_ info: SemanticSymbol) -> Bool {
+            info.fqName == expectedFQName || (info.fqName.isEmpty && info.name == className)
+        }
+        if let symbol, let resolved = sema.symbols.symbol(symbol) {
+            if resolved.kind == .constructor,
+               let owner = sema.symbols.parentSymbol(for: symbol),
+               let ownerInfo = sema.symbols.symbol(owner) {
+                return matchesCollectionClass(ownerInfo)
+            }
+            return matchesCollectionClass(resolved)
+                || resolved.fqName == expectedFQName + [interner.intern("<init>")]
+        }
+        if let result,
+           let resultType = arena.exprType(result),
+           let resultClass = resolveClassType(resultType, sema: sema),
+           let resultInfo = sema.symbols.symbol(resultClass.classSymbol) {
+            return matchesCollectionClass(resultInfo)
+        }
+        // Keep the legacy fallback only when neither symbol nor type is available.
+        return true
+    }
+
+    func isStdlibCollectionConstructor(
+        symbol: SymbolID?,
+        className: InternedString,
+        result: KIRExprID?,
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> Bool {
+        isStdlibCollectionConstructor(
+            symbol: symbol, className: className, result: result,
+            arena: module.arena, sema: ctx.sema, interner: ctx.interner
+        )
+    }
+}
+
 extension CollectionLiteralConstructionLoweringPass {
+
     /// Recognizes both the legacy bare `HashSet` constructor name and the
     /// source-backed class constructor symbol emitted for the nominal class.
     func isHashSetConstructor(
         callee: InternedString,
         symbol: SymbolID?,
+        arguments: [KIRExprID],
         result: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
+        // Delegated `super(...)` / `this(...)` calls initialize an existing
+        // receiver. Their source constructor bodies must run; a factory would
+        // allocate a different set and count `this` as a value argument.
+        if callee == ctx.interner.intern("<init>"),
+           let symbol,
+           let signature = ctx.sema?.symbols.functionSignature(for: symbol),
+           arguments.count == signature.parameterTypes.count + 1
+        {
+            return false
+        }
         if callee == lookup.hashSetName {
-            return true
+            return isStdlibCollectionConstructor(
+                symbol: symbol, className: lookup.hashSetName,
+                result: result, module: module, ctx: ctx
+            )
         }
         guard let sema = ctx.sema else { return false }
         let expectedFQName = [

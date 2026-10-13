@@ -524,8 +524,6 @@ public func kk_unbox_char(_ obj: Int) -> Int {
     #endif
     return obj
 }
-
-// MARK: - Statically-known primitive ABI fast paths
 //
 // These entry points are selected by ABILoweringPass only when the source or
 // target primitive type is known at compile time. They preserve the canonical

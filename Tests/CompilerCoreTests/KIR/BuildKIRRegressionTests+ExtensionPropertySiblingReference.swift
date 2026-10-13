@@ -123,7 +123,7 @@ extension BuildKIRRegressionTests {
 
         // `label`'s getter references `id` bare on the implicit Box receiver.
         let labelGetterBody = try functionBody(of: labelProp.getter, named: "label$get")
-        try expectGetterCall(
+        expectGetterCall(
             in: labelGetterBody,
             to: idProp.getter,
             insteadOf: idProp.property,
@@ -138,7 +138,7 @@ extension BuildKIRRegressionTests {
             "Box.describe symbol not found"
         )
         let describeBody = try functionBody(of: describeSymbol, named: "describe")
-        try expectGetterCall(
+        expectGetterCall(
             in: describeBody,
             to: labelProp.getter,
             insteadOf: labelProp.property,

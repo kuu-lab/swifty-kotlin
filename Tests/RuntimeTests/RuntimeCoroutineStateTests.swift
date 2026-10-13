@@ -938,9 +938,9 @@ struct RuntimeCoroutineStateTests {
         let taskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
         defer { RuntimeCoroutineScopeTaskKey.removeKey() }
         if let state = runtimeContinuationState(from: continuation) {
-            RuntimeContinuationState.installCurrent(state, forTask: taskKey)
+            RuntimeContinuationState.installState(state, forTask: taskKey)
         }
-        defer { RuntimeContinuationState.removeCurrent(forTask: taskKey) }
+        defer { RuntimeContinuationState.removeState(forTask: taskKey) }
 
         let messageRaw = makeRuntimeString("custom stop")
         let causeRaw = __kk_throwable_new(UnsafeMutableRawPointer(bitPattern: makeRuntimeString("root cause")))

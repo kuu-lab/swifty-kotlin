@@ -11,22 +11,8 @@ package kotlinx.io
  * some data without sending it directly to an upstream.
  */
 public sealed interface Sink : RawSink {
+    @InternalIoApi
     public val buffer: Buffer
-
-    /**
-     * Writes all bytes from [source] to this sink.
-     *
-     * Upstream folds this call shape into `write(source: ByteArray, startIndex: Int = 0,
-     * endIndex: Int = source.size)`; interface-level default parameter values are not
-     * dispatched correctly on this compiler (see the note in Source.kt), so the
-     * default-taking forms are separate members.
-     */
-    public fun write(source: ByteArray)
-
-    /**
-     * Writes bytes from [source]'s subrange starting at [startIndex] to this sink.
-     */
-    public fun write(source: ByteArray, startIndex: Int)
 
     /**
      * Writes bytes from [source]'s subrange starting at [startIndex] and ending at [endIndex] to
@@ -38,6 +24,7 @@ public sealed interface Sink : RawSink {
      * Removes all bytes from [source] and writes them to this sink. Returns the number of bytes
      * read, which will be 0 if [source] is exhausted.
      */
+    @IgnorableReturnValue
     public fun transferFrom(source: RawSource): Long
 
     /**
@@ -78,5 +65,6 @@ public sealed interface Sink : RawSink {
     /**
      * Hints that the buffer may be partially emitted to the underlying sink.
      */
+    @InternalIoApi
     public fun hintEmit()
 }

@@ -251,7 +251,7 @@ struct RuntimeChannelTests {
         RuntimeCoroutineScope.installScope(activeScope, forTask: key)
         RuntimeJobHandle.current = job
         defer {
-            RuntimeContinuationState.removeCurrent(forTask: key)
+            RuntimeContinuationState.removeState(forTask: key)
             RuntimeCoroutineScope.removeScope(forTask: key)
             RuntimeCoroutineScopeTaskKey.installKey(previousKey)
             RuntimeJobHandle.current = previousJob

@@ -84,15 +84,6 @@ extension BuildASTPhase.ExpressionParser {
                         ranges.append((groupStart, lastTokenIndex + 1))
                     }
                     groupStart = idx + 1
-                    switch token.kind {
-                    case .symbol(.lParen): parenDepth += 1
-                    case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-                    case .symbol(.lBracket): bracketDepth += 1
-                    case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-                    case .symbol(.lBrace): braceDepth += 1
-                    case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-                    default: break
-                    }
                     continue
                 }
                 let hasNewline = token.leadingTrivia.contains { piece in
@@ -128,7 +119,8 @@ extension BuildASTPhase.ExpressionParser {
 
     func parseLocalDeclFromSlice(
         _ tokens: ArraySlice<Token>,
-        suppressesLocalModifierDiagnostics: Bool = false
+        suppressesLocalModifierDiagnostics: Bool = false,
+        requiresCompleteInitializer: Bool = false
     ) -> ExprID? {
         let interner = interner
         let astArena = astArena
@@ -148,9 +140,15 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(
+                let parser = BuildASTPhase.ExpressionParser(
                     tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
-                ).parse()
+                )
+                guard let expression = parser.parse() else { return nil }
+                if requiresCompleteInitializer,
+                   parser.index != slice.endIndex || parser.hasIncompleteExpression {
+                    return nil
+                }
+                return expression
             },
             parseTypeReference: { typeTokens in
                 guard let first = typeTokens.first else {
@@ -188,7 +186,7 @@ extension BuildASTPhase.ExpressionParser {
         return BuildASTPhase.LocalStatementCore.parseLocalDeclaration(
             from: tokens,
             context: context,
-            options: .blockExpression
+            options: requiresCompleteInitializer ? .declaration : .blockExpression
         )
     }
 
