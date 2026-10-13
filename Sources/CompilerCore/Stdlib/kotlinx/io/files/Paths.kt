@@ -7,13 +7,10 @@
  */
 package kotlinx.io.files
 
-import kotlin.jvm.JvmName
-import kotlinx.io.Sink
-import kotlinx.io.Source
-import kotlinx.io.buffered
+import kotlin.internal.KsSymbolName
 
 /** A string path in the host's POSIX filesystem. */
-public class Path internal constructor(private val path: String, @Suppress("UNUSED_PARAMETER") marker: Boolean) {
+public class Path internal constructor(internal val path: String, @Suppress("UNUSED_PARAMETER") marker: Boolean) {
     // This compiler mis-types block-bodied getters at call sites, so the
     // bodies delegate to private member functions; call sites see the same
     // property signatures.
@@ -52,18 +49,17 @@ public class Path internal constructor(private val path: String, @Suppress("UNUS
 }
 
 /** The native POSIX path separator. */
-// `const` so a direct read from another file does not depend on this file's
-// top-level initializer having run.
-public const val SystemPathSeparator: Char = '/'
+public val SystemPathSeparator: Char get() = '/'
 
-/** A stable POSIX temporary-directory path for this native runtime. */
-public val SystemTemporaryDirectory: Path get() = Path("/tmp")
+/** The host temporary directory following the pinned Native actual. */
+public val SystemTemporaryDirectory: Path get() = Path(ioFsTemporaryDirectory())
+
+@KsSymbolName("__kk_io_fs_temporary_directory")
+private external fun ioFsTemporaryDirectory(): String
 
 /** Matches the kotlinx-io Native Path representation: only trailing separators are removed. */
 public fun Path(path: String): Path {
-    var end = path.length
-    while (end > 1 && path[end - 1] == '/') end--
-    return Path(path.substring(0, end), true)
+    return Path(removeTrailingSeparators(path), true)
 }
 
 /** Join a base string with path components using the system separator. */
@@ -87,11 +83,3 @@ public fun Path(base: Path, vararg parts: String): Path {
     }
     return Path(result)
 }
-
-@Deprecated("Use FileSystem.source instead", level = DeprecationLevel.ERROR)
-@JvmName("sourceDeprecated")
-public fun Path.source(): Source = SystemFileSystem.source(this).buffered()
-
-@Deprecated("Use FileSystem.sink instead", level = DeprecationLevel.ERROR)
-@JvmName("sinkDeprecated")
-public fun Path.sink(): Sink = SystemFileSystem.sink(this).buffered()

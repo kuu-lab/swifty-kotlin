@@ -27,7 +27,9 @@ public sealed interface FileSystem {
     public fun list(directory: Path): Collection<Path>
 }
 
-public object SystemFileSystem : FileSystem {
+public val SystemFileSystem: FileSystem = NativeSystemFileSystem
+
+private object NativeSystemFileSystem : FileSystem {
     override fun exists(path: Path): Boolean = ioFsExists(path.toString())
 
     override fun delete(path: Path, mustExist: Boolean) {
@@ -71,13 +73,14 @@ public class FileMetadata(
 
 // Posix-backed RawSource over a file descriptor. Reads land in the sink's tail segment
 // (matching upstream's InputStreamSource granularity), so a single call returns at most
-// the current tail's remaining capacity. Closed descriptors read as `IOException`
-// ("Stream Closed") via the bridge.
+// the current tail's remaining capacity. The common RawSource closed contract is
+// checked before any descriptor access, including a zero-byte read.
 @OptIn(UnsafeIoApi::class)
 private class FileSource(private var fd: Int) : RawSource {
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
-        if (byteCount == 0L) return 0L
         if (byteCount < 0L) throw IllegalArgumentException("byteCount ($byteCount) < 0")
+        if (fd < 0) throw IllegalStateException("Stream Closed")
+        if (byteCount == 0L) return 0L
         val written = UnsafeBufferOperations.writeToTail(sink, 1) { data, startIndex, endIndex ->
             val available = endIndex - startIndex
             val request = if (byteCount < available.toLong()) byteCount.toInt() else available
@@ -108,6 +111,7 @@ private class FileSink(private var fd: Int) : RawSink {
                 "offset (0) and byteCount ($byteCount) are not within the range [0..size(${source.size}))"
             )
         }
+        if (fd < 0) throw IllegalStateException("Stream Closed")
         var remaining = byteCount
         while (remaining > 0L) {
             val consumed = UnsafeBufferOperations.readFromHead(source) { data, startIndex, endIndex ->
@@ -121,7 +125,9 @@ private class FileSink(private var fd: Int) : RawSink {
         }
     }
 
-    override fun flush() {}
+    override fun flush() {
+        if (fd < 0) throw IllegalStateException("Stream Closed")
+    }
 
     override fun close() {
         val descriptor = fd

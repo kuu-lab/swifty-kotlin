@@ -471,7 +471,10 @@ extension LambdaLowerer {
             let constructedValue = driver.callLowerer.lowerResolvedCallBody(
                 exprID,
                 args: [],
-                loweredArgIDs: callArgExprs,
+                loweredArgIDs: packOrdinaryCallableVarargValues(
+                    callArgExprs, targetSymbol: callTargetSymbol, parameterOffset: 0, resultType: returnType,
+                    sema: sema, arena: arena, interner: interner, instructions: &body
+                ),
                 chosen: callTargetSymbol,
                 callBinding: nil,
                 callableValueCallBinding: nil,
@@ -634,7 +637,10 @@ extension LambdaLowerer {
             body.append(.call(
                 symbol: callTargetSymbol,
                 callee: targetName,
-                arguments: callArgExprs,
+                arguments: packOrdinaryCallableVarargValues(
+                    callArgExprs, targetSymbol: callTargetSymbol, parameterOffset: captureArguments.count, resultType: returnType,
+                    sema: sema, arena: arena, interner: interner, instructions: &body
+                ),
                 result: callResult,
                 canThrow: false,
                 thrownResult: nil
@@ -661,6 +667,47 @@ extension LambdaLowerer {
                 )
             )
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
+        } else if let callTargetSymbol,
+                  let signature = sema.symbols.functionSignature(for: callTargetSymbol),
+                  signature.valueParameterIsVararg.contains(true),
+                  !signature.isSuspend, signature.contextReceiverTypes.isEmpty,
+                  signature.reifiedTypeParameterIndices.isEmpty,
+                  !driver.callLowerer.kirIsRuntimeBridgedCallee(callTargetSymbol, sema: sema),
+                  let boundType, case let .functionType(functionType) = sema.types.kind(of: boundType)
+        {
+            callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+            callableName = syntheticLambdaName(for: exprID, interner: interner)
+            let parameterTypes = captureArguments.map { arena.exprType($0) ?? sema.types.anyType }
+                + (functionType.receiver.map { [$0] } ?? []) + functionType.params
+            let parameters = parameterTypes.enumerated().map { index, type in
+                KIRParameter(symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index), type: type)
+            }
+            var body: [KIRInstruction] = [.beginBlock]
+            let refs = parameters.map { parameter -> KIRExprID in
+                let ref = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+                body.append(.constValue(result: ref, value: .symbolRef(parameter.symbol)))
+                return ref
+            }
+            let arguments = packOrdinaryCallableVarargValues(
+                refs, targetSymbol: callTargetSymbol,
+                parameterOffset: refs.count - signature.parameterTypes.count,
+                resultType: functionType.returnType,
+                sema: sema, arena: arena, interner: interner, instructions: &body
+            )
+            let result = arena.appendTemporary(type: functionType.returnType)
+            body.append(.call(symbol: callTargetSymbol,
+                              callee: callTargetName ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner),
+                              arguments: arguments, result: result, canThrow: true, thrownResult: nil))
+            switch sema.types.kind(of: functionType.returnType) {
+            case .unit, .nothing: body.append(.returnUnit)
+            default: body.append(.returnValue(result))
+            }
+            body.append(.endBlock)
+            driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+                symbol: callableSymbol, name: callableName, params: parameters,
+                returnType: functionType.returnType, body: body,
+                isSuspend: false, isInline: false
+            ))))
         } else if let callTargetSymbol {
             callableSymbol = callTargetSymbol
             callableName = callTargetName

@@ -157,9 +157,9 @@ extension CallTypeChecker {
                 return true
             })
         }
-        let specificityCandidates = potentiallyApplicableCandidates.isEmpty
-            ? Set(candidates)
-            : potentiallyApplicableCandidates
+        // Provisional argument types can reject every candidate before literal
+        // contextualization. Do not then prune inherited overloads by receiver.
+        let specificityCandidates = potentiallyApplicableCandidates
 
         let collectionFQName = [
             interner.intern("kotlin"),

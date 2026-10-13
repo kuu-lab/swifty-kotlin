@@ -230,6 +230,16 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        if let emptyArray = lowerEmptyArrayCallExpr(
+            chosenCallee: chosen,
+            boundType: boundType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return emptyArray
+        }
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
@@ -927,6 +937,9 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+                // Nominal return tagging is existing erased-Array behavior.
+                // Actual components belong to allocation/copy sites: an
+                // untagged legacy/erased array cannot be proven by return type.
                 instructions.append(.copy(from: taggedResult, to: result))
             }
             if let thrownResult,

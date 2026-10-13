@@ -1,0 +1,6 @@
+nonvararg-class:String
+nonvararg-default:d:String
+reified-empty:0
+reified-captured-empty:0
+reified-nested-empty:0
+reified-wrong-component:IAE

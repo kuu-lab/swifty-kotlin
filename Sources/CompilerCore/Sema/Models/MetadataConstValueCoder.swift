@@ -33,7 +33,9 @@ enum MetadataConstValueCoder {
         case "f": return UInt64(payload).map { .floatLiteral(Double(bitPattern: $0)) }
         case "d": return UInt64(payload).map { .doubleLiteral(Double(bitPattern: $0)) }
         case "c": return UInt32(payload).map { .charLiteral($0) }
-        case "b": return .boolLiteral(payload == "1")
+        case "b":
+            guard payload == "0" || payload == "1" else { return nil }
+            return .boolLiteral(payload == "1")
         case "s":
             guard let data = Data(base64Encoded: payload),
                   let text = String(data: data, encoding: .utf8)

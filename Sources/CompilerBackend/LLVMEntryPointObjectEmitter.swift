@@ -30,18 +30,21 @@ private struct LLVMEntryPointPrimitiveTypes {
     let int32Type: LLVMCAPIBindings.LLVMTypeRef
     let thrownPointerType: LLVMCAPIBindings.LLVMTypeRef
     let cStringPointerType: LLVMCAPIBindings.LLVMTypeRef
+    let argvPointerType: LLVMCAPIBindings.LLVMTypeRef
 }
 
 private struct LLVMEntryPointFunctionTypes {
     let entryType: LLVMCAPIBindings.LLVMTypeRef
     let writeType: LLVMCAPIBindings.LLVMTypeRef
     let mainType: LLVMCAPIBindings.LLVMTypeRef
+    let argumentsType: LLVMCAPIBindings.LLVMTypeRef
 }
 
 private struct LLVMEntryPointFunctions {
     let entryFunction: LLVMCAPIBindings.LLVMValueRef
     let writeFunction: LLVMCAPIBindings.LLVMValueRef
     let mainFunction: LLVMCAPIBindings.LLVMValueRef
+    let argumentsFunction: LLVMCAPIBindings.LLVMValueRef
 }
 
 private struct LLVMEntryPointBlocks {
@@ -63,10 +66,12 @@ struct LLVMEntryPointObjectEmitter {
     private let bindings: LLVMCAPIBindings
     private let target: TargetTriple
     private let phaseTimer: PhaseTimer?
+    private let takesArguments: Bool
     private let panicMessageText = "KSwiftK panic [KSWIFTK-LINK-0003]: Unhandled top-level exception\n"
 
     init(
         target: TargetTriple,
+        takesArguments: Bool = false,
         phaseTimer: PhaseTimer? = nil,
         session: LLVMBackendSession = LLVMBackendSession()
     ) throws {
@@ -78,6 +83,7 @@ struct LLVMEntryPointObjectEmitter {
         self.phaseTimer = phaseTimer
         self.bindings = bindings
         self.target = target
+        self.takesArguments = takesArguments
     }
 
     func emit(entrySymbol: String, outputPath: String) throws -> String {
@@ -191,18 +197,22 @@ struct LLVMEntryPointObjectEmitter {
         guard let cStringPointerType = bindings.pointerType(int8Type) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("LLVMPointerType returned null for panic message")
         }
+        guard let argvPointerType = bindings.pointerType(cStringPointerType) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("LLVMPointerType returned null for argv")
+        }
         return LLVMEntryPointPrimitiveTypes(
             int64Type: int64Type,
             int32Type: int32Type,
             thrownPointerType: thrownPointerType,
-            cStringPointerType: cStringPointerType
+            cStringPointerType: cStringPointerType,
+            argvPointerType: argvPointerType
         )
     }
 
     private func makeFunctionTypes(_ primitiveTypes: LLVMEntryPointPrimitiveTypes) throws -> LLVMEntryPointFunctionTypes {
         guard let entryType = bindings.functionType(
             returnType: primitiveTypes.int64Type,
-            parameters: [primitiveTypes.thrownPointerType],
+            parameters: (takesArguments ? [primitiveTypes.int64Type] : []) + [primitiveTypes.thrownPointerType],
             isVarArg: false
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create entry function type")
@@ -220,12 +230,21 @@ struct LLVMEntryPointObjectEmitter {
         }
         guard let mainType = bindings.functionType(
             returnType: primitiveTypes.int32Type,
-            parameters: [],
+            parameters: [primitiveTypes.int32Type, primitiveTypes.argvPointerType],
             isVarArg: false
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create main wrapper type")
         }
-        return LLVMEntryPointFunctionTypes(entryType: entryType, writeType: writeType, mainType: mainType)
+        guard let argumentsType = bindings.functionType(
+            returnType: primitiveTypes.int64Type,
+            parameters: [primitiveTypes.int32Type, primitiveTypes.argvPointerType],
+            isVarArg: false
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create process arguments function type")
+        }
+        return LLVMEntryPointFunctionTypes(
+            entryType: entryType, writeType: writeType, mainType: mainType, argumentsType: argumentsType
+        )
     }
 
     private func declareFunctions(
@@ -246,10 +265,16 @@ struct LLVMEntryPointObjectEmitter {
         guard let mainFunction = bindings.addFunction(module: module, name: "main", functionType: functionTypes.mainType) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare main wrapper function")
         }
+        guard let argumentsFunction = bindings.addFunction(
+            module: module, name: "__kk_process_args_from_argv", functionType: functionTypes.argumentsType
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare process arguments function")
+        }
         return LLVMEntryPointFunctions(
             entryFunction: entryFunction,
             writeFunction: writeFunction,
-            mainFunction: mainFunction
+            mainFunction: mainFunction,
+            argumentsFunction: argumentsFunction
         )
     }
 
@@ -375,11 +400,28 @@ struct LLVMEntryPointObjectEmitter {
         functions: LLVMEntryPointFunctions,
         constants: LLVMEntryPointConstants
     ) throws -> LLVMCAPIBindings.LLVMValueRef {
+        var arguments: [LLVMCAPIBindings.LLVMValueRef?] = []
+        if takesArguments {
+            guard let argc = bindings.getParam(function: functions.mainFunction, index: 0),
+                  let argv = bindings.getParam(function: functions.mainFunction, index: 1),
+                  let args = bindings.buildCall(
+                    builder,
+                    functionType: functionTypes.argumentsType,
+                    callee: functions.argumentsFunction,
+                    arguments: [argc, argv],
+                    name: "process.arguments"
+                  )
+            else {
+                throw LLVMEntryPointObjectEmitterError.invalidIR("failed to materialize process arguments")
+            }
+            arguments.append(args)
+        }
+        arguments.append(constants.thrownSlot)
         guard let entryResult = bindings.buildCall(
             builder,
             functionType: functionTypes.entryType,
             callee: functions.entryFunction,
-            arguments: [constants.thrownSlot],
+            arguments: arguments,
             name: "entry.result"
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit entry function call")
