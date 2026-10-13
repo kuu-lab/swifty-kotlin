@@ -239,6 +239,7 @@ extension CallTypeChecker {
         prepareSingleCandidateNestedCallExpectedTypes(
             args: args,
             candidates: candidates,
+            preInferredArgumentTypes: cachedNonLambdaArgTypes,
             ctx: ctx,
             expectedTypeOverrides: &argumentExpectedTypeOverrides
         )
