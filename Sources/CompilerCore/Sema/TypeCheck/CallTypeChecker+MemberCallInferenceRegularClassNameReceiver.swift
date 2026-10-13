@@ -4,8 +4,9 @@ extension CallTypeChecker {
     /// Class-name (`Owner.member`) receiver resolution, extracted verbatim from
     /// `inferRegularMemberCall`. Handles static member values and functions,
     /// enum-owned source extensions, nested classifiers and nested constructors
-    /// before ordinary member/extension lookup runs.
-    /// Returns nil when no class-name receiver path applies.
+    /// before ordinary member/extension lookup runs. Named object qualifiers
+    /// share only the nested-classifier path; their members use instance lookup.
+    /// Returns nil when no classifier-qualifier path applies.
     func tryInferRegularMemberCallClassNameReceiver(
         _ request: MemberCallInferenceRequest,
         isClassNameReceiver: Bool,
@@ -285,7 +286,36 @@ extension CallTypeChecker {
                     }
                 }
             }
+        }
 
+        let nestedClassifierOwnerSymbol: SymbolID? = {
+            if isClassNameReceiver {
+                return classNameReceiverNominalSymbol
+            }
+            guard !request.safeCall else {
+                return nil
+            }
+            // A named object is both a value and a classifier qualifier.
+            // Values with the object's type (including this) cannot qualify
+            // nested classes, so require the object declaration binding.
+            switch ast.arena.expr(receiverID) {
+            case .nameRef:
+                break
+            case .memberCall where !ast.arena.isExplicitCall(receiverID):
+                break
+            default:
+                return nil
+            }
+            guard let symbolID = sema.bindings.identifierSymbol(for: receiverID),
+                  sema.symbols.symbol(symbolID)?.kind == .object
+            else {
+                return nil
+            }
+            return symbolID
+        }()
+        if let ownerSymbol = nestedClassifierOwnerSymbol,
+           let owner = sema.symbols.symbol(ownerSymbol)
+        {
             let nestedOwnerFQName = owner.fqName + [calleeName]
             var nestedOwnerSymbols = sema.symbols.lookupAll(fqName: nestedOwnerFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else {
@@ -384,24 +414,26 @@ extension CallTypeChecker {
                 }
             }
             if !nestedCtorCandidates.isEmpty {
-                let hasCompanionFunctionCandidates: Bool = {
-                    guard let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol) else {
+                let hasFactoryFunctionCandidates: Bool = {
+                    let factoryOwner = owner.kind == .object
+                        ? ownerSymbol : sema.symbols.companionObjectSymbol(for: ownerSymbol)
+                    guard let factoryOwner else {
                         return false
                     }
-                    let companionType = sema.types.make(.classType(ClassType(
-                        classSymbol: companionSymbol,
+                    let factoryType = sema.types.make(.classType(ClassType(
+                        classSymbol: factoryOwner,
                         args: [],
                         nullability: .nonNull
                     )))
                     if !driver.helpers.collectMemberFunctionCandidates(
                         named: calleeName,
-                        receiverType: companionType,
+                        receiverType: factoryType,
                         sema: sema,
                         interner: interner
                     ).isEmpty {
                         return true
                     }
-                    // Mirror the ordinary companion lookup's scoped and
+                    // Mirror ordinary object/companion lookup's scoped and
                     // imported-library extension fallbacks.
                     let extensionCandidates = ctx.cachedScopeLookup(calleeName)
                         + sema.symbols.lookupByShortName(calleeName).filter {
@@ -414,7 +446,7 @@ extension CallTypeChecker {
                             return false
                         }
                         return extensionSyntheticFallbackReceiverMatches(
-                            callSiteReceiver: companionType,
+                            callSiteReceiver: factoryType,
                             declaredReceiver: receiver,
                             sema: sema
                         )
@@ -423,8 +455,8 @@ extension CallTypeChecker {
                 let (visibleNested, invisibleNested) = ctx.filterByVisibility(nestedCtorCandidates)
                 if visibleNested.isEmpty, let firstInvisible = invisibleNested.first {
                     // An inaccessible constructor must not hide an accessible
-                    // companion factory. Let ordinary member lookup resolve it.
-                    if hasCompanionFunctionCandidates {
+                    // object or companion factory. Let ordinary lookup resolve it.
+                    if hasFactoryFunctionCandidates {
                         return nil
                     }
                     driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
@@ -515,12 +547,12 @@ extension CallTypeChecker {
                     )
                     if let diagnostic = resolved.diagnostic {
                         // Kotlin gives applicable nested constructors priority
-                        // for Owner.Name(...), but retries companion functions
+                        // for Owner.Name(...), but retries object/companion functions
                         // when no constructor is applicable. Keep constructor
                         // ambiguity instead of silently choosing a factory.
                         // A result-type mismatch does not make an otherwise
                         // applicable constructor yield to a companion function.
-                        if hasCompanionFunctionCandidates,
+                        if hasFactoryFunctionCandidates,
                            diagnostic.code != "KSWIFTK-SEMA-0003",
                            expectedType == nil || ctx.resolver.probeCall(
                                candidates: visibleNested,
