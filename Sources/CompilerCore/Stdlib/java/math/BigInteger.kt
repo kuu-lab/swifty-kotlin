@@ -24,6 +24,44 @@ public class BigInteger private constructor(private val decimalValue: String) {
         return BigInteger((if (negative) "-" else "") + product)
     }
 
+    public override fun equals(other: Any?): Boolean {
+        if (other !is BigInteger) return false
+        val that = other as BigInteger
+        // All construction paths produce canonical signed decimal strings.
+        return decimalValue == that.decimalValue
+    }
+
+    public override fun hashCode(): Int {
+        val negative = decimalValue[0] == '-'
+        var digitIndex = if (negative) 1 else 0
+        // Convert the decimal magnitude to little-endian unsigned 32-bit words.
+        val words = LongArray(decimalValue.length - digitIndex)
+        var wordCount = 0
+        while (digitIndex < decimalValue.length) {
+            var carry = (decimalValue[digitIndex].code - '0'.code).toLong()
+            var wordIndex = 0
+            while (wordIndex < wordCount) {
+                val value = words[wordIndex] * 10L + carry
+                words[wordIndex] = value % 4294967296L
+                carry = value / 4294967296L
+                wordIndex++
+            }
+            if (carry != 0L) {
+                words[wordCount] = carry
+                wordCount++
+            }
+            digitIndex++
+        }
+
+        // Java BigInteger hashes magnitude words from most significant to least.
+        var hash = 0
+        var wordIndex = wordCount - 1
+        while (wordIndex >= 0) {
+            hash = (31L * hash.toLong() + words[wordIndex]).toInt()
+            wordIndex--
+        }
+        return if (negative) -hash else hash
+    }
     /**
      * Shifts exactly, reversing direction for negative distances.
      * Results outside (-2^Int.MAX_VALUE, 2^Int.MAX_VALUE) throw ArithmeticException.
