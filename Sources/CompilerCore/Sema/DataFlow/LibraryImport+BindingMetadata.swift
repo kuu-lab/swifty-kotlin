@@ -194,7 +194,8 @@ extension DataFlowSemaPhase {
                 metadataPath: binding.metadataPath,
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
-                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? []
+                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? [],
+                isStdlibArtifact: isStdlibArtifact
             )
             let usesLegacyABI = symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) == true
             let hasReferenceVararg = signature.parameterTypes.indices.contains { index in

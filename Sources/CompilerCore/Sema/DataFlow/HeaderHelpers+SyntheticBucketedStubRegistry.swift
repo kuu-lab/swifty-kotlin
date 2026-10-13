@@ -195,9 +195,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeInterop") { phase, symbols, types, interner in
             phase.registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ThreadLocal") { phase, symbols, types, interner in
-            phase.registerSyntheticThreadLocalStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "CoroutineCancellation") { phase, symbols, types, interner in
             phase.registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
         },
