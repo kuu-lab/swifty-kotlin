@@ -284,6 +284,8 @@ struct MetadataIndexEntry {
     let offset: Int
     let length: Int
     let record: MetadataRecord
+    /// Older v2 indexes omit initializer links; absence is unknown there.
+    var hasCompleteInitializerInfo: Bool = false
 }
 
 /// Lazily reads v2 metadata records from the body section of `metadata.bin`.
@@ -331,6 +333,19 @@ final class IndexedMetadataFile {
             func string(_ range: Range<Int>) -> String {
                 String(decoding: UnsafeBufferPointer(rebasing: bytes[range]), as: UTF8.self)
             }
+            func recordLineHasCompleteInitializerInfo(_ recordBytes: UnsafeBufferPointer<UInt8>) -> Bool {
+                var tokenStart = 0
+                for index in 0 ... recordBytes.count
+                where index == recordBytes.count || recordBytes[index] == 0x20 {
+                    if tokenStart < index,
+                       Self.stringMarkerMatches(tokenStart ..< index, bytes: recordBytes, marker: "initIndex=1")
+                    {
+                        return true
+                    }
+                    tokenStart = index + 1
+                }
+                return false
+            }
             func headerLine() -> String? {
                 readLine().map { string($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             }
@@ -362,7 +377,10 @@ final class IndexedMetadataFile {
                 else { return nil }
                 let recordBytes = UnsafeBufferPointer(rebasing: bytes[secondTab + 1 ..< range.upperBound])
                 guard let record = decoder.decodeIndexRecordLine(recordBytes) else { return nil }
-                entries.append(MetadataIndexEntry(offset: offset, length: length, record: record))
+                entries.append(MetadataIndexEntry(
+                    offset: offset, length: length, record: record,
+                    hasCompleteInitializerInfo: recordLineHasCompleteInitializerInfo(recordBytes)
+                ))
             }
             return nil
         }

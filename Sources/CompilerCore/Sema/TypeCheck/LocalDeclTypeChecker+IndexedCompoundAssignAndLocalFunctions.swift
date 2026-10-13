@@ -669,7 +669,7 @@ extension LocalDeclTypeChecker {
         }
         bodyLocals.memberFlow = [:]
         let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
-        var bodyCtx = ctx.copying(
+        var bodyCtx = driver.helpers.localFunctionOptInContext(ctx).copying(
             scope: localFunctionScope,
             implicitReceiverType: bodyReceiverType,
             loopDepth: 0,

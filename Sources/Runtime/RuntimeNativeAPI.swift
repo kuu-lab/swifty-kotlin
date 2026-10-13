@@ -81,8 +81,7 @@ public func kk_cpointer_address(_ handle: Int) -> Int {
 
 @_cdecl("kk_cpointer_toLong")
 public func kk_cpointer_toLong(_ handle: Int) -> Int {
-    guard let box = resolveCPointerBox(from: handle) else { return 0 }
-    return Int(bitPattern: box.address)
+    kk_cpointer_address(handle)
 }
 
 @_cdecl("kk_cpointer_toKStringFromUtf32")
