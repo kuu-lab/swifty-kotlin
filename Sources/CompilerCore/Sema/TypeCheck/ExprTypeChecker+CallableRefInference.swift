@@ -837,6 +837,12 @@ extension ExprTypeChecker {
                 "Unresolved reference '::\(interner.resolve(member))'.",
                 range: range
             )
+        } else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-TYPE-0001",
+                "No unambiguous callable reference matches the expected function type.",
+                range: range
+            )
         }
         let fallbackType: TypeID = if let expectedType,
                                       case .functionType = sema.types.kind(of: expectedType)
