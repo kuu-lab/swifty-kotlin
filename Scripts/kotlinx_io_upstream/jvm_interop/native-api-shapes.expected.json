@@ -1,0 +1,849 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "functionCount": 28,
+  "rows": [
+    {
+      "rowID": "jvm-029b860360198f31",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:55",
+      "fqName": "kotlinx.io.bytestring.getByteString",
+      "receiver": "Ljava.nio.ByteBuffer;",
+      "signature": "F1<RLjava.nio.ByteBuffer;,I,Lkotlinx.io.bytestring.ByteString;>",
+      "parameters": [
+        "length"
+      ],
+      "parameterTypes": [
+        "I"
+      ],
+      "returnType": "Lkotlinx.io.bytestring.ByteString;",
+      "defaults": [
+        true
+      ],
+      "defaultExpressions": [
+        "remaining()"
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeByteStringApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-5999d4854c8b8539",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:79",
+      "fqName": "kotlinx.io.bytestring.getByteString",
+      "receiver": "Ljava.nio.ByteBuffer;",
+      "signature": "F2<RLjava.nio.ByteBuffer;,I,I,Lkotlinx.io.bytestring.ByteString;>",
+      "parameters": [
+        "at",
+        "length"
+      ],
+      "parameterTypes": [
+        "I",
+        "I"
+      ],
+      "returnType": "Lkotlinx.io.bytestring.ByteString;",
+      "defaults": [
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeByteStringApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-6fc264760c97057e",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:117",
+      "fqName": "kotlinx.io.bytestring.putByteString",
+      "receiver": "Ljava.nio.ByteBuffer;",
+      "signature": "F2<RLjava.nio.ByteBuffer;,I,Lkotlinx.io.bytestring.ByteString;,U>",
+      "parameters": [
+        "at",
+        "string"
+      ],
+      "parameterTypes": [
+        "I",
+        "Lkotlinx.io.bytestring.ByteString;"
+      ],
+      "returnType": "U",
+      "defaults": [
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-7022588e1be6eff8",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:19",
+      "fqName": "kotlinx.io.bytestring.decodeToString",
+      "receiver": "Lkotlinx.io.bytestring.ByteString;",
+      "signature": "F1<RLkotlinx.io.bytestring.ByteString;,Ljava.nio.charset.Charset;,Lkotlin_String;>",
+      "parameters": [
+        "charset"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.charset.Charset;"
+      ],
+      "returnType": "Lkotlin_String;",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-dce75980a29a7986",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:100",
+      "fqName": "kotlinx.io.bytestring.putByteString",
+      "receiver": "Ljava.nio.ByteBuffer;",
+      "signature": "F1<RLjava.nio.ByteBuffer;,Lkotlinx.io.bytestring.ByteString;,U>",
+      "parameters": [
+        "string"
+      ],
+      "parameterTypes": [
+        "Lkotlinx.io.bytestring.ByteString;"
+      ],
+      "returnType": "U",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeByteStringApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-eecfbff816606455",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:26",
+      "fqName": "kotlinx.io.bytestring.encodeToByteString",
+      "receiver": "Lkotlin_String;",
+      "signature": "F1<RLkotlin_String;,Ljava.nio.charset.Charset;,Lkotlinx.io.bytestring.ByteString;>",
+      "parameters": [
+        "charset"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.charset.Charset;"
+      ],
+      "returnType": "Lkotlinx.io.bytestring.ByteString;",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-290052e137a32b72",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/JvmCore.kt:36",
+      "fqName": "kotlinx.io.asSink",
+      "receiver": "Ljava.io.OutputStream;",
+      "signature": "F0<RLjava.io.OutputStream;,Lkotlinx.io.RawSink;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Lkotlinx.io.RawSink;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-2cd93875bc5aede4",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/SourcesJvm.kt:143",
+      "fqName": "kotlinx.io.readAtMostTo",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,Ljava.nio.ByteBuffer;,I>",
+      "parameters": [
+        "sink"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.ByteBuffer;"
+      ],
+      "returnType": "I",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "InternalIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-31b5c8ba447c95aa",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:178",
+      "fqName": "kotlinx.io.transferFrom",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F1<RLkotlinx.io.Buffer;,Ljava.nio.ByteBuffer;,Lkotlinx.io.Buffer;>",
+      "parameters": [
+        "source"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.ByteBuffer;"
+      ],
+      "returnType": "Lkotlinx.io.Buffer;",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.IgnorableReturnValue",
+          "sourceOnly": false,
+          "arguments": []
+        },
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-3dca21e87c304e48",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:58",
+      "fqName": "kotlinx.io.write",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F2<RLkotlinx.io.Buffer;,Ljava.io.InputStream;,J,Lkotlinx.io.Buffer;>",
+      "parameters": [
+        "input",
+        "byteCount"
+      ],
+      "parameterTypes": [
+        "Ljava.io.InputStream;",
+        "J"
+      ],
+      "returnType": "Lkotlinx.io.Buffer;",
+      "defaults": [
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.IgnorableReturnValue",
+          "sourceOnly": false,
+          "arguments": []
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-40641508baa6fa7d",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:40",
+      "fqName": "kotlinx.io.transferFrom",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F1<RLkotlinx.io.Buffer;,Ljava.io.InputStream;,Lkotlinx.io.Buffer;>",
+      "parameters": [
+        "input"
+      ],
+      "parameterTypes": [
+        "Ljava.io.InputStream;"
+      ],
+      "returnType": "Lkotlinx.io.Buffer;",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.IgnorableReturnValue",
+          "sourceOnly": false,
+          "arguments": []
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-7bc6180f6f43bafe",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:158",
+      "fqName": "kotlinx.io.readAtMostTo",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F1<RLkotlinx.io.Buffer;,Ljava.nio.ByteBuffer;,I>",
+      "parameters": [
+        "sink"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.ByteBuffer;"
+      ],
+      "returnType": "I",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-7c34b65de478db79",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/SourcesJvm.kt:86",
+      "fqName": "kotlinx.io.readString",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F2<RLkotlinx.io.Source;,J,Ljava.nio.charset.Charset;,Lkotlin_String;>",
+      "parameters": [
+        "byteCount",
+        "charset"
+      ],
+      "parameterTypes": [
+        "J",
+        "Ljava.nio.charset.Charset;"
+      ],
+      "returnType": "Lkotlin_String;",
+      "defaults": [
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "InternalIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-8592e640ea83a724",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/SinksJvm.kt:101",
+      "fqName": "kotlinx.io.write",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,Ljava.nio.ByteBuffer;,I>",
+      "parameters": [
+        "source"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.ByteBuffer;"
+      ],
+      "returnType": "I",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "InternalIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-9d569550974b6a68",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/unsafe/UnsafeBufferOperationsJvm.kt:149",
+      "fqName": "kotlinx.io.unsafe.readBulk",
+      "receiver": "Lkotlinx.io.unsafe.UnsafeBufferOperations;",
+      "signature": "F3<RLkotlinx.io.unsafe.UnsafeBufferOperations;,Lkotlinx.io.Buffer;,Lkotlin.Array<Q<Ljava.nio.ByteBuffer;>>;,F2<Lkotlin.Array<Q<Ljava.nio.ByteBuffer;>>;,I,J>,J>",
+      "parameters": [
+        "buffer",
+        "iovec",
+        "readAction"
+      ],
+      "parameterTypes": [
+        "Lkotlinx.io.Buffer;",
+        "Lkotlin.Array<Q<Ljava.nio.ByteBuffer;>>;",
+        "F2<Lkotlin.Array<Q<Ljava.nio.ByteBuffer;>>;,I,J>"
+      ],
+      "returnType": "J",
+      "defaults": [
+        false,
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null,
+        null
+      ],
+      "inline": true,
+      "callbackIndex": 2,
+      "annotations": [
+        {
+          "fqName": "kotlinx.io.UnsafeIoApi",
+          "sourceOnly": false,
+          "arguments": []
+        },
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "ExperimentalContracts::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-a00905ccd34f6ff7",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/unsafe/UnsafeBufferOperationsJvm.kt:92",
+      "fqName": "kotlinx.io.unsafe.writeToTail",
+      "receiver": "Lkotlinx.io.unsafe.UnsafeBufferOperations;",
+      "signature": "F3<RLkotlinx.io.unsafe.UnsafeBufferOperations;,Lkotlinx.io.Buffer;,I,F1<Ljava.nio.ByteBuffer;,U>,I>",
+      "parameters": [
+        "buffer",
+        "minimumCapacity",
+        "writeAction"
+      ],
+      "parameterTypes": [
+        "Lkotlinx.io.Buffer;",
+        "I",
+        "F1<Ljava.nio.ByteBuffer;,U>"
+      ],
+      "returnType": "I",
+      "defaults": [
+        false,
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null,
+        null
+      ],
+      "inline": true,
+      "callbackIndex": 2,
+      "annotations": [
+        {
+          "fqName": "kotlinx.io.UnsafeIoApi",
+          "sourceOnly": false,
+          "arguments": []
+        },
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "ExperimentalContracts::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-a2c8e64839c787ad",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/unsafe/UnsafeBufferOperationsJvm.kt:46",
+      "fqName": "kotlinx.io.unsafe.readFromHead",
+      "receiver": "Lkotlinx.io.unsafe.UnsafeBufferOperations;",
+      "signature": "F2<RLkotlinx.io.unsafe.UnsafeBufferOperations;,Lkotlinx.io.Buffer;,F1<Ljava.nio.ByteBuffer;,U>,I>",
+      "parameters": [
+        "buffer",
+        "readAction"
+      ],
+      "parameterTypes": [
+        "Lkotlinx.io.Buffer;",
+        "F1<Ljava.nio.ByteBuffer;,U>"
+      ],
+      "returnType": "I",
+      "defaults": [
+        false,
+        false
+      ],
+      "defaultExpressions": [
+        null,
+        null
+      ],
+      "inline": true,
+      "callbackIndex": 1,
+      "annotations": [
+        {
+          "fqName": "kotlinx.io.UnsafeIoApi",
+          "sourceOnly": false,
+          "arguments": []
+        },
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "ExperimentalContracts::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-ae5599397293698a",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:97",
+      "fqName": "kotlinx.io.readTo",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F2<RLkotlinx.io.Buffer;,Ljava.io.OutputStream;,J,U>",
+      "parameters": [
+        "out",
+        "byteCount"
+      ],
+      "parameterTypes": [
+        "Ljava.io.OutputStream;",
+        "J"
+      ],
+      "returnType": "U",
+      "defaults": [
+        false,
+        true
+      ],
+      "defaultExpressions": [
+        null,
+        "size"
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-c657cf1f49306a0c",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/JvmCore.kt:70",
+      "fqName": "kotlinx.io.asSource",
+      "receiver": "Ljava.io.InputStream;",
+      "signature": "F0<RLjava.io.InputStream;,Lkotlinx.io.RawSource;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Lkotlinx.io.RawSource;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-d141e7ebf2f19879",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:124",
+      "fqName": "kotlinx.io.copyTo",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F3<RLkotlinx.io.Buffer;,Ljava.io.OutputStream;,J,J,U>",
+      "parameters": [
+        "out",
+        "startIndex",
+        "endIndex"
+      ],
+      "parameterTypes": [
+        "Ljava.io.OutputStream;",
+        "J",
+        "J"
+      ],
+      "returnType": "U",
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "defaultExpressions": [
+        null,
+        "0L",
+        "size"
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-dda61f0299dd8305",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/SinksJvm.kt:45",
+      "fqName": "kotlinx.io.writeString",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F4<RLkotlinx.io.Sink;,Lkotlin_String;,Ljava.nio.charset.Charset;,I,I,U>",
+      "parameters": [
+        "string",
+        "charset",
+        "startIndex",
+        "endIndex"
+      ],
+      "parameterTypes": [
+        "Lkotlin_String;",
+        "Ljava.nio.charset.Charset;",
+        "I",
+        "I"
+      ],
+      "returnType": "U",
+      "defaults": [
+        false,
+        false,
+        true,
+        true
+      ],
+      "defaultExpressions": [
+        null,
+        null,
+        "0",
+        "string.length"
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-f62b571639841c34",
+      "originalOwner": "KUU-1762",
+      "upstreamRef": "core/jvm/src/SourcesJvm.kt:64",
+      "fqName": "kotlinx.io.readString",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,Ljava.nio.charset.Charset;,Lkotlin_String;>",
+      "parameters": [
+        "charset"
+      ],
+      "parameterTypes": [
+        "Ljava.nio.charset.Charset;"
+      ],
+      "returnType": "Lkotlin_String;",
+      "defaults": [
+        false
+      ],
+      "defaultExpressions": [
+        null
+      ],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "InternalIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-e6b8e043e821fdd0",
+      "originalOwner": "KUU-1760",
+      "upstreamRef": "bytestring/jvm/src/ByteStringJvmExt.kt:34",
+      "fqName": "kotlinx.io.bytestring.asReadOnlyByteBuffer",
+      "receiver": "Lkotlinx.io.bytestring.ByteString;",
+      "signature": "F0<RLkotlinx.io.bytestring.ByteString;,Ljava.nio.ByteBuffer;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Ljava.nio.ByteBuffer;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "UnsafeByteStringApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-2963caac68a96f39",
+      "originalOwner": "KUU-1730",
+      "upstreamRef": "core/jvm/src/SinksJvm.kt:58",
+      "fqName": "kotlinx.io.asOutputStream",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F0<RLkotlinx.io.Sink;,Ljava.io.OutputStream;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Ljava.io.OutputStream;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "DelicateIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-5c8f62b61ce2a00a",
+      "originalOwner": "KUU-1730",
+      "upstreamRef": "core/jvm/src/SourcesJvm.kt:97",
+      "fqName": "kotlinx.io.asInputStream",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,Ljava.io.InputStream;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Ljava.io.InputStream;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": [
+        {
+          "fqName": "kotlin.OptIn",
+          "sourceOnly": true,
+          "arguments": [
+            "InternalIoApi::class"
+          ]
+        }
+      ]
+    },
+    {
+      "rowID": "jvm-89b18d68aac12a55",
+      "originalOwner": "KUU-1730",
+      "upstreamRef": "core/jvm/src/SourcesJvm.kt:155",
+      "fqName": "kotlinx.io.asByteChannel",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,Ljava.nio.channels.ReadableByteChannel;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Ljava.nio.channels.ReadableByteChannel;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-99ea86c5414931f4",
+      "originalOwner": "KUU-1730",
+      "upstreamRef": "core/jvm/src/SinksJvm.kt:112",
+      "fqName": "kotlinx.io.asByteChannel",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F0<RLkotlinx.io.Sink;,Ljava.nio.channels.WritableByteChannel;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Ljava.nio.channels.WritableByteChannel;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    },
+    {
+      "rowID": "jvm-ad4ebd5c3ae69d32",
+      "originalOwner": "KUU-1729",
+      "upstreamRef": "core/jvm/src/BuffersJvm.kt:196",
+      "fqName": "kotlinx.io.asByteChannel",
+      "receiver": "Lkotlinx.io.Buffer;",
+      "signature": "F0<RLkotlinx.io.Buffer;,Ljava.nio.channels.ByteChannel;>",
+      "parameters": [],
+      "parameterTypes": [],
+      "returnType": "Ljava.nio.channels.ByteChannel;",
+      "defaults": [],
+      "defaultExpressions": [],
+      "inline": false,
+      "callbackIndex": null,
+      "annotations": []
+    }
+  ],
+  "aliasNativeTargets": {
+    "java.io.IOException": "kotlinx.io.IOException",
+    "java.io.EOFException": "kotlinx.io.EOFException",
+    "java.io.FileNotFoundException": "kotlinx.io.files.FileNotFoundException"
+  },
+  "alias_direction_reason": "Native retains original common class storage; reverse Java aliases preserve the same nominal exception identity without Java classfiles"
+}

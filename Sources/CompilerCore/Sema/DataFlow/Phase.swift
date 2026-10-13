@@ -537,6 +537,10 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
             return lhs.fileID.rawValue < rhs.fileID.rawValue
         }
+        let preparedHeaders = prepareFileHeaders(
+            files: orderedFiles, arena: ast.arena,
+            jobs: ctx.options.frontendFlags.contains("sema-parallel") ? ctx.frontendJobs : 1
+        )
         // BUG-143: forward-declare every top-level nominal type first, so a
         // signature may reference a class/interface/object declared later in the
         // same file (or in a file collected later). Seeded with whatever
@@ -579,7 +583,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // Type aliases are collected before the remaining headers so that their
         // underlying type is available to signatures that mention the alias.
         for collectsTypeAliases in [true, false] {
-            for file in orderedFiles {
+            for (file, prepared) in zip(orderedFiles, preparedHeaders) {
                 guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
                 if collectsTypeAliases {
                     registerFileAnnotations(
@@ -589,20 +593,15 @@ final class DataFlowSemaPhase: CompilerPhase {
                         interner: ctx.interner
                     )
                 }
-                for declID in file.topLevelDecls {
-                    let isTypeAlias: Bool
-                    if case .typeAliasDecl = ast.arena.decl(declID) {
-                        isTypeAlias = true
-                    } else {
-                        isTypeAlias = false
-                    }
-                    guard isTypeAlias == collectsTypeAliases else { continue }
+                for header in collectsTypeAliases ? prepared.aliases : prepared.remaining {
+                    let declID = header.declarationID
                     collectHeader(
                         declID: declID, file: file, ast: ast,
                         symbols: symbols, types: types, bindings: bindings,
                         scope: fileScope, sourceManager: ctx.sourceManager,
                         diagnostics: ctx.diagnostics, interner: ctx.interner,
-                        ctx: ctx, predeclaredSymbol: predeclared[declID]
+                        ctx: ctx, predeclaredSymbol: predeclared[declID],
+                        preparedDeclaration: header.declaration
                     )
                 }
             }
