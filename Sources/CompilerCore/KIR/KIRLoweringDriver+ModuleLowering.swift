@@ -158,6 +158,7 @@ extension KIRLoweringDriver {
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
         emitAnnotationFactories(shared: shared, compilationCtx: compilationCtx)
+        resolveDeferredObjectLazyInitGuards(arena: arena)
         insertEnumLazyInitTriggers(arena: arena, sema: sema)
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID

@@ -317,6 +317,38 @@ struct JVMInteropNioSourceContractsTests {
         }
     }
     @Test(arguments: [false, true])
+    func defaultCharsetReturnsPublicSourceObjectFromSourceAndMetadata(library: Bool) throws {
+        let (ctx, initial) = try context("""
+        import java.nio.charset.Charset
+        fun probe(): Charset = Charset.defaultCharset()
+        """, library: library)
+        defer { unchanged(ctx, initial) }
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let name = "java.nio.charset.Charset.Companion.defaultCharset"
+        let matches = sema.symbols.lookupAll(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) })
+            .compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .function }
+        try #require(matches.count == 1)
+        let symbol = try #require(matches.first)
+        let signature = try #require(sema.symbols.functionSignature(for: symbol.id))
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.importedLibrary) == library)
+        #expect(sema.symbols.isSourceBackedSymbol(symbol.id))
+        #expect(signature.parameterTypes.isEmpty)
+        let returnToken = NameMangler().encodeType(signature.returnType, symbols: sema.symbols, types: sema.types,
+            nameResolver: ctx.interner.resolve, unboxValueClasses: false)
+        #expect(returnToken == "Ljava.nio.charset.Charset;")
+        if let path = ctx.options.stdlibLibraryPath {
+            let records = MetadataDecoder().decode(try String(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin"), encoding: .utf8))
+            let matching = records.filter { $0.kind == .function && $0.fqName == name }
+            try #require(matching.count == 1)
+            #expect(matching[0].typeSignature == encodedSignature(symbol, ctx, sema))
+        }
+    }
+
+    @Test(arguments: [false, true])
     func sourceCharsetValuesAndPrivateCodecTagStayDistinctInKIR(library: Bool) throws {
         let (ctx, initial) = try context("""
         import java.nio.charset.Charset

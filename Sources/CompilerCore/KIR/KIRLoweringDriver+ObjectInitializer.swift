@@ -35,8 +35,8 @@ extension KIRLoweringDriver {
     /// before its state (a stored property, its own value crossing an Any
     /// boundary, or a member-function receiver) is touched -- mirroring the
     /// JVM's clinit-on-first-static-access trigger. Imported-library objects
-    /// restore the same guarded function from metadata; compiler-synthetic
-    /// pseudo-objects (`Dispatchers`, `Charsets`, ...) have neither entry.
+    /// restore the same guarded function from metadata; legacy compiler-synthetic
+    /// pseudo-objects have neither entry.
     func emitObjectLazyInitGuardIfNeeded(
         objectSymbol: SymbolID,
         arena: KIRArena,
@@ -56,6 +56,13 @@ extension KIRLoweringDriver {
         {
             lazyInitSymbol = importedLazyInit
             lazyInitName = importedSymbol.name
+        } else if let objectInfo = sema.symbols.symbol(objectSymbol), objectInfo.kind == .object,
+                  sema.symbols.isSourceBackedSymbol(objectSymbol)
+        {
+            // A forward reference can precede the source object's initializer
+            // registration. Resolve this guard after all declarations are lowered.
+            lazyInitSymbol = ctx.deferredObjectLazyInitSymbol(for: objectSymbol)
+            lazyInitName = objectInfo.name
         } else {
             return
         }
@@ -68,6 +75,39 @@ extension KIRLoweringDriver {
             canThrow: false,
             thrownResult: nil
         ))
+    }
+
+    func resolveDeferredObjectLazyInitGuards(arena: KIRArena) {
+        let pending = ctx.deferredObjectLazyInitSymbols
+        guard !pending.isEmpty else { return }
+        let ownersBySymbol = Dictionary(uniqueKeysWithValues: pending.map { ($0.value, $0.key) })
+        arena.transformFunctions { function in
+            guard function.body.contains(where: { instruction in
+                guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
+                return ownersBySymbol[symbol] != nil
+            }) else { return function }
+            var body: [KIRInstruction] = []
+            var locations: [SourceRange?] = []
+            for (index, instruction) in function.body.enumerated() {
+                let location = index < function.instructionLocations.count ? function.instructionLocations[index] : nil
+                if case let .call(symbol?, _, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
+                   let owner = ownersBySymbol[symbol]
+                {
+                    // Objects without an emitted initializer keep their existing
+                    // no-guard behavior, including skipped bundled declarations.
+                    guard let lazyInit = ctx.objectLazyInit(for: owner) else { continue }
+                    body.append(.call(symbol: lazyInit.ensureInitSymbol, callee: lazyInit.ensureInitName,
+                        arguments: arguments, result: result, canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType))
+                } else {
+                    body.append(instruction)
+                }
+                locations.append(location)
+            }
+            var updated = function
+            updated.replaceBody(body, locations: locations)
+            return updated
+        }
     }
 
     /// Synthesise an initializer function for a top-level `object` declaration.
