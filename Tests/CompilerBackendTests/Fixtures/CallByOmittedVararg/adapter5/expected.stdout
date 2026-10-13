@@ -1,0 +1,5 @@
+generic-scalar-component:1
+concrete-nested-direct-packed:1/1:true
+generic-int-reference-component:1
+generic-nullable-reference-component:true
+inline-vararg-default:default

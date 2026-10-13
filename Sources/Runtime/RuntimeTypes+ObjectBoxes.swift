@@ -3,6 +3,7 @@ import Foundation
 class RuntimeArrayBox {
     private final class Storage {
         var values: [RuntimeValue]
+        var componentType: Int?
         // Canonical handles preserve identity when views are repeated or reversed.
         var viewHandles: [Int64: Int] = [:]
         let viewLock = NSLock()
@@ -65,6 +66,18 @@ class RuntimeArrayBox {
 
     private init(sharingStorageOf array: RuntimeArrayBox) {
         storage = array.storage
+    }
+
+    var componentType: Int? {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        return storage.componentType
+    }
+
+    func installComponentTypeIfAbsent(_ type: Int) {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        if storage.componentType == nil { storage.componentType = type }
     }
 
     /// A distinct, correctly tagged box over the same mutable element storage.
