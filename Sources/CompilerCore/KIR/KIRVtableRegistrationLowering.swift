@@ -1500,6 +1500,14 @@ private func kirFindMatchingMethod(
             continue
         }
         let candidateSignature = sema.symbols.functionSignature(for: candidate)
+        // A generic method cannot implement a non-generic overload even when
+        // its erased parameter is a wildcard. Receiver binders are separate.
+        if let interfaceSignature, let candidateSignature,
+           interfaceSignature.typeParameterSymbols.count - interfaceSignature.classTypeParameterCount
+               != candidateSignature.typeParameterSymbols.count - candidateSignature.classTypeParameterCount
+        {
+            continue
+        }
         let candidateParameterTypes = candidateSignature?.parameterTypes
         let alignedInterfaceParameterTypes = if let interfaceSignature, let candidateSignature {
             kirAlignedOverrideParameterTypes(
