@@ -344,7 +344,9 @@ extension ExprTypeChecker {
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
         if let local = locals[name] {
             sema.bindings.bindIdentifier(id, symbol: local.symbol)
-            if !local.isInitialized {
+            if !local.isInitialized,
+               sema.symbols.symbol(local.symbol)?.flags.contains(.lateinitProperty) != true
+            {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",

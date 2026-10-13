@@ -1,0 +1,14 @@
+directories:true
+append:second+
+size:7
+directory-size:-1
+double-close:true
+atomic:true:true
+moved:second+
+list:true
+resolved:true
+metadata-missing:true
+missing-delete:FileNotFoundException
+file-directory:IOException
+nonempty:IOException
+missing-source:FileNotFoundException
