@@ -740,6 +740,7 @@ extension ExprTypeChecker {
                     bindReceiver: isBoundReceiver,
                     boundReceiver: boundReceiverType.map { (candidate, $0) },
                     expectedFunctionType: inputType,
+                    interner: interner,
                     sema: sema
                 ) != nil
             }
@@ -812,7 +813,7 @@ extension ExprTypeChecker {
                               for: signature, bindReceiver: isBoundReceiver,
                               boundReceiver: boundReceiverType.map { (chosen, $0) },
                               expectedFunctionType: expectedFunctionType,
-                              postponedReturnTypeParameter: postponedReturnParameter, sema: sema
+                              postponedReturnTypeParameter: postponedReturnParameter, interner: interner, sema: sema
                           ) {
                     inferredType = specialization.functionType
                     resultType = inferredType
@@ -844,7 +845,7 @@ extension ExprTypeChecker {
                        let specialization = driver.helpers.contextualCallableReferenceBinding(
                            for: signature, bindReceiver: true,
                            boundReceiver: boundReceiverType.map { (chosen, $0) },
-                           expectedFunctionType: nil, sema: sema
+                           expectedFunctionType: nil, interner: interner, sema: sema
                        ) {
                         inferredType = specialization.functionType
                         bindReifiedCallableReference(
