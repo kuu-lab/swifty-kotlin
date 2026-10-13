@@ -108,8 +108,6 @@ package struct KlibContainer {
         }
     }
 
-    // MARK: - Internals
-
     /// Pick the component to read: `"default"` when present, otherwise the
     /// lexicographically first top-level directory containing a manifest.
     private static func pickComponent(

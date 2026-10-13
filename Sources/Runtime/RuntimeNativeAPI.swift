@@ -18,13 +18,11 @@ func runtimeCurrentPlatformThreadID() -> UInt64 {
 #endif
 }
 
-// MARK: - Kotlin/Native specific APIs (STDLIB-NATIVE-168)
 
 func runtimeCurrentStackTraceAddresses() -> [Int] {
     Thread.callStackReturnAddresses.map { Int(truncating: $0) }
 }
 
-// MARK: - CPointer / COpaquePointer
 
 /// Runtime backing for `kotlinx.cinterop.CPointer<T>`.
 ///
@@ -83,8 +81,7 @@ public func kk_cpointer_address(_ handle: Int) -> Int {
 
 @_cdecl("kk_cpointer_toLong")
 public func kk_cpointer_toLong(_ handle: Int) -> Int {
-    guard let box = resolveCPointerBox(from: handle) else { return 0 }
-    return Int(bitPattern: box.address)
+    kk_cpointer_address(handle)
 }
 
 @_cdecl("kk_cpointer_toKStringFromUtf32")
@@ -170,9 +167,11 @@ public func kk_native_getStackTraceAddresses(_ throwableRaw: Int) -> Int {
        })
     {
         if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
-            addresses = throwable.stackTraceAddresses
+            addresses = throwable.writableStackTrace ? throwable.stackTraceAddresses : []
         } else if let throwable = tryCast(pointer, to: RuntimeObjectBox.self) {
-            addresses = throwable.throwableStackTraceAddresses ?? []
+            addresses = throwable.throwableWritableStackTrace
+                ? throwable.throwableStackTraceAddresses ?? []
+                : []
         } else {
             addresses = []
         }
@@ -190,6 +189,10 @@ public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
           }),
           let object = tryCast(pointer, to: RuntimeObjectBox.self)
     else {
+        return throwableRaw
+    }
+    guard object.throwableWritableStackTrace else {
+        object.throwableStackTraceAddresses = []
         return throwableRaw
     }
     if object.throwableStackTraceAddresses == nil {
@@ -248,7 +251,6 @@ public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Ne
     runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
 
-// MARK: - Native ByteArray accessors
 
 /// ImmutableBlob has the same element layout as ByteArray. The source-backed
 /// factory receives the raw Short vararg array; each element is truncated to
@@ -557,7 +559,6 @@ public func kk_native_byteArray_setDoubleAt(_ arrayRaw: Int, _ index: Int, _ val
     )
 }
 
-// MARK: - CValues<T> (STDLIB-CINTEROP-FN-018)
 
 /// Runtime backing for `kotlinx.cinterop.CValues<ByteVar>`.
 ///
@@ -637,7 +638,6 @@ public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
 }
 
-// MARK: - ImmutableBlob
 
 /// Returns a stable native address for `ImmutableBlob.asCPointer(offset)` /
 /// `asUCPointer(offset)` (upstream `Kotlin_ImmutableBlob_asCPointerImpl`).
@@ -667,7 +667,6 @@ public func __kk_immutable_blob_as_cpointer(_ blobRaw: Int, _ offset: Int) -> In
     return Int(bitPattern: baseAddress) + offset
 }
 
-// MARK: - Pinned<T>
 
 /// Runtime backing for `kotlin.native.ref.Pinned<T>`.
 ///
@@ -780,7 +779,6 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     }
 }
 
-// MARK: - StableRef<T>
 
 /// Runtime backing for `kotlinx.cinterop.StableRef<T>`.
 ///
@@ -850,7 +848,6 @@ public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
     }
 }
 
-// MARK: - WeakReference<T>
 
 /// Runtime backing for `kotlin.native.ref.WeakReference<T>`.
 ///
@@ -959,7 +956,6 @@ public func kk_weak_ref_clear(_ weakRefRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - createCleaner
 
 /// Runtime backing for `kotlin.native.ref.createCleaner`.
 ///
@@ -1044,7 +1040,6 @@ public func kk_cleaner_dispose(_ cleanerRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - freeze() / isFrozen (Kotlin/Native legacy immutability)
 
 /// ABI-004: Protocol adopted by runtime boxes that store child object handles.
 ///
@@ -1135,7 +1130,6 @@ public func kk_is_frozen(_ objectRaw: Int) -> Int {
     runtimeFrozenSet.isFrozen(objectRaw) ? 1 : 0
 }
 
-// MARK: - Worker API
 
 /// Runtime backing for `kotlin.native.concurrent.Worker`.
 ///
@@ -1471,7 +1465,6 @@ public func kk_worker_name(_ workerHandle: Int) -> Int {
     return registerRuntimeObject(RuntimeStringBox(name))
 }
 
-// MARK: - @CName annotation (C interop export name)
 
 /// Registry for functions exported under a C-compatible external name via `@CName`.
 private final class RuntimeCNameRegistry: @unchecked Sendable {

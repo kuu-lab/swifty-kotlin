@@ -7,8 +7,6 @@ import Foundation
     import Glibc
 #endif
 
-// MARK: - Memory management runtime support (STDLIB-PERF-154)
-
 struct RuntimeMemorySnapshot: Equatable, Sendable {
     let totalBytes: Int64
     let freeBytes: Int64
@@ -90,8 +88,6 @@ public func __kk_runtime_freeMemory() -> Int {
 public func __kk_runtime_maxMemory() -> Int {
     Int(clamping: runtimeCaptureMemorySnapshot().maxBytes)
 }
-
-// MARK: - Java class runtime support
 
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let receiverRaw: Int

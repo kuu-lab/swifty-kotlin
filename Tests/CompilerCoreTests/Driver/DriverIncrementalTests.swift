@@ -58,6 +58,53 @@ struct DriverIncrementalTests {
     // MARK: - incremental flag
 
     @Test
+    func testExplicitDisableBypassesExistingCache() throws {
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        let cachePath = tempDir + "/cache"
+        var options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(),
+            frontendFlags: ["incremental"], includeStdlib: false,
+            incrementalCachePath: cachePath
+        )
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        let original = try String(contentsOfFile: kirOutputPath(), encoding: .utf8)
+        let manifest = try Data(contentsOf: URL(fileURLWithPath: cachePath + "/manifest.json"))
+
+        try "fun main() { val changed = 42 }".write(toFile: path, atomically: true, encoding: .utf8)
+        options.frontendFlags = ["no-incremental", "incremental"]
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(try String(contentsOfFile: kirOutputPath(), encoding: .utf8) != original)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: cachePath + "/manifest.json")) == manifest)
+
+        // Disabling must also avoid creating a new explicit cache directory.
+        options.incrementalCachePath = tempDir + "/unused-cache"
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(!FileManager.default.fileExists(atPath: options.incrementalCachePath!))
+    }
+
+    @Test
+    func testExplicitCachePathEnablesWithoutFrontendFlag() throws {
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        let path = tempDir + "/main.kt"
+        try "fun main() {}".write(toFile: path, atomically: true, encoding: .utf8)
+        let cachePath = tempDir + "/cache"
+        let options = CompilerOptions(
+            moduleName: "Test", inputs: [path], outputPath: outputPath, emit: .kirDump,
+            target: defaultTargetTriple(),
+            includeStdlib: false, incrementalCachePath: cachePath
+        )
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        let original = try Data(contentsOf: URL(fileURLWithPath: kirOutputPath()))
+        try FileManager.default.removeItem(atPath: kirOutputPath())
+        #expect(makeDriver().runForTesting(options: options).exitCode == 0)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: kirOutputPath())) == original)
+        #expect(FileManager.default.fileExists(atPath: cachePath + "/frontend.json"))
+    }
+
+    @Test
     func testIncrementalFlagEnablesIncrementalCompilation() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let driver = makeDriver()

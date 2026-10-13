@@ -8,6 +8,23 @@ import Testing
 struct CodegenBackendSeededRandomDeterminismTests {
 
     @Test
+    func testCodegenSeededIntRangeRandomMatchesKotlinValue() throws {
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            println((1..100).random(Random(42)))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SeededIntRangeRandomParity",
+            expected: "34\n"
+        )
+    }
+
+    @Test
     func testCodegenSeededRandomCollectionAndRangeHelpersAreDeterministic() throws {
         let source = """
         import kotlin.random.Random

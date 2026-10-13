@@ -5,6 +5,28 @@ import Testing
 @Suite
 struct RuntimeTypeCheckTokenTests {
 
+    @Test func testKClassTokensEraseTypeArgumentsAndPreserveNullability() throws {
+        let ctx = makeContextFromSource("import kotlin.reflect.KClass\nfun main() {}")
+        try runToKIR(ctx)
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(sema.types.kClassInterfaceSymbol)
+        let nominalID = RuntimeTypeCheckToken.stableNominalTypeID(symbol: symbol, sema: sema, interner: ctx.interner)
+        for nullable in [false, true] {
+            let nullability: Nullability = nullable ? .nullable : .nonNull
+            let expected = RuntimeTypeCheckToken.encode(
+                base: RuntimeTypeCheckToken.nominalBase, nullable: nullable, payload: nominalID
+            )
+            let star = sema.types.make(.classType(ClassType(
+                classSymbol: symbol, args: [.star], nullability: nullability
+            )))
+            #expect(RuntimeTypeCheckToken.encode(type: star, sema: sema, interner: ctx.interner) == expected)
+            for argument in [sema.types.anyType, sema.types.stringType] {
+                let concrete = sema.types.makeKClassType(argument: argument, nullability: nullability)
+                #expect(RuntimeTypeCheckToken.encode(type: concrete, sema: sema, interner: ctx.interner) == expected)
+            }
+        }
+    }
+
     @Test func testClassifyBuiltinTypes() {
         let types = TypeSystem()
         let symbols = SymbolTable()

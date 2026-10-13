@@ -11,16 +11,19 @@ import kotlinx.io.internal.*
 internal fun String.utf8Size(startIndex: Int = 0, endIndex: Int = this.length): Long =
     this.commonUtf8Size(startIndex, endIndex)
 
+@OptIn(DelicateIoApi::class)
 public fun Sink.writeString(string: String, startIndex: Int = 0, endIndex: Int = string.length) {
     val bytes = string.commonAsUtf8ToByteArray(startIndex, endIndex)
     this.write(bytes, 0, bytes.size)
 }
 
+@OptIn(DelicateIoApi::class)
 public fun Sink.writeString(chars: CharSequence, startIndex: Int = 0, endIndex: Int = chars.length) {
     val bytes = encodeUtf8(chars, startIndex, endIndex)
     this.write(bytes, 0, bytes.size)
 }
 
+@OptIn(DelicateIoApi::class)
 public fun Sink.writeCodePointValue(codePoint: Int) {
     if (codePoint < 0 || codePoint > 0x10ffff) {
         throw IllegalArgumentException(
@@ -37,6 +40,7 @@ public fun Sink.writeCodePointValue(codePoint: Int) {
     this.writeString(chars.concatToString())
 }
 
+@OptIn(InternalIoApi::class)
 public fun Source.readString(): String {
     this.request(Long.MAX_VALUE)
     return this.buffer.commonReadUtf8(this.buffer.size)
@@ -44,6 +48,7 @@ public fun Source.readString(): String {
 
 public fun Buffer.readString(): String = this.commonReadUtf8(this.size)
 
+@OptIn(InternalIoApi::class)
 public fun Source.readString(byteCount: Long): String {
     this.require(byteCount)
     return this.buffer.commonReadUtf8(byteCount)
@@ -61,6 +66,7 @@ private fun Buffer.commonReadUtf8(byteCount: Long): String {
     return bytes.commonToUtf8String()
 }
 
+@OptIn(InternalIoApi::class)
 public fun Source.readCodePointValue(): Int {
     this.require(1)
     val b0 = this.buffer[0L].toInt()
@@ -101,6 +107,7 @@ public fun Source.readCodePointValue(): Int {
     }
 }
 
+@OptIn(InternalIoApi::class)
 public fun Source.readLine(): String? {
     if (!this.request(1)) return null
     var lfIndex = this.indexOf(10.toByte())
@@ -115,6 +122,7 @@ public fun Source.readLine(): String? {
     return result
 }
 
+@OptIn(InternalIoApi::class)
 public fun Source.readLineStrict(limit: Long = Long.MAX_VALUE): String {
     if (limit < 0L) throw IllegalArgumentException("limit ($limit) < 0")
     this.require(1)

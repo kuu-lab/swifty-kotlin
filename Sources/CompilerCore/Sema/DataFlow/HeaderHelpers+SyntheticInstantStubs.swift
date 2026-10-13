@@ -26,7 +26,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- Instant class symbol ---
         let instantSymbol = ensureClassSymbol(
             named: "Instant",
             in: kotlinTimePkg,
@@ -40,7 +39,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // Duration type for arithmetic
         let durationSymbol = ensureClassSymbol(
             named: "Duration",
             in: kotlinTimePkg,

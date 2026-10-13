@@ -241,8 +241,6 @@ extension CallLowerer {
         return result
     }
 
-    // MARK: - REFL-005: KClass Metadata Registration for Constructor Calls
-
     /// Emits a `__kk_kclass_register_metadata` call so that `KClass` reflection
     /// queries (`.members`, `.constructors`, etc.) return correct data.
     /// This mirrors `ObjectLiteralLowerer.registerKClassMetadata` but is used

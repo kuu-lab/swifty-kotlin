@@ -601,7 +601,7 @@ public struct ImportDecl: Sendable, Codable {
     }
 }
 
-public struct TypeParamDecl: Codable {
+public struct TypeParamDecl: Equatable, Codable {
     public let name: InternedString
     public let variance: TypeVariance
     public let isReified: Bool

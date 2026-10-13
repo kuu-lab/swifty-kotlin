@@ -319,7 +319,6 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterVariances([.invariant], for: symbol)
         symbols.setPropertyType(ownerType, for: symbol)
 
-        // size: Int
         registerAtomicReadOnlyProperty(
             ownerSymbol: symbol,
             propertyName: "size",
@@ -329,7 +328,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // loadAt(index: Int): T
         registerAtomicMember(
             ownerSymbol: symbol,
             ownerType: ownerType,
@@ -343,7 +341,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // storeAt(index: Int, value: T): Unit
         registerAtomicMember(
             ownerSymbol: symbol,
             ownerType: ownerType,
@@ -357,7 +354,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // exchangeAt(index: Int, newValue: T): T
         registerAtomicMember(
             ownerSymbol: symbol,
             ownerType: ownerType,
@@ -370,7 +366,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // compareAndSetAt(index: Int, expect: T, update: T): Boolean
         registerAtomicMember(
             ownerSymbol: symbol,
             ownerType: ownerType,
@@ -388,7 +383,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // compareAndExchangeAt(index: Int, expect: T, update: T): T
         registerAtomicMember(
             ownerSymbol: symbol,
             ownerType: ownerType,

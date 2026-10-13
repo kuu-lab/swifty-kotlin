@@ -13,19 +13,15 @@ extension ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        // Infer the type of the RHS initializer
         let rhsType = driver.inferExpr(initializer, ctx: ctx, locals: &locals)
 
-        // For each name, resolve componentN() on the RHS type
         for (index, name) in names.enumerated() {
             guard let name else {
-                // Underscore — skip this component
                 continue
             }
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
-            // Look up componentN as a member function on the RHS type
             let candidates = driver.helpers.collectMemberFunctionCandidates(
                 named: componentName,
                 receiverType: rhsType,
@@ -70,7 +66,7 @@ extension ControlFlowTypeChecker {
                     // Data class componentN() is synthesized during lowering; fall back to Any
                     componentType = sema.types.anyType
                 } else {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0086",
                         "Type does not have a 'component\(componentIndex)()' operator for destructuring.",
                         range: range
@@ -123,7 +119,6 @@ extension ControlFlowTypeChecker {
 
         var bodyLocals = locals
 
-        // For each destructuring name, resolve componentN on the element type
         for (index, name) in names.enumerated() {
             guard let name else {
                 continue
@@ -159,7 +154,7 @@ extension ControlFlowTypeChecker {
                 // Data class componentN() is synthesized during lowering; fall back to Any
                 componentType = sema.types.anyType
             } else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0087",
                     "Iterable element type does not have a 'component\(componentIndex)()' operator for destructuring.",
                     range: range

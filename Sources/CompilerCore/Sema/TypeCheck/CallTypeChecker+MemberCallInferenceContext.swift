@@ -137,7 +137,7 @@ extension CallTypeChecker {
                         for: inaccessible,
                         name: interner.resolve(request.calleeName),
                         range: request.range,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
@@ -151,13 +151,13 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner,
                 range: request.range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: property,
                 ctx: ctx,
                 range: request.range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindIdentifier(id, symbol: property)
             if let propertySymbol = sema.symbols.symbol(property),
@@ -219,7 +219,7 @@ extension CallTypeChecker {
                 guard ctx.visibilityChecker.isAccessible(info, fromFile: ctx.currentFileID,
                                                           enclosingClass: ctx.enclosingClassSymbol) else {
                     driver.helpers.emitVisibilityError(for: info, name: interner.resolve(info.name),
-                                                       range: request.range, diagnostics: ctx.semaCtx.diagnostics)
+                                                       range: request.range, diagnostics: ctx.sema.diagnostics)
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
                 owner = sema.symbols.parentSymbol(for: current)
@@ -234,7 +234,7 @@ extension CallTypeChecker {
                 for: classifierSymbol,
                 name: interner.resolve(request.calleeName),
                 range: request.range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
@@ -243,13 +243,13 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner,
             range: request.range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: classifier,
             ctx: ctx,
             range: request.range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         let classifierType = sema.types.make(.classType(ClassType(
             classSymbol: classifier,
@@ -350,7 +350,7 @@ extension CallTypeChecker {
             }
             if classSymbol.flags.contains(.abstractType), fqnCandidates.isEmpty {
                 let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Cannot create an instance of abstract class '\(className)'.",
                     range: range
@@ -438,7 +438,7 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
         // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
@@ -452,6 +452,17 @@ extension CallTypeChecker {
            sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
         {
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+        }
+        if args.isEmpty {
+            switch sema.wellKnownSymbols.enumIntrinsic(for: chosen) {
+            case .enumValues:
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumValues)
+                sema.bindings.markCollectionExpr(id)
+            case .enumEntries:
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumEntries)
+            case .enumValueOf, .enumEntriesIntrinsic, .none:
+                break
+            }
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(

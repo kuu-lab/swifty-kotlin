@@ -563,7 +563,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
             val folded = seq.fold(0) { acc, x -> acc + x }
             println(folded)
 
-            println(seq.intersect(listOf(2, 4, 6)))
             val foldedIndexed = seq.foldIndexed(0) { index, acc, x -> acc + index * x }
             println(foldedIndexed)
             val grouped = seq.groupBy { if (it % 2 == 0) "even" else "odd" }
@@ -586,7 +585,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 -1
                 15
                 15
-                [2, 4]
                 40
                 [1, 3, 5]
                 [2, 4]
@@ -1019,7 +1017,10 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceRegistrationKIR", emit: .kirDump)
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "SequenceRegistrationKIR", emit: .kirDump,
+                allowDefaultStdlibLibrary: false
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)

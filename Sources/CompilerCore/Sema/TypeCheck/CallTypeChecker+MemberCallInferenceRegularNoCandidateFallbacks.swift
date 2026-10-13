@@ -104,7 +104,7 @@ extension CallTypeChecker {
             if let propSymbol = sema.symbols.symbol(propResult.symbol),
                !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
             {
-                driver.helpers.emitVisibilityError(for: propSymbol, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                driver.helpers.emitVisibilityError(for: propSymbol, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
 
@@ -169,7 +169,7 @@ extension CallTypeChecker {
                     ctx: ctx
                 )
                 if let diagnostic = resolved.diagnostic {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
                 if let chosen = resolved.chosenCallee {
@@ -234,7 +234,7 @@ extension CallTypeChecker {
                    enclosingClass: ctx.enclosingClassSymbol
                )
             {
-                driver.helpers.emitVisibilityError(for: memberSymbol, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                driver.helpers.emitVisibilityError(for: memberSymbol, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
@@ -263,7 +263,7 @@ extension CallTypeChecker {
                sema.types.nullability(of: lookupReceiverType) == .nullable,
                sema.types.isSubtype(sema.types.makeNonNullable(lookupReceiverType), sema.types.stringType)
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0026",
                     "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
                     range: range
@@ -413,7 +413,7 @@ extension CallTypeChecker {
                     if args.count == 1, let hexFormatType {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: hexFormatType)
                     }
-                    driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                    driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
                     let returnType = bindCallAndResolveReturnType(
                         id,
                         chosen: chosen,
@@ -1357,7 +1357,7 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            driver.helpers.emitVisibilityError(for: firstInvisible, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
+            driver.helpers.emitVisibilityError(for: firstInvisible, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
         if let fallbackType = tryCommonMemberCallFallbacks(
@@ -1711,7 +1711,7 @@ extension CallTypeChecker {
             return fallbackType
         }
 
-        ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)
+        ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
     }
 }

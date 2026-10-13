@@ -646,6 +646,159 @@ struct SemaDelegateTypeCheckTests {
     }
 
     @Test(arguments: [false, true])
+    func testInheritedProtectedMemberExtensionDelegates(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        let source = """
+        package kuu1915
+
+        import kotlin.reflect.KProperty
+
+        class Token(val name: String)
+        open class Grammar {
+            val registeredTokens = mutableListOf<Token>()
+            protected operator fun Token.provideDelegate(thisRef: Grammar, property: KProperty<*>): Token {
+                registeredTokens.add(this)
+                return this
+            }
+            protected operator fun Token.getValue(thisRef: Grammar, property: KProperty<*>): Token = this
+        }
+        class TokenLanguage : Grammar() { val token by Token("num") }
+
+        class Parser<out T>(val name: String)
+        open class ParserGrammar<out T> {
+            val registeredParsers = mutableListOf<Parser<*>>()
+            protected operator fun <P> Parser<P>.provideDelegate(
+                thisRef: ParserGrammar<*>, property: KProperty<*>
+            ): Parser<P> {
+                registeredParsers.add(this)
+                return this
+            }
+            protected operator fun <P> Parser<P>.getValue(
+                thisRef: ParserGrammar<*>, property: KProperty<*>
+            ): Parser<P> = this
+        }
+        class ParserLanguage : ParserGrammar<String>() {
+            val root: Parser<String> by Parser<String>("root")
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runToKIR(ctx)
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            #expect(
+                !diagnostics.contains { $0.severity == .error },
+                "Inherited member-extension delegates should resolve, got: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+            )
+            guard !diagnostics.contains(where: { $0.severity == .error }) else { return }
+
+            let semaCandidate = ctx.sema
+            let sema = try #require(semaCandidate, "Expected a semantic module")
+            let interner = ctx.interner
+            let tokenGrammarCandidate = sema.symbols.lookup(
+                fqName: ["kuu1915", "Grammar"].map(interner.intern)
+            )
+            let tokenGrammar = try #require(tokenGrammarCandidate, "Missing Grammar")
+            let parserGrammarCandidate = sema.symbols.lookup(
+                fqName: ["kuu1915", "ParserGrammar"].map(interner.intern)
+            )
+            let parserGrammar = try #require(parserGrammarCandidate, "Missing ParserGrammar")
+            let tokenPropertyCandidate = childSymbol(
+                named: "token", kind: .property, package: "kuu1915",
+                className: "TokenLanguage", sema: sema, interner: interner
+            )
+            let tokenProperty = try #require(tokenPropertyCandidate, "Missing token property")
+            let rootPropertyCandidate = childSymbol(
+                named: "root", kind: .property, package: "kuu1915",
+                className: "ParserLanguage", sema: sema, interner: interner
+            )
+            let rootProperty = try #require(rootPropertyCandidate, "Missing root property")
+            let tokenGetValueCandidate = sema.symbols.delegateGetValueSymbol(for: tokenProperty)
+            let tokenGetValue = try #require(tokenGetValueCandidate, "Missing token getValue")
+            let tokenProvideDelegateCandidate = sema.symbols.delegateProvideDelegateSymbol(for: tokenProperty)
+            let tokenProvideDelegate = try #require(tokenProvideDelegateCandidate, "Missing token provideDelegate")
+            let parserGetValueCandidate = sema.symbols.delegateGetValueSymbol(for: rootProperty)
+            let parserGetValue = try #require(parserGetValueCandidate, "Missing parser getValue")
+            let parserProvideDelegateCandidate = sema.symbols.delegateProvideDelegateSymbol(for: rootProperty)
+            let parserProvideDelegate = try #require(parserProvideDelegateCandidate, "Missing parser provideDelegate")
+
+            #expect(sema.symbols.parentSymbol(for: tokenGetValue) == tokenGrammar)
+            #expect(sema.symbols.parentSymbol(for: tokenProvideDelegate) == tokenGrammar)
+            #expect(sema.symbols.memberExtensionOwnerSymbol(for: tokenGetValue) == tokenGrammar)
+            #expect(sema.symbols.memberExtensionOwnerSymbol(for: tokenProvideDelegate) == tokenGrammar)
+            #expect(sema.symbols.parentSymbol(for: parserGetValue) == parserGrammar)
+            #expect(sema.symbols.parentSymbol(for: parserProvideDelegate) == parserGrammar)
+            #expect(sema.symbols.memberExtensionOwnerSymbol(for: parserGetValue) == parserGrammar)
+            #expect(sema.symbols.memberExtensionOwnerSymbol(for: parserProvideDelegate) == parserGrammar)
+
+            let moduleCandidate = ctx.kir
+            let module = try #require(moduleCandidate, "Expected KIR")
+            let calls = allKIRFunctions(in: module).flatMap { function in
+                function.body.compactMap { instruction -> (SymbolID, Int)? in
+                    guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                          let symbol
+                    else {
+                        return nil
+                    }
+                    return (symbol, arguments.count)
+                }
+            }
+            #expect(calls.contains { $0.0 == tokenProvideDelegate && $0.1 == 4 })
+            #expect(calls.contains { $0.0 == tokenGetValue && $0.1 == 4 })
+            #expect(calls.contains { $0.0 == parserProvideDelegate && $0.1 == 4 })
+            #expect(calls.contains { $0.0 == parserGetValue && $0.1 == 4 })
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testMemberExtensionDelegateRejectsUnrelatedAndInvisibleGetValue(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        let source = """
+        package kuu1915negative
+
+        import kotlin.reflect.KProperty
+
+        class Token(val name: String)
+        open class NonOperatorGrammar {
+            protected fun Token.getValue(thisRef: NonOperatorGrammar, property: KProperty<*>): Token = this
+        }
+        class NonOperatorLanguage : NonOperatorGrammar() {
+            val token: Token by Token("non-operator")
+        }
+        open class WrongReceiverGrammar {
+            protected operator fun String.getValue(thisRef: WrongReceiverGrammar, property: KProperty<*>): String = this
+        }
+        class WrongReceiverLanguage : WrongReceiverGrammar() {
+            val token: Token by Token("wrong receiver")
+        }
+        open class ProtectedGrammar {
+            protected operator fun Token.getValue(thisRef: Any?, property: KProperty<*>): Token = this
+        }
+        fun outside(grammar: ProtectedGrammar) {
+            with(grammar) {
+                val token: Token by Token("invisible")
+            }
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            #expect(
+                diagnostics.filter { $0.code == "KSWIFTK-SEMA-0103" }.count == 3,
+                "Non-operator, unrelated-receiver, and invisible member extensions must not satisfy getValue: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+            )
+        }
+    }
+
+    @Test(arguments: [false, true])
     func testMapPropertyDelegateResolution(useArtifact: Bool) throws {
         if useArtifact { TestStdlibCache.shared.prepare() }
         let source = """

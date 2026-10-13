@@ -8,7 +8,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedLocalFunctionCtx = Result<CompilationContext, any Error> {
+    private static let _sharedLocalFunctionCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -174,7 +174,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedLocalFunctionErrorCtx = Result<CompilationContext, any Error> {
+    private static let _sharedLocalFunctionErrorCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample9
