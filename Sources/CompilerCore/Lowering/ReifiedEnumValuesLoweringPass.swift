@@ -24,9 +24,12 @@ final class ReifiedEnumValuesLoweringPass: LoweringPass {
             let type = sema.types.make(.classType(ClassType(classSymbol: symbol.id, args: [], nullability: .nonNull)))
             return (RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: ctx.interner), type)
         })
+        let pairFirst = ctx.interner.intern("__kk_pair_first")
+        let captureLoad = ctx.interner.intern("kk_array_get_inbounds")
         module.arena.transformFunctions { function in
             var constants: [KIRExprID: Int64] = [:]
             var parameterTokens: Set<KIRExprID> = []
+            var parameterCaptures: Set<KIRExprID> = []
             let parameterSymbols = Set(function.params.map(\.symbol))
             var body = KIRLoweringEmitContext()
             for (index, instruction) in function.body.enumerated() {
@@ -36,9 +39,21 @@ final class ReifiedEnumValuesLoweringPass: LoweringPass {
                 } else if case let .constValue(result, .symbolRef(symbol)) = instruction,
                           parameterSymbols.contains(symbol) {
                     parameterTokens.insert(result)
+                    parameterCaptures.insert(result)
                 } else if case let .copy(from, to) = instruction {
                     constants[to] = constants[from]
                     if parameterTokens.contains(from) { parameterTokens.insert(to) }
+                    if parameterCaptures.contains(from) { parameterCaptures.insert(to) }
+                } else if case let .call(nil, callee, arguments, result?, _, _, _, _) = instruction,
+                          let capture = arguments.first,
+                          parameterCaptures.contains(capture) {
+                    // Reified captures hold (class token, array component token).
+                    // HOF closures may first load that Pair from a packed environment.
+                    if callee == captureLoad, arguments.count == 2 {
+                        parameterCaptures.insert(result)
+                    } else if callee == pairFirst, arguments.count == 1 {
+                        parameterTokens.insert(result)
+                    }
                 }
                 guard case let .call(symbol?, _, arguments, result?, _, _, _, _) = instruction,
                       sema.wellKnownSymbols.enumIntrinsic(for: symbol) == .enumValues,
