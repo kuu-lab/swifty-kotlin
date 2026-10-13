@@ -151,6 +151,12 @@ final class KotlinParser {
 
             children.append(.node(node))
             range.append(arena.node(node).range)
+
+            // Braced declarations can leave their separator unconsumed.
+            // Treating it as a statement would incorrectly select script mode.
+            while stream.peek().kind == .symbol(.semicolon) {
+                _ = consumeToken(into: &children, range: &range)
+            }
         }
 
         flushPendingImportsIfNeeded()
