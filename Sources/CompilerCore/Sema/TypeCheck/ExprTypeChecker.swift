@@ -612,6 +612,12 @@ final class ExprTypeChecker {
 
         case let .blockExpr(statements, trailingExpr, _):
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
+            // Local classifiers must stay in their lexical block, just like
+            // blockLocals. A do-while body uses the loop's shared scope so its
+            // declarations remain visible to the condition.
+            let blockCtx = ctx.exportBlockLocalsForExpr == id ? ctx : ctx.copying(
+                scope: BlockScope(parent: ctx.scope, symbols: sema.symbols)
+            )
             var blockLocals = locals
             var reachedNothing = false
             for stmt in statements {
@@ -623,10 +629,10 @@ final class ExprTypeChecker {
                             range: stmtRange
                         )
                     }
-                    _ = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
+                    _ = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                     continue
                 }
-                let stmtType = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
+                let stmtType = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                 if stmtType == sema.types.nothingType {
                     reachedNothing = true
                 }
@@ -641,11 +647,11 @@ final class ExprTypeChecker {
                             range: trailingRange
                         )
                     }
-                    _ = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                    _ = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 }
                 resultType = sema.types.nothingType
             } else if let trailingExpr {
-                resultType = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                resultType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             } else {
                 resultType = sema.types.unitType
             }

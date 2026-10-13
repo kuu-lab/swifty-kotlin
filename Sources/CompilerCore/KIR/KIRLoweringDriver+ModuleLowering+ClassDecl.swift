@@ -517,9 +517,11 @@ extension KIRLoweringDriver {
         let callArgs: [KIRExprID] = valueExprID.map { [delegateResultID, $0] } ?? [delegateResultID]
         for (target, label) in zip(dispatchTargets, branchLabels) {
             body.append(.label(label))
+            let targetCallee = sema.symbols.externalLinkName(for: target.accessorSymbol)
+                .map { interner.intern($0) } ?? accessorName
             body.append(.call(
                 symbol: target.accessorSymbol,
-                callee: accessorName,
+                callee: targetCallee,
                 arguments: callArgs,
                 result: resultExprID,
                 canThrow: false,
@@ -745,7 +747,16 @@ extension KIRLoweringDriver {
         kind: PropertyAccessorKind,
         sema: SemaModule
     ) -> SymbolID {
-        switch kind {
+        // Source-declared runtime properties have no emitted getter body.
+        // Preserve their ABI link when selecting a concrete delegation target,
+        // just as imported accessors and the interface fallback already do.
+        if kind == .getter,
+           let link = sema.symbols.externalLinkName(for: propertySymbol),
+           RuntimeABISpec.byName[link] != nil
+        {
+            return propertySymbol
+        }
+        return switch kind {
         case .getter:
             sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
@@ -857,28 +868,26 @@ extension KIRLoweringDriver {
                 guard sema.symbols.parentSymbol(for: candidate) == owner,
                       let methodSymbol = sema.symbols.symbol(candidate),
                       isClassDelegationDispatchMember(methodSymbol, sema: sema),
+                      !methodSymbol.flags.contains(.abstractType),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType != nil,
-                      signature.isSuspend == interfaceSignature.isSuspend
+                      signature.isSuspend == interfaceSignature.isSuspend,
+                      signature.typeParameterSymbols.count - signature.classTypeParameterCount
+                          == interfaceSignature.typeParameterSymbols.count - interfaceSignature.classTypeParameterCount
                 else {
                     continue
                 }
-                let interfaceParameterTypes = kirAlignedOverrideParameterTypes(
-                    interfaceSignature: interfaceSignature,
-                    candidateSignature: signature,
-                    interfaceOwner: sema.symbols.parentSymbol(for: interfaceMethodSymbol),
-                    candidateOwner: owner,
-                    types: sema.types
-                )
-                guard kirOverrideParameterTypesMatch(
-                    candidateParameterTypes: signature.parameterTypes,
-                    interfaceParameterTypes: interfaceParameterTypes,
-                    types: sema.types
+                guard kirMethodSignatureMatches(
+                    source: interfaceSignature, target: signature,
+                    sourceOwner: sema.symbols.parentSymbol(for: interfaceMethodSymbol),
+                    targetOwner: owner, instanceOwner: concreteTypeSymbol, types: sema.types
                 ) else {
                     continue
                 }
 
-                if methodSymbol.flags.contains(.overrideMember) {
+                // Inherited class implementations take precedence over
+                // interface defaults, even when declared without `override`.
+                if ownerSymbol.kind != .interface || methodSymbol.flags.contains(.overrideMember) {
                     return candidate
                 }
                 if fallbackMatch == nil {
@@ -886,7 +895,9 @@ extension KIRLoweringDriver {
                 }
             }
 
-            queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+            let supertypes = sema.symbols.directSupertypes(for: owner)
+            queue.insert(contentsOf: supertypes.filter { sema.symbols.symbol($0)?.kind != .interface }, at: 0)
+            queue.append(contentsOf: supertypes.filter { sema.symbols.symbol($0)?.kind == .interface })
         }
 
         if let fallbackMatch {

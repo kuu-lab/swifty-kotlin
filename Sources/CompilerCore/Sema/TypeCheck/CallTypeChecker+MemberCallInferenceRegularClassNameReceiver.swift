@@ -10,7 +10,8 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         isClassNameReceiver: Bool,
         classNameReceiverNominalSymbol: SymbolID?,
-        argTypes: [TypeID]
+        argTypes: [TypeID],
+        locals: inout LocalBindings
     ) -> TypeID? {
         let id = request.id
         let receiverID = request.receiverID
@@ -383,13 +384,54 @@ extension CallTypeChecker {
                 }
             }
             if !nestedCtorCandidates.isEmpty {
+                let hasCompanionFunctionCandidates: Bool = {
+                    guard let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol) else {
+                        return false
+                    }
+                    let companionType = sema.types.make(.classType(ClassType(
+                        classSymbol: companionSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    if !driver.helpers.collectMemberFunctionCandidates(
+                        named: calleeName,
+                        receiverType: companionType,
+                        sema: sema,
+                        interner: interner
+                    ).isEmpty {
+                        return true
+                    }
+                    // Mirror the ordinary companion lookup's scoped and
+                    // imported-library extension fallbacks.
+                    let extensionCandidates = ctx.cachedScopeLookup(calleeName)
+                        + sema.symbols.lookupByShortName(calleeName).filter {
+                            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
+                        }
+                    return extensionCandidates.contains { candidate in
+                        guard sema.symbols.symbol(candidate)?.kind == .function,
+                              let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+                        else {
+                            return false
+                        }
+                        return extensionSyntheticFallbackReceiverMatches(
+                            callSiteReceiver: companionType,
+                            declaredReceiver: receiver,
+                            sema: sema
+                        )
+                    }
+                }()
                 let (visibleNested, invisibleNested) = ctx.filterByVisibility(nestedCtorCandidates)
-                if let firstInvisible = invisibleNested.first {
+                if visibleNested.isEmpty, let firstInvisible = invisibleNested.first {
+                    // An inaccessible constructor must not hide an accessible
+                    // companion factory. Let ordinary member lookup resolve it.
+                    if hasCompanionFunctionCandidates {
+                        return nil
+                    }
                     driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
                 if !visibleNested.isEmpty {
-                    if args.isEmpty {
+                    if args.isEmpty, explicitTypeArgs.isEmpty {
                         let zeroArgNested = visibleNested.first { candidate in
                             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                                 return false
@@ -420,23 +462,92 @@ extension CallTypeChecker {
                             return resultType
                         }
                     }
-                    let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
+                    // Nested constructors return before ordinary member-call
+                    // preparation, so infer lambdas and callable references
+                    // against their constructor parameter types here too.
+                    var cachedNonLambdaArgTypes: [Int: TypeID] = [:]
+                    for (index, argument) in args.enumerated() {
+                        if ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                            continue
+                        }
+                        cachedNonLambdaArgTypes[index] = argTypes[index]
                     }
-                    let call = CallExpr(range: range, calleeName: calleeName, args: callArgs, explicitTypeArgs: explicitTypeArgs)
-                    let resolved = ctx.resolver.resolveCall(
-                        candidates: visibleNested,
-                        call: call,
+                    var expectedTypeOverrides: [Int: TypeID] = [:]
+                    var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
+                    prepareCallExprArgumentContexts(
+                        args: args,
+                        ctx: ctx,
                         expectedType: expectedType,
-                        ctx: sema
+                        explicitTypeArgs: explicitTypeArgs,
+                        calleeName: calleeName,
+                        candidates: visibleNested,
+                        withContextExpectedLambdaType: nil,
+                        expectedTypeOverrides: &expectedTypeOverrides,
+                        lambdaContextOverrides: &lambdaContextOverrides
+                    )
+                    let preparedArgs = prepareCallArguments(
+                        args: args,
+                        candidates: visibleNested,
+                        preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
+                        expectedTypeOverrides: expectedTypeOverrides,
+                        contextualCallResultType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        lambdaContextOverrides: lambdaContextOverrides,
+                        ctx: ctx,
+                        locals: &locals
+                    )
+                    let resolved = resolveCallRespectingLambdaReturnType(
+                        candidates: visibleNested,
+                        args: args,
+                        argTypes: preparedArgs.argTypes,
+                        range: range,
+                        calleeName: calleeName,
+                        explicitTypeArgs: explicitTypeArgs,
+                        expectedType: expectedType,
+                        implicitReceiverType: nil,
+                        lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                        inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                        blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                        hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                        ctx: ctx
                     )
                     if let diagnostic = resolved.diagnostic {
+                        // Kotlin gives applicable nested constructors priority
+                        // for Owner.Name(...), but retries companion functions
+                        // when no constructor is applicable. Keep constructor
+                        // ambiguity instead of silently choosing a factory.
+                        // A result-type mismatch does not make an otherwise
+                        // applicable constructor yield to a companion function.
+                        if hasCompanionFunctionCandidates,
+                           diagnostic.code != "KSWIFTK-SEMA-0003",
+                           expectedType == nil || ctx.resolver.probeCall(
+                               candidates: visibleNested,
+                               call: CallExpr(
+                                   range: range,
+                                   calleeName: calleeName,
+                                   args: zip(args, preparedArgs.argTypes).map { argument, type in
+                                       CallArg(
+                                           label: argument.label,
+                                           isSpread: argument.isSpread,
+                                           isTrailingLambda: argument.isTrailingLambda,
+                                           type: type
+                                       )
+                                   },
+                                   explicitTypeArgs: explicitTypeArgs
+                               ),
+                               expectedType: nil,
+                               ctx: sema
+                           ).viableCandidates.isEmpty
+                        {
+                            return nil
+                        }
                         ctx.sema.diagnostics.emit(diagnostic)
                         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                     }
                     if let chosen = resolved.chosenCallee,
                        let signature = sema.symbols.functionSignature(for: chosen)
                     {
+                        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
                         sema.bindings.bindCall(
                             id,
                             binding: CallBinding(

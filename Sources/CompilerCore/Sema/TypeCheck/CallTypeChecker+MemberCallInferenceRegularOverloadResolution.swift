@@ -281,13 +281,26 @@ extension CallTypeChecker {
             sema.symbols.externalLinkName(for: $0) == "kk_kxmini_async_await"
         }
         let resolutionExpectedType = isDeferredAwait ? nil : expectedType
+        // The nullable result of findAnnotation does not make its reified
+        // annotation argument nullable. Keep ordinary lookup and bound checking.
+        let resolutionTypeArgs: [TypeID]
+        if explicitTypeArgs.isEmpty, candidates.count == 1,
+           let candidate = candidates.first,
+           sema.symbols.symbol(candidate)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
+           let expectedType,
+           let bound = sema.symbols.functionSignature(for: candidate)?.typeParameterUpperBounds.first ?? nil {
+            let expectedArgument = sema.types.makeNonNullable(expectedType)
+            resolutionTypeArgs = [sema.types.isSubtype(bound, expectedArgument) ? bound : expectedArgument]
+        } else {
+            resolutionTypeArgs = explicitTypeArgs
+        }
         var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
             argTypes: preparedArgs.argTypes,
             range: range,
             calleeName: calleeName,
-            explicitTypeArgs: explicitTypeArgs,
+            explicitTypeArgs: resolutionTypeArgs,
             expectedType: resolutionExpectedType,
             implicitReceiverType: effectiveReceiverType,
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,

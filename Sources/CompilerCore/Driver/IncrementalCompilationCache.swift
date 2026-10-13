@@ -593,7 +593,8 @@ public final class IncrementalCompilationCache {
     }
 
     private static func isOutputAffectingFrontendFlag(_ flag: String) -> Bool {
-        flag != "incremental" && flag != "time-phases" && !flag.hasPrefix("jobs=")
+        flag != "incremental" && flag != "no-incremental"
+            && flag != "time-phases" && !flag.hasPrefix("jobs=")
     }
 
 }

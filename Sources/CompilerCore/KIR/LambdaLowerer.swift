@@ -426,6 +426,35 @@ final class LambdaLowerer {
                 }
             }
         }
+        // Restore direct-call metadata using this body's environment values,
+        // after all raw or packed captures have been bound.
+        var capturedValues: [KIRExprID: KIRExprID] = [:]
+        for capture in captureBindings {
+            if let value = driver.ctx.localValue(for: capture.capturedSymbol)
+                ?? driver.ctx.localDelegateStorage(for: capture.capturedSymbol)
+            {
+                capturedValues[capture.valueExpr] = value
+            }
+        }
+        for capture in captureBindings {
+            guard sema.symbols.symbol(capture.capturedSymbol)?.flags.contains(.localFunction) == true,
+                  let callable = driver.ctx.callableValueInfo(for: capture.valueExpr),
+                  let value = driver.ctx.localValue(for: capture.capturedSymbol)
+            else { continue }
+            let arguments = callable.captureArguments.map { argument in
+                guard let captured = capturedValues[argument] else {
+                    preconditionFailure("BuildKIRPhase: missing callable environment in lambda capture")
+                }
+                return captured
+            }
+            driver.ctx.registerCallableValue(
+                value, symbol: callable.symbol, callee: callable.callee,
+                captureArguments: arguments,
+                hasClosureParam: callable.hasClosureParam,
+                unboxedSymbol: callable.unboxedSymbol
+            )
+        }
+
         // Publish this lambda's receiver under its per-lambda symbol so that
         // `this@callee` (in this body or a nested lambda that captures it)
         // reads this receiver rather than the innermost implicit one.

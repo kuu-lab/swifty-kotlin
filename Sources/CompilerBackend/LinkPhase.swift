@@ -82,21 +82,29 @@ final class LinkPhase: CompilerPhase {
     }
 
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
-        let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
+        let autoLinkedObjects = withSubPhaseTiming("libraryObjects", timer: ctx.phaseTimer) {
+            discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
+        }
         do {
-            let runtimeInputs = try CodegenRuntimeSupport.runtimeLinkInputs(
-                target: ctx.options.target,
-                configuration: .release
-            )
-            let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
-                .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
+            let runtimeInputs = try withSubPhaseTiming("runtimeObjects", timer: ctx.phaseTimer) {
+                try CodegenRuntimeSupport.runtimeLinkInputs(
+                    target: ctx.options.target,
+                    configuration: .release
+                )
+            }
+            let entryWrapperObjectPath = try withSubPhaseTiming("entryWrapper", timer: ctx.phaseTimer) {
+                try LLVMEntryPointObjectEmitter(target: ctx.options.target, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
+                    .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
+            }
             let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
                 .deletingLastPathComponent()
                 .path
             defer {
                 try? FileManager.default.removeItem(atPath: entryWrapperDirectoryPath)
             }
-            let autolinkStubPath = try emitSwiftAutolinkStubIfNeeded(target: ctx.options.target)
+            let autolinkStubPath = try withSubPhaseTiming("autolinkStub", timer: ctx.phaseTimer) {
+                try emitSwiftAutolinkStubIfNeeded(target: ctx.options.target)
+            }
             var stubDirectoryPath: String?
             if let autolinkStubPath {
                 stubDirectoryPath = URL(fileURLWithPath: autolinkStubPath).deletingLastPathComponent().path

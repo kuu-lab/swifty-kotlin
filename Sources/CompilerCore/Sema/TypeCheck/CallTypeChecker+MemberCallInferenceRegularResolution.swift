@@ -363,7 +363,8 @@ extension CallTypeChecker {
             request,
             isClassNameReceiver: isClassNameReceiver,
             classNameReceiverNominalSymbol: classNameReceiverNominalSymbol,
-            argTypes: argTypes
+            argTypes: argTypes,
+            locals: &locals
         ) {
             return result
         }

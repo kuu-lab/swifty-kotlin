@@ -96,7 +96,7 @@ extension ExprTypeChecker {
         }
         let targetType = sema.types.make(.classType(ClassType(classSymbol: target.1)))
         sema.bindings.bindClassRefTargetType(id, type: targetType)
-        let result = sema.types.makeKClassType(argument: targetType)
+        let result = sema.types.makeKClassType(argument: classRefTypeArgument(for: target.1, ctx: ctx))
         sema.bindings.bindExprType(id, type: result)
         return result
     }
@@ -140,7 +140,7 @@ extension ExprTypeChecker {
             else { continue }
             let classType = sema.types.make(.classType(ClassType(classSymbol: sym.id)))
             sema.bindings.bindClassRefTargetType(id, type: classType)
-            let kClassType = sema.types.makeKClassType(argument: classType)
+            let kClassType = sema.types.makeKClassType(argument: classRefTypeArgument(for: sym.id, ctx: ctx))
             sema.bindings.bindExprType(id, type: kClassType)
             _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
             return kClassType
@@ -177,6 +177,19 @@ extension ExprTypeChecker {
             }
         }
         return nil
+    }
+
+    private func classRefTypeArgument(for symbolID: SymbolID, ctx: TypeInferenceContext) -> TypeID {
+        // Keep the classifier binding for native reflection metadata, but use
+        // the canonical primitive in KClass<T> so cast/safeCast retain T.
+        // A user classifier named Int (or an alias to it) must remain nominal.
+        if let symbol = ctx.cachedSymbol(symbolID),
+           symbol.fqName.count == 2,
+           symbol.fqName[0] == ctx.interner.intern("kotlin"),
+           let primitive = driver.builtinTypeNamesCache.primitiveType(for: symbol.name) {
+            return ctx.sema.types.make(.primitive(primitive, .nonNull))
+        }
+        return ctx.sema.types.make(.classType(ClassType(classSymbol: symbolID)))
     }
 
     func inferExprReceiverClassRef(
@@ -229,7 +242,14 @@ extension ExprTypeChecker {
         let targetType = sema.types.makeNonNullable(receiverType)
         sema.bindings.bindClassRefTargetType(id, type: targetType)
         sema.bindings.bindBoundClassRef(id)
-        let kClassType = sema.types.makeKClassType(argument: targetType)
+        // An expression's runtime class may be a subtype of its static type.
+        // Kotlin therefore types value::class as KClass<out StaticType>.
+        guard let kClassSymbol = sema.types.kClassInterfaceSymbol else {
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
+        let kClassType = sema.types.make(.classType(ClassType(
+            classSymbol: kClassSymbol, args: [.out(targetType)]
+        )))
         sema.bindings.bindExprType(id, type: kClassType)
         return kClassType
     }

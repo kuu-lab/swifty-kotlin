@@ -25,6 +25,10 @@ enum CLIParser {
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, common-module)
+      --incremental         Enable incremental compilation (default: off)
+      --incremental-cache <path>
+                             Enable incremental compilation using a private cache directory
+      --no-incremental      Disable incremental compilation; overrides enable flags and cache path
       -opt-in=<fqname>       Opt in to an experimental API marker
       -Xnew-inference        Enable the new type inference pipeline
       -Xunrestricted-builder-inference
@@ -55,6 +59,7 @@ enum CLIParser {
         var optLevel: OptimizationLevel = .O0
         var debugInfo = false
         var frontendFlags: [String] = []
+        var incrementalCachePath: String?
         var irFlags: [String] = []
         var runtimeFlags: [String] = []
         var diagnosticsFormat: DiagnosticsFormat = .text
@@ -107,6 +112,16 @@ enum CLIParser {
                 frontendFlags.append("opt-in=\(String(arg.dropFirst("-Xopt-in=".count)))")
             case "-Xfrontend":
                 try frontendFlags.append(requireValue(option: arg, args: args, index: &index))
+            case "--incremental":
+                frontendFlags.append("incremental")
+            case "--incremental-cache":
+                let path = try requireValue(option: arg, args: args, index: &index)
+                guard !path.isEmpty, !path.hasPrefix("-") else {
+                    throw CLIParseError.missingValue(arg)
+                }
+                incrementalCachePath = path
+            case "--no-incremental":
+                frontendFlags.append("no-incremental")
             case "-Xnew-inference":
                 frontendFlags.append("new-inference")
             case "-Xunrestricted-builder-inference":
@@ -209,6 +224,7 @@ enum CLIParser {
             runtimeFlags: runtimeFlags,
             stdlibSearchPaths: CompilerOptions.defaultStdlibSearchPaths(),
             includeStdlib: includeStdlib,
+            incrementalCachePath: incrementalCachePath,
             diagnosticsFormat: diagnosticsFormat,
             stdlibOnly: stdlibOnly,
             stdlibLibraryPath: stdlibLibraryPath,

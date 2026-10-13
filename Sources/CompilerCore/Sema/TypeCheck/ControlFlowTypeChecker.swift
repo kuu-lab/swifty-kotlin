@@ -400,7 +400,9 @@ final class ControlFlowTypeChecker {
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
         var bodyLocals = locals
+        let loopScope = BlockScope(parent: ctx.scope, symbols: sema.symbols)
         let bodyCtx = ctx.copying(
+            scope: loopScope,
             loopDepth: ctx.loopDepth + 1,
             loopLabelStack: newLabelStack,
             exportBlockLocalsForExpr: bodyExpr
@@ -412,7 +414,9 @@ final class ControlFlowTypeChecker {
             expectedType: nil,
             isStatementContext: true
         )
-        let conditionType = driver.inferExpr(conditionExpr, ctx: ctx, locals: &bodyLocals, expectedType: boolType)
+        let conditionType = driver.inferExpr(
+            conditionExpr, ctx: ctx.copying(scope: loopScope), locals: &bodyLocals, expectedType: boolType
+        )
         driver.emitSubtypeConstraint(
             left: conditionType,
             right: boolType,

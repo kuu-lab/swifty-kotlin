@@ -42,7 +42,11 @@ extension CallTypeChecker {
             if let existing = expectedTypeOverrides[index], existing != parameterType {
                 continue
             }
-            expectedTypeOverrides[index] = parameterType
+            // A function-producing call is checked against the SAM's function
+            // signature; its returned value is adapted by the outer call.
+            expectedTypeOverrides[index] = functionValueSamArgumentExpectedType(
+                args[index].expr, parameterType: parameterType, ctx: ctx
+            )
         }
     }
 
