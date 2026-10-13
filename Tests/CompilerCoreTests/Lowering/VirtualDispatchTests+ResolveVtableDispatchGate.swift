@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -8,6 +9,60 @@ import Testing
 // as the runtime fallback path.
 
 extension VirtualDispatchTests {
+    @Test func testHiddenFinalMemberCallsStayDirectInClassHierarchy() throws {
+        let source = """
+        open class Parser {
+            private fun inspect(): Int = 7
+            internal fun inspectInternal(): Int = 9
+            fun implicit(): Int = inspect()
+            fun explicit(): Int = this.inspect()
+            fun safe(): Int? = this?.inspect()
+            fun reference(): () -> Int = this::inspect
+            fun internalHelper(): Int = inspectInternal()
+            open fun visible(): Int = 1
+            fun control(): Int = visible()
+            internal open fun internalVisible(): Int = 3
+            fun internalControl(): Int = internalVisible()
+        }
+        class Child : Parser() {
+            override fun visible(): Int = 2
+            override fun internalVisible(): Int = 4
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "PrivateDispatch", includeStdlib: false)
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError)
+            let module = try #require(ctx.kir)
+            for function in findAllKIRFunctions(in: module) {
+                for instruction in function.body {
+                    if case let .virtualCall(symbol?, _, _, _, _, _, _, _) = instruction {
+                        let name = ctx.sema?.symbols.symbol(symbol)?.name
+                        #expect(name != ctx.interner.intern("inspect"))
+                        #expect(name != ctx.interner.intern("inspectInternal"))
+                    }
+                }
+            }
+            for caller in ["implicit", "explicit", "safe", "internalHelper"] {
+                let body = try findKIRFunctionBody(named: caller, in: module, interner: ctx.interner)
+                #expect(body.contains {
+                    if case let .call(symbol?, _, _, _, _, _, _, _) = $0 {
+                        let name = ctx.sema?.symbols.symbol(symbol)?.name
+                        return name == ctx.interner.intern("inspect") || name == ctx.interner.intern("inspectInternal")
+                    }
+                    return false
+                }, "\(caller) must retain the direct helper call")
+            }
+            for caller in ["control", "internalControl"] {
+                let body = try findKIRFunctionBody(named: caller, in: module, interner: ctx.interner)
+                #expect(body.contains {
+                    if case .virtualCall = $0 { return true }
+                    return false
+                }, "Overridable members must retain virtual dispatch")
+            }
+        }
+    }
+
     /// Isolated unit test for `resolveVirtualDispatch` on an open-class hierarchy.
     /// Open-class hierarchies must select vtable dispatch when the callee has a
     /// layout slot and the parent has known subtypes.

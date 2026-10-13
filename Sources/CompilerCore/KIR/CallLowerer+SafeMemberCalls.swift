@@ -1561,6 +1561,10 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
+    // Private members cannot be overridden and are omitted from a user
+    // library's exported dispatch metadata. Their own bodies must call them
+    // directly even when the enclosing class has known subclasses.
+    guard calleeSymbol.visibility != .private else { return nil }
     // Range/progression receivers are RuntimeRangeBox handles without a
     // Kotlin vtable/itable — dispatching a member virtually on them crashes
     // at kk_vtable_lookup (KSWIFTK-RUNTIME-0001). Their member calls always
@@ -1605,6 +1609,12 @@ func resolveVirtualDispatchKind(
         )
     }
     if parentSymbol.kind == .class {
+        // Final internal helpers are also absent from exported dispatch
+        // metadata. Open/abstract/non-final override members still need the
+        // implementation selected from the concrete receiver.
+        let isOverridable = !calleeSymbol.flags.contains(.finalMember)
+            && !calleeSymbol.flags.intersection([.openType, .abstractType, .overrideMember]).isEmpty
+        guard calleeSymbol.visibility != .internal || isOverridable else { return nil }
         // KSP-1281: members of the range/progression classes are never
         // vtable-dispatchable. Their values are runtime `RuntimeRangeBox`
         // handles, not heap objects carrying a KTypeInfo vtable, so
