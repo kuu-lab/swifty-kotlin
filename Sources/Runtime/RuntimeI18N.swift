@@ -1,5 +1,8 @@
 import Foundation
 
+// Locale constructors allocate runtime-owned boxes rather than nominal objects.
+private let runtimeLocaleNominalTypeID = runtimeStableNominalTypeID(fqName: "java.util.Locale")
+
 final class RuntimeLocaleBox {
     let identifier: String
     let language: String
@@ -111,7 +114,9 @@ public func __kk_locale_new_flat(
         byteCount: identifierByteCount,
         hash: identifierHash
     )
-    return registerRuntimeObject(makeRuntimeLocaleBox(languageOnly: identifier))
+    return registerRuntimeObject(
+        makeRuntimeLocaleBox(languageOnly: identifier), typeID: runtimeLocaleNominalTypeID
+    )
 }
 
 @_cdecl("__kk_locale_new_language_country_flat")
@@ -137,5 +142,7 @@ public func __kk_locale_new_language_country_flat(
         byteCount: countryByteCount,
         hash: countryHash
     )
-    return registerRuntimeObject(makeRuntimeLocaleBox(language: language, country: country))
+    return registerRuntimeObject(
+        makeRuntimeLocaleBox(language: language, country: country), typeID: runtimeLocaleNominalTypeID
+    )
 }
