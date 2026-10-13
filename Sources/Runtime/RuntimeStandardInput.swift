@@ -2,7 +2,9 @@ import Foundation
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
-import Glibc
+// The runtime never replaces libc's stdin pointer. Stdio synchronizes access
+// to the shared FILE buffer; Glibc's global lacks Swift concurrency annotations.
+@preconcurrency import Glibc
 #endif
 
 /// Uses stdio's input buffer, shared with Swift.readLine(), so console and
