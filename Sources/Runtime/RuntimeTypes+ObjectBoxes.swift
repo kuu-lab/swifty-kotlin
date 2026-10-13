@@ -88,6 +88,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
     var backingMapBox: RuntimeMapBox?
+    var backingMapRaw: Int = 0
     var throwableMessage: String?
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
@@ -293,7 +294,15 @@ final class RuntimeFunctionValueBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] {
+        let fieldRefs = values.compactMap(\.childReferenceRawValue)
+        if let objectBox = self as? RuntimeObjectBox,
+           let backingMapBox = objectBox.backingMapBox {
+            let storageRefs = objectBox.backingMapRaw == 0 ? [] : [objectBox.backingMapRaw]
+            return fieldRefs + storageRefs + backingMapBox.childRefs
+        }
+        return fieldRefs
+    }
 }
 
 extension RuntimePairBox: RuntimeChildReferenceProviding {
