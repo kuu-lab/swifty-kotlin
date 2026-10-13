@@ -6,14 +6,17 @@ fun find(): Long {
 
 fun nestedFind(): Long {
     val range = 1L..3L
-    range.forEach { x ->
-        range.forEach { y ->
-            range.forEach { z ->
-                if (x == 2L && y == 2L && z == 2L) return x * 100L + y * 10L + z
+    while (true) {
+        range.forEach { x ->
+            range.forEach { y ->
+                if (x == 2L && y == 2L) {
+                    range.forEach { z ->
+                        if (z == 2L) return x * 100L + y * 10L + z
+                    }
+                }
             }
         }
     }
-    return -1L
 }
 
 fun normalCompletion(): Long {

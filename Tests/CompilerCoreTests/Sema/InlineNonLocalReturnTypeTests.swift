@@ -109,6 +109,59 @@ struct InlineNonLocalReturnTypeTests {
         """, allowDefaultStdlibLibrary: false)
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0042", in: ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let forEachCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard let range = ast.arena.exprRange(id),
+                  ctx.sourceManager.origin(of: range.start.file) == .user,
+                  case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id),
+                  callee == ctx.interner.intern("forEach")
+            else { return nil }
+            return id
+        }
+        #expect(forEachCalls.count == 1)
+        let call = try #require(forEachCalls.first)
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true)
+        let sourceFile = try #require(sema.symbols.sourceFileID(for: binding.chosenCallee))
+        #expect(ctx.sourceManager.path(of: sourceFile) == "__bundled_kotlin/ranges/LongRangeHOF.kt")
+        let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+        #expect(signature.valueParameterAllowsNonLocalReturn == [true])
+    }
+
+    @Test(arguments: [
+        ("fun LongRange.forEach(action: (Long) -> Unit) { action(99L) }", "{ return it }"),
+        ("fun LongRange.forEach(extra: Int, action: (Long) -> Unit) { action(99L) }", "{ return it }"),
+        ("fun LongRange.forEach(value: Int) {}", "{ return it }"),
+        ("fun LongRange.forEach(action: (String) -> Unit) { action(\"value\") }", "{ n: Long -> return n }"),
+    ])
+    func longRangeForEachKeepsStdlibPriorityOverUserExtensions(declaration: String, callback: String) throws {
+        TestStdlibCache.shared.prepare()
+        _ = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let ctx = makeContextFromSource("""
+        \(declaration)
+        fun find(): Long {
+            (1L..3L).forEach \(callback)
+            return -1L
+        }
+        """, emit: .executable)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(ast.arena.exprs.indices.first { index in
+            let id = ExprID(rawValue: Int32(index))
+            guard let range = ast.arena.exprRange(id),
+                  ctx.sourceManager.origin(of: range.start.file) == .user,
+                  case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id)
+            else { return false }
+            return callee == ctx.interner.intern("forEach")
+        })
+        let binding = try #require(sema.bindings.callBinding(for: ExprID(rawValue: Int32(call))))
+        #expect(sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true)
+        #expect(sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.importedLibrary) == true)
+        #expect(sema.symbols.symbol(binding.chosenCallee)?.fqName == ["kotlin", "ranges", "forEach"].map(ctx.interner.intern))
     }
 
     @Test(arguments: [false, true])

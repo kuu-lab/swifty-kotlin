@@ -512,7 +512,7 @@ extension CallTypeChecker {
     }
 
     private func isLongRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        memberName == "contains" && argCount == 1
+        (memberName == "contains" || memberName == "forEach") && argCount == 1
     }
 
     private func isLongRangeCrossTypeContains(
@@ -759,7 +759,8 @@ extension CallTypeChecker {
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longRange
                 && isLongRangeSourceBackedHOF(memberName, argCount: args.count)
-                && isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema))
+                && (memberName != "contains"
+                    || isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
             || (rangeKind == .ulongRange
                 && isUnsignedRangeSourceBackedHOF(memberName, argCount: args.count)
                 && (memberName != "contains"
