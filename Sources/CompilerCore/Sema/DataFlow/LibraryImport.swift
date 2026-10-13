@@ -211,7 +211,6 @@ extension DataFlowSemaPhase {
             }
             if record.isDataClass { flags.insert(.dataType) }
             if record.isOpenClass { flags.insert(.openType) }
-            if record.kind == .class && record.isInnerClass { flags.insert(.innerClass) }
             switch record.modality {
             case .abstract: flags.insert(.abstractType)
             case .open: flags.insert(.openType)
@@ -222,6 +221,7 @@ extension DataFlowSemaPhase {
             if record.isValueClass { flags.insert(.valueType) }
             if record.isExpect { flags.insert(.expectDeclaration) }
             if record.isActual { flags.insert(.actualDeclaration) }
+            if record.kind == .class && record.isInnerClass { flags.insert(.innerClass) }
             if record.isMutable, record.kind == .property || record.kind == .field {
                 flags.insert(.mutable)
             }

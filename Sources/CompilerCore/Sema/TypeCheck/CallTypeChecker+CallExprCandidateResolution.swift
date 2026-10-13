@@ -239,6 +239,16 @@ extension CallTypeChecker {
                     )
                 }
             }
+            // An applicable member keeps precedence even when the surrounding
+            // result expectation fails, or its own overload set is ambiguous.
+            if let diagnostic = resolved.diagnostic,
+               !knownApplicableImplicitMembers.isEmpty,
+               candidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
+            {
+                ctx.sema.diagnostics.emit(diagnostic)
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             if let diagnostic = resolved.diagnostic {
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
