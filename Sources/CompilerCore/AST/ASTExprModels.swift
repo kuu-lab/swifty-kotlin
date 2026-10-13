@@ -120,11 +120,14 @@ public struct WhenBranch: Equatable, Codable {
 public struct CallArgument: Equatable, Codable {
     public let label: InternedString?
     public let isSpread: Bool
+    /// True only for a lambda written outside the call parentheses.
+    public let isTrailingLambda: Bool
     public let expr: ExprID
 
-    public init(label: InternedString? = nil, isSpread: Bool = false, expr: ExprID) {
+    public init(label: InternedString? = nil, isSpread: Bool = false, isTrailingLambda: Bool = false, expr: ExprID) {
         self.label = label
         self.isSpread = isSpread
+        self.isTrailingLambda = isTrailingLambda
         self.expr = expr
     }
 }

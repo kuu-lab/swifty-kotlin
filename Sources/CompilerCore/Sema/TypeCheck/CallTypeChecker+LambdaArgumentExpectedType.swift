@@ -328,6 +328,7 @@ extension CallTypeChecker {
         at index: Int,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         in signature: FunctionSignature,
         sema: SemaModule
     ) -> TypeID? {
@@ -346,7 +347,8 @@ extension CallTypeChecker {
             return nil
         }
 
-        guard index == argumentCount - 1,
+        guard isTrailingLambda,
+              index == argumentCount - 1,
               let lastParameterIndex = signature.parameterTypes.indices.last,
               case .functionType = sema.types.kind(
                   of: sema.types.makeNonNullable(signature.parameterTypes[lastParameterIndex])
@@ -370,6 +372,7 @@ extension CallTypeChecker {
         at index: Int,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
@@ -394,6 +397,7 @@ extension CallTypeChecker {
                at: index,
                argumentCount: argumentCount,
                argumentLabel: argumentLabel,
+               isTrailingLambda: isTrailingLambda,
                in: signature,
                sema: sema
            )
@@ -427,6 +431,7 @@ extension CallTypeChecker {
                at: index,
                argumentCount: argumentCount,
                argumentLabel: argumentLabel,
+               isTrailingLambda: isTrailingLambda,
                in: signature,
                sema: sema
            )
@@ -465,6 +470,7 @@ extension CallTypeChecker {
             at: index,
             argumentCount: argumentCount,
             argumentLabel: argumentLabel,
+            isTrailingLambda: isTrailingLambda,
             candidates: candidates,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: receiverType,
@@ -559,6 +565,7 @@ extension CallTypeChecker {
         at index: Int,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
@@ -572,6 +579,7 @@ extension CallTypeChecker {
                       at: index,
                       argumentCount: argumentCount,
                       argumentLabel: argumentLabel,
+                      isTrailingLambda: isTrailingLambda,
                       in: signature,
                       sema: sema
                   )

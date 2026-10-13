@@ -403,7 +403,7 @@ extension CallTypeChecker {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
             let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
             return CallArg(
-                label: argument.label, isSpread: argument.isSpread, type: type,
+                label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type,
                 signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned
             )
         }
@@ -546,7 +546,7 @@ extension CallTypeChecker {
                 }
             )
             let resolvedArgs = zip(args, argTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
             for group in orderedGroups {
                 let resolved = ctx.resolver.resolveCall(
