@@ -85,6 +85,20 @@ open class BaseScope: Scope {
         return fileLevelMatches
     }
 
+    /// Include shadowed outer parameters: they remain rigid in nested bodies.
+    func lexicalTypeParameterSymbols() -> Set<SymbolID> {
+        var result: Set<SymbolID> = []
+        var current: Scope? = self
+        while let scope = current as? BaseScope {
+            for symbol in scope.locals.values.flatMap({ $0 })
+                where scope.symbols.symbol(symbol)?.kind == .typeParameter {
+                result.insert(symbol)
+            }
+            current = scope.parent
+        }
+        return result
+    }
+
     open func insert(_ sym: SymbolID) {
         guard let symbol = symbols.symbol(sym) else {
             return

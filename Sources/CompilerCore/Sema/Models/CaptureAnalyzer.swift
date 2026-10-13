@@ -249,6 +249,15 @@ struct CaptureAnalyzer {
                 }
 
             case let .callableRef(receiver, _, _):
+                if let binding = sema.bindings.callableReferenceBinding(for: currentExprID),
+                   let signature = sema.symbols.functionSignature(for: binding.chosenCallee) {
+                    for index in signature.reifiedTypeParameterIndices where index < binding.substitutedTypeArguments.count {
+                        for symbol in outerSymbols where sema.symbols.symbol(symbol)?.flags.contains(.reifiedTypeParameter) == true
+                            && sema.types.typeContainsTypeParam(binding.substitutedTypeArguments[index], symbol: symbol) {
+                            captured.insert(symbol)
+                        }
+                    }
+                }
                 if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
                    outerSymbols.contains(receiverSymbol)
                 {

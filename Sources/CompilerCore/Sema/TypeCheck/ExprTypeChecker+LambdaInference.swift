@@ -330,7 +330,8 @@ extension ExprTypeChecker {
             for parameter in expectedFunctionType.params {
                 inputTypeParameters.formUnion(typeParameterSymbols(in: parameter, sema: sema))
             }
-            return !returnTypeParameters.subtracting(inputTypeParameters).isEmpty
+            let lexicalParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)
+            return !returnTypeParameters.subtracting(inputTypeParameters).subtracting(lexicalParameters).isEmpty
         }()
         // Kotlin discards a Unit-expected lambda body's value rather than requiring
         // it to actually type as Unit (e.g. `repeat(3) { i -> someIntCall(i) }`).
@@ -356,7 +357,8 @@ extension ExprTypeChecker {
                   expectedReturnType != sema.types.unitType else {
                 return nil
             }
-            if case .typeParam = sema.types.kind(of: expectedReturnType) {
+            if case let .typeParam(parameter) = sema.types.kind(of: expectedReturnType),
+               !driver.helpers.lexicalTypeParameterSymbols(in: ctx).contains(parameter.symbol) {
                 return nil
             }
             if expectedReturnHasUnresolvedOutputTypeParameter {

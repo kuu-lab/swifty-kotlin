@@ -8,6 +8,7 @@ extension LambdaLowerer {
         targetSymbol: SymbolID,
         targetName: InternedString?,
         captureArguments: [KIRExprID],
+        isReifiedThunk: Bool = false,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -56,7 +57,7 @@ extension LambdaLowerer {
         }
         let callResult = arena.appendTemporary(type: returnType)
         let callee = targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner)
-        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
+        if !isReifiedThunk, sema.bindings.implicitReceiverMemberNames[exprID] != nil,
            let receiver = callArguments.first,
            let receiverType = captureParams.first?.type,
            let dispatch = driver.callLowerer.resolveVirtualDispatch(
@@ -72,7 +73,7 @@ extension LambdaLowerer {
                 receiver: receiver,
                 arguments: Array(callArguments.dropFirst()),
                 result: callResult,
-                canThrow: false,
+                canThrow: isReifiedThunk,
                 thrownResult: nil,
                 dispatch: dispatch
             ))
@@ -82,7 +83,7 @@ extension LambdaLowerer {
                 callee: callee,
                 arguments: callArguments,
                 result: callResult,
-                canThrow: false,
+                canThrow: isReifiedThunk,
                 thrownResult: nil
             ))
         }
@@ -376,6 +377,24 @@ extension LambdaLowerer {
             callTargetName = thunk.name
         }
 
+        let reifiedFunctionType = (sema.bindings.samUnderlyingFunctionType(for: exprID) ?? boundType).flatMap { type -> FunctionType? in
+            guard case let .functionType(function) = sema.types.kind(of: type) else { return nil }
+            return function
+        }
+        let reifiedThunk = targetSymbol.flatMap { target in
+            reifiedFunctionType.flatMap { function in
+                reifiedCallableReferenceThunk(
+                    exprID, targetSymbol: target, functionType: function,
+                    captures: &captureArguments, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions
+                )
+            }
+        }
+        if let reifiedThunk {
+            callTargetSymbol = reifiedThunk.symbol
+            callTargetName = reifiedThunk.name
+        }
+
         // BUG-048: A callable reference in SAM-conversion position must become an
         // object implementing the functional interface (with an itable entry), the
         // same way a SAM-converted lambda literal does.  Lowering it as a bare
@@ -387,6 +406,7 @@ extension LambdaLowerer {
                targetSymbol: callTargetSymbol,
                targetName: callTargetName,
                captureArguments: captureArguments,
+               isReifiedThunk: reifiedThunk != nil,
                sema: sema,
                arena: arena,
                interner: interner,
@@ -401,7 +421,8 @@ extension LambdaLowerer {
         // HOF ABI: (closureRaw, value, outThrown) -> result.  The target function
         // itself uses a plain ABI (value) -> result, so we cannot pass its
         // pointer directly to the runtime HOF implementation.
-        let needsHOFWrapper = sema.bindings.isCollectionHOFLambdaExpr(exprID)
+        let isCollectionHOFReference = sema.bindings.isCollectionHOFLambdaExpr(exprID)
+        let needsHOFWrapper = isCollectionHOFReference && reifiedThunk == nil
         // Imported inline bodies and local auto-inline HOFs may have no native
         // entry point. A reference must point at an emitted thunk whose call
         // can be expanded by InlineLowering, including forward declarations.
@@ -813,7 +834,7 @@ extension LambdaLowerer {
         // Collection HOF runtimes expect a raw function pointer plus closure payload.
         // Returning a tagged callable reference here would pass the reflection wrapper
         // object to runtime HOF entry points instead of the generated thunk symbol.
-        if needsHOFWrapper {
+        if isCollectionHOFReference {
             if sema.bindings.callableRefKind(for: exprID) == .functionRef,
                case let .functionType(functionType) = sema.types.kind(of: callableType)
             {
@@ -875,6 +896,7 @@ extension LambdaLowerer {
                     returnType: functionType.returnType,
                     captures: captureArguments,
                     receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
+                    includeInvocation: targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.reifiedTypeParameterIndices.isEmpty != false,
                     ast: ast, sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }

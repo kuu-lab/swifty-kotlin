@@ -146,6 +146,9 @@ extension ExprTypeChecker {
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
             .union(ctx.implicitReceiverStack.map(\.symbol))
+            .union(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
+                sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
+            })
 
         let classFQName = fqNamePrefix + [classDecl.name]
         let classSymbol = sema.symbols.define(

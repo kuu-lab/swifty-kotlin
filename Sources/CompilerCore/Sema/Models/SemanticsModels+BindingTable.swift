@@ -29,6 +29,17 @@ public final class BindingTable {
     /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
+    /// Specializations of callable references are separate from ordinary calls.
+    public private(set) var callableReferenceBindings: [ExprID: CallBinding] = [:]
+
+    public func bindCallableReference(_ expression: ExprID, binding: CallBinding?) {
+        callableReferenceBindings[expression] = binding
+    }
+
+    public func callableReferenceBinding(for expression: ExprID) -> CallBinding? {
+        callableReferenceBindings[expression]
+    }
+
     /// Local nominal target checks run after speculative expression inference.
     private var pendingLocalAnnotationTargets: [DeclID: [[InternedString]]] = [:]
 

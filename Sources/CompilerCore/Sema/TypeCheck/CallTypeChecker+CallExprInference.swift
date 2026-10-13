@@ -540,6 +540,7 @@ extension CallTypeChecker {
             callRange: range,
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
+            contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: callImplicitReceiverType,
             lambdaContextOverrides: lambdaContextOverrides,
