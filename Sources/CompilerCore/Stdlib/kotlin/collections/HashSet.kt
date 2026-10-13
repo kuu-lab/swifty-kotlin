@@ -15,7 +15,7 @@ import kotlin.internal.KsSymbolName
 // Direct instances are tagged RuntimeSetBoxes produced by the `HashSet(...)` /
 // `hashSetOf` constructor lowering (`CollectionLiteralLoweringPass`). Members
 // bind to the shared set storage bridges, which also support the backing boxes
-// attached to source-allocated LinkedHashSet subclasses. The Kotlin/Native
+// attached to source-allocated HashSet subclasses. The Kotlin/Native
 // `KonanSet` marker interface and its backing `HashMap` storage are platform
 // internals that KSwiftK does not model.
 
@@ -25,6 +25,11 @@ private external fun <E> __kkHashSetSize(set: HashSet<E>): Int
 @KsSymbolName("__kk_builder_set_freeze")
 private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
 
+// The shared initializer attaches set storage without replacing the source
+// object's nominal identity or its subclass fields.
+@KsSymbolName("__kk_linked_hash_set_init")
+private external fun <E> __kkHashSetInit(set: HashSet<E>)
+
 /**
  * Hash-based mutable set implementation.
  *
@@ -33,10 +38,19 @@ private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
  * the shared runtime set box supplies storage and collection operations.
  */
 public open class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
+    init {
+        __kkHashSetInit(this)
+    }
+
     constructor()
-    constructor(initialCapacity: Int)
-    constructor(initialCapacity: Int, loadFactor: Float)
-    constructor(elements: Collection<E>)
+    constructor(initialCapacity: Int) : this(initialCapacity, 0.75f)
+    constructor(initialCapacity: Int, loadFactor: Float) {
+        require(initialCapacity >= 0) { "Illegal Capacity: $initialCapacity" }
+        require(loadFactor > 0f) { "Illegal Load: $loadFactor" }
+    }
+    constructor(elements: Collection<E>) : this() {
+        addAll(elements)
+    }
 
     override val size: Int
         get() = __kkHashSetSize(this)
