@@ -3,14 +3,14 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  * Copyright (C) 2019 Square, Inc. Licensed under the Apache License, Version 2.0.
  *
- * Derived from kotlinx-io core/common/src/RealSource.kt (tag 0.9.1). `@JvmField` is dropped
- * (this compiler has a single non-JVM target).
+ * Derived from kotlinx-io core/common/src/RealSource.kt (tag 0.9.1). The original JVM field annotation is retained in Native metadata.
  */
 package kotlinx.io
 
 internal class RealSource(
     val source: RawSource
 ) : Source {
+    @kotlin.jvm.JvmField
     var closed: Boolean = false
     private val bufferField = Buffer()
 

@@ -14,9 +14,10 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         ctx: CompilationContext,
-        predeclaredSymbol: SymbolID? = nil
+        predeclaredSymbol: SymbolID? = nil,
+        preparedDeclaration: Decl? = nil
     ) {
-        guard let decl = ast.arena.decl(declID) else { return }
+        guard let decl = preparedDeclaration ?? ast.arena.decl(declID) else { return }
         let package = file.packageFQName
         let anyType = types.anyType
         let unitType = types.unitType

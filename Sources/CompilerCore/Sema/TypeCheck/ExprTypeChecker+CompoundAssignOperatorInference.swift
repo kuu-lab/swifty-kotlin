@@ -343,6 +343,10 @@ extension ExprTypeChecker {
 
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
         if let local = locals[name] {
+            let valueType = contextualCompoundAssignmentValueType(
+                op: op, receiverType: local.type, valueExpr: valueExpr,
+                originalType: valueType, range: range, ctx: ctx, locals: &locals
+            )
             sema.bindings.bindIdentifier(id, symbol: local.symbol)
             if !local.isInitialized,
                sema.symbols.symbol(local.symbol)?.flags.contains(.lateinitProperty) != true
@@ -520,6 +524,10 @@ extension ExprTypeChecker {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
             }
             let propType = implicitReceiverMember?.type ?? sema.symbols.propertyType(for: propSymbol.id) ?? sema.types.errorType
+            let valueType = contextualCompoundAssignmentValueType(
+                op: op, receiverType: propType, valueExpr: valueExpr,
+                originalType: valueType, range: range, ctx: ctx, locals: &locals
+            )
             if let resolvedType = inferIncrementDecrementIfNeeded(
                 exprID: id,
                 op: op,
@@ -695,7 +703,7 @@ extension ExprTypeChecker {
             ast: ctx.ast,
             sema: sema
         ) ?? inferredReceiverType
-        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let originalValueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         guard let propResult = driver.helpers.lookupMemberProperty(
@@ -720,6 +728,10 @@ extension ExprTypeChecker {
 
         sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
         let propType = propResult.type
+        let valueType = contextualCompoundAssignmentValueType(
+            op: op, receiverType: propType, valueExpr: valueExpr,
+            originalType: originalValueType, range: range, ctx: ctx, locals: &locals
+        )
         let propSymbol = sema.symbols.symbol(propResult.symbol)
         if let propSymbol,
            !ctx.visibilityChecker.isAccessible(

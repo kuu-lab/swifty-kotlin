@@ -564,6 +564,23 @@ public final class ASTModule {
         arena.prepareExpressionRangeIndex()
     }
 
+    /// Each Sema worker gets its own arena lock and copy-on-write storage.
+    /// Scalar inference preserves every AST ID and never needs the LSP range
+    /// index, so copying the finalized module avoids rebuilding that index.
+    func makeSemaWorkerAST() -> ASTModule {
+        ASTModule(workerSnapshotOf: self)
+    }
+
+    private init(workerSnapshotOf module: ASTModule) {
+        files = module.files
+        arena = ASTArena(snapshot: module.arena.snapshot())
+        declarationCount = module.declarationCount
+        tokenCount = module.tokenCount
+        activeDeclsByFileRawID = module.activeDeclsByFileRawID
+        sortedFiles = module.sortedFiles
+        filesByID = module.filesByID
+    }
+
     /// O(1) lookup of the file with `fileID`; identical result to a linear
     /// `files.first { $0.fileID == fileID }` scan.
     public func file(for fileID: FileID) -> ASTFile? {

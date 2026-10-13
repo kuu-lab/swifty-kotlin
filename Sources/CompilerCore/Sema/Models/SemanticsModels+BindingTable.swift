@@ -246,6 +246,106 @@ public final class BindingTable {
     /// than re-resolving by name.
     public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
 
+    /// The initial independent-body contract permits only scalar expression
+    /// types and parameter references. Any other side-table write rejects the
+    /// worker delta, including calls, captures and Worker.execute metadata.
+    var hasOnlyIndependentScalarBindings: Bool {
+        if !whenExhaustiveness.isEmpty { return false }
+        if !lambdaReturnTargets.isEmpty { return false }
+        if !lambdaReturnLambdaPaths.isEmpty { return false }
+        if !functionReturnLambdaPaths.isEmpty { return false }
+        if !callBindings.isEmpty { return false }
+        if !workerExecuteCallees.isEmpty { return false }
+        if !workerExecuteJobRanges.isEmpty { return false }
+        if !loopIterationBindings.isEmpty { return false }
+        if !indexedCompoundAssignOperatorBindings.isEmpty { return false }
+        if !indexedCompoundAssignElementOperatorBindings.isEmpty { return false }
+        if !callableTargets.isEmpty { return false }
+        if !constructorDelegationTargets.isEmpty { return false }
+        if !constructorDelegationCallBindings.isEmpty { return false }
+        if !callableValueCalls.isEmpty { return false }
+        if !isCheckTargetTypes.isEmpty { return false }
+        if !castTargetTypes.isEmpty { return false }
+        if !findAnnotationSearchTypes.isEmpty { return false }
+        if !catchClauseBindings.isEmpty { return false }
+        if !captureSymbolsByExpr.isEmpty { return false }
+        if !contractCallsInPlaceInitializedSymbolsByExpr.isEmpty { return false }
+        if cachedContractCallsInPlaceInitializedSymbolsUnion != nil { return false }
+        if !declSymbols.isEmpty { return false }
+        if !superCallExprs.isEmpty { return false }
+        if !invokeOperatorCallExprs.isEmpty { return false }
+        if !extensionPropertyGetterCalls.isEmpty { return false }
+        if !invokeOperatorPropertyCalls.isEmpty { return false }
+        if !collectionExprIDs.isEmpty { return false }
+        if !rangeExprIDs.isEmpty { return false }
+        if !charRangeExprIDs.isEmpty { return false }
+        if !uintRangeExprIDs.isEmpty { return false }
+        if !ulongRangeExprIDs.isEmpty { return false }
+        if !floatingPointRangeExprIDs.isEmpty { return false }
+        if !flowExprIDs.isEmpty { return false }
+        if !collectionSymbolIDs.isEmpty { return false }
+        if !rangeSymbolIDs.isEmpty { return false }
+        if !charRangeSymbolIDs.isEmpty { return false }
+        if !uintRangeSymbolIDs.isEmpty { return false }
+        if !ulongRangeSymbolIDs.isEmpty { return false }
+        if !floatingPointRangeSymbolIDs.isEmpty { return false }
+        if !flowSymbolIDs.isEmpty { return false }
+        if !floatingPointRangeElementTypesByExpr.isEmpty { return false }
+        if !floatingPointRangeElementTypesBySymbol.isEmpty { return false }
+        if !openFloatingPointRangeExprIDs.isEmpty { return false }
+        if !openFloatingPointRangeSymbolIDs.isEmpty { return false }
+        if !flowElementTypesByExpr.isEmpty { return false }
+        if !flowElementTypesBySymbol.isEmpty { return false }
+        if !deferredElementTypesByExpr.isEmpty { return false }
+        if !deferredElementTypesBySymbol.isEmpty { return false }
+        if !objectLiteralPropertySymbolIDs.isEmpty { return false }
+        if !classRefTargetTypes.isEmpty { return false }
+        if !boundClassRefExprs.isEmpty { return false }
+        if !constExprValues.isEmpty { return false }
+        if !samConversionExprs.isEmpty { return false }
+        if !samUnderlyingFunctionTypes.isEmpty { return false }
+        if !samInterfaceTypes.isEmpty { return false }
+        if !builderDSLExprIDs.isEmpty { return false }
+        if !builderDSLKinds.isEmpty { return false }
+        if !scopeFunctionExprIDs.isEmpty { return false }
+        if !scopeFunctionKinds.isEmpty { return false }
+        if !collectionHOFLambdaExprIDs.isEmpty { return false }
+        if !directlyInvokedLambdaExprIDs.isEmpty { return false }
+        if !fqnTopLevelCallExprIDs.isEmpty { return false }
+        if !fqnQualifiedValueExprIDs.isEmpty { return false }
+        if !typeQualifiedConstructorCallExprIDs.isEmpty { return false }
+        if !nonEscapingComparableCharLocals.isEmpty { return false }
+        if !coroutineLauncherLambdaExprIDs.isEmpty { return false }
+        if !rawSuspendEntryLambdaExprIDs.isEmpty { return false }
+        if !coroutineScopeLambdaReceiverTypes.isEmpty { return false }
+        if !sourceDeclaredExpectedTypeExprIDs.isEmpty { return false }
+        if !nominalFunctionExpectedTypes.isEmpty { return false }
+        if !stdlibSpecialCallExprIDs.isEmpty { return false }
+        if !stdlibSpecialCallKinds.isEmpty { return false }
+        if !implicitReceiverMemberNames.isEmpty { return false }
+        if !implicitReceiverOuterReceiverSymbols.isEmpty { return false }
+        if !implicitExtensionReceiverSymbols.isEmpty { return false }
+        if !coroutineScopeImplicitReceiverCallExprs.isEmpty { return false }
+        if !callableRefKinds.isEmpty { return false }
+        if !inferredCallableReferenceSymbols.isEmpty { return false }
+        if !unboundCallableRefs.isEmpty { return false }
+        if !primitiveOperatorCallableRefs.isEmpty { return false }
+        if !anyToStringCallableRefs.isEmpty { return false }
+        if !objectLiteralCaptureSymbolsByOwner.isEmpty { return false }
+        if !objectLiteralCapturedReceiversByOwner.isEmpty { return false }
+        if !capturedLocalTypesBySymbol.isEmpty { return false }
+        if !destructuringComponentCallees.isEmpty { return false }
+        return true
+    }
+
+    /// Joins the closed scalar delta at its original declaration position.
+    func mergeIndependentScalarExpressions(
+        types: [ExprID: TypeID], identifiers: [ExprID: SymbolID], typeMapping: [TypeID: TypeID]
+    ) {
+        exprTypes.merge(types.mapValues { typeMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
+        identifierSymbols.merge(identifiers, uniquingKeysWith: { _, new in new })
+    }
+
     public init() {}
 
     public func bindExprType(_ expr: ExprID, type: TypeID) {
