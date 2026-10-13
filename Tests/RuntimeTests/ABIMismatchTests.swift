@@ -294,25 +294,19 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkThreadLocalNewSignature() throws {
-        let spec = try requireSpec(RuntimeABISpec.threadLocalNewSpec)
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 0)
-    }
-
-    @Test
-    func kkThreadLocalGetOrSetSignature() throws {
-        let spec = try requireSpec(RuntimeABISpec.threadLocalGetOrSetSpec)
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].name == "receiver")
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "fnPtr")
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "closureRaw")
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].name == "outThrown")
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
+    func threadLocalStorageBridgeSignatures() throws {
+        for (spec, arity) in [
+            (RuntimeABISpec.threadLocalNewBridgeSpec, 0),
+            (RuntimeABISpec.threadLocalHasValueBridgeSpec, 1),
+            (RuntimeABISpec.threadLocalValueBridgeSpec, 1),
+            (RuntimeABISpec.threadLocalStoreBridgeSpec, 2),
+        ] {
+            let registered = try requireSpec(spec)
+            #expect(registered.parameters.count == arity)
+            #expect(registered.returnType == .intptr)
+            #expect(registered.parameters.allSatisfy { $0.type == .intptr })
+            #expect(!registered.isThrowing)
+        }
     }
 
     @Test

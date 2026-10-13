@@ -23,7 +23,7 @@ import Testing
 //   - AtomicLong: compareAndSet semantics — ditto
 //   - AtomicReference: compareAndExchange semantics — the public compareAndSet
 //             wrapper is covered by the compiler-backed atomic integration tests
-//   - @ThreadLocal: kk_thread_local_new / kk_thread_local_getOrSet — tested in RuntimeThreadLocalTests
+//   - Java ThreadLocal<T> storage is tested separately in RuntimeThreadLocalTests.
 //
 // Remaining work / known limitations:
 //   - TransferMode SAFE: full cycle-detection via DFS over the object graph is not yet
