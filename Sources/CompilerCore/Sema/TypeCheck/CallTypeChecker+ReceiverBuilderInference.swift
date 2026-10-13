@@ -174,7 +174,7 @@ extension CallTypeChecker {
             constraints: session.constraints, typeSystem: sema.types
         )
         guard solution.isSuccess else {
-            if let failure = solution.failure { ctx.semaCtx.diagnostics.emit(failure) }
+            if let failure = solution.failure { ctx.sema.diagnostics.emit(failure) }
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
         if let diagnostic = ctx.resolver.checkForUninferredTypeVariables(
@@ -329,7 +329,7 @@ extension CallTypeChecker {
             driver.emitSubtypeConstraint(
                 left: argTypes[argumentIndex], right: specialize(parameterType),
                 range: ctx.ast.arena.exprRange(args[argumentIndex].expr) ?? range,
-                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics
             )
         }
         sema.bindings.bindCall(id, binding: CallBinding(
@@ -391,8 +391,8 @@ extension CallTypeChecker {
         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
         sema.bindings.bindExprType(id, type: resultType)
         driver.helpers.checkDeprecation(for: chosen, sema: sema, interner: ctx.interner,
-                                       range: range, diagnostics: ctx.semaCtx.diagnostics)
-        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                                       range: range, diagnostics: ctx.sema.diagnostics)
+        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
         return resultType
     }
 }
