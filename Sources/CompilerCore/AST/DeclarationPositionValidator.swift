@@ -64,8 +64,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    // MARK: - Entry points
-
     func validate(declID: DeclID, site: OwnerSite) {
         guard let decl = astArena.decl(declID) else {
             return
@@ -93,9 +91,6 @@ struct DeclarationPositionValidator {
             break
         }
     }
-
-
-    // MARK: - Functions
 
     private func validateFunction(_ decl: FunDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
@@ -161,8 +156,6 @@ struct DeclarationPositionValidator {
             )
         }
     }
-
-    // MARK: - Properties
 
     private func validateProperty(_ decl: PropertyDecl, site: OwnerSite) {
         // Primary-constructor `val`/`var` parameters are materialized as
@@ -439,7 +432,7 @@ struct DeclarationPositionValidator {
             [body]
         case .callableRef(let receiver, _, _):
             receiver.map { [$0] } ?? []
-        case .localFunDecl(_, _, _, _, let body, _, _):
+        case .localFunDecl(_, _, _, _, let body, _, _, _):
             expressionIDs(in: body)
         case .blockExpr(let statements, let trailingExpr, _):
             statements + (trailingExpr.map { [$0] } ?? [])
@@ -458,8 +451,6 @@ struct DeclarationPositionValidator {
             exprIDs
         }
     }
-
-    // MARK: - Classes
 
     private func validateClass(_ decl: ClassDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
@@ -680,8 +671,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    // MARK: - Interfaces
-
     private func validateInterface(_ decl: InterfaceDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
 
@@ -760,8 +749,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    // MARK: - Objects
-
     private func validateObject(_ decl: ObjectDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
         let kindName = site == .function ? "local object" : "standalone object"
@@ -824,8 +811,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    // MARK: - Type aliases
-
     private func validateTypeAlias(_ decl: TypeAliasDecl, site: OwnerSite) {
         for (modifier, name) in Self.typeAliasForbiddenModifiers where decl.modifiers.contains(modifier) {
             emitNotApplicable(name, to: "typealias", range: decl.range)
@@ -834,8 +819,6 @@ struct DeclarationPositionValidator {
             emitNotApplicable("protected", to: "top level typealias", range: decl.range)
         }
     }
-
-    // MARK: - Shared modifier checks
 
     /// `inner` is only legal inside a non-local class-like body (a class,
     /// enum, or enum entry — including members of local classes).
@@ -919,8 +902,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    // MARK: - Helpers
-
     private func emitNotApplicable(_ name: String, to target: String, range: SourceRange) {
         diagnostics?.error(
             "KSWIFTK-SEMA-0400",
@@ -958,8 +939,6 @@ struct DeclarationPositionValidator {
             return "member property"
         }
     }
-
-    // MARK: - Modifier tables
 
     /// Function names that legally carry the `operator` modifier.
     static func isLegalOperatorName(_ name: String) -> Bool {

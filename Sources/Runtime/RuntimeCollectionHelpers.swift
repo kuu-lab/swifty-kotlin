@@ -104,20 +104,19 @@ let hashSetRuntimeTypeID: Int64 = {
 
 /// Nominal identity for `kotlin.collections.LinkedHashSet`.
 ///
-/// User-defined subclasses of LinkedHashSet are allocated as RuntimeObjectBox
-/// instances. Keep the nominal ID available so runtimeSetBox can lazily attach
-/// their storage even when library superclass initializers are not emitted.
+/// User-defined subclasses are allocated as RuntimeObjectBox instances.
+/// The HashSet parent identity lets runtimeSetBox lazily attach their storage
+/// even when library superclass initializers are not emitted.
 ///
 /// BUG-254: the mutable set factories and the LinkedHashSet constructors now tag
 /// their box with this ID, so it needs parent edges the way
 /// `hashSetRuntimeTypeID` has them -- without them `is MutableSet<*>` and
 /// `is Set<*>` would answer false on a box carrying this tag.
-/// `LinkedHashSet.kt` declares `LinkedHashSet<E> : MutableSet<E>`. The runtime
-/// identity follows that source-backed public hierarchy; the concrete class
-/// remains separate from `HashSet` because the factory/runtime representation
-/// does not expose a nominal HashSet superclass edge.
+/// KUU-1940: the distinct LinkedHashSet identity inherits HashSet's nominal
+/// hierarchy, matching `LinkedHashSet.kt` for erased `is` and cast operations.
 let linkedHashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashSet")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: hashSetRuntimeTypeID)
     runtimeRegisterTypeEdge(
         childTypeID: id,
         parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
@@ -194,8 +193,7 @@ private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64, l
     let hashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashMap")
     // KUU-556: LinkedHashMap is a real HashMap subclass (`LinkedHashMap.kt`),
     // matching the diff oracle (kotlinc-jvm: java.util.LinkedHashMap extends
-    // java.util.HashMap) -- unlike hashSetRuntimeTypeID/linkedHashSetRuntimeTypeID,
-    // which are still siblings under Set (docs/stdlib-pipeline.md §13-8).
+    // java.util.HashMap), just as LinkedHashSet inherits HashSet.
     let linkedHashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashMap")
     runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
     runtimeRegisterTypeEdge(childTypeID: hashMapID, parentTypeID: mutableMapID)

@@ -6,8 +6,6 @@ package enum MetadataModality: String {
     case abstract
 }
 
-// MARK: - Shared Metadata Record
-
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
 /// This is the single source of truth for what information survives the metadata round-trip.
 package struct MetadataRecord {
@@ -20,7 +18,6 @@ package struct MetadataRecord {
     package let isInline: Bool
     package let isOperator: Bool
     package let isInfix: Bool
-    /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
     package let isMemberExtension: Bool
     /// Nominal owner of a callable/property receiver. The indexed metadata
@@ -41,7 +38,6 @@ package struct MetadataRecord {
     /// that share one FQ name.
     package let callableTypeParameterSignatures: [String]
     package let inputOnlyTypeParameterIndices: Set<Int>
-    /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
     /// contain a non-local return when the callable is inline-expanded.
@@ -54,9 +50,7 @@ package struct MetadataRecord {
     /// symbol's (nonexistent) AST body.
     package let valueParameterCallsInPlaceKinds: [InvocationKind?]
     package let contractImplicationEffects: [ContractImplicationEffect]
-    /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
-    /// Whether the function/constructor is declared `throws`.
     package let canThrow: Bool
     /// Resolved names of value parameters, in declaration order, used for
     /// named-argument resolution on imported functions.
@@ -65,7 +59,6 @@ package struct MetadataRecord {
     /// call sites append the correct runtime type-token arguments for inline
     /// functions imported from a precompiled stdlib artifact.
     package let reifiedTypeParameterIndices: Set<Int>
-    /// Link name of the precompiled default-argument stub (e.g. `foo$default`).
     let defaultStubExternalLinkName: String?
     let externalLinkName: String?
     package let declaredFieldCount: Int?
@@ -77,19 +70,14 @@ package struct MetadataRecord {
     let fieldOffsets: String?
     let vtableSlots: String?
     let itableSlots: String?
-    /// Link name of the precompiled top-level object initializer (e.g. `__object_init_*`).
     let objectInitializerLinkName: String?
-    /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
     let companionInitializerLinkName: String?
-    /// Link name of the guarded object/companion body initializer.
     let objectLazyInitializerLinkName: String?
-    /// Link name of the precompiled enum static initializer (e.g. `__enum_static_init_*`).
     package let enumStaticInitLinkName: String?
 
     // P5-74: data class flag
     package let isDataClass: Bool
 
-    /// Whether a nominal declaration is explicitly open and may be subclassed.
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
     /// Inner classes require an enclosing instance even when their public constructor arity is zero.
@@ -120,11 +108,8 @@ package struct MetadataRecord {
     let isExpect: Bool
     let isActual: Bool
 
-    /// Receiver type signature for extension properties; nil for non-extension properties.
     let propertyReceiverTypeSignature: String?
-    /// Link name of the precompiled getter accessor for extension properties.
     let propertyGetterExternalLinkName: String?
-    /// Link name of the precompiled setter accessor for `var` properties.
     let propertySetterExternalLinkName: String?
     /// ABI return type signature for functions whose compiled return type differs
     /// from the source-level signature (e.g. raw `Int` string handles).
@@ -132,7 +117,6 @@ package struct MetadataRecord {
     /// ABI return type signature for extension property getters when it differs
     /// from the property's source type.
     let propertyGetterAbiReturnTypeSignature: String?
-    /// True for `var` properties/fields.
     package let isMutable: Bool
     /// Self type signature of a generic nominal declaration, carrying its type
     /// parameters and their declared variance (e.g.
@@ -304,6 +288,8 @@ struct MetadataIndexEntry {
     let offset: Int
     let length: Int
     let record: MetadataRecord
+    /// Older v2 indexes omit initializer links; absence is unknown there.
+    var hasCompleteInitializerInfo: Bool = false
 }
 
 /// Lazily reads v2 metadata records from the body section of `metadata.bin`.
@@ -353,7 +339,10 @@ final class IndexedMetadataFile {
             else {
                 return nil
             }
-            parsedEntries.append(MetadataIndexEntry(offset: offset, length: length, record: record))
+            parsedEntries.append(MetadataIndexEntry(
+                offset: offset, length: length, record: record,
+                hasCompleteInitializerInfo: fields[2].split(separator: " ").contains("initIndex=1")
+            ))
         }
 
         guard cursor <= bytes.count else { return nil }

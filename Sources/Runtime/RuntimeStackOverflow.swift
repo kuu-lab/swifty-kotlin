@@ -1,8 +1,6 @@
 import Foundation
 import RuntimeCAtomics
 
-// MARK: - Per-frame stack guard (KUU-1384)
-//
 // Generated function prologues call `kk_stack_overflow_check` once with a
 // marker address inside their own stack frame. While the marker stays above
 // the current thread's overflow bound the check returns 0; once it drops below

@@ -54,9 +54,6 @@ private let alwaysNullTransform: @convention(c) (Int, Int, UnsafeMutablePointer<
     runtimeNullSentinelInt
 }
 
-private let filterGreaterThanOne: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value > 1 ? 1 : 0
-}
 
 private let mapIndexedEvenIndexToValuePlusIndex: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
     index.isMultiple(of: 2) ? value + index : runtimeNullSentinelInt
@@ -86,14 +83,7 @@ private let flatMapIndexedPair: @convention(c) (Int, Int, Int, UnsafeMutablePoin
     return kk_list_of(array, 2)
 }
 
-private let windowSum: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, windowRaw, _ in
-    guard let windowBox = runtimeListBox(from: windowRaw) else { return 0 }
-    return windowBox.elements.reduce(0, +)
-}
 
-private let sumByWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value * value
-}
 
 private let maxWithOrNullNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
     if lhs < rhs {
@@ -149,9 +139,6 @@ private let maxOfWithOrNullSquareValue: @convention(c) (Int, Int, UnsafeMutableP
     value * value
 }
 
-private let sumByDoubleWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    kk_double_to_bits(value == 2 ? 1.5 : 0.25)
-}
 
 private let maxByNegativeValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     -value
@@ -188,10 +175,6 @@ private let allLtThreeCounting: @convention(c) (Int, Int, UnsafeMutablePointer<I
     return value < 3 ? 1 : 0
 }
 
-private let noneEqTwoCounting: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    gHOFState.addCall()
-    return value == 2 ? 1 : 0
-}
 
 private let countEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 2 == 0 ? 1 : 0
@@ -205,9 +188,6 @@ private let lastLessThanThree: @convention(c) (Int, Int, UnsafeMutablePointer<In
     value < 3 ? 1 : 0
 }
 
-private let findEqualTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value == 2 ? 1 : 0
-}
 
 private let groupByParity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 2
@@ -269,9 +249,6 @@ private let mapEntryValuePlusOne: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_pair_second(pairRaw) + 1
 }
 
-private let adjacentDifference: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, left, right, _ in
-    right - left
-}
 
 private let throwForMapDefault: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
     gHOFState.addCall()

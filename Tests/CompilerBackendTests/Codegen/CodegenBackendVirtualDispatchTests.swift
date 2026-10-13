@@ -8,6 +8,48 @@ import Testing
 struct CodegenBackendVirtualDispatchTests {
 
     @Test(arguments: [true, false])
+    func testNestedObjectGenericReturnUsesErasedDispatchABI(allowDefaultStdlibLibrary: Bool) throws {
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("nested_object_generic_return.kt"),
+                moduleName: "KUU1966NestedObjectGenericReturn",
+                expected: "conv=hi\nname=objname\nnum=7\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func testNestedObjectGenericReturnAcrossDeclarationAndValueShapes(allowDefaultStdlibLibrary: Bool) throws {
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("nested_object_generic_return_matrix.kt"),
+                moduleName: "KUU1966NestedObjectGenericReturnMatrix",
+                expected: "direct\nbase\ngeneric\nin.txt\n42\n43\ntrue\nfalse\nSECOND\npair:7\necho\n8\nplain\nnested-class\ntop\nobject-nested\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func testNestedRunForEachKeepsLabeledClassReceiverForGenericVisitor(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        let source = try diffCaseSource("kuu_1909_nested_run_foreach_this_printer.kt")
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU1909NestedLabeledClassReceiver",
+                expected: "3\n3\n3\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test(arguments: [true, false])
     func testNestedGenericOverridesDispatchThroughItable(allowDefaultStdlibLibrary: Bool) throws {
         try assertKotlinOutput(
             try diffCaseSource("generic_method_itable_dispatch.kt"),

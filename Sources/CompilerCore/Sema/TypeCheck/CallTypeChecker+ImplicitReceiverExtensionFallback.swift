@@ -282,13 +282,13 @@ extension CallTypeChecker {
             sema: sema,
             interner: ctx.interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: chosen,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         let boundResultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         var resultType = boundResultType
@@ -403,7 +403,7 @@ extension CallTypeChecker {
         let resolvedArgs = zip(args, argTypes).map { argument, type in
             let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
             return CallArg(
-                label: argument.label, isSpread: argument.isSpread, type: type,
+                label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type,
                 signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned
             )
         }
@@ -419,10 +419,10 @@ extension CallTypeChecker {
             ),
             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
             implicitReceiverType: nonNullReceiver,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -431,10 +431,10 @@ extension CallTypeChecker {
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         driver.helpers.checkDeprecation(
             for: chosen, sema: sema, interner: ctx.interner,
-            range: range, diagnostics: ctx.semaCtx.diagnostics
+            range: range, diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
-            for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics
+            for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
         )
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
@@ -546,7 +546,7 @@ extension CallTypeChecker {
                 }
             )
             let resolvedArgs = zip(args, argTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
             for group in orderedGroups {
                 let resolved = ctx.resolver.resolveCall(
@@ -560,7 +560,7 @@ extension CallTypeChecker {
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: group.receiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 guard resolved.diagnostic == nil,
                       let chosen = resolved.chosenCallee

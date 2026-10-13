@@ -1,6 +1,4 @@
 
-// SAM (Single Abstract Method) conversion helpers for functional interfaces.
-
 extension TypeCheckHelpers {
     /// For a functional interface (SAM type), find the single abstract method and
     /// return its function signature.  Returns `nil` if the symbol is not a
@@ -15,7 +13,6 @@ extension TypeCheckHelpers {
         else {
             return nil
         }
-        // Walk child symbols and collect abstract function members.
         let children = sema.symbols.children(ofFQName: sym.fqName)
         var abstractSignatures: [FunctionSignature] = []
         for childID in children {
@@ -28,7 +25,6 @@ extension TypeCheckHelpers {
             }
             abstractSignatures.append(signature)
         }
-        // A SAM type must have exactly one abstract method.
         guard abstractSignatures.count == 1 else {
             return nil
         }

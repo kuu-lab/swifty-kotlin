@@ -1,0 +1,88 @@
+public final class SemaModule {
+    public let symbols: SymbolTable
+    public let types: TypeSystem
+    public let bindings: BindingTable
+    public let diagnostics: DiagnosticEngine
+    /// String interner used to recover source-level nominal names while
+    /// resolving compiler-wide type shapes (for example `CharArray` spread
+    /// arguments passed to a vararg parameter). Kept optional for lightweight
+    /// unit-test sema modules that do not build a full source environment.
+    public let interner: StringInterner?
+    /// Imported inline bodies, resolved lazily: library import registers
+    /// descriptors (path + signature + name) per symbol, and the inline
+    /// lowering pass reads + parses each body on first expansion instead of
+    /// paying for every artifact up front.
+    public var importedInlineFunctions: ImportedInlineFunctionStore
+    /// `.klib` modules whose declarations were imported through
+    /// `loadImportedLibrarySymbols`. The decoded IR and the
+    /// `(fileIndex, signatureIndex) → SymbolID` map stay alive here so KIR
+    /// lowering can materialize serialized bodies into this compilation's
+    /// arena (they are `internal` because `LoadedKlibModule` is a
+    /// `DataFlowSemaPhase` detail type).
+    var klibModules: [DataFlowSemaPhase.LoadedKlibModule] = []
+    /// ARCH-029: resolves deferred imported inline bodies that the module's
+    /// call sites actually demand. Set by the lazy metadata loader when a v2
+    /// `.kklib` index is in use; `nil` on the eager import path.
+    public var resolveDemandedImportedInlineBodies: ((KIRModule) -> Void)?
+    /// KSP-499 Stage 3: the bundled/user declaration index built once per
+    /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
+    /// in the transient `BundledSyntheticStubRegistration` thread-local, which
+    /// is cleared once header registration finishes — so later phases (body
+    /// type-checking, KIR lowering) can still ask "does a real declaration
+    /// exist for this (owner, name, arity)?" before applying a hard-coded
+    /// compiler intrinsic special-case (e.g. the Flow operator dispatch in
+    /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
+    /// CallLowerer+MemberCalls.swift).
+    var bundledIndex: BundledDeclarationIndex
+    /// ARCH-021: compiler-owned well-known declarations resolved by exact
+    /// SymbolID after header collection.
+    var wellKnownSymbols: WellKnownSymbols
+    /// Import-alias spellings (`import kotlin.enumValueOf as evo` → `evo`)
+    /// that bind one of the enum intrinsic FQ names, computed lazily per file
+    /// by `enumStdlibSpecialCallKind`. Its callee-name guard must admit every
+    /// spelling that can resolve to an intrinsic — an alias binds the same
+    /// SymbolID — while keeping the common case O(1).
+    var enumIntrinsicAliasNamesByFile: [FileID: Set<InternedString>] = [:]
+
+    public init(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner? = nil,
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()
+    ) {
+        self.symbols = symbols
+        self.types = types
+        self.bindings = bindings
+        self.diagnostics = diagnostics
+        self.interner = interner
+        self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = .empty
+        self.wellKnownSymbols = .empty
+    }
+
+    /// Module-internal overload that also accepts the bundled declaration
+    /// index at construction time (see `bundledIndex` above). Not `public`
+    /// because `BundledDeclarationIndex` itself is internal to CompilerCore;
+    /// callers outside the module get the public initializer above, which
+    /// defaults `bundledIndex` to `.empty`.
+    init(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner? = nil,
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore(),
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        self.symbols = symbols
+        self.types = types
+        self.bindings = bindings
+        self.diagnostics = diagnostics
+        self.interner = interner
+        self.importedInlineFunctions = importedInlineFunctions
+        self.bundledIndex = bundledIndex
+        self.wellKnownSymbols = .empty
+    }
+}

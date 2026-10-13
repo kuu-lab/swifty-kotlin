@@ -1,8 +1,6 @@
 import Foundation
 import RuntimeABI
 
-// MARK: - KUU-1357: KClass.supertypes (multi-supertype KType list)
-
 /// JVM-parity supertypes for bundled builtin types. kotlin-reflect reports
 /// JVM-only supertypes (`kotlin.Number`, `java.io.Serializable`,
 /// `kotlin.Cloneable`, …) that Sema does not model, so the display-name lists

@@ -8,7 +8,7 @@ extension ExprTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         guard let receiverType = ctx.implicitReceiverType else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0050",
                 "'super' is not allowed outside of a class body.",
                 range: range
@@ -58,7 +58,7 @@ extension ExprTypeChecker {
             }
         }
         let qualifierStr = ctx.interner.resolve(qualifier)
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0054",
             "No type '\(qualifierStr)' found in direct supertypes for qualified 'super'.",
             range: range
@@ -95,7 +95,7 @@ extension ExprTypeChecker {
 
     private func emitNoSuperclass(id: ExprID, range: SourceRange, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0052",
             "Class has no superclass.",
             range: range
@@ -113,7 +113,7 @@ extension ExprTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         guard let receiverType = ctx.implicitReceiverType else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0051",
                 "'this' is not allowed in this context.",
                 range: range
@@ -148,7 +148,7 @@ extension ExprTypeChecker {
                 return qualifiedType
             }
             let labelStr = ctx.interner.resolve(label)
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0053",
                 "Unresolved label '\(labelStr)' for qualified 'this'.",
                 range: range

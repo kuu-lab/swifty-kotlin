@@ -1,6 +1,3 @@
-
-// MARK: - Core geometry
-
 /// A 0-based position in a text document. `character` counts UTF-16 code units.
 public struct LSPPosition: Codable, Equatable {
     public var line: Int
@@ -32,8 +29,6 @@ public struct LSPLocation: Codable, Equatable {
     }
 }
 
-// MARK: - Text document identifiers
-
 public struct TextDocumentIdentifier: Codable {
     public var uri: String
 }
@@ -54,8 +49,6 @@ public struct TextDocumentPositionParams: Codable {
     public var textDocument: TextDocumentIdentifier
     public var position: LSPPosition
 }
-
-// MARK: - Synchronization params
 
 public struct DidOpenTextDocumentParams: Codable {
     public var textDocument: TextDocumentItem
@@ -84,8 +77,6 @@ public struct DidSaveTextDocumentParams: Codable {
 public struct DocumentSymbolParams: Codable {
     public var textDocument: TextDocumentIdentifier
 }
-
-// MARK: - Diagnostics
 
 /// LSP diagnostic severity codes.
 public enum LSPDiagnosticSeverity: Int {
@@ -128,8 +119,6 @@ public struct PublishDiagnosticsParams: Codable {
         self.diagnostics = diagnostics
     }
 }
-
-// MARK: - Code actions
 
 /// A text replacement in LSP UTF-16 document coordinates.
 public struct LSPTextEdit: Codable, Equatable {
@@ -194,8 +183,6 @@ public struct LSPCodeAction: Codable, Equatable {
     }
 }
 
-// MARK: - Hover
-
 public struct MarkupContent: Codable {
     /// `"markdown"` or `"plaintext"`.
     public var kind: String
@@ -216,8 +203,6 @@ public struct Hover: Codable {
         self.range = range
     }
 }
-
-// MARK: - Document symbols
 
 /// LSP `SymbolKind` numeric codes.
 public enum LSPSymbolKind: Int {
@@ -273,8 +258,6 @@ public struct DocumentSymbol: Codable {
         self.children = children
     }
 }
-
-// MARK: - Lifecycle
 
 public struct ServerInfo: Codable {
     public var name: String

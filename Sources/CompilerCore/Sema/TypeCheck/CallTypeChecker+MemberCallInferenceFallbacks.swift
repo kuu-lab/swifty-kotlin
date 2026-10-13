@@ -126,7 +126,7 @@ extension CallTypeChecker {
         }
 
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
@@ -138,10 +138,10 @@ extension CallTypeChecker {
             ),
             expectedType: expectedType,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -244,7 +244,7 @@ extension CallTypeChecker {
             : [concreteMemberCandidates, normalCandidates]
         for candidates in candidateGroups where !candidates.isEmpty {
             let resolvedArgs = zip(args, refinedArgTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: candidates,
@@ -256,7 +256,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -390,7 +390,7 @@ extension CallTypeChecker {
             : [concreteMemberCandidates, normalCandidates]
         for candidates in candidateGroups where !candidates.isEmpty {
             let resolvedArgs = zip(args, refinedArgTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: candidates,
@@ -402,7 +402,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -766,9 +766,7 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion constants (STDLIB-153)
-    //
-    // Double (KSP-833) and Float (KSP-847) constants are now source-backed
+    // STDLIB-153: Double (KSP-833) and Float (KSP-847) constants are now source-backed
     // (see Stdlib/kotlin/Double/Companion/Companion.kt and
     // Stdlib/kotlin/Float/Companion/Companion.kt), so this fallback is
     // reserved for compiler-primitive numeric types that have not yet been
@@ -1264,7 +1262,7 @@ extension CallTypeChecker {
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
 

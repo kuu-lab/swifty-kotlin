@@ -76,7 +76,4 @@ final class CallLowerer {
         }
         return signature.valueParameterAllowsNonLocalReturn[parameterIndex]
     }
-
-    // MARK: - REFL-005: typeOf<T>() Lowering
-
 }

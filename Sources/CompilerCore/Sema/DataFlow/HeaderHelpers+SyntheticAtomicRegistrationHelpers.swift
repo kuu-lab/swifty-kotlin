@@ -5,28 +5,6 @@
 /// array (`HeaderHelpers+SyntheticAtomicArrayStubs.swift`) registrations, so these
 /// stay `internal` rather than `private`.
 extension DataFlowSemaPhase {
-    func ensureAtomicPackage(
-        path: [String],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        var fqName: [InternedString] = []
-        for component in path {
-            let interned = interner.intern(component)
-            fqName.append(interned)
-            if symbols.lookup(fqName: fqName) == nil {
-                _ = symbols.define(
-                    kind: .package,
-                    name: interned,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-        }
-        return fqName
-    }
 
     func registerAtomicConstructor(
         ownerSymbol: SymbolID,
@@ -265,7 +243,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        // load() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "load", externalLinkName: "\(prefix)_load",
@@ -274,7 +251,6 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
-        // store(value: T) -> Unit (returns via side effect)
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "store", externalLinkName: "\(prefix)_store",
@@ -283,7 +259,6 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
-        // exchange(new: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "exchange", externalLinkName: "\(prefix)_exchange",
@@ -319,7 +294,6 @@ extension DataFlowSemaPhase {
             )
         }
         if includeCompareAndSet {
-            // compareAndSet(expect: T, update: T) -> Boolean
             registerAtomicMember(
                 ownerSymbol: ownerSymbol, ownerType: ownerType,
                 name: "compareAndSet", externalLinkName: compareAndSetLinkName ?? "\(prefix)_compareAndSet",
@@ -333,7 +307,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // compareAndExchange(expect: T, update: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "compareAndExchange", externalLinkName: "\(prefix)_compareAndExchange",

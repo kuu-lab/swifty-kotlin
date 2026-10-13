@@ -79,7 +79,6 @@ public struct IndexedCompoundAssignElementOperatorBinding {
 
     public let call: CallBinding
     public let kind: Kind
-    /// The `get()` result type the operator is applied to.
     public let elementType: TypeID
     public let resultType: TypeID
 
@@ -113,14 +112,12 @@ public struct LoopIterationBinding {
     }
 }
 
-/// Identifies the kind of builder DSL function (STDLIB-002).
 public enum BuilderDSLKind: Equatable {
     case buildList
     case buildSet
     case buildMap
 }
 
-/// Identifies the kind of scope function (STDLIB-004).
 public enum ScopeFunctionKind: Equatable {
     case scopeContext
     /// Closeable.use { } (STDLIB-520): like `let`, but wraps in try-finally calling close().
@@ -138,8 +135,6 @@ public enum ScopeFunctionKind: Equatable {
     case scopeMemScoped
 }
 
-
-/// Identifies special stdlib calls that need dedicated lowering.
 public enum StdlibSpecialCallKind: Equatable {
     /// Compiler-only contract DSL; its lambda is recorded by Sema and must
     /// not be emitted into KIR.
@@ -178,9 +173,7 @@ public enum StdlibSpecialCallKind: Equatable {
 /// or a property, so that KIR lowering can emit the correct KFunction /
 /// KProperty type identity metadata (REFL-003).
 public enum CallableRefKind: Equatable {
-    /// `::functionName` — produces a KFunction reference.
     case functionRef
-    /// `::propertyName` — produces a KProperty reference.
     case propertyRef
 }
 

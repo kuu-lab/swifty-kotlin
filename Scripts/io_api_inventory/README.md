@@ -69,6 +69,37 @@ The generator has negative guards for Okio-only `ByteString.hex()`,
 `Buffer.snapshot(byteCount)`, and `select`; it preserves the real zero-argument
 `Buffer.snapshot()` and kotlinx-io hex conversion functions.
 
+## F01 consumer matrix
+
+KUU-1820 consumers are generated from the pinned KLIB source rows and their
+source declaration catalog:
+
+```sh
+python3 Scripts/io_api_inventory/generate_f01_consumers.py --write
+python3 Scripts/io_api_inventory/generate_f01_consumers.py
+python3 Scripts/io_api_inventory/test_f01_consumers.py
+```
+
+`f01_consumers/positive-common.kt` gives each non-deprecated common source
+signature typed arguments and calls it with full and omitted-default argument
+lists. `positive-apple.kt` and `positive-platform.kt` retain the target-specific
+signatures in separate consumers. `positive-jvm.kt` is the subset paired with a
+JVM ABI declaration; it is suitable for comparison with the pinned Kotlin 2.3.10
+compiler and 0.9.1 JVM artifacts. This split matters for expect/actual exception
+constructors and Foundation APIs, which are not all present in the JVM artifact.
+
+The generated negative consumers cover ledger deprecations, every direct IO
+opt-in marker row, all `@PublishedApi internal` rows, and the inventory's
+Okio-only negative guards. Those intentionally absent API names and their
+upstream absence basis are recorded in `negative-api-guards.tsv`; the generator
+reads that ledger and includes its rows in `consumer-manifest.json`.
+`negative-opt-in-warning.kt` and
+`negative-opt-in-error.kt` split opt-in levels so upstream Kotlin diagnostics
+remain observable even when error diagnostics would suppress warnings in a
+combined compile. `consumer-manifest.json` records the ledger IDs and source
+scopes. Regeneration fails if a public source row is missing from the positive
+scope consumers or an invalid guard is missing from the negative consumer.
+
 ## Recheck
 
 Requires Python 3.9+ and no third-party Python package:

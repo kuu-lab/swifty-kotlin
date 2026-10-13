@@ -55,7 +55,6 @@ struct ReceiverPredicateEquivalenceTests {
             let typeCheckDriver = TypeCheckDriver(
                 ast: ast,
                 sema: sema,
-                semaCtx: sema,
                 solver: ConstraintSolver(),
                 resolver: OverloadResolver(),
                 dataFlow: DataFlowAnalyzer(),

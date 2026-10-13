@@ -99,8 +99,6 @@ extension DataFlowSemaPhase {
 
     }
 
-    // MARK: - WeakReference<T>
-
     private func registerWeakReferenceStub(
         packageFQName: [InternedString],
         experimentalNativeApiSymbol: SymbolID?,
@@ -180,8 +178,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - createCleaner
 
     private func registerCreateCleanerStub(
         packageFQName: [InternedString],
@@ -275,8 +271,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - RootSetStatistics class
-
     private func registerRootSetStatisticsStub(
         packageFQName: [InternedString],
         nativeRuntimeApiSymbol: SymbolID?,
@@ -299,8 +293,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
     }
-
-    // MARK: - SweepStatistics class
 
     private func registerSweepStatisticsStub(
         packageFQName: [InternedString],
@@ -325,8 +317,6 @@ extension DataFlowSemaPhase {
         )
 
     }
-
-    // MARK: - GCInfo class
 
     private func registerGCInfoStub(
         packageFQName: [InternedString],

@@ -36,7 +36,6 @@ public final class PhaseTimer {
 
     public init() {}
 
-    // MARK: - Recording
 
     /// Mark the beginning of a phase.
     public func beginPhase(_ name: String) {
@@ -70,7 +69,21 @@ public final class PhaseTimer {
         ))
     }
 
-    // MARK: - Access
+
+    /// Measure synchronous work on the pipeline thread. With no timer, avoid
+    /// reading the clock. Failed operations still contribute a timing record.
+    public static func measureSubPhase<T>(
+        _ name: String,
+        timer: PhaseTimer?,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        guard let timer else { return try body() }
+        let start = DispatchTime.now().uptimeNanoseconds
+        defer {
+            timer.recordSubPhase(name, startTime: start, endTime: DispatchTime.now().uptimeNanoseconds)
+        }
+        return try body()
+    }
 
     /// All recorded phase timings.
     public var phaseRecords: [PhaseRecord] {
@@ -87,7 +100,6 @@ public final class PhaseTimer {
         Double(totalNanos) / 1_000_000.0
     }
 
-    // MARK: - Summary output
 
     /// Pad or truncate `text` to exactly `width` characters (left-aligned).
     private func pad(_ text: String, to width: Int) -> String {

@@ -16,6 +16,16 @@ public enum KotlinStringSurrogateEncoding {
         return 0xD800 + marker - markerBase
     }
 
+    /// If `units[index]` begins a well-formed UTF-16 surrogate pair, returns
+    /// the supplementary scalar the pair encodes; `nil` otherwise.
+    private static func supplementaryScalar(in units: [UInt16], at index: Int) -> UInt32? {
+        let high = UInt32(units[index])
+        guard (0xD800 ... 0xDBFF).contains(high), index + 1 < units.count else { return nil }
+        let low = UInt32(units[index + 1])
+        guard (0xDC00 ... 0xDFFF).contains(low) else { return nil }
+        return 0x10000 + ((high - 0xD800) << 10) + low - 0xDC00
+    }
+
     public static func encode(_ value: String) -> String {
         fromUTF16CodeUnits(Array(value.utf16))
     }
@@ -26,22 +36,18 @@ public enum KotlinStringSurrogateEncoding {
         var index = 0
         while index < units.count {
             let unit = UInt32(units[index])
-            if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
-               (0xDC00 ... 0xDFFF).contains(UInt32(units[index + 1]))
-            {
-                let low = UInt32(units[index + 1])
-                result.unicodeScalars.append(UnicodeScalar(0x10000 + ((unit - 0xD800) << 10) + low - 0xDC00)!)
+            if let scalar = supplementaryScalar(in: units, at: index) {
+                result.unicodeScalars.append(UnicodeScalar(scalar)!)
                 index += 2
+            } else if let marker = markerValue(for: unit) {
+                result.unicodeScalars.append(UnicodeScalar(escape)!)
+                result.unicodeScalars.append(UnicodeScalar(marker)!)
+                index += 1
             } else {
-                if let marker = markerValue(for: unit) {
+                if unit == escape {
                     result.unicodeScalars.append(UnicodeScalar(escape)!)
-                    result.unicodeScalars.append(UnicodeScalar(marker)!)
-                } else {
-                    if unit == escape {
-                        result.unicodeScalars.append(UnicodeScalar(escape)!)
-                    }
-                    result.unicodeScalars.append(UnicodeScalar(unit)!)
                 }
+                result.unicodeScalars.append(UnicodeScalar(unit)!)
                 index += 1
             }
         }
@@ -63,11 +69,8 @@ public enum KotlinStringSurrogateEncoding {
         var index = 0
         while index < units.count {
             let unit = UInt32(units[index])
-            if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
-               (0xDC00 ... 0xDFFF).contains(UInt32(units[index + 1]))
-            {
-                let low = UInt32(units[index + 1])
-                result.unicodeScalars.append(UnicodeScalar(0x10000 + ((unit - 0xD800) << 10) + low - 0xDC00)!)
+            if let scalar = supplementaryScalar(in: units, at: index) {
+                result.unicodeScalars.append(UnicodeScalar(scalar)!)
                 index += 2
             } else if (0xD800 ... 0xDFFF).contains(unit) {
                 result.append("?")

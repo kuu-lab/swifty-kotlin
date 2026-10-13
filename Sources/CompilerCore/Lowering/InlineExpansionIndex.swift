@@ -149,8 +149,6 @@ final class InlineExpansionIndex {
         self.arena = module.arena
     }
 
-    // MARK: - Classification
-
     /// Where the expansion target for `symbol` came from: `.module` for a
     /// module `inline` declaration, `.imported` for a body restored from
     /// library metadata. `nil` when `symbol` is not an expansion target at
@@ -171,8 +169,6 @@ final class InlineExpansionIndex {
     func isExpansionTarget(_ symbol: SymbolID) -> Bool {
         inlineFunctionsBySymbol[symbol] != nil || importedStore.descriptors[symbol] != nil
     }
-
-    // MARK: - Call-site target resolution
 
     /// The expansion target for a `.call` carrying `callSymbol` / `callee`.
     ///
@@ -253,8 +249,6 @@ final class InlineExpansionIndex {
         return groups
     }
 
-    // MARK: - Bodyless dependency info
-
     /// The bodyless callees `symbol`'s current body still calls, as
     /// resolved-symbol edges. Only `.call` instructions carrying a callee
     /// symbol create edges: a symbol-known call binds to exactly that
@@ -320,8 +314,6 @@ final class InlineExpansionIndex {
         }
         return lhs.symbol.rawValue < rhs.symbol.rawValue
     }
-
-    // MARK: - Mandatory-expansion contract
 
     /// Whether a `.call` with this callee identity names a bodyless callee
     /// -- one whose body never reaches an object file, so the call must have
@@ -422,8 +414,6 @@ final class InlineExpansionIndex {
         }
         return reaching
     }
-
-    // MARK: - Write-back
 
     /// Records an expanded snapshot for `symbol` in every table that holds
     /// it -- the module table and/or the expansion-target table.

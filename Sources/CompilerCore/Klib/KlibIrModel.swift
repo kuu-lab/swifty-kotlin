@@ -8,8 +8,6 @@ import Foundation
 /// `fileEntries` — resolved through ``KlibIrModule``. Every symbol `Int64`
 /// is a `BinarySymbolData` code: `(signatureIndex << 8) | kind`.
 
-// MARK: - Binary encodings
-
 /// Kotlin `BinarySymbolData.SymbolKind` ordinals.
 package enum KlibSymbolKind: Int, Sendable, CustomStringConvertible {
     case function = 0
@@ -135,8 +133,6 @@ package enum KlibBinaryEncoding {
     }
 }
 
-// MARK: - Signatures
-
 /// Kotlin `IdSignature` cases. Signature references are indices into the
 /// file-local `signatures` table; fq-name segment lists are `strings`
 /// table indices joined with `.`.
@@ -154,8 +150,6 @@ package enum KlibIdSignature: Equatable {
     /// Marker resolved to the owning file's `FileSignature`.
     case file
 }
-
-// MARK: - Flags
 
 package enum KlibVisibility: Int { case `internal` = 0, `private` = 1, protected = 2, `public` = 3, privateToThis = 4, local = 5 }
 package enum KlibModality: Int { case final = 0, open = 1, abstract = 2, sealed = 3 }
@@ -175,7 +169,6 @@ package struct KlibIrFlags {
     package var visibility: KlibVisibility { KlibVisibility(rawValue: field(1, width: 3)) ?? .public }
     package var modality: KlibModality { KlibModality(rawValue: field(4, width: 2)) ?? .final }
 
-    // MARK: Class bits (after modality)
     package var classKind: KlibClassKind { KlibClassKind(rawValue: field(6, width: 3)) ?? .class }
     package var isInner: Bool { bit(9) }
     package var isData: Bool { bit(10) }
@@ -185,9 +178,7 @@ package struct KlibIrFlags {
     package var isFunInterface: Bool { bit(14) }
     package var hasEnumEntries: Bool { bit(15) }
 
-    // MARK: Callable bits (after modality)
     package var memberKind: KlibMemberKind { KlibMemberKind(rawValue: field(6, width: 2)) ?? .declaration }
-    // Functions
     package var isOperator: Bool { bit(8) }
     package var isInfix: Bool { bit(9) }
     package var isInline: Bool { bit(10) }
@@ -200,7 +191,6 @@ package struct KlibIrFlags {
     /// non-stable-names bit).
     package var isPrimaryConstructor: Bool { bit(15) }
     package var isStaticFunction: Bool { bit(18) }
-    // Properties
     package var isVar: Bool { bit(8) }
     package var hasGetter: Bool { bit(9) }
     package var hasSetter: Bool { bit(10) }
@@ -211,32 +201,26 @@ package struct KlibIrFlags {
     package var isDelegated: Bool { bit(15) }
     package var isExpectProperty: Bool { bit(16) }
     package var isStaticProperty: Bool { bit(19) }
-    // Accessors
     package var isNotDefaultAccessor: Bool { bit(6) }
     package var isExternalAccessor: Bool { bit(7) }
     package var isInlineAccessor: Bool { bit(8) }
 
-    // MARK: Type parameter bits (after hasAnnotations)
     package var typeParameterVariance: KlibVariance { KlibVariance(rawValue: field(1, width: 2)) ?? .invariant }
     package var isReified: Bool { bit(3) }
 
-    // MARK: Type alias bits
     package var isActual: Bool { bit(4) }
 
-    // MARK: Field bits (after visibility)
     package var isFinalField: Bool { bit(4) }
     package var isExternalField: Bool { bit(5) }
     package var isStaticField: Bool { bit(6) }
     package var isFakeOverrideField: Bool { bit(7) }
 
-    // MARK: Value parameter bits (after hasAnnotations)
     package var declaresDefaultValue: Bool { bit(1) }
     package var isCrossinline: Bool { bit(2) }
     package var isNoinline: Bool { bit(3) }
     package var isHiddenParameter: Bool { bit(4) }
     package var isAssignable: Bool { bit(5) }
 
-    // MARK: Local variable bits (after hasAnnotations)
     package var isLocalVar: Bool { bit(1) }
     package var isLocalConst: Bool { bit(2) }
     package var isLocalLateinit: Bool { bit(3) }
@@ -249,8 +233,6 @@ package struct KlibIrFlags {
         Int((raw >> offset) & ((1 << width) - 1))
     }
 }
-
-// MARK: - Types
 
 package enum KlibTypeNullability: Int {
     case markedNullable = 0
@@ -283,8 +265,6 @@ package enum KlibIrType {
     /// `types` are indices into the `types` table.
     case definitelyNotNull(types: [Int32])
 }
-
-// MARK: - Declarations
 
 package struct KlibDeclBase {
     package var symbol: KlibSymbolRef
@@ -427,8 +407,6 @@ package enum KlibIrDeclaration {
     case localDelegatedProperty(KlibLocalDelegatedProperty)
     case typeAlias(KlibTypeAlias)
 }
-
-// MARK: - Expressions and statements
 
 /// `MemberAccessCommonPre_2_4_0` merged with the post-2.4 call-site fields.
 package struct KlibMemberAccess {
@@ -573,8 +551,6 @@ package struct KlibIrStatement {
     package var globalCoordinates: KlibCoordinates?
     package var localCoordinates: KlibCoordinates?
 }
-
-// MARK: - Files
 
 package struct KlibFileEntry {
     /// `strings` index (2.3.0+); `nameOld` carries the inline string for
