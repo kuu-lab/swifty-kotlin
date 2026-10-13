@@ -401,6 +401,7 @@ final class MetadataDecoder {
         var retention: AnnotationRetentionKind?
         var factoryLinkName: String?
         var arguments: [String] = []
+        var hasCanonicalLiterals = false
         for part in parts.dropFirst() {
             if part.hasPrefix("target:") {
                 useSiteTarget = String(part.dropFirst("target:".count))
@@ -409,6 +410,8 @@ final class MetadataDecoder {
             } else if part.hasPrefix("factory:"),
                       let data = Data(base64Encoded: String(part.dropFirst("factory:".count))) {
                 factoryLinkName = String(data: data, encoding: .utf8)
+            } else if part == "literalFormat:canonical" {
+                hasCanonicalLiterals = true
             } else if part.hasPrefix("args:") {
                 let argsStr = String(part.dropFirst("args:".count))
                 arguments = argsStr.split(separator: ",", omittingEmptySubsequences: false).compactMap { b64 in
@@ -421,11 +424,33 @@ final class MetadataDecoder {
         }
         return MetadataAnnotationRecord(
             annotationFQName: annotationFQName,
-            arguments: arguments,
+            arguments: hasCanonicalLiterals ? arguments : arguments.map(canonicalizeLegacyAnnotationArgument),
             useSiteTarget: useSiteTarget,
             retention: retention,
             factoryLinkName: factoryLinkName
         )
+    }
+
+    /// Marker-free artifacts used the historical token reconstruction. Convert
+    /// their literals once at the boundary, before semantic consumers see them.
+    private func canonicalizeLegacyAnnotationArgument(_ argument: String) -> String {
+        var value = argument.trimmingCharacters(in: .whitespacesAndNewlines)
+        var namedPrefix = ""
+        if let equal = value.firstIndex(of: "=") {
+            let name = value[..<equal].trimmingCharacters(in: .whitespacesAndNewlines)
+            // An '=' inside a string is content, not a named-argument prefix.
+            if let first = name.first, first.isLetter || first == "_",
+               name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                namedPrefix = name + "="
+                value = value[value.index(after: equal)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        let dollars = String(value.prefix { $0 == "$" })
+        guard value.dropFirst(dollars.count).first == "\"",
+              let literal = extractKotlinStringLiteralContent(value, representation: .legacyAnnotationTokens)
+        else { return argument }
+        let delimiter = literal.isRaw ? "\"\"\"" : "\""
+        return namedPrefix + dollars + delimiter + literal.content + delimiter
     }
 
     func symbolKindFromMetadata(_ token: String) -> SymbolKind? {

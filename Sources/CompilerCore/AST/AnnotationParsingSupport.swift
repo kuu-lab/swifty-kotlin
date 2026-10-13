@@ -105,9 +105,8 @@ enum AnnotationParsingSupport {
         )
     }
 
-    /// Preserve token boundaries while folding literal-only concatenations.
-    /// The legacy textual reconstruction cannot distinguish an empty string
-    /// operand from a '+' inside a string segment after quotes are added.
+    /// Keep folding token-based so empty operands and '+' inside string
+    /// segments cannot be confused with concatenation syntax.
     private static func foldStringLiteralConcatenation(_ tokens: [Token], interner: StringInterner) -> String? {
         var index = 0
         var argumentPrefix = ""
@@ -178,13 +177,17 @@ enum AnnotationParsingSupport {
         case let .softKeyword(soft):
             soft.rawValue
         case let .stringSegment(interned):
-            "\"\(interner.resolve(interned))\""
+            interner.resolve(interned)
         case .stringQuote:
             "\""
         case let .multiDollarStringQuote(dollarCount):
-            String(repeating: "$", count: dollarCount) + "\""
+            // The lexer uses the same kind for both delimiters. Only the
+            // opening token's source range includes the dollar prefix.
+            (token.range.end.offset - token.range.start.offset > 1
+                ? String(repeating: "$", count: dollarCount) : "") + "\""
         case let .multiDollarRawStringQuote(dollarCount):
-            String(repeating: "$", count: dollarCount) + "\"\"\""
+            (token.range.end.offset - token.range.start.offset > 3
+                ? String(repeating: "$", count: dollarCount) : "") + "\"\"\""
         case let .intLiteral(value):
             "\(value)"
         case let .longLiteral(value):
@@ -202,11 +205,11 @@ enum AnnotationParsingSupport {
         case .rawStringQuote:
             "\"\"\""
         case .templateExprStart:
-            "${"
+            String(repeating: "$", count: max(1, token.range.end.offset - token.range.start.offset - 1)) + "{"
         case .templateExprEnd:
             "}"
         case .templateSimpleNameStart:
-            "$"
+            String(repeating: "$", count: max(1, token.range.end.offset - token.range.start.offset))
         case .eof:
             ""
         case let .missing(expected):

@@ -1,5 +1,7 @@
 public struct AnnotationNode: Equatable, Codable {
     public let name: String
+    /// Reconstructed Kotlin expressions. Single string literals retain one
+    /// delimiter pair; literal concatenations use an escaped regular literal.
     public let arguments: [String]
     public let useSiteTarget: String?
     /// Original constructor tokens retain escapes, backticks and lexical scope.

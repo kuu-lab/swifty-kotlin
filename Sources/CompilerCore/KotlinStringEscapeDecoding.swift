@@ -104,15 +104,42 @@ internal func decodeKotlinStringEscapes(_ raw: String) -> String {
     return result
 }
 
-/// Extracts the content of a Kotlin string literal value that was reconstructed
-/// from lexer tokens (e.g. an annotation argument produced by
-/// `AnnotationParsingSupport.tokenRawText`).
-///
-/// The reconstructed form may be a regular string, a raw triple-quoted string,
-/// or a multi-dollar variant of either (`$"..."`, `$$"""..."""`, etc.).
-/// Returns the unwrapped content and a flag indicating whether the literal is
-/// raw (in which case escape sequences must not be decoded).
-internal func extractKotlinStringLiteralContent(_ value: String) -> (content: String, isRaw: Bool)? {
+/// Legacy annotation token reconstruction added quotes around every segment
+/// and repeated multi-dollar prefixes on closing delimiters. Its raw form can
+/// equal a canonical raw literal containing quotes, so provenance is required.
+internal enum KotlinStringLiteralRepresentation {
+    case canonical
+    case legacyAnnotationTokens
+}
+
+/// Unwraps a canonical Kotlin literal without interpreting its content.
+/// Raw strings retain embedded quotes and backslashes; regular literals are
+/// escape-decoded separately. Historical token text requires an explicit
+/// representation because quote counts alone cannot distinguish raw contents.
+internal func extractKotlinStringLiteralContent(
+    _ value: String,
+    representation: KotlinStringLiteralRepresentation = .canonical
+) -> (content: String, isRaw: Bool)? {
+    if representation == .legacyAnnotationTokens {
+        return extractLegacyAnnotationStringLiteralContent(value)
+    }
+
+    let dollarPrefix = String(value.prefix { $0 == "$" })
+    let rawPrefix = dollarPrefix + "\"\"\""
+    if value.hasPrefix(rawPrefix) {
+        guard value.count >= rawPrefix.count + 3, value.hasSuffix("\"\"\"") else { return nil }
+        return (String(value.dropFirst(rawPrefix.count).dropLast(3)), true)
+    }
+
+    let remainder = value.dropFirst(dollarPrefix.count)
+    guard let quote = remainder.first, quote == "\"" || quote == "'",
+          remainder.count >= 2, remainder.last == quote else { return nil }
+    return (String(remainder.dropFirst().dropLast()), false)
+}
+
+/// Compatibility decoder for pre-version-6 annotation token text. Synthetic
+/// metadata using ordinary delimiters is also accepted by the legacy format.
+private func extractLegacyAnnotationStringLiteralContent(_ value: String) -> (content: String, isRaw: Bool)? {
     // Count optional leading dollar prefix used by multi-dollar strings.
     var index = value.startIndex
     var dollarCount = 0
@@ -127,7 +154,7 @@ internal func extractKotlinStringLiteralContent(_ value: String) -> (content: St
 
     let dollarPrefix = String(repeating: "$", count: dollarCount)
 
-    // tokenRawText wraps a string segment in an extra pair of quotes. So:
+    // Historical tokenRawText wrapped each segment in extra quotes:
     // - Regular `$"abc"` becomes `$""abc"$"`.
     // - Raw `$$"""abc"""` becomes `$$""""abc"$$"""`.
     // - Empty raw `$$""""""` becomes `$$"""$$"""`.
@@ -159,9 +186,8 @@ internal func extractKotlinStringLiteralContent(_ value: String) -> (content: St
         return ("", false)
     }
 
-    // Synthetic stub metadata provides string arguments with a single pair
-    // of delimiter quotes, rather than the double-wrapped form produced by
-    // tokenRawText for source-derived annotation arguments.
+    // Synthetic stub metadata already used a single delimiter pair even
+    // when source-derived annotation arguments were double-wrapped.
     let singlePrefix = dollarPrefix + String(quoteChar)
     if value.count > singlePrefix.count,
        value.hasPrefix(singlePrefix),
