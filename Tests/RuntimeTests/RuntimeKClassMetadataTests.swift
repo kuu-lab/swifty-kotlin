@@ -5,6 +5,15 @@ import Testing
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeKClassMetadataTests {
 
+    @Test func nativeClassPredicateRejectsOtherObjects() {
+        let klass = __kk_kclass_create(1973, makeRuntimeString("test.NativeClassPredicate"))
+        let other = registerRuntimeObject(RuntimeListBox(elements: []))
+        #expect(__kk_kclass_is_runtime(klass) == 1)
+        #expect(__kk_kclass_is_runtime(other) == 0)
+        #expect(__kk_kclass_is_runtime(runtimeNullSentinelInt) == 0)
+        #expect(__kk_kclass_is_runtime(0) == 0)
+    }
+
     // MARK: - RuntimeKClassMetadataEntry
 
     @Test func metadataEntryStoresAllFields() {

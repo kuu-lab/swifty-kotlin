@@ -850,6 +850,12 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1973 adds one private bridge, `__kk_kclass_is_runtime` (reason: memory
+   representation). The source-backed `KAnnotatedElement.annotations` getter
+   must distinguish native KClass boxes from user implementations before
+   bypassing interface dispatch. `__kk_*` increases by one;
+   `RuntimeABISpec.operatorFunctions` registers the ABI and its canonical hash
+   updates `specVersion`.
    KUU-1941 adds one private bridge, `__kk_hash_map_storage` (reason: memory
    representation). HashMap's inherited Kotlin bodies need a stable native
    `RuntimeMapBox` handle, while the outer Kotlin object must retain interface

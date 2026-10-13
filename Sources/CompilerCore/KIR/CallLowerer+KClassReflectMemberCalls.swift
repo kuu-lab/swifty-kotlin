@@ -182,7 +182,7 @@ extension CallLowerer {
             // STDLIB-REFLECT-065: findAnnotation<T>() is a reified intrinsic with
             // no value parameters — the annotation class to search for comes from
             // the reified `T` recorded in `findAnnotationSearchType(for:)` (see
-            // `bindKClassFindAnnotationCall`), not from the argument list.
+            // the resolved CallBinding), not from the value-argument list.
             let searchNameExpr = lowerReifiedTypeNameHint(
                 typeArg: sema.bindings.findAnnotationSearchType(for: exprID),
                 sema: sema,

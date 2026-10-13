@@ -102,6 +102,12 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        // Resolve imports, aliases, bounds and the receiver normally before
+        // recording the reified argument for the native KClass fast path.
+        if sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(driver.interner.intern),
+           let searchType = sema.bindings.callBindings[id]?.substitutedTypeArguments.first {
+            sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
+        }
         if sema.symbols.externalLinkName(for: chosen) == "__kk_string_split" {
             sema.bindings.markCollectionExpr(id)
         }
