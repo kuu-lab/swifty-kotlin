@@ -90,7 +90,10 @@ struct SourceReferenceVarargArtifactABITests {
             valueParameterIsVararg: current ? [true] : [],
             reifiedTypeParameterIndices: Set(0..<reifiedCount), externalLinkName: "kk_fn_abi_inlineTokens"
         )
-        try MetadataEncoder().serialize([record]).write(to: directory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        // The isolated artifact must supply its physical storage dependency.
+        let arrayRecord = MetadataRecord(kind: .class, mangledName: "Array", fqName: "kotlin.Array",
+                                         nominalTypeParameters: "T9000:i")
+        try MetadataEncoder().serialize([arrayRecord, record]).write(to: directory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         let hidden = reifiedCount * (current ? 2 : 1)
         let count = hidden + (current ? 1 : 0)
         let parameterSymbols = (0..<count).map { String(100 + $0) }.joined(separator: ",")
@@ -134,13 +137,19 @@ struct SourceReferenceVarargArtifactABITests {
         let record = MetadataRecord(
             kind: .function, mangledName: "DefaultWords", fqName: name, arity: 1, isInline: true,
             isMemberExtension: memberExtension, receiverOwnerFQName: memberExtension ? "kotlin.String" : nil,
-            typeSignature: primitive ? "F1<I,U>" : "F1<Lkotlin_String;,U>",
+            typeSignature: memberExtension
+                ? (primitive ? "F1<RLkotlin_String;,I,U>" : "F1<RLkotlin_String;,Lkotlin_String;,U>")
+                : (primitive ? "F1<I,U>" : "F1<Lkotlin_String;,U>"),
             callableTypeParameterSignatures: (0..<reifiedCount).map { "T\($0)" },
             valueParameterIsVararg: [true], valueParameterHasDefaultValues: [true],
             reifiedTypeParameterIndices: Set(0..<reifiedCount),
             defaultStubExternalLinkName: defaultLink, externalLinkName: "kk_fn_abi_words"
         )
-        var records = [record]
+        // Include the dependency even though this fixture omits the bundled stdlib.
+        let arrayRecord = MetadataRecord(kind: .class, mangledName: primitive ? "IntArray" : "Array",
+                                         fqName: primitive ? "kotlin.IntArray" : "kotlin.Array",
+                                         nominalTypeParameters: primitive ? nil : "T9000:i")
+        var records = [arrayRecord, record]
         if memberExtension { records.insert(MetadataRecord(kind: .class, mangledName: "Host", fqName: "abi.Host"), at: 0) }
         try MetadataEncoder().serializeIndexed(records).write(to: directory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         let leading = memberExtension ? 2 : 0
@@ -156,6 +165,7 @@ struct SourceReferenceVarargArtifactABITests {
             let symbol = try #require(sema.symbols.lookup(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) }))
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            if memberExtension { try #require(signature.receiverType != nil, "Fixture must encode its extension receiver") }
             let stub = SyntheticSymbolScheme.defaultStubSymbol(for: symbol)
             let stubSignature = try #require(sema.symbols.functionSignature(for: stub))
             let function = try #require(sema.importedInlineFunctions.function(for: stub, arena: KIRArena()))
