@@ -66,9 +66,9 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    @Test
-    func testContinuationInterceptorThroughPrecompiledStdlibArtifact() throws {
-        let artifactPath = try Self.buildStdlibArtifact()
+    @Test(arguments: [false, true])
+    func testContinuationInterceptorThroughPrecompiledStdlibArtifact(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: repoRoot.appendingPathComponent(
@@ -82,8 +82,9 @@ extension StdlibArtifactRegressionTests {
                 moduleName: "ContinuationInterceptorArtifact",
                 emit: .executable,
                 outputPath: outputBase,
-                includeStdlib: false,
-                stdlibLibraryPath: artifactPath
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
             )
             try runToKIR(ctx)
             try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
