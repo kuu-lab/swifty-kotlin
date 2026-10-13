@@ -242,7 +242,14 @@ extension ExprTypeChecker {
         let targetType = sema.types.makeNonNullable(receiverType)
         sema.bindings.bindClassRefTargetType(id, type: targetType)
         sema.bindings.bindBoundClassRef(id)
-        let kClassType = sema.types.makeKClassType(argument: targetType)
+        // An expression's runtime class may be a subtype of its static type.
+        // Kotlin therefore types value::class as KClass<out StaticType>.
+        guard let kClassSymbol = sema.types.kClassInterfaceSymbol else {
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
+        let kClassType = sema.types.make(.classType(ClassType(
+            classSymbol: kClassSymbol, args: [.out(targetType)]
+        )))
         sema.bindings.bindExprType(id, type: kClassType)
         return kClassType
     }
