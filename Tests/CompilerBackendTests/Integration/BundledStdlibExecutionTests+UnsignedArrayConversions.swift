@@ -1,6 +1,38 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [true, false])
+    func testUIntArrayViewRendersSignedBackingAsUnsigned(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("uint_array_view_signed_print.kt", file: #filePath),
+            expectedOutput: """
+            view=4294967295, 4
+            elem=4294967295
+            elemToInt=-1
+            elemPlus=4294967295
+            copy=4294967295, 4
+            copyElem=4294967295
+            4294967295, 2147483648, 0, 2147483647
+            4294967295;2147483648;0;2147483647
+            4294967295
+            2147483648
+            4294967295
+            2147483648
+            [4294967295, 2147483648]
+            [4294967295, 2147483648, 0, 2147483647]
+            -1
+            -2147483648
+            4294967294
+            -2, 7, 0, 2147483647
+            4294967294, 7, 0, 2147483647
+            18446744073709551615
+
+            """,
+            moduleName: "KUU1937UIntArrayViewRendering",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // KUU-1421: signed<->unsigned primitive array copy conversions on both
     // primitive and boxed Array<out U*> receivers. Bit patterns are preserved
     // and the result owns fresh storage, so post-conversion mutation of either

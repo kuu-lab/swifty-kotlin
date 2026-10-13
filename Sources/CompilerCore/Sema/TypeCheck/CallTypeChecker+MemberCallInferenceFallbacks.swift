@@ -138,10 +138,10 @@ extension CallTypeChecker {
             ),
             expectedType: expectedType,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -256,7 +256,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -402,7 +402,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -766,9 +766,7 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion constants (STDLIB-153)
-    //
-    // Double (KSP-833) and Float (KSP-847) constants are now source-backed
+    // STDLIB-153: Double (KSP-833) and Float (KSP-847) constants are now source-backed
     // (see Stdlib/kotlin/Double/Companion/Companion.kt and
     // Stdlib/kotlin/Float/Companion/Companion.kt), so this fallback is
     // reserved for compiler-primitive numeric types that have not yet been
@@ -1264,7 +1262,7 @@ extension CallTypeChecker {
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
 
@@ -1273,50 +1271,4 @@ extension CallTypeChecker {
         return nullableAnyType
     }
 
-    /// STDLIB-REFLECT-065: `KClass<*>.findAnnotation<T>()`. This is a reified
-    /// intrinsic with no value parameters — the annotation class to search for
-    /// is only available via `explicitTypeArgs`, so it must be recorded here
-    /// (there is no real `chosenCallee` to hang it off of via `CallBinding`,
-    /// since — like `findAssociatedObject` above — the call is dispatched
-    /// directly to a runtime intrinsic rather than a real function body).
-    func bindKClassFindAnnotationCall(
-        _ id: ExprID,
-        args: [CallArgument],
-        explicitTypeArgs: [TypeID],
-        expectedType: TypeID?,
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
-    ) -> TypeID {
-        let sema = ctx.sema
-
-        for arg in args {
-            _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
-        }
-
-        let annotationSymbol = sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Annotation")])
-        let annotationBound = annotationSymbol.map {
-            sema.types.make(.classType(ClassType(classSymbol: $0, args: [], nullability: .nonNull)))
-        }
-        let inferredType = expectedType.map { sema.types.makeNonNullable($0) }.map {
-            if let annotationBound, sema.types.isSubtype(annotationBound, $0) { return annotationBound }
-            return $0
-        }
-        guard args.isEmpty, explicitTypeArgs.count <= 1, let searchType = explicitTypeArgs.first ?? inferredType else {
-            sema.diagnostics.error("KSWIFTK-SEMA-0002", "findAnnotation requires one annotation type and no value arguments.",
-                                   range: ctx.ast.arena.exprRange(id))
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
-        }
-        sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
-        if let annotation = sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Annotation")]) {
-            let bound = sema.types.make(.classType(ClassType(classSymbol: annotation, args: [], nullability: .nonNull)))
-            if !sema.types.isSubtype(searchType, bound) {
-                sema.diagnostics.error("KSWIFTK-SEMA-0002", "findAnnotation type argument must be an Annotation.",
-                                       range: ctx.ast.arena.exprRange(id))
-            }
-        }
-        let resultType = sema.types.makeNullable(searchType)
-        sema.bindings.bindExprType(id, type: resultType)
-        return resultType
-    }
 }

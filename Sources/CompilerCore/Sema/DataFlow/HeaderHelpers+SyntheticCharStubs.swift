@@ -104,7 +104,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
     // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
     // KSP-662: uppercase(Char)/lowercase(Char)/titlecase(Char)/digitToInt(OrNull)/
     // digitToChar now live in bundled Kotlin (kotlin.text.CharConversions).
-    // New numeric conversion functions
     SyntheticCharMemberSpec(
         name: "toInt",
         externalLinkName: "kk_char_toInt",
@@ -126,7 +125,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         returnKind: .nullableDouble
     ),
     // KSP-663: isSurrogate/isHighSurrogate/isLowSurrogate are now bundled Kotlin.
-    // Control character predicates
     SyntheticCharMemberSpec(
         name: "isISOControl",
         externalLinkName: "kk_char_isISOControl",
@@ -155,7 +153,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_isJavaIdentifierStart",
         returnKind: .boolean
     ),
-    // Code point and Unicode properties
     SyntheticCharMemberSpec(
         name: "code",
         externalLinkName: "kk_char_code",
@@ -267,7 +264,7 @@ extension DataFlowSemaPhase {
         if !hasBundledCharCategory {
             // KSP-1416: Keep CharCategory's public Companion nominal available
             // while its enum entries and members remain synthetic until KSP-1417.
-            _ = ensureSyntheticCharCompanionSymbol(
+            _ = ensureStringCompanionSymbol(
                 ownerSymbol: charCategorySymbol,
                 symbols: symbols,
                 interner: interner
@@ -575,40 +572,12 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(kotlinSymbol, for: charSymbol)
         }
 
-        _ = ensureSyntheticCharCompanionSymbol(
+        _ = ensureStringCompanionSymbol(
             ownerSymbol: charSymbol,
             symbols: symbols,
             interner: interner
         )
     }
 
-    private func ensureSyntheticCharCompanionSymbol(
-        ownerSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
-           let companionInfo = symbols.symbol(existingCompanion)
-        {
-            return companionInfo.fqName
-        }
-
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return []
-        }
-        let companionName = interner.intern("Companion")
-        let companionFQName = ownerInfo.fqName + [companionName]
-        let companionSymbol = symbols.define(
-            kind: .object,
-            name: companionName,
-            fqName: companionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
-        symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
-        return companionFQName
-    }
 
 }

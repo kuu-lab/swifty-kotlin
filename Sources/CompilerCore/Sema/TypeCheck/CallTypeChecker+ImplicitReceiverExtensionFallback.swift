@@ -283,13 +283,13 @@ extension CallTypeChecker {
             sema: sema,
             interner: ctx.interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: chosen,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         let boundResultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         var resultType = boundResultType
@@ -341,6 +341,7 @@ extension CallTypeChecker {
                   let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   requireSynthetic == false || symbol.flags.contains(.synthetic),
+                  requireSynthetic == false || !symbol.flags.contains(.importedLibrary),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   let receiver = signature.receiverType
             else { return false }
@@ -360,6 +361,24 @@ extension CallTypeChecker {
         var candidates = ctx.cachedScopeLookup(calleeName).filter {
             matches($0, requireSynthetic: false)
         }
+        // An implicit member can hide an imported package extension in ordinary
+        // name lookup. Retry through visible scopes rather than importing every
+        // same-named library extension from the global symbol table.
+        let visibleExtensions = ctx.scope.lookup(calleeName, matching: { candidate in
+            guard isScopeExtensionCandidate(candidate, ctx: ctx),
+                  let symbol = ctx.cachedSymbol(candidate),
+                  ctx.visibilityChecker.isAccessible(
+                      symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+                  ),
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+            else { return false }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullReceiver, declaredReceiver: receiver, sema: sema
+            )
+        })
+        candidates.append(contentsOf: visibleExtensions.filter {
+            matches($0, requireSynthetic: false)
+        })
         candidates.append(contentsOf: sema.symbols.lookupByShortName(calleeName).filter {
             matches($0, requireSynthetic: true)
         })
@@ -376,34 +395,48 @@ extension CallTypeChecker {
         if !bundledCandidates.isEmpty {
             candidates = bundledCandidates
         }
+        candidates = ctx.filterByVisibility(candidates).visible
         guard !candidates.isEmpty else { return nil }
 
         let argTypes = args.map { argument in
             driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
         }
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            return CallArg.source(
+                argument, type: type, callRange: range, ast: ctx.ast,
+                signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned
+            )
         }
+        // Preserve the existing lambda inference in this recovery path. Literal
+        // values let the resolver narrow each viable numeric overload, without
+        // re-contextualizing star-projected receiver lambdas as non-null Any.
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
             call: CallExpr(
-                range: range,
-                calleeName: calleeName,
-                args: resolvedArgs,
+                range: range, calleeName: calleeName, args: resolvedArgs,
                 explicitTypeArgs: explicitTypeArgs,
                 dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
-            expectedType: expectedType,
+            expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
             implicitReceiverType: nonNullReceiver,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
         guard let chosen = resolved.chosenCallee else { return nil }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
+        driver.helpers.checkDeprecation(
+            for: chosen, sema: sema, interner: ctx.interner,
+            range: range, diagnostics: ctx.sema.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
+        )
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
         markCoroutineScopeImplicitReceiverCallIfNeeded(
@@ -528,7 +561,7 @@ extension CallTypeChecker {
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: group.receiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 guard resolved.diagnostic == nil,
                       let chosen = resolved.chosenCallee

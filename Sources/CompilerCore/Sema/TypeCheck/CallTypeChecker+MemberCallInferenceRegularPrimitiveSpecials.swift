@@ -204,7 +204,7 @@ extension CallTypeChecker {
                     ulongType
                 } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
                     uintType
-                } else if receiverForCheck == intType,
+                } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType),
                     rhsType == intType || rhsType == byteType || rhsType == shortType
                 {
                     intType
@@ -393,7 +393,7 @@ extension CallTypeChecker {
                     sema: sema,
                     interner: interner,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType

@@ -27,4 +27,11 @@ public open class RuntimeException : Exception {
     // Like the JVM, a cause-only exception derives its message from
     // `cause.toString()`; the runtime-backed super constructor provides that.
     public constructor(cause: Throwable?) : super(cause)
+
+    protected constructor(
+        message: String?,
+        cause: Throwable?,
+        enableSuppression: Boolean,
+        writableStackTrace: Boolean
+    ) : super(message, cause, enableSuppression, writableStackTrace)
 }

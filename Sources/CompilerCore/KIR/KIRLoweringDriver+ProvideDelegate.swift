@@ -1,6 +1,3 @@
-
-// MARK: - provideDelegate operator support (PROP-007)
-
 extension KIRLoweringDriver {
     /// Emits a `__kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
     func emitKPropertyStubCreate(
@@ -83,11 +80,16 @@ extension KIRLoweringDriver {
         let provideDelegateName = interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
+        let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
+            to: [delegateObjExpr, thisRefExprID, kPropertyExprID],
+            for: provideDelegateSymbol,
+            sema: sema
+        )
         initInstructions.append(
             .call(
                 symbol: provideDelegateSymbol,
                 callee: provideDelegateName,
-                arguments: [delegateObjExpr, thisRefExprID, kPropertyExprID],
+                arguments: provideDelegateArguments,
                 result: provideDelegateResult,
                 canThrow: false,
                 thrownResult: nil

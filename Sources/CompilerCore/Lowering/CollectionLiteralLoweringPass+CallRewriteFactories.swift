@@ -245,12 +245,15 @@ extension CollectionLiteralConstructionLoweringPass {
         let isHashSetConstructor = isHashSetConstructor(
             callee: callee,
             symbol: symbol,
+            arguments: arguments,
             result: result,
             module: module,
             lookup: lookup,
             ctx: ctx
         )
-        if lookup.mutableSetConstructorNames.contains(callee) || isHashSetConstructor {
+        if (lookup.mutableSetConstructorNames.contains(callee)
+            && isStdlibCollectionConstructor(symbol: symbol, className: callee, result: result, module: module, ctx: ctx))
+            || isHashSetConstructor {
             if arguments.count == 1,
                isCollectionCopyConstructorArgument(arguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
@@ -307,7 +310,8 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        if lookup.mutableMapConstructorNames.contains(callee) {
+        if lookup.mutableMapConstructorNames.contains(callee),
+           isStdlibCollectionConstructor(symbol: symbol, className: callee, result: result, module: module, ctx: ctx) {
             // KUU-556: LinkedHashMap is now a real HashMap subclass, so its
             // constructor gets its own runtime tag (kkLinkedHashMapOfName)
             // instead of sharing the generic kkMapOfName every other mutable

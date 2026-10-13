@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Base64 Runtime (KSP-482)
 //
 // Encode/decode/padding logic now lives in pure Kotlin
 // (Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt). Only the
@@ -11,11 +10,6 @@ private func base64StringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return extractString(from: ptr)
-}
-
-private func base64OutputStreamBoxFromRaw(_ raw: Int) -> RuntimeOutputStreamBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeOutputStreamBox.self)
 }
 
 /// A `RuntimeOutputStreamSink` that base64-encodes all written data and
@@ -34,7 +28,6 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
 
     func write(_ data: Data) throws {
         let buf = pending + Array(data)
-        // Encode full 3-byte groups
         var idx = 0
         var encoded: [UInt8] = []
         while idx + 2 < buf.count {
@@ -54,7 +47,6 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
     }
 
     func flush() throws {
-        // Encode remaining pending bytes (0, 1, or 2)
         if !pending.isEmpty {
             var encoded: [UInt8] = []
             let b0 = pending[0]
@@ -87,7 +79,7 @@ private func makeBase64EncodingOutputStream(
     alphabet: [UInt8],
     addPadding: Bool
 ) -> RuntimeOutputStreamBox? {
-    guard let downstream = base64OutputStreamBoxFromRaw(streamRaw) else {
+    guard let downstream = runtimeOutputStreamBox(from: streamRaw) else {
         return nil
     }
     let sink = RuntimeBase64EncodingOutputStreamSink(

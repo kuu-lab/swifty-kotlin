@@ -526,7 +526,6 @@ extension KIRLoweringDriver {
     ) {
         let ast = shared.ast
         let sema = shared.sema
-        let arena = shared.arena
 
         for member in objectDecl.classBodyInitOrder {
             switch member {

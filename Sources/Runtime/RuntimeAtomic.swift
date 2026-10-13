@@ -1,7 +1,6 @@
 import Foundation
 import RuntimeCAtomics
 
-// MARK: - AtomicInt
 
 /// Backing storage for kotlin.concurrent.AtomicInt.
 /// A single seq-cst hardware atomic cell instead of a mutex per box.
@@ -145,7 +144,6 @@ public func __kk_atomic_int_decrementAndFetch(_ receiver: Int) -> Int {
     return box.addAndFetch(-1)
 }
 
-// MARK: - AtomicLong
 
 /// Backing storage for kotlin.concurrent.AtomicLong.
 final class AtomicLongBox {
@@ -277,7 +275,6 @@ public func __kk_atomic_long_decrementAndFetch(_ receiver: Int) -> Int {
     return box.addAndFetch(-1)
 }
 
-// MARK: - AtomicBoolean
 
 /// Backing storage for kotlin.concurrent.AtomicBoolean.
 /// Boolean values are stored as Int: 1 = true, 0 = false.
@@ -356,7 +353,6 @@ public func __kk_atomic_bool_compareAndExchange(_ receiver: Int, _ expect: Int, 
     return box.compareAndExchange(expect: expect != 0, update: update != 0) ? 1 : 0
 }
 
-// MARK: - AtomicReference<T>
 
 /// Backing storage for kotlin.concurrent.AtomicReference<T>.
 /// Values are stored as opaque intptr_t (object pointers or boxed values).
@@ -456,7 +452,6 @@ public func __kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _
     return box.compareAndExchange(expect: expect, update: update)
 }
 
-// MARK: - AtomicIntArray
 
 /// Backing storage for kotlin.concurrent.atomics.AtomicIntArray.
 /// Each element is an independent seq-cst atomic cell, so operations on
@@ -595,7 +590,6 @@ public func __kk_atomic_int_array_addAndFetch(_ receiver: Int, _ index: Int, _ d
     return box.addAndFetch(at: index, delta: delta)
 }
 
-// MARK: - AtomicLongArray
 
 /// Backing storage for kotlin.concurrent.atomics.AtomicLongArray.
 final class AtomicLongArrayBox {
@@ -724,7 +718,6 @@ public func __kk_atomic_long_array_addAndFetch(_ receiver: Int, _ index: Int, _ 
     return box.addAndFetch(at: index, delta: delta)
 }
 
-// MARK: - AtomicArray<T> (generic reference-typed array)
 
 /// Backing storage for kotlin.concurrent.atomics.AtomicArray<T>.
 /// Elements are stored as opaque intptr_t (object pointers or boxed values).

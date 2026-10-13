@@ -6,7 +6,6 @@ import Foundation
 /// a set of symbol names.  When a file changes, every other file that depends on any
 /// symbol provided by the changed file is added to the recompilation set.
 public final class DependencyGraph: Codable {
-    // MARK: - Storage
 
     private var providedSymbols: [String: Set<String>] = [:]
 
@@ -44,8 +43,6 @@ public final class DependencyGraph: Codable {
         try container.encode(wildcardImportedPackages, forKey: .wildcardImportedPackages)
     }
 
-    // MARK: - Mutation
-
     public func recordProvided(filePath: String, symbols: Set<String>) {
         providedSymbols[filePath] = symbols
     }
@@ -64,8 +61,6 @@ public final class DependencyGraph: Codable {
     public func recordWildcardImport(filePath: String, package: String) {
         wildcardImportedPackages[filePath, default: []].insert(package)
     }
-
-    // MARK: - Query
 
     /// Given a set of files that changed, compute the full set of files that need
     /// recompilation.  This includes:
@@ -156,8 +151,6 @@ public final class DependencyGraph: Codable {
     public func wildcardImportedPackages(by filePath: String) -> Set<String> {
         wildcardImportedPackages[filePath] ?? []
     }
-
-    // MARK: - Serialization
 
     public func serialize() throws -> Data {
         let encoder = JSONEncoder()
