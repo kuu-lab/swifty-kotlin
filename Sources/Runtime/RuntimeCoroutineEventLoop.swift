@@ -53,11 +53,13 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.lock()
         defer { condition.unlock() }
         if cachedElementRaw == 0 {
-            cachedElementRaw = runtimeRegisterObject(RuntimeDispatcher(
+            let dispatcher = RuntimeDispatcher(
                 queue: DispatchQueue(label: "kk.runblocking.eventloop"),
                 tag: 0,
                 displayName: "BlockingEventLoop"
-            ))
+            )
+            dispatcher.blockingEventLoop = self
+            cachedElementRaw = runtimeRegisterObject(dispatcher)
         }
         return cachedElementRaw
     }

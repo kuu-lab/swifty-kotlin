@@ -21,14 +21,20 @@ extension CallTypeChecker {
         callImplicitReceiverType: inout TypeID?,
         memberExtensionReceiverMarks: inout [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: inout [SymbolID],
-        callInvisible: inout [SemanticSymbol]
+        callInvisible: inout [SemanticSymbol],
+        knownApplicableImplicitMembers: inout Set<SymbolID>
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
         if let calleeName {
-            let allCallCandidates = scopeCallCandidatesConsideringImplicitReceivers(named: calleeName, ctx: ctx).filter { candidate in
+            let scopeSelection = scopeCallCandidatesAfterInapplicableMembers(
+                named: calleeName, args: args, range: range,
+                explicitTypeArgs: explicitTypeArgs, ctx: ctx, locals: locals
+            )
+            knownApplicableImplicitMembers = scopeSelection.knownApplicableMembers
+            let allCallCandidates = scopeSelection.candidates.filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
@@ -70,8 +76,9 @@ extension CallTypeChecker {
                 // Include them before argument inference so receiver lambdas on
                 // members such as HexFormat.Builder.bytes get their expected type.
                 let sourceMembers = memberCandidates.filter {
-                    sema.symbols.isSourceBackedSymbol($0)
-                        || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                    !scopeSelection.excludedMembers.contains($0)
+                        && (sema.symbols.isSourceBackedSymbol($0)
+                            || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false)
                 }
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {
