@@ -145,7 +145,7 @@ struct InlineNonLocalReturnTypeTests {
             (1L..3L).forEach \(callback)
             return -1L
         }
-        """, emit: .executable)
+        """, emit: .executable, allowDefaultStdlibLibrary: true)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
         let ast = try #require(ctx.ast)
