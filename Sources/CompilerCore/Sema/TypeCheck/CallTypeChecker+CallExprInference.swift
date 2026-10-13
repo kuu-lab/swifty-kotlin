@@ -373,6 +373,7 @@ extension CallTypeChecker {
             calleeName: calleeName, args: args, expectedType: expectedType, ctx: ctx
         )
 
+        var samFactoryCandidates: [SymbolID]?
         if let calleeName,
            let samCallType = inferSamConvertedCallExpr(
                id,
@@ -382,7 +383,8 @@ extension CallTypeChecker {
                ctx: ctx,
                locals: &locals,
                expectedType: expectedType,
-               explicitTypeArgs: explicitTypeArgs
+               explicitTypeArgs: explicitTypeArgs,
+               samFactoryCandidates: &samFactoryCandidates
            )
         {
             sema.bindings.bindExprType(id, type: samCallType)
@@ -426,6 +428,10 @@ extension CallTypeChecker {
             callInvisible: &callInvisible
         ) {
             return inferred
+        }
+
+        if let samFactoryCandidates {
+            candidates = candidates.filter { samFactoryCandidates.contains($0) }
         }
 
         if let inferred = inferCompareValuesByCall(

@@ -13,7 +13,7 @@ extension CallTypeChecker {
     ///   `signature.classTypeParameterCount`, so that the explicit args skip the leading class
     ///   type parameters (which are inferred from the receiver) and map only to the function's
     ///   own type parameters.
-    private func applyExplicitTypeArgs(
+    func applyExplicitTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         candidate: SymbolID,
