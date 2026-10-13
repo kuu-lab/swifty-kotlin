@@ -38,6 +38,61 @@ struct ExplicitImportResolutionTests {
     }
 
     @Test(arguments: [false, true])
+    func companionPropertyDirectImportsResolve(useArtifact: Bool) throws {
+        let source = try repositoryFileSource("Scripts/diff_cases/companion_property_direct_import.kt")
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [false, true])
+    func companionPropertyImportsResolveWithUnrelatedImplicitReceivers(useArtifact: Bool) throws {
+        let source = """
+        import kotlin.Int.Companion.MAX_VALUE
+        import kotlin.Long.Companion.MIN_VALUE as longMin
+        import kotlin.time.Duration
+        import kotlin.time.Duration.Companion.ZERO as zeroDuration
+
+        fun String.maximum(): Int = MAX_VALUE
+        class Reader {
+            fun minimum(): Long = longMin
+            fun zero(): Duration = with("receiver") { zeroDuration }
+        }
+        fun shadow(): Int { val MAX_VALUE = 7; return MAX_VALUE }
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "", "import library.*", "import library.answer", "import library.answer as renamed",
+        "import library.ordinary", "import library.ordinary as renamed",
+    ])
+    func extensionPropertyImportsStillRequireReceiver(importDirective: String) throws {
+        let declarations = """
+        package library
+        object Singleton
+        val Singleton.answer: Int get() = 42
+        val Int.ordinary: Int get() = this
+        """
+        let name = importDirective.contains("as renamed") ? "renamed"
+            : importDirective.contains("ordinary") ? "ordinary" : "answer"
+        let usage = """
+        package app
+        \(importDirective)
+        fun read(): Int = \(name)
+        """
+        try withTemporaryFiles(contents: [declarations, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 1, "Unexpected diagnostics: \(errors)")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0022")
+        }
+    }
+
+    @Test(arguments: [false, true])
     func unusedUnresolvedExplicitImportsAreDiagnosed(useArtifact: Bool) throws {
         let source = try repositoryFileSource(
             "docs/fixtures/js_annotations/diagnostics/collection_imports.kt"
