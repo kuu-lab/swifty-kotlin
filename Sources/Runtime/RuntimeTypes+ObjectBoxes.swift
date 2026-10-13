@@ -88,6 +88,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
     var backingMapBox: RuntimeMapBox?
+    var backingMapRaw: Int = 0
     var throwableMessage: String?
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
@@ -152,6 +153,17 @@ final class RuntimeIntBox {
     let value: Int
     /// Kotlin type identity, independent of the shared payload/hash representation.
     let primitiveTypeBase: Int64
+
+    var renderedString: String {
+        if let enumEntryName {
+            return enumEntryName
+        }
+        // A UIntArray view may box a sign-extended signed backing word.
+        if primitiveTypeBase == RuntimeTypeTokenEncoding.uintBase {
+            return String(UInt32(truncatingIfNeeded: value))
+        }
+        return String(value)
+    }
 
     /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
     /// and UShort share this physical box with Int, but their hashCode() must
@@ -293,7 +305,15 @@ final class RuntimeFunctionValueBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] {
+        let fieldRefs = values.compactMap(\.childReferenceRawValue)
+        if let objectBox = self as? RuntimeObjectBox,
+           let backingMapBox = objectBox.backingMapBox {
+            let storageRefs = objectBox.backingMapRaw == 0 ? [] : [objectBox.backingMapRaw]
+            return fieldRefs + storageRefs + backingMapBox.childRefs
+        }
+        return fieldRefs
+    }
 }
 
 extension RuntimePairBox: RuntimeChildReferenceProviding {

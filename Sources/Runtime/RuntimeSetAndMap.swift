@@ -1,8 +1,24 @@
-
 // Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
 //
 // Split out from `RuntimeCollections.swift`.
 
+/// HashMap's inherited source bodies operate on this native storage handle.
+/// Keeping it separate from the Kotlin receiver lets interface bridges dispatch
+/// to user overrides without re-entering those bridges from the base body.
+@_cdecl("__kk_hash_map_storage")
+public func kk_hash_map_storage(_ mapRaw: Int) -> Int {
+    guard let objectBox = runtimeHashMapObject(from: mapRaw) else {
+        return mapRaw
+    }
+    if objectBox.backingMapRaw != 0 {
+        return objectBox.backingMapRaw
+    }
+    let backing = objectBox.backingMapBox ?? RuntimeMapBox(keys: [], values: [])
+    objectBox.backingMapBox = backing
+    let storageRaw = registerRuntimeObject(backing, typeID: hashMapRuntimeTypeID)
+    objectBox.backingMapRaw = storageRaw
+    return storageRaw
+}
 
 @_cdecl("__kk_set_of")
 public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {

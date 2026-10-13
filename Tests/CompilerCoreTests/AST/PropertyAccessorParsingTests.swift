@@ -7,6 +7,67 @@ import Testing
 /// the next accessor is wrapped in a `.propertyAccessor` child.
 @Suite
 struct PropertyAccessorParsingTests {
+    @Test(arguments: ["=", "by lazy"])
+    func initializerObjectAccessorsStayOnTheObject(_ initializer: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion \(initializer) {
+            val nested = object {
+                var context: Int get() = 42
+                    set(value) {}
+            }
+            nested
+        }
+        """, includeStdlib: false)
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.getter == nil)
+        #expect(property.setter == nil)
+        let objects = ast.arena.exprs.compactMap { expression -> ObjectDecl? in
+            guard case let .objectLiteral(_, declID?, _) = expression,
+                  case let .objectDecl(object)? = ast.arena.decl(declID) else { return nil }
+            return object
+        }
+        let object = try #require(objects.first)
+        let member = try #require(object.memberProperties.first.flatMap { ast.arena.decl($0) })
+        guard case let .propertyDecl(nested) = member else {
+            Issue.record("Expected the object's context property")
+            return
+        }
+        #expect(nested.getter != nil)
+        #expect(nested.setter != nil)
+    }
+
+    @Test
+    func objectInitializerDoesNotSupplyTheOuterGetter() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion = object {
+            val context: Int get() = 42
+        }
+        """, includeStdlib: false)
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.initializer != nil)
+        #expect(property.getter == nil)
+        #expect(property.setter == nil)
+    }
+
+    @Test
+    func objectInitializerPreservesAnExplicitOuterGetter() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion = object {
+            val context: Int get() = 42
+        }
+            get() = field
+        """, includeStdlib: false)
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.initializer != nil)
+        guard case let .expr(body, _) = property.getter?.body,
+              case let .nameRef(name, _) = ast.arena.expr(body) else {
+            Issue.record("The outer property's explicit getter must be retained")
+            return
+        }
+        #expect(ctx.interner.resolve(name) == "field")
+        #expect(property.setter == nil)
+    }
+
     @Test(arguments: ["(Int) -> Int", "String.(Int) -> Int"])
     func inlineExpressionGetterRetainsFunctionTypeBeforeLambda(_ type: String) throws {
         let (ast, ctx) = try buildASTModule(from: """

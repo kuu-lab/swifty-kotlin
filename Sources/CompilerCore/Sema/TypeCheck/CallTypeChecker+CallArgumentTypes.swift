@@ -159,6 +159,7 @@ extension CallTypeChecker {
             CallArg(
                 label: argument.label,
                 isSpread: argument.isSpread,
+                isTrailingLambda: argument.isTrailingLambda,
                 type: sema.bindings.exprTypes[argument.expr] ?? sema.types.anyType
             )
         }

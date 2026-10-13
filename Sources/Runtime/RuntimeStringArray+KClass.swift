@@ -136,17 +136,7 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
 }
 
 func runtimeKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    guard raw != 0, raw != runtimeNullSentinelInt,
-          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
-    else {
-        return nil
-    }
-    return runtimeStorage.withGCLock { state in
-        guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
-            return nil
-        }
-        return tryCast(ptr, to: RuntimeKClassBox.self)
-    }
+    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
 }
 
 /// Creates a `KClass<T>` metadata object from a type token and name hint.

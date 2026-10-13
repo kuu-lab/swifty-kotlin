@@ -16,7 +16,7 @@ extension CallTypeChecker {
                 && ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
         }
         let callArgs = zip(request.args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),

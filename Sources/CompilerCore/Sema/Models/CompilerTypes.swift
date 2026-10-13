@@ -127,9 +127,9 @@ public struct CompilerOptions: Equatable {
     nonisolated(unsafe) public static var defaultStdlibLibraryPath: String? = nil
 
     /// Returns whether the process default stdlib artifact applies to a run.
-    /// Keep the executable-only boundary: other emit modes are used by
-    /// source/introspection tests and by the LSP until their own architecture
-    /// tasks opt into artifact-backed analysis.
+    /// All emit modes share the artifact-backed default. Source/introspection
+    /// callers opt out with `allowDefaultStdlibLibrary: false`; building the
+    /// stdlib itself must always use its sources.
     public static func shouldUseDefaultStdlib(
         allowDefaultStdlibLibrary: Bool,
         includeStdlib: Bool,
@@ -138,7 +138,7 @@ public struct CompilerOptions: Equatable {
         emit: EmitMode
     ) -> Bool {
         allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
-            && stdlibLibraryPath == nil && emit == .executable
+            && stdlibLibraryPath == nil
     }
 
     public init(

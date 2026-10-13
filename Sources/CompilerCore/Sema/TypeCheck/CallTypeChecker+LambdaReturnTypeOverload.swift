@@ -148,6 +148,17 @@ extension CallTypeChecker {
             }
         }
 
+        // Infer return types only for candidates compatible with the known
+        // arguments. A same-named but inapplicable overload must not create
+        // a spurious dependency cycle while checking an inferred body.
+        driver.inferFunctionReturnTypesIfNeeded(for: narrowedCallCandidates(
+            candidates: candidates,
+            args: args,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            receiverType: receiverType,
+            ctx: ctx
+        ))
+
         if lambdaLiteralIndices.count > 1 {
             blockedLambdaRefinement = true
         }
@@ -231,6 +242,7 @@ extension CallTypeChecker {
                         at: index,
                         argumentCount: args.count,
                         argumentLabel: argument.label,
+                        isTrailingLambda: argument.isTrailingLambda,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
@@ -286,6 +298,7 @@ extension CallTypeChecker {
                         at: index,
                         argumentCount: args.count,
                         argumentLabel: argument.label,
+                        isTrailingLambda: argument.isTrailingLambda,
                         candidates: expectedTypeCandidates,
                         sema: sema
                     ) {
@@ -388,6 +401,7 @@ extension CallTypeChecker {
             return CallArg(
                 label: argument.label,
                 isSpread: argument.isSpread,
+                isTrailingLambda: argument.isTrailingLambda,
                 type: type,
                 signedIntegerLiteral: literal.signed,
                 unsignedIntegerLiteral: literal.unsigned
@@ -415,6 +429,7 @@ extension CallTypeChecker {
                         at: argIndex,
                         argumentCount: args.count,
                         argumentLabel: args[argIndex].label,
+                        isTrailingLambda: args[argIndex].isTrailingLambda,
                         in: signature,
                         sema: ctx.sema
                     )
@@ -533,6 +548,7 @@ extension CallTypeChecker {
             argType: argTypes[lambdaIndex],
             argumentCount: args.count,
             argumentLabel: args[lambdaIndex].label,
+            isTrailingLambda: args[lambdaIndex].isTrailingLambda,
             sema: ctx.sema
         )
         if refinedCandidates.isEmpty {
@@ -567,11 +583,12 @@ extension CallTypeChecker {
         return expectedType
     }
 
-    private func narrowedCallCandidates(
+    func narrowedCallCandidates(
         candidates: [SymbolID],
         args: [CallArgument],
         inferredNonLambdaArgTypes: [Int: TypeID],
         receiverType: TypeID?,
+        forImplicitMemberApplicability: Bool = false,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
@@ -630,6 +647,15 @@ extension CallTypeChecker {
                 {
                     continue
                 }
+                // SAM conversion can make a function value applicable even
+                // without a nominal subtype relation. Early tower selection
+                // must leave that decision to contextual argument inference.
+                if forImplicitMemberApplicability,
+                   isFunctionTypeLike(inferredType, sema: sema),
+                   driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil
+                {
+                    continue
+                }
                 // A parameter whose type is still an unsubstituted type
                 // parameter (`initialValue: R`) never passes a subtype check
                 // before inference runs, so judge those positions by shape:
@@ -657,7 +683,7 @@ extension CallTypeChecker {
             // two-parameter function type. Without this the surviving
             // candidates disagree on the lambda's shape and no expected type is
             // pushed into the body, leaving its parameters untyped.
-            for (argIndex, argument) in args.enumerated() {
+            for (argIndex, argument) in args.enumerated() where !forImplicitMemberApplicability {
                 guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr)
                 else {
                     continue
@@ -666,6 +692,7 @@ extension CallTypeChecker {
                     at: argIndex,
                     argumentCount: args.count,
                     argumentLabel: argument.label,
+                    isTrailingLambda: argument.isTrailingLambda,
                     in: signature,
                     sema: sema
                 ),
@@ -713,6 +740,13 @@ extension CallTypeChecker {
         }
         narrowed = receiverFeasible.isEmpty ? narrowed : receiverFeasible
 
+        // Contextualization normally restores the original candidates when
+        // pruning found none. Tower applicability needs the actual empty set,
+        // and must defer every lambda-body preference to the selected tier.
+        if forImplicitMemberApplicability {
+            return narrowed
+        }
+
         // A bare lambda literal is itself a function value. When overloads
         // differ between a function-typed parameter and an unconstrained type
         // parameter at the same position, prefer the function-typed candidates
@@ -735,6 +769,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       )
@@ -749,6 +784,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       )
@@ -766,6 +802,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       )
@@ -795,6 +832,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       ),
@@ -899,6 +937,7 @@ extension CallTypeChecker {
         at index: Int,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         candidates: [SymbolID],
         sema: SemaModule
     ) -> Bool {
@@ -910,6 +949,7 @@ extension CallTypeChecker {
                   at: index,
                   argumentCount: argumentCount,
                   argumentLabel: argumentLabel,
+                  isTrailingLambda: isTrailingLambda,
                   in: signature,
                   sema: sema
               ),
@@ -957,6 +997,7 @@ extension CallTypeChecker {
         argType: TypeID,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         sema: SemaModule
     ) -> [SymbolID] {
         guard case let .functionType(argumentFunctionType) = sema.types.kind(of: argType) else {
@@ -969,6 +1010,7 @@ extension CallTypeChecker {
                       at: lambdaArgumentIndex,
                       argumentCount: argumentCount,
                       argumentLabel: argumentLabel,
+                      isTrailingLambda: isTrailingLambda,
                       in: signature,
                       sema: sema
                   ),

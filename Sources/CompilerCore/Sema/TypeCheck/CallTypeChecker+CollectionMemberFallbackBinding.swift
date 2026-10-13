@@ -730,7 +730,7 @@ extension CallTypeChecker {
                 range: callRange,
                 calleeName: calleeName,
                 args: zip(args, argumentTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
                 }
             ),
             expectedType: expectedType,
@@ -871,7 +871,7 @@ extension CallTypeChecker {
             range: callRange,
             calleeName: calleeName,
             args: zip(args, argumentTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
         )
         let resolved = ctx.resolver.resolveCall(

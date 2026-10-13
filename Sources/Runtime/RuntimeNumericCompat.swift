@@ -31,6 +31,11 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
     }
+    // UIntArray views can supply a sign-extended IntArray element word.
+    // Interpret its low 32 bits even when no UInt box has been allocated.
+    if tag == 9 {
+        return runtimeMakeStringPointer(String(UInt32(truncatingIfNeeded: kk_unbox_int_static(value))))
+    }
     if tag == 2 {
         return runtimeMakeStringPointer(kk_unbox_bool_static(value) != 0 ? "true" : "false")
     }
@@ -628,7 +633,7 @@ public func kk_int_to_float_bits(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(kk_unbox_int(value)))
+    kk_int_to_float_bits(value)
 }
 
 @_cdecl("kk_int_to_byte")

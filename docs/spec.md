@@ -997,7 +997,8 @@ hard error; the compiler does not fall back to injecting bundled sources.
 ## J15.1 依存と目標
 
 * Swift から LLVM C API を呼ぶ（modulemap + SwiftPM）。
-* 出力：object（.o）または LLVM IR（.ll）。executable では `LinkPhase` が `swiftc` を呼ぶ。
+* 出力：object（.o）または LLVM IR（.ll）。executable の macOS 通常リンクは `swiftc -###` で取得した単一 clang ジョブを直接実行する。引数は `.runtime-build/link-plans/` に保存し、ターゲット・ドライバ・Xcode 選択・SDK・互換ライブラリの指紋で再検証する。初回はドライバ照会が必要。debug（dSYM 生成を含む）・Linux・未対応のドライバ出力・キャッシュ取得失敗では `swiftc` を呼ぶ。
+* Runtime object 探索はリンクごとにパッケージ検証とソース指紋の計算を一度行い、同じ結果から scratch/manifest/build パスを組み立てる。完了 manifest・object の存在検証・ビルドロックは維持する。
 * `LLVMBackend` は `CompilerBackend` target 内部型であり、`CompilerCore` の public API にはしない。
 
 ## J15.2 Backend の主要型

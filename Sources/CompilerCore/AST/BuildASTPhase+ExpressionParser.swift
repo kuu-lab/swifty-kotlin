@@ -47,6 +47,10 @@ extension BuildASTPhase {
         let diagnostics: DiagnosticEngine?
         var index: Int
 
+        // Bounded declaration prefixes must not accept recovered expressions
+        // whose operand or control-flow branch was cut off by the slice.
+        private(set) var hasIncompleteExpression = false
+
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
@@ -143,8 +147,10 @@ extension BuildASTPhase {
 
         func parseExpression(minPrecedence: Int) -> ExprID? {
             defer { leaveRecursion() }
-            guard enterRecursion() else { return nil }
-            guard let lhs = parsePrefixUnary() else { return nil }
+            guard enterRecursion(), let lhs = parsePrefixUnary() else {
+                hasIncompleteExpression = true
+                return nil
+            }
             return parseInfixOperators(lhs: lhs, minPrecedence: minPrecedence)
         }
 

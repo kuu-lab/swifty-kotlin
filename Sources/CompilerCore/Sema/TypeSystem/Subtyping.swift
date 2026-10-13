@@ -143,7 +143,9 @@ extension TypeSystem {
                 guard nullabilitySubtype(leftNullability, rightClass.nullability) else { break }
                 switch rightClass.args[0] {
                 case let .in(argType), let .invariant(argType):
-                    return argType == subtype
+                    // Nullable values still implement Comparable of non-null Self.
+                    // Outer nullability was checked above; retain argument nullability.
+                    return argType == makeNonNullable(subtype)
                 case .star:
                     return true
                 case .out:
