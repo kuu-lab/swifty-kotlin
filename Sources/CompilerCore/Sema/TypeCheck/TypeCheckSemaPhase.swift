@@ -278,6 +278,7 @@ private final class TypeCheckWork: @unchecked Sendable {
 
     func run() throws {
         try driver.typeCheckModule(fileScopes: fileScopes, files: files, frontendJobs: frontendJobs)
+        ValPropertyInitializationChecker(ast: driver.ast, sema: driver.sema, interner: driver.interner).check()
         ConstPropertyEvaluator(ast: driver.ast, sema: driver.sema, interner: driver.interner)
             .evaluate(diagnostics: driver.diagnostics)
         driver.declChecker.validatePendingAnnotationConstants()
