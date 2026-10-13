@@ -62,13 +62,18 @@ extension DataFlowSemaPhase {
         var ownDefaultsSnapshot: [SymbolID: [Bool]] = [:]
         ownDefaultsSnapshot.reserveCapacity(functionSymbols.count)
         for sym in functionSymbols {
-            if let signature = symbols.functionSignature(for: sym.id) {
+            if let signature = symbols.functionSignatureIfKnown(for: sym.id) {
                 ownDefaultsSnapshot[sym.id] = signature.valueParameterHasDefaultValues
             }
         }
 
         func hasOwnDefault(_ id: SymbolID) -> Bool {
-            ownDefaultsSnapshot[id]?.contains(true) ?? false
+            // Resolution finishes before any signatures are rewritten below,
+            // so a demanded imported signature still carries its own defaults.
+            if ownDefaultsSnapshot[id] == nil {
+                ownDefaultsSnapshot[id] = symbols.functionSignature(for: id)?.valueParameterHasDefaultValues ?? []
+            }
+            return ownDefaultsSnapshot[id]?.contains(true) ?? false
         }
 
         var resolvedBase: [SymbolID: SymbolID] = [:]

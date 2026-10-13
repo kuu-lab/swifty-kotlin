@@ -77,6 +77,18 @@ struct InfiniteLoopTypeCheckingTests {
                         }
                     }
 
+            """,
+
+            // testLocalClassInsideWhileTrueDoesNotCrashBreakScan
+            """
+            package sample6
+                    fun f(cond: Boolean) {
+                        while (true) {
+                            class Local { fun g() = 1 }
+                            if (cond) break
+                        }
+                    }
+
             """
         ]
 
@@ -142,6 +154,16 @@ struct InfiniteLoopTypeCheckingTests {
                 #expect(
                     !sampleDiags.contains(where: { $0.severity == .error }),
                     "inner while(true) break should not make the outer infinite loop Unit-typed: \(sampleDiags.map { $0.message })"
+                )
+            }
+            // testLocalClassInsideWhileTrueDoesNotCrashBreakScan
+            do {
+                let samplePath = paths[6]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                #expect(
+                    !sampleDiags.contains(where: { $0.severity == .error }),
+                    "while(true) containing a local class must not crash the break-target scan: \(sampleDiags.map { $0.message })"
                 )
             }
 

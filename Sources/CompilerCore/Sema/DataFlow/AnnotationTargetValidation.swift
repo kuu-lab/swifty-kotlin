@@ -251,7 +251,6 @@ extension DataFlowSemaPhase {
                     resolutionContext: memberResolutionContext
                 )
             }
-            // Validate primary constructor annotations
             for annotation in classDecl.primaryConstructorAnnotations {
                 validateAnnotationTarget(
                     annotation: annotation,
@@ -267,7 +266,6 @@ extension DataFlowSemaPhase {
                     resolutionContext: memberResolutionContext
                 )
             }
-            // Validate primary constructor value parameter annotations
             for param in classDecl.primaryConstructorParams {
                 validateValueParamAnnotations(
                     param: param, ownerDecl: decl, file: file,
@@ -275,7 +273,6 @@ extension DataFlowSemaPhase {
                     interner: interner, filesByID: filesByID, resolutionContext: memberResolutionContext
                 )
             }
-            // Validate secondary constructor annotations and their parameters
             for ctor in classDecl.secondaryConstructors {
                 for annotation in ctor.annotations {
                     validateAnnotationTarget(
@@ -300,7 +297,6 @@ extension DataFlowSemaPhase {
                     )
                 }
             }
-            // Validate enum entry annotations
             for entry in classDecl.enumEntries {
                 for annotation in entry.annotations {
                     validateAnnotationTarget(

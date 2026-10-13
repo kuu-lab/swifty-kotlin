@@ -25,24 +25,6 @@ func firstExprID(
     return nil
 }
 
-/// Last expression in `path` matching `predicate`, in arena order.
-func lastExprID(
-    in ast: ASTModule,
-    path: String,
-    ctx: CompilationContext,
-    where predicate: (ExprID, Expr) -> Bool
-) -> ExprID? {
-    for index in ast.arena.exprs.indices.reversed() {
-        let exprID = ExprID(rawValue: Int32(index))
-        guard let expr = ast.arena.expr(exprID),
-              let range = ast.arena.exprRange(exprID),
-              ctx.sourceManager.path(of: range.start.file) == path
-        else { continue }
-        if predicate(exprID, expr) { return exprID }
-    }
-    return nil
-}
-
 /// Every expression in `path` matching `predicate`, in arena order.
 func allExprIDs(
     in ast: ASTModule,

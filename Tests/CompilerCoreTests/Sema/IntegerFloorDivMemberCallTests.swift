@@ -70,11 +70,6 @@ struct IntegerFloorDivMemberCallTests {
 
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
-                do {
-                    } catch {
-                    // Diagnostics are asserted below.
-                }
-
                 #expect(
                     sample1Diagnostics.count >= 3,
                     "Expected floorDiv to reject mixed signedness and floating receivers"

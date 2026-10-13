@@ -11,6 +11,7 @@ package kotlinx.io
  * chunks of data without requesting it from a downstream on every call.
  */
 public sealed interface Source : RawSource {
+    @InternalIoApi
     public val buffer: Buffer
 
     /**
@@ -71,6 +72,7 @@ public sealed interface Source : RawSource {
      * Removes all bytes from this source, writes them to [sink], and returns the total number of
      * bytes written to [sink].
      */
+    @IgnorableReturnValue
     public fun transferTo(sink: RawSink): Long
 
     /**

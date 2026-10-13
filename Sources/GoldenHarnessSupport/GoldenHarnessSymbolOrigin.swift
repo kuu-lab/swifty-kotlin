@@ -144,8 +144,6 @@ final class GoldenSymbolOriginClassifier {
         return .unknown
     }
 
-    // MARK: - Member alias detection
-
     private func isSourceBackedMemberAlias(_ symbol: SemanticSymbol) -> Bool {
         guard symbol.kind == .function,
               symbol.declSite == nil,
@@ -186,8 +184,6 @@ final class GoldenSymbolOriginClassifier {
                 && origin(of: candidate.id) == .bundledSource
         }
     }
-
-    // MARK: - Package home
 
     /// Classifies a package's home by its directly-declared members: bundled
     /// when any member traces to bundled stdlib source, fixture when any member

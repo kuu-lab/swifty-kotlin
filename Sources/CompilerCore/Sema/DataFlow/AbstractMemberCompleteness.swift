@@ -44,7 +44,6 @@ func collectInheritedAbstractMembers(
             }
         }
 
-        // Continue walking supertypes
         queue.append(contentsOf: symbols.directSupertypes(for: current))
     }
 

@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Runtime Reflection Metadata Emitter (REFL-004)
-
 /// The emitted metadata enables `KClass` instances to query type information
 /// (simpleName, qualifiedName, supertypes, member counts, flags) at runtime
 /// without requiring the compile-time `.kklib` metadata files.
@@ -18,8 +16,6 @@ struct RuntimeReflectionMetadataEmitter {
     static let sentinel: UInt32 = 0xFFFF_FFFF
 
     static let recordSize = 24
-
-    // MARK: - Kind Encoding
 
     /// Maps SymbolKind to a stable ordinal for binary encoding.
     static func kindOrdinal(_ kind: SymbolKind) -> UInt8 {
@@ -43,8 +39,6 @@ struct RuntimeReflectionMetadataEmitter {
         }
     }
 
-    // MARK: - Flags Encoding
-
     static func encodeFlags(_ record: MetadataRecord) -> UInt8 {
         var flags: UInt8 = 0
         if record.isDataClass { flags |= 1 << 0 }
@@ -54,8 +48,6 @@ struct RuntimeReflectionMetadataEmitter {
         if record.isInline { flags |= 1 << 4 }
         return flags
     }
-
-    // MARK: - Serialization
 
     static func serialize(_ records: [MetadataRecord]) -> Data {
         var stringTable = StringTable()
@@ -108,8 +100,6 @@ struct RuntimeReflectionMetadataEmitter {
 
         return data
     }
-
-    // MARK: - LLVM Emission
 
     static func emitGlobals(
         records: [MetadataRecord],
@@ -201,8 +191,6 @@ struct RuntimeReflectionMetadataEmitter {
         guard !stripped.isEmpty else { return "" }
         return "\(stripped)__"
     }
-
-    // MARK: - String Table
 
     struct StringTable {
         private var strings: [String] = []

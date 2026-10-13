@@ -25,6 +25,18 @@ public fun <T, R> Array<T>.mapIndexed(transform: (Int, T) -> R): List<R> {
     return result
 }
 
+public inline fun <T, R : Any> Array<out T>.mapIndexedNotNull(transform: (Int, T) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        val mapped = transform(i, this[i])
+        if (mapped != null) result.add(mapped)
+        i++
+    }
+    return result
+}
+
 public fun <T, R : Any> Array<T>.mapNotNull(transform: (T) -> R?): List<R> {
     val result = mutableListOf<R>()
     var i = 0

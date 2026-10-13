@@ -71,6 +71,24 @@ struct GenericExtensionPropertyTypeCheckingTests {
     }
 
     @Test
+    func propertyTypeParameterCanOccurInReceiverThroughAnUpperBound() throws {
+        let context = try check("""
+        class Tuple<A>(val item: A)
+        val <T, A : T> Tuple<A>.components: T get() = item
+        """)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func propertyTypeParameterAbsentFromReceiverAndBoundsIsRejected() throws {
+        let context = try check("""
+        class Tuple<A>(val item: A)
+        val <T, A> Tuple<A>.components: T? get() = null
+        """)
+        #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0005" })
+    }
+
+    @Test
     func nullableReceiverIsValidWithoutANonNullBound() throws {
         let context = try check("""
         var <T> T.n: Int get() = 0; set(v) {}

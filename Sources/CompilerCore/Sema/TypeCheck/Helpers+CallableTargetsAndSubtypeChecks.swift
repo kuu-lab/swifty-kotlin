@@ -110,6 +110,35 @@ extension TypeCheckHelpers {
         )))
     }
 
+    /// Adapts the result of a callable-reference expression when its expected
+    /// function type returns Unit. This is expression-contextual: a stored
+    /// function value with a non-Unit result keeps its original type.
+    func unitCoercedCallableReferenceType(
+        _ callableType: TypeID,
+        expectedFunctionType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        let types = sema.types
+        guard case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType),
+              expectedFunction.returnType == types.unitType,
+              case let .functionType(function) = types.kind(of: callableType),
+              function.isCallableReference,
+              function.returnType != types.unitType
+        else {
+            return nil
+        }
+        return types.make(.functionType(FunctionType(
+            contextReceivers: function.contextReceivers,
+            receiver: function.receiver,
+            params: function.params,
+            returnType: types.unitType,
+            isSuspend: function.isSuspend,
+            isCallableReference: true,
+            nullability: function.nullability,
+            throws: function.throws
+        )))
+    }
+
     /// Whether `symbolID` declares an *extension* receiver rather than the
     /// dispatch receiver a member signature stores. Member functions record
     /// `extensionReceiverType ?? ownerType` as `signature.receiverType`
@@ -222,13 +251,16 @@ extension TypeCheckHelpers {
         postponedReturnTypeParameter: SymbolID? = nil,
         sema: SemaModule
     ) -> (functionType: TypeID, typeArguments: [TypeID])? {
-        let inferredType = callableFunctionType(
+        let callableType = callableFunctionType(
             for: signature,
             bindReceiver: bindReceiver,
             boundReceiver: boundReceiver,
             specializeGenericReceiver: false,
             sema: sema
         )
+        let inferredType = expectedFunctionType.flatMap { expected in
+            unitCoercedCallableReferenceType(callableType, expectedFunctionType: expected, sema: sema)
+        } ?? callableType
         let types = sema.types
         let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         guard !typeVars.isEmpty else {

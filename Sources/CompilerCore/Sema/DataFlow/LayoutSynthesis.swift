@@ -189,7 +189,7 @@ extension DataFlowSemaPhase {
             // siblings, so any same-key sibling is necessarily a distinct overload
             // needing its own slot).
             if method.flags.contains(.overrideMember), let candidates {
-                if let matchedSlot = resolveOverriddenVtableSlot(parameterTypes: parameterTypes, candidates: candidates, types: types) {
+                if let matchedSlot = resolveOverriddenVtableSlot(method: method, parameterTypes: parameterTypes, candidates: candidates, symbols: symbols, types: types) {
                     vtableSlots[method.id] = matchedSlot
                     continue
                 }
@@ -359,7 +359,7 @@ extension DataFlowSemaPhase {
         declaredVtableSize: Int?,
         nextVtableSlot: Int,
         parameterTypes: [TypeID],
-        candidates: [(parameterTypes: [TypeID], slot: Int)],
+        candidates: [VtableOverrideCandidate],
         types: TypeSystem
     ) -> Int? {
         guard method.flags.contains(.importedLibrary),

@@ -39,7 +39,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
-        let openEndRangeSymbol = registerSyntheticOpenEndRangeStub(
+        _ = registerSyntheticOpenEndRangeStub(
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,

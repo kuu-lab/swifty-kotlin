@@ -127,67 +127,32 @@ extension TypeSystem {
             // if Annotation was explicitly added to supertypes.
         }
 
-        // primitive <: Comparable<same_primitive>
-        // All Kotlin primitive types (Int, Long, Double, Float, Char, Boolean, etc.) implement Comparable<Self>.
-        if case let .primitive(_, leftNullability) = lhs,
-           case let .classType(rightClass) = rhs,
-           let comparableSym = comparableInterfaceSymbol,
-           rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           case let .in(argType) = rightClass.args[0],
-           argType == subtype,
-           nullabilitySubtype(leftNullability, rightClass.nullability)
-        {
-            return true
-        }
-
-        // primitive / String <: Comparable<*>: the star projection erases the
-        // type argument, so every Comparable<Self> primitive satisfies it.
+        // primitive / String <: Comparable<Self>, and both satisfy
+        // Comparable<*>: all Kotlin primitive types (Int, Long, Double, Float,
+        // Char, Boolean, etc.) implement Comparable<Self>, and String is an
+        // aggregate value in the compiler but remains a source-level
+        // kotlin.String implementing Comparable<String>. A star projection
+        // erases the type argument, so every Comparable<Self> type satisfies it.
         if case let .classType(rightClass) = rhs,
            let comparableSym = comparableInterfaceSymbol,
            rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           case .star = rightClass.args[0]
+           rightClass.args.count == 1
         {
             switch lhs {
-            case let .primitive(_, leftNullability):
-                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
-            case let .stringStruct(leftNullability):
-                if nullabilitySubtype(leftNullability, rightClass.nullability) { return true }
+            case let .primitive(_, leftNullability), let .stringStruct(leftNullability):
+                guard nullabilitySubtype(leftNullability, rightClass.nullability) else { break }
+                switch rightClass.args[0] {
+                case let .in(argType), let .invariant(argType):
+                    // Nullable values still implement Comparable of non-null Self.
+                    // Outer nullability was checked above; retain argument nullability.
+                    return argType == makeNonNullable(subtype)
+                case .star:
+                    return true
+                case .out:
+                    return false
+                }
             default:
                 break
-            }
-        }
-
-        // Support for invariant Comparable bounds (backward compatibility)
-        if case let .primitive(_, leftNullability) = lhs,
-           case let .classType(rightClass) = rhs,
-           let comparableSym = comparableInterfaceSymbol,
-           rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           case let .invariant(argType) = rightClass.args[0],
-           argType == subtype,
-           nullabilitySubtype(leftNullability, rightClass.nullability)
-        {
-            return true
-        }
-
-        // String is an aggregate value in the compiler, but it remains a
-        // source-level kotlin.String and implements Comparable<String>.
-        if case let .stringStruct(leftNullability) = lhs,
-           case let .classType(rightClass) = rhs,
-           let comparableSym = comparableInterfaceSymbol,
-           rightClass.classSymbol == comparableSym,
-           rightClass.args.count == 1,
-           nullabilitySubtype(leftNullability, rightClass.nullability)
-        {
-            switch rightClass.args[0] {
-            case let .in(argType), let .invariant(argType):
-                return argType == subtype
-            case .star:
-                return true
-            case .out:
-                return false
             }
         }
 
@@ -223,7 +188,13 @@ extension TypeSystem {
             guard nullabilitySubtype(leftClass.nullability, rightClass.nullability) else {
                 return false
             }
-            if leftClass.classSymbol != rightClass.classSymbol {
+            // Matching expect/actual declarations have distinct symbols, but
+            // their class types represent the same nominal Kotlin type.
+            let isLinkedExpectActualPair = areLinkedExpectActualClassSymbols(
+                leftClass.classSymbol,
+                rightClass.classSymbol
+            )
+            if leftClass.classSymbol != rightClass.classSymbol && !isLinkedExpectActualPair {
                 guard isNominalSubtypeSymbol(leftClass.classSymbol, of: rightClass.classSymbol) else {
                     return false
                 }
@@ -250,20 +221,37 @@ extension TypeSystem {
             if leftClass.args.count != rightClass.args.count {
                 return false
             }
+            // Star and in-projected KClass types still read through the Any
+            // upper bound, including synthetic declarations without bound metadata.
+            if leftClass.classSymbol == kClassInterfaceSymbol,
+               leftClass.args.count == 1,
+               {
+                   switch leftClass.args[0] {
+                   case .in, .star: true
+                   case .invariant, .out: false
+                   }
+               }(),
+               case let .out(upperBound) = rightClass.args[0]
+            {
+                return isSubtype(anyType, upperBound)
+            }
+            let nominalOwner = symbolTable?.actualSymbol(for: leftClass.classSymbol)
+                ?? symbolTable?.actualSymbol(for: rightClass.classSymbol)
+                ?? leftClass.classSymbol
+            let typeParameterSymbols = nominalTypeParameterSymbols(for: nominalOwner)
             let declarationVariances = normalizedNominalVariances(
-                for: leftClass.classSymbol,
+                for: nominalOwner,
                 arity: leftClass.args.count
             )
             for index in 0 ..< leftClass.args.count {
                 let lhsProjection: Projection
                 if case .star = leftClass.args[index] {
-                    let parameters = nominalTypeParameterSymbols(for: leftClass.classSymbol)
-                    let bounds = parameters.indices.contains(index)
-                        ? symbolTable?.typeParameterUpperBounds(for: parameters[index]) ?? [] : []
-                    let variables = makeTypeVarBySymbol(parameters)
+                    let bounds = typeParameterSymbols.indices.contains(index)
+                        ? symbolTable?.typeParameterUpperBounds(for: typeParameterSymbols[index]) ?? [] : []
+                    let variables = makeTypeVarBySymbol(typeParameterSymbols)
                     var substitution: [TypeVarID: TypeID] = [:]
                     var unresolvedStars: [SymbolID: TypeVarID] = [:]
-                    for (parameter, argument) in zip(parameters, leftClass.args) {
+                    for (parameter, argument) in zip(typeParameterSymbols, leftClass.args) {
                         guard let variable = variables[parameter] else { continue }
                         switch argument {
                         case let .invariant(type), let .out(type): substitution[variable] = type
@@ -329,14 +317,9 @@ extension TypeSystem {
             for (leftParam, rightParam) in zip(leftParams, rightParams) where !isSubtype(rightParam, leftParam) {
                 return false
             }
-            // Kotlin allows a lambda literal wherever a Unit-returning function type
-            // is expected regardless of the lambda's own inferred return type -- the
-            // last expression's value is simply discarded (e.g. `repeat(3) { i ->
-            // someCallReturningInt(i) }` passed to `action: (Int) -> Unit`). Skip the
-            // return-type check in that case instead of requiring true subtyping.
-            if rightFunction.returnType == unitType {
-                return true
-            }
+            // Lambda bodies and direct callable references apply Unit coercion
+            // while being checked against their expected type. A function value
+            // with another return type is not itself a subtype of a Unit function.
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
@@ -450,12 +433,12 @@ extension TypeSystem {
         case let (.any(leftNullability), .any(rightNullability)):
             return nullabilitySubtype(leftNullability, rightNullability)
 
-        // KClass<T> is covariant in T, matching Kotlin's `KClass<out T : Any>`.
+        // Kotlin declares KClass<T : Any> with an invariant type parameter.
         case let (.kClassType(leftKClass), .kClassType(rightKClass)):
             guard nullabilitySubtype(leftKClass.nullability, rightKClass.nullability) else {
                 return false
             }
-            return isSubtype(leftKClass.argument, rightKClass.argument)
+            return isProjectionSubtype(.invariant(leftKClass.argument), .invariant(rightKClass.argument))
 
         case let (.kClassType(leftKClass), .classType(rightClass)):
             guard let kClassSymbol = kClassInterfaceSymbol,
@@ -466,14 +449,7 @@ extension TypeSystem {
             if rightClass.classSymbol == kClassSymbol {
                 if rightClass.args.isEmpty { return true }
                 guard rightClass.args.count == 1 else { return false }
-                switch rightClass.args[0] {
-                case .star:
-                    return true
-                case let .out(type), let .invariant(type):
-                    return isSubtype(leftKClass.argument, type)
-                case .in:
-                    return true
-                }
+                return isProjectionSubtype(.invariant(leftKClass.argument), projection(from: rightClass.args[0]))
             }
             guard isNominalSubtypeSymbol(kClassSymbol, of: rightClass.classSymbol) else {
                 return false
@@ -490,16 +466,8 @@ extension TypeSystem {
                 return false
             }
             if leftClass.classSymbol == kClassSymbol {
-                if leftClass.args.isEmpty { return isSubtype(anyType, rightKClass.argument) }
                 guard leftClass.args.count == 1 else { return false }
-                switch leftClass.args[0] {
-                case .star:
-                    return isSubtype(anyType, rightKClass.argument)
-                case let .out(type), let .invariant(type):
-                    return isSubtype(type, rightKClass.argument)
-                case let .in(type):
-                    return isSubtype(type, rightKClass.argument)
-                }
+                return isProjectionSubtype(projection(from: leftClass.args[0]), .invariant(rightKClass.argument))
             }
             return false
 
@@ -661,8 +629,10 @@ extension TypeSystem {
         }
         var queue = directNominalSupertypes(for: candidate)
         var visited: Set<SymbolID> = [candidate]
-        while let current = queue.first {
-            queue.removeFirst()
+        var head = 0
+        while head < queue.count {
+            let current = queue[head]
+            head += 1
             if current == base {
                 return true
             }
@@ -671,6 +641,12 @@ extension TypeSystem {
             }
         }
         return false
+    }
+
+    private func areLinkedExpectActualClassSymbols(_ lhs: SymbolID, _ rhs: SymbolID) -> Bool {
+        guard let symbolTable else { return false }
+        return symbolTable.actualSymbol(for: lhs) == rhs
+            || symbolTable.actualSymbol(for: rhs) == lhs
     }
 
     enum Projection {
@@ -813,8 +789,8 @@ extension TypeSystem {
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
-        // Prefer the strict result (unique most-specific ancestor with agreeing type
-        // arguments); fall back to the BFS approximation when several incomparable
+        // Prefer the unique most-specific ancestor with compatible type
+        // arguments; fall back to the BFS approximation when several incomparable
         // candidates remain.
         return commonNominalSupertype(types) ?? nearestCommonNominalSupertype(types)
     }
@@ -893,12 +869,11 @@ extension TypeSystem {
     /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
     /// input is a supertype of the other, but they share
     /// `CoroutineContext` above them. Collects the ancestor symbols
-    /// reachable from every input, keeps those whose substituted type args
-    /// agree across all inputs, and returns the single most specific
+    /// reachable from every input, keeps instantiations that accept all inputs
+    /// under the declared variance, and returns the single most specific
     /// candidate (a subtype of every other candidate). Returns `nil` for
-    /// non-class inputs, disagreeing args, or ambiguity — the caller then
-    /// falls back to `Any`, so this can only tighten results that would
-    /// otherwise widen to `Any`.
+    /// non-class inputs, incompatible args, or ambiguity — the caller then
+    /// uses the nearest-common-ancestor approximation.
     private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
         var ancestorSets: [Set<SymbolID>] = []
         for input in types {
@@ -916,10 +891,8 @@ extension TypeSystem {
         for rest in ancestorSets.dropFirst() {
             common.formIntersection(rest)
         }
-        var candidates: [TypeID] = []
+        var candidates: Set<TypeID> = []
         for ancestor in common {
-            var args: [TypeArg]?
-            var agrees = true
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
@@ -928,17 +901,15 @@ extension TypeSystem {
                           to: ancestor
                       )
                 else {
-                    agrees = false
-                    break
+                    continue
                 }
-                if let prev = args, prev != lifted {
-                    agrees = false
-                    break
+                // A later branch may provide the common instantiation:
+                // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
+                let candidate = make(.classType(ClassType(classSymbol: ancestor, args: lifted, nullability: .nonNull)))
+                if !candidates.contains(candidate), types.allSatisfy({ isSubtype($0, candidate) }) {
+                    candidates.insert(candidate)
                 }
-                args = args ?? lifted
             }
-            guard agrees, let args else { continue }
-            candidates.append(make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull))))
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
@@ -992,8 +963,10 @@ extension TypeSystem {
     func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
         var visited: Set<SymbolID> = [classType.classSymbol]
         var queue = directNominalSupertypes(for: classType.classSymbol)
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
+        var head = 0
+        while head < queue.count {
+            let current = queue[head]
+            head += 1
             guard visited.insert(current).inserted else { continue }
             if functionNArity(of: current) == arity,
                let args = liftedNominalSupertypeArgs(
@@ -1107,25 +1080,56 @@ extension TypeSystem {
         }
     }
 
-    /// If **all** types in `filtered` are `KClass<…>`, compute
-    /// `KClass<lub(T1, T2, …)>` with the appropriate nullability.
+    /// If all inputs are KClass types, preserve a dominating input or compute
+    /// a projected common upper bound with the appropriate nullability.
     /// Returns `nil` when the types are not all KClass.
     private func lubKClassTypes(_ filtered: [TypeID]) -> TypeID? {
         var arguments: [TypeID] = []
+        var invariantArguments = true
         var hasNullable = false
         for typeID in filtered {
-            guard case let .kClassType(kc) = kind(of: typeID) else {
+            switch kind(of: typeID) {
+            case let .kClassType(kc):
+                arguments.append(kc.argument)
+            case let .classType(ct) where ct.classSymbol == kClassInterfaceSymbol && ct.args.count == 1:
+                switch ct.args[0] {
+                case let .invariant(argument): arguments.append(argument)
+                case let .out(argument):
+                    invariantArguments = false
+                    arguments.append(argument)
+                case .in, .star:
+                    invariantArguments = false
+                    arguments.append(anyType)
+                }
+            default:
                 return nil
             }
-            arguments.append(kc.argument)
-            if kc.nullability == .nullable || kc.nullability == .platformType {
+            if nullability(of: typeID) != .nonNull {
                 hasNullable = true
             }
         }
         guard !arguments.isEmpty else { return nil }
-        let argLub = lub(arguments)
         let resultNullability: Nullability = hasNullable ? .nullable : .nonNull
-        return makeKClassType(argument: argLub, nullability: resultNullability)
+        // Preserve an existing common supertype, including an in-projected
+        // lower bound, before approximating unrelated captures by their upper bounds.
+        if let existing = filtered.first(where: { candidate in
+            filtered.allSatisfy { isSubtype($0, candidate) }
+        }) {
+            return withNullability(resultNullability, for: existing)
+        }
+        let argLub = lub(arguments)
+        if invariantArguments,
+           arguments.allSatisfy({ isSubtype($0, arguments[0]) && isSubtype(arguments[0], $0) }) {
+            return makeKClassType(argument: arguments[0], nullability: resultNullability)
+        }
+        guard let kClassInterfaceSymbol else {
+            return withNullability(resultNullability, for: anyType)
+        }
+        return make(.classType(ClassType(
+            classSymbol: kClassInterfaceSymbol,
+            args: [.out(argLub)],
+            nullability: resultNullability
+        )))
     }
 
 }

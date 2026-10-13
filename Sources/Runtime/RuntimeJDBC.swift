@@ -61,9 +61,7 @@ private func runtimeJDBCSetError(_ message: String, _ outThrown: UnsafeMutablePo
     outThrown?.pointee = runtimeAllocateSQLException(message: message)
 }
 
-private func runtimeJDBCString(_ raw: Int) -> String? {
-    extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
-}
+
 
 private func runtimeJDBCConnection(_ raw: Int) -> RuntimeJDBCConnectionBox? {
     guard raw != 0, raw != runtimeNullSentinelInt,
@@ -149,7 +147,7 @@ private func runtimeJDBCPrepare(
 @_cdecl("__kk_jdbc_open")
 public func kk_jdbc_open(_ urlRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let url = runtimeJDBCString(urlRaw), url.hasPrefix("jdbc:sqlite:") else {
+    guard let url = runtimeStringFromRaw(urlRaw), url.hasPrefix("jdbc:sqlite:") else {
         runtimeJDBCSetError("Only jdbc:sqlite: URLs are supported", outThrown)
         return 0
     }
@@ -202,7 +200,7 @@ public func kk_jdbc_connection_prepare_statement(
         runtimeJDBCSetError("JDBC connection is closed or invalid", outThrown)
         return 0
     }
-    guard let sql = runtimeJDBCString(sqlRaw) else {
+    guard let sql = runtimeStringFromRaw(sqlRaw) else {
         runtimeJDBCSetError("Prepared statement SQL is invalid", outThrown)
         return 0
     }
@@ -254,7 +252,7 @@ public func kk_jdbc_statement_execute_update(
         if outThrown?.pointee == 0 { runtimeJDBCSetError("Statement is not a regular JDBC statement", outThrown) }
         return 0
     }
-    guard let sql = runtimeJDBCString(sqlRaw) else {
+    guard let sql = runtimeStringFromRaw(sqlRaw) else {
         runtimeJDBCSetError("SQL is invalid", outThrown)
         return 0
     }
@@ -290,7 +288,7 @@ public func kk_jdbc_statement_execute_query(
         if outThrown?.pointee == 0 { runtimeJDBCSetError("Statement is not a regular JDBC statement", outThrown) }
         return 0
     }
-    guard let sql = runtimeJDBCString(sqlRaw) else {
+    guard let sql = runtimeStringFromRaw(sqlRaw) else {
         runtimeJDBCSetError("SQL is invalid", outThrown)
         return 0
     }
@@ -506,5 +504,5 @@ public func kk_jdbc_sql_exception_new() -> Int {
 
 @_cdecl("__kk_jdbc_sql_exception_new_message")
 public func kk_jdbc_sql_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateSQLException(message: runtimeJDBCString(messageRaw))
+    runtimeAllocateSQLException(message: runtimeStringFromRaw(messageRaw))
 }

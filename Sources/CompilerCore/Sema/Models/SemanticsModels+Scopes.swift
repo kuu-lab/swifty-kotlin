@@ -1,0 +1,150 @@
+public protocol Scope: AnyObject {
+    func lookup(_ name: InternedString) -> [SymbolID]
+    /// Stops at the innermost scope containing matching bindings, so declarations
+    /// in a different namespace do not shadow the requested candidates.
+    func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
+    /// Like `lookup`, but merges bindings from every scope in the parent chain
+    /// instead of stopping at the innermost scope that binds `name`. Used as a
+    /// resolution fallback to recover candidates that ordinary (shadowing)
+    /// lookup hides — e.g. a `kotlin.text` String extension shadowed by a
+    /// same-named extension declared in the current package.
+    func lookupMergingChain(_ name: InternedString) -> [SymbolID]
+    /// Classifier-namespace lookup with Kotlin's import tier order. The
+    /// physical chain places a file's package scope above its explicit-import
+    /// scope. For the classifier namespace Kotlin instead ranks an explicit
+    /// single-type or alias import above same-package declarations, while
+    /// wildcard and default imports still rank below them, so this promotes
+    /// the explicit-import tier ahead of the file/package tiers. Scopes
+    /// nested inside the file scope (locals, member and type-parameter
+    /// scopes) keep innermost priority. Returns the matching bindings of the
+    /// winning tier only, like `lookup(_:matching:)`.
+    func lookupClassifier(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
+    func insert(_ sym: SymbolID)
+}
+
+open class BaseScope: Scope {
+    public let parent: Scope?
+    private let symbols: SymbolTable
+    private var locals: [InternedString: [SymbolID]] = [:]
+
+    public init(parent: Scope?, symbols: SymbolTable) {
+        self.parent = parent
+        self.symbols = symbols
+    }
+
+    open func lookup(_ name: InternedString) -> [SymbolID] {
+        if let local = locals[name], !local.isEmpty {
+            return local
+        }
+        return parent?.lookup(name) ?? []
+    }
+
+    open func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
+        let local = (locals[name] ?? []).filter(predicate)
+        if !local.isEmpty {
+            return local
+        }
+        return parent?.lookup(name, matching: predicate) ?? []
+    }
+
+    open func lookupMergingChain(_ name: InternedString) -> [SymbolID] {
+        var result: [SymbolID] = []
+        var seen: Set<SymbolID> = []
+        var current: Scope? = self
+        while let scope = current as? BaseScope {
+            for sym in scope.locals[name] ?? [] where seen.insert(sym).inserted {
+                result.append(sym)
+            }
+            current = scope.parent
+        }
+        return result
+    }
+
+    open func lookupClassifier(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
+        var current: BaseScope? = self
+        var reachedFileScope = false
+        var fileLevelMatches: [SymbolID] = []
+        while let scope = current {
+            let matches = (scope.locals[name] ?? []).filter(predicate)
+            if !reachedFileScope && !(scope is FileScope) {
+                if !matches.isEmpty {
+                    return matches
+                }
+            } else {
+                reachedFileScope = true
+                if scope is ExplicitImportScope {
+                    if !matches.isEmpty {
+                        return matches
+                    }
+                } else if fileLevelMatches.isEmpty {
+                    fileLevelMatches = matches
+                }
+            }
+            current = scope.parent as? BaseScope
+        }
+        return fileLevelMatches
+    }
+
+    /// Include shadowed outer parameters: they remain rigid in nested bodies.
+    func lexicalTypeParameterSymbols() -> Set<SymbolID> {
+        var result: Set<SymbolID> = []
+        var current: Scope? = self
+        while let scope = current as? BaseScope {
+            for symbol in scope.locals.values.flatMap({ $0 })
+                where scope.symbols.symbol(symbol)?.kind == .typeParameter {
+                result.insert(symbol)
+            }
+            current = scope.parent
+        }
+        return result
+    }
+
+    open func insert(_ sym: SymbolID) {
+        guard let symbol = symbols.symbol(sym) else {
+            return
+        }
+        var bucket = locals[symbol.name, default: []]
+        if !bucket.contains(sym) {
+            bucket.append(sym)
+        }
+        locals[symbol.name] = bucket
+    }
+
+    open func insertWithAlias(_ sym: SymbolID, asName: InternedString) {
+        var bucket = locals[asName, default: []]
+        if !bucket.contains(sym) {
+            bucket.append(sym)
+        }
+        locals[asName] = bucket
+    }
+}
+
+final class FileScope: BaseScope {}
+final class PackageScope: BaseScope {}
+class ImportScope: BaseScope {}
+/// The scope holding a file's single-type and alias imports. Kotlin ranks
+/// this tier above same-package declarations for classifier lookup, so
+/// `lookupClassifier` needs to tell it apart from wildcard/default scopes.
+final class ExplicitImportScope: ImportScope {}
+
+final class ClassMemberScope: BaseScope {
+    private let ownerSymbol: SymbolID
+    private let thisType: TypeID?
+
+    init(parent: Scope?, symbols: SymbolTable, ownerSymbol: SymbolID, thisType: TypeID?) {
+        self.ownerSymbol = ownerSymbol
+        self.thisType = thisType
+        super.init(parent: parent, symbols: symbols)
+    }
+
+    var receiverType: TypeID? {
+        thisType
+    }
+
+    var owner: SymbolID {
+        ownerSymbol
+    }
+}
+
+final class FunctionScope: BaseScope {}
+final class BlockScope: BaseScope {}
