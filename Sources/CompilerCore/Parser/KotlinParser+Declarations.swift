@@ -171,7 +171,8 @@ extension KotlinParser {
         parsePostDeclarationTail(
             into: &children,
             range: &range,
-            includeBlock: kind == .classDecl || kind == .interfaceDecl || kind == .objectDecl
+            includeBlock: kind == .classDecl || kind == .interfaceDecl || kind == .objectDecl,
+            allowsClassHeaderColon: kind == .classDecl
         )
 
         return arena.appendNode(
@@ -602,7 +603,10 @@ extension KotlinParser {
         return arena.appendNode(kind: .constructorDecl, range: range.value ?? invalidRange, children)
     }
 
-    func parsePostDeclarationTail(into children: inout [SyntaxChild], range: inout RangeAccumulator, includeBlock: Bool) {
+    func parsePostDeclarationTail(
+        into children: inout [SyntaxChild], range: inout RangeAccumulator,
+        includeBlock: Bool, allowsClassHeaderColon: Bool = false
+    ) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
                 let body = parseBlock()
@@ -617,6 +621,6 @@ extension KotlinParser {
         if hasLeadingNewline(next), isDeclarationStart(next.kind) {
             return
         }
-        parseTail(inBlock: false, into: &children, range: &range, allowsSupertypeContinuation: includeBlock)
+        parseTail(inBlock: false, into: &children, range: &range, allowsClassHeaderColon: allowsClassHeaderColon)
     }
 }

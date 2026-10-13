@@ -58,6 +58,52 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
+    func testImportedTopLevelPropertyCapturesPreinitializedObjectHandle() throws {
+        let librarySource = """
+        package extdemo
+
+        interface Greeting {
+            fun message(): String
+        }
+
+        object GreetingImpl : Greeting {
+            override fun message() = "ready"
+        }
+
+        val greeting: Greeting = GreetingImpl
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "ObjectHandleInit") { libraryPath in
+            let appSource = """
+            import extdemo.greeting
+
+            fun main() {
+                println(greeting.message())
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputPath = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: outputPath) }
+                let ctx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ObjectHandleInitApp",
+                    emit: .executable,
+                    outputPath: outputPath,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(ctx)
+                try LoweringPhase().run(ctx)
+                try CodegenPhase().run(ctx)
+                assertLinkSucceeds(ctx)
+
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "ready\n")
+            }
+        }
+    }
+
+    @Test
     func testLinkPhaseDoesNotCollectObjectSymlinkOutsideLibrary() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
