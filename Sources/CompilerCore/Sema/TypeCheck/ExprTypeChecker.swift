@@ -1669,33 +1669,33 @@ final class ExprTypeChecker {
         }
 
         for name in names {
-            for candidate in ctx.cachedScopeLookup(name) {
-                guard seen.insert(candidate).inserted,
-                      let symbol = ctx.cachedSymbol(candidate),
+            // Name lookup must advance past a scope whose extensions have
+            // unrelated receivers, while retaining the nearest matching tier.
+            // This also recovers source-backed default imports without making
+            // unimported extensions visible through the global short-name table.
+            let scopedCandidates = ctx.scope.lookup(name, matching: { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
-                      let signature = sema.symbols.functionSignature(for: candidate),
-                      let signatureReceiverType = signature.receiverType
+                      sema.symbols.functionSignature(for: candidate)?.receiverType != nil
                 else {
-                    continue
+                    return false
                 }
-                guard receiverType != sema.types.errorType,
-                      driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                          callSiteReceiver: receiverType,
-                          declaredReceiver: signatureReceiverType,
-                          sema: sema
-                      )
-                else {
-                    continue
+                // Preserve cachedScopeLookup's expect/actual filtering.
+                if symbol.flags.contains(.expectDeclaration),
+                   sema.symbols.actualSymbol(for: candidate) != nil {
+                    return false
                 }
+                return operatorCandidateMatchesReceiver(candidate)
+            })
+            for candidate in scopedCandidates where seen.insert(candidate).inserted {
                 candidates.append(candidate)
             }
         }
 
-        // Imported library extension operators are deliberately omitted from
-        // file scopes, just like other imported extensions. Recover them by
-        // short name when scoped lookup produced no receiver-compatible
-        // candidate; the receiver check above remains the source of truth.
+        // Synthetic extension operators are deliberately omitted from scope
+        // mappings. Recover them by short name only when scoped lookup produced
+        // no receiver-compatible candidate.
         if candidates.isEmpty {
             for name in names {
                 for candidate in sema.symbols.lookupByShortName(name) {
