@@ -377,7 +377,6 @@ extension DataFlowSemaPhase {
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
-    // MARK: - Continuation0 / Continuation1 / Continuation2
 
     func registerNativeConcurrentContinuationTypes(
         packageFQName: [InternedString],
@@ -573,7 +572,6 @@ extension DataFlowSemaPhase {
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
-    // MARK: - FreezingException
 
     func registerNativeConcurrentFreezingException(
         packageFQName: [InternedString],
@@ -620,7 +618,6 @@ extension DataFlowSemaPhase {
         // its runtime bridge. Keep only this nominal anchor for source reuse.
     }
 
-    // MARK: - InvalidMutabilityException
 
     func registerNativeConcurrentInvalidMutabilityException(
         packageFQName: [InternedString],
@@ -692,7 +689,6 @@ extension DataFlowSemaPhase {
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
-    // MARK: - Worker
 
     func registerNativeConcurrentWorker(
         packageFQName: [InternedString],
@@ -847,7 +843,6 @@ extension DataFlowSemaPhase {
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
-    // MARK: - freeze / isFrozen
 
 
 }
@@ -857,7 +852,6 @@ extension DataFlowSemaPhase {
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
-    // MARK: - Future<T>
 
     func registerNativeConcurrentFuture(
         packageFQName: [InternedString],

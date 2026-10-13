@@ -7,6 +7,55 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-1919: Pattern/Matcher and Regex.toPattern must preserve JVM region semantics.
+    @Test(arguments: [false, true])
+    func testJavaRegexPatternMatcherRegion(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/java_util_regex_pattern_matcher.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "JavaRegexPatternMatcher",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            true
+            6
+            word
+            2
+            false
+            true
+            a
+            0
+            1
+            false
+            illegal-state
+            true
+            word
+            true
+            WORD
+
+            """)
+        }
+    }
+
     /// KUU-1339: Unit literals and returned values share identity at erased boundaries.
     @Test(arguments: [false, true])
     func testUnitReturnSingleton(useArtifact: Bool) throws {

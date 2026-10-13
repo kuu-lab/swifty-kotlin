@@ -851,7 +851,30 @@ func itableBridgeSymbolForMethod(
         return implementation
     }
     let implementationFn = arena.function(for: implementation)
-    guard implementationFn != nil || implementationSignature != nil else { return implementation }
+    // Nested singleton initializers register dispatch before their member bodies
+    // are lowered. Ordinary source object methods already have their final ABI
+    // in Sema, so their erasure bridges can reference the forthcoming definition.
+    // Varargs, reified tokens, and member extensions alter the KIR parameter list.
+    let hasForwardObjectSignature: Bool = {
+        guard sema.symbols.symbol(nominalSymbol)?.kind == .object,
+              sema.symbols.parentSymbol(for: implementation) == nominalSymbol,
+              let implementationInfo = sema.symbols.symbol(implementation),
+              implementationInfo.kind == .function,
+              !implementationInfo.flags.contains(.abstractType),
+              !implementationInfo.flags.contains(.synthetic),
+              !implementationInfo.flags.contains(.memberExtension),
+              sema.symbols.externalLinkName(for: implementation) == nil,
+              !implSig.valueParameterIsVararg.contains(true),
+              implSig.reifiedTypeParameterIndices.isEmpty,
+              let receiverType = implSig.receiverType,
+              case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+              receiverClass.classSymbol == nominalSymbol
+        else { return false }
+        return true
+    }()
+    guard implementationFn != nil || implementationSignature != nil || hasForwardObjectSignature else {
+        return implementation
+    }
     let implementationReturnType = implementationFn?.returnType ?? implSig.returnType
 
     func isStringAggregate(_ type: TypeID?) -> Bool {

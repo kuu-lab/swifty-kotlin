@@ -158,17 +158,17 @@ extension CallLowerer {
                 return nullability != .nonNull
             }
             func isProvablyNonNullOperand(_ expr: ExprID, _ kirID: KIRExprID) -> Bool {
-                if let type = sema.bindings.exprTypes[expr],
-                   sema.types.nullability(of: type) == .nonNull
-                {
-                    return true
+                func isKnownNonNull(_ type: TypeID) -> Bool {
+                    // An unadorned T can be instantiated with a nullable type;
+                    // its default upper bound is Any?, despite this type flag.
+                    if case .typeParam = sema.types.kind(of: type) { return false }
+                    return sema.types.nullability(of: type) == .nonNull
                 }
-                if let type = arena.exprType(kirID),
-                   sema.types.nullability(of: type) == .nonNull
-                {
-                    return true
+                if let type = sema.bindings.exprTypes[expr] {
+                    if case .typeParam = sema.types.kind(of: type) { return false }
+                    if isKnownNonNull(type) { return true }
                 }
-                return false
+                return arena.exprType(kirID).map(isKnownNonNull) ?? false
             }
             if (isNullLiteralOperand(rhs) && isProvablyNonNullOperand(lhs, lhsID))
                 || (isNullLiteralOperand(lhs) && isProvablyNonNullOperand(rhs, rhsID))

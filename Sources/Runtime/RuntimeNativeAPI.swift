@@ -81,8 +81,7 @@ public func kk_cpointer_address(_ handle: Int) -> Int {
 
 @_cdecl("kk_cpointer_toLong")
 public func kk_cpointer_toLong(_ handle: Int) -> Int {
-    guard let box = resolveCPointerBox(from: handle) else { return 0 }
-    return Int(bitPattern: box.address)
+    kk_cpointer_address(handle)
 }
 
 @_cdecl("kk_cpointer_toKStringFromUtf32")
@@ -168,9 +167,11 @@ public func kk_native_getStackTraceAddresses(_ throwableRaw: Int) -> Int {
        })
     {
         if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
-            addresses = throwable.stackTraceAddresses
+            addresses = throwable.writableStackTrace ? throwable.stackTraceAddresses : []
         } else if let throwable = tryCast(pointer, to: RuntimeObjectBox.self) {
-            addresses = throwable.throwableStackTraceAddresses ?? []
+            addresses = throwable.throwableWritableStackTrace
+                ? throwable.throwableStackTraceAddresses ?? []
+                : []
         } else {
             addresses = []
         }
@@ -188,6 +189,10 @@ public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
           }),
           let object = tryCast(pointer, to: RuntimeObjectBox.self)
     else {
+        return throwableRaw
+    }
+    guard object.throwableWritableStackTrace else {
+        object.throwableStackTraceAddresses = []
         return throwableRaw
     }
     if object.throwableStackTraceAddresses == nil {

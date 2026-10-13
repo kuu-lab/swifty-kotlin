@@ -112,7 +112,7 @@ private func existingResourceURL(named name: String) -> URL? {
     return opened.url
 }
 
-// MARK: - kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR), see
+// kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR), see
 // AnnotationSemanticTests.testAnnotationSemanticSema and
 // Scripts/diff_cases/deprecated_apis.kt). These are real, still-present
 // (if force-deprecated) top-level stdlib functions, not part of File's own
@@ -303,13 +303,17 @@ public func __kk_file_new_parent_child(_ parentRaw: Int, _ childRaw: Int) -> Int
 }
 
 @_cdecl("__kk_file_readText")
-public func __kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+public func __kk_file_readText(
+    _ fileRaw: Int,
+    _ charsetTag: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readText received invalid File handle")
     }
     do {
-        let content = try String(contentsOfFile: file.path, encoding: .utf8)
+        let content = try String(contentsOfFile: file.path, encoding: outputStreamEncoding(for: charsetTag))
         return runtimeMakeUTF8StringRaw(content)
     } catch {
         outThrown?.pointee = runtimeAllocateFileSystemException(
@@ -423,7 +427,7 @@ private func runtimeByteArrayBytes(from raw: Int) -> [UInt8]? {
     return nil
 }
 
-private func runtimeOutputStreamBox(from raw: Int) -> RuntimeOutputStreamBox? {
+func runtimeOutputStreamBox(from raw: Int) -> RuntimeOutputStreamBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeOutputStreamBox.self)
 }

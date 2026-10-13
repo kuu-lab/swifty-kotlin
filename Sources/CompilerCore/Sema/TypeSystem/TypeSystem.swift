@@ -364,6 +364,28 @@ public final class TypeSystem {
         typeContainsTypeParam(type) { $0.symbol == symbol }
     }
 
+    /// Returns whether a type contains a type parameter directly or through the upper bounds of its type parameters.
+    public func typeContainsTypeParamThroughUpperBounds(_ type: TypeID, symbol: SymbolID) -> Bool {
+        guard let symbolTable else {
+            return typeContainsTypeParam(type, symbol: symbol)
+        }
+
+        var visitedTypeParameters: Set<SymbolID> = []
+        func contains(_ candidate: TypeID) -> Bool {
+            typeContainsTypeParam(candidate) { typeParameter in
+                if typeParameter.symbol == symbol {
+                    return true
+                }
+                guard visitedTypeParameters.insert(typeParameter.symbol).inserted else {
+                    return false
+                }
+                return symbolTable.typeParameterUpperBounds(for: typeParameter.symbol).contains(where: contains)
+            }
+        }
+
+        return contains(type)
+    }
+
     public func typeContainsAnyTypeParam(_ type: TypeID) -> Bool {
         typeContainsTypeParam(type) { _ in true }
     }

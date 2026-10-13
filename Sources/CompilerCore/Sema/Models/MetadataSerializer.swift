@@ -284,6 +284,8 @@ struct MetadataIndexEntry {
     let offset: Int
     let length: Int
     let record: MetadataRecord
+    /// Older v2 indexes omit initializer links; absence is unknown there.
+    var hasCompleteInitializerInfo: Bool = false
 }
 
 /// Lazily reads v2 metadata records from the body section of `metadata.bin`.
@@ -333,7 +335,10 @@ final class IndexedMetadataFile {
             else {
                 return nil
             }
-            parsedEntries.append(MetadataIndexEntry(offset: offset, length: length, record: record))
+            parsedEntries.append(MetadataIndexEntry(
+                offset: offset, length: length, record: record,
+                hasCompleteInitializerInfo: fields[2].split(separator: " ").contains("initIndex=1")
+            ))
         }
 
         guard cursor <= bytes.count else { return nil }

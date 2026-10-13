@@ -172,8 +172,11 @@ extension CallTypeChecker {
             interner.intern("Iterable"),
         ]
         var remainingCandidates = candidates
-        let hasCollectionReceiver = receiverTypes.contains { _, receiver in
-            driver.helpers.nominalSymbol(of: receiver, types: sema.types)
+        let hasCollectionReceiver = receiverTypes.contains { candidate, receiver in
+            // An inapplicable Collection overload must not hide an Iterable
+            // overload, such as count() competing with count(predicate).
+            guard specificityCandidates.contains(candidate) else { return false }
+            return driver.helpers.nominalSymbol(of: receiver, types: sema.types)
                 .flatMap { sema.symbols.symbol($0)?.fqName } == collectionFQName
         }
         if hasCollectionReceiver,

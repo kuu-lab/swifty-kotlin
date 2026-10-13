@@ -128,6 +128,7 @@ func assertKotlinCompilesToObject(
 func compileAndRunKotlin(
     _ source: String,
     expectedOutput: String,
+    expectedErrorOutput: String? = nil,
     moduleName: String = "ExecTest",
     allowDefaultStdlibLibrary: Bool = true,
     optLevel: OptimizationLevel = .O0,
@@ -135,7 +136,7 @@ func compileAndRunKotlin(
     requireNoCompilerDiagnostics: Bool = false
 ) throws {
     try compileAndRunKotlinSources(
-        [source], expectedOutput: expectedOutput, moduleName: moduleName,
+        [source], expectedOutput: expectedOutput, expectedErrorOutput: expectedErrorOutput, moduleName: moduleName,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
         optLevel: optLevel, expectedStderr: expectedStderr,
         requireNoCompilerDiagnostics: requireNoCompilerDiagnostics
@@ -147,6 +148,7 @@ func compileAndRunKotlin(
 func compileAndRunKotlinSources(
     _ sources: [String],
     expectedOutput: String,
+    expectedErrorOutput: String? = nil,
     moduleName: String,
     allowDefaultStdlibLibrary: Bool,
     optLevel: OptimizationLevel = .O0,
@@ -201,6 +203,14 @@ func compileAndRunKotlinSources(
             throw TestCompilationFailure(
                 description: "Expected stdout \(String(reflecting: expectedOutput)) but got \(String(reflecting: normalized))"
             )
+        }
+        if let expectedErrorOutput {
+            let normalizedError = runResult.stderr.replacingOccurrences(of: "\r\n", with: "\n")
+            guard normalizedError == expectedErrorOutput else {
+                throw TestCompilationFailure(
+                    description: "Expected stderr \(String(reflecting: expectedErrorOutput)) but got \(String(reflecting: normalizedError))"
+                )
+            }
         }
     }
 }

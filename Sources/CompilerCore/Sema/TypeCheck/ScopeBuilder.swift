@@ -282,6 +282,35 @@ struct TypeCheckScopeBuilder {
                 continue
             }
 
+            if importDecl.isWildcard {
+                let enumOwners = resolved.filter { sema.symbols.symbol($0)?.kind == .enumClass }
+                if !enumOwners.isEmpty {
+                    // Enum star imports introduce entries at wildcard priority,
+                    // not the enum type or its instance/companion members.
+                    for enumOwner in enumOwners {
+                        var owner: SymbolID? = enumOwner
+                        var isAccessibleOwner = true
+                        while let current = owner {
+                            if !isAccessibleWildcardSymbol(current) {
+                                isAccessibleOwner = false
+                                break
+                            }
+                            owner = sema.symbols.parentSymbol(for: current)
+                        }
+                        guard isAccessibleOwner,
+                              let enumSymbol = sema.symbols.symbol(enumOwner)
+                        else { continue }
+                        for entry in sema.symbols.children(ofFQName: enumSymbol.fqName) {
+                            guard sema.symbols.symbol(entry)?.kind == .field,
+                                  isAccessibleWildcardSymbol(entry)
+                            else { continue }
+                            wildcardImportScope.insert(entry)
+                        }
+                    }
+                    continue
+                }
+            }
+
             let hasPackageImport = resolved.contains { symbolID in
                 sema.symbols.symbol(symbolID)?.kind == .package
             }
@@ -372,11 +401,11 @@ struct TypeCheckScopeBuilder {
     ) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID),
               symbol.kind == .function,
-              let signature = sema.symbols.functionSignature(for: symbolID),
-              signature.receiverType != nil,
               symbol.flags.contains(.operatorFunction),
               symbol.flags.contains(.synthetic),
-              !sema.symbols.isSourceBackedSymbol(symbolID)
+              !sema.symbols.isSourceBackedSymbol(symbolID),
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              signature.receiverType != nil
         else {
             return false
         }

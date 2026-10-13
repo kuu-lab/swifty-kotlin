@@ -7,6 +7,47 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-1939: user classes sharing stdlib collection names keep their own members.
+    @Test(arguments: [false, true])
+    func testUserCollectionClassNamesPreserveDispatch(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let source = try diffCaseSource("kuu1939_user_collection_class_names.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "UserCollectionClassNames",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            user-add-called
+            false
+            user-HashMap.get
+            true
+            user-MutableSet
+            true
+            user-add-called
+            false
+            user-HashMap.get
+            user-LinkedHashSet.add
+            user-MutableMap.get
+            user-LinkedHashMap.get
+            true
+            false
+            9
+
+            """)
+        }
+    }
+
     private static func abstractCollectionSource() throws -> String {
         try diffCaseSource("bug_200_precompiled_abstract_collection.kt", file: #filePath)
     }

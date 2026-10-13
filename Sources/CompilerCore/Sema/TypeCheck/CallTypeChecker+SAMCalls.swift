@@ -1,5 +1,44 @@
 
 extension CallTypeChecker {
+    /// Nominal context for a nested SAM constructor before eager inference.
+    /// Abstain when a same-named callable could take precedence over the interface.
+    func inferableSamConstructorSymbol(_ exprID: ExprID, ctx: TypeInferenceContext) -> SymbolID? {
+        guard let expr = ctx.ast.arena.expr(exprID),
+              case let .call(callee, typeArgs, args, _) = expr,
+              typeArgs.isEmpty,
+              args.count == 1,
+              isSamConvertibleArgument(args[0].expr, ast: ctx.ast),
+              let calleeExpr = ctx.ast.arena.expr(callee),
+              case let .nameRef(calleeName, _) = calleeExpr
+        else {
+            return nil
+        }
+        var visibleCallables = ctx.filterByVisibility(
+            ctx.cachedScopeLookup(calleeName).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.kind == .function || symbol.kind == .constructor
+            }
+        ).visible
+        if visibleCallables.isEmpty {
+            visibleCallables = ctx.sema.symbols.lookupAll(fqName: [calleeName]).filter { candidate in
+                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
+                return symbol.kind == .function || symbol.kind == .constructor
+            }
+        }
+        guard visibleCallables.isEmpty else { return nil }
+        var interfaces = ctx.cachedScopeLookup(calleeName).filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+        }
+        if interfaces.isEmpty {
+            interfaces = ctx.sema.symbols.lookupAll(fqName: [ctx.interner.intern("kotlin"), calleeName]).filter { candidate in
+                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
+                return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+            }
+        }
+        return interfaces.count == 1 ? interfaces.first : nil
+    }
+
     func inferSamConvertedCallExpr(
         _ id: ExprID,
         calleeName: InternedString,
@@ -8,7 +47,8 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
-        explicitTypeArgs: [TypeID]
+        explicitTypeArgs: [TypeID],
+        samFactoryCandidates: inout [SymbolID]?
     ) -> TypeID? {
         let samArgIndices = args.enumerated().compactMap { index, argument in
             isSamConvertibleArgument(argument.expr, ast: ctx.ast) ? index : nil
@@ -28,17 +68,57 @@ extension CallTypeChecker {
             }
         ).visible
         if visibleCandidates.isEmpty {
-            visibleCandidates = ctx.sema.symbols.lookupAll(fqName: [calleeName]).filter { candidate in
+            visibleCandidates = ctx.filterByVisibility(ctx.sema.symbols.lookupAll(fqName: [calleeName]).filter { candidate in
                 guard let symbol = ctx.sema.symbols.symbol(candidate) else {
                     return false
                 }
                 return symbol.kind == .function || symbol.kind == .constructor
+            }).visible
+        }
+        // A same-named factory participates in ordinary overload resolution before
+        // the synthetic SAM constructor. Check applicability without inferring a
+        // losing lambda body or suppressing errors in the winning factory context.
+        let hasSamConstructor = samConstructorInterface(named: calleeName, ctx: ctx) != nil
+        if hasSamConstructor {
+            let shapes = samFactoryShapes(
+                visibleCandidates, calleeName: calleeName, args: args, range: range,
+                ctx: ctx, locals: locals, explicitTypeArgs: explicitTypeArgs
+            )
+            let applicable = visibleCandidates.filter { shapes[$0] != nil }
+            if let first = applicable.first, let firstShape = shapes[first] {
+                let resolution = ctx.resolver.resolveCall(
+                    candidates: applicable,
+                    call: CallExpr(
+                        range: range, calleeName: calleeName,
+                        args: [CallArg(label: args[0].label, isSpread: args[0].isSpread, isTrailingLambda: args[0].isTrailingLambda, type: firstShape.argumentType)],
+                        explicitTypeArgs: explicitTypeArgs
+                    ),
+                    expectedType: nil, implicitReceiverType: ctx.implicitReceiverType,
+                    candidateArgumentTypes: shapes.mapValues { [0: $0.argumentType] }, ctx: ctx.sema
+                )
+                if let diagnostic = resolution.diagnostic {
+                    let canRefineReturnType: Bool
+                    if diagnostic.code == "KSWIFTK-SEMA-0003",
+                       case .lambdaLiteral = ctx.ast.arena.expr(args[0].expr)
+                    {
+                        canRefineReturnType = samFactoryAllowsReturnTypeRefinement(applicable, shapes: shapes, sema: ctx.sema)
+                    } else {
+                        canRefineReturnType = false
+                    }
+                    if !canRefineReturnType {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                        return ctx.sema.types.errorType
+                    }
+                }
+                samFactoryCandidates = resolution.chosenCallee.map { [$0] } ?? applicable
+                return nil
             }
         }
         // Path 1: callee is a function/constructor whose single parameter is a
         // fun interface type (e.g. `apply({ ... })` where apply takes Transformer).
         let samCompatibleCandidates = visibleCandidates.filter { candidate in
-            guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+            guard !hasSamConstructor,
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   isCallableArityCompatible(signature: signature, argCount: args.count),
                   samArgIndex < signature.parameterTypes.count
             else {
@@ -67,7 +147,7 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: parameterExpectedType
                 )
-                argTypes.append(CallArg(label: argument.label, isSpread: argument.isSpread, type: inferredType))
+                argTypes.append(CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: inferredType))
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: narrowedSamCandidates,
@@ -107,7 +187,7 @@ extension CallTypeChecker {
 
         // Path 2: SAM constructor — callee name is a fun interface
         // (e.g. `Transformer { it.uppercase() }`).
-        if let samType = inferSamConstructorCallExpr(
+        if args.count == 1, let samType = inferSamConstructorCallExpr(
             id,
             calleeName: calleeName,
             argExpr: samArgExpr,
@@ -198,6 +278,17 @@ extension CallTypeChecker {
         return signature.parameterTypes[varargIndex]
     }
 
+    private func samConstructorInterface(named name: InternedString, ctx: TypeInferenceContext) -> SymbolID? {
+        let isFunInterface: (SymbolID) -> Bool = { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.kind == .interface && symbol.flags.contains(.funInterface)
+        }
+        let scoped = ctx.cachedScopeLookup(name).filter(isFunInterface)
+        if let interface = ctx.filterByVisibility(scoped).visible.first { return interface }
+        let kotlinFQName = [ctx.interner.intern("kotlin"), name]
+        return ctx.filterByVisibility(ctx.sema.symbols.lookupAll(fqName: kotlinFQName).filter(isFunInterface)).visible.first
+    }
+
     /// Handles `Transformer { ... }` — calling a fun interface name with a
     /// single trailing lambda produces an anonymous implementation of that
     /// interface by SAM conversion.
@@ -210,18 +301,7 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
-        var interfaceCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-            return symbol.kind == .interface && symbol.flags.contains(.funInterface)
-        }
-        if interfaceCandidates.isEmpty {
-            let kotlinFQName = [ctx.interner.intern("kotlin"), calleeName]
-            interfaceCandidates = ctx.sema.symbols.lookupAll(fqName: kotlinFQName).filter { candidate in
-                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
-                return symbol.kind == .interface && symbol.flags.contains(.funInterface)
-            }
-        }
-        guard let interfaceSymID = interfaceCandidates.first else {
+        guard let interfaceSymID = samConstructorInterface(named: calleeName, ctx: ctx) else {
             return nil
         }
         let sema = ctx.sema

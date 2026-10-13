@@ -1054,10 +1054,7 @@ public func kk_string_toRegex_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreate(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: outThrown
-    )
+    kk_regex_create_flat(data, length, byteCount, hash, outThrown)
 }
 
 

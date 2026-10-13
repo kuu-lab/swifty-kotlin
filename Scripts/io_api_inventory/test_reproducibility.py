@@ -118,10 +118,16 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertTrue(paired)
         self.assertTrue(all(row["_accessor_role"] == "setter" for row in paired))
 
-    def test_default_gap_is_owned_and_all_source_rows_are_mapped(self):
-        row = self.row("kotlinx.io.bytestring/ByteStringBuilder.append|append(kotlin.ByteArray;kotlin.Int;kotlin.Int){}")
-        self.assertIn("default presence: startIndex upstream=True local=False", row["local_contract_differences"])
-        self.assertIn("default presence: endIndex upstream=True local=False", row["local_contract_differences"])
+    def test_byte_array_append_defaults_match_and_all_source_rows_are_mapped(self):
+        row = next(
+            row for row in self.rows
+            if row["representation"] == "Kotlin source API / KLIB dump"
+            and row["owner_fqn"] == "kotlinx.io.bytestring/ByteStringBuilder"
+            and row["name"] == "append"
+            and "kotlin/ByteArray" in row["signature"]
+        )
+        self.assertEqual(row["default_parameter_count"], "2")
+        self.assertEqual(row["local_contract_differences"], "none detected (semantics unverified)")
         self.assertEqual(row["owner_issue"], "KUU-1760")
         for row in self.rows:
             if "/ KLIB dump" in row["representation"] or "_source_key" in row:

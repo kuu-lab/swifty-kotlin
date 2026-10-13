@@ -156,6 +156,30 @@
       "upstream_path": "core/nativeMain/src/kotlinx/serialization/internal/Platform.kt",
       "sha256": "043b055e64a063ec257ab5a7f0716258ac19d7a6417eccf5829e06574bfc66c9",
       "git_blob": "7e2423a76ed8534df572b639aa220bdf3e9fed48"
+    },
+    {
+      "module": "core",
+      "platform": "common",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/NullableSerializer.kt",
+      "sha256": "c2afec5f1ef8d128f5696e6a9645aa1dcc759bba49a6880a9a366fb53e450e10",
+      "git_blob": "d15b522bc10b98d05c9c16709f9e7ed92b1fce09",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/NullableSerializer.kt"
+    },
+    {
+      "module": "core",
+      "platform": "common",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CachedNames.kt",
+      "sha256": "221de558cb5be8773298fc18045d19c1358958ce99df5d61544628b9cd4bddc0",
+      "git_blob": "a5b7dfde037bf46c220f53d962cf852e5f14bb80",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CachedNames.kt"
+    },
+    {
+      "module": "core",
+      "platform": "common",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/Platform.common.kt",
+      "sha256": "276892d5cbe5225a80e905319701ca01fe6e197cc95927303a2388e2fa875e35",
+      "git_blob": "4bba9a6cfe6ac9d6b3c1ecee55839da8fd0b1aba",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/Platform.common.kt"
     }
   ],
   "artifacts": [

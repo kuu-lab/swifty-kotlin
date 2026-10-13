@@ -87,6 +87,28 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func javaLangIllegalArgumentExceptionImportResolvesAsKotlinType(useArtifact: Bool) throws {
+        let source = """
+        import java.lang.IllegalArgumentException
+        import java.lang.IllegalArgumentException as JavaIllegalArgumentException
+
+        fun fromImportedName(): IllegalArgumentException = JavaIllegalArgumentException("alias")
+        fun kotlinFromJava(value: JavaIllegalArgumentException): kotlin.IllegalArgumentException = value
+        fun javaFromKotlin(value: kotlin.IllegalArgumentException): JavaIllegalArgumentException = value
+        fun withMessageAndCause(cause: Throwable): JavaIllegalArgumentException =
+            JavaIllegalArgumentException("message", cause)
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let javaAlias = try #require(sema.symbols.lookup(
+            fqName: ["java", "lang", "IllegalArgumentException"].map(ctx.interner.intern)
+        ))
+        #expect(sema.symbols.symbol(javaAlias)?.kind == .typeAlias)
+    }
+
     @Test
     func wildcardImportFromObjectIsDiagnosed() throws {
         let source = """

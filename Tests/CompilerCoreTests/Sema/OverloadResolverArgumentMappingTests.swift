@@ -3,6 +3,40 @@
 import Testing
 
 extension OverloadResolverTests {
+    @Test(arguments: [
+        (false, false, false), (false, false, true),
+        (false, true, false), (false, true, true),
+        (true, false, false), (true, false, true),
+        (true, true, false), (true, true, true),
+    ])
+    func testCallablePositionAndTrailingLambdaWithLaterDefault(
+        firstHasDefault: Bool, nullableDefault: Bool, trailing: Bool
+    ) {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+        let callable = types.make(.functionType(FunctionType(params: [types.stringType], returnType: types.stringType)))
+        let fn = defineSymbol(kind: .function, name: "callbacks", suffix: "callbacks", symbols: symbols, interner: interner)
+        let first = defineSymbol(kind: .valueParameter, name: "first", suffix: "callbacks_first", symbols: symbols, interner: interner)
+        let second = defineSymbol(kind: .valueParameter, name: "second", suffix: "callbacks_second", symbols: symbols, interner: interner)
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: [callable, nullableDefault ? types.makeNullable(callable) : callable],
+            returnType: types.stringType,
+            valueParameterSymbols: [first, second],
+            valueParameterHasDefaultValues: [firstHasDefault, true]
+        ), for: fn)
+        let resolved = resolver.resolveCall(candidates: [fn], call: CallExpr(
+            range: makeRange(start: 0, end: 10), calleeName: interner.intern("callbacks"),
+            args: [CallArg(isTrailingLambda: trailing, type: callable)]
+        ), expectedType: nil, ctx: ctx)
+        if trailing && !firstHasDefault {
+            #expect(resolved.chosenCallee == nil)
+            #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+        } else {
+            #expect(resolved.chosenCallee == fn)
+            #expect(resolved.diagnostic == nil)
+            #expect(resolved.parameterMapping == [0: trailing ? 1 : 0])
+        }
+    }
+
     @Test func testResolveCallAllowsOmittedDefaultArguments() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 

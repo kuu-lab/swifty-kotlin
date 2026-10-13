@@ -57,7 +57,7 @@ private enum RuntimeParsedFormatToken {
     case specifier(RuntimeFormatSpecifier, next: Int)
 }
 
-// MARK: - Resource limits for String.format (KUU-804)
+// Resource limits for String.format (KUU-804)
 // Prevents memory exhaustion and arithmetic traps on maliciously large width/precision.
 internal let runtimeFormatMaxWidth = 100_000
 internal let runtimeFormatMaxPrecision = 100_000

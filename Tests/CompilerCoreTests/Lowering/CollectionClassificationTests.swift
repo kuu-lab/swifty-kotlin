@@ -86,7 +86,7 @@ struct CollectionClassificationTests {
             var state = State()
             CollectionLiteralLoweringSupport().collectInitialCollectionExprIDs(
                 function: function, lookup: CollectionLiteralLookupTables(interner: interner),
-                arena: arena, sema: sema, state: &state
+                arena: arena, sema: sema, interner: interner, state: &state
             )
             return state
         }
