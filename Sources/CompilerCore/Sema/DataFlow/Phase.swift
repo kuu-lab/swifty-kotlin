@@ -424,9 +424,38 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
+        // Resolve each nominal FQName once, including receivers from other
+        // modules and names shared with package records. Successful lookups
+        // remain valid because new symbols append after existing candidates.
+        var nominalSymbols: [[InternedString]: SymbolID] = [:]
+        var missingNominals: [[InternedString]: Int] = [:]
+        func nominalSymbol(for fqName: [InternedString]) -> SymbolID? {
+            if let cached = nominalSymbols[fqName] { return cached }
+            // Eager signature queries can create nominal placeholders while
+            // merging. Retry misses after the symbol table grows.
+            let symbolCount = symbols.count
+            if missingNominals[fqName] == symbolCount { return nil }
+            if let owner = symbols.lookupAll(fqName: fqName).first(where: { id in
+                switch symbols.symbol(id)?.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass: true
+                default: false
+                }
+            }) {
+                nominalSymbols[fqName] = owner
+                return owner
+            }
+            missingNominals[fqName] = symbolCount
+            return nil
+        }
+
         var importedStdlibKeys: Set<BundledMemberKey> = []
-        for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
-            guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+        var retainedOverlaps: [BundledMemberKey: Bool] = [:]
+        // Imports can claim existing symbols out of definition order. Keep
+        // allSymbols' original order so lazy placeholder creation has the
+        // same effect on subsequent parent fixups.
+        let moduleSymbols = symbols.symbols(inModule: stdlibModuleName).sorted { $0.rawValue < $1.rawValue }
+        for id in moduleSymbols {
+            guard let symbol = symbols.symbol(id), symbol.flags.contains(.importedLibrary) else { continue }
             // `memberKey` answers arity/receiver-owner from the compact
             // `ImportedMemberIndexShape` when the symbol is an unmaterialized
             // lazy shell, so this scan does not decode declaration bodies.
@@ -446,45 +475,32 @@ final class DataFlowSemaPhase: CompilerPhase {
             // the extension receiver would erase the dispatch receiver owner
             // member-extension calls need for the [dispatch, extension, args]
             // calling convention.
-            guard symbol.kind == .function,
-                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
-            else { continue }
-            let declaringOwnerFQName = Array(symbol.fqName.dropLast())
-            let declaringOwnerIsNominal = symbols.lookupAll(fqName: declaringOwnerFQName)
-                .compactMap { symbols.symbol($0) }
-                .contains { owner in
-                    switch owner.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass: true
-                    default: false
-                    }
-                }
-            if declaringOwnerIsNominal {
-                continue
-            }
-            if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
+            guard symbol.kind == .function else { continue }
+            let receiverSymbol: SymbolID
+            if let shape = symbols.importedMemberIndexShape(for: symbol.id) {
                 // Lazy shells carry the receiver's nominal FQ name in the
                 // compact index, so the parent edge is restored without
-                // materializing the callable signature.
-                if let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
-                    guard let candidateSymbol = symbols.symbol(candidate) else { return false }
-                    switch candidateSymbol.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass:
-                        return true
-                    default:
-                        return false
-                    }
-                }) {
-                    symbols.setParentSymbol(receiverSymbol, for: symbol.id)
-                }
-            } else if symbols.importedMemberIndexShape(for: symbol.id) == nil,
-                      let signature = symbols.functionSignature(for: symbol.id),
-                      let receiverType = signature.receiverType,
-                      let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
-                          for: receiverType,
-                          types: types
-                      ) {
-                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+                // materializing the callable signature. Most functions have
+                // no extension receiver and need no parent fixup at all.
+                guard let receiverFQName = shape.receiverOwnerFQName,
+                      let owner = nominalSymbol(for: receiverFQName) else { continue }
+                receiverSymbol = owner
+            } else {
+                guard let receiverType = symbols.functionSignature(for: symbol.id)?.receiverType,
+                      let owner = BundledDeclarationIndex.receiverOwnerSymbol(for: receiverType, types: types)
+                else { continue }
+                receiverSymbol = owner
             }
+            guard nominalSymbol(for: Array(symbol.fqName.dropLast())) == nil else { continue }
+            let retained: Bool
+            if let cached = retainedOverlaps[key] {
+                retained = cached
+            } else {
+                retained = BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
+                retainedOverlaps[key] = retained
+            }
+            guard !retained else { continue }
+            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
