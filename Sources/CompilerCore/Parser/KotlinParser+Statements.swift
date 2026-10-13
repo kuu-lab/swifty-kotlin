@@ -693,7 +693,7 @@ extension KotlinParser {
     /// since it only sees the `object` keyword itself — an identifier following it
     /// means a name is present (named declaration); `:`/`{` immediately after
     /// means there is none (object expression).
-    private func isObjectExpressionStart(_ token: Token) -> Bool {
+    func isObjectExpressionStart(_ token: Token) -> Bool {
         guard case .keyword(.object) = token.kind else {
             return false
         }
