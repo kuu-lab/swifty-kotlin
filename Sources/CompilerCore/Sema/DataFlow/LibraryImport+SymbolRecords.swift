@@ -68,6 +68,7 @@ extension DataFlowSemaPhase {
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
+        let isInnerClass: Bool
         let modality: MetadataModality
         let isSealedClass: Bool
         let isFunInterface: Bool
@@ -90,7 +91,6 @@ extension DataFlowSemaPhase {
         let ownerNominalTypeParametersSignature: String?
         let nominalSupertypeSignatures: [String]
         let constValueLiteral: String?
-        let isInnerClass: Bool
         /// Declaration-order type parameters of a nominal type, encoded as
         /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
         let nominalTypeParameters: String?
@@ -131,16 +131,17 @@ extension DataFlowSemaPhase {
             companionObjectFQName: [InternedString]? = nil,
             fieldOffsets: [ImportedFieldOffsetEntry] = [],
             vtableSlots: [ImportedVTableSlotEntry] = [],
-            itableSlots: [ImportedITableSlotEntry] = [],
-            objectInitializerLinkName: String? = nil,
-            companionInitializerLinkName: String? = nil,
-            objectLazyInitializerLinkName: String? = nil,
-            enumStaticInitLinkName: String? = nil,
-            isDataClass: Bool = false,
-            isOpenClass: Bool = false,
-            modality: MetadataModality = .final,
-            isSealedClass: Bool = false,
-            isFunInterface: Bool = false,
+        itableSlots: [ImportedITableSlotEntry] = [],
+        objectInitializerLinkName: String? = nil,
+        companionInitializerLinkName: String? = nil,
+        objectLazyInitializerLinkName: String? = nil,
+        enumStaticInitLinkName: String? = nil,
+        isDataClass: Bool = false,
+        isOpenClass: Bool = false,
+        isInnerClass: Bool = false,
+        modality: MetadataModality = .final,
+        isSealedClass: Bool = false,
+        isFunInterface: Bool = false,
             isValueClass: Bool = false,
             isExpect: Bool = false,
             isActual: Bool = false,
@@ -157,7 +158,6 @@ extension DataFlowSemaPhase {
             ownerNominalTypeParametersSignature: String? = nil,
             nominalSupertypeSignatures: [String] = [],
             constValueLiteral: String? = nil,
-            isInnerClass: Bool = false,
             nominalTypeParameters: String? = nil
         ) {
             self.kind = kind
@@ -202,6 +202,7 @@ extension DataFlowSemaPhase {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.isInnerClass = isInnerClass
         self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
@@ -221,7 +222,6 @@ extension DataFlowSemaPhase {
         self.ownerNominalTypeParametersSignature = ownerNominalTypeParametersSignature
             self.nominalSupertypeSignatures = nominalSupertypeSignatures
             self.constValueLiteral = constValueLiteral
-            self.isInnerClass = isInnerClass
             self.nominalTypeParameters = nominalTypeParameters
         }
     }

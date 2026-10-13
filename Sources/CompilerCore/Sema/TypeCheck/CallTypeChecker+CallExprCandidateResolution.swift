@@ -19,10 +19,10 @@ extension CallTypeChecker {
         callImplicitReceiverType: TypeID?,
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
+        knownApplicableImplicitMembers: Set<SymbolID>,
         expectedTypeOverrides: [Int: TypeID],
         preparedArgs: PreparedCallArguments,
-        argTypes: [TypeID],
-        knownApplicableImplicitMembers: Set<SymbolID>
+        argTypes: [TypeID]
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -104,6 +104,16 @@ extension CallTypeChecker {
                 hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
                 ctx: ctx
             )
+            // An applicable member keeps precedence even when the surrounding
+            // result expectation fails, or its own overload set is ambiguous.
+            if let diagnostic = resolved.diagnostic,
+               !knownApplicableImplicitMembers.isEmpty,
+               candidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
+            {
+                ctx.sema.diagnostics.emit(diagnostic)
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             if resolved.diagnostic != nil {
                 if let calleeName,
                    let recovered = tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
