@@ -15,16 +15,8 @@ private func runtimeThreadLocalBox(from rawValue: Int) -> RuntimeThreadLocalBox?
     return tryCast(ptr, to: RuntimeThreadLocalBox.self)
 }
 
-private func handleThreadLocalLambdaThrow(_ thrown: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if let outThrown {
-        outThrown.pointee = thrown
-        return runtimeExceptionCaughtSentinel
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Uncaught exception in ThreadLocal.getOrSet lambda. outThrown was nil.")
-}
-
-@_cdecl("kk_thread_local_new")
-public func kk_thread_local_new() -> Int {
+@_cdecl("__kk_thread_local_new")
+public func __kk_thread_local_new() -> Int {
     let box = RuntimeThreadLocalBox()
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withThreadLocalLock { state in
@@ -36,40 +28,28 @@ public func kk_thread_local_new() -> Int {
     return Int(bitPattern: ptr)
 }
 
-@_cdecl("kk_thread_local_getOrSet")
-public func kk_thread_local_getOrSet(
-    _ receiver: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeThreadLocalBox(from: receiver) != nil else {
-        return 0
-    }
-
+@_cdecl("__kk_thread_local_has_value")
+public func __kk_thread_local_has_value(_ receiver: Int) -> Int {
     let threadKey = ObjectIdentifier(Thread.current)
-    let receiverKey = UInt(bitPattern: receiver)
-
-    if let cachedValue = runtimeStorage.withThreadLocalLock({ state -> Int? in
-        state.threadLocalValues[receiverKey]?[threadKey]
-    }) {
-        return cachedValue
+    return runtimeStorage.withThreadLocalLock { state in
+        state.threadLocalValues[UInt(bitPattern: receiver)]?[threadKey] == nil ? 0 : 1
     }
+}
 
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 {
-        return handleThreadLocalLambdaThrow(thrown, outThrown)
+@_cdecl("__kk_thread_local_value")
+public func __kk_thread_local_value(_ receiver: Int) -> Int {
+    let threadKey = ObjectIdentifier(Thread.current)
+    return runtimeStorage.withThreadLocalLock { state in
+        state.threadLocalValues[UInt(bitPattern: receiver)]?[threadKey] ?? runtimeNullSentinelInt
     }
-    if result == runtimeNullSentinelInt {
-        return result
-    }
+}
 
+@_cdecl("__kk_thread_local_store")
+public func __kk_thread_local_store(_ receiver: Int, _ value: Int) -> Int {
+    guard runtimeThreadLocalBox(from: receiver) != nil else { return 0 }
+    let threadKey = ObjectIdentifier(Thread.current)
     runtimeStorage.withThreadLocalLock { state in
-        var threadValues = state.threadLocalValues[receiverKey] ?? [:]
-        threadValues[threadKey] = result
-        state.threadLocalValues[receiverKey] = threadValues
+        state.threadLocalValues[UInt(bitPattern: receiver), default: [:]][threadKey] = value
     }
-    return result
+    return 0
 }
