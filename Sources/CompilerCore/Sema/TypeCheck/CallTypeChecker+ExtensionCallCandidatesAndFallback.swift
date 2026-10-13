@@ -119,6 +119,18 @@ extension CallTypeChecker {
                     }
                 }()
                 let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
+                // findAnnotation belongs to reflect.full, outside default
+                // imports. Short-name recovery must respect aliases as well.
+                if symbol.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
+                   !scopedCandidates.contains(candidate) {
+                    let package = Array(symbol.fqName.dropLast())
+                    guard let file = ctx.currentASTFile,
+                          file.packageFQName == package || file.imports.contains(where: { importDecl in
+                              if importDecl.isWildcard { return importDecl.path == package }
+                              return importDecl.path == symbol.fqName
+                                  && (importDecl.alias ?? symbol.name) == calleeName
+                          }) else { return false }
+                }
                 guard !symbol.flags.contains(.localFunction),
                       symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
                     return false
