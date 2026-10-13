@@ -242,6 +242,7 @@ extension CallTypeChecker {
                         at: index,
                         argumentCount: args.count,
                         argumentLabel: argument.label,
+                        isTrailingLambda: argument.isTrailingLambda,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
@@ -297,6 +298,7 @@ extension CallTypeChecker {
                         at: index,
                         argumentCount: args.count,
                         argumentLabel: argument.label,
+                        isTrailingLambda: argument.isTrailingLambda,
                         candidates: expectedTypeCandidates,
                         sema: sema
                     ) {
@@ -399,6 +401,7 @@ extension CallTypeChecker {
             return CallArg(
                 label: argument.label,
                 isSpread: argument.isSpread,
+                isTrailingLambda: argument.isTrailingLambda,
                 type: type,
                 signedIntegerLiteral: literal.signed,
                 unsignedIntegerLiteral: literal.unsigned
@@ -426,6 +429,7 @@ extension CallTypeChecker {
                         at: argIndex,
                         argumentCount: args.count,
                         argumentLabel: args[argIndex].label,
+                        isTrailingLambda: args[argIndex].isTrailingLambda,
                         in: signature,
                         sema: ctx.sema
                     )
@@ -544,6 +548,7 @@ extension CallTypeChecker {
             argType: argTypes[lambdaIndex],
             argumentCount: args.count,
             argumentLabel: args[lambdaIndex].label,
+            isTrailingLambda: args[lambdaIndex].isTrailingLambda,
             sema: ctx.sema
         )
         if refinedCandidates.isEmpty {
@@ -677,6 +682,7 @@ extension CallTypeChecker {
                     at: argIndex,
                     argumentCount: args.count,
                     argumentLabel: argument.label,
+                    isTrailingLambda: argument.isTrailingLambda,
                     in: signature,
                     sema: sema
                 ),
@@ -746,6 +752,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       )
@@ -760,6 +767,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       )
@@ -777,6 +785,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       )
@@ -806,6 +815,7 @@ extension CallTypeChecker {
                           at: argIndex,
                           argumentCount: args.count,
                           argumentLabel: args[argIndex].label,
+                          isTrailingLambda: args[argIndex].isTrailingLambda,
                           in: signature,
                           sema: sema
                       ),
@@ -910,6 +920,7 @@ extension CallTypeChecker {
         at index: Int,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         candidates: [SymbolID],
         sema: SemaModule
     ) -> Bool {
@@ -921,6 +932,7 @@ extension CallTypeChecker {
                   at: index,
                   argumentCount: argumentCount,
                   argumentLabel: argumentLabel,
+                  isTrailingLambda: isTrailingLambda,
                   in: signature,
                   sema: sema
               ),
@@ -968,6 +980,7 @@ extension CallTypeChecker {
         argType: TypeID,
         argumentCount: Int,
         argumentLabel: InternedString?,
+        isTrailingLambda: Bool,
         sema: SemaModule
     ) -> [SymbolID] {
         guard case let .functionType(argumentFunctionType) = sema.types.kind(of: argType) else {
@@ -980,6 +993,7 @@ extension CallTypeChecker {
                       at: lambdaArgumentIndex,
                       argumentCount: argumentCount,
                       argumentLabel: argumentLabel,
+                      isTrailingLambda: isTrailingLambda,
                       in: signature,
                       sema: sema
                   ),

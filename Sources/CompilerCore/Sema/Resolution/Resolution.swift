@@ -7,6 +7,7 @@ private extension CallExpr {
             CallArg(
                 label: arg.label,
                 isSpread: arg.isSpread,
+                isTrailingLambda: arg.isTrailingLambda,
                 type: replacements[index] ?? arg.type,
                 signedIntegerLiteral: arg.signedIntegerLiteral,
                 unsignedIntegerLiteral: arg.unsignedIntegerLiteral

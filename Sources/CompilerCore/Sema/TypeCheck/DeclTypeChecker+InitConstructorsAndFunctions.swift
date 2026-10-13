@@ -255,7 +255,7 @@ extension DeclTypeChecker {
         }
         var resolved = resolveArguments(prepared.argTypes)
         var callArgs = zip(args, prepared.argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         if resolved.diagnostic != nil,
            reinferConstructorDelegationArguments(
@@ -598,7 +598,7 @@ extension DeclTypeChecker {
                   )
             else { continue }
             let type = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: argumentExpectedType)
-            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             didReinfer = true
         }
         return didReinfer
