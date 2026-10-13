@@ -194,7 +194,8 @@ extension DataFlowSemaPhase {
                 metadataPath: binding.metadataPath,
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
-                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? []
+                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? [],
+                isStdlibArtifact: isStdlibArtifact
             )
             symbols.setFunctionSignature(signature, for: symbol)
             // Extension functions are represented as package-level FQ names in
