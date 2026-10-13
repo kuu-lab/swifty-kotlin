@@ -522,7 +522,9 @@ extension CallTypeChecker {
 
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
-        prepareCallExprArgumentContexts(
+        let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
+        let originalArgumentLocals = locals
+        let expectedTypeHintIndices = prepareCallExprArgumentContexts(
             args: args,
             callRange: range,
             ctx: ctx,
@@ -540,6 +542,7 @@ extension CallTypeChecker {
             callRange: range,
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
+            expectedTypeHintIndices: expectedTypeHintIndices,
             contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: callImplicitReceiverType,
@@ -587,6 +590,16 @@ extension CallTypeChecker {
             preparedArgs: preparedArgs,
             argTypes: argTypes
         ) {
+            // A successful nested inference can still make another invariant
+            // argument incompatible. Retry the whole call without lifted hints,
+            // retaining its declared expected result and all ordinary constraints.
+            if inferred == sema.types.errorType, !expectedTypeHintIndices.isEmpty {
+                sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
+                locals = originalArgumentLocals
+                var retryContext = ctx
+                retryContext.allowsLiftedCallExpectedTypeHints = false
+                return driver.inferExpr(id, ctx: retryContext, locals: &locals, expectedType: expectedType)
+            }
             return inferred
         }
 

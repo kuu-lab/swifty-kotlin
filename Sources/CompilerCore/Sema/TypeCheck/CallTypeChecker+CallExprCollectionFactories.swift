@@ -249,6 +249,30 @@ extension CallTypeChecker {
                    return args.isEmpty || (sema.symbols.functionSignature(for: candidate)?.parameterTypes.isEmpty == false)
                })
             {
+                // A superclass hint can contextualize listOf(1) as List<String>.
+                // Check actual inputs before the fast path adopts that type;
+                // incompatible inputs must go through ordinary diagnostics and
+                // allow the enclosing speculative hint to be discarded.
+                if ctx.validatesLiftedHintCollectionArguments, expectedType != nil, !args.isEmpty {
+                    let callArgs = zip(args, argTypes).map { argument, type in
+                        let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+                        return CallArg(
+                            label: argument.label, isSpread: argument.isSpread, type: type,
+                            signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned,
+                            isTrailingLambda: argument.isTrailingLambda
+                        )
+                    }
+                    guard let range = ctx.ast.arena.exprRange(id),
+                          !ctx.resolver.probeCall(
+                              candidates: [chosen],
+                              call: CallExpr(
+                                  range: range, calleeName: calleeName, args: callArgs,
+                                  explicitTypeArgs: explicitTypeArgs
+                              ),
+                              expectedType: expectedType, ctx: sema
+                          ).viableCandidates.isEmpty
+                    else { return nil }
+                }
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(

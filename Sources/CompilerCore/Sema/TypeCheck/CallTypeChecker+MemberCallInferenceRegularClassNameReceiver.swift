@@ -506,7 +506,9 @@ extension CallTypeChecker {
                     }
                     var expectedTypeOverrides: [Int: TypeID] = [:]
                     var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
-                    prepareCallExprArgumentContexts(
+                    let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    let originalArgumentLocals = locals
+                    let expectedTypeHintIndices = prepareCallExprArgumentContexts(
                         args: args,
                         callRange: range,
                         ctx: ctx,
@@ -524,6 +526,7 @@ extension CallTypeChecker {
                         candidates: visibleNested,
                         preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                         expectedTypeOverrides: expectedTypeOverrides,
+                        expectedTypeHintIndices: expectedTypeHintIndices,
                         contextualCallResultType: expectedType,
                         explicitTypeArgs: explicitTypeArgs,
                         lambdaContextOverrides: lambdaContextOverrides,
@@ -546,6 +549,20 @@ extension CallTypeChecker {
                         ctx: ctx
                     )
                     if let diagnostic = resolved.diagnostic {
+                        if !expectedTypeHintIndices.isEmpty {
+                            sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
+                            locals = originalArgumentLocals
+                            var retryContext = ctx
+                            retryContext.allowsLiftedCallExpectedTypeHints = false
+                            // Member calls reuse already-bound argument types.
+                            // Refresh speculative arguments before the retry
+                            // so Box<Any> cannot survive a natural Box<Int> pass.
+                            for index in expectedTypeHintIndices.sorted() {
+                                guard isInferableNestedCallExpr(args[index].expr, ast: ast) else { continue }
+                                _ = driver.inferExpr(args[index].expr, ctx: retryContext, locals: &locals)
+                            }
+                            return driver.inferExpr(id, ctx: retryContext, locals: &locals, expectedType: expectedType)
+                        }
                         // Kotlin gives applicable nested constructors priority
                         // for Owner.Name(...), but retries object/companion functions
                         // when no constructor is applicable. Keep constructor

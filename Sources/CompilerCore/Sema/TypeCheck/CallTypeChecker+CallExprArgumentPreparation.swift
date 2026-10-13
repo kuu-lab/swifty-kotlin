@@ -63,6 +63,7 @@ extension CallTypeChecker {
         }
     }
 
+    @discardableResult
     func prepareCallExprArgumentContexts(
         args: [CallArgument],
         callRange: SourceRange,
@@ -74,11 +75,12 @@ extension CallTypeChecker {
         withContextExpectedLambdaType: TypeID?,
         expectedTypeOverrides: inout [Int: TypeID],
         lambdaContextOverrides: inout [Int: TypeInferenceContext]
-    ) {
+    ) -> Set<Int> {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        var expectedTypeHintIndices: Set<Int> = []
 
 
         // Coroutine-specific contextual types and closure ABI marks apply only
@@ -216,6 +218,9 @@ extension CallTypeChecker {
         // type as the bare, unsubstituted `T`, so a lambda argument's implicit
         // `it` never resolves. Nested generic calls need the same context before
         // checking their own lambdas, e.g. `nullsFirst(compareBy { it.k })`.
+        // Lift a subclass return type to the expected nominal owner first:
+        // `ParsedValue<X> : ParseResult<X>` must seed X from ParseResult<X>
+        // before checking an invariant nested constructor such as Separated.
         // An explicit call-site type argument (`Array<Int>(3) { it }`) always
         // wins over the expected type (`Array<out Any>` here), matching
         // Kotlin's own precedence -- skip this substitution when one is given.
@@ -232,6 +237,11 @@ extension CallTypeChecker {
                     nil
                 }
             }
+            let expectedVariances = sema.types.normalizedNominalVariances(
+                for: expectedClassType.classSymbol, arity: expectedClassType.args.count
+            )
+            var substitutedTypesByIndex: [Int: Set<TypeID>] = [:]
+            var liftedArgumentIndices: Set<Int> = []
             for candidate in candidates {
                 guard let signature = sema.symbols.functionSignature(for: candidate),
                       !signature.typeParameterSymbols.isEmpty,
@@ -242,26 +252,34 @@ extension CallTypeChecker {
                 let isListOfFactory = ctx.cachedSymbol(candidate)?.fqName == [
                     knownNames.kotlin, knownNames.collections, interner.intern("listOf"),
                 ]
-                // listOf can be expected as Collection/Iterable as well as List.
-                // Lift its declared result to that owner before seeding inputs;
-                // the ordinary resolver still checks the actual result subtype.
-                let contextualReturnArgs: [TypeArg]? = if returnClassType.classSymbol == expectedClassType.classSymbol {
-                    returnClassType.args
-                } else if isListOfFactory {
-                    sema.types.liftedNominalSupertypeArgs(
+                let isLiftedReturn = returnClassType.classSymbol != expectedClassType.classSymbol
+                guard !isLiftedReturn || ctx.allowsLiftedCallExpectedTypeHints || isListOfFactory else { continue }
+                guard let returnArgs = (returnClassType.classSymbol == expectedClassType.classSymbol
+                    ? returnClassType.args
+                    : sema.types.liftedNominalSupertypeArgs(
                         from: returnClassType.classSymbol,
                         childArgs: returnClassType.args,
                         to: expectedClassType.classSymbol
-                    )
-                } else {
-                    nil
+                    )),
+                    returnArgs.count == expectedClassType.args.count
+                else {
+                    continue
                 }
-                guard let contextualReturnArgs,
-                      contextualReturnArgs.count == expectedClassType.args.count
-                else { continue }
                 let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                 var substitution: [TypeVarID: TypeID] = [:]
-                for (returnArg, expectedArg) in zip(contextualReturnArgs, expectedClassType.args) {
+                var conflictingTypeVariables: Set<TypeVarID> = []
+                for (index, (returnArg, expectedArg)) in zip(returnArgs, expectedClassType.args).enumerated() {
+                    if isLiftedReturn {
+                        // An `in` expectation is a lower bound, so forcing its
+                        // exact type into an invariant nested argument can
+                        // reject a valid, naturally inferred wider type.
+                        switch sema.types.composedProjection(
+                            declarationVariance: expectedVariances[index], useSite: expectedArg
+                        ) {
+                        case .invariant, .out: break
+                        case .in, .star, .invalid: continue
+                        }
+                    }
                     guard let returnArgType = argType(returnArg),
                           let expectedArgType = argType(expectedArg),
                           case let .typeParam(returnTypeParam) = sema.types.kind(of: returnArgType),
@@ -269,8 +287,42 @@ extension CallTypeChecker {
                     else {
                         continue
                     }
-                    substitution[typeVar] = returnTypeParam.nullability == .nonNull
+                    let contextualType = returnTypeParam.nullability == .nonNull
                         ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
+                    // A parameter can appear in several supertype positions,
+                    // e.g. Child<T> : Base<T, T>. Different expected arguments
+                    // are constraints for the solver, not a last-wins seed.
+                    if let existing = substitution[typeVar], existing != contextualType {
+                        substitution.removeValue(forKey: typeVar)
+                        conflictingTypeVariables.insert(typeVar)
+                    } else if !conflictingTypeVariables.contains(typeVar) {
+                        substitution[typeVar] = contextualType
+                    }
+                }
+                while isLiftedReturn, !substitution.isEmpty {
+                    var unusableSeeds: Set<TypeVarID> = []
+                    for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                        guard let variable = typeVarBySymbol[symbol],
+                              let seed = substitution[variable] else { continue }
+                        let bounds = (signature.typeParameterUpperBoundsList.indices.contains(index)
+                            ? signature.typeParameterUpperBoundsList[index] : [])
+                            + sema.symbols.typeParameterUpperBounds(for: symbol)
+                        for bound in bounds {
+                            let substitutedBound = sema.types.substituteTypeParameters(
+                                in: bound, substitution: substitution, typeVarBySymbol: typeVarBySymbol
+                            )
+                            // A covariant result can have a broader expected
+                            // argument than the candidate's declared bound.
+                            // Let the solver infer a valid narrower argument.
+                            if ctx.resolver.containsTypeVariable(
+                                substitutedBound, typeVarBySymbol: typeVarBySymbol, typeSystem: sema.types
+                            ) || !sema.types.isSubtype(seed, substitutedBound) {
+                                unusableSeeds.insert(variable)
+                            }
+                        }
+                    }
+                    guard !unusableSeeds.isEmpty else { break }
+                    for variable in unusableSeeds { substitution.removeValue(forKey: variable) }
                 }
                 guard !substitution.isEmpty else { continue }
                 guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) else {
@@ -315,11 +367,19 @@ extension CallTypeChecker {
                     else {
                         continue
                     }
-                    if let existing = expectedTypeOverrides[index], existing != substitutedType {
-                        continue
-                    }
-                    expectedTypeOverrides[index] = substitutedType
+                    substitutedTypesByIndex[index, default: []].insert(substitutedType)
+                    if isLiftedReturn { liftedArgumentIndices.insert(index) }
                 }
+            }
+            // Conflicting contexts from overloads must not depend on candidate
+            // order. Only candidates providing usable evidence participate.
+            for (index, types) in substitutedTypesByIndex {
+                guard types.count == 1, let substitutedType = types.first else { continue }
+                if let existing = expectedTypeOverrides[index], existing != substitutedType {
+                    continue
+                }
+                expectedTypeOverrides[index] = substitutedType
+                if liftedArgumentIndices.contains(index) { expectedTypeHintIndices.insert(index) }
             }
         }
         // Explicit call-site type arguments carry the same contextual
@@ -433,5 +493,6 @@ extension CallTypeChecker {
         if let withContextExpectedLambdaType, args.count > 1 {
             expectedTypeOverrides[1] = withContextExpectedLambdaType
         }
+        return expectedTypeHintIndices
     }
 }
