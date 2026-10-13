@@ -129,3 +129,28 @@ Native `Platform.kt` の `getChecked` を基に、helper をこの小さな実�
 JVM/KLIB の24 dump records は overlay に対応し、3つの JVM synthetic default entry
 は source default-argument behavior の対応です。JVM binary ABI の互換は実装しません。
 reified `element<T>`、serializer/plugin と残りの formats は未対応のままです。
+
+`KUU-1752` adds the public `SerialName`, `SerialInfo` and `InheritableSerialInfo`
+annotation classes from the pinned `Annotations.kt`. The separate overlay maps
+12 JVM/KLIB records to the source APIs, including their generated property getter;
+it distinguishes direct declaration annotations from declaring-class metadata.
+The three API classes retain upstream targets, visibility, documentation markers
+and retention. `SerialName` is stable; the two BINARY meta-annotations require
+`ExperimentalSerializationApi` at their application/type/constructor sites.
+A custom annotation using either meta-annotation does not itself become an
+experimental API. The generic opt-in correction also preserves direct WARNING
+and ERROR marker requirements in source and imported `.kklib` metadata.
+
+`--case annotation-api` uses the same locked published 1.10.0 JVM artifacts to
+check constructors, empty/runtime values, equality/hash, typed class reflection,
+RUNTIME/BINARY retention, and actual annotation objects in manually built root
+and element annotation lists. `SerializationAnnotationAPITests` covers source,
+cache and separate producer/consumer artifacts at O0/O2, including producer-only
+aliases and binary metadata. `SerializationAnnotationMetadataTests` separately
+checks API markers and each invalid target, argument and opt-in usage.
+
+These source APIs and explicit descriptor lists do not generate serializers.
+The fixture deliberately keeps the manually supplied descriptor and element
+names unchanged. Automatic `SerialName` wire names, generated serializers,
+inherited descriptor annotations and inheritance-conflict validation remain
+work in KUU-1724, along with the other annotations and serialization modules.

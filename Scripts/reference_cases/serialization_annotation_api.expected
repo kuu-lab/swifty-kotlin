@@ -1,0 +1,3 @@
+annotations:value:equality:hash
+retention:runtime:binary
+descriptor:root:field:identity

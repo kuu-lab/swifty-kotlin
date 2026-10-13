@@ -249,9 +249,9 @@ extension TypeCheckHelpers {
         var requirements: [OptInRequirement] = []
         var seenMarkers: Set<SymbolID> = []
 
-        // A marker annotation on an API propagates to its callers. Kotlin/JS
-        // @JsExport and @JsStatic consume their marker at the annotation site,
-        // so their annotated declarations do not require opt-in at call sites.
+        // Only a marker directly applied to an API propagates to its callers.
+        // An experimental annotation's own marker is checked at its application,
+        // type and constructor sites, not at uses of the annotated declaration.
         for annotation in annotations {
             guard let annotationSymbol = resolveAnnotationClassSymbol(
                 named: annotation.annotationFQName,
@@ -267,26 +267,7 @@ extension TypeCheckHelpers {
                 requirements.append(requirement)
             }
 
-            let annotationFQName = ctx.sema.symbols.symbol(annotationSymbol)?.fqName
-                .map(ctx.interner.resolve)
-                .joined(separator: ".")
-            if annotationFQName == "kotlin.js.JsExport" || annotationFQName == "kotlin.js.JsStatic" {
-                continue
-            }
 
-            for metaAnnotation in ctx.sema.symbols.annotations(for: annotationSymbol) {
-                guard let metaAnnotationSymbol = resolveAnnotationClassSymbol(
-                    named: metaAnnotation.annotationFQName,
-                    file: sourceFile,
-                    ctx: ctx
-                ),
-                let requirement = optInRequirement(forMarkerAnnotation: metaAnnotationSymbol, ctx: ctx),
-                seenMarkers.insert(requirement.markerSymbol).inserted
-                else {
-                    continue
-                }
-                requirements.append(requirement)
-            }
         }
 
         optInResolutionCache.requirementsBySymbol[cacheKey] = requirements
