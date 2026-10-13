@@ -267,30 +267,60 @@ extension CallTypeChecker {
         )
     }
 
+    /// Shares contextual input specialization between lambdas and references.
+    /// Keep unresolved output parameters intact so final call inference can
+    /// learn them from the selected reference's actual return type.
+    private func contextualCallableParameterType(
+        _ parameterType: TypeID,
+        signature: FunctionSignature,
+        candidate: SymbolID,
+        explicitTypeArgs: [TypeID],
+        receiverType: TypeID?,
+        inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        resolver: OverloadResolver? = nil,
+        sema: SemaModule
+    ) -> TypeID {
+        let explicitSubstituted = applyExplicitTypeArgs(
+            to: parameterType,
+            signature: signature,
+            candidate: candidate,
+            explicitTypeArgs: explicitTypeArgs,
+            sema: sema
+        )
+        let receiverSubstituted = applyReceiverClassTypeArgs(
+            to: explicitSubstituted,
+            signature: signature,
+            candidate: candidate,
+            receiverType: receiverType,
+            sema: sema
+        )
+        let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
+            to: receiverSubstituted,
+            signature: signature,
+            receiverType: receiverType,
+            sema: sema
+        )
+        return applyInferredArgumentTypeArgs(
+            to: functionReceiverSubstituted,
+            signature: signature,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
+            sema: sema
+        )
+    }
+
     func callableReferenceExpectedType(
         at index: Int,
         argumentLabel: InternedString?,
+        args: [CallArgument],
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
-        sema: SemaModule
+        receiverType: TypeID? = nil,
+        inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        resolver: OverloadResolver? = nil,
+        ctx: TypeInferenceContext
     ) -> TypeID? {
-        if candidates.count == 1,
-           let signature = sema.symbols.functionSignature(for: candidates[0]),
-           let parameterIndex = parameterIndexForCallArgument(
-               at: index, label: argumentLabel, in: signature, sema: sema
-           ),
-           parameterIndex < signature.parameterTypes.count
-        {
-            let rawType = signature.parameterTypes[parameterIndex]
-            return applyExplicitTypeArgs(
-                to: rawType,
-                signature: signature,
-                candidate: candidates[0],
-                explicitTypeArgs: explicitTypeArgs,
-                sema: sema
-            )
-        }
-
+        let sema = ctx.sema
         var matchingParameterTypes: [TypeID] = []
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
@@ -301,13 +331,28 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            let parameterType = applyExplicitTypeArgs(
-                to: signature.parameterTypes[parameterIndex],
+            // The inference probe uses declaration parameter indices, while
+            // known types are indexed by call arguments (possibly reordered).
+            let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+            var knownParameterTypes: [Int: TypeID] = [:]
+            for (argumentIndex, type) in inferredNonLambdaArgTypes {
+                if let parameterIndex = parameterMapping?[argumentIndex] {
+                    knownParameterTypes[parameterIndex] = type
+                }
+            }
+            let parameterType = contextualCallableParameterType(
+                signature.parameterTypes[parameterIndex],
                 signature: signature,
                 candidate: candidate,
                 explicitTypeArgs: explicitTypeArgs,
+                receiverType: receiverType,
+                inferredNonLambdaArgTypes: knownParameterTypes,
+                resolver: resolver,
                 sema: sema
             )
+            if candidates.count == 1 {
+                return parameterType
+            }
             if case .functionType = sema.types.kind(of: parameterType) {
                 matchingParameterTypes.append(parameterType)
             } else if driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil {
@@ -376,23 +421,11 @@ extension CallTypeChecker {
                ctx: ctx
            )
         {
-            let explicitSubstituted = applyExplicitTypeArgs(
-                to: rawType,
+            let substituted = contextualCallableParameterType(
+                rawType,
                 signature: signature,
                 candidate: candidates[0],
                 explicitTypeArgs: explicitTypeArgs,
-                sema: sema
-            )
-            let receiverSubstituted = applyReceiverClassTypeArgs(
-                to: explicitSubstituted,
-                signature: signature,
-                candidate: candidates[0],
-                receiverType: receiverType,
-                sema: sema
-            )
-            let substituted = applyFunctionReceiverTypeArgs(
-                to: receiverSubstituted,
-                signature: signature,
                 receiverType: receiverType,
                 sema: sema
             )
@@ -409,29 +442,12 @@ extension CallTypeChecker {
                ctx: ctx
            )
         {
-            let explicitSubstituted = applyExplicitTypeArgs(
-                to: rawType,
+            let substituted = contextualCallableParameterType(
+                rawType,
                 signature: signature,
                 candidate: candidates[0],
                 explicitTypeArgs: explicitTypeArgs,
-                sema: sema
-            )
-            let receiverSubstituted = applyReceiverClassTypeArgs(
-                to: explicitSubstituted,
-                signature: signature,
-                candidate: candidates[0],
                 receiverType: receiverType,
-                sema: sema
-            )
-            let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
-                to: receiverSubstituted,
-                signature: signature,
-                receiverType: receiverType,
-                sema: sema
-            )
-            let substituted = applyInferredArgumentTypeArgs(
-                to: functionReceiverSubstituted,
-                signature: signature,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 resolver: resolver,
                 sema: sema
@@ -562,29 +578,12 @@ extension CallTypeChecker {
             // generic receiver's arguments reach the lambda's expected type
             // (`Iterable<T>.f(transform: (T) -> R)` called on `List<Int>` must
             // expose `it: Int`, not the bare declaration type parameter `T`).
-            let explicitSubstituted = applyExplicitTypeArgs(
-                to: rawParameterType,
+            let parameterType = contextualCallableParameterType(
+                rawParameterType,
                 signature: signature,
                 candidate: candidate,
                 explicitTypeArgs: explicitTypeArgs,
-                sema: sema
-            )
-            let receiverSubstituted = applyReceiverClassTypeArgs(
-                to: explicitSubstituted,
-                signature: signature,
-                candidate: candidate,
                 receiverType: receiverType,
-                sema: sema
-            )
-            let functionReceiverSubstituted = applyFunctionReceiverTypeArgs(
-                to: receiverSubstituted,
-                signature: signature,
-                receiverType: receiverType,
-                sema: sema
-            )
-            let parameterType = applyInferredArgumentTypeArgs(
-                to: functionReceiverSubstituted,
-                signature: signature,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 resolver: resolver,
                 sema: sema
