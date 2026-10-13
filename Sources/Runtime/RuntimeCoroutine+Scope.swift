@@ -384,7 +384,6 @@ func runtimeCoroutineIsCancellationResult(_ result: Int) -> Bool {
     return tryCast(pointer, to: RuntimeCancellationBox.self) != nil
 }
 
-// MARK: - Structured Concurrency C ABI (P5-89)
 
 /// Enters `scope` as the ambient scope for the coroutine running right now.
 ///
@@ -553,7 +552,6 @@ public func kk_coroutine_scope_register_child(_ scopeHandle: Int, _ childHandle:
     return childHandle
 }
 
-// MARK: - kotlinx.coroutines.CoroutineScope(context) / Job() / SupervisorJob() (STDLIB-CORO-090)
 //
 // Unlike `kk_coroutine_scope_new`/`kk_supervisor_scope_new` (used by the lexically-scoped
 // `coroutineScope { }`/`supervisorScope { }` block constructs, which push the new scope as

@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - MetadataDecoder (Import)
-
 /// Decodes the text-based metadata format into `[MetadataRecord]`.
 /// This replaces the ad-hoc parsing previously done in DataFlow/LibraryMetadataParsing.swift.
 final class MetadataDecoder {
@@ -114,8 +112,6 @@ final class MetadataDecoder {
         }
         return records
     }
-
-    // MARK: - Key-Value Parsing
 
     /// Mutable accumulator used while parsing a single metadata line.
     private struct MutableMetadataRecord {
@@ -329,8 +325,6 @@ final class MetadataDecoder {
         }
     }
 
-    // MARK: - Annotation Decoding
-
     private func decodeAnnotations(_ value: String) -> [MetadataAnnotationRecord] {
         guard !value.isEmpty else {
             return []
@@ -366,8 +360,6 @@ final class MetadataDecoder {
             useSiteTarget: useSiteTarget
         )
     }
-
-    // MARK: - Symbol Kind Mapping
 
     func symbolKindFromMetadata(_ token: String) -> SymbolKind? {
         symbolKindFromMetadataToken(token)

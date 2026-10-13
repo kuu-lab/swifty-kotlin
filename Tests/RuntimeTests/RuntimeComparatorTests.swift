@@ -9,9 +9,6 @@ import Testing
 
 // MARK: - Test lambdas
 
-private let selectIdentity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value
-}
 
 private let selectModTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 10
@@ -42,10 +39,6 @@ private let comparatorReversed: @convention(c) (Int, Int, Int, UnsafeMutablePoin
     return 0
 }
 
-private let throwingComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
-    outThrown?.pointee = 1
-    return 0
-}
 
 private let comparatorObjectCompare: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, a, b, _ in
     guard let receiverPtr = UnsafeMutableRawPointer(bitPattern: receiver) else {

@@ -230,7 +230,7 @@ extension CallTypeChecker {
                     )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
                 }
                 for group in orderedMemberGroups {
                     let resolved = ctx.resolver.resolveCall(
@@ -244,7 +244,7 @@ extension CallTypeChecker {
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
-                        ctx: ctx.semaCtx
+                        ctx: ctx.sema
                     )
                     if let chosen = resolved.chosenCallee {
                         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
@@ -338,7 +338,7 @@ extension CallTypeChecker {
                     driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
                 let resolvedOuterArgs = zip(args, outerArgTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
                 }
                 let resolvedOuter = ctx.resolver.resolveCall(
                     candidates: outerRegularCandidates,
@@ -351,7 +351,7 @@ extension CallTypeChecker {
                     ),
                     expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: outerReceiver.type,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if resolvedOuter.chosenCallee == nil {
                     var seenExtensionReceivers = Set<TypeID>()
@@ -372,7 +372,7 @@ extension CallTypeChecker {
                             ),
                             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                             implicitReceiverType: receiverType,
-                            ctx: ctx.semaCtx
+                            ctx: ctx.sema
                         )
                         if let chosen = resolvedExtension.chosenCallee {
                             let resultType = bindCallAndResolveReturnType(

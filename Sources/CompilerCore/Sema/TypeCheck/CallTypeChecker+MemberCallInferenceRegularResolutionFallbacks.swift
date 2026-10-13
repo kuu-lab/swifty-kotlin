@@ -39,7 +39,7 @@ extension CallTypeChecker {
             if diagnostic.code == "KSWIFTK-SEMA-BOUND" {
                 let callee = interner.resolve(calleeName)
                 if callee == "sorted" || callee == "sortedDescending" {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
             }
@@ -63,7 +63,7 @@ extension CallTypeChecker {
                         for: memberSymbol,
                         name: interner.resolve(calleeName),
                         range: range,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
@@ -79,7 +79,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ) {
-                ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
+                ctx.sema.diagnostics.emit(projectionDiagnostic)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             if let fallbackType = tryRegexMemberFallback(
@@ -226,9 +226,9 @@ extension CallTypeChecker {
                     sema: sema,
                     interner: interner
                 ) {
-                    ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
+                    ctx.sema.diagnostics.emit(projectionDiagnostic)
                 } else {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                 }
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
@@ -288,7 +288,7 @@ extension CallTypeChecker {
                         for: memberSymbol,
                         name: interner.resolve(calleeName),
                         range: range,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
@@ -304,7 +304,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ) {
-                ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
+                ctx.sema.diagnostics.emit(projectionDiagnostic)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             if let fallbackType = tryCommonMemberCallFallbacks(
@@ -335,7 +335,7 @@ extension CallTypeChecker {
                 request, memberLookupType: memberLookupType, argTypes: argTypes,
                 isClassNameReceiver: isClassNameReceiver, locals: &locals
             ) { return propertyType }
-            ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
+            ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
         markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: args, ctx: ctx)
@@ -344,13 +344,13 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: chosen,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         // P5-112: Prohibit super.foo() calls to abstract members.
         if isSuperCall,
@@ -359,7 +359,7 @@ extension CallTypeChecker {
            chosenSym.kind == SymbolKind.function || chosenSym.kind == SymbolKind.property
         {
             let memberName = interner.resolve(calleeName)
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-ABSTRACT",
                 "Cannot call abstract member '\(memberName)' via super.",
                 range: range
@@ -384,7 +384,7 @@ extension CallTypeChecker {
             }
             if hasOmittedDefaultArgument {
                 let memberName = interner.resolve(calleeName)
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0306",
                     "Super-calls with default arguments are prohibited. Specify all arguments of 'super.\(memberName)' explicitly.",
                     range: range
@@ -414,7 +414,7 @@ extension CallTypeChecker {
                     symbols: sema.symbols,
                     interner: interner
                 )
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-VAR-OUT",
                     "A type projection on the receiver prevents calling '\(interner.resolve(calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
                     range: range

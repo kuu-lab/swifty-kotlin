@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - Lightweight pthread-based Thread-Local Storage (CORO-003)
 //
 // These helpers replace `Thread.current.threadDictionary` lookups with direct
 // `pthread_key_t` thread-locals.  Each key stores an `Unmanaged` pointer to a
@@ -70,7 +69,6 @@ struct RuntimeTaskKey: Hashable, Sendable {
     }
 }
 
-// MARK: - CORO-004 Migration Plan: DispatchSemaphore -> Continuation Model
 //
 // The suspend-entry loop (`runSuspendEntryLoopWithContinuation`) has already
 // been migrated to a non-blocking continuation model.  When a coroutine

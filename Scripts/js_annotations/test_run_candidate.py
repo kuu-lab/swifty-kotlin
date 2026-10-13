@@ -114,7 +114,9 @@ class CandidateRunnerRegressionTests(unittest.TestCase):
         )
         return expectations
 
-    def run_candidate(self, expectations: Path, *, timeout: str = "0.5") -> subprocess.CompletedProcess[str]:
+    def run_candidate(
+        self, expectations: Path, *, timeout: str = "5", compile_timeout: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env["PATH"] = f"{self.root}{os.pathsep}{env.get('PATH', '')}"
         env.update(self.extra_env)
@@ -133,7 +135,7 @@ class CandidateRunnerRegressionTests(unittest.TestCase):
                 "--artifact-root",
                 str(self.artifact_root),
                 "--compile-timeout",
-                timeout,
+                compile_timeout or timeout,
                 "--run-timeout",
                 timeout,
             ],
@@ -237,7 +239,8 @@ class CandidateRunnerRegressionTests(unittest.TestCase):
 
     def test_run_timeout_is_nonzero(self) -> None:
         expectations = self.write_case("runtime-timeout")
-        result = self.run_candidate(expectations, timeout="0.1")
+        # Keep compiler startup independent of the runtime timeout being tested.
+        result = self.run_candidate(expectations, timeout="0.1", compile_timeout="5")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("run_timeout", result.stdout)
 

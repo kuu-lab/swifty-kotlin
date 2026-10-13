@@ -74,7 +74,7 @@ extension CallTypeChecker {
            let local = locals[calleeName]
         {
             if !local.isInitialized {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(calleeName))' must be initialized before use.",
                     range: range
@@ -203,7 +203,7 @@ extension CallTypeChecker {
             }
             if !invokeCandidates.isEmpty {
                 let resolvedArgs = zip(args, argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
                 }
                 let resolved = ctx.resolver.resolveCall(
                     candidates: invokeCandidates,
@@ -216,10 +216,10 @@ extension CallTypeChecker {
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: callableCalleeType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let diagnostic = resolved.diagnostic {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }

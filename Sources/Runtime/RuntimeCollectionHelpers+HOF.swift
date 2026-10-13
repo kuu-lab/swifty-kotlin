@@ -1,4 +1,3 @@
-// MARK: - Collection HOF Helpers (STDLIB-005)
 
 typealias RuntimeCollectionLambda1 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int

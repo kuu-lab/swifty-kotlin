@@ -87,6 +87,71 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func javaLangIllegalArgumentExceptionImportResolvesAsKotlinType(useArtifact: Bool) throws {
+        let source = """
+        import java.lang.IllegalArgumentException
+        import java.lang.IllegalArgumentException as JavaIllegalArgumentException
+
+        fun fromImportedName(): IllegalArgumentException = JavaIllegalArgumentException("alias")
+        fun kotlinFromJava(value: JavaIllegalArgumentException): kotlin.IllegalArgumentException = value
+        fun javaFromKotlin(value: kotlin.IllegalArgumentException): JavaIllegalArgumentException = value
+        fun withMessageAndCause(cause: Throwable): JavaIllegalArgumentException =
+            JavaIllegalArgumentException("message", cause)
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let javaAlias = try #require(sema.symbols.lookup(
+            fqName: ["java", "lang", "IllegalArgumentException"].map(ctx.interner.intern)
+        ))
+        #expect(sema.symbols.symbol(javaAlias)?.kind == .typeAlias)
+    }
+
+    @Test
+    func wildcardImportFromObjectIsDiagnosed() throws {
+        let source = """
+        package probes
+        import probes.Holder.*
+
+        @AliasedAnn(1)
+        class ViaStar
+
+        object Holder {
+            annotation class AliasedAnn(val v: Int)
+        }
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0027" }
+        #expect(diagnostics.count == 1, "Expected the object wildcard import to be rejected: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.first?.message == "Cannot import on demand from object 'Holder'.")
+    }
+
+    @Test
+    func explicitAndAliasedNestedObjectImportsResolve() throws {
+        let source = """
+        package probes
+        import probes.Holder.AliasedAnn
+        import probes.Holder.AliasedAnn as RenamedAnn
+
+        @AliasedAnn(1)
+        class ViaExplicit
+
+        @RenamedAnn(2)
+        class ViaAlias
+
+        object Holder {
+            annotation class AliasedAnn(val v: Int)
+        }
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: ["import importfixture.library.*", "import importfixture.library"])
     func sourcePackageImportFallbackStillContributesMembers(importDirective: String) throws {
         let sources = [
@@ -103,6 +168,48 @@ struct ExplicitImportResolutionTests {
         ]
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func bundledJvmAnnotationsContinuationAndCoroutineIntrinsicsAreImportable(useArtifact: Bool) throws {
+        let sources = [
+            """
+            @file:JvmName("KUU1851JvmMarkers")
+            @file:JvmMultifileClass
+            import kotlin.jvm.JvmName
+            import kotlin.jvm.JvmMultifileClass
+            import kotlin.jvm.JvmOverloads
+
+            @JvmName("renamed")
+            @JvmOverloads
+            fun named(value: Int = 0): Int = value
+            """,
+            """
+            import kotlin.jvm.JvmInline
+            import kotlin.jvm.JvmStatic
+            import kotlin.jvm.JvmField
+
+            @JvmInline value class Wrapped(val value: Int)
+
+            object Holder {
+                @JvmStatic fun staticMethod() = Unit
+                @JvmField val field = 1
+            }
+            """,
+            """
+            import kotlin.coroutines.Continuation
+            import kotlinx.coroutines.intrinsics.startCoroutineCancellable
+
+            fun start(block: suspend () -> Unit, completion: Continuation<Unit>) {
+                block.startCoroutineCancellable(completion)
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
         }

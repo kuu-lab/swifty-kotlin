@@ -343,6 +343,7 @@ struct CompilerCoreTests {
 
             do {
 
+
                         let sema = try #require(ctx.sema)
                         #expect(!(sema.bindings.callBindings.isEmpty))
 

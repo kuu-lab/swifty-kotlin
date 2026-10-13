@@ -81,10 +81,6 @@ func runtimeStringTrimWithPredicate(
     return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(Array(units[start ..< end])))
 }
 
-// MARK: - STDLIB-006/009/013 String Functions
-
-// MARK: - STDLIB-TEXT-FN-026: intern
-
 @_cdecl("__kk_string_intern")
 public func __kk_string_intern(_ strRaw: Int) -> Int {
     runtimeInternString(strRaw)
@@ -282,8 +278,6 @@ public func kk_string_split_flat(
     )
 }
 
-// MARK: - STDLIB-TEXT-EDGE-001: CharSequence.split with ignoreCase and limit
-
 @_cdecl("kk_string_split_limit")
 public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -329,8 +323,6 @@ func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
     return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue))
 }
-
-// MARK: - STDLIB-TEXT-FN-055: String.replace overloads
 
 func runtimeStringReplaceChar(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -388,8 +380,6 @@ private func runtimeStringCodePointCount(
     }
     return count
 }
-
-// MARK: - STDLIB-TEXT-FN-010: CharSequence.codePointCount
 
 @_cdecl("__kk_string_codePointCount")
 public func __kk_string_codePointCount(_ strRaw: Int) -> Int {

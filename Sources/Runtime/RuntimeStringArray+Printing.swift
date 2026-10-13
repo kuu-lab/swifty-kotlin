@@ -71,7 +71,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return boolBox.value ? "true" : "false"
     }
     if let intBox = tryCast(raw, to: RuntimeIntBox.self) {
-        return intBox.enumEntryName ?? String(intBox.value)
+        return intBox.renderedString
     }
     if let stringBox = tryCast(raw, to: RuntimeStringBox.self) {
         return stringBox.value

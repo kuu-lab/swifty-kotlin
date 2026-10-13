@@ -361,66 +361,63 @@ public final class TypeSystem {
     }
 
     public func typeContainsTypeParam(_ type: TypeID, symbol: SymbolID) -> Bool {
-        switch kind(of: type) {
-        case let .typeParam(tp):
-            return tp.symbol == symbol
-        case let .classType(ct):
-            return ct.args.contains { arg in
-                switch arg {
-                case let .invariant(inner), let .out(inner), let .in(inner):
-                    typeContainsTypeParam(inner, symbol: symbol)
-                case .star:
-                    false
-                }
-            }
-        case let .functionType(ft):
-            if ft.contextReceivers.contains(where: { typeContainsTypeParam($0, symbol: symbol) }) {
-                return true
-            }
-            if let receiver = ft.receiver, typeContainsTypeParam(receiver, symbol: symbol) {
-                return true
-            }
-            if ft.params.contains(where: { typeContainsTypeParam($0, symbol: symbol) }) {
-                return true
-            }
-            return typeContainsTypeParam(ft.returnType, symbol: symbol)
-        case let .kClassType(kc):
-            return typeContainsTypeParam(kc.argument, symbol: symbol)
-        case let .intersection(parts):
-            return parts.contains { typeContainsTypeParam($0, symbol: symbol) }
-        default:
-            return false
+        typeContainsTypeParam(type) { $0.symbol == symbol }
+    }
+
+    /// Returns whether a type contains a type parameter directly or through the upper bounds of its type parameters.
+    public func typeContainsTypeParamThroughUpperBounds(_ type: TypeID, symbol: SymbolID) -> Bool {
+        guard let symbolTable else {
+            return typeContainsTypeParam(type, symbol: symbol)
         }
+
+        var visitedTypeParameters: Set<SymbolID> = []
+        func contains(_ candidate: TypeID) -> Bool {
+            typeContainsTypeParam(candidate) { typeParameter in
+                if typeParameter.symbol == symbol {
+                    return true
+                }
+                guard visitedTypeParameters.insert(typeParameter.symbol).inserted else {
+                    return false
+                }
+                return symbolTable.typeParameterUpperBounds(for: typeParameter.symbol).contains(where: contains)
+            }
+        }
+
+        return contains(type)
     }
 
     public func typeContainsAnyTypeParam(_ type: TypeID) -> Bool {
+        typeContainsTypeParam(type) { _ in true }
+    }
+
+    private func typeContainsTypeParam(_ type: TypeID, where predicate: (TypeParamType) -> Bool) -> Bool {
         switch kind(of: type) {
-        case .typeParam:
-            return true
+        case let .typeParam(tp):
+            return predicate(tp)
         case let .classType(ct):
             return ct.args.contains { arg in
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
-                    typeContainsAnyTypeParam(inner)
+                    typeContainsTypeParam(inner, where: predicate)
                 case .star:
                     false
                 }
             }
         case let .functionType(ft):
-            if ft.contextReceivers.contains(where: { typeContainsAnyTypeParam($0) }) {
+            if ft.contextReceivers.contains(where: { typeContainsTypeParam($0, where: predicate) }) {
                 return true
             }
-            if let receiver = ft.receiver, typeContainsAnyTypeParam(receiver) {
+            if let receiver = ft.receiver, typeContainsTypeParam(receiver, where: predicate) {
                 return true
             }
-            if ft.params.contains(where: { typeContainsAnyTypeParam($0) }) {
+            if ft.params.contains(where: { typeContainsTypeParam($0, where: predicate) }) {
                 return true
             }
-            return typeContainsAnyTypeParam(ft.returnType)
+            return typeContainsTypeParam(ft.returnType, where: predicate)
         case let .kClassType(kc):
-            return typeContainsAnyTypeParam(kc.argument)
+            return typeContainsTypeParam(kc.argument, where: predicate)
         case let .intersection(parts):
-            return parts.contains { typeContainsAnyTypeParam($0) }
+            return parts.contains { typeContainsTypeParam($0, where: predicate) }
         default:
             return false
         }

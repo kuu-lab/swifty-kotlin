@@ -13,7 +13,6 @@ private final class RuntimeResumeContinuationBox: @unchecked Sendable {
     }
 }
 
-// MARK: - CORO-004: Cooperative Sync Gate
 
 /// One-shot gate for cooperative producer/consumer synchronization.
 ///
@@ -312,24 +311,6 @@ final class RuntimeContinuationState: @unchecked Sendable {
             timer.setEventHandler(handler: nil)
             timer.cancel()
         }
-    }
-
-    /// Install the current continuation state for the given task key.
-    static func installCurrent(_ state: RuntimeContinuationState?, forTask key: RuntimeTaskKey) {
-        taskStateLock.lock()
-        if let state {
-            taskStateMap[key] = state
-        } else {
-            taskStateMap.removeValue(forKey: key)
-        }
-        taskStateLock.unlock()
-    }
-
-    /// Remove the current continuation state for the given task key.
-    static func removeCurrent(forTask key: RuntimeTaskKey) {
-        taskStateLock.lock()
-        taskStateMap.removeValue(forKey: key)
-        taskStateLock.unlock()
     }
 
     func scheduleDelay(milliseconds: Int) {

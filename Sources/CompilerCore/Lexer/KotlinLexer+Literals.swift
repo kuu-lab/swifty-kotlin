@@ -18,41 +18,7 @@ extension KotlinLexer {
             if cursor < byteCount(), byte(at: cursor) == 0x2B || byte(at: cursor) == 0x2D {
                 cursor += 1
             }
-            let exponentStart = cursor
-            if cursor < byteCount(), byte(at: cursor) == 0x5F {
-                diagnostics.error(
-                    "KSWIFTK-LEX-0006",
-                    "Invalid underscore placement in numeric literal.",
-                    range: makeRange(start: cursor, end: min(cursor + 1, byteCount()))
-                )
-            }
-            var exponentDigitCount = 0
-            while cursor < byteCount() {
-                let ch = byte(at: cursor)
-                if isDigit(ch) {
-                    exponentDigitCount += 1
-                    cursor += 1
-                    continue
-                }
-                if ch == 0x5F {
-                    cursor += 1
-                    continue
-                }
-                break
-            }
-            if exponentDigitCount == 0 {
-                diagnostics.error(
-                    "KSWIFTK-LEX-0003",
-                    "Invalid number format in numeric literal.",
-                    range: makeRange(start: start, end: min(cursor + 1, byteCount()))
-                )
-            } else if cursor > exponentStart, byte(at: cursor - 1) == 0x5F {
-                diagnostics.error(
-                    "KSWIFTK-LEX-0006",
-                    "Trailing underscore in numeric literal.",
-                    range: makeRange(start: cursor - 1, end: cursor)
-                )
-            }
+            _ = scanPrefixedDigits(cursor: &cursor, isDigit: isDigit, rangeStart: start)
         }
 
         let suffix = cursor < byteCount() ? byte(at: cursor) : nil

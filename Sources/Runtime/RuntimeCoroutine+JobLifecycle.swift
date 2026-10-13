@@ -197,7 +197,6 @@ public func kk_job_await_completion(
     kk_job_join(jobHandle, continuation, outThrown)
 }
 
-// MARK: - Child Cancel/Join Helpers (P5-89)
 
 /// Cancel a child handle (RuntimeJobHandle or RuntimeAsyncTask).
 func runtimeCancelChild(_ handle: Int) {
@@ -226,7 +225,6 @@ func runtimeJoinChild(_ handle: Int) -> Int {
     }
 }
 
-// MARK: - Cancellation ABI (CORO-002 / spec.md J17)
 
 /// Cancel a job handle from user code (e.g. `job.cancel()`).
 @_cdecl("kk_job_cancel")
@@ -334,7 +332,6 @@ public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) ->
     }
 }
 
-// MARK: - Job State Queries (STDLIB-CORO-070)
 
 /// Returns 1 if the job is active (started but not yet completed and not cancelled).
 /// A job is active when it has been launched and neither completed nor cancelled.
@@ -535,7 +532,6 @@ public func __kk_job_parent(_ jobHandle: Int) -> Int {
     return parent.sourceIdentityHandle
 }
 
-// MARK: - KUU-1386: Job-family `is`/`as` recovery and @InternalCoroutinesApi bridges
 
 /// Runtime box behind `Job.attachChild`'s ChildHandle result: a parent job +
 /// the raw child handle that `dispose()` un-registers.

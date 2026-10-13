@@ -17,6 +17,47 @@ private func typeArgumentsMatch(
     }
 }
 
+private func collectionFlowTypeMatches(
+    _ lhs: TypeID,
+    _ rhs: TypeID,
+    types: TypeSystem
+) -> Bool {
+    let lhsKind = types.kind(of: lhs)
+    let rhsKind = types.kind(of: rhs)
+    switch (lhsKind, rhsKind) {
+    case let (.classType(l), .classType(r)):
+        return l.classSymbol == r.classSymbol
+            && l.nullability == r.nullability
+            && l.args.count == r.args.count
+            && zip(l.args, r.args).allSatisfy {
+                typeArgumentsMatch($0.0, $0.1, using: { collectionFlowTypeMatches($0, $1, types: types) })
+            }
+    case let (.functionType(l), .functionType(r)):
+        return l.nullability == r.nullability
+            && l.isSuspend == r.isSuspend
+            && l.params.count == r.params.count
+            && zip(l.params, r.params).allSatisfy { collectionFlowTypeMatches($0, $1, types: types) }
+            && collectionFlowTypeMatches(l.returnType, r.returnType, types: types)
+            && l.receiver == r.receiver
+            && l.throws == r.throws
+    case let (.typeParam(l), .typeParam(r)):
+        return l.symbol == r.symbol && l.nullability == r.nullability
+    case let (.kClassType(l), .kClassType(r)):
+        return l.nullability == r.nullability
+            && collectionFlowTypeMatches(l.argument, r.argument, types: types)
+    case let (.primitive(l, lNullability), .primitive(r, rNullability)):
+        return l == r && lNullability == rNullability
+    case let (.nothing(lNullability), .nothing(rNullability)),
+         let (.any(lNullability), .any(rNullability)),
+         let (.stringStruct(lNullability), .stringStruct(rNullability)):
+        return lNullability == rNullability
+    case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
+        return true
+    default:
+        return false
+    }
+}
+
 extension CallTypeChecker.MemberCallCollectionFlowContext {
     @discardableResult
     func bindBundledSequenceDestinationSourceFunction(
@@ -73,40 +114,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     ) -> Bool {
         let parameterMapping = parameterMapping
             ?? Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-        func typeMatches(_ lhs: TypeID, _ rhs: TypeID) -> Bool {
-            let lk = sema.types.kind(of: lhs)
-            let rk = sema.types.kind(of: rhs)
-            switch (lk, rk) {
-            case let (.classType(l), .classType(r)):
-                return l.classSymbol == r.classSymbol
-                    && l.nullability == r.nullability
-                    && l.args.count == r.args.count
-                    && zip(l.args, r.args).allSatisfy {
-                        typeArgumentsMatch($0.0, $0.1, using: typeMatches)
-                    }
-            case let (.functionType(l), .functionType(r)):
-                return l.nullability == r.nullability
-                    && l.isSuspend == r.isSuspend
-                    && l.params.count == r.params.count
-                    && zip(l.params, r.params).allSatisfy(typeMatches)
-                    && typeMatches(l.returnType, r.returnType)
-                    && l.receiver == r.receiver
-                    && l.throws == r.throws
-            case let (.typeParam(l), .typeParam(r)):
-                return l.symbol == r.symbol && l.nullability == r.nullability
-            case let (.kClassType(l), .kClassType(r)):
-                return l.nullability == r.nullability && typeMatches(l.argument, r.argument)
-            case let (.primitive(l, lNull), .primitive(r, rNull)):
-                return l == r && lNull == rNull
-            case let (.nothing(lNull), .nothing(rNull)),
-                 let (.any(lNull), .any(rNull)),
-                 let (.stringStruct(lNull), .stringStruct(rNull)):
-                return lNull == rNull
-            case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
-                return true
-            default:
-                return false
-            }
+        let typeMatches: (TypeID, TypeID) -> Bool = {
+            collectionFlowTypeMatches($0, $1, types: self.sema.types)
         }
         guard (!isSequenceReceiver || isListFactoryReceiver),
               receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
@@ -202,7 +211,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         guard !candidates.isEmpty else { return false }
 
         let callArgs: [CallArg] = args.map { arg in
-            CallArg(label: arg.label, isSpread: arg.isSpread, type: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType)
+            CallArg(label: arg.label, isSpread: arg.isSpread, isTrailingLambda: arg.isTrailingLambda, type: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType)
         }
         let callExpr = CallExpr(range: range, calleeName: calleeName, args: callArgs)
         let resolved = OverloadResolver().resolveCall(
@@ -259,40 +268,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             return false
         }
 
-        func typeMatches(_ lhs: TypeID, _ rhs: TypeID) -> Bool {
-            let lhsKind = sema.types.kind(of: lhs)
-            let rhsKind = sema.types.kind(of: rhs)
-            switch (lhsKind, rhsKind) {
-            case let (.classType(l), .classType(r)):
-                return l.classSymbol == r.classSymbol
-                    && l.nullability == r.nullability
-                    && l.args.count == r.args.count
-                    && zip(l.args, r.args).allSatisfy {
-                        typeArgumentsMatch($0.0, $0.1, using: typeMatches)
-                    }
-            case let (.functionType(l), .functionType(r)):
-                return l.nullability == r.nullability
-                    && l.isSuspend == r.isSuspend
-                    && l.params.count == r.params.count
-                    && zip(l.params, r.params).allSatisfy(typeMatches)
-                    && typeMatches(l.returnType, r.returnType)
-                    && l.receiver == r.receiver
-                    && l.throws == r.throws
-            case let (.typeParam(l), .typeParam(r)):
-                return l.symbol == r.symbol && l.nullability == r.nullability
-            case let (.kClassType(l), .kClassType(r)):
-                return l.nullability == r.nullability && typeMatches(l.argument, r.argument)
-            case let (.primitive(l, lNullability), .primitive(r, rNullability)):
-                return l == r && lNullability == rNullability
-            case let (.nothing(lNullability), .nothing(rNullability)),
-                 let (.any(lNullability), .any(rNullability)),
-                 let (.stringStruct(lNullability), .stringStruct(rNullability)):
-                return lNullability == rNullability
-            case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
-                return true
-            default:
-                return false
-            }
+        let typeMatches: (TypeID, TypeID) -> Bool = {
+            collectionFlowTypeMatches($0, $1, types: self.sema.types)
         }
         let sourceFQName = [
             interner.intern("kotlin"),

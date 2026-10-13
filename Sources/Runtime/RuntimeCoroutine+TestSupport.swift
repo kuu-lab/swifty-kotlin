@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - KSP-1583: kotlinx.coroutines.test
 
 /// Virtual-clock backing for `kotlinx.coroutines.test.TestCoroutineScheduler`.
 final class RuntimeTestScheduler: @unchecked Sendable {

@@ -1029,8 +1029,6 @@ extension LambdaLowerer {
         return callableExpr
     }
 
-    // MARK: - REFL-003: Callable reference type identity
-
     /// Emits a runtime tagging call that annotates a callable reference value
     /// with KFunction or KProperty type identity. Returns a new KIR expression
     /// representing the tagged value.  The caller must use the returned

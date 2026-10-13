@@ -17,8 +17,6 @@
 /// When caching is disabled (the default), all call-sites receive `nil` and fall
 /// back to the original uncached paths.
 final class SemaCacheContext {
-    // MARK: - Scope lookup cache
-
     /// Keyed by the identity of the ``Scope`` object (via ``ObjectIdentifier``)
     /// and the interned name being looked up.
     ///
@@ -43,8 +41,6 @@ final class SemaCacheContext {
         return result
     }
 
-    // MARK: - Symbol lookup cache
-
     /// Caches ``SymbolTable.symbol(_:)`` results to avoid repeated bounds checks.
     private var symbolCache: [SymbolID: SemanticSymbol] = [:]
 
@@ -66,8 +62,6 @@ final class SemaCacheContext {
         }
         return result
     }
-
-    // MARK: - Overload resolution cache
 
     /// Cache key for ``OverloadResolver.resolveCall``.
     ///
@@ -138,8 +132,6 @@ final class SemaCacheContext {
             dispatchReceiverTypes: call.dispatchReceiverTypes
         )
     }
-
-    // MARK: - Statistics (for testing / debugging)
 
     private(set) var scopeHits: Int = 0
     private(set) var scopeMisses: Int = 0

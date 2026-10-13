@@ -46,7 +46,7 @@ extension CallTypeChecker {
         let hasSourceBackedArrayConstructor: Bool = {
             if args.count == 1,
                let calleeName,
-               knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+               knownNames.isArrayLikeName(calleeName),
                !sourceBackedArrayConstructors.isEmpty
             {
                 let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
@@ -60,7 +60,7 @@ extension CallTypeChecker {
             return !sourceBackedArrayConstructors.isEmpty
         }()
         if let calleeName,
-           knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+           knownNames.isArrayLikeName(calleeName),
            args.count == 1 || args.count == 2,
            locals[calleeName] == nil,
            !hasSourceBackedArrayConstructor
@@ -76,7 +76,7 @@ extension CallTypeChecker {
                     for: arraySymbol,
                     ctx: ctx,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             let countType = driver.inferExpr(
@@ -91,7 +91,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             if args.count == 1 {
                 sema.bindings.markStdlibSpecialCallExpr(id, kind: .arrayConstructor)
@@ -290,7 +290,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             if args.count == 2 {
                 let initExpectedType = sema.types.make(.functionType(FunctionType(
@@ -365,7 +365,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             if args.count == 2 {
                 let initExpectedType = sema.types.make(.functionType(FunctionType(

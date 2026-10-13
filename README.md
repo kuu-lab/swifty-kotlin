@@ -58,5 +58,6 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 | [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
 | [`docs/debugging.md`](docs/debugging.md) | DWARF デバッグ情報の使い方（lldb セッション例） |
 | [`docs/kotlin-test-runner.md`](docs/kotlin-test-runner.md) | `--test` で kotlin.test の注釈からテスト実行ファイルを生成 |
+| [`docs/real-program-round3-tracking.md`](docs/real-program-round3-tracking.md) | 公開 Kotlin 実プログラム第3弾の子チケット・PR・検証不足・原本残障害の追跡 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
 | [`AGENTS.md`](AGENTS.md) | AI 向けクイックリファレンス・Linux（Cursor Cloud）環境セットアップ |

@@ -146,6 +146,19 @@ public fun <R> IntArray.foldIndexed(initial: R, operation: (Int, R, Int) -> R): 
     return acc
 }
 
+public fun <R> IntArray.scanIndexed(initial: R, operation: (Int, R, Int) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < this.size) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i++
+    }
+    return result
+}
+
 public fun IntArray.find(predicate: (Int) -> Boolean): Int? {
     var i = 0
     while (i < this.size) {

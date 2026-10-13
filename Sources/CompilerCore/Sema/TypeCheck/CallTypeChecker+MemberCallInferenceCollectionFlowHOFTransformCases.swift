@@ -229,7 +229,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         : bindBundledIterableSumSource(locals: &locals)) ?? sema.types.intType
                 case "average":
                     resultType = sema.types.doubleType
-                case "reversed", "asReversed":
+                case "reversed":
                     if isSequenceReceiver {
                         resultType = makeSyntheticSequenceType(
                             symbols: sema.symbols,
@@ -240,6 +240,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     } else {
                         resultType = receiverType
                     }
+                case "asReversed":
+                    resultType = receiverType
                 case "flatten":
                     let innerElementType = extractIterableOrSequenceElementType(
                         collectionElementType,
@@ -343,7 +345,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         // non-null numeric element types. Do not let the
                         // legacy name-based fallback accept String, nullable,
                         // or otherwise unsupported Iterable receivers.
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0024",
                             "No viable overload found for call.",
                             range: ast.arena.exprRange(id)
@@ -356,7 +358,29 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                 }
                 if calleeStr == "reversed", !isSequenceReceiver {
-                    _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType], locals: &locals)
+                    if bindBundledIterableSourceFunction(
+                        typeArguments: [collectionElementType],
+                        locals: &locals
+                    ),
+                       let binding = sema.bindings.callBinding(for: id),
+                       let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+                    {
+                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        var substitution: [TypeVarID: TypeID] = [:]
+                        for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                            guard index < binding.substitutedTypeArguments.count,
+                                  let typeVariable = typeVarBySymbol[symbol]
+                            else {
+                                continue
+                            }
+                            substitution[typeVariable] = binding.substitutedTypeArguments[index]
+                        }
+                        resultType = sema.types.substituteTypeParameters(
+                            in: signature.returnType,
+                            substitution: substitution,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
+                    }
                 }
                 if calleeStr == "asReversed", !isSequenceReceiver {
                     _ = bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals)

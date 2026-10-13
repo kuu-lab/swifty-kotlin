@@ -457,8 +457,6 @@ final class RuntimeSetBox {
     }
 }
 
-// MARK: - RuntimeChildReferenceProviding conformances (ABI-004)
-//
 // These conformances enable the recursive BFS freeze in kk_freeze_object to
 // traverse all reachable object references when freezing an object graph.
 // Only types that store `Int` child handles need to conform.

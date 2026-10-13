@@ -8,8 +8,6 @@ import kotlin.random.Random
 
 // MIGRATION-RANGE-002: CharRange higher-order functions, moved verbatim from RangeHOF.kt.
 
-// MARK: - CharRange
-
 public fun CharRange.forEach(action: (Char) -> Unit) {
     for (element in this) { action(element) }
 }

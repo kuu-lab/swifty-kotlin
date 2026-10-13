@@ -44,7 +44,7 @@ extension CallTypeChecker {
                     for: contextOfSymbol,
                     ctx: ctx,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 let nonNullInferredType = sema.types.makeNonNullable(inferredType)
                 let hasMatchingContextReceiver = ctx.contextReceiverTypes.contains { receiverType in
@@ -53,7 +53,7 @@ extension CallTypeChecker {
                         || sema.types.isSubtype(nonNullInferredType, nonNullReceiverType)
                 }
                 if !hasMatchingContextReceiver {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-CTX-001",
                         "No context receiver is available for contextOf<\(sema.types.renderType(inferredType))>().",
                         range: range
@@ -164,7 +164,7 @@ extension CallTypeChecker {
                     for: contextSymbol,
                     ctx: ctx,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindCall(
                     id,

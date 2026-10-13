@@ -79,8 +79,8 @@ extension OverloadResolver {
             return callArgs.isEmpty ? [:] : nil
         }
 
-        let hasDefaultValues = normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
-        let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
+        let hasDefaultValues = Self.normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
+        let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
         let paramNames = parameterNames(
             for: signature,
             symbols: symbols,
@@ -95,6 +95,7 @@ extension OverloadResolver {
         func trailingLambdaParameterIndex(for argIndex: Int) -> Int? {
             let argumentIsCallable = isCallableArgument?(argIndex) ?? isCallableLike(callArgs[argIndex].type)
             guard argIndex == callArgs.count - 1,
+                  callArgs[argIndex].isTrailingLambda,
                   argumentIsCallable
             else {
                 return nil
@@ -162,6 +163,7 @@ extension OverloadResolver {
         var boundNonVarargParams: Set<Int> = []
         var boundNamedVarargParams: Set<Int> = []
         var sawNamedArgument = false
+        var sawOutOfOrderNamedArgument = false
         var positionalCursor = 0
         // Highest parameter index bound so far by any argument (named or
         // positional). Kotlin only allows a positional argument after a named
@@ -176,6 +178,9 @@ extension OverloadResolver {
                 sawNamedArgument = true
                 guard let paramIndex = paramNames.firstIndex(where: { $0 == label }) else {
                     return nil
+                }
+                if paramIndex != positionalCursor {
+                    sawOutOfOrderNamedArgument = true
                 }
                 if arg.isSpread, !isVararg[paramIndex] {
                     return nil
@@ -200,8 +205,8 @@ extension OverloadResolver {
             }
 
             if sawNamedArgument {
-                // In Kotlin, positional arguments after named arguments
-                // are allowed only when they bind to a vararg parameter.
+                // Positional arguments after named arguments must retain
+                // declaration order, including ordinary callable arguments.
                 // Trailing lambdas are also allowed after named arguments when
                 // they map to the final function-typed parameter.
                 if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex),
@@ -219,12 +224,19 @@ extension OverloadResolver {
                     continue
                 }
                 advancePositionalCursor(for: argIndex)
-                if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
+                if sawOutOfOrderNamedArgument || positionalCursor >= paramCount || positionalCursor < maxBoundParamIndex {
+                    return nil
+                }
+                if arg.isSpread, !isVararg[positionalCursor] {
                     return nil
                 }
                 guard !boundNamedVarargParams.contains(positionalCursor) else { return nil }
                 maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
+                if !isVararg[positionalCursor] {
+                    boundNonVarargParams.insert(positionalCursor)
+                    positionalCursor += 1
+                }
                 continue
             }
 
@@ -233,7 +245,7 @@ extension OverloadResolver {
                 return nil
             }
 
-            // Trailing lambda: a callable last argument can be bound to a later
+            // Trailing lambda: a lambda outside parentheses can be bound to a later
             // function-typed parameter when the intervening parameters have
             // default values.
             let paramIndex: Int
@@ -274,7 +286,7 @@ extension OverloadResolver {
         return mapping
     }
 
-    func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
+    static func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
         if flags.count == count {
             return flags
         }

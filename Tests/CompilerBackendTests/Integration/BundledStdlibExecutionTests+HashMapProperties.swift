@@ -4,6 +4,16 @@ import Testing
 // Map-family values still use RuntimeMapBox storage, so inherited keys/values/
 // entries/size reads must stay on the runtime bridge instead of a nominal vtable.
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [true, false])
+    func testHashMapSubclassMemberCalls(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("hashmap_subclass_members.kt", file: #filePath),
+            expectedOutput: "5\nchild\n1\nnull\n5\n7\n3\ntrue\ntrue\n3\ntrue\ntrue\n7\nnull\n3\ntrue\n0\n1\ntrue\n1\n9\n1\n1\nnull\n1\n123\n11\n",
+            moduleName: "KUU1941HashMapSubclassMembers",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testHashMapPropertiesDoNotUseNominalVtable() throws {
         try compileAndRunKotlin(

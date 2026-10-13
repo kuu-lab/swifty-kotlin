@@ -75,10 +75,23 @@ extension CallTypeChecker {
                     for: propSymbol,
                     name: interner.resolve(calleeName),
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
+            driver.helpers.checkDeprecation(
+                for: propResult.symbol,
+                sema: sema,
+                interner: interner,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: propResult.symbol,
+                ctx: ctx,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
             sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
             sema.bindings.bindExprType(id, type: propResult.type)
             let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(

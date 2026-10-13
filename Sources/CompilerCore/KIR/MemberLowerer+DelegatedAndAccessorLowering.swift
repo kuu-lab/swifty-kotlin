@@ -624,8 +624,6 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    // MARK: - BUG-141/KSP-928: interface and abstract class property dispatch
-
     /// Emits a getter accessor function (`(receiver) -> PropertyType`) that
     /// reads a stored property from its instance field. Concrete classes and
     /// object literals need one for every property that overrides an interface

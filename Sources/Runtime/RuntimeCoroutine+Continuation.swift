@@ -329,7 +329,7 @@ private func startCoroutineUninterceptedOrReturn(
     RuntimeJobHandle.current = state.jobHandle
     defer {
         RuntimeCoroutineScope.removeScope(forTask: taskKey)
-        RuntimeContinuationState.removeCurrent(forTask: taskKey)
+        RuntimeContinuationState.removeState(forTask: taskKey)
         RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
         RuntimeJobHandle.current = outerJob
     }

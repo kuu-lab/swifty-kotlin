@@ -1,6 +1,5 @@
 
 extension CallLowerer {
-    // MARK: - Binary Operations
 
     func lowerBinaryExpr(
         _ exprID: ExprID,
@@ -100,7 +99,7 @@ extension CallLowerer {
         // concatenation — e.g. `operator fun Int.plus(s: String)` — must keep
         // that call instead of folding as `"2" + "x"` text.
         if op == .add, sema.bindings.exprTypes[exprID] == stringType,
-           isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner) {
+           ConstantCollector.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner) {
             var collector = driver.constantCollector
             collector.resolvedConstant = { constExprID in
                 self.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
@@ -159,17 +158,17 @@ extension CallLowerer {
                 return nullability != .nonNull
             }
             func isProvablyNonNullOperand(_ expr: ExprID, _ kirID: KIRExprID) -> Bool {
-                if let type = sema.bindings.exprTypes[expr],
-                   sema.types.nullability(of: type) == .nonNull
-                {
-                    return true
+                func isKnownNonNull(_ type: TypeID) -> Bool {
+                    // An unadorned T can be instantiated with a nullable type;
+                    // its default upper bound is Any?, despite this type flag.
+                    if case .typeParam = sema.types.kind(of: type) { return false }
+                    return sema.types.nullability(of: type) == .nonNull
                 }
-                if let type = arena.exprType(kirID),
-                   sema.types.nullability(of: type) == .nonNull
-                {
-                    return true
+                if let type = sema.bindings.exprTypes[expr] {
+                    if case .typeParam = sema.types.kind(of: type) { return false }
+                    if isKnownNonNull(type) { return true }
                 }
-                return false
+                return arena.exprType(kirID).map(isKnownNonNull) ?? false
             }
             if (isNullLiteralOperand(rhs) && isProvablyNonNullOperand(lhs, lhsID))
                 || (isNullLiteralOperand(lhs) && isProvablyNonNullOperand(rhs, rhsID))
@@ -1270,28 +1269,6 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-    }
-
-    /// Whether a String-typed `+` lowerer may treat the expression as Kotlin's
-    /// built-in concatenation (constant folding and `__kk_string_concat_flat`).
-    /// Only true when Sema left the operator unbound (the lenient built-in
-    /// concat path) or bound it to the stdlib `String.plus` member or the
-    /// `kotlin.text.String?.plus` facade; a user-declared operator that merely
-    /// returns String must keep its resolved call.
-    private func isBuiltinStringPlusCallee(
-        _ exprID: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
-              let symbol = sema.symbols.symbol(chosenCallee)
-        else {
-            return true
-        }
-        let kotlinName = interner.intern("kotlin")
-        let plusName = interner.intern("plus")
-        return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
-            || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
     }
 
     private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {

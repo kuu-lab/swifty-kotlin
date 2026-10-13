@@ -30,16 +30,6 @@ typealias RuntimeFlatStringReturnWithIntEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithIntNoThrowEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
 typealias RuntimeFlatStringReturnWithIntCharEntry = (
     UnsafePointer<UInt8>?,
     Int,
@@ -110,9 +100,6 @@ private let runtimeFlatStringLengthTransform: RuntimeStringUnaryEntry = { _, str
     runtimeStringFromRawOrPanic(strRaw, caller: "runtimeFlatStringLengthTransform").count
 }
 
-private let runtimeReturnValueTransform: RuntimeStringUnaryEntry = { _, valueRaw, _ in
-    valueRaw
-}
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeStringArrayTests {

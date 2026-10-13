@@ -123,6 +123,13 @@ extension CallTypeChecker {
                    mergedImplicitReceiverMembers.count == 1,
                    let bestCandidate = mergedImplicitReceiverMembers.first,
                    let signature = sema.symbols.functionSignature(for: bestCandidate),
+                   !narrowedCallCandidates(
+                       candidates: [bestCandidate], args: args,
+                       inferredNonLambdaArgTypes: Dictionary(uniqueKeysWithValues: argTypes.enumerated().map {
+                           ($0.offset, $0.element)
+                       }),
+                       receiverType: callImplicitReceiverType, forImplicitMemberApplicability: true, ctx: ctx
+                   ).isEmpty,
                    let calleeName
                 {
                     // The merged implicit-receiver member failed constraint
@@ -131,6 +138,7 @@ extension CallTypeChecker {
                     // opaque to this resolver. The general member path below
                     // would still bind such a lone member leniently; mirror
                     // that fallback here so the call is not hard-errored.
+                    // Concrete argument mismatches must still be rejected.
                     var mapping: [Int: Int] = [:]
                     for i in args.indices { mapping[i] = i }
                     sema.bindings.bindCall(
@@ -165,7 +173,7 @@ extension CallTypeChecker {
                         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
                         sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: recovered.receiverSymbol)
                     } else if let diagnostic = resolved.diagnostic {
-                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        ctx.sema.diagnostics.emit(diagnostic)
                         sema.bindings.bindExprType(id, type: sema.types.errorType)
                         return sema.types.errorType
                     }
@@ -221,13 +229,13 @@ extension CallTypeChecker {
                 }
             }
             if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
             guard let chosen = resolved.chosenCallee else {
                 let nameStr = calleeName.map { interner.resolve($0) } ?? "<unknown>"
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0023",
                     "Unresolved function '\(nameStr)'.",
                     range: range
@@ -274,13 +282,13 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
@@ -347,7 +355,10 @@ extension CallTypeChecker {
             if let calleeName {
                 let resolvedName = interner.resolve(calleeName)
                 if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName),
-                   !KnownCompilerNames.arrayFactoryFunctionNames.contains(resolvedName)
+                   !KnownCompilerNames.arrayFactoryFunctionNames.contains(resolvedName),
+                   let symbol = sema.symbols.symbol(chosen),
+                   (symbol.fqName.starts(with: [knownNames.kotlin, knownNames.collections])
+                       || symbol.fqName.starts(with: [knownNames.kotlin, knownNames.sequences]))
                 {
                     sema.bindings.markCollectionExpr(id)
                 }

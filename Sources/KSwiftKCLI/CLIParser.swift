@@ -87,10 +87,6 @@ enum CLIParser {
                 }
                 emitMode = mode
                 explicitEmitMode = mode
-            case "-O0", "-O1", "-O2", "-O3":
-                if let level = parseOptimizationLevel(String(arg.dropFirst())) {
-                    optLevel = level
-                }
             case _ where arg.hasPrefix("-O"):
                 guard let level = parseOptimizationLevel(String(arg.dropFirst())) else {
                     throw CLIParseError.unsupportedOptimizationLevel(arg)

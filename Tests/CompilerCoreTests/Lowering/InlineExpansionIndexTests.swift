@@ -271,7 +271,7 @@ struct InlineExpansionIndexTests {
             "caller", symbol: 12, interner: interner, types: types,
             body: [call(to: bodyless, callee: "gone", interner: interner)]
         )
-        var index = InlineExpansionIndex(
+        let index = InlineExpansionIndex(
             module: makeModule([bodylessDecl, caller]),
             importedInlineFunctions: ImportedInlineFunctionStore()
         )

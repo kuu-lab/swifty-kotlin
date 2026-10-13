@@ -22,7 +22,7 @@ extension ExprTypeChecker {
            !isQualifier || sema.symbols.symbol(local.symbol)?.kind != .function
         {
             if !local.isInitialized {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",
                     range: nameRange
@@ -105,7 +105,22 @@ extension ExprTypeChecker {
         // dispatch receivers, enclosing class) — a member extension body's
         // `this` is the extension receiver, but the dispatch owner's members,
         // inherited ones included, still resolve unqualified.
-        let implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
+        var implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
+        // In an extension body, flow analysis narrows the stable `this` local
+        // in `if` branches and after an early return. Keep the original type
+        // available too when narrowing to an unrelated interface. Match the
+        // declaration's receiver first: object initializers retain an outer
+        // `this` local while their active receiver is the new object.
+        if let receiverType = ctx.implicitReceiverType,
+           let declaration = ctx.currentDeclSymbol,
+           (sema.symbols.functionSignature(for: declaration)?.receiverType
+               ?? sema.symbols.extensionPropertyReceiverType(for: declaration)) == receiverType,
+           let thisLocal = locals[knownNames.thisName],
+           thisLocal.symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: declaration),
+           thisLocal.type != receiverType
+        {
+            implicitReceiverLookupEntries.insert((thisLocal.type, nil), at: 0)
+        }
         if !implicitReceiverLookupEntries.isEmpty {
             var memberType: TypeID?
             for (index, receiver) in implicitReceiverLookupEntries.enumerated() {
@@ -145,7 +160,7 @@ extension ExprTypeChecker {
             }
         }
         if candidates.isEmpty, !dslBlockedIDs.isEmpty {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-DSLMARKER",
                 "'@DslMarker' implicit access to '\(interner.resolve(name))' from outer receiver is restricted. Use explicit receiver.",
                 range: nameRange
@@ -191,35 +206,49 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner,
                     range: nameRange,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 driver.helpers.checkOptIn(
                     for: result.symbol,
                     ctx: ctx,
                     range: nameRange,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindExprType(id, type: result.type)
                 return result.type
             } else if let firstInvisible = invisibleSyms.first {
-                driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(name), range: nameRange, diagnostics: ctx.semaCtx.diagnostics)
+                driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(name), range: nameRange, diagnostics: ctx.sema.diagnostics)
             } else if name == knownNames.field {
                 // Kotlin's `field` identifier is only valid inside property
                 // getter/setter bodies where it refers to the backing field.
                 // Emit a targeted diagnostic instead of the generic
                 // "Unresolved reference" error.
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-FIELD",
                     "'field' can only be used inside a property getter or setter body.",
                     range: nameRange
                 )
             } else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0022",
                     "Unresolved reference '\(interner.resolve(name))'.",
                     range: nameRange
                 )
             }
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        let enumEntryCandidates = Set(candidates.compactMap { candidate -> SymbolID? in
+            guard sema.symbols.enumOwnerSymbol(for: candidate) != nil else { return nil }
+            // Linked expect/actual declarations denote the same entry.
+            return sema.symbols.actualSymbol(for: candidate.id) ?? candidate.id
+        })
+        if enumEntryCandidates.count > 1 {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous reference '\(interner.resolve(name))'.",
+                range: nameRange
+            )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -244,20 +273,20 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 range: nameRange,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: preferredCandidate.id,
                 ctx: ctx,
                 range: nameRange,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             // DEBT-SEMA-003: a property's initializer referencing the property's
             // own symbol reads it before it has ever been assigned a value.
             if let initializingPropertySymbol = ctx.initializingPropertySymbol,
                preferredCandidate.id == initializingPropertySymbol
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",
                     range: nameRange
@@ -315,13 +344,13 @@ extension ExprTypeChecker {
             sema.bindings.bindIdentifier(id, symbol: result.symbol)
             driver.helpers.checkDeprecation(
                 for: result.symbol, sema: sema, interner: interner,
-                range: nameRange, diagnostics: ctx.semaCtx.diagnostics
+                range: nameRange, diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: result.symbol,
                 ctx: ctx,
                 range: nameRange,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindExprType(id, type: result.type)
             return result.type
@@ -430,7 +459,7 @@ extension ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: nonNullReceiver,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
@@ -448,7 +477,7 @@ extension ExprTypeChecker {
             return memberType
         }
         if emitDiagnosticOnFailure {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '\(resolvedName)'.",
                 range: nameRange
@@ -464,6 +493,7 @@ extension ExprTypeChecker {
             return signature.returnType
         }
         if symbol.kind == .property || symbol.kind == .field {
+            driver.resolveInferredPropertyType(for: symbol.id)
             return sema.symbols.propertyType(for: symbol.id)
         }
         // Objects are singletons – always resolve to their nominal type so

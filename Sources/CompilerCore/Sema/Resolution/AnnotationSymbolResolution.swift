@@ -19,6 +19,19 @@ func resolveAnnotationSymbol(
 
     let shortName = interner.intern(parts.last ?? rawName)
 
+    // An import names the annotation directly when its alias equals the
+    // short name, or, without an alias, when the imported path's last
+    // component does.
+    func importedAnnotation(_ importDecl: ImportDecl) -> SymbolID? {
+        guard (importDecl.alias ?? importDecl.path.last) == shortName,
+              let symbol = symbols.lookup(fqName: importDecl.path),
+              symbols.symbol(symbol)?.kind == .annotationClass
+        else {
+            return nil
+        }
+        return symbol
+    }
+
     if parts.count == 1 {
         var owner = enclosingSymbol
         var visited: Set<SymbolID> = []
@@ -35,19 +48,8 @@ func resolveAnnotationSymbol(
     // declarations in the classifier namespace, so they are checked first
     // (KUU-1423).
     for importDecl in file.imports where !importDecl.isWildcard {
-        if let alias = importDecl.alias, alias == shortName {
-            if let symbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
-        }
-        if importDecl.alias == nil, importDecl.path.last == shortName {
-            if let symbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
+        if let symbol = importedAnnotation(importDecl) {
+            return symbol
         }
     }
 
@@ -59,20 +61,8 @@ func resolveAnnotationSymbol(
     }
 
     for importDecl in file.imports {
-        if let alias = importDecl.alias, alias == shortName {
-            if let symbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
-        }
-
-        if importDecl.alias == nil, importDecl.path.last == shortName {
-            if let symbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
+        if let symbol = importedAnnotation(importDecl) {
+            return symbol
         }
 
         // Non-wildcard imports whose path names a declaration (a class may

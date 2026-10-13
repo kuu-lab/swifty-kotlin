@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - Coroutine yield()
 
 /// Cooperatively yields the current coroutine, allowing other coroutines to run.
 /// This is the lowering target for `kotlinx.coroutines.yield()`.
@@ -31,7 +30,6 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
     return Int(bitPattern: kk_coroutine_suspended())
 }
 
-// MARK: - withTimeout / withTimeoutOrNull
 
 /// Runs a timeout block on a deadline, preserving its result or failure unless
 /// this deadline expires first.
@@ -183,7 +181,6 @@ public func kk_with_timeout_or_null_throwing(
     return outcome.result
 }
 
-// MARK: - Suspend Entry Loop
 
 func runSuspendEntryLoop(
     entryPointRaw: Int,
@@ -435,7 +432,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
             RuntimeJobHandle.current = taskKeyBox.outerJob
             _ = kk_coroutine_state_exit(continuation, 0)
@@ -462,7 +459,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
             RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
@@ -483,7 +480,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
             RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
@@ -520,7 +517,7 @@ func runSuspendEntryLoopWithContinuation(
             // GCD thread.  Re-install the task key so the scope map lookup
             // still works.
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             // Resumed on a (possibly different) thread — capture that thread's
             // displaced ambient bindings so a burst ending here restores them.
             taskKeyBox.outerKey = RuntimeCoroutineScopeTaskKey.installedKey
@@ -572,7 +569,6 @@ func runSuspendEntryLoopWithContinuation(
     return 0
 }
 
-// MARK: - STDLIB-CORO-068: Suspend Function Invocation
 
 /// Invoke a suspend function with 0 arguments using continuation-passing style.
 /// This is the runtime implementation for `kk_suspend_function_invoke_0`.

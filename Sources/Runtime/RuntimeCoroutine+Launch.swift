@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - STDLIB-CORO-001: CoroutineStart.LAZY launch
 
 /// Launch a coroutine without starting it immediately (CoroutineStart.LAZY).
 /// The body is dispatched the first time `join()` or `startIfNeeded()` is called.
@@ -119,7 +118,6 @@ public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation
     return Int(bitPattern: jobPtr)
 }
 
-// MARK: - CoroutineStart.UNDISPATCHED launch
 
 /// Launch a coroutine that begins executing immediately on the calling thread
 /// and runs there until its first suspension point (`CoroutineStart.UNDISPATCHED`).
@@ -409,7 +407,6 @@ private func runtimeAsyncScheduled(entryPointRaw: Int, continuation: Int, atomic
     return Int(bitPattern: taskPtr)
 }
 
-// MARK: - STDLIB-CORO-001: CoroutineStart.LAZY / UNDISPATCHED async
 
 /// Registers a freshly created `async` task with the caller's scope and seeds
 /// the block's continuation with that scope, so the child's suspend-entry loop
@@ -700,7 +697,6 @@ public func kk_kxmini_produce_with_cont(_ entryPointRaw: Int, _ continuation: In
     runtimeKxMiniProduceWithCont(entryPointRaw, continuation, channelCapacity: 0)
 }
 
-// MARK: - Dispatcher-aware launch (STDLIB-CORO-072)
 
 /// Launch a coroutine on a specific dispatcher (fire-and-forget).
 /// dispatcherRaw is a dispatcher tag (kk_dispatcher_default/io/main).
@@ -960,7 +956,6 @@ func runtimeInvokeSuspendLauncherThunk(
         return invoke(captures[0], captures[1], captures[2], captures[3], receiver, outThrown)
     default:
         runtimeStructuredPanic("__kk_produce_launch: suspend block captures exceed launcher thunk arity")
-        return 0
     }
 }
 

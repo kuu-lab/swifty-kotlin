@@ -195,7 +195,7 @@ final class CallSupportLowerer {
                 driver.ctx.setLocalDeclaredType(receiverType, for: owner)
             }
         }
-        let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: paramCount)
+        let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
         let isLocalFunction = sema.symbols.symbol(originalSymbol)?.flags.contains(.localFunction) == true
         var effectiveParameterTypes: [TypeID] = []
         effectiveParameterTypes.reserveCapacity(paramCount)
@@ -560,10 +560,10 @@ final class CallSupportLowerer {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
-        let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
+        let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: parameterCount)
         // Named vararg arguments contain arrays and use the same packing path
         // as explicit spread arguments. Ordinary named parameters remain scalar.
-        var spreadFlags = normalizeBoolFlags(spreadFlags, count: providedArguments.count)
+        var spreadFlags = OverloadResolver.normalizeFlags(spreadFlags, count: providedArguments.count)
         for (argIndex, paramIndex) in callBinding.parameterMapping
             where argumentLabels.indices.contains(argIndex)
             && argumentLabels[argIndex] != nil
@@ -572,7 +572,7 @@ final class CallSupportLowerer {
         {
             spreadFlags[argIndex] = true
         }
-        let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
+        let hasDefaultValues = OverloadResolver.normalizeFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
         let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
             chosenCallee,
             sema: sema,

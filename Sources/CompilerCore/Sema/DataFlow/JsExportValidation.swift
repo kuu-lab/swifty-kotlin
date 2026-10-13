@@ -250,9 +250,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        for member in symbols.allSymbols()
-            where symbols.parentSymbol(for: member.id) == classSymbol && member.visibility == .public
-        {
+        for memberID in symbols.children(of: classSymbol) {
+            guard let member = symbols.symbol(memberID), member.visibility == .public else { continue }
             switch member.kind {
             case .constructor:
                 guard let signature = symbols.functionSignature(for: member.id) else {
