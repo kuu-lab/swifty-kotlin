@@ -5,8 +5,6 @@ import Darwin
 import Glibc
 #endif
 
-// MARK: - Mutex (kotlinx.coroutines.sync.Mutex)
-
 /// Runtime backing for `kotlinx.coroutines.sync.Mutex`.
 ///
 /// A non-reentrant mutual exclusion lock with FIFO waiter ordering.
@@ -160,8 +158,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     }
 }
 
-// MARK: - Semaphore (kotlinx.coroutines.sync.Semaphore)
-
 /// Runtime backing for `kotlinx.coroutines.sync.Semaphore`.
 ///
 /// A counting semaphore with `permits` initial permits.  `acquire()` suspends
@@ -285,8 +281,6 @@ private func runtimeSyncContinuationIsCancelled(_ continuation: Int) -> Bool {
     }
     return job.cancellationSnapshot()
 }
-
-// MARK: - C ABI entry points
 
 @_cdecl("__kk_mutex_create")
 public func __kk_mutex_create() -> Int {
@@ -454,8 +448,6 @@ public func __kk_semaphore_availablePermits(_ handle: Int) -> Int {
 // public helpers Mutex.withLock / Semaphore.withPermit are Kotlin source
 // (Stdlib/kotlinx/coroutines/sync/Sync.kt) composing the c-soft kernel
 // primitives lock()/unlock() and acquire()/release().
-
-// MARK: - Lock.withLock { } (kotlin.concurrent.Lock.withLock)
 
 /// Runtime backing for `kotlin.concurrent.Lock.withLock { }`.
 ///

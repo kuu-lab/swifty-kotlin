@@ -12,8 +12,6 @@ import Foundation
 final class LibraryMetadataCache {
     init() {}
 
-    // MARK: - Manifest cache (libraryDir → single entry with mtime + target)
-
     private struct ManifestCacheEntry {
         let mtimeNanos: Int64
         let targetString: String
@@ -50,8 +48,6 @@ final class LibraryMetadataCache {
         manifestCache[libraryDir] = ManifestCacheEntry(mtimeNanos: mtime, targetString: targetStr, info: info)
     }
 
-    // MARK: - Metadata records cache (metadataPath → single entry with mtime + interner)
-
     private struct MetadataCacheEntry {
         let mtimeNanos: Int64
         let records: [DataFlowSemaPhase.ImportedLibrarySymbolRecord]
@@ -78,7 +74,7 @@ final class LibraryMetadataCache {
     func cachedMetadataRecords(metadataPath: String, interner: StringInterner) -> [DataFlowSemaPhase.ImportedLibrarySymbolRecord]? {
         let intID = ObjectIdentifier(interner)
         if currentInternerID != intID {
-            return nil // different interner — treat as miss
+            return nil
         }
         let mtime = Self.fileMtimeNanos(path: metadataPath)
         guard let entry = metadataCache[metadataPath],
@@ -121,8 +117,6 @@ final class LibraryMetadataCache {
         indexedMetadataCache[metadataPath] = IndexedMetadataCacheEntry(mtimeNanos: mtime, file: file)
     }
 
-    // MARK: - Type signature memoization (signature string + TypeSystem identity)
-
     /// TypeID values are indices into a specific TypeSystem's internal storage,
     /// and class-type signatures embed SymbolIDs from a specific SymbolTable.
     /// We must scope the signature cache per both TypeSystem and SymbolTable
@@ -146,12 +140,12 @@ final class LibraryMetadataCache {
         let tsID = ObjectIdentifier(types)
         let stID = ObjectIdentifier(symbols)
         if currentTypeSystemID != tsID || currentSymbolTableID != stID {
-            return nil // different TypeSystem or SymbolTable — treat as miss
+            return nil
         }
         guard let entry = signatureCache[signature] else {
-            return nil // cache miss — outer optional is nil
+            return nil
         }
-        return entry // cache hit — may be .some(nil) for previously-failed parses
+        return entry
     }
 
     /// Stores a type signature parse result (including `nil` for failures).
@@ -167,14 +161,10 @@ final class LibraryMetadataCache {
         signatureCache[signature] = result
     }
 
-    // MARK: - Statistics
-
-    /// Number of manifest cache entries.
     var manifestCacheCount: Int {
         manifestCache.count
     }
 
-    /// Number of metadata record cache entries.
     var metadataCacheCount: Int {
         metadataCache.count
     }
@@ -183,7 +173,6 @@ final class LibraryMetadataCache {
         indexedMetadataCache.count
     }
 
-    /// Number of cached type signature entries.
     var signatureCacheCount: Int {
         signatureCache.count
     }

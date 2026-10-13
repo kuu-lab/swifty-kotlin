@@ -102,6 +102,14 @@ public struct CompilerOptions: Equatable {
 
 ## J1.2 コンパイルの “単位”
 
+インクリメンタルコンパイルは既定でオフ。CLI の `--incremental` は
+`incremental` frontend flag、`--incremental-cache <path>` は
+`incrementalCachePath` を設定し、それぞれ単独で有効化する。
+`--no-incremental` は `no-incremental` frontend flag を設定し、指定順に関係なく
+有効化 flag と保存先指定に優先する。Driver は無効化時にキャッシュを読み書きしない。
+`-Xfrontend incremental` は互換のため引き続き利用可能。
+詳細と既定オフを維持する根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
+
 * **CompilationSession**: 1回の `kswiftc` 実行
 * **Module**: Kotlin の “名前空間 + 生成物” 単位（`moduleName`）
 * **Library**: 別 Module を import 可能にする配布形態（Doc J12）
@@ -989,7 +997,8 @@ hard error; the compiler does not fall back to injecting bundled sources.
 ## J15.1 依存と目標
 
 * Swift から LLVM C API を呼ぶ（modulemap + SwiftPM）。
-* 出力：object（.o）または LLVM IR（.ll）。executable では `LinkPhase` が `swiftc` を呼ぶ。
+* 出力：object（.o）または LLVM IR（.ll）。executable の macOS 通常リンクは `swiftc -###` で取得した単一 clang ジョブを直接実行する。引数は `.runtime-build/link-plans/` に保存し、ターゲット・ドライバ・Xcode 選択・SDK・互換ライブラリの指紋で再検証する。初回はドライバ照会が必要。debug（dSYM 生成を含む）・Linux・未対応のドライバ出力・キャッシュ取得失敗では `swiftc` を呼ぶ。
+* Runtime object 探索はリンクごとにパッケージ検証とソース指紋の計算を一度行い、同じ結果から scratch/manifest/build パスを組み立てる。完了 manifest・object の存在検証・ビルドロックは維持する。
 * `LLVMBackend` は `CompilerBackend` target 内部型であり、`CompilerCore` の public API にはしない。
 
 ## J15.2 Backend の主要型

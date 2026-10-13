@@ -633,8 +633,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_lastIndexOf")
             case interner.intern("indexOfLast"):
                 return interner.intern("kk_sequence_indexOfLast")
-            case interner.intern("intersect"):
-                return interner.intern("kk_sequence_intersect")
             case interner.intern("elementAt"):
                 return interner.intern("kk_sequence_elementAt")
             case interner.intern("elementAtOrNull"):
@@ -681,10 +679,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_plus_element")
             case interner.intern("minus"), interner.intern("minusElement"):
                 return interner.intern("kk_sequence_minus")
-            case interner.intern("union"):
-                return interner.intern("kk_sequence_union")
-            case interner.intern("subtract"):
-                return interner.intern("kk_sequence_subtract")
             case interner.intern("ifEmpty"):
                 return interner.intern("kk_sequence_ifEmpty")
             case firstName:

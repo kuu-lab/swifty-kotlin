@@ -1,6 +1,5 @@
 
 extension CallLowerer {
-    // MARK: - Binary Operations
 
     func lowerBinaryExpr(
         _ exprID: ExprID,

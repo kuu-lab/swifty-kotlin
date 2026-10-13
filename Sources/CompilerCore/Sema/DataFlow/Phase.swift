@@ -1,4 +1,5 @@
 import Foundation
+import Dispatch
 
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
@@ -14,6 +15,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             throw CompilerPipelineError.invalidInput("No AST available for semantic analysis.")
         }
 
+        let setupStart = ctx.phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
+
         let symbols = SymbolTable()
         let types = TypeSystem()
         types.symbolTable = symbols
@@ -25,13 +28,15 @@ final class DataFlowSemaPhase: CompilerPhase {
         // initializer directly (see SemaModule.bundledIndex) rather than set
         // via a later mutation, matching the existing importedInlineFunctions
         // constructor-parameter convention.
-        var bundledIndex = BundledDeclarationIndex.build(
-            ast: ast,
-            symbols: symbols,
-            types: types,
-            sourceManager: ctx.sourceManager,
-            interner: ctx.interner
-        )
+        var bundledIndex = withSubPhaseTiming("buildBundledIndex", timer: ctx.phaseTimer) {
+            BundledDeclarationIndex.build(
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                sourceManager: ctx.sourceManager,
+                interner: ctx.interner
+            )
+        }
         let sema = SemaModule(
             symbols: symbols, types: types,
             bindings: bindings, diagnostics: ctx.diagnostics,
@@ -40,7 +45,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
-        let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
+        let (importedInlineFunctions, importDeferredWork) = withSubPhaseTiming("loadImports", timer: ctx.phaseTimer) {
+            loadImports(ctx: ctx, symbols: symbols, types: types)
+        }
         sema.importedInlineFunctions = importedInlineFunctions
         sema.klibModules = importDeferredWork.klibModules
         importDeferredWork.lazyLoaderState?.descriptorSink = { [weak sema] symbol, descriptor in
@@ -56,192 +63,197 @@ final class DataFlowSemaPhase: CompilerPhase {
         // a prebuilt library is used instead, `loadImports` above already defined
         // the real symbols, so this pass simply finds nothing to do.
         var predeclaredEarlyHeaders: [DeclID: SymbolID] = [:]
-        predeclareBundledTupleHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        predeclareBundledSetHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        predeclareBundledMapHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1520: `Comparator.kt` is source-backed, but comparator-typed
-        // synthetic signatures are registered before the normal bundled header
-        // collection pass. Predeclare its nominal so those signatures resolve
-        // without a synthetic Comparator anchor.
-        predeclareBundledComparatorHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1517: `Array<T>`/primitive array class shells are source-backed
-        // in `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
-        // `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
-        // before the normal bundled header collection pass.
-        predeclareBundledArrayHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols, types: types,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
-        // extension bridges need the source symbol before synthetic
-        // registration constructs their signatures.
-        predeclareBundledStringEncodingHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-717: `Locale.kt` owns `java.util.Locale`.  The source-backed
-        // String.Companion.format(locale, ...) bridge is collected after this
-        // predeclaration, so its signature can resolve the nominal type.
-        predeclareBundledJavaUtilLocaleHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1522: bundled collection and interop headers refer to the
-        // source-backed Random types while synthetic members are registered.
-        // Forward-declare those real nominal headers before the synthetic pass
-        // so this ordering does not require placeholder anchors.
-        predeclareBundledRandomHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1210: Platform.osFamily is typed against the source-backed
-        // OsFamily enum before the native platform property stubs are built.
-        predeclareBundledOsFamilyHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        predeclareBundledMemoryUsageHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1198: Platform.cpuArchitecture is typed against the
-        // source-backed CpuArchitecture enum before native platform stubs run.
-        predeclareBundledCpuArchitectureHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        predeclareBundledAnnotationHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1472: ExperimentalTime is source-backed, but the opt-in bootstrap
-        // registers its constructor and metadata before ordinary bundled headers.
-        // Claim the real annotation header first so that bootstrap can augment it
-        // instead of creating a second annotation class with the same FQName.
-        predeclareBundledExperimentalTimeHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1337: make the source-backed KVariance enum available before
-        // reflection synthetic stubs construct signatures that reference it.
-        predeclareBundledKVarianceHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1334: make the source-backed KTypeProjection nominal available
-        // before reflection synthetic stubs attach its residual properties.
-        predeclareBundledKTypeProjectionHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1323: make the source-backed kotlin.reflect nominal types
-        // available before reflection synthetic stubs attach their residual
-        // constructors, members, and marker-interface supertypes.
-        predeclareBundledReflectTopLevelHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1150: make the source-backed CancellationException nominal
-        // available before coroutine residual stubs are registered. This lets
-        // the residual pass retain its no-stdlib fallback without recreating
-        // the bundled class or its constructors.
-        predeclareBundledCancellationExceptionHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        predeclareBundledGCInfoHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
-        )
-        // KSP-1269: make the source-backed RootSetStatistics nominal available
-        // before NativeRuntime residual stubs register its remaining members.
-        predeclareBundledRootSetStatisticsHeaders(
-            ast: ast, fileScopes: fileScopes, symbols: symbols,
-            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        withSubPhaseTiming("predeclareBundledHeaders", timer: ctx.phaseTimer) {
+            predeclareBundledTupleHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            predeclareBundledSetHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            predeclareBundledMapHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1520: `Comparator.kt` is source-backed, but comparator-typed
+            // synthetic signatures are registered before the normal bundled header
+            // collection pass. Predeclare its nominal so those signatures resolve
+            // without a synthetic Comparator anchor.
+            predeclareBundledComparatorHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1517: `Array<T>`/primitive array class shells are source-backed
+            // in `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
+            // `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
+            // before the normal bundled header collection pass.
+            predeclareBundledArrayHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols, types: types,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
+            // extension bridges need the source symbol before synthetic
+            // registration constructs their signatures.
+            predeclareBundledStringEncodingHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-717: `Locale.kt` owns `java.util.Locale`.  The source-backed
+            // String.Companion.format(locale, ...) bridge is collected after this
+            // predeclaration, so its signature can resolve the nominal type.
+            predeclareBundledJavaUtilLocaleHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1522: bundled collection and interop headers refer to the
+            // source-backed Random types while synthetic members are registered.
+            // Forward-declare those real nominal headers before the synthetic pass
+            // so this ordering does not require placeholder anchors.
+            predeclareBundledRandomHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1210: Platform.osFamily is typed against the source-backed
+            // OsFamily enum before the native platform property stubs are built.
+            predeclareBundledOsFamilyHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            predeclareBundledMemoryUsageHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1198: Platform.cpuArchitecture is typed against the
+            // source-backed CpuArchitecture enum before native platform stubs run.
+            predeclareBundledCpuArchitectureHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            predeclareBundledAnnotationHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1472: ExperimentalTime is source-backed, but the opt-in bootstrap
+            // registers its constructor and metadata before ordinary bundled headers.
+            // Claim the real annotation header first so that bootstrap can augment it
+            // instead of creating a second annotation class with the same FQName.
+            predeclareBundledExperimentalTimeHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1337: make the source-backed KVariance enum available before
+            // reflection synthetic stubs construct signatures that reference it.
+            predeclareBundledKVarianceHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1334: make the source-backed KTypeProjection nominal available
+            // before reflection synthetic stubs attach its residual properties.
+            predeclareBundledKTypeProjectionHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1323: make the source-backed kotlin.reflect nominal types
+            // available before reflection synthetic stubs attach their residual
+            // constructors, members, and marker-interface supertypes.
+            predeclareBundledReflectTopLevelHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1150: make the source-backed CancellationException nominal
+            // available before coroutine residual stubs are registered. This lets
+            // the residual pass retain its no-stdlib fallback without recreating
+            // the bundled class or its constructors.
+            predeclareBundledCancellationExceptionHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            predeclareBundledGCInfoHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+            // KSP-1269: make the source-backed RootSetStatistics nominal available
+            // before NativeRuntime residual stubs register its remaining members.
+            predeclareBundledRootSetStatisticsHeaders(
+                ast: ast, fileScopes: fileScopes, symbols: symbols,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+                interner: ctx.interner, into: &predeclaredEarlyHeaders
+            )
+        }
+        withSubPhaseTiming("mergeImportedStdlibSymbolsIntoBundledIndex", timer: ctx.phaseTimer) {
+            if let stdlibModuleName = importDeferredWork.stdlibModuleName {
+                bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
+                    bundledIndex: bundledIndex,
+                    stdlibModuleName: stdlibModuleName,
+                    symbols: symbols,
+                    types: types,
+                    interner: ctx.interner
+                )
+                importDeferredWork.lazyLoaderState?.bundledIndex = bundledIndex
+                // STDLIB-SHARED-002: SemaModule was created before imported symbols were
+                // merged into the bundled index, so update it before any type-checker
+                // queries rely on source-backed stdlib declarations.
+                sema.bundledIndex = bundledIndex
+            }
+        }
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
         )
 
-        if let stdlibModuleName = importDeferredWork.stdlibModuleName {
-            bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
-                bundledIndex: bundledIndex,
-                stdlibModuleName: stdlibModuleName,
+        withSubPhaseTiming("registerSyntheticDelegateStubs", timer: ctx.phaseTimer) {
+            registerSyntheticDelegateStubs(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner,
+                bundledIndex: bundledIndex
+            )
+        }
+        // Apply imported class/interface layouts after synthetic bootstrap
+        // registration and before bundled source headers are collected, so
+        // imported vtable/itable slots can resolve against final symbols.
+        withSubPhaseTiming("applyImportedLibraryDeferredWork", timer: ctx.phaseTimer) {
+            applyImportedLibraryDeferredWork(
+                importDeferredWork,
+                symbols: symbols,
+                types: types,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                bundledIndex: bundledIndex
+            )
+            normalizeImportedLibraryMemberSignatures(
+                importDeferredWork,
+                symbols: symbols,
+                types: types,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner
+            )
+            initializeSourceBackedCloseableTypes(
                 symbols: symbols,
                 types: types,
                 interner: ctx.interner
             )
-            importDeferredWork.lazyLoaderState?.bundledIndex = bundledIndex
-            // STDLIB-SHARED-002: SemaModule was created before imported symbols were
-            // merged into the bundled index, so update it before any type-checker
-            // queries rely on source-backed stdlib declarations.
-            sema.bundledIndex = bundledIndex
         }
-
-        initializeSourceBackedCloseableTypes(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
-
-        registerSyntheticDelegateStubs(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner,
-            bundledIndex: bundledIndex
-        )
-
-        // Apply imported class/interface layouts after synthetic bootstrap
-        // registration and before bundled source headers are collected, so
-        // imported vtable/itable slots can resolve against final symbols.
-        applyImportedLibraryDeferredWork(
-            importDeferredWork,
-            symbols: symbols,
-            types: types,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner,
-            bundledIndex: bundledIndex
-        )
-        normalizeImportedLibraryMemberSignatures(
-            importDeferredWork,
-            symbols: symbols,
-            types: types,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
-        initializeSourceBackedCloseableTypes(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         // Enum header synthesis runs during bundled header collection rather
@@ -249,11 +261,18 @@ final class DataFlowSemaPhase: CompilerPhase {
         // while headers are collected for source-backed enum API skip guards.
         let previousBundledIndex = BundledSyntheticStubRegistration.bundledIndex
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
-        collectAllHeaders(
-            ast: ast, fileScopes: fileScopes,
-            symbols: symbols, types: types, bindings: bindings, ctx: ctx,
-            predeclared: predeclaredEarlyHeaders
-        )
+        if let setupStart {
+            ctx.phaseTimer?.recordSubPhase(
+                "sema-setup", startTime: setupStart, endTime: DispatchTime.now().uptimeNanoseconds
+            )
+        }
+        withSubPhaseTiming("collectAllHeaders", timer: ctx.phaseTimer) {
+            collectAllHeaders(
+                ast: ast, fileScopes: fileScopes,
+                symbols: symbols, types: types, bindings: bindings, ctx: ctx,
+                predeclared: predeclaredEarlyHeaders
+            )
+        }
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
         patchSourceBackedNativeUnhandledExceptionHookContract(
             symbols: symbols,
@@ -347,7 +366,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         // already cleared by `registerSyntheticDelegateStubs`'s own `defer`
         // once header registration finished.
         sema.bundledIndex = bundledIndex
-        runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
+        withSubPhaseTiming("runValidationPasses", timer: ctx.phaseTimer) {
+            runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
+        }
         patchSourceBackedPreconditionContractEffects(
             symbols: symbols,
             types: types,
@@ -361,8 +382,9 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner,
             sourceManager: ctx.sourceManager
         )
-        runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
-
+        withSubPhaseTiming("runBodyAnalysis", timer: ctx.phaseTimer) {
+            runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
+        }
         ctx.storeSema(sema)
     }
 
@@ -387,7 +409,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
-            importedInlineFunctions: importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions,
+            phaseTimer: ctx.phaseTimer
         )
         return (importedInlineFunctions, deferredWork)
     }
@@ -410,9 +433,38 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
+        // Resolve each nominal FQName once, including receivers from other
+        // modules and names shared with package records. Successful lookups
+        // remain valid because new symbols append after existing candidates.
+        var nominalSymbols: [[InternedString]: SymbolID] = [:]
+        var missingNominals: [[InternedString]: Int] = [:]
+        func nominalSymbol(for fqName: [InternedString]) -> SymbolID? {
+            if let cached = nominalSymbols[fqName] { return cached }
+            // Eager signature queries can create nominal placeholders while
+            // merging. Retry misses after the symbol table grows.
+            let symbolCount = symbols.count
+            if missingNominals[fqName] == symbolCount { return nil }
+            if let owner = symbols.lookupAll(fqName: fqName).first(where: { id in
+                switch symbols.symbol(id)?.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass: true
+                default: false
+                }
+            }) {
+                nominalSymbols[fqName] = owner
+                return owner
+            }
+            missingNominals[fqName] = symbolCount
+            return nil
+        }
+
         var importedStdlibKeys: Set<BundledMemberKey> = []
-        for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
-            guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+        var retainedOverlaps: [BundledMemberKey: Bool] = [:]
+        // Imports can claim existing symbols out of definition order. Keep
+        // allSymbols' original order so lazy placeholder creation has the
+        // same effect on subsequent parent fixups.
+        let moduleSymbols = symbols.symbols(inModule: stdlibModuleName).sorted { $0.rawValue < $1.rawValue }
+        for id in moduleSymbols {
+            guard let symbol = symbols.symbol(id), symbol.flags.contains(.importedLibrary) else { continue }
             // `memberKey` answers arity/receiver-owner from the compact
             // `ImportedMemberIndexShape` when the symbol is an unmaterialized
             // lazy shell, so this scan does not decode declaration bodies.
@@ -432,45 +484,32 @@ final class DataFlowSemaPhase: CompilerPhase {
             // the extension receiver would erase the dispatch receiver owner
             // member-extension calls need for the [dispatch, extension, args]
             // calling convention.
-            guard symbol.kind == .function,
-                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
-            else { continue }
-            let declaringOwnerFQName = Array(symbol.fqName.dropLast())
-            let declaringOwnerIsNominal = symbols.lookupAll(fqName: declaringOwnerFQName)
-                .compactMap { symbols.symbol($0) }
-                .contains { owner in
-                    switch owner.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass: true
-                    default: false
-                    }
-                }
-            if declaringOwnerIsNominal {
-                continue
-            }
-            if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
+            guard symbol.kind == .function else { continue }
+            let receiverSymbol: SymbolID
+            if let shape = symbols.importedMemberIndexShape(for: symbol.id) {
                 // Lazy shells carry the receiver's nominal FQ name in the
                 // compact index, so the parent edge is restored without
-                // materializing the callable signature.
-                if let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
-                    guard let candidateSymbol = symbols.symbol(candidate) else { return false }
-                    switch candidateSymbol.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass:
-                        return true
-                    default:
-                        return false
-                    }
-                }) {
-                    symbols.setParentSymbol(receiverSymbol, for: symbol.id)
-                }
-            } else if symbols.importedMemberIndexShape(for: symbol.id) == nil,
-                      let signature = symbols.functionSignature(for: symbol.id),
-                      let receiverType = signature.receiverType,
-                      let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
-                          for: receiverType,
-                          types: types
-                      ) {
-                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+                // materializing the callable signature. Most functions have
+                // no extension receiver and need no parent fixup at all.
+                guard let receiverFQName = shape.receiverOwnerFQName,
+                      let owner = nominalSymbol(for: receiverFQName) else { continue }
+                receiverSymbol = owner
+            } else {
+                guard let receiverType = symbols.functionSignature(for: symbol.id)?.receiverType,
+                      let owner = BundledDeclarationIndex.receiverOwnerSymbol(for: receiverType, types: types)
+                else { continue }
+                receiverSymbol = owner
             }
+            guard nominalSymbol(for: Array(symbol.fqName.dropLast())) == nil else { continue }
+            let retained: Bool
+            if let cached = retainedOverlaps[key] {
+                retained = cached
+            } else {
+                retained = BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
+                retainedOverlaps[key] = retained
+            }
+            guard !retained else { continue }
+            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
@@ -574,139 +613,193 @@ final class DataFlowSemaPhase: CompilerPhase {
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
         types: TypeSystem, ctx: CompilationContext
     ) {
-        bindInheritanceEdges(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        registerChannelSendChannelSubtype(symbols: symbols, types: types, interner: ctx.interner)
+        withSubPhaseTiming("bindInheritanceEdges", timer: ctx.phaseTimer) {
+            bindInheritanceEdges(
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("registerChannelSendChannelSubtype", timer: ctx.phaseTimer) {
+            registerChannelSendChannelSubtype(symbols: symbols, types: types, interner: ctx.interner)
+        }
         // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
         // kotlin.Annotation source, because its source declaration has no
         // explicit supertype clause and would otherwise erase the synthetic
         // supertype installed by registerSyntheticAnyStub.
-        patchBundledAnnotationSupertype(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
+        withSubPhaseTiming("patchBundledAnnotationSupertype", timer: ctx.phaseTimer) {
+            patchBundledAnnotationSupertype(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+        }
         // KSP-944: MutableList's source declaration owns its official
         // List/MutableCollection edges, while the retained compiler shell
         // still supplies the MutableIterable residual compatibility edge.
-        patchSourceBackedMutableListSupertypes(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
-        registerAllEnumEntryDispatchFunctions(
-            ast: ast,
-            bindings: bindings,
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
-        validateTypeParameterUpperBounds(
-            symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
-        )
-        validateTypeAliasCycles(
-            symbols: symbols, types: types, diagnostics: ctx.diagnostics
-        )
-        validateSealedHierarchy(
-            ast: ast, symbols: symbols, bindings: bindings,
-            diagnostics: ctx.diagnostics, interner: ctx.interner, sourceManager: ctx.sourceManager
-        )
-        validateClassDelegation(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        validateAbstractOverrides(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        validateDiamondOverrides(
-            ast: ast, symbols: symbols, bindings: bindings,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        validateOpenFinalOverride(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner,
-            compilationModuleName: ctx.options.moduleName
-        )
-        validateExpectActualMatching(
-            ast: ast,
-            symbols: symbols,
-            types: types,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner,
-            commonModuleMode: ctx.options.isCommonModule
-        )
-        validateAnnotationTargets(
-            ast: ast,
-            symbols: symbols,
-            bindings: bindings,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
-        validateJsExportDeclarations(
-            ast: ast,
-            symbols: symbols,
-            bindings: bindings,
-            types: types,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner,
-            globalOptInMarkerNames: ctx.options.optInMarkerNames
-        )
-        validateJsStaticDeclarations(
-            ast: ast,
-            symbols: symbols,
-            bindings: bindings,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner,
-            globalOptInMarkerNames: ctx.options.optInMarkerNames
-        )
-        validateExperimentalTypeInferenceOptIn(
-            ast: ast,
-            symbols: symbols,
-            bindings: bindings,
-            diagnostics: ctx.diagnostics
-        )
-        validateExperimentalVersionOverloadingOptIn(
-            ast: ast,
-            symbols: symbols,
-            bindings: bindings,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner,
-            options: ctx.options
-        )
-        validateConstructorDelegation(ast: ast, symbols: symbols, diagnostics: ctx.diagnostics)
-        validateDeclarationPositions(
-            ast: ast, symbols: symbols, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner,
-            sourceManager: ctx.sourceManager
-        )
-        validateDeclarationSiteVariance(
-            ast: ast, symbols: symbols, bindings: bindings,
-            types: types, diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        synthesizeClassDelegationForwardingMethodSymbols(
-            ast: ast, symbols: symbols, bindings: bindings,
-            types: types, interner: ctx.interner
-        )
+        withSubPhaseTiming("patchSourceBackedMutableListSupertypes", timer: ctx.phaseTimer) {
+            patchSourceBackedMutableListSupertypes(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("registerAllEnumEntryDispatchFunctions", timer: ctx.phaseTimer) {
+            registerAllEnumEntryDispatchFunctions(
+                ast: ast,
+                bindings: bindings,
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("validateTypeParameterUpperBounds", timer: ctx.phaseTimer) {
+            validateTypeParameterUpperBounds(
+                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+            )
+        }
+        withSubPhaseTiming("validateTypeAliasCycles", timer: ctx.phaseTimer) {
+            validateTypeAliasCycles(
+                symbols: symbols, types: types, diagnostics: ctx.diagnostics
+            )
+        }
+        withSubPhaseTiming("validateSealedHierarchy", timer: ctx.phaseTimer) {
+            validateSealedHierarchy(
+                ast: ast, symbols: symbols, bindings: bindings,
+                diagnostics: ctx.diagnostics, interner: ctx.interner, sourceManager: ctx.sourceManager
+            )
+        }
+        withSubPhaseTiming("validateClassDelegation", timer: ctx.phaseTimer) {
+            validateClassDelegation(
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("validateAbstractOverrides", timer: ctx.phaseTimer) {
+            validateAbstractOverrides(
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("validateDiamondOverrides", timer: ctx.phaseTimer) {
+            validateDiamondOverrides(
+                ast: ast, symbols: symbols, bindings: bindings,
+                diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
+            validateOpenFinalOverride(
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                compilationModuleName: ctx.options.moduleName
+            )
+        }
+        withSubPhaseTiming("validateExpectActualMatching", timer: ctx.phaseTimer) {
+            validateExpectActualMatching(
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                commonModuleMode: ctx.options.isCommonModule
+            )
+        }
+        withSubPhaseTiming("validateAnnotationTargets", timer: ctx.phaseTimer) {
+            validateAnnotationTargets(
+                ast: ast,
+                symbols: symbols,
+                bindings: bindings,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("validateJsExportDeclarations", timer: ctx.phaseTimer) {
+            validateJsExportDeclarations(
+                ast: ast,
+                symbols: symbols,
+                bindings: bindings,
+                types: types,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                globalOptInMarkerNames: ctx.options.optInMarkerNames
+            )
+        }
+        withSubPhaseTiming("validateJsStaticDeclarations", timer: ctx.phaseTimer) {
+            validateJsStaticDeclarations(
+                ast: ast,
+                symbols: symbols,
+                bindings: bindings,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                globalOptInMarkerNames: ctx.options.optInMarkerNames
+            )
+        }
+        withSubPhaseTiming("validateExperimentalTypeInferenceOptIn", timer: ctx.phaseTimer) {
+            validateExperimentalTypeInferenceOptIn(
+                ast: ast,
+                symbols: symbols,
+                bindings: bindings,
+                diagnostics: ctx.diagnostics
+            )
+        }
+        withSubPhaseTiming("validateExperimentalVersionOverloadingOptIn", timer: ctx.phaseTimer) {
+            validateExperimentalVersionOverloadingOptIn(
+                ast: ast,
+                symbols: symbols,
+                bindings: bindings,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                options: ctx.options
+            )
+        }
+        withSubPhaseTiming("validateConstructorDelegation", timer: ctx.phaseTimer) {
+            validateConstructorDelegation(ast: ast, symbols: symbols, diagnostics: ctx.diagnostics)
+        }
+        withSubPhaseTiming("validateDeclarationPositions", timer: ctx.phaseTimer) {
+            validateDeclarationPositions(
+                ast: ast, symbols: symbols, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                sourceManager: ctx.sourceManager
+            )
+        }
+        withSubPhaseTiming("validateDeclarationSiteVariance", timer: ctx.phaseTimer) {
+            validateDeclarationSiteVariance(
+                ast: ast, symbols: symbols, bindings: bindings,
+                types: types, diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
+        withSubPhaseTiming("synthesizeClassDelegationForwardingMethodSymbols", timer: ctx.phaseTimer) {
+            synthesizeClassDelegationForwardingMethodSymbols(
+                ast: ast, symbols: symbols, bindings: bindings,
+                types: types, interner: ctx.interner
+            )
+        }
         // KUU-655: after delegation forwarders exist (so a `by`-delegated
         // interface method's forwarder inherits its defaults too), before
         // vtable/itable layout (layout only keys off arity/suspend, not
         // default flags, so ordering relative to it doesn't matter).
-        inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
-        inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
-        inheritInfixModifierForOverrides(symbols: symbols, types: types)
-        synthesizeNominalLayouts(
-            symbols: symbols, types: types,
-            interner: ctx.interner, diagnostics: ctx.diagnostics
-        )
-        attachCompilerMetadataAnnotations(
-            symbols: symbols,
-            types: types,
-            moduleName: ctx.options.moduleName,
-            interner: ctx.interner
-        )
+        withSubPhaseTiming("inheritDefaultArgumentValuesForOverrides", timer: ctx.phaseTimer) {
+            inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+        }
+        withSubPhaseTiming("inheritOperatorModifierForOverrides", timer: ctx.phaseTimer) {
+            inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
+        }
+        withSubPhaseTiming("inheritInfixModifierForOverrides", timer: ctx.phaseTimer) {
+            inheritInfixModifierForOverrides(symbols: symbols, types: types)
+        }
+        withSubPhaseTiming("synthesizeNominalLayouts", timer: ctx.phaseTimer) {
+            synthesizeNominalLayouts(
+                symbols: symbols, types: types,
+                interner: ctx.interner, diagnostics: ctx.diagnostics
+            )
+        }
+        withSubPhaseTiming("attachCompilerMetadataAnnotations", timer: ctx.phaseTimer) {
+            attachCompilerMetadataAnnotations(
+                symbols: symbols,
+                types: types,
+                moduleName: ctx.options.moduleName,
+                interner: ctx.interner
+            )
+        }
     }
 
     private func runBodyAnalysis(

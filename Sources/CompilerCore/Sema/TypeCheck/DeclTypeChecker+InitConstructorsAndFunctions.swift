@@ -193,7 +193,9 @@ extension DeclTypeChecker {
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
             .filter { candidate in
                 guard let candidateInfo = sema.symbols.symbol(candidate) else { return false }
-                return candidateInfo.kind == .constructor && candidate != primaryCtorSymbol.id
+                return candidateInfo.kind == .constructor
+                    && sema.symbols.parentSymbol(for: candidate) == superclassSymbol
+                    && candidate != primaryCtorSymbol.id
             }
         guard !candidates.isEmpty else { return }
 
@@ -266,7 +268,7 @@ extension DeclTypeChecker {
         }
         var resolved = resolveArguments(prepared.argTypes)
         var callArgs = zip(args, prepared.argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         if resolved.diagnostic != nil,
            reinferConstructorDelegationArguments(
@@ -294,7 +296,16 @@ extension DeclTypeChecker {
         sema.symbols.directSupertypes(for: symbol).first {
             let kind = sema.symbols.symbol($0)?.kind
             return kind == .class || kind == .enumClass
+        }.map { linkedActualConstructorOwner($0, sema: sema) }
+    }
+
+    private func linkedActualConstructorOwner(_ owner: SymbolID, sema: SemaModule) -> SymbolID {
+        guard let actual = sema.symbols.actualSymbol(for: owner),
+              sema.symbols.symbol(actual)?.kind == sema.symbols.symbol(owner)?.kind
+        else {
+            return owner
         }
+        return actual
     }
 
     /// Returns the class-kind superclass written in the source header.
@@ -337,8 +348,6 @@ extension DeclTypeChecker {
         }
         return nil
     }
-
-    // MARK: - Init Block & Secondary Constructor Type Checking
 
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`
     /// to property initializers and `init {}` blocks only — not to regular
@@ -487,6 +496,11 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         guard let delegation = ctor.delegationCall else { return }
 
+        // Resolve candidates and their expected superclass type with the same owner.
+        let explicitSuperclassSymbol = explicitSuperclassSymbol.map { superclass in
+            linkedActualConstructorOwner(superclass, sema: sema)
+        }
+        let targetOwner = delegation.kind == .this ? ownerSymbol : explicitSuperclassSymbol
         let delegationTargetFQName = resolveDelegationTarget(
             delegation: delegation,
             ownerSymbol: ownerSymbol,
@@ -498,7 +512,9 @@ extension DeclTypeChecker {
             let candidates = sema.symbols.lookupAll(fqName: delegationTargetFQName)
                 .filter { candidate in
                     guard let symbol = sema.symbols.symbol(candidate) else { return false }
-                    return symbol.kind == .constructor && candidate != currentCtorSymbolID
+                    return symbol.kind == .constructor
+                        && sema.symbols.parentSymbol(for: candidate) == targetOwner
+                        && candidate != currentCtorSymbolID
                 }
 
             if candidates.isEmpty {
@@ -611,7 +627,7 @@ extension DeclTypeChecker {
                   )
             else { continue }
             let type = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: argumentExpectedType)
-            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             didReinfer = true
         }
         return didReinfer
@@ -641,8 +657,15 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID? {
         guard let ownerSymbol, let superclassSymbol else { return nil }
+        let directSupertypes = ctx.sema.symbols.directSupertypes(for: ownerSymbol)
+        // Local classes and object literals can retain the expect edge's key.
+        let registeredSuperclass = directSupertypes.contains(superclassSymbol)
+            ? superclassSymbol
+            : directSupertypes.first {
+                linkedActualConstructorOwner($0, sema: ctx.sema) == superclassSymbol
+            } ?? superclassSymbol
         let typeArguments = ctx.sema.symbols.supertypeTypeArgs(
-            for: ownerSymbol, supertype: superclassSymbol
+            for: ownerSymbol, supertype: registeredSuperclass
         )
         return ctx.sema.types.make(.classType(ClassType(
             classSymbol: superclassSymbol,
@@ -686,8 +709,6 @@ extension DeclTypeChecker {
         )
     }
 
-    // MARK: - Function Declaration Type Checking
-
     /// - Parameter baseLocals: Seeds the function body's local-name resolution
     ///   with bindings from an enclosing scope. Empty for ordinary member
     ///   functions (a named class has no enclosing local scope to capture).
@@ -702,6 +723,28 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let tracksInferredFunction = driver.inferredReturnFunctions[symbol] != nil
+        if tracksInferredFunction {
+            guard !driver.checkedInferredReturnFunctions.contains(symbol),
+                  driver.checkingInferredReturnFunctions.insert(symbol).inserted
+            else { return }
+            driver.deferredInferredReturnFunctions.remove(symbol)
+        }
+        defer {
+            if tracksInferredFunction {
+                driver.checkingInferredReturnFunctions.remove(symbol)
+                // Speculative callers may roll diagnostics back. Declarations
+                // with their own diagnostics need an authoritative recheck.
+                if !diagnostics.hasError,
+                   !driver.deferredInferredReturnFunctions.contains(symbol),
+                   !diagnostics.diagnostics.contains(where: {
+                       $0.primaryRange.map(function.range.contains) ?? true
+                   })
+                {
+                    driver.checkedInferredReturnFunctions.insert(symbol)
+                }
+            }
+        }
         let sema = ctx.sema
         guard let signature = sema.symbols.functionSignature(for: symbol) else {
             return
@@ -1002,15 +1045,21 @@ extension DeclTypeChecker {
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: signature.receiverType,
+                    contextReceiverTypes: signature.contextReceiverTypes,
                     parameterTypes: signature.parameterTypes,
                     returnType: bodyType,
                     isSuspend: signature.isSuspend,
+                    canThrow: signature.canThrow,
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                    hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
                     typeParameterSymbols: signature.typeParameterSymbols,
-                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
+                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                    typeParameterUpperBounds: signature.typeParameterUpperBounds,
+                    typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                    classTypeParameterCount: signature.classTypeParameterCount
                 ),
                 for: symbol
             )
@@ -1138,7 +1187,7 @@ extension DeclTypeChecker {
                 returnsValue = boolValue
                 returnCondition = boolValue ? .returnsTrue : .returnsFalse
             } else if returnsArgs.count == 1,
-                      isNullLiteralExpr(returnsArgs[0].expr, ast: ast, interner: interner)
+                      isNullLiteralExpr(returnsArgs[0].expr, ast: ast)
             {
                 returnsValue = nil
                 returnCondition = .returnsNull
@@ -1307,12 +1356,12 @@ extension DeclTypeChecker {
         if case let .binary(.notEqual, lhsExprID, rhsExprID, _) = conditionExpr {
             let parameterName: InternedString? = if let lhsExpr = ast.arena.expr(lhsExprID),
                                                     case let .nameRef(name, _) = lhsExpr,
-                                                    isNullLiteralExpr(rhsExprID, ast: ast, interner: interner)
+                                                    isNullLiteralExpr(rhsExprID, ast: ast)
             {
                 name
             } else if let rhsExpr = ast.arena.expr(rhsExprID),
                       case let .nameRef(name, _) = rhsExpr,
-                      isNullLiteralExpr(lhsExprID, ast: ast, interner: interner)
+                      isNullLiteralExpr(lhsExprID, ast: ast)
             {
                 name
             } else {
@@ -1425,8 +1474,7 @@ extension DeclTypeChecker {
 
     private func isNullLiteralExpr(
         _ exprID: ExprID,
-        ast: ASTModule,
-        interner: StringInterner
+        ast: ASTModule
     ) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
         if case .nullLiteral = expr {

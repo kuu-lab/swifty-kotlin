@@ -35,7 +35,6 @@ func runtimePrimitiveCompareKind(from raw: Int32) -> RuntimePrimitiveCompareKind
     }
 }
 
-// MARK: - kotlin.text.CASE_INSENSITIVE_ORDER (STDLIB-TEXT-TYPE-004)
 
 private final class RuntimeCaseInsensitiveStringComparatorBox {}
 
@@ -88,7 +87,6 @@ public func __kk_string_case_insensitive_order() -> Int {
     return raw
 }
 
-// MARK: - Generic comparison core
 
 func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     let aIsNull = (a == runtimeNullSentinelInt)

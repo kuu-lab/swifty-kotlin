@@ -38,6 +38,11 @@ jobs:
         run: |
           python3 Scripts/check_atomicfu_api_reference.py
           python3 Tests/Scripts/test_atomicfu_api_index.py
+      - name: Verify JS annotation candidate-only runners
+        run: |
+          python3 Scripts/js_annotations/test_run_candidate.py
+          python3 Scripts/js_annotations/test_run_matrix.py
+          python3 Scripts/js_annotations/test_summarize_evidence.py
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Check for duplicate TODO task IDs

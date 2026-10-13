@@ -1,6 +1,8 @@
 public struct CallArg {
     public let label: InternedString?
     public let isSpread: Bool
+    /// True only for a lambda written outside the call parentheses.
+    public let isTrailingLambda: Bool
     public let type: TypeID
     /// Keep a literal's value until each candidate's parameter type is known.
     /// A pre-inferred Int/UInt alone loses contextual integer adaptation.
@@ -10,12 +12,14 @@ public struct CallArg {
     public init(
         label: InternedString? = nil,
         isSpread: Bool = false,
+        isTrailingLambda: Bool = false,
         type: TypeID,
         signedIntegerLiteral: Int64? = nil,
         unsignedIntegerLiteral: UInt64? = nil
     ) {
         self.label = label
         self.isSpread = isSpread
+        self.isTrailingLambda = isTrailingLambda
         self.type = type
         self.signedIntegerLiteral = signedIntegerLiteral
         self.unsignedIntegerLiteral = unsignedIntegerLiteral
@@ -75,8 +79,6 @@ public struct ProbedCallResult {
 }
 
 final class OverloadResolver {
-    /// Optional sema cache context.  When non-nil the resolver checks the
-    /// call-resolution cache before performing full candidate evaluation.
     var cacheContext: SemaCacheContext?
 
     init() {}

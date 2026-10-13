@@ -12,6 +12,17 @@ struct ParserNestingDepthTests {
         #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0013" })
     }
 
+    @Test("Nesting-limit recovery consumes a synchronization point")
+    func nestingLimitRecoveryConsumesSynchronizationPoint() {
+        let lexed = lex(";")
+        let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
+        let beforeRecovery = parser.stream.index
+
+        _ = parser.recoverFromNestingLimit(inBlock: true)
+
+        #expect(parser.stream.index == beforeRecovery + 1)
+    }
+
     @Test("Excess structured nesting reports once and resumes at the next declaration")
     func excessStructuredNestingReportsOnceAndResumes() {
         let deepIf = String(repeating: "if (true) ", count: KotlinParser.maxNestingDepth + 16) + "1"

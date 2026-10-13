@@ -51747,6 +51747,64 @@
       "aliasTarget": null,
       "aliasTargetShape": null,
       "annotations": [],
+      "declaredVisibility": "public",
+      "doc": null,
+      "expect": false,
+      "external": false,
+      "fqName": "kotlinx.io.EOFException.<init>",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "constructor",
+      "line": 42,
+      "name": "<init>",
+      "origin": "local",
+      "owner": "kotlinx.io.EOFException",
+      "parameters": [
+        {
+          "annotations": [],
+          "default": null,
+          "name": "message",
+          "type": "String?",
+          "typeShape": {
+            "inner": {
+              "arguments": [],
+              "kind": "user",
+              "name": "String"
+            },
+            "kind": "nullable"
+          },
+          "vararg": false
+        },
+        {
+          "annotations": [],
+          "default": null,
+          "name": "cause",
+          "type": "Throwable?",
+          "typeShape": {
+            "inner": {
+              "arguments": [],
+              "kind": "user",
+              "name": "Throwable"
+            },
+            "kind": "nullable"
+          },
+          "vararg": false
+        }
+      ],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/-CommonPlatform.kt",
+      "receiver": null,
+      "receiverShape": null,
+      "returnShape": null,
+      "returnType": null,
+      "signature": "constructor <init>(message: String?, cause: Throwable?)",
+      "typeParameters": [],
+      "visibility": "public"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [],
       "declaredVisibility": "internal",
       "doc": "/** This compiler targets POSIX platforms. */",
       "expect": false,
@@ -51755,7 +51813,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 45,
+      "line": 46,
       "name": "isWindows",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -54493,98 +54551,6 @@
             "name": "ByteArray"
           },
           "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function write(source: ByteArray)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.Buffer.write",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 388,
-      "name": "write",
-      "origin": "local",
-      "owner": "kotlinx.io.Buffer",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "source",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
-        },
-        {
-          "annotations": [],
-          "default": null,
-          "name": "startIndex",
-          "type": "Int",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "Int"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function write(source: ByteArray, startIndex: Int)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.Buffer.write",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 392,
-      "name": "write",
-      "origin": "local",
-      "owner": "kotlinx.io.Buffer",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "source",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
         },
         {
           "annotations": [],
@@ -54633,7 +54599,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 404,
+      "line": 396,
       "name": "write",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54685,7 +54651,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 419,
+      "line": 411,
       "name": "write",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54737,7 +54703,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 510,
+      "line": 502,
       "name": "transferFrom",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54781,7 +54747,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 520,
+      "line": 512,
       "name": "writeByte",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54821,7 +54787,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 525,
+      "line": 517,
       "name": "writeShort",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54861,7 +54827,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 530,
+      "line": 522,
       "name": "writeInt",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54901,7 +54867,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 535,
+      "line": 527,
       "name": "writeLong",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54941,7 +54907,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 543,
+      "line": 535,
       "name": "copy",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -54972,7 +54938,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 566,
+      "line": 558,
       "name": "close",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -55015,7 +54981,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 577,
+      "line": 569,
       "name": "toString",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -55046,7 +55012,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 611,
+      "line": 603,
       "name": "recycleHead",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -55080,7 +55046,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 633,
+      "line": 625,
       "name": "recycleTail",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -55119,7 +55085,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 647,
+      "line": 639,
       "name": "pushSegment",
       "origin": "local",
       "owner": "kotlinx.io.Buffer",
@@ -55189,7 +55155,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 668,
+      "line": 660,
       "name": "seek",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -55472,7 +55438,23 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "UnsafeByteStringApi::class",
+              "name": null
+            },
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(UnsafeByteStringApi::class, InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/** Consumes all bytes from this source and returns them as an immutable byte string. */",
       "expect": false,
@@ -55481,7 +55463,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 36,
+      "line": 37,
       "name": "readByteString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -55513,10 +55495,14 @@
             {
               "expression": "UnsafeByteStringApi::class",
               "name": null
+            },
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
             }
           ],
           "name": "OptIn",
-          "source": "@OptIn(UnsafeByteStringApi::class)",
+          "source": "@OptIn(UnsafeByteStringApi::class, InternalIoApi::class)",
           "target": null
         }
       ],
@@ -55528,7 +55514,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 47,
+      "line": 48,
       "name": "readByteString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -55567,7 +55553,23 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            },
+            {
+              "expression": "UnsafeByteStringApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class, UnsafeByteStringApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/** Searches without consuming bytes, fetching more data into the buffer as needed. */",
       "expect": false,
@@ -55576,7 +55578,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 59,
+      "line": 61,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -55648,7 +55650,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 77,
+      "line": 79,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -55708,7 +55710,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 89,
+      "line": 91,
       "name": "indexOfBytes",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -57414,98 +57416,6 @@
             "name": "ByteArray"
           },
           "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/RealSink.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function write(source: ByteArray)",
-      "typeParameters": [],
-      "visibility": "internal"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.RealSink.write",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 33,
-      "name": "write",
-      "origin": "local",
-      "owner": "kotlinx.io.RealSink",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "source",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
-        },
-        {
-          "annotations": [],
-          "default": null,
-          "name": "startIndex",
-          "type": "Int",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "Int"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/RealSink.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function write(source: ByteArray, startIndex: Int)",
-      "typeParameters": [],
-      "visibility": "internal"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.RealSink.write",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 37,
-      "name": "write",
-      "origin": "local",
-      "owner": "kotlinx.io.RealSink",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "source",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
         },
         {
           "annotations": [],
@@ -57554,7 +57464,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 44,
+      "line": 36,
       "name": "transferFrom",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57598,7 +57508,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 56,
+      "line": 48,
       "name": "write",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57650,7 +57560,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 73,
+      "line": 65,
       "name": "writeByte",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57690,7 +57600,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 79,
+      "line": 71,
       "name": "writeShort",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57730,7 +57640,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 85,
+      "line": 77,
       "name": "writeInt",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57770,7 +57680,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 91,
+      "line": 83,
       "name": "writeLong",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57817,7 +57727,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 98,
+      "line": 90,
       "name": "hintEmit",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57844,7 +57754,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 104,
+      "line": 96,
       "name": "emit",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57871,7 +57781,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 110,
+      "line": 102,
       "name": "flush",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57898,7 +57808,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 118,
+      "line": 110,
       "name": "close",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57925,7 +57835,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 143,
+      "line": 135,
       "name": "toString",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -57964,7 +57874,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 146,
+      "line": 138,
       "name": "checkNotClosed",
       "origin": "local",
       "owner": "kotlinx.io.RealSink",
@@ -61329,7 +61239,14 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [],
+          "name": "InternalIoApi",
+          "source": "@InternalIoApi",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -61338,7 +61255,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 14,
+      "line": 15,
       "name": "buffer",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61362,98 +61279,6 @@
       "aliasTargetShape": null,
       "annotations": [],
       "declaredVisibility": "public",
-      "doc": "/**\n     * Writes all bytes from [source] to this sink.\n     *\n     * Upstream folds this call shape into `write(source: ByteArray, startIndex: Int = 0,\n     * endIndex: Int = source.size)`; interface-level default parameter values are not\n     * dispatched correctly on this compiler (see the note in Source.kt), so the\n     * default-taking forms are separate members.\n     */",
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.Sink.write",
-      "hasBody": false,
-      "implicit": false,
-      "kind": "function",
-      "line": 24,
-      "name": "write",
-      "origin": "local",
-      "owner": "kotlinx.io.Sink",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "source",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Sink.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function write(source: ByteArray)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": "/**\n     * Writes bytes from [source]'s subrange starting at [startIndex] to this sink.\n     */",
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.Sink.write",
-      "hasBody": false,
-      "implicit": false,
-      "kind": "function",
-      "line": 29,
-      "name": "write",
-      "origin": "local",
-      "owner": "kotlinx.io.Sink",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "source",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
-        },
-        {
-          "annotations": [],
-          "default": null,
-          "name": "startIndex",
-          "type": "Int",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "Int"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Sink.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function write(source: ByteArray, startIndex: Int)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
       "doc": "/**\n     * Writes bytes from [source]'s subrange starting at [startIndex] and ending at [endIndex] to\n     * this sink.\n     */",
       "expect": false,
       "external": false,
@@ -61461,7 +61286,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 35,
+      "line": 21,
       "name": "write",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61516,7 +61341,14 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [],
+          "name": "IgnorableReturnValue",
+          "source": "@IgnorableReturnValue",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/**\n     * Removes all bytes from [source] and writes them to this sink. Returns the number of bytes\n     * read, which will be 0 if [source] is exhausted.\n     */",
       "expect": false,
@@ -61525,7 +61357,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 41,
+      "line": 28,
       "name": "transferFrom",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61569,7 +61401,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 46,
+      "line": 33,
       "name": "write",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61621,7 +61453,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 51,
+      "line": 38,
       "name": "writeByte",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61661,7 +61493,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 56,
+      "line": 43,
       "name": "writeShort",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61701,7 +61533,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 61,
+      "line": 48,
       "name": "writeInt",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61741,7 +61573,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 66,
+      "line": 53,
       "name": "writeLong",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61781,7 +61613,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 71,
+      "line": 58,
       "name": "flush",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61808,7 +61640,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 76,
+      "line": 63,
       "name": "emit",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61826,7 +61658,14 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [],
+          "name": "InternalIoApi",
+          "source": "@InternalIoApi",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/**\n     * Hints that the buffer may be partially emitted to the underlying sink.\n     */",
       "expect": false,
@@ -61835,7 +61674,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 81,
+      "line": 69,
       "name": "hintEmit",
       "origin": "local",
       "owner": "kotlinx.io.Sink",
@@ -61862,7 +61701,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 39,
+      "line": 32,
       "name": "writeShortLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -61906,7 +61745,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 51,
+      "line": 44,
       "name": "writeIntLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -61950,7 +61789,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 63,
+      "line": 56,
       "name": "writeLongLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -61985,7 +61824,23 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "DelicateIoApi::class",
+              "name": null
+            },
+            {
+              "expression": "UnsafeIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(DelicateIoApi::class, UnsafeIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/**\n * Writes [long] to this sink in signed decimal form (i.e., as a string in base 10).\n *\n * Resulting string will not contain leading zeros, except the `0` value itself.\n *\n * @param long the long to be written.\n *\n * @throws IllegalStateException when the sink is closed.\n * @throws IOException when some I/O error occurs.\n */",
       "expect": false,
@@ -61994,7 +61849,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 77,
+      "line": 71,
       "name": "writeDecimalLong",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62029,7 +61884,23 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "DelicateIoApi::class",
+              "name": null
+            },
+            {
+              "expression": "UnsafeIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(DelicateIoApi::class, UnsafeIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/**\n * Writes [long] to this sink in hexadecimal form (i.e., as a string in base 16).\n *\n * Resulting string will not contain leading zeros, except the `0` value itself.\n *\n * @param long the long to be written.\n *\n * @throws IllegalStateException when the sink is closed.\n * @throws IOException when some I/O error occurs.\n */",
       "expect": false,
@@ -62038,7 +61909,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 156,
+      "line": 151,
       "name": "writeHexadecimalUnsignedLong",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62082,7 +61953,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 182,
+      "line": 177,
       "name": "writeUByte",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62126,7 +61997,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 194,
+      "line": 189,
       "name": "writeUShort",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62170,7 +62041,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 206,
+      "line": 201,
       "name": "writeUInt",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62214,7 +62085,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 218,
+      "line": 213,
       "name": "writeULong",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62258,7 +62129,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 230,
+      "line": 225,
       "name": "writeUShortLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62302,7 +62173,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 242,
+      "line": 237,
       "name": "writeUIntLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62346,7 +62217,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 254,
+      "line": 249,
       "name": "writeULongLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62390,7 +62261,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 275,
+      "line": 270,
       "name": "writeFloat",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62434,7 +62305,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 296,
+      "line": 291,
       "name": "writeDouble",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62478,7 +62349,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 317,
+      "line": 312,
       "name": "writeFloatLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62522,7 +62393,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 338,
+      "line": 333,
       "name": "writeDoubleLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62559,14 +62430,24 @@
       "aliasTargetShape": null,
       "annotations": [
         {
+          "arguments": [],
+          "name": "DelicateIoApi",
+          "source": "@DelicateIoApi",
+          "target": null
+        },
+        {
           "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            },
             {
               "expression": "ExperimentalContracts::class",
               "name": null
             }
           ],
           "name": "OptIn",
-          "source": "@OptIn(ExperimentalContracts::class)",
+          "source": "@OptIn(InternalIoApi::class, ExperimentalContracts::class)",
           "target": null
         }
       ],
@@ -62578,7 +62459,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 357,
+      "line": 353,
       "name": "writeToInternalBuffer",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -62787,7 +62668,14 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [],
+          "name": "InternalIoApi",
+          "source": "@InternalIoApi",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -62796,7 +62684,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 14,
+      "line": 15,
       "name": "buffer",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -62827,7 +62715,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 19,
+      "line": 20,
       "name": "exhausted",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -62858,7 +62746,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 25,
+      "line": 26,
       "name": "require",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -62898,7 +62786,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 31,
+      "line": 32,
       "name": "request",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -62942,7 +62830,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 36,
+      "line": 37,
       "name": "readByte",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -62973,7 +62861,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 41,
+      "line": 42,
       "name": "readShort",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63004,7 +62892,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 46,
+      "line": 47,
       "name": "readInt",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63035,7 +62923,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 51,
+      "line": 52,
       "name": "readLong",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63066,7 +62954,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 56,
+      "line": 57,
       "name": "skip",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63106,7 +62994,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 63,
+      "line": 64,
       "name": "readAtMostTo",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63174,7 +63062,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 68,
+      "line": 69,
       "name": "readTo",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63217,7 +63105,14 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [],
+          "name": "IgnorableReturnValue",
+          "source": "@IgnorableReturnValue",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/**\n     * Removes all bytes from this source, writes them to [sink], and returns the total number of\n     * bytes written to [sink].\n     */",
       "expect": false,
@@ -63226,7 +63121,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 74,
+      "line": 76,
       "name": "transferTo",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63270,7 +63165,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 79,
+      "line": 81,
       "name": "peek",
       "origin": "local",
       "owner": "kotlinx.io.Source",
@@ -63459,7 +63354,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -63468,7 +63375,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 17,
+      "line": 18,
       "name": "readDecimalLong",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63503,7 +63410,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 53,
+      "line": 54,
       "name": "hexadecimalDigit",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63538,7 +63445,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -63547,7 +63466,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 61,
+      "line": 63,
       "name": "readHexadecimalUnsignedLong",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63573,7 +63492,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -63582,7 +63513,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 83,
+      "line": 86,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63654,7 +63585,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 102,
+      "line": 105,
       "name": "readByteArray",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63689,7 +63620,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 104,
+      "line": 107,
       "name": "readByteArray",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63728,7 +63659,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "private",
       "doc": null,
       "expect": false,
@@ -63737,7 +63680,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 109,
+      "line": 113,
       "name": "readByteArrayImpl",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63785,7 +63728,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 126,
+      "line": 130,
       "name": "readTo",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63853,7 +63796,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 140,
+      "line": 144,
       "name": "readAtMostTo",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63925,7 +63868,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 146,
+      "line": 150,
       "name": "readUByte",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63960,7 +63903,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 147,
+      "line": 151,
       "name": "readUShort",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -63995,7 +63938,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 148,
+      "line": 152,
       "name": "readUInt",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64030,7 +63973,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 149,
+      "line": 153,
       "name": "readULong",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64065,7 +64008,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 150,
+      "line": 154,
       "name": "readUShortLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64100,7 +64043,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 151,
+      "line": 155,
       "name": "readUIntLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64135,7 +64078,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 152,
+      "line": 156,
       "name": "readULongLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64170,7 +64113,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 153,
+      "line": 157,
       "name": "readFloat",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64205,7 +64148,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 154,
+      "line": 158,
       "name": "readDouble",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64240,7 +64183,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 155,
+      "line": 159,
       "name": "readFloatLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64275,7 +64218,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 156,
+      "line": 160,
       "name": "readDoubleLe",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64301,7 +64244,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64310,7 +64265,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 157,
+      "line": 162,
       "name": "startsWith",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64349,7 +64304,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/** Decodes all remaining bytes using [charset]. */",
       "expect": false,
@@ -64358,7 +64325,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 17,
+      "line": 18,
       "name": "readString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64397,7 +64364,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": "/** Decodes exactly [byteCount] bytes using [charset], throwing on premature exhaustion. */",
       "expect": false,
@@ -64406,7 +64385,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 23,
+      "line": 25,
       "name": "readString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64466,7 +64445,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 28,
+      "line": 30,
       "name": "readStringWithCharset",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64526,7 +64505,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 44,
+      "line": 46,
       "name": "asInputStream",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64612,7 +64591,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "DelicateIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(DelicateIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64621,7 +64612,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 14,
+      "line": 15,
       "name": "writeString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64680,7 +64671,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "DelicateIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(DelicateIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64689,7 +64692,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 19,
+      "line": 21,
       "name": "writeString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64748,7 +64751,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "DelicateIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(DelicateIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64757,7 +64772,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 24,
+      "line": 27,
       "name": "writeCodePointValue",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64792,7 +64807,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64801,7 +64828,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 40,
+      "line": 44,
       "name": "readString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64836,7 +64863,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 45,
+      "line": 49,
       "name": "readString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64862,7 +64889,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64871,7 +64910,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 47,
+      "line": 52,
       "name": "readString",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64919,7 +64958,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 52,
+      "line": 57,
       "name": "commonReadUtf8",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64958,7 +64997,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -64967,7 +65018,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 64,
+      "line": 70,
       "name": "readCodePointValue",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -64993,7 +65044,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -65002,7 +65065,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 104,
+      "line": 111,
       "name": "readLine",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -65031,7 +65094,19 @@
       "actual": false,
       "aliasTarget": null,
       "aliasTargetShape": null,
-      "annotations": [],
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "InternalIoApi::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(InternalIoApi::class)",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -65040,7 +65115,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 118,
+      "line": 126,
       "name": "readLineStrict",
       "origin": "local",
       "owner": "kotlinx.io",
@@ -66535,6 +66610,86 @@
       "aliasTarget": null,
       "aliasTargetShape": null,
       "annotations": [],
+      "declaredVisibility": "private",
+      "doc": null,
+      "expect": false,
+      "external": false,
+      "fqName": "kotlinx.io.bytestring.copyByteStringData",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "function",
+      "line": 88,
+      "name": "copyByteStringData",
+      "origin": "local",
+      "owner": "kotlinx.io.bytestring",
+      "parameters": [
+        {
+          "annotations": [],
+          "default": null,
+          "name": "data",
+          "type": "ByteArray",
+          "typeShape": {
+            "arguments": [],
+            "kind": "user",
+            "name": "ByteArray"
+          },
+          "vararg": false
+        },
+        {
+          "annotations": [],
+          "default": null,
+          "name": "startIndex",
+          "type": "Int",
+          "typeShape": {
+            "arguments": [],
+            "kind": "user",
+            "name": "Int"
+          },
+          "vararg": false
+        },
+        {
+          "annotations": [],
+          "default": null,
+          "name": "endIndex",
+          "type": "Int",
+          "typeShape": {
+            "arguments": [],
+            "kind": "user",
+            "name": "Int"
+          },
+          "vararg": false
+        }
+      ],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt",
+      "receiver": null,
+      "receiverShape": null,
+      "returnShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "ByteArray"
+      },
+      "returnType": "ByteArray",
+      "signature": "function copyByteStringData(data: ByteArray, startIndex: Int, endIndex: Int): ByteArray",
+      "typeParameters": [],
+      "visibility": "private"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "\"EmptyByteString\"",
+              "name": null
+            }
+          ],
+          "name": "kotlin.js.JsName",
+          "source": "@kotlin.js.JsName(\"EmptyByteString\")",
+          "target": null
+        }
+      ],
       "declaredVisibility": "public",
       "doc": null,
       "expect": false,
@@ -66543,7 +66698,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 88,
+      "line": 104,
       "name": "ByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66574,7 +66729,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 90,
+      "line": 106,
       "name": "ByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66630,7 +66785,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 102,
+      "line": 118,
       "name": "ByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66674,7 +66829,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 113,
+      "line": 129,
       "name": "indices",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66709,7 +66864,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 114,
+      "line": 130,
       "name": "isEmpty",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66744,7 +66899,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 115,
+      "line": 131,
       "name": "isNotEmpty",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66779,7 +66934,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 117,
+      "line": 133,
       "name": "rangeEquals",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66839,7 +66994,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 126,
+      "line": 142,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66899,7 +67054,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 135,
+      "line": 151,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -66959,7 +67114,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 138,
+      "line": 154,
       "name": "indexOf",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67019,7 +67174,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 149,
+      "line": 165,
       "name": "lastIndexOf",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67079,7 +67234,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 159,
+      "line": 175,
       "name": "lastIndexOf",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67139,7 +67294,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 162,
+      "line": 178,
       "name": "lastIndexOf",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67199,7 +67354,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 173,
+      "line": 189,
       "name": "startsWith",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67247,7 +67402,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 175,
+      "line": 191,
       "name": "startsWith",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67295,7 +67450,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 177,
+      "line": 193,
       "name": "endsWith",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67343,7 +67498,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 179,
+      "line": 195,
       "name": "endsWith",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67391,7 +67546,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 182,
+      "line": 198,
       "name": "decodeToString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67426,7 +67581,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 187,
+      "line": 203,
       "name": "encodeToByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67461,7 +67616,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 188,
+      "line": 204,
       "name": "contentEquals",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -67727,42 +67882,11 @@
       "doc": null,
       "expect": false,
       "external": false,
-      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.toByteArray",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 23,
-      "name": "toByteArray",
-      "origin": "local",
-      "owner": "kotlinx.io.bytestring.ByteStringBuilder",
-      "parameters": [],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": {
-        "arguments": [],
-        "kind": "user",
-        "name": "ByteArray"
-      },
-      "returnType": "ByteArray",
-      "signature": "function toByteArray(): ByteArray",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
       "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 25,
+      "line": 23,
       "name": "append",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.ByteStringBuilder",
@@ -67802,47 +67926,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 34,
-      "name": "append",
-      "origin": "local",
-      "owner": "kotlinx.io.bytestring.ByteStringBuilder",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "array",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function append(array: ByteArray)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 38,
+      "line": 29,
       "name": "append",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.ByteStringBuilder",
@@ -67861,59 +67945,7 @@
         },
         {
           "annotations": [],
-          "default": null,
-          "name": "startIndex",
-          "type": "Int",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "Int"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function append(array: ByteArray, startIndex: Int)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 44,
-      "name": "append",
-      "origin": "local",
-      "owner": "kotlinx.io.bytestring.ByteStringBuilder",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "array",
-          "type": "ByteArray",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteArray"
-          },
-          "vararg": false
-        },
-        {
-          "annotations": [],
-          "default": null,
+          "default": "0",
           "name": "startIndex",
           "type": "Int",
           "typeShape": {
@@ -67925,7 +67957,7 @@
         },
         {
           "annotations": [],
-          "default": null,
+          "default": "array.size",
           "name": "endIndex",
           "type": "Int",
           "typeShape": {
@@ -67941,135 +67973,7 @@
       "receiverShape": null,
       "returnShape": null,
       "returnType": null,
-      "signature": "function append(array: ByteArray, startIndex: Int, endIndex: Int)",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 58,
-      "name": "append",
-      "origin": "local",
-      "owner": "kotlinx.io.bytestring.ByteStringBuilder",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "byte",
-          "type": "UByte",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "UByte"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": {
-        "arguments": [],
-        "kind": "user",
-        "name": "Unit"
-      },
-      "returnType": "Unit",
-      "signature": "function append(byte: UByte): Unit",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 60,
-      "name": "append",
-      "origin": "local",
-      "owner": "kotlinx.io.bytestring.ByteStringBuilder",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "byteString",
-          "type": "ByteString",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "ByteString"
-          },
-          "vararg": false
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": {
-        "arguments": [],
-        "kind": "user",
-        "name": "Unit"
-      },
-      "returnType": "Unit",
-      "signature": "function append(byteString: ByteString): Unit",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "function",
-      "line": 63,
-      "name": "append",
-      "origin": "local",
-      "owner": "kotlinx.io.bytestring.ByteStringBuilder",
-      "parameters": [
-        {
-          "annotations": [],
-          "default": null,
-          "name": "bytes",
-          "type": "Byte",
-          "typeShape": {
-            "arguments": [],
-            "kind": "user",
-            "name": "Byte"
-          },
-          "vararg": true
-        }
-      ],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "function append(vararg bytes: Byte)",
+      "signature": "function append(array: ByteArray, startIndex: Int = 0, endIndex: Int = array.size)",
       "typeParameters": [],
       "visibility": "public"
     },
@@ -68086,7 +67990,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 67,
+      "line": 39,
       "name": "ensureCapacity",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.ByteStringBuilder",
@@ -68122,11 +68026,155 @@
       "doc": null,
       "expect": false,
       "external": false,
+      "fqName": "kotlinx.io.bytestring.append",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "function",
+      "line": 49,
+      "name": "append",
+      "origin": "local",
+      "owner": "kotlinx.io.bytestring",
+      "parameters": [
+        {
+          "annotations": [],
+          "default": null,
+          "name": "byte",
+          "type": "UByte",
+          "typeShape": {
+            "arguments": [],
+            "kind": "user",
+            "name": "UByte"
+          },
+          "vararg": false
+        }
+      ],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
+      "receiver": "ByteStringBuilder",
+      "receiverShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "ByteStringBuilder"
+      },
+      "returnShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Unit"
+      },
+      "returnType": "Unit",
+      "signature": "function ByteStringBuilder.append(byte: UByte): Unit",
+      "typeParameters": [],
+      "visibility": "public"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [],
+      "declaredVisibility": "public",
+      "doc": null,
+      "expect": false,
+      "external": false,
+      "fqName": "kotlinx.io.bytestring.append",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "function",
+      "line": 51,
+      "name": "append",
+      "origin": "local",
+      "owner": "kotlinx.io.bytestring",
+      "parameters": [
+        {
+          "annotations": [],
+          "default": null,
+          "name": "byteString",
+          "type": "ByteString",
+          "typeShape": {
+            "arguments": [],
+            "kind": "user",
+            "name": "ByteString"
+          },
+          "vararg": false
+        }
+      ],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
+      "receiver": "ByteStringBuilder",
+      "receiverShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "ByteStringBuilder"
+      },
+      "returnShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Unit"
+      },
+      "returnType": "Unit",
+      "signature": "function ByteStringBuilder.append(byteString: ByteString): Unit",
+      "typeParameters": [],
+      "visibility": "public"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [],
+      "declaredVisibility": "public",
+      "doc": null,
+      "expect": false,
+      "external": false,
+      "fqName": "kotlinx.io.bytestring.append",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "function",
+      "line": 54,
+      "name": "append",
+      "origin": "local",
+      "owner": "kotlinx.io.bytestring",
+      "parameters": [
+        {
+          "annotations": [],
+          "default": null,
+          "name": "bytes",
+          "type": "Byte",
+          "typeShape": {
+            "arguments": [],
+            "kind": "user",
+            "name": "Byte"
+          },
+          "vararg": true
+        }
+      ],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
+      "receiver": "ByteStringBuilder",
+      "receiverShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "ByteStringBuilder"
+      },
+      "returnShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Unit"
+      },
+      "returnType": "Unit",
+      "signature": "function ByteStringBuilder.append(vararg bytes: Byte): Unit",
+      "typeParameters": [],
+      "visibility": "public"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [],
+      "declaredVisibility": "public",
+      "doc": null,
+      "expect": false,
+      "external": false,
       "fqName": "kotlinx.io.bytestring.buildByteString",
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 77,
+      "line": 56,
       "name": "buildByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -68440,10 +68488,14 @@
             {
               "expression": "RequiresOptIn.Level.ERROR",
               "name": "level"
+            },
+            {
+              "expression": "\"This is a unsafe API and its use may corrupt the data stored in a byte string. Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API.\"",
+              "name": "message"
             }
           ],
           "name": "RequiresOptIn",
-          "source": "@RequiresOptIn(level = RequiresOptIn.Level.ERROR)",
+          "source": "@RequiresOptIn(\n    level = RequiresOptIn.Level.ERROR,\n    message = \"This is a unsafe API and its use may corrupt the data stored in a byte string. Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API.\"\n)",
           "target": null
         }
       ],
@@ -68455,7 +68507,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "annotation class",
-      "line": 7,
+      "line": 10,
       "name": "UnsafeByteStringApi",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.unsafe",
@@ -68496,10 +68548,14 @@
             {
               "expression": "RequiresOptIn.Level.ERROR",
               "name": "level"
+            },
+            {
+              "expression": "\"This is a unsafe API and its use may corrupt the data stored in a byte string. Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API.\"",
+              "name": "message"
             }
           ],
           "name": "RequiresOptIn",
-          "source": "@RequiresOptIn(level = RequiresOptIn.Level.ERROR)",
+          "source": "@RequiresOptIn(\n    level = RequiresOptIn.Level.ERROR,\n    message = \"This is a unsafe API and its use may corrupt the data stored in a byte string. Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API.\"\n)",
           "target": null
         }
       ],
@@ -68511,7 +68567,7 @@
       "hasBody": true,
       "implicit": true,
       "kind": "constructor",
-      "line": 7,
+      "line": 10,
       "name": "<init>",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.unsafe.UnsafeByteStringApi",
@@ -68535,6 +68591,17 @@
           "name": "UnsafeByteStringApi",
           "source": "@UnsafeByteStringApi",
           "target": null
+        },
+        {
+          "arguments": [
+            {
+              "expression": "ExperimentalContracts::class",
+              "name": null
+            }
+          ],
+          "name": "OptIn",
+          "source": "@OptIn(ExperimentalContracts::class)",
+          "target": null
         }
       ],
       "declaredVisibility": "public",
@@ -68545,7 +68612,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "object",
-      "line": 7,
+      "line": 11,
       "name": "UnsafeByteStringOperations",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.unsafe",
@@ -68572,7 +68639,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 8,
+      "line": 12,
       "name": "wrapUnsafe",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations",
@@ -68616,7 +68683,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 10,
+      "line": 14,
       "name": "withByteArrayUnsafe",
       "origin": "local",
       "owner": "kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations",
@@ -68707,33 +68774,6 @@
       "implicit": false,
       "kind": "constructor",
       "line": 11,
-      "name": "<init>",
-      "origin": "local",
-      "owner": "kotlinx.io.files.FileNotFoundException",
-      "parameters": [],
-      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileNotFoundException.kt",
-      "receiver": null,
-      "receiverShape": null,
-      "returnShape": null,
-      "returnType": null,
-      "signature": "constructor <init>()",
-      "typeParameters": [],
-      "visibility": "public"
-    },
-    {
-      "actual": false,
-      "aliasTarget": null,
-      "aliasTargetShape": null,
-      "annotations": [],
-      "declaredVisibility": "public",
-      "doc": null,
-      "expect": false,
-      "external": false,
-      "fqName": "kotlinx.io.files.FileNotFoundException.<init>",
-      "hasBody": true,
-      "implicit": false,
-      "kind": "constructor",
-      "line": 12,
       "name": "<init>",
       "origin": "local",
       "owner": "kotlinx.io.files.FileNotFoundException",
@@ -71157,7 +71197,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "class",
-      "line": 11,
+      "line": 16,
       "name": "Path",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -71184,7 +71224,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "constructor",
-      "line": 11,
+      "line": 16,
       "name": "<init>",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71248,7 +71288,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 11,
+      "line": 16,
       "name": "path",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71279,7 +71319,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 15,
+      "line": 20,
       "name": "parent",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71313,7 +71353,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 18,
+      "line": 23,
       "name": "computeParent",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71347,7 +71387,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 24,
+      "line": 29,
       "name": "name",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71378,7 +71418,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 27,
+      "line": 32,
       "name": "isAbsolute",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71409,7 +71449,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 30,
+      "line": 35,
       "name": "isRooted",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71440,7 +71480,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 33,
+      "line": 38,
       "name": "segments",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71480,7 +71520,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 36,
+      "line": 41,
       "name": "computeSegments",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71520,7 +71560,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 44,
+      "line": 49,
       "name": "toString",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71551,7 +71591,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 45,
+      "line": 50,
       "name": "hashCode",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71582,7 +71622,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 46,
+      "line": 51,
       "name": "equals",
       "origin": "local",
       "owner": "kotlinx.io.files.Path",
@@ -71629,7 +71669,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 52,
+      "line": 57,
       "name": "SystemPathSeparator",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -71660,7 +71700,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 55,
+      "line": 60,
       "name": "SystemTemporaryDirectory",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -71691,7 +71731,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 58,
+      "line": 63,
       "name": "Path",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -71735,7 +71775,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 65,
+      "line": 70,
       "name": "Path",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -71791,7 +71831,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 77,
+      "line": 82,
       "name": "Path",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -71831,6 +71871,130 @@
       },
       "returnType": "Path",
       "signature": "function Path(base: Path, vararg parts: String): Path",
+      "typeParameters": [],
+      "visibility": "public"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "\"Use FileSystem.source instead\"",
+              "name": null
+            },
+            {
+              "expression": "DeprecationLevel.ERROR",
+              "name": "level"
+            }
+          ],
+          "name": "Deprecated",
+          "source": "@Deprecated(\"Use FileSystem.source instead\", level = DeprecationLevel.ERROR)",
+          "target": null
+        },
+        {
+          "arguments": [
+            {
+              "expression": "\"sourceDeprecated\"",
+              "name": null
+            }
+          ],
+          "name": "JvmName",
+          "source": "@JvmName(\"sourceDeprecated\")",
+          "target": null
+        }
+      ],
+      "declaredVisibility": "public",
+      "doc": null,
+      "expect": false,
+      "external": false,
+      "fqName": "kotlinx.io.files.source",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "function",
+      "line": 93,
+      "name": "source",
+      "origin": "local",
+      "owner": "kotlinx.io.files",
+      "parameters": [],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/files/Paths.kt",
+      "receiver": "Path",
+      "receiverShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Path"
+      },
+      "returnShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Source"
+      },
+      "returnType": "Source",
+      "signature": "function Path.source(): Source",
+      "typeParameters": [],
+      "visibility": "public"
+    },
+    {
+      "actual": false,
+      "aliasTarget": null,
+      "aliasTargetShape": null,
+      "annotations": [
+        {
+          "arguments": [
+            {
+              "expression": "\"Use FileSystem.sink instead\"",
+              "name": null
+            },
+            {
+              "expression": "DeprecationLevel.ERROR",
+              "name": "level"
+            }
+          ],
+          "name": "Deprecated",
+          "source": "@Deprecated(\"Use FileSystem.sink instead\", level = DeprecationLevel.ERROR)",
+          "target": null
+        },
+        {
+          "arguments": [
+            {
+              "expression": "\"sinkDeprecated\"",
+              "name": null
+            }
+          ],
+          "name": "JvmName",
+          "source": "@JvmName(\"sinkDeprecated\")",
+          "target": null
+        }
+      ],
+      "declaredVisibility": "public",
+      "doc": null,
+      "expect": false,
+      "external": false,
+      "fqName": "kotlinx.io.files.sink",
+      "hasBody": true,
+      "implicit": false,
+      "kind": "function",
+      "line": 97,
+      "name": "sink",
+      "origin": "local",
+      "owner": "kotlinx.io.files",
+      "parameters": [],
+      "path": "Sources/CompilerCore/Stdlib/kotlinx/io/files/Paths.kt",
+      "receiver": "Path",
+      "receiverShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Path"
+      },
+      "returnShape": {
+        "arguments": [],
+        "kind": "user",
+        "name": "Sink"
+      },
+      "returnType": "Sink",
+      "signature": "function Path.sink(): Sink",
       "typeParameters": [],
       "visibility": "public"
     },
@@ -76682,7 +76846,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/-CommonPlatform.kt",
-      "sha256": "680488bde1db3adf607a51defbde1959163b7dee04a0a1028dc07dee4485948b"
+      "sha256": "23f06dfc1ab51714007c1595f514d5c62f10579c5292bb8cdb5b1c7685c10afd"
     },
     {
       "fileAnnotations": [],
@@ -76727,7 +76891,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt",
-      "sha256": "aae8fa4839a56195b0ec9fad3b77f571623f5475fbe4f87a3f91bb8776df081f"
+      "sha256": "269f43f423b97025fd74560a1558da38a3256f1580468a14e286f9705cd24332"
     },
     {
       "fileAnnotations": [],
@@ -76785,7 +76949,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/ByteStrings.kt",
-      "sha256": "fc2e79753b63fa7f7c74aa0653c6a23343310fcabcb30fc4a208af4a080995eb"
+      "sha256": "8eb446dc25f18b06d771d154efd2795492c497010eb71102dfa0976f19793854"
     },
     {
       "fileAnnotations": [],
@@ -76844,7 +77008,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/RealSink.kt",
-      "sha256": "6e3fd4bc253f2ae7e0d9fc0c8af6a6c88417ac95f39cdc17e93001815d7b5667"
+      "sha256": "d8a6e156ac9d17273083ccc536f3d5e02b8cd0e6f7b12d0079a16733173c93b7"
     },
     {
       "fileAnnotations": [],
@@ -76876,7 +77040,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Sink.kt",
-      "sha256": "ed23f116e2757b2ff59e265caa2c9487a755d7908b5854806c1687f1f3440348"
+      "sha256": "fd340bf976f9c1251cc0e871402271a39019482409d990917d2499e44960f4bc"
     },
     {
       "fileAnnotations": [],
@@ -76900,7 +77064,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Sinks.kt",
-      "sha256": "b1605b0c7480fb28d587f159cd264ee22eb7928110dd20ba2b07d65a7b6674d0"
+      "sha256": "0cc5bb835d39e1b6997ad207f1729243f323fdf7369341b9cfe6ceccc0bae602"
     },
     {
       "fileAnnotations": [],
@@ -76927,7 +77091,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Source.kt",
-      "sha256": "161c4be5157fcc0f959093e019b2a77a10049b47e4fcb3541b1f47d87de5c55a"
+      "sha256": "967a63a20612e96223f9f6797f6944f1bcf1d0af4712d0e843f4712ee5211da9"
     },
     {
       "fileAnnotations": [],
@@ -76935,7 +77099,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Sources.kt",
-      "sha256": "c152bef35afa96cfaf154f06f20635e1a9b0c17a72d09c1703d6b39c4635fcdc"
+      "sha256": "14e7fc43b7d3116a4aed5c9b97c0acd4ccceb942db3a98fd927b25d35b948b15"
     },
     {
       "fileAnnotations": [],
@@ -76954,7 +77118,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/SourcesJvm.kt",
-      "sha256": "1df44b244628feb15c5640d0f43a7187d2f20aa0ffe2eb62525feea0e76da19f"
+      "sha256": "c8f49a65edce76843b72d34531707e81a53c6c329d01907bc411fd4cee3164d9"
     },
     {
       "fileAnnotations": [],
@@ -76968,7 +77132,7 @@
       "origin": "local",
       "package": "kotlinx.io",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/Utf8.kt",
-      "sha256": "8ac8fe5f199ff792eb829c2a5ab47b69b6f286caefe4d85166c7a4b757f4b8f9"
+      "sha256": "a07af7bca63f063aa97bb7d5c830beba3c4ae5165e363b307d71677da97a621d"
     },
     {
       "fileAnnotations": [],
@@ -76990,7 +77154,7 @@
       "origin": "local",
       "package": "kotlinx.io.bytestring",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteString.kt",
-      "sha256": "d2df463bb6f29380c12e1a0e8d869ec84d48cab9350be81dad126249dd1a0006"
+      "sha256": "6fcbbf489421f734db8f754dc496a30beb1b0da2a39c4a6838272e5db80d1c88"
     },
     {
       "fileAnnotations": [],
@@ -76998,7 +77162,7 @@
       "origin": "local",
       "package": "kotlinx.io.bytestring",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringBuilder.kt",
-      "sha256": "658485e6a482d884a8eedc1593ae3f7fd0c9ade7030439eca5fe1aecc04d3d61"
+      "sha256": "eb939b05fcc991f860906b244d1a897503b3e794c83bcf1509ecfdc25370cb15"
     },
     {
       "fileAnnotations": [],
@@ -77014,11 +77178,26 @@
       "origin": "local",
       "package": "kotlinx.io.bytestring.unsafe",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/unsafe/Annotations.kt",
-      "sha256": "475e46b1b8df8cf2b928f4c00d0bd041b13a00fe87f53f0e44640339b2b5a022"
+      "sha256": "3eeb2819e63f7c7cc54f91039bf87e5770d794b0ef22902a039a1a87e6b03df3"
     },
     {
       "fileAnnotations": [],
       "imports": [
+        {
+          "alias": null,
+          "name": "kotlin.contracts.ExperimentalContracts",
+          "wildcard": false
+        },
+        {
+          "alias": null,
+          "name": "kotlin.contracts.InvocationKind.EXACTLY_ONCE",
+          "wildcard": false
+        },
+        {
+          "alias": null,
+          "name": "kotlin.contracts.contract",
+          "wildcard": false
+        },
         {
           "alias": null,
           "name": "kotlinx.io.bytestring.ByteString",
@@ -77028,7 +77207,7 @@
       "origin": "local",
       "package": "kotlinx.io.bytestring.unsafe",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/unsafe/UnsafeByteStringOperations.kt",
-      "sha256": "228d879f48c39cf01c4e583fbfabc981c9ac5831d8e1bdbc1eb92e1b78349040"
+      "sha256": "4345a5f48fb3153032e80dcee021c04de661d285902b012fd52a09b527fa89b0"
     },
     {
       "fileAnnotations": [],
@@ -77042,7 +77221,7 @@
       "origin": "local",
       "package": "kotlinx.io.files",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileNotFoundException.kt",
-      "sha256": "78c05ae4d804cf8ba40833504f0e9f0e029340547d41ccf42748ffaf69f0245f"
+      "sha256": "5bba97a520431f6752ef034efed48bca39f2af4acb687140014b16cd7962b867"
     },
     {
       "fileAnnotations": [],
@@ -77085,11 +77264,32 @@
     },
     {
       "fileAnnotations": [],
-      "imports": [],
+      "imports": [
+        {
+          "alias": null,
+          "name": "kotlin.jvm.JvmName",
+          "wildcard": false
+        },
+        {
+          "alias": null,
+          "name": "kotlinx.io.Sink",
+          "wildcard": false
+        },
+        {
+          "alias": null,
+          "name": "kotlinx.io.Source",
+          "wildcard": false
+        },
+        {
+          "alias": null,
+          "name": "kotlinx.io.buffered",
+          "wildcard": false
+        }
+      ],
       "origin": "local",
       "package": "kotlinx.io.files",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/files/Paths.kt",
-      "sha256": "8dc0b66c10f556b452188a4c4eead8f983e54fcbb2dbc49860b750fce62ee8ce"
+      "sha256": "a601032cabd5735d04f7593310052eeb971c90a6193f8a72c854d290aedb03be"
     },
     {
       "fileAnnotations": [],
@@ -77139,27 +77339,31 @@
   "runtimeFiles": [
     {
       "path": "Sources/Runtime/RuntimeArrayBasics.swift",
-      "sha256": "cfcd379f3564448d895384ed877f078798d3ba724742e269c95633fd53b4fa7b"
+      "sha256": "40311297d8c68f4725746642c053d7ff85fbc6caf302755bb0f17029162c5041"
     },
     {
       "path": "Sources/Runtime/RuntimeArrayDequeAndUtility.swift",
-      "sha256": "2b3151800c9053a421f99960c010daad1a5c90175a4f017a1b7703760c4b3a14"
+      "sha256": "8c5c3f324883852b1cb9e24289f835f03991c85a4f75d469ba239016883bd782"
     },
     {
       "path": "Sources/Runtime/RuntimeAssertions.swift",
-      "sha256": "c81dcd7c179d178e74dfd5d82098eb573c9cf26ba9b2284ec93cd49214bfec0c"
+      "sha256": "c75ff399ed29f568146e94a5891ff45f75a7a8f2d2be3a759439ba009772fabe"
     },
     {
       "path": "Sources/Runtime/RuntimeAtomic.swift",
-      "sha256": "40d8bba98794caf3af9ca5aee1bbe4d07c028ef9581d28395872bfa17d7584e3"
+      "sha256": "dc2b1b97c4dcc5ce246efb19a85378c1cae5a7680e67492edc7276391dfaf9d1"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeAtomicfuSynchronization.swift",
+      "sha256": "f6bff70487e3c3b2468220bde9bdee0c8e89e20614771c348888eb64a63316b1"
     },
     {
       "path": "Sources/Runtime/RuntimeBase64.swift",
-      "sha256": "4d974927ecabf9888a4120e55abc630dc531579478c70634edb8885b566618ad"
+      "sha256": "e7fab8a7d71793df030cdfca5581dbae12ac396406220141c1f6a45a5994c25f"
     },
     {
       "path": "Sources/Runtime/RuntimeBoxing.swift",
-      "sha256": "56c19f238d1901fc5cb597f74b021846c5c932e54b992f7668186fe4311f83d9"
+      "sha256": "5f95ba5f88063488c6ec4f6f9fca0e7cd10845086c4eaedc519670372abccdd8"
     },
     {
       "path": "Sources/Runtime/RuntimeBuilderDSL.swift",
@@ -77167,7 +77371,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCInteropArena.swift",
-      "sha256": "4abaaa2ac8b179a32c45f8551d82a49196ffea92681fa183b7464365b364fd7b"
+      "sha256": "ab811dc4a85b2ccc2bfbd1b2db397137713a2bb9d67b0f5d0ad9253f7a5220b9"
     },
     {
       "path": "Sources/Runtime/RuntimeCallableInvocation.swift",
@@ -77179,19 +77383,47 @@
     },
     {
       "path": "Sources/Runtime/RuntimeChar.swift",
-      "sha256": "c35986276c7ab3cc3b80a1b08261f27df09bb19cd66c4305da6462a055b73da1"
+      "sha256": "3808b4eec6a245511f81a15a42e873c6d14355c30521929da358d7401bb90ef9"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHOF.swift",
-      "sha256": "d22686ea1872e42e97fe7ebd37d72d0ee171223798223d19c4a9825df30b132f"
+      "sha256": "018d1c50167a18029493a5790ce9d0bfd7c105102e6ebdf6a39c58ae67b8fac6"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHOFMaxMin.swift",
       "sha256": "c42b71e5f7581146082185e51fa2a0c380351d73d9fdc5a6e0ae80106066dddb"
     },
     {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+CollectionBoxes.swift",
+      "sha256": "8151772c7818b397337b044d1fa5a226dd630ea31088661a7f8d110f17feb2b3"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+Comparison.swift",
+      "sha256": "cb7e5717608ab86d42424f906a7441eec594c321b26167e7c3c112a218782ca8"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+ElementString.swift",
+      "sha256": "a3954057818da30ff7a0b2e5079818ff919504fa2eec6a95ecbe121991be4095"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+Equality.swift",
+      "sha256": "e25394ed2fb1ce2c22d78ae387604fc50316802a62b0d19f0c2ab0cc7d79be2f"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+HOF.swift",
+      "sha256": "889271f12ba92bec1718cee8c85a5fc4885b49d3ce6488ff76929920b730c38f"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+Iterators.swift",
+      "sha256": "241cbfb4bf689736127e7782867a1b40b8b8be7ffd9e69cff39d71b78761e844"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCollectionHelpers+SourceInterface.swift",
+      "sha256": "f50e5a8e80176299f6a88ad6535fbbc6e467bcf30b6144dce21bce3da8e31cb7"
+    },
+    {
       "path": "Sources/Runtime/RuntimeCollectionHelpers.swift",
-      "sha256": "00e8e66b2e101a0498971b57ef070a6dc88ce3f4177dd0d33abc87bc92753d6a"
+      "sha256": "e626341bdcd7aa23c46869334cdad3aa855ca7ca9205098bd7f3b60d3756ff3e"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionMutation.swift",
@@ -77199,23 +77431,59 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCollections.swift",
-      "sha256": "9370606930d272408ba7adcf10850aafdd3ec986bbb4c9e524c3a0a829742b30"
+      "sha256": "2f2f402737ed9768e10e15d7e0444c0f8d30cab5e36cd272ea65180d5a368df9"
     },
     {
       "path": "Sources/Runtime/RuntimeComparator.swift",
-      "sha256": "a345069e6abc8c6bd41be8e43f0ad6fb84b04025e5eeced2bae36fb1146b1715"
+      "sha256": "c8ead8ed59c4af2379df4dd7fcd23103f9264fb8a92dd87c4179f493a6713347"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+Continuation.swift",
+      "sha256": "8f3aafad84e9dcd28520625a1305026bc270a08808d063ac3cdd07850178f8de"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+ExceptionHandler.swift",
+      "sha256": "7eb095c177d80a0059e489493faea8e6921aa6e41ba61226f49aa8f39dc0b537"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+Job.swift",
+      "sha256": "aa66e470baf786c4c39e6da52f4b89882bfffed8e570191f916d5c60b64f1cd6"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+JobLifecycle.swift",
+      "sha256": "1a7d93f6bb552619adfd0128ee727323628ef0301d6ef9fdef8a109e29019074"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+Launch.swift",
+      "sha256": "fb9d250c612c0c0f395609041289d8314e80aceacfe2ffcb5506e87a490cb959"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+Scope.swift",
+      "sha256": "a9044124debf3abaab982f2b9b3b5da4c768fcda70a6cef677d4717b87445851"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+Suspend.swift",
+      "sha256": "1c36486144a3cd720b5fb902ef2b6608620d030050912cc69dc9f5268034d13d"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+SyncGate.swift",
+      "sha256": "9eb6a1d2625e27d7ec3556f379b9e374ee7e9b1f338ea2051d48be5b64dcf09a"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeCoroutine+TestSupport.swift",
+      "sha256": "b7fac8376eae77a42646a9a00009af9e5948f1b58f5b195457153bf91139e049"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine.swift",
-      "sha256": "79db464f8ca96665fd78524e8a01e6a10445edd4b43b148e20ff6be752c93a4d"
+      "sha256": "ebd7b74f39ed298b3dd9bac2e6c77a0be9afa80d8373ed21dd9ebfba14aa93ea"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineChannel.swift",
-      "sha256": "c33379a2aa9cb35b8a0d653a2c6fef56b38ee7f9d9b5b91d815732b26fa35f78"
+      "sha256": "9c0132877dca1e3ef53943ad51cdc40051e3c0677d3cc0aca22b593ec2021ca4"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineContext.swift",
-      "sha256": "c70859067b2e42a145d806075bc4aa54dcfe87093d09312edec6978eaa85f39e"
+      "sha256": "43c6f133e9a0e418969ad9ad584f0e6540ef66487121b674b7fc3ad21143c37c"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineEventLoop.swift",
@@ -77223,7 +77491,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineFlow.swift",
-      "sha256": "3c887923b4347f0e321de7e6a0611e98db6edf9528088eab11bbbfb4c10ddf24"
+      "sha256": "7daf088ad1efaaaa35cbfbed28bc86bb2cb2efcd348ce8fc1e9218335e05df0a"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineSelect.swift",
@@ -77239,11 +77507,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeDelegates.swift",
-      "sha256": "8c09ebe17cae895a776600d04b6bb57efeb97634f5baf35c71bc9986466ca255"
+      "sha256": "ea5da0881a59e584e2799baf58e0ba82a0c3ef3371d54cfb7f584ef640a46784"
     },
     {
       "path": "Sources/Runtime/RuntimeDuration.swift",
-      "sha256": "564f56717b82375e64e88334b2ab742343f1c6a99051bae6407cfcbd14a1a7f0"
+      "sha256": "3c516a2efbd77cb3336b63c035b4a4a069a41b70dda24e752d0764adec51e120"
     },
     {
       "path": "Sources/Runtime/RuntimeEnum.swift",
@@ -77251,11 +77519,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeFileIO.swift",
-      "sha256": "a7bbf03fe922ce3e223fdda1231de9bc8c8e5355cac4cbd0899480424a739f80"
+      "sha256": "c5b770eae7c1f18ddbb1c809ac6bffeb9c7eb06f1ebf874b160c323b4a9a878d"
     },
     {
       "path": "Sources/Runtime/RuntimeFileSystemException.swift",
-      "sha256": "052e3aaf1051fc3b8ba719dc47538ba44f34136735b9a785675b1107a5815e70"
+      "sha256": "708459f8494f9175d8051fcfc3e84b46a2b7a33175fc9e91fc6588f43e9c4da1"
     },
     {
       "path": "Sources/Runtime/RuntimeFloatingPointRange.swift",
@@ -77263,23 +77531,27 @@
     },
     {
       "path": "Sources/Runtime/RuntimeFunctionTypes.swift",
-      "sha256": "b3487d43471e25141b8284a736f64aac68758955d55aa7db587b57f63d20cf58"
+      "sha256": "528bb40b1cf4b9b0c22e56cc0d254a2f2231c5e5445df8c52e03e18a34c419e7"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeGC+RetainedAtomicPayloads.swift",
+      "sha256": "d49dfc326587c53c0d7117601d1c77e5c535fdeec98b5e82de397fa74962f1a1"
     },
     {
       "path": "Sources/Runtime/RuntimeGC.swift",
-      "sha256": "932fe881e2bdd6e77ec10bb1e086a62f8b37d8bc1a508062ff58d62ae1b72406"
+      "sha256": "07e7c5db2e83a33d5f1e4cf542e6667ad4311307d33bbe565748be80bad53e23"
     },
     {
       "path": "Sources/Runtime/RuntimeHOFShared.swift",
-      "sha256": "e6bf856d17680f01e441b9ec6bc7fde16899b44689443b19db97eee74b926fd2"
+      "sha256": "65f37049627d56a87aae87b0f571c8b58bf21296bd4bc81feab23e17119ef56b"
     },
     {
       "path": "Sources/Runtime/RuntimeHandleResolution.swift",
-      "sha256": "59aec60d1a14905cb0f44a9fae0ccba800fae5daa45321deb7aaf66b8e678b00"
+      "sha256": "3befd455f61f956b91953656103a0306bd60c246388c85c760274dc97b5e4c25"
     },
     {
       "path": "Sources/Runtime/RuntimeHelpers.swift",
-      "sha256": "ad51ef17fc43bb5ed6960b21e42d42b975c1345b08d8d6b8c8172eef86c81c98"
+      "sha256": "089909ba8674ff84326f3a7afbfa18fb4af2d12d8c69f6f88fda96d36e7f3b6c"
     },
     {
       "path": "Sources/Runtime/RuntimeI18N.swift",
@@ -77287,7 +77559,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeInstant.swift",
-      "sha256": "92aab549b7ded1829e4b1f075f753808156d18640c0acd426fb243ac1b35f2ba"
+      "sha256": "3d570af683cabac431acbb74da8ce9539df58a9ce69ad96cacd2fa7a1ff9db36"
     },
     {
       "path": "Sources/Runtime/RuntimeIoFileSystem.swift",
@@ -77311,23 +77583,23 @@
     },
     {
       "path": "Sources/Runtime/RuntimeMath.swift",
-      "sha256": "f5e97600882116990d9b2495ac504078cf42e1ca19b25a658ba2b1ce0bc07f9f"
+      "sha256": "647865ddd60d690016c12a2f337043c0e1c3115092d9057b4f8e1aeabb10c142"
     },
     {
       "path": "Sources/Runtime/RuntimeMemory.swift",
-      "sha256": "8da7458dc297be74343237c5061d74f390b99c5fbc81fd261a711c3344a8ffc3"
+      "sha256": "28ad4312649740e220247aacde2d9d7c1b5478d4acca890429e36748d77d7d47"
     },
     {
       "path": "Sources/Runtime/RuntimeMetadata.swift",
-      "sha256": "4d493a48be1cbc176b6a0314e018422de1c613c70176009ad375661c6666c47a"
+      "sha256": "67cffb5c37c419119bc796dadb49538b611b9c21c6db9206060ef786c636d08e"
     },
     {
       "path": "Sources/Runtime/RuntimeNativeAPI.swift",
-      "sha256": "5cb756b7832519047b66d9f30830aa6a2aeab0f5dbb23edfd0e304c522f69bfa"
+      "sha256": "821dbd37f944cdedc314922fe6a1b56ec0c80a7dbe9b0b38186baf9170e55ef2"
     },
     {
       "path": "Sources/Runtime/RuntimeNativeConcurrentABI.swift",
-      "sha256": "16704e743d7377b6d7fdffbf253f31fc168bb6650e110d2400353e47ee0b85e6"
+      "sha256": "02ba51d7e81af0346590f1dad8c72002dde724953235780e1bd27fdc717b04f7"
     },
     {
       "path": "Sources/Runtime/RuntimeNetwork.swift",
@@ -77339,15 +77611,15 @@
     },
     {
       "path": "Sources/Runtime/RuntimeNumericCoercion.swift",
-      "sha256": "def75f7e3d4c9b05887844ed457c68f04e8e7ddd5d56df3df7d2a5857b4fd9b3"
+      "sha256": "0d44b6093f45866ac941a7d859850f1aec7596bcb16455351a700c899a5afb32"
     },
     {
       "path": "Sources/Runtime/RuntimeNumericCompat.swift",
-      "sha256": "1c7f05c8ee7caa2d04637dc1407c1cb96f8d535330506a3d7fe74a519a7aabc5"
+      "sha256": "ba8f701eaa65c7b4fd376fca2066378c8483264557ece6fa7f9b2354dbf3cc7b"
     },
     {
       "path": "Sources/Runtime/RuntimeObjectOwnership.swift",
-      "sha256": "a18cea2efdb71d4a186b8db1878d7482d63dde0080629a58bf33c494c7dfb986"
+      "sha256": "9f9516ae6aba77a1eac1af6ba0170ba0786ecf6f065dee3c47d1aa874a69ade1"
     },
     {
       "path": "Sources/Runtime/RuntimePlatform.swift",
@@ -77355,23 +77627,23 @@
     },
     {
       "path": "Sources/Runtime/RuntimePreconditions.swift",
-      "sha256": "349b456bb765027f76053738c31200165879c279091cadbc30ec78b16f61315a"
+      "sha256": "1f03ac88293f1ff1548112f67c9814a3581572376a8bd53d23a6adb758a45ed3"
     },
     {
       "path": "Sources/Runtime/RuntimeRandom.swift",
-      "sha256": "0800a9de218d103393090357d1d35e5cfb2677b80a3d2de87e257d8d69294cf2"
+      "sha256": "d41e187716d8008683ece79e86e8ab2296e133c6cb3072849385c03dc45f7276"
     },
     {
       "path": "Sources/Runtime/RuntimeRangeAndDispatch.swift",
-      "sha256": "2dca48ae0cce4da9a2c0e85c20ec05d2b05f10d180c1d7ae8888a08fc6a8b5f5"
+      "sha256": "68b1e9653728dbb455419635e2fc578cb55b32509e5bc1d5c220c344043c2c70"
     },
     {
       "path": "Sources/Runtime/RuntimeRangeIntRangeHOF.swift",
-      "sha256": "39eb771e268fa47f8848f18b02106c854a78bded71a5c337697dce460af57ce6"
+      "sha256": "7a6bacd4c1d3f26bbfdba68ed0ada6be9179907ae971cee9cb4a1e1689f46025"
     },
     {
       "path": "Sources/Runtime/RuntimeRangeLongRange.swift",
-      "sha256": "47e7f82ec7e490c23e5b483a687b7357b935dc21156e297f14855aacae1991fc"
+      "sha256": "918af0e0bd1dda25f9ec6f232857242952a680f9dd689d03ddd9a1a6cd7c1f15"
     },
     {
       "path": "Sources/Runtime/RuntimeRangeSharedHOF.swift",
@@ -77379,7 +77651,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeRangeUIntULongRange.swift",
-      "sha256": "17a3278a3ca4d3ffcdd8c321cee7e19ebf1d677f2428de52363eb366b9eb3f56"
+      "sha256": "b2b5c2e9e4ac7b72961ce95e512ab4137c6c93263a0163cff9cea121a5279377"
     },
     {
       "path": "Sources/Runtime/RuntimeRangeValueSemantics.swift",
@@ -77387,7 +77659,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeReflection.swift",
-      "sha256": "3a2d5f07a910a717c3128c78b30f5b15f36ade5df78131f043d770c937341a9b"
+      "sha256": "13a783e7fd68cf5ea4986284df804febb9bc75220e87ebd585b8c8e95743679a"
     },
     {
       "path": "Sources/Runtime/RuntimeReflectionTypeMetadata.swift",
@@ -77395,19 +77667,35 @@
     },
     {
       "path": "Sources/Runtime/RuntimeRegex.swift",
-      "sha256": "6fe7e32db8835a043090f78ddc4fa912e1a15e48a6bce7113960d22d9b01be3f"
+      "sha256": "4fd344faaa52f242e52c1a77b3f72d139d5495315ee0b69af1239758b11a89a7"
     },
     {
       "path": "Sources/Runtime/RuntimeResult.swift",
-      "sha256": "4ff392e61a17200da89552600edf810796f5e3ff11201eb9c5e58fee9d6c6e51"
+      "sha256": "73293219b206a2c4fdc58bea88c8560a56649c62f8581ad00c76e4810797d36c"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeSequence+Factories.swift",
+      "sha256": "5cf99ea66574bb0e051ebaa9127ce0203756cb46831899244f43b23d2c4b4b26"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeSequence+IntermediateOps.swift",
+      "sha256": "9d146bad1127fa346f3f14346b241a165d965617f025118c1c56838c0d26b68a"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeSequence+TerminalOps.swift",
+      "sha256": "bc491a60c0e220d2e7a78ca82e6e4b64407eee27f3579f2edbbc9f5ed9b37b58"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeSequence+WindowedAndGroupingOps.swift",
+      "sha256": "1ad6b91b64bbfcf35f24faf7ad0198d1349705123fba9f478988d05cf0e7d3ac"
     },
     {
       "path": "Sources/Runtime/RuntimeSequence.swift",
-      "sha256": "6a214d0dc92f2d1270b4d0527b7d39ed6bcbfa293d26dc0af67bcf64949b9db2"
+      "sha256": "5536d31a8a5df9de469f41f9512eab7818cee92dbfc6fb369ea377ba904e0378"
     },
     {
       "path": "Sources/Runtime/RuntimeSequenceBuilders.swift",
-      "sha256": "c9123501696e34d6428b7db97ae9a4d30d0001a74a111e50db9859ea83390e83"
+      "sha256": "d2181e14b2efa914b7b3290d9eb34f42e10f88055d31b39aa2d9af141c7fb904"
     },
     {
       "path": "Sources/Runtime/RuntimeSequenceIndexedReduceCompatibility.swift",
@@ -77415,23 +77703,59 @@
     },
     {
       "path": "Sources/Runtime/RuntimeSetAndMap.swift",
-      "sha256": "970b6ec0ceb59bf7fcaed7b95b74572f45fee9d8ca1b1ca57d8c643cfeaab343"
+      "sha256": "dfc9cbef0170ed98703be0d9d8467d641fab4d13b2a52e4248d314a4cbe00a71"
     },
     {
       "path": "Sources/Runtime/RuntimeSortedCollections.swift",
-      "sha256": "ed514a2ca62c7857783f938a213265126a9c271398ed4c5360ed32c6e4b4d797"
+      "sha256": "a85499c3f076658bd1471b3a985b15068714fdaa6c1c6ce06b79ea102dfce25f"
     },
     {
       "path": "Sources/Runtime/RuntimeStackOverflow.swift",
-      "sha256": "b9b6964a3a2035416fe18c677fe98c39735cb9cde0efc64dba039a3eda6d945d"
+      "sha256": "52bc7221778cfa246178eb81f346cd64a6d9a85063cfc51c88c5ef24d1a3ad6f"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+Arrays.swift",
+      "sha256": "1c47ebf130082081c6ef2e746aade478298ee3d3b7f5ed826aa4bf0960ec457b"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+KClass.swift",
+      "sha256": "ff07628ecb5cf496e04440502c5781a5ef2ce40be1fab81ef6924b26a0672b6e"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+KClassMembers.swift",
+      "sha256": "ebda76bff677f8382bda3e843661929c52c81c6e01be65fc964c02b9e59dbb20"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+KClassSupertypes.swift",
+      "sha256": "eb855487ee771028347cbe80465ac6d5ac57046c3b34b86695433b69a926790b"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+KType.swift",
+      "sha256": "2aa6bc6dce74b5f49c0399eb9d53cfa81a1fa8a311f9fe2d95abb0d5ce1515d5"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+Objects.swift",
+      "sha256": "88de7da92ac3e18bdcd8f0d1ab100d07c3b0f4a60598689e215e7d119cbaca26"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+Printing.swift",
+      "sha256": "da4bca3216cbf6df6464c9830135f672302c5d0feca36a3f6ca33608fc9d078f"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+Throwable.swift",
+      "sha256": "78402931fd95335e25984ce3c1677122d1cb42f1a64ac1588d6f0045cd0af2c3"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeStringArray+TypeChecks.swift",
+      "sha256": "8bf35ddb422df8e140cef52ba7df30cfabc1148df85a65ad18d4b252609cbbdf"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray.swift",
-      "sha256": "7d997cb78b677b103dcf5663a71d6f95bed79b37b5fcf133e8961adcd3d7fcab"
+      "sha256": "5e21bbc421a51d9d3e6a5a837cc8d74f45460f5748a2eca6f6884df5645ae0e9"
     },
     {
       "path": "Sources/Runtime/RuntimeStringBuilder.swift",
-      "sha256": "a09e59aca55f0ae6da677e1679b6d8344dfb16344567efb38bb207d704373bd8"
+      "sha256": "2c5e78fab5a2bec694dea4237d6bd9d756a7e650e0c8d0850e37298df9f5f57d"
     },
     {
       "path": "Sources/Runtime/RuntimeStringComparison.swift",
@@ -77439,7 +77763,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringConversion.swift",
-      "sha256": "e9b448c05638d8f1fca1dd799734ac3000f245967fcb58b3350c8271b16eeeec"
+      "sha256": "6453628a1c5bec60ce6a08bd4635f88b2cd524bbcd52db4a0e512790fe23b427"
     },
     {
       "path": "Sources/Runtime/RuntimeStringEncoding.swift",
@@ -77451,7 +77775,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringFormat.swift",
-      "sha256": "3646ac383778196b5b291b7611eeec1a751997c7a5fb31166e105c43f5eccc28"
+      "sha256": "c9bd6757c2979c1dd999620da090a4c0061ac060b5930097ca34bd9d8cd506d3"
     },
     {
       "path": "Sources/Runtime/RuntimeStringFormatValidation.swift",
@@ -77459,11 +77783,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringHOF.swift",
-      "sha256": "dc444bf7d5b109d4bf217c559e38a4dcee17d7bd749736465b4571279c58cba7"
+      "sha256": "57e8f7c9262ded2e39c598697401f95573518248c8bd6075d6395ebe9a23aa96"
     },
     {
       "path": "Sources/Runtime/RuntimeStringHelpers.swift",
-      "sha256": "89cb665534b11d58d9e2a618b96dd7c92d5169d4e43a1ad28b8e01219c32ea20"
+      "sha256": "c8584776e75238e1660dbbaed7bd8c0dd964175062679900401c9be6b677d599"
     },
     {
       "path": "Sources/Runtime/RuntimeStringLiteral.swift",
@@ -77471,23 +77795,23 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringQuery.swift",
-      "sha256": "1f733d16d101ff5c224eb2841c97b881b5315392c161dcd30b7f05f368f6cb10"
+      "sha256": "500eb027ac5ecfd3ae0cb7b197af37af3f599998631adbf81825ca9cd188f74d"
     },
     {
       "path": "Sources/Runtime/RuntimeStringStdlib.swift",
-      "sha256": "3fa772d653fb521a7ef1e907698e451f0befe3478d739e0c3977f89145a0c68b"
+      "sha256": "8954e93080bfbfaefd42cd15b3ef2301ab5c6e108ebc183ef073e6adfd15e4c1"
     },
     {
       "path": "Sources/Runtime/RuntimeStringSubstring.swift",
-      "sha256": "011f344f2175bfdd103ea95a4ef72d023b63f72b3e1ba49487ba8e39ca18fecf"
+      "sha256": "4f43db91617da50b931868bad5f5049629beedd8c221ce042940a167c348f4e5"
     },
     {
       "path": "Sources/Runtime/RuntimeSync.swift",
-      "sha256": "43f58d77765c45528a9a9eaf5c6db51562e32f9299101a728297ab7cc81fd9c0"
+      "sha256": "50e9ad70ec19fca2fa7d07bc9ec5c8486b09ac6213e37a98f100a196ef96c855"
     },
     {
       "path": "Sources/Runtime/RuntimeSystem.swift",
-      "sha256": "0ddab4747bb943dfcc0c8533818bd10d7c01ccdb849cbe33452fb74424d2d620"
+      "sha256": "135fbcf1f4d79d924a4c010491551dd87fd8d8390ac047ed52dcf812f97b5912"
     },
     {
       "path": "Sources/Runtime/RuntimeThreadLocal.swift",
@@ -77499,15 +77823,47 @@
     },
     {
       "path": "Sources/Runtime/RuntimeTime.swift",
-      "sha256": "eb2756c496535afe5e3b779bef660c1bca09435efa28ee0e103e69c4856a49a6"
+      "sha256": "c9f330719ca170a12e26af890bb95925e997017aca925348b79ee90c04354a85"
     },
     {
-      "path": "Sources/Runtime/RuntimeTypes.swift",
-      "sha256": "421c06150eade3daca77941cc0b0fcf183c56a8b055e268ba3f3670657fcdcd7"
+      "path": "Sources/Runtime/RuntimeTypes+CoreTypes.swift",
+      "sha256": "0b20520d1e95305460b29a2536eff8c2452098364b99b7aa204fd1b58c7490cf"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+IOBoxes.swift",
+      "sha256": "fb93bed410a634782392da802b498668ac94558faa2be0d86b94df763e458838"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+ListBoxes.swift",
+      "sha256": "eebbab272380fa804ae52c92fd47adae753affbd62c8b5f58bcb3cee8ad3ee3f"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+MapBoxes.swift",
+      "sha256": "dad9c49ba3fb6992998bd857d24ab361f11e05d432c60fa3ca1f841a071b7c2c"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+ObjectBoxes.swift",
+      "sha256": "30cfdf4505679501dff2e81ccdc048d3433f0bc0527c9d5e1cf2ea978d9a7fe3"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+Reflection.swift",
+      "sha256": "84a68f152daf390b5e047fdd9746eae8caf9dc3fb40102f145718ca3717e77f7"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+SequenceBuilders.swift",
+      "sha256": "fbed79248ef2bd30d75adee5b03a649717a20f98ca04b7c1d1145c39ebea56ef"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+SetBoxes.swift",
+      "sha256": "763748823de8deac9ac20b8109bdff9980299fde1b8a44eccf6065d1a27224ea"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeTypes+ThrowableBoxes.swift",
+      "sha256": "fb35641f9cd049e88863a1293d2df2d1954a132c567c843e1a45591f43cc653a"
     },
     {
       "path": "Sources/Runtime/RuntimeUuid.swift",
-      "sha256": "b6a75b93800c91f5c1ff8bee4e0bebacc8257c8e1c1fc517af405a882bc873fa"
+      "sha256": "90f2af4e0b4452ed1b76dd73bb8e55ad4df6137fd0643b86c6fb0e624b06b781"
     }
   ],
   "schemaVersion": 1,

@@ -639,7 +639,7 @@ final class MemberLowerer {
                     driver.ctx.setLocalDeclaredType(receiverType, for: owner)
                 }
             }
-            let isVararg = driver.callSupportLowerer.normalizeBoolFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+            let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
                 if index < isVararg.count, isVararg[index] {
