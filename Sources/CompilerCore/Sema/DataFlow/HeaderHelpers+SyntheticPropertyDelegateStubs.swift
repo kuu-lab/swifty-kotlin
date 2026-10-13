@@ -1431,6 +1431,9 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern("findAssociatedObject")
         let functionFQName = kotlinReflectPkg + [functionName]
         guard symbols.lookupAll(fqName: functionFQName).isEmpty else { return }
+        let kClassSymbol = ensureInterfaceSymbol(
+            named: "KClass", in: kotlinReflectPkg, symbols: symbols, interner: interner
+        )
 
         let typeParamName = interner.intern("T")
         let typeParamSymbol = symbols.define(
@@ -1474,7 +1477,10 @@ extension DataFlowSemaPhase {
         symbols.setExternalLinkName("__kk_kclass_find_associated_object", for: functionSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: types.makeKClassType(argument: types.anyType),
+                receiverType: types.make(.classType(ClassType(
+                    classSymbol: kClassSymbol,
+                    args: [.star]
+                ))),
                 parameterTypes: [],
                 returnType: types.makeNullable(types.anyType),
                 isSuspend: false,

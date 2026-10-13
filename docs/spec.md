@@ -684,6 +684,7 @@ public enum TypeKind {
     case typeParam(TypeParamType)
     case functionType(FunctionType)
     case intersection([TypeID])
+    case kClassType(KClassType)
 }
 
 public struct ClassType {
@@ -707,6 +708,8 @@ public struct FunctionType {
     public let nullability: Nullability
 }
 ```
+
+`KClassType` は不変の `KClass<T : Any>` を表す。`out` / `in` / `*` の use-site projection は nominal `ClassType` の `TypeArg` に保持し、固定 receiver との適合判定やメタデータ保存で不変型へ消去しない。KClass 型の共通型は、入力型がすべての入力の上位型ならその型を保持し、それ以外では `KClass<out U>` に近似して `KClass<U>` の不変性を維持する。
 
 ## J8.2 TypeSystem API
 
