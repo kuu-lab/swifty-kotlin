@@ -1,5 +1,3 @@
-// MARK: - Per-ownerKind constructor helpers
-//
 // These factories were originally `private` inside `StdlibSurfaceSpec.swift`.
 // They are promoted to `internal` so that the per-ownerKind member tables
 // (`+ListHOF.swift`, `+SetHOF.swift`, `+MapHOF.swift`, `+SequenceHOF.swift`)

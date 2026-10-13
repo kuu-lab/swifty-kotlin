@@ -9,8 +9,6 @@
 
 import Foundation
 
-// MARK: - STDLIB-188: replaceFirst / replaceRange
-
 func runtimeStringReplaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
@@ -20,8 +18,6 @@ func runtimeStringReplaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> I
 
 // KSP-406: replaceRange / removeRange are bundled Kotlin source
 // (Stdlib/kotlin/text/StringSubstringSlice.kt); no runtime ABI remains.
-
-// MARK: - Flat ABI wrappers
 
 @_cdecl("kk_string_replaceFirst_flat")
 public func kk_string_replaceFirst_flat(

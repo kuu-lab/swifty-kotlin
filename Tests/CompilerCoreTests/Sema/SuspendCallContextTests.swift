@@ -210,6 +210,68 @@ struct SuspendCallContextTests {
         """)
         #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 4, "\(result.diagnostics)")
     }
+
+    @Test
+    func listAndIterableMapInheritSuspensionContexts() throws {
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
+        inline fun direct(block: () -> Int): Int = block()
+        suspend fun good(list: List<Deferred<Int>>, iterable: Iterable<Deferred<Int>>) {
+            list.map { it.await() }
+            iterable.map { it.await() }
+        }
+        fun blocking(list: List<Deferred<Int>>, iterable: Iterable<Deferred<Int>>) = runBlocking {
+            list.map { direct { it.await() } }
+            iterable.map { direct { it.await() } }
+        }
+        """)
+        try runSema(ctx)
+        let hasErrors = ctx.diagnostics.hasError
+        #expect(!hasErrors, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        var receiverNames: [String] = []
+        for (id, binding) in sema.bindings.callBindings {
+            guard let range = ast.arena.exprRange(id),
+                  ctx.sourceManager.origin(of: range.start.file) == .user,
+                  let symbol = sema.symbols.symbol(binding.chosenCallee),
+                  ctx.interner.resolve(symbol.name) == "map",
+                  let receiver = sema.symbols.functionSignature(for: symbol.id)?.receiverType,
+                  case let .classType(receiverClass) = sema.types.kind(of: receiver),
+                  let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
+            else { continue }
+            receiverNames.append(ctx.interner.resolve(receiverSymbol.name))
+            #expect(symbol.flags.contains(.inlineFunction))
+        }
+        #expect(receiverNames.filter { $0 == "List" }.count == 2)
+        #expect(receiverNames.filter { $0 == "Iterable" }.count == 2)
+    }
+
+    @Test
+    func listAndIterableMapKeepNonSuspendingLambdaBoundaries() throws {
+        let result = try diagnostics("""
+        import kotlinx.coroutines.*
+        fun ordinary(block: () -> Int): Int = block()
+        inline fun escaped(noinline block: () -> Int): Int = block()
+        inline fun crossed(crossinline block: () -> Int): Int = block()
+        fun outside(list: List<Deferred<Int>>, iterable: Iterable<Deferred<Int>>) {
+            list.map { it.await() }
+            iterable.map { it.await() }
+        }
+        fun blocking(list: List<Deferred<Int>>, iterable: Iterable<Deferred<Int>>) = runBlocking {
+            list.map { ordinary { it.await() } }
+            iterable.map { ordinary { it.await() } }
+            list.map { escaped { it.await() } }
+            iterable.map { escaped { it.await() } }
+            list.map { crossed { it.await() } }
+            iterable.map { crossed { it.await() } }
+        }
+        """, includeStdlib: true)
+        let errors = result.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 8, "\(result.diagnostics)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0308" })
+    }
+
     @Test
     func resultInlineLambdasInheritSuspension() throws {
         let result = try diagnostics("""

@@ -19,23 +19,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
     }
-    func makeListType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        makeStdlibShellType(
-            symbols: symbols,
-            types: types,
-            fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("List"),
-            ],
-            args: [.out(elementType)]
-        )
-    }
 
 
 

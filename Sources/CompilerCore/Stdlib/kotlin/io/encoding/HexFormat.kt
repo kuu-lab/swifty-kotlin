@@ -95,11 +95,36 @@ public class HexFormat internal constructor(
         /** Mutable options used while building a [BytesHexFormat]. */
         public class Builder @PublishedApi internal constructor() {
             public var bytesPerLine: Int = Int.MAX_VALUE
+                set(value) {
+                    if (value <= 0)
+                        throw IllegalArgumentException("Non-positive values are prohibited for bytesPerLine, but was $value")
+                    field = value
+                }
             public var bytesPerGroup: Int = Int.MAX_VALUE
+                set(value) {
+                    if (value <= 0)
+                        throw IllegalArgumentException("Non-positive values are prohibited for bytesPerGroup, but was $value")
+                    field = value
+                }
             public var groupSeparator: String = "  "
             public var byteSeparator: String = ""
+                set(value) {
+                    if (value.contains('\n') || value.contains('\r'))
+                        throw IllegalArgumentException("LF and CR characters are prohibited in byteSeparator, but was $value")
+                    field = value
+                }
             public var bytePrefix: String = ""
+                set(value) {
+                    if (value.contains('\n') || value.contains('\r'))
+                        throw IllegalArgumentException("LF and CR characters are prohibited in bytePrefix, but was $value")
+                    field = value
+                }
             public var byteSuffix: String = ""
+                set(value) {
+                    if (value.contains('\n') || value.contains('\r'))
+                        throw IllegalArgumentException("LF and CR characters are prohibited in byteSuffix, but was $value")
+                    field = value
+                }
 
             @PublishedApi
             internal fun build(): BytesHexFormat = BytesHexFormat(
@@ -244,6 +269,7 @@ public fun ByteArray.toHexString(
     if (startIndex > endIndex) {
         throw IllegalArgumentException("startIndex: $startIndex > endIndex: $endIndex")
     }
+    checkFormattedByteLength(endIndex - startIndex, format.bytes)
     val sb = StringBuilder()
     val bytes = format.bytes
     var index = startIndex
@@ -255,8 +281,9 @@ public fun ByteArray.toHexString(
             if (currentLine != previousLine) {
                 sb.append('\n')
             } else {
-                val previousGroup = (position - 1) / bytes.bytesPerGroup
-                val currentGroup = position / bytes.bytesPerGroup
+                val positionInLine = position % bytes.bytesPerLine
+                val previousGroup = (positionInLine - 1) / bytes.bytesPerGroup
+                val currentGroup = positionInLine / bytes.bytesPerGroup
                 if (currentGroup != previousGroup) {
                     sb.append(bytes.groupSeparator as CharSequence)
                 } else {
@@ -273,7 +300,37 @@ public fun ByteArray.toHexString(
     return sb.toString()
 }
 
+private fun checkedHexLength(length: Long): Long {
+    if (length > Int.MAX_VALUE.toLong()) {
+        throw IllegalArgumentException("The resulting string length is too large")
+    }
+    return length
+}
+
+private fun checkFormattedByteLength(count: Int, bytes: HexFormat.BytesHexFormat) {
+    if (count == 0) return
+    val lineSeparators = (count - 1) / bytes.bytesPerLine
+    val fullLines = count / bytes.bytesPerLine
+    val lastLineSize = count % bytes.bytesPerLine
+    val groupSeparators = fullLines.toLong() * ((bytes.bytesPerLine - 1) / bytes.bytesPerGroup) +
+        if (lastLineSize == 0) 0L else ((lastLineSize - 1) / bytes.bytesPerGroup).toLong()
+    val byteSeparators = count.toLong() - 1 - lineSeparators - groupSeparators
+    var length = checkedHexLength(count.toLong() * 2)
+    length = checkedHexLength(length + count.toLong() * bytes.bytePrefix.length)
+    length = checkedHexLength(length + count.toLong() * bytes.byteSuffix.length)
+    length = checkedHexLength(length + groupSeparators * bytes.groupSeparator.length)
+    length = checkedHexLength(length + byteSeparators * bytes.byteSeparator.length)
+    checkedHexLength(length + lineSeparators)
+}
+
 // ─── shared decode helpers ─────────────────────────────────────────────────────
+
+private fun asciiHexDigitOrNull(character: Char): Int? {
+    if (character >= '0' && character <= '9') return character.code - '0'.code
+    if (character >= 'a' && character <= 'f') return character.code - 'a'.code + 10
+    if (character >= 'A' && character <= 'F') return character.code - 'A'.code + 10
+    return null
+}
 
 private fun stripPrefixSuffix(str: String, format: HexFormat): String {
     var working = str
@@ -304,7 +361,7 @@ private fun fitHexDigits(original: String, hex: String, maxDigits: Int): String 
     }
     var i = 0
     while (i < hex.length) {
-        if (hex[i].digitToIntOrNull(16) == null) {
+        if (asciiHexDigitOrNull(hex[i]) == null) {
             throw NumberFormatException("For hex string \"$original\": not a valid hexadecimal string")
         }
         i += 1
@@ -410,8 +467,9 @@ private fun parseByteValues(receiver: String, format: HexFormat): List<Int> {
             if (currentLine != previousLine) {
                 position = consumeByteLineSeparator(receiver, position)
             } else {
-                val previousGroup = (index - 1) / bytes.bytesPerGroup
-                val currentGroup = index / bytes.bytesPerGroup
+                val indexInLine = index % bytes.bytesPerLine
+                val previousGroup = (indexInLine - 1) / bytes.bytesPerGroup
+                val currentGroup = indexInLine / bytes.bytesPerGroup
                 if (currentGroup != previousGroup) {
                     position = consumeByteFormatToken(
                         receiver,
@@ -439,8 +497,8 @@ private fun parseByteValues(receiver: String, format: HexFormat): List<Int> {
         if (position > receiver.length - 2) {
             throw NumberFormatException("For hex string \"$receiver\": expected two hexadecimal digits per byte")
         }
-        val highDigit = receiver[position].digitToIntOrNull(16)
-        val lowDigit = receiver[position + 1].digitToIntOrNull(16)
+        val highDigit = asciiHexDigitOrNull(receiver[position])
+        val lowDigit = asciiHexDigitOrNull(receiver[position + 1])
         if (highDigit == null || lowDigit == null) {
             throw NumberFormatException("For hex string \"$receiver\": not a valid hexadecimal string")
         }

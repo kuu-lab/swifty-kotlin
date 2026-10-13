@@ -86,7 +86,6 @@ extension DataFlowSemaPhase {
             let classTypeParamSymbols = classTypeParamResult.symbols
             let classLocalTypeParameters = classTypeParamResult.localMap
 
-            // Create owner type with type parameter references as args
             let typeParamArgs: [TypeArg] = classTypeParamSymbols.map { tpSymbol in
                 .invariant(types.make(.typeParam(TypeParamType(symbol: tpSymbol))))
             }
@@ -263,7 +262,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // Value class validation: must have exactly one primary constructor parameter
             if isValueClassDeclaration(classDecl) {
                 let valParams = classDecl.primaryConstructorParams
                 if valParams.count != 1 {
@@ -273,7 +271,6 @@ extension DataFlowSemaPhase {
                         range: classDecl.range
                     )
                 } else {
-                    // Record the underlying type of the value class
                     let singleParam = valParams[0]
                     let underlyingType = resolveTypeRef(
                         singleParam.type,
@@ -446,7 +443,6 @@ extension DataFlowSemaPhase {
                     interner: interner
                 )
             }
-            // Process companion object: register as nested object and link to owner class
             if let companionDeclID = classDecl.companionObject {
                 collectCompanionObjectHeader(
                     companionDeclID: companionDeclID,
@@ -497,7 +493,6 @@ extension DataFlowSemaPhase {
             }
 
         case let .interfaceDecl(interfaceDecl):
-            // Register interface type parameters as symbols
             let ifaceTypeParamResult = registerNominalTypeParameters(
                 interfaceDecl.typeParams,
                 ownerSymbol: symbol,
@@ -554,7 +549,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterSymbols: ifaceTypeParamSymbols,
                 classLocalTypeParameters: ifaceLocalTypeParameters
             )
-            // Process companion object for interface
             if let companionDeclID = interfaceDecl.companionObject {
                 collectCompanionObjectHeader(
                     companionDeclID: companionDeclID,

@@ -18,6 +18,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return
         }
 
+        rewriteExpectEnumEntryReferences(module: module, sema: sema)
+
         appendReferencedBundledEnumNominalsIfNeeded(
             module: module,
             sema: sema,
@@ -44,7 +46,12 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             guard let nominalSymbol = sema.symbols.symbol(nominalSymbolID) else {
                 continue
             }
-            if nominalSymbol.kind == .enumClass {
+            // Expect enums describe the common API; only the actual enum owns
+            // runtime helpers. Synthesizing both creates ambiguous bare-name
+            // calls from enum boxing and reflection invoke wrappers.
+            if nominalSymbol.kind == .enumClass,
+               !nominalSymbol.flags.contains(.expectDeclaration)
+            {
                 synthesizeEnumHelpers(
                     nominalSymbol: nominalSymbol, intType: intType,
                     module: module, sema: sema,
@@ -788,7 +795,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let fieldOffsets = symbols.nominalLayout(for: owner.id)?.fieldOffsets ?? [:]
         return symbols.children(ofFQName: owner.fqName)
             .compactMap { symbols.symbol($0) }
-            .filter { $0.kind == .field }
+            .filter { $0.kind == .field && symbols.parentSymbol(for: $0.id) == owner.id }
             .sorted(by: {
                 // Source-backed entries have precise declaration ranges.
                 let lhsDeclOffset = $0.declSite?.start.offset

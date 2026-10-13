@@ -6,7 +6,6 @@ import Foundation
 // source-backed migration (b), or compiler/runtime residual (c).
 
 private enum SyntheticStubRegistryBucket: String {
-    case targetOutCleanup = "a"
     case sourceBackedMigration = "b"
     case residualCompilerSurface = "c"
 }

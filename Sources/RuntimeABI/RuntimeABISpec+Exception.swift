@@ -21,6 +21,18 @@ public extension RuntimeABISpec {
         isThrowing: false
     )
 
+    static let bridgeThrowableSetOptionsSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_throwable_set_options",
+        parameters: [
+            RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+            RuntimeABIParameter(name: "suppressionEnabledRaw", type: .intptr),
+            RuntimeABIParameter(name: "writableStackTraceRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
     static let bridgeNoWhenBranchMatchedExceptionNewSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "__kk_no_when_branch_matched_exception_new",
         parameters: [],
@@ -193,6 +205,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         bridgeThrowableNewCauseSpec,
+        bridgeThrowableSetOptionsSpec,
         RuntimeABIFunctionSpec(
             name: "kk_throwable_new_cause",
             parameters: [
