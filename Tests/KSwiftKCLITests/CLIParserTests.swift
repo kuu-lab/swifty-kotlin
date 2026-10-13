@@ -22,6 +22,8 @@ struct CLIParserTests {
         #expect(options.outputPath == "./a.out")
         #expect(options.moduleName == "Main")
         #expect(options.emit == .executable)
+        #expect(options.incrementalCachePath == nil)
+        #expect(!options.frontendFlags.contains("incremental"))
     }
 
     @Test
@@ -59,6 +61,33 @@ struct CLIParserTests {
         #expect(options.target.arch == "x86_64")
         #expect(options.target.vendor == "apple")
         #expect(options.target.os == "macos")
+    }
+
+    @Test(arguments: ["--incremental", "-Xfrontend"])
+    func parsesIncrementalEnableFlag(flag: String) throws {
+        let flags = flag == "-Xfrontend" ? [flag, "incremental"] : [flag]
+        let options = try CLIParser.parse(args: flags + ["input.kt"])
+        #expect(options.frontendFlags == ["incremental"])
+        #expect(options.incrementalCachePath == nil)
+    }
+
+    @Test
+    func parsesIncrementalCachePathAndDisableFlag() throws {
+        let options = try CLIParser.parse(args: [
+            "--incremental-cache", "build/cache with spaces",
+            "--no-incremental", "--incremental", "input.kt",
+        ])
+        #expect(options.incrementalCachePath == "build/cache with spaces")
+        #expect(options.frontendFlags == ["no-incremental", "incremental"])
+        for arguments in [
+            ["input.kt", "--incremental-cache"],
+            ["input.kt", "--incremental-cache", ""],
+            ["input.kt", "--incremental-cache", "--no-incremental"],
+        ] {
+            #expect(throws: CLIParseError.missingValue("--incremental-cache")) {
+                try CLIParser.parse(args: arguments)
+            }
+        }
     }
 
     @Test

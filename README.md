@@ -22,6 +22,11 @@ swift build
 ./hello
 ```
 
+反復コンパイルでは `--incremental` でキャッシュを明示的に有効化できます（既定はオフ）。
+保存先を管理したい場合は `--incremental-cache <path>`、一時的に無効化する場合は
+`--no-incremental` を指定します。利用例・計測結果・既定有効化の判断は
+[`docs/incremental-compilation.md`](docs/incremental-compilation.md) を参照してください。
+
 ---
 
 ## ビルド & テスト
@@ -58,5 +63,6 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 | [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
 | [`docs/debugging.md`](docs/debugging.md) | DWARF デバッグ情報の使い方（lldb セッション例） |
 | [`docs/kotlin-test-runner.md`](docs/kotlin-test-runner.md) | `--test` で kotlin.test の注釈からテスト実行ファイルを生成 |
+| [`docs/incremental-compilation.md`](docs/incremental-compilation.md) | インクリメンタルコンパイルの利用方法・計測・既定有効化の判断 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
 | [`AGENTS.md`](AGENTS.md) | AI 向けクイックリファレンス・Linux（Cursor Cloud）環境セットアップ |
