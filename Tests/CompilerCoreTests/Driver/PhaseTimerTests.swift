@@ -113,9 +113,11 @@ struct PhaseTimerTests {
         timer.endPhase()
         timer.beginPhase("B")
         timer.endPhase()
-        // totalNanos should be sum of all durations
-        #expect(timer.totalNanos > 0)
-        #expect(timer.totalMs >= 0)
+        // Empty intervals may have zero duration at the clock's resolution.
+        #expect(timer.phaseRecords.count == 2)
+        let expectedNanos = timer.phaseRecords.reduce(UInt64(0)) { $0 + $1.durationNanos }
+        #expect(timer.totalNanos == expectedNanos)
+        #expect(timer.totalMs == Double(expectedNanos) / 1_000_000.0)
     }
 
     @Test
