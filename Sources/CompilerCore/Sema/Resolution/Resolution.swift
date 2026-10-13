@@ -331,7 +331,7 @@ extension OverloadResolver {
         // Member extensions infer class parameters from their dispatch receiver;
         // the extension receiver still constrains the declared receiver type.
         let memberExtensionOwner = ctx.symbols.memberExtensionOwnerSymbol(for: candidate)
-        let classReceiverType: TypeID? = if let owner = memberExtensionOwner {
+        let unapproximatedClassReceiverType: TypeID? = if let owner = memberExtensionOwner {
             call.dispatchReceiverTypes.first { receiver in
                 guard case let .classType(receiverClass) = ctx.types.kind(
                     of: ctx.types.makeNonNullable(receiver)
@@ -341,6 +341,7 @@ extension OverloadResolver {
         } else {
             implicitReceiverType
         }
+        let classReceiverType = unapproximatedClassReceiverType.map { ctx.types.capturedReadableUpperBound(of: $0) }
 
         var starProjectedReceiverParameters: Set<SymbolID> = []
         // A nominal member's leading type parameters belong to the declaring
@@ -740,20 +741,17 @@ extension OverloadResolver {
                 blameRange: range
             )]
         }
-        // The nominal representation preserves `out` instead of erasing it
-        // into invariant KClass<T>. Only an inferred, read-only extension can
-        // approximate the captured argument by that projection's upper bound.
-        // Star and in projections retain the nominal representation too; the
-        // captured argument is then approximated by KClass's Any bound.
+        // Read-only extensions can use the projection's upper bound, but keep
+        // the capture identity so subsequent operations still check its bounds.
         if explicitTypeArgs.isEmpty,
            signature.reifiedTypeParameterIndices.isEmpty,
            case let .classType(actualClass) = typeSystem.kind(of: implicitReceiverType),
            actualClass.classSymbol == typeSystem.kClassInterfaceSymbol,
            actualClass.args.count == 1,
+           case .out = actualClass.args[0],
            case let .kClassType(declaredKClass) = typeSystem.kind(of: receiverType),
            case let .typeParam(parameter) = typeSystem.kind(of: declaredKClass.argument),
            typeVarBySymbol[parameter.symbol] != nil,
-           signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).contains(parameter.symbol),
            !(signature.parameterTypes + signature.contextReceiverTypes).contains(where: {
                typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol)
            }),
@@ -768,12 +766,8 @@ extension OverloadResolver {
                in: signature.returnType, parameter: parameter.symbol
            )
         {
-            let capturedArgument: TypeID = switch actualClass.args[0] {
-            case let .invariant(type), let .out(type): type
-            case .star, .in: typeSystem.anyType
-            }
             return decomposeSubtypeConstraint(
-                subtype: typeSystem.makeKClassType(argument: capturedArgument, nullability: actualClass.nullability),
+                subtype: implicitReceiverType,
                 supertype: receiverType, typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem, blameRange: range
             )
@@ -803,7 +797,8 @@ extension OverloadResolver {
            containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
            let symbols = typeSystem.symbolTable
         {
-            let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
+            let upperBounds = typeParam.capture.map { [$0.upper] }
+                ?? symbols.typeParameterUpperBounds(for: typeParam.symbol)
             let matchingBounds = upperBounds.filter { upperBound in
                 guard !typeSystem.typeContainsTypeParam(upperBound, symbol: typeParam.symbol),
                       !containsStarProjection(upperBound, typeSystem: typeSystem)

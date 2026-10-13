@@ -41,6 +41,9 @@ public class LinkedList<E> private constructor(
     /** Removes and returns the first element, or `null` when this list is empty. */
     public fun pollFirst(): E? = if (isEmpty()) null else storage.removeFirst()
 
+    /** Returns the last element without removing it, or `null` when this list is empty. */
+    public fun peekLast(): E? = storage.lastOrNull()
+
     /** Removes and returns the first element, throwing when this list is empty. */
     public fun removeFirst(): E {
         if (isEmpty()) throw NoSuchElementException()

@@ -74,6 +74,17 @@ public fun UIntArray.sum(): UInt {
 }
 
 @SinceKotlin("1.4")
+public inline fun CharArray.sumOf(selector: (Char) -> Int): Int {
+    var sum = 0
+    var i = 0
+    while (i < this.size) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
 @OptIn(ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
 public inline fun UIntArray.sumOf(selector: (UInt) -> Double): Double {

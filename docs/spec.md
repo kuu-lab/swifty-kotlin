@@ -711,6 +711,16 @@ public struct FunctionType {
 
 `KClassType` は不変の `KClass<T : Any>` を表す。`out` / `in` / `*` の use-site projection は nominal `ClassType` の `TypeArg` に保持し、固定 receiver との適合判定やメタデータ保存で不変型へ消去しない。KClass 型の共通型は、入力型がすべての入力の上位型ならその型を保持し、それ以外では `KClass<out U>` に近似して `KClass<U>` の不変性を維持する。
 
+generic extension の `KClass<T>` receiver は不変の制約として分解し、projection から推論する
+`T` は `TypeParamType.capture` に呼び出し内の identity と下限・上限を持つ。
+`KClass<in Int>` の capture は `Int <: capture <: Any` であり、`Int` を消費できるが
+戻り値を `Int` に固定しない。上限のメンバーと builtin 演算は読み取り上限を使い、
+capture を含むプロパティへの代入は下限を含む subtype 制約を検査する。
+metadata の公開型シグネチャは capture identity を外へ出さず、読み取り上限と
+安全な use-site projection に近似し、反変位置と nullable を保持する。
+class literal の reflection target は nominal symbol を保持し、builtin の `KClass` 型引数は
+通常の値型と同じ canonical `TypeID` を使う。
+
 ## J8.2 TypeSystem API
 
 ```swift
@@ -1263,3 +1273,40 @@ swift test --show-codecov-path
   * `Sources/CompilerCore/Lexer/TokenModel.swift`
   * `Sources/CompilerCore/AST/ASTModels.swift`
 * しきい値を CI gate 化する場合は、`--show-codecov-path` が出力する JSON を parse する tracked script を追加してから、この節へ script 名と環境変数を戻す。
+
+
+### KUU-1768 proposed reflection vararg ABI
+
+`callBy` treats absent non-optional varargs as a typed empty array; optional
+varargs use the ordinary default-mask entry, and absent required non-varargs
+raise IllegalArgumentException. `isOptional` and `isVararg` remain independent.
+A separate packed allocating constructor reflection wrapper accepts whole arrays;
+ordinary `::Ctor` invocation keeps its independently inferred callable type.
+Source reference-vararg storage is Array, primitive storage stays primitive Array,
+and runtime bridges keep List storage. KParameter's existing seven registration
+arguments remain unchanged; erased reference component metadata is attached with
+a separate private bridge. Explicit wrong empty components are rejected before
+invocation. Manifest `sourceVarargStorageABI=array-v1` governs the source-only ABI
+and new class/component hidden-token pair; old non-vararg reified calls keep their
+one-token arity. Validation is pending and this section makes no completion claim.
+
+
+Callable-reference vararg inference first attempts the packed array parameter.
+A failed Array-shaped context cannot recover by treating the same Array as one
+scalar element; the Kotlin 2.3.10 generic and concrete rejection probes are
+retained separately from legal normal nested-array calls and packed references.
+Scalar generic String adaptation allocates the inferred String component without
+changing the declaration's reference-array storage class. Imported inline default
+stubs preserve physical value storage, leading member-extension values, all
+explicit hidden Int words and the final mask. New candidate execution is pending.
+
+Component lowering keeps one active TypeID/SymbolID path across bound erasure
+and nested reference arrays, with at most 64 active type nodes. Cyclic or deeper
+imported metadata yields component 0, which propagates to its parents without
+inventing an Any classifier. This is a malformed/unsupported metadata guard,
+not a claim that a cyclic Kotlin source bound is legal. KParameter registration
+retains unknown component 0 as a rejecting sentinel; callBy rejects explicit
+arrays and cannot construct omitted reference-vararg arrays from this metadata.
+Valid descriptors, reified component slots, primitive arrays, optional default
+masks and the existing private runtime ABI signatures are unchanged. Direct
+metadata controls and invocation counters remain proposed until executed.

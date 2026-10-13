@@ -1,10 +1,40 @@
 import Foundation
 
 extension DataFlowSemaPhase {
+    func importedInlineUsesComponentTokens(
+        _ binding: ImportedLibraryBinding, symbol: SymbolID, symbols: SymbolTable
+    ) -> Bool {
+        symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) != true
+            && CallLowerer.isSourceBackedLinkName(binding.record.externalLinkName)
+    }
+
+    func importedInlinePackedValueTypes(
+        _ signature: FunctionSignature?, binding: ImportedLibraryBinding,
+        symbol: SymbolID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner
+    ) -> [TypeID]? {
+        guard let signature, CallLowerer.isSourceBackedLinkName(binding.record.externalLinkName) else { return nil }
+        let current = importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols)
+        return signature.parameterTypes.enumerated().map { index, element in
+            guard signature.valueParameterIsVararg.indices.contains(index), signature.valueParameterIsVararg[index] else { return element }
+            let name: String
+            if case let .primitive(primitive, .nonNull) = types.kind(of: element) { name = primitive.kotlinName + "Array" }
+            else {
+                // Legacy source reference-varargs are rejected at import;
+                // primitive arrays keep their physical ABI in either version.
+                guard current else { return element }
+                name = "Array"
+            }
+            guard let array = symbols.lookup(fqName: ["kotlin", name].map(interner.intern)) else { return element }
+            return types.make(.classType(ClassType(classSymbol: array, args: name == "Array" ? [.out(element)] : [])))
+        }
+    }
+
     func importInlineFunctionIfNeeded(
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
         signature: FunctionSignature,
+        symbols: SymbolTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         importedInlineFunctions: ImportedInlineFunctionStore
@@ -36,7 +66,9 @@ extension DataFlowSemaPhase {
             ImportedInlineFunctionStore.Descriptor(
                 path: inlinePath,
                 signature: signature,
-                name: record.fqName.last ?? interner.intern("_")
+                name: record.fqName.last ?? interner.intern("_"),
+                reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+                packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
             ),
             for: symbol
         )
@@ -49,6 +81,7 @@ extension DataFlowSemaPhase {
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
         signature: FunctionSignature,
+        symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
@@ -108,7 +141,9 @@ extension DataFlowSemaPhase {
             interner: interner,
             diagnostics: diagnostics,
             externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
+            importedSymbolByFQName: importedSymbolByFQName,
+            reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+            packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
         )
     }
 
@@ -152,7 +187,9 @@ extension DataFlowSemaPhase {
             let descriptor = ImportedInlineFunctionStore.Descriptor(
                 path: inlinePath,
                 signature: signature,
-                name: binding.record.fqName.last ?? interner.intern("_")
+                name: binding.record.fqName.last ?? interner.intern("_"),
+                reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+                packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
             )
             state.importedInlineFunctions.register(descriptor, for: symbol)
             state.descriptorSink?(symbol, descriptor)
@@ -161,7 +198,7 @@ extension DataFlowSemaPhase {
                   let function = loadImportedInlineFunctionBody(
                       binding,
                       symbol: symbol,
-                      signature: signature,
+                      signature: signature, symbols: symbols,
                       types: types,
                       diagnostics: diagnostics,
                       interner: interner,

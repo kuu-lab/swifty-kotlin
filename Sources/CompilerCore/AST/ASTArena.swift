@@ -354,7 +354,7 @@ public final class ASTArena: @unchecked Sendable {
              let .doWhileExpr(_, _, _, range),
              let .breakExpr(_, range),
              let .continueExpr(_, range),
-             let .localDecl(_, _, _, _, _, range),
+             let .localDecl(_, _, _, _, _, _, range),
              let .localAssign(_, _, range),
              let .memberAssign(_, _, _, range),
              let .indexedAssign(_, _, _, range),
@@ -562,6 +562,23 @@ public final class ASTModule {
         // ASTModule is finalized after all expressions have been appended, so
         // build the index before the first position-based query pays for it.
         arena.prepareExpressionRangeIndex()
+    }
+
+    /// Each Sema worker gets its own arena lock and copy-on-write storage.
+    /// Scalar inference preserves every AST ID and never needs the LSP range
+    /// index, so copying the finalized module avoids rebuilding that index.
+    func makeSemaWorkerAST() -> ASTModule {
+        ASTModule(workerSnapshotOf: self)
+    }
+
+    private init(workerSnapshotOf module: ASTModule) {
+        files = module.files
+        arena = ASTArena(snapshot: module.arena.snapshot())
+        declarationCount = module.declarationCount
+        tokenCount = module.tokenCount
+        activeDeclsByFileRawID = module.activeDeclsByFileRawID
+        sortedFiles = module.sortedFiles
+        filesByID = module.filesByID
     }
 
     /// O(1) lookup of the file with `fileID`; identical result to a linear

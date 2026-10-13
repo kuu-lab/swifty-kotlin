@@ -7,7 +7,7 @@ extension DeclTypeChecker {
         signature: FunctionSignature,
         sema: SemaModule,
         interner: StringInterner,
-        referenceVarargAsArray: Bool = false
+        referenceVarargAsArray: Bool = true
     ) -> TypeID {
         let parameterType = index < signature.parameterTypes.count
             ? signature.parameterTypes[index]
@@ -81,11 +81,22 @@ extension DeclTypeChecker {
                 at: index, signature: signature, sema: sema, interner: ctx.interner
             )
             if index < valueParams.count, let defaultExprID = valueParams[index].defaultValue {
+                // A vararg declaration default is the whole source array,
+                // even when the non-local body's existing storage uses List.
+                let defaultExpectedType = localTypeForParameter(
+                    at: index, signature: signature, sema: sema, interner: ctx.interner,
+                    referenceVarargAsArray: true
+                )
+                // Infer vararg defaults from their own expression shape before
+                // checking the required source-array type. Passing the array
+                // expectation into overload resolution can silently accept a
+                // List-producing call such as listOf(...).
+                let inferenceExpectedType = valueParams[index].isVararg ? nil : defaultExpectedType
                 let defaultType = driver.inferExpr(
-                    defaultExprID, ctx: ctx, locals: &locals, expectedType: type
+                    defaultExprID, ctx: ctx, locals: &locals, expectedType: inferenceExpectedType
                 )
                 driver.emitSubtypeConstraint(
-                    left: defaultType, right: type,
+                    left: defaultType, right: defaultExpectedType,
                     range: ctx.ast.arena.exprRange(defaultExprID),
                     solver: solver, sema: sema, diagnostics: diagnostics
                 )

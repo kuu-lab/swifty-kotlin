@@ -721,6 +721,7 @@ extension ExprTypeChecker {
                     bindReceiver: isBoundReceiver,
                     boundReceiver: boundReceiverType.map { (candidate, $0) },
                     expectedFunctionType: inputType,
+                    interner: interner,
                     sema: sema
                 ) != nil
             }
@@ -733,6 +734,7 @@ extension ExprTypeChecker {
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
+            interner: interner,
             sema: sema
         )
 
@@ -743,6 +745,7 @@ extension ExprTypeChecker {
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
+                interner: interner,
                 sema: sema
             )
             if let expectedFunctionType,
@@ -768,6 +771,7 @@ extension ExprTypeChecker {
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
                         expectedFunctionType: expectedFunctionType,
+                        interner: interner,
                         sema: sema
                     ) {
                         inferredType = specializedType

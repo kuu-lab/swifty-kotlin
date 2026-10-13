@@ -1,10 +1,22 @@
 public final class TypeSystem {
+    private var nextCaptureIdentity = 0
+
+    func makeCapturedType(parameter: SymbolID, lower: TypeID, upper: TypeID) -> TypeID {
+        let capture = CapturedTypeBounds(identity: nextCaptureIdentity, lower: lower, upper: upper)
+        nextCaptureIdentity += 1
+        return make(.typeParam(TypeParamType(
+            symbol: parameter, nullability: nullability(of: upper), capture: capture
+        )))
+    }
     private var kindToID: [TypeKind: TypeID] = [:]
     private var idToKind: [TypeKind] = []
     private var nominalDirectSupertypes: [SymbolID: [SymbolID]] = [:]
     private var nominalTypeParameterVariancesMap: [SymbolID: [TypeVariance]] = [:]
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
+    // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
+    var activeNominalLUBInputs: Set<Set<TypeID>> = []
+    static let maxNominalLUBDepth = 16
 
     public internal(set) var comparableInterfaceSymbol: SymbolID?
 
@@ -92,6 +104,55 @@ public final class TypeSystem {
     public let ushortType: TypeID
     public let byteType: TypeID
     public let shortType: TypeID
+
+    /// Copy-on-write snapshot taken at the module barrier. Nominal metadata
+    /// is frozen while independent scalar bodies run; new worker TypeIDs never
+    /// escape without canonicalization on the module thread.
+    func makeSemaWorkerTypes() -> TypeSystem {
+        let worker = TypeSystem()
+        worker.kindToID = kindToID
+        worker.idToKind = idToKind
+        worker.nominalDirectSupertypes = nominalDirectSupertypes
+        worker.nominalTypeParameterVariancesMap = nominalTypeParameterVariancesMap
+        worker.nominalTypeParameterSymbolsMap = nominalTypeParameterSymbolsMap
+        worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
+        worker.comparableInterfaceSymbol = comparableInterfaceSymbol
+        worker.annotationInterfaceSymbol = annotationInterfaceSymbol
+        worker.closeableInterfaceSymbol = closeableInterfaceSymbol
+        worker.ioCloseableInterfaceSymbol = ioCloseableInterfaceSymbol
+        worker.charSequenceInterfaceSymbol = charSequenceInterfaceSymbol
+        worker.closeableTypeID = closeableTypeID
+        worker.kFunctionInterfaceSymbol = kFunctionInterfaceSymbol
+        worker.kCallableInterfaceSymbol = kCallableInterfaceSymbol
+        worker.functionInterfaceSymbol = functionInterfaceSymbol
+        worker.functionNInterfaceSymbols = functionNInterfaceSymbols
+        worker.kClassInterfaceSymbol = kClassInterfaceSymbol
+        worker.numberClassSymbol = numberClassSymbol
+        worker.stringClassSymbol = stringClassSymbol
+        worker.charClassSymbol = charClassSymbol
+        worker.anyClassSymbol = anyClassSymbol
+        worker.unitClassSymbol = unitClassSymbol
+        worker.symbolTable = symbolTable
+        return worker
+    }
+
+    var internedTypeCount: Int { idToKind.count }
+
+    func workerTypeKinds(since count: Int) -> [TypeKind] {
+        Array(idToKind.dropFirst(count))
+    }
+
+    /// The worker snapshot prefix is identical to the module prefix. Replay
+    /// only its appended kinds, mapping references to preceding local kinds.
+    /// Calling this at each declaration's source position preserves ID order.
+    func mergeWorkerTypes(_ kinds: [TypeKind], startingAt count: Int) -> [TypeID: TypeID] {
+        var mapping: [TypeID: TypeID] = [:]
+        for (offset, kind) in kinds.enumerated() {
+            let local = TypeID(rawValue: Int32(count + offset))
+            mapping[local] = make(kind.mapTypes { mapping[$0] ?? $0 })
+        }
+        return mapping
+    }
 
     public init() {
         errorType = TypeID(rawValue: 0)
@@ -267,7 +328,7 @@ public final class TypeSystem {
             return make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: nullability)))
         case let .typeParam(tp):
             if tp.nullability == nullability { return type }
-            return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability)))
+            return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability, capture: tp.capture)))
         case let .functionType(ft):
             if ft.nullability == nullability { return type }
             return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: nullability)))
@@ -393,7 +454,7 @@ public final class TypeSystem {
     private func typeContainsTypeParam(_ type: TypeID, where predicate: (TypeParamType) -> Bool) -> Bool {
         switch kind(of: type) {
         case let .typeParam(tp):
-            return predicate(tp)
+            return tp.capture == nil && predicate(tp)
         case let .classType(ct):
             return ct.args.contains { arg in
                 switch arg {

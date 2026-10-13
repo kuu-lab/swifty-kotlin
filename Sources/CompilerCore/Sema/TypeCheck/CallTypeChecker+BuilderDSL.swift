@@ -907,7 +907,7 @@ extension CallTypeChecker {
              let .throwExpr(operand, _),
              let .returnExpr(operand?, _, _):
             collectBuilderDSLArgumentExprs(in: operand, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer {
                 collectBuilderDSLArgumentExprs(in: initializer, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
@@ -1577,7 +1577,7 @@ extension CallTypeChecker {
                 // A local declaration shadows outer bindings for the rest of
                 // the block, same as a nested lambda parameter does.
                 if let statement = ast.arena.expr(statementExprID),
-                   case let .localDecl(name, _, _, _, _, _) = statement {
+                   case let .localDecl(name, _, _, _, _, _, _) = statement {
                     scoped.insert(name)
                 }
             }
@@ -1651,7 +1651,7 @@ extension CallTypeChecker {
                     break
                 }
             }
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer {
                 collectProduceBuilderSendExprs(in: initializer, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }

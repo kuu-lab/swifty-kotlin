@@ -12,6 +12,7 @@ extension CallTypeChecker {
     func prepareSingleCandidateNestedCallExpectedTypes(
         args: [CallArgument],
         candidates: [SymbolID],
+        preInferredArgumentTypes: [Int: TypeID] = [:],
         ctx: TypeInferenceContext,
         expectedTypeOverrides: inout [Int: TypeID]
     ) {
@@ -36,6 +37,18 @@ extension CallTypeChecker {
                       typeSystem: ctx.sema.types
                   )
             else {
+                continue
+            }
+            // A concrete constructor cannot change its result type to match an
+            // inapplicable outer member. Keep its already inferred type so the
+            // member resolver can retry extensions without poisoning the call.
+            if let argumentType = preInferredArgumentTypes[index],
+               argumentType != ctx.sema.types.errorType,
+               let constructor = ctx.sema.bindings.callBinding(for: args[index].expr)?.chosenCallee,
+               ctx.sema.symbols.symbol(constructor)?.kind == .constructor,
+               ctx.sema.symbols.functionSignature(for: constructor)?.classTypeParameterCount == 0,
+               !ctx.sema.types.isSubtype(argumentType, parameterType)
+            {
                 continue
             }
             if let existing = expectedTypeOverrides[index], existing != parameterType {
@@ -73,7 +86,18 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.fqName.starts(with: [interner.intern("kotlinx"), interner.intern("coroutines")])
         }
-        let isCoroutineLauncher = hasCoroutineLauncherCandidates && (
+        // Canonical source/imported runBlocking is a normal generic function:
+        // materialize its block as a suspend value rather than flattening the
+        // legacy launcher captures or guessing the block's argument position.
+        let isCanonicalRunBlocking = calleeName == knownNames.runBlocking
+            && candidates.contains { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.fqName == knownNames.kotlinxCoroutinesRunBlockingFQName
+                else { return false }
+                return sema.symbols.isSourceBackedSymbol(candidate)
+                    || symbol.flags.contains(.importedLibrary)
+            }
+        let isCoroutineLauncher = hasCoroutineLauncherCandidates && !isCanonicalRunBlocking && (
             calleeName == knownNames.runBlocking
                 || calleeName == knownNames.launch
                 || calleeName == knownNames.async

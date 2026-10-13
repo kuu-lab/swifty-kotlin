@@ -1138,6 +1138,16 @@ extension CallLowerer {
             )
         }
 
+        // Only this resolved external link owns the physical context/fn/env
+        // ABI. The public wrapper and user homonyms remain ordinary calls.
+        // Preserve an opaque suspend box here: eager fn/env extraction loses
+        // its suspendEntryPoint and can unpack an adapter's opaque capture env.
+        if externalLinkName == "__kk_run_blocking_context", loweredArguments.count == 2 {
+            let env = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: env, value: .intLiteral(0)))
+            return [loweredArguments[0], loweredArguments[1], env]
+        }
+
         // KSP-1583: `runTest` forwards `testBody` — a suspend
         // `TestScope.() -> Unit` value, usually a variable-held lambda
         // rather than a literal — to the blocking-run bridge. Expand it to
@@ -1216,38 +1226,30 @@ extension CallLowerer {
             return finalArgs
         }
 
-        // KSP-1553: kotlinx.io Sink.asOutputStream() — the three callbacks in
-        // Stdlib/kotlinx/io/SinksJvm.kt each arrive as (fnPtr, closureRaw):
-        // write is a (ByteArray) -> Unit lambda lowered with the collection-HOF
-        // entry convention, flush/close are () -> Unit closure thunks.
-        if externalLinkName == "__kk_kotlin_sink_output_stream",
-           loweredArguments.count == 3
-        {
-            let writeArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: loweredArguments[0],
-                argExprID: originalArgs[0].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let flushArgs = makeClosureThunkExpandedArguments(
-                loweredArgID: loweredArguments[1],
-                argExprID: originalArgs[1].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let closeArgs = makeClosureThunkExpandedArguments(
-                loweredArgID: loweredArguments[2],
-                argExprID: originalArgs[2].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            return writeArgs + flushArgs + closeArgs
+        // Keep the old three-callback storage entry for old source bridges.
+        // New range output adds lazy description; input has five callbacks.
+        let ioCallbacks: (count: Int, rangeIndex: Int)?
+        switch externalLinkName {
+        case "__kk_kotlin_sink_output_stream": ioCallbacks = (3, 0)
+        case "__kk_kotlin_sink_output_stream_range": ioCallbacks = (4, 0)
+        case "__kk_kotlin_source_input_stream": ioCallbacks = (5, 1)
+        default: ioCallbacks = nil
+        }
+        if let ioCallbacks, loweredArguments.count == ioCallbacks.count, originalArgs.count == ioCallbacks.count {
+            var result: [KIRExprID] = []
+            for index in 0..<ioCallbacks.count {
+                if index == ioCallbacks.rangeIndex {
+                    result += makeCollectionHOFExpandedArguments(
+                        loweredArgID: loweredArguments[index], argExprID: originalArgs[index].expr,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions)
+                } else {
+                    result += makeClosureThunkExpandedArguments(
+                        loweredArgID: loweredArguments[index], argExprID: originalArgs[index].expr,
+                        returnsErasedValue: externalLinkName != "__kk_kotlin_sink_output_stream" && index == ioCallbacks.count - 1,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions)
+                }
+            }
+            return result
         }
 
         // STDLIB-590 / STDLIB-KOTLIN-ROOT-CLOSE-001: Function0 runtime entry

@@ -32,6 +32,9 @@ public extension TypeSystem {
             }
             return "Class#\(classType.classSymbol.rawValue)\(args)\(nullabilitySuffix(classType.nullability))"
         case let .typeParam(typeParam):
+            if let capture = typeParam.capture {
+                return "Captured[\(renderType(capture.lower))..\(renderType(capture.upper))]\(nullabilitySuffix(typeParam.nullability))"
+            }
             return "T#\(typeParam.symbol.rawValue)\(nullabilitySuffix(typeParam.nullability))"
         case let .functionType(functionType):
             let contextPrefix = if functionType.contextReceivers.isEmpty {
@@ -212,6 +215,7 @@ public extension TypeSystem {
         let kind = kind(of: type)
         switch kind {
         case let .typeParam(typeParam):
+            if typeParam.capture != nil { return type }
             if let variable = typeVarBySymbol[typeParam.symbol],
                let concrete = substitution[variable]
             {

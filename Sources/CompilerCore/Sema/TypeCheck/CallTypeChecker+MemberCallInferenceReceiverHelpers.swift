@@ -157,9 +157,9 @@ extension CallTypeChecker {
                 return true
             })
         }
-        let specificityCandidates = potentiallyApplicableCandidates.isEmpty
-            ? Set(candidates)
-            : potentiallyApplicableCandidates
+        // Provisional argument types can reject every candidate before literal
+        // contextualization. Do not then prune inherited overloads by receiver.
+        let specificityCandidates = potentiallyApplicableCandidates
 
         let collectionFQName = [
             interner.intern("kotlin"),
@@ -524,6 +524,16 @@ extension CallTypeChecker {
                }
            })
         {
+            return true
+        }
+        if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
+           case .typeParam = sema.types.kind(of: declaredKClass.argument),
+           case let .classType(actualClass) = sema.types.kind(of: actual),
+           actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
+           actualClass.args.count == 1
+        {
+            // Candidate discovery admits a generic receiver; the resolver
+            // captures its projection before checking value arguments.
             return true
         }
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),

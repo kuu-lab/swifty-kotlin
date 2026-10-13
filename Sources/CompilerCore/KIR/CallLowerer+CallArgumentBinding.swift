@@ -16,6 +16,8 @@ extension CallLowerer {
             return
         }
 
+        let carriesComponent = !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            && sema.symbols.symbol(chosenCallee)?.flags.contains(.legacyReifiedClassTokenABI) != true
         let intType = sema.types.make(.primitive(.int, .nonNull))
         for index in signature.reifiedTypeParameterIndices.sorted() {
             let concreteType = index < callBinding.substitutedTypeArguments.count
@@ -45,6 +47,7 @@ extension CallLowerer {
             default:
                 break
             }
+            let componentType = forwardedParameter.map { sema.types.make(.typeParam($0)) } ?? tokenType
             if let parameter = forwardedParameter,
                sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter.symbol)
@@ -67,6 +70,13 @@ extension CallLowerer {
                 } else {
                     arguments.append(tokenExpr)
                 }
+                if carriesComponent {
+                    let component = runtimeArrayComponentTypeExpr(
+                        for: componentType, context: driver.ctx, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
+                    arguments.append(component)
+                }
                 continue
             }
             let encodedToken = RuntimeTypeCheckToken.encode(type: tokenType, sema: sema, interner: interner)
@@ -76,6 +86,13 @@ extension CallLowerer {
             )
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
             arguments.append(tokenExpr)
+            if carriesComponent {
+                let component = runtimeArrayComponentTypeExpr(
+                    for: componentType, context: driver.ctx, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions
+                )
+                arguments.append(component)
+            }
         }
     }
 
