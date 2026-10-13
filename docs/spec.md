@@ -102,6 +102,14 @@ public struct CompilerOptions: Equatable {
 
 ## J1.2 コンパイルの “単位”
 
+インクリメンタルコンパイルは既定でオフ。CLI の `--incremental` は
+`incremental` frontend flag、`--incremental-cache <path>` は
+`incrementalCachePath` を設定し、それぞれ単独で有効化する。
+`--no-incremental` は `no-incremental` frontend flag を設定し、指定順に関係なく
+有効化 flag と保存先指定に優先する。Driver は無効化時にキャッシュを読み書きしない。
+`-Xfrontend incremental` は互換のため引き続き利用可能。
+詳細と既定オフを維持する根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
+
 * **CompilationSession**: 1回の `kswiftc` 実行
 * **Module**: Kotlin の “名前空間 + 生成物” 単位（`moduleName`）
 * **Library**: 別 Module を import 可能にする配布形態（Doc J12）

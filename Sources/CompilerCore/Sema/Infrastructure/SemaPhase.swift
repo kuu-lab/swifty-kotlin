@@ -31,7 +31,9 @@ public final class SemaPhase: CompilerPhase {
             throw CompilerPipelineError.invalidInput("AST phase did not run.")
         }
         for phase in passes {
-            try phase.run(ctx)
+            try withSubPhaseTiming(type(of: phase).name, timer: ctx.phaseTimer) {
+                try phase.run(ctx)
+            }
         }
     }
 }

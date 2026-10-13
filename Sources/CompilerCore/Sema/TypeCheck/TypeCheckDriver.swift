@@ -46,6 +46,11 @@ final class TypeCheckDriver {
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
     var checkedInferredReturnFunctions: Set<SymbolID> = []
+    var inferredPropertyDeclarations: [SymbolID: (declaration: DeclID, property: PropertyDecl, context: TypeInferenceContext)] = [:]
+    var checkingInferredProperties: Set<SymbolID> = []
+    var pendingPropertyTypes: Set<SymbolID> = []
+    var deferredInferredReturnFunctions: Set<SymbolID> = []
+    var deferredInferredProperties: Set<SymbolID> = []
 
     let ast: ASTModule
     let sema: SemaModule
@@ -118,6 +123,7 @@ final class TypeCheckDriver {
             return subjectType
         }
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        notePendingDeclarationDependency(at: id)
         if let callee = sema.bindings.callBinding(for: id)?.chosenCallee {
             diagnoseRecursiveInferredReturnType(for: callee)
         }
@@ -206,6 +212,50 @@ final class TypeCheckDriver {
                 return false
             }
             return symbol.kind == .class || symbol.kind == .enumClass
+        }
+
+        // Active declarations are file roots, so include their member trees.
+        // Otherwise an early function can cache a member property's placeholder.
+        var pendingDeclarations = Array(ast.activeDeclarationIDs)
+        var visitedDeclarations: Set<DeclID> = []
+        while let declaration = pendingDeclarations.popLast() {
+            guard visitedDeclarations.insert(declaration).inserted,
+                  let node = ast.arena.decl(declaration)
+            else { continue }
+            switch node {
+            case let .propertyDecl(property):
+                if property.type == nil, let symbol = sema.bindings.declSymbols[declaration] {
+                    pendingPropertyTypes.insert(symbol)
+                }
+            case let .classDecl(classDecl):
+                pendingDeclarations += classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects
+                pendingDeclarations += classDecl.enumEntries.flatMap(\.memberProperties)
+                if let companion = classDecl.companionObject { pendingDeclarations.append(companion) }
+            case let .interfaceDecl(interfaceDecl):
+                pendingDeclarations += interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                if let companion = interfaceDecl.companionObject { pendingDeclarations.append(companion) }
+            case let .objectDecl(objectDecl):
+                pendingDeclarations += objectDecl.memberProperties + objectDecl.nestedClasses + objectDecl.nestedObjects
+            case let .enumEntryDecl(entry):
+                pendingDeclarations += entry.memberProperties
+            default:
+                break
+            }
+        }
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declaration in file.topLevelDecls {
+                guard let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                let declarationCtx = inferCtx.with(currentDeclSymbol: symbol)
+                switch ast.arena.decl(declaration) {
+                case let .propertyDecl(property)
+                    where property.type == nil && property.receiverType == nil:
+                    inferredPropertyDeclarations[symbol] = (declaration, property, declarationCtx)
+                default:
+                    break
+                }
+            }
         }
 
         // Explicit contracts are declaration metadata. Earlier callers must
@@ -317,10 +367,6 @@ final class TypeCheckDriver {
                 }
                 switch decl {
                 case let .funDecl(function):
-                    if inferredReturnFunctions[declSymbol] != nil {
-                        inferFunctionReturnTypesIfNeeded(for: [declSymbol])
-                        continue
-                    }
                     declChecker.typeCheckFunctionDecl(
                         function,
                         symbol: declSymbol,

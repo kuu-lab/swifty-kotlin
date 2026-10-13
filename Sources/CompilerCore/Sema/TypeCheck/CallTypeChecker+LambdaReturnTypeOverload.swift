@@ -148,19 +148,26 @@ extension CallTypeChecker {
             }
         }
 
-        // Infer return types only for candidates compatible with the known
-        // arguments. A same-named but inapplicable overload must not create
-        // a spurious dependency cycle while checking an inferred body.
-        driver.inferFunctionReturnTypesIfNeeded(for: narrowedCallCandidates(
-            candidates: candidates,
-            args: args,
-            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-            receiverType: receiverType,
-            ctx: ctx
-        ))
-
         if lambdaLiteralIndices.count > 1 {
             blockedLambdaRefinement = true
+        }
+
+        // Resolve source function returns only after header-based argument
+        // pruning, so an inapplicable same-named overload cannot look recursive.
+        if candidates.contains(where: {
+            driver.inferredReturnFunctions[$0] != nil
+                && !driver.checkedInferredReturnFunctions.contains($0)
+        }) {
+            let narrowed = narrowedCallCandidates(
+                candidates: candidates,
+                args: args,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                receiverType: receiverType,
+                ctx: ctx
+            )
+            if narrowed.count == 1 {
+                driver.inferFunctionReturnTypesIfNeeded(for: narrowed)
+            }
         }
 
         // Each argument's expected type is computed and applied before moving to
@@ -414,6 +421,25 @@ extension CallTypeChecker {
             explicitTypeArgs: explicitTypeArgs,
             dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
         )
+
+        if candidates.contains(where: {
+            driver.inferredReturnFunctions[$0] != nil
+                && !driver.checkedInferredReturnFunctions.contains($0)
+        }) {
+            // Select by receiver and arguments before inferring a return. An
+            // unselected overload must not introduce a false dependency cycle.
+            let selection = ctx.resolver.resolveCall(
+                candidates: candidates,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
+                ctx: ctx.sema
+            )
+            if selection.diagnostic == nil, let chosen = selection.chosenCallee {
+                driver.inferFunctionReturnTypesIfNeeded(for: [chosen])
+            }
+        }
 
         let hasRefinementAnnotation = candidates.contains(where: {
             hasOverloadResolutionByLambdaReturnTypeAnnotation(symbol: $0, sema: ctx.sema)

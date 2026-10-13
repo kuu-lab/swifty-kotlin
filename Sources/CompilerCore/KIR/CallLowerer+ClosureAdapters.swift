@@ -627,6 +627,28 @@ extension CallLowerer {
             else {
                 continue
             }
+            // KIR's callable environment also includes captures propagated
+            // through nested lambdas and references to local functions.
+            // Check the job before boxing hides that environment; producer
+            // deliberately remains free to capture caller state.
+            if parameterIndex == 2,
+               sema.bindings.workerExecuteCallees.contains(chosenCallee),
+               let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
+               callable.captureArguments.contains(where: { capture in
+                   // A static local function entry is code, not captured state.
+                   // Capturing callees also contribute their environment here.
+                   guard let dependency = driver.ctx.callableValueInfo(for: capture),
+                         dependency.captureArguments.isEmpty,
+                         sema.symbols.symbol(dependency.symbol)?.flags.contains(.localFunction) == true
+                   else { return true }
+                   return false
+               }) {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0430",
+                    "Worker.execute job must be a non-capturing lambda or an unbound callable reference.",
+                    range: sema.bindings.workerExecuteJobRanges[sourceArgExprs[sourceArgExprIndex]]
+                )
+            }
             // Ordinary same-module inline callbacks consume raw symbols directly.
             // Restricted callbacks may escape; tagged references use the erased ABI.
             if isInline, !isImported,

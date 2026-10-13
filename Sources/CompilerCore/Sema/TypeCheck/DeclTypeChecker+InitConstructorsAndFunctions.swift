@@ -712,6 +712,28 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let tracksInferredFunction = driver.inferredReturnFunctions[symbol] != nil
+        if tracksInferredFunction {
+            guard !driver.checkedInferredReturnFunctions.contains(symbol),
+                  driver.checkingInferredReturnFunctions.insert(symbol).inserted
+            else { return }
+            driver.deferredInferredReturnFunctions.remove(symbol)
+        }
+        defer {
+            if tracksInferredFunction {
+                driver.checkingInferredReturnFunctions.remove(symbol)
+                // Speculative callers may roll diagnostics back. Declarations
+                // with their own diagnostics need an authoritative recheck.
+                if !diagnostics.hasError,
+                   !driver.deferredInferredReturnFunctions.contains(symbol),
+                   !diagnostics.diagnostics.contains(where: {
+                       $0.primaryRange.map(function.range.contains) ?? true
+                   })
+                {
+                    driver.checkedInferredReturnFunctions.insert(symbol)
+                }
+            }
+        }
         let sema = ctx.sema
         guard let signature = sema.symbols.functionSignature(for: symbol) else {
             return
