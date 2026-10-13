@@ -1,4 +1,13 @@
 public final class TypeSystem {
+    private var nextCaptureIdentity = 0
+
+    func makeCapturedType(parameter: SymbolID, lower: TypeID, upper: TypeID) -> TypeID {
+        let capture = CapturedTypeBounds(identity: nextCaptureIdentity, lower: lower, upper: upper)
+        nextCaptureIdentity += 1
+        return make(.typeParam(TypeParamType(
+            symbol: parameter, nullability: nullability(of: upper), capture: capture
+        )))
+    }
     private var kindToID: [TypeKind: TypeID] = [:]
     private var idToKind: [TypeKind] = []
     private var nominalDirectSupertypes: [SymbolID: [SymbolID]] = [:]
@@ -267,7 +276,7 @@ public final class TypeSystem {
             return make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: nullability)))
         case let .typeParam(tp):
             if tp.nullability == nullability { return type }
-            return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability)))
+            return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability, capture: tp.capture)))
         case let .functionType(ft):
             if ft.nullability == nullability { return type }
             return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: nullability)))
@@ -393,7 +402,7 @@ public final class TypeSystem {
     private func typeContainsTypeParam(_ type: TypeID, where predicate: (TypeParamType) -> Bool) -> Bool {
         switch kind(of: type) {
         case let .typeParam(tp):
-            return predicate(tp)
+            return tp.capture == nil && predicate(tp)
         case let .classType(ct):
             return ct.args.contains { arg in
                 switch arg {

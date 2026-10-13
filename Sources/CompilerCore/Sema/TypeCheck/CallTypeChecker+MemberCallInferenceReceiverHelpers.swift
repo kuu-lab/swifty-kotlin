@@ -527,6 +527,16 @@ extension CallTypeChecker {
             return true
         }
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
+           case .typeParam = sema.types.kind(of: declaredKClass.argument),
+           case let .classType(actualClass) = sema.types.kind(of: actual),
+           actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
+           actualClass.args.count == 1
+        {
+            // Candidate discovery admits a generic receiver; the resolver
+            // captures its projection before checking value arguments.
+            return true
+        }
+        if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
            case let .classType(actualClass) = sema.types.kind(of: actual),
            actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
            actualClass.args.count == 1,

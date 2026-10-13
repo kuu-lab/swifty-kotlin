@@ -6,6 +6,21 @@ extension TypeSystem {
             return true
         }
 
+        // A captured parameter is readable through its upper bound and accepts
+        // only values below its lower bound. It is never equal to either bound.
+        if case let .typeParam(left) = lhs, case let .typeParam(right) = rhs,
+           let capture = left.capture, capture == right.capture
+        {
+            return nullabilitySubtype(left.nullability, right.nullability)
+        }
+        if case let .typeParam(parameter) = rhs, let capture = parameter.capture {
+            return nullabilitySubtype(nullability(of: subtype), parameter.nullability)
+                && isSubtype(subtype, withNullability(parameter.nullability, for: capture.lower))
+        }
+        if case let .typeParam(parameter) = lhs, let capture = parameter.capture {
+            return isSubtype(withNullability(parameter.nullability, for: capture.upper), supertype)
+        }
+
         if case .nothing(.nonNull) = lhs {
             return true
         }
