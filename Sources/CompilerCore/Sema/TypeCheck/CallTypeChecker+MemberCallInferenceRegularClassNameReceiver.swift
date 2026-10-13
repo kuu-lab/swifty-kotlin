@@ -476,6 +476,7 @@ extension CallTypeChecker {
                     var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
                     prepareCallExprArgumentContexts(
                         args: args,
+                        callRange: range,
                         ctx: ctx,
                         expectedType: expectedType,
                         explicitTypeArgs: explicitTypeArgs,
@@ -487,6 +488,7 @@ extension CallTypeChecker {
                     )
                     let preparedArgs = prepareCallArguments(
                         args: args,
+                        callRange: range,
                         candidates: visibleNested,
                         preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                         expectedTypeOverrides: expectedTypeOverrides,
@@ -529,8 +531,8 @@ extension CallTypeChecker {
                                        CallArg(
                                            label: argument.label,
                                            isSpread: argument.isSpread,
-                                           isTrailingLambda: argument.isTrailingLambda,
-                                           type: type
+                                           type: type,
+                                           isTrailingLambda: argument.isTrailingLambda
                                        )
                                    },
                                    explicitTypeArgs: explicitTypeArgs
