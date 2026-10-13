@@ -37,9 +37,9 @@ extension ExprTypeChecker {
                   signature.parameterTypes.count == 1
             else { continue }
             guard let parameterType = checker.lambdaLiteralExpectedType(
-                at: 0, argumentCount: 1, argumentLabel: nil, isTrailingLambda: false,
+                at: 0, args: [CallArgument(expr: valueExpr)], callRange: range,
                 candidates: [candidate], receiverType: receiverType,
-                resolver: ctx.resolver, sema: sema
+                resolver: ctx.resolver, sema: sema, ctx: ctx
             ).type, !ctx.resolver.containsTypeVariable(
                 parameterType,
                 typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),

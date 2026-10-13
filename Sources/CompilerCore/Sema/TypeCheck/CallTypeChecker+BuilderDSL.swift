@@ -34,6 +34,7 @@ extension CallTypeChecker {
                   isEligibleExperimentalBuilderCandidate(
                     signature: signature,
                     args: args,
+                    range: range,
                     ctx: ctx,
                     explicitTypeArgs: explicitTypeArgs
                   )
@@ -42,7 +43,7 @@ extension CallTypeChecker {
             }
             guard let parameterMapping = ctx.resolver.buildParameterMapping(
                 signature: signature,
-                callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, isTrailingLambda: $0.isTrailingLambda, type: ctx.sema.types.anyType) },
+                callArgs: args.map { CallArg.source($0, type: ctx.sema.types.anyType, callRange: range, ast: ctx.ast) },
                 symbols: ctx.sema.symbols,
                 typeSystem: ctx.sema.types,
                 isCallableArgument: { index in
@@ -524,6 +525,7 @@ extension CallTypeChecker {
     private func isEligibleExperimentalBuilderCandidate(
         signature: FunctionSignature,
         args: [CallArgument],
+        range: SourceRange,
         ctx: TypeInferenceContext,
         explicitTypeArgs: [TypeID]
     ) -> Bool {
@@ -535,7 +537,7 @@ extension CallTypeChecker {
             args: args,
             parameterMapping: ctx.resolver.buildParameterMapping(
                 signature: signature,
-                callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, isTrailingLambda: $0.isTrailingLambda, type: ctx.sema.types.anyType) },
+                callArgs: args.map { CallArg.source($0, type: ctx.sema.types.anyType, callRange: range, ast: ctx.ast) },
                 symbols: ctx.sema.symbols,
                 typeSystem: ctx.sema.types,
                 isCallableArgument: { index in

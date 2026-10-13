@@ -4,6 +4,7 @@ extension CallTypeChecker {
     /// The displaced visible scope tier must get its own argument preparation.
     func preferScopeCandidatesForInapplicableImplicitMembers(
         args: [CallArgument],
+        callRange: SourceRange,
         calleeName: InternedString?,
         scopeCandidates: [SymbolID],
         candidates: inout [SymbolID],
@@ -75,7 +76,8 @@ extension CallTypeChecker {
             }
         }
         guard narrowedCallCandidates(
-            candidates: candidates, args: args, inferredNonLambdaArgTypes: nonLambdaArgumentTypes,
+            candidates: candidates, args: args, callRange: callRange,
+            inferredNonLambdaArgTypes: nonLambdaArgumentTypes,
             receiverType: receiverType, forImplicitMemberApplicability: true, ctx: ctx
         ).isEmpty else { return }
 

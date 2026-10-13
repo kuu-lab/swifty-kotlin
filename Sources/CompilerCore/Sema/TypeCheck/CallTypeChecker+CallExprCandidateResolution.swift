@@ -135,7 +135,7 @@ extension CallTypeChecker {
                    let bestCandidate = mergedImplicitReceiverMembers.first,
                    let signature = sema.symbols.functionSignature(for: bestCandidate),
                    !narrowedCallCandidates(
-                       candidates: [bestCandidate], args: args,
+                       candidates: [bestCandidate], args: args, callRange: range,
                        inferredNonLambdaArgTypes: Dictionary(uniqueKeysWithValues: argTypes.enumerated().map {
                            ($0.offset, $0.element)
                        }),

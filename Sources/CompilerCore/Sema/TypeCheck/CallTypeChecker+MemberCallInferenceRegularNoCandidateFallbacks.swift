@@ -154,7 +154,8 @@ extension CallTypeChecker {
 
             if !invokeCandidates.isEmpty {
                 let prepared = prepareCallArguments(
-                    args: args, candidates: invokeCandidates, explicitTypeArgs: explicitTypeArgs,
+                    args: args, callRange: range, candidates: invokeCandidates,
+                    explicitTypeArgs: explicitTypeArgs,
                     receiverType: propResult.type, ctx: ctx, locals: &locals
                 )
                 let resolved = resolveCallRespectingLambdaReturnType(

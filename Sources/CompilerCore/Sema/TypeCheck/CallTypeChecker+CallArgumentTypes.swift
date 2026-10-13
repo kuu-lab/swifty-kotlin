@@ -152,15 +152,14 @@ extension CallTypeChecker {
     func parameterMappingForCallArguments(
         _ args: [CallArgument],
         in signature: FunctionSignature,
+        callRange: SourceRange,
         ctx: TypeInferenceContext
     ) -> [Int: Int]? {
         let sema = ctx.sema
         let callArgs = args.map { argument in
-            CallArg(
-                label: argument.label,
-                isSpread: argument.isSpread,
-                isTrailingLambda: argument.isTrailingLambda,
-                type: sema.bindings.exprTypes[argument.expr] ?? sema.types.anyType
+            CallArg.source(
+                argument, type: sema.bindings.exprTypes[argument.expr] ?? sema.types.anyType,
+                callRange: callRange, ast: ctx.ast
             )
         }
         return ctx.resolver.buildParameterMapping(

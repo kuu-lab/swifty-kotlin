@@ -90,7 +90,7 @@ extension CallTypeChecker {
                 }
                 if !visibleStaticMethods.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, isTrailingLambda: arg.isTrailingLambda, type: type)
+                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
                     }
                     let call = CallExpr(
                         range: range,
@@ -226,7 +226,7 @@ extension CallTypeChecker {
                 }
                 if !visibleOwnerExtensions.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, isTrailingLambda: arg.isTrailingLambda, type: type)
+                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
                     }
                     let call = CallExpr(
                         range: range,
@@ -476,6 +476,7 @@ extension CallTypeChecker {
                     var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
                     prepareCallExprArgumentContexts(
                         args: args,
+                        callRange: range,
                         ctx: ctx,
                         expectedType: expectedType,
                         explicitTypeArgs: explicitTypeArgs,
@@ -487,6 +488,7 @@ extension CallTypeChecker {
                     )
                     let preparedArgs = prepareCallArguments(
                         args: args,
+                        callRange: range,
                         candidates: visibleNested,
                         preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                         expectedTypeOverrides: expectedTypeOverrides,
@@ -529,8 +531,8 @@ extension CallTypeChecker {
                                        CallArg(
                                            label: argument.label,
                                            isSpread: argument.isSpread,
-                                           isTrailingLambda: argument.isTrailingLambda,
-                                           type: type
+                                           type: type,
+                                           isTrailingLambda: argument.isTrailingLambda
                                        )
                                    },
                                    explicitTypeArgs: explicitTypeArgs

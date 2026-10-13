@@ -11,6 +11,7 @@ extension CallTypeChecker {
     /// after the selected receiver and candidate set are known.
     func prepareSingleCandidateNestedCallExpectedTypes(
         args: [CallArgument],
+        callRange: SourceRange,
         candidates: [SymbolID],
         preInferredArgumentTypes: [Int: TypeID] = [:],
         ctx: TypeInferenceContext,
@@ -23,7 +24,7 @@ extension CallTypeChecker {
             return
         }
         let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+        let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
         for index in args.indices {
             guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast),
                   let parameterIndex = parameterMapping?[index],
@@ -64,6 +65,7 @@ extension CallTypeChecker {
 
     func prepareCallExprArgumentContexts(
         args: [CallArgument],
+        callRange: SourceRange,
         ctx: TypeInferenceContext,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
@@ -183,7 +185,7 @@ extension CallTypeChecker {
         {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             if let returnTypeVariable = typeVarBySymbol[returnTypeParam.symbol],
-               let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+               let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
             {
                 for (argumentIndex, parameterIndex) in parameterMapping {
                     guard signature.parameterTypes.indices.contains(parameterIndex),
@@ -253,7 +255,7 @@ extension CallTypeChecker {
                         ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
-                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) else {
                     continue
                 }
                 for index in args.indices {
@@ -313,7 +315,7 @@ extension CallTypeChecker {
                 else {
                     continue
                 }
-                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) else {
                     continue
                 }
                 let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
@@ -384,6 +386,7 @@ extension CallTypeChecker {
         // not steer a shared argument toward one overload.
         prepareSingleCandidateNestedCallExpectedTypes(
             args: args,
+            callRange: callRange,
             candidates: candidates,
             ctx: ctx,
             expectedTypeOverrides: &expectedTypeOverrides

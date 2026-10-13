@@ -488,6 +488,7 @@ extension CallTypeChecker {
 
         preferScopeCandidatesForInapplicableImplicitMembers(
             args: args,
+            callRange: range,
             calleeName: calleeName,
             scopeCandidates: implicitReceiverScopeCandidates,
             candidates: &candidates,
@@ -500,6 +501,7 @@ extension CallTypeChecker {
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         prepareCallExprArgumentContexts(
             args: args,
+            callRange: range,
             ctx: ctx,
             expectedType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
@@ -512,6 +514,7 @@ extension CallTypeChecker {
 
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,

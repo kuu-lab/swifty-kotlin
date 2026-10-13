@@ -97,7 +97,7 @@ extension CallTypeChecker {
         let arityCompatible = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
             return isCallableArityCompatible(signature: signature, argCount: args.count)
-                && parameterMappingForCallArguments(args, in: signature, ctx: ctx) != nil
+                && parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) != nil
         }
         guard !arityCompatible.isEmpty else { return .inapplicable }
         guard arityCompatible.allSatisfy({ candidate in
@@ -135,7 +135,7 @@ extension CallTypeChecker {
         defer { ctx.sema.diagnostics.rollback(to: checkpoint) }
         var probeLocals = locals
         let prepared = prepareCallArguments(
-            args: args, candidates: arityCompatible, explicitTypeArgs: explicitTypeArgs,
+            args: args, callRange: range, candidates: arityCompatible, explicitTypeArgs: explicitTypeArgs,
             receiverType: receiverType, ctx: ctx, locals: &probeLocals
         )
         guard !prepared.argTypes.contains(sema.types.errorType),

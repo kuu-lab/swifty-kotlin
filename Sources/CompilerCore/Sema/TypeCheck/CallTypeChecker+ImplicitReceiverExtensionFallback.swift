@@ -252,6 +252,7 @@ extension CallTypeChecker {
 
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: nonNullReceiver,
@@ -402,8 +403,8 @@ extension CallTypeChecker {
         }
         let resolvedArgs = zip(args, argTypes).map { argument, type in
             let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
-            return CallArg(
-                label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type,
+            return CallArg.source(
+                argument, type: type, callRange: range, ast: ctx.ast,
                 signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned
             )
         }
@@ -546,7 +547,7 @@ extension CallTypeChecker {
                 }
             )
             let resolvedArgs = zip(args, argTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
+                CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
             }
             for group in orderedGroups {
                 let resolved = ctx.resolver.resolveCall(

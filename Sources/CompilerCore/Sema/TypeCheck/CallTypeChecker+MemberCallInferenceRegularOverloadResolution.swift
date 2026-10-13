@@ -228,6 +228,7 @@ extension CallTypeChecker {
         }
         prepareSingleCandidateNestedCallExpectedTypes(
             args: args,
+            callRange: range,
             candidates: candidates,
             preInferredArgumentTypes: cachedNonLambdaArgTypes,
             ctx: ctx,
@@ -235,6 +236,7 @@ extension CallTypeChecker {
         )
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: argumentExpectedTypeOverrides,
@@ -350,7 +352,7 @@ extension CallTypeChecker {
             if extensionCandidates.isEmpty || ctx.resolver.probeCall(
                 candidates: extensionCandidates,
                 call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
@@ -361,6 +363,7 @@ extension CallTypeChecker {
             if !extensionCandidates.isEmpty {
                 let extensionArgs = prepareCallArguments(
                     args: args,
+                    callRange: range,
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                     contextualCallResultType: expectedType,

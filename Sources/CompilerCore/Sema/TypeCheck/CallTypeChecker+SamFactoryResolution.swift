@@ -22,7 +22,7 @@ extension CallTypeChecker {
         var shapes: [SymbolID: SamFactoryShape] = [:]
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let mapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx),
+                  let mapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx),
                   let parameterIndex = mapping[0],
                   parameterIndex < signature.parameterTypes.count
             else { continue }
@@ -85,7 +85,7 @@ extension CallTypeChecker {
                 candidates: [candidate],
                 call: CallExpr(
                     range: range, calleeName: calleeName,
-                    args: [CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: argumentType)],
+                    args: [CallArg.source(argument, type: argumentType, callRange: range, ast: ctx.ast)],
                     explicitTypeArgs: explicitTypeArgs
                 ),
                 expectedType: nil,

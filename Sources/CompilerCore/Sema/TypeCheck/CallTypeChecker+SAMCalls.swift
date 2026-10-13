@@ -90,7 +90,7 @@ extension CallTypeChecker {
                     candidates: applicable,
                     call: CallExpr(
                         range: range, calleeName: calleeName,
-                        args: [CallArg(label: args[0].label, isSpread: args[0].isSpread, isTrailingLambda: args[0].isTrailingLambda, type: firstShape.argumentType)],
+                        args: [CallArg.source(args[0], type: firstShape.argumentType, callRange: range, ast: ctx.ast)],
                         explicitTypeArgs: explicitTypeArgs
                     ),
                     expectedType: nil, implicitReceiverType: ctx.implicitReceiverType,
@@ -147,7 +147,7 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: parameterExpectedType
                 )
-                argTypes.append(CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: inferredType))
+                argTypes.append(CallArg.source(argument, type: inferredType, callRange: range, ast: ctx.ast))
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: narrowedSamCandidates,

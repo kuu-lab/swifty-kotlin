@@ -618,6 +618,7 @@ extension CallTypeChecker {
         }
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: {
