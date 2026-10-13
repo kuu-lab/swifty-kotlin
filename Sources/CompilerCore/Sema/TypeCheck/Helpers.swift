@@ -950,18 +950,17 @@ struct TypeCheckHelpers {
                        symbolID == sema.types.kClassInterfaceSymbol
                         || sym.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
                     {
-                        // Preserve star and contravariant KClass projections in the
-                        // nominal representation. A covariant projection is
-                        // equivalent to the dedicated KClass<T> representation.
+                        // Preserve use-site projections: the dedicated KClass
+                        // representation has an invariant argument.
                         if let firstArg = resolvedArgs.first {
                             switch firstArg {
-                            case .star, .in:
+                            case .star, .in, .out:
                                 return sema.types.make(.classType(ClassType(
                                     classSymbol: symbolID,
                                     args: resolvedArgs,
                                     nullability: nullability
                                 )))
-                            case .invariant, .out:
+                            case .invariant:
                                 break
                             }
                         }
