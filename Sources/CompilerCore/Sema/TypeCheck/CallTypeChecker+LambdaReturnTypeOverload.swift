@@ -254,6 +254,7 @@ extension CallTypeChecker {
                         at: index,
                         argumentLabel: argument.label,
                         args: args,
+                        callRange: callRange,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
