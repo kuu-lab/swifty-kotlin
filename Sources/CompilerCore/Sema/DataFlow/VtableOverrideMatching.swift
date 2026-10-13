@@ -21,21 +21,39 @@ func vtableMethodDispatchKey(for method: SemanticSymbol, symbols: SymbolTable) -
     )
 }
 
-/// Picks which same-(name, arity) candidate an `override` member actually
-/// overrides. A single candidate is used as-is. With multiple candidates —
-/// e.g. a base class declaring both `nextBytes(array: ByteArray)` and
-/// `nextBytes(size: Int)` — a candidate whose parameter type is a bare type
-/// parameter (e.g. `fun foo(x: T)`) is treated as a wildcard, since a generic
-/// override's substituted concrete type will never textually equal it; every
-/// other position must match exactly. Returning `nil` when zero or 2+
-/// candidates are compatible is deliberate: the caller then allocates a fresh
-/// slot rather than guessing, since aliasing the override onto the wrong
-/// candidate could silently corrupt an unrelated overload's vtable entry.
+struct VtableOverrideCandidate {
+    let method: SymbolID
+    let parameterTypes: [TypeID]
+    let slot: Int
+}
+
+/// Reuse the unique inherited slot with matching method bounds and argument
+/// shape after class specialization and binder alpha-alignment. Signatures
+/// without method binders retain the legacy class-parameter wildcard fallback.
 func resolveOverriddenVtableSlot(
+    method: SemanticSymbol,
     parameterTypes: [TypeID],
-    candidates: [(parameterTypes: [TypeID], slot: Int)],
+    candidates: [VtableOverrideCandidate],
+    symbols: SymbolTable,
     types: TypeSystem
 ) -> Int? {
+    let candidates = candidates.filter { candidate in
+        guard let source = symbols.functionSignature(for: candidate.method),
+              let target = symbols.functionSignature(for: method.id),
+              let owner = symbols.parentSymbol(for: method.id)
+        else { return true }
+        guard methodUpperBoundsMatch(source: source, target: target,
+                                     sourceOwner: symbols.parentSymbol(for: candidate.method),
+                                     targetOwner: owner, types: types) else { return false }
+        if source.typeParameterSymbols.count > source.classTypeParameterCount {
+            let alignedSource = alignedMethodParameterTypes(source: source, target: target,
+                                                            sourceOwner: symbols.parentSymbol(for: candidate.method),
+                                                            instanceOwner: owner, types: types)
+            return methodIdentityParameterTypesMatch(candidateParameterTypes: target.parameterTypes,
+                                                     interfaceParameterTypes: alignedSource, types: types)
+        }
+        return true
+    }
     if candidates.count == 1 {
         return candidates[0].slot
     }
@@ -69,8 +87,8 @@ func isOverrideVtableParameterMatch(
 func vtableInheritedCandidatesByKey(
     inheritedVtableSlots: [SymbolID: Int],
     symbols: SymbolTable
-) -> [VtableMethodDispatchKey: [(parameterTypes: [TypeID], slot: Int)]] {
-    var result: [VtableMethodDispatchKey: [(parameterTypes: [TypeID], slot: Int)]] = [:]
+) -> [VtableMethodDispatchKey: [VtableOverrideCandidate]] {
+    var result: [VtableMethodDispatchKey: [VtableOverrideCandidate]] = [:]
     for methodID in inheritedVtableSlots.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
         guard let methodSymbol = symbols.symbol(methodID),
               let slot = inheritedVtableSlots[methodID]
@@ -80,7 +98,7 @@ func vtableInheritedCandidatesByKey(
             continue
         }
         let parameterTypes = symbols.functionSignature(for: methodID)?.parameterTypes ?? []
-        result[key, default: []].append((parameterTypes, slot))
+        result[key, default: []].append(VtableOverrideCandidate(method: methodID, parameterTypes: parameterTypes, slot: slot))
     }
     return result
 }

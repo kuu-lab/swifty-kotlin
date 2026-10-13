@@ -148,6 +148,14 @@ extension LambdaLowerer {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
         }
+        // Named local calls may bind only the call, leaving the callee name
+        // without an identifier binding. Their environments are still captures.
+        if let symbol = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+           sema.symbols.symbol(symbol)?.flags.contains(.localFunction) == true,
+           seen.insert(symbol).inserted
+        {
+            referenced.append(symbol)
+        }
         if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
            seen.insert(receiverSymbol).inserted
         {
