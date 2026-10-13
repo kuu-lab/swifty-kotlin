@@ -81,6 +81,7 @@ extension DataFlowSemaPhase {
         _ binding: ImportedLibraryBinding,
         symbol: SymbolID,
         signature: FunctionSignature,
+        symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
@@ -140,7 +141,9 @@ extension DataFlowSemaPhase {
             interner: interner,
             diagnostics: diagnostics,
             externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
+            importedSymbolByFQName: importedSymbolByFQName,
+            reifiedComponentTokens: importedInlineUsesComponentTokens(binding, symbol: symbol, symbols: symbols),
+            packedValueParameterTypes: importedInlinePackedValueTypes(signature, binding: binding, symbol: symbol, symbols: symbols, types: types, interner: interner)
         )
     }
 
@@ -195,7 +198,7 @@ extension DataFlowSemaPhase {
                   let function = loadImportedInlineFunctionBody(
                       binding,
                       symbol: symbol,
-                      signature: signature,
+                      signature: signature, symbols: symbols,
                       types: types,
                       diagnostics: diagnostics,
                       interner: interner,
