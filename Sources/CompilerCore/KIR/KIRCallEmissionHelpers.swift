@@ -1,3 +1,23 @@
+/// External object-property getters use the singleton as a dispatch receiver,
+/// just like an explicitly qualified member read. Package properties have no
+/// receiver. Keep bare reads and generated global initializers on the same ABI.
+func externalGlobalPropertyGetterArguments<C: RangeReplaceableCollection>(
+    for property: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    into instructions: inout C
+) -> [KIRExprID] where C.Element == KIRInstruction {
+    guard let owner = sema.symbols.parentSymbol(for: property),
+          sema.symbols.symbol(owner)?.kind == .object
+    else { return [] }
+    let ownerType = sema.types.make(.classType(ClassType(
+        classSymbol: owner, args: [], nullability: .nonNull
+    )))
+    let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+    instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+    return [receiver]
+}
+
 @discardableResult
 func emitNonThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,

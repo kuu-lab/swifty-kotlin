@@ -457,11 +457,14 @@ extension KIRLoweringDriver {
                 type: propertyType
             )
 
+            let getterArguments = externalGlobalPropertyGetterArguments(
+                for: symbol, sema: sema, arena: arena, into: &allTopLevelInitInstructions
+            )
             allTopLevelInitInstructions.append(
                 .call(
                     symbol: nil,
                     callee: interner.intern(externalLinkName),
-                    arguments: [],
+                    arguments: getterArguments,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
