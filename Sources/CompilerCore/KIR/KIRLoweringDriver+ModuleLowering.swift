@@ -424,20 +424,20 @@ extension KIRLoweringDriver {
         where symbolInfo.kind == .property || symbolInfo.kind == .field || symbolInfo.kind == .backingField
         {
             let symbol = symbolInfo.id
-            guard !existingGlobals.contains(symbol),
-                  sema.symbols.backingFieldSymbol(for: symbol) == nil,
-                  sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
-                  let propertyType = sema.symbols.propertyType(for: symbol),
-                  let externalLinkName = sema.symbols.externalLinkName(for: symbol),
-                  !externalLinkName.isEmpty
-            else {
-                continue
-            }
-
-            let parentKind = sema.symbols.parentSymbol(for: symbol).flatMap {
+            // Most imported properties have accessor links, not external
+            // global initializers. Reject them before querying semantic types.
+            guard let externalLinkName = sema.symbols.externalLinkNameIfKnown(for: symbol),
+                  !externalLinkName.isEmpty,
+                  !existingGlobals.contains(symbol)
+            else { continue }
+            let parentKind = sema.symbols.parentSymbolIfKnown(for: symbol).flatMap {
                 sema.symbols.symbol($0)?.kind
             }
-            if parentKind != nil && parentKind != .package && parentKind != .object {
+            guard parentKind == nil || parentKind == .package || parentKind == .object,
+                  sema.symbols.backingFieldSymbol(for: symbol) == nil,
+                  sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                  let propertyType = sema.symbols.propertyType(for: symbol)
+            else {
                 continue
             }
 
@@ -499,6 +499,10 @@ extension KIRLoweringDriver {
                 appendInitializer(symbol.id)
                 continue
             }
+            // Initializer side effects must run even for unused declarations.
+            // Complete indexes let us skip owners with no initializer links;
+            // older artifacts still decode their owners to discover the links.
+            guard sema.symbols.mayHaveImportedInitializers(for: symbol.id) else { continue }
             switch symbol.kind {
             case .object:
                 appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))

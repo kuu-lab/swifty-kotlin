@@ -179,7 +179,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         if let symbols {
             var ambiguousBoundaryBridges: Set<InternedString> = []
             for symbol in symbols.allSymbols() where symbol.kind == .function {
-                guard let linkName = symbols.externalLinkName(for: symbol.id),
+                guard let linkName = symbols.externalLinkNameIfKnown(for: symbol.id),
                       Self.typeParamBoxingBoundaryCallees.contains(linkName),
                       let signature = symbols.functionSignature(for: symbol.id)
                 else {

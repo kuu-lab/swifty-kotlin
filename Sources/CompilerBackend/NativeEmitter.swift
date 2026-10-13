@@ -104,7 +104,7 @@ struct NativeEmitter {
         var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
         var ambiguousLinkNames: Set<String> = []
         for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
-            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+            guard let linkName = symbols?.externalLinkNameIfKnown(for: symbol.id),
                   !linkName.isEmpty,
                   !ambiguousLinkNames.contains(linkName)
             else {

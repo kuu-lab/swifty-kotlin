@@ -130,7 +130,7 @@ extension ExprTypeChecker {
         let outerReceiverPropertySymbols = Set(
             sema.symbols.allSymbols().compactMap { symbol -> SymbolID? in
                 guard symbol.kind == .property,
-                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
+                      let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
                       sema.symbols.symbol(ownerSymbol)?.kind == .class,
                       !symbol.flags.contains(.mutable)
