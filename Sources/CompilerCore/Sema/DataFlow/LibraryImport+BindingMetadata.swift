@@ -477,7 +477,7 @@ extension DataFlowSemaPhase {
                 name: getName,
                 fqName: getterFQName,
                 declSite: nil,
-                visibility: .public,
+                visibility: record.visibility,
                 flags: [.synthetic, .importedLibrary]
             )
             symbols.setParentSymbol(symbol, for: getterSymbol)
