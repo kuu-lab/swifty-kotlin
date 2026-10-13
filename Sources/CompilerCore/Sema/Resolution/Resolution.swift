@@ -318,6 +318,7 @@ extension OverloadResolver {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
                 implicitReceiverType: implicitReceiverType,
+                explicitTypeArgs: call.explicitTypeArgs,
                 typeVarBySymbol: typeVarBySymbol,
                 range: call.range,
                 typeSystem: ctx.types
@@ -712,6 +713,7 @@ extension OverloadResolver {
     private func buildReceiverConstraints(
         signature: FunctionSignature,
         implicitReceiverType: TypeID?,
+        explicitTypeArgs: [TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
         range: SourceRange,
         typeSystem: TypeSystem
@@ -721,6 +723,54 @@ extension OverloadResolver {
         }
         guard let implicitReceiverType else {
             return nil
+        }
+        // Fixed KClass receivers must retain the complete projection relation.
+        // Decomposing their arguments would turn an in/out combination into
+        // equality and discard the declaration's upper bound.
+        let isKClassReceiver: Bool = switch typeSystem.kind(of: receiverType) {
+        case .kClassType: true
+        case let .classType(classType): classType.classSymbol == typeSystem.kClassInterfaceSymbol
+        default: false
+        }
+        if isKClassReceiver,
+           !containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+        {
+            return [VariableConstraint(
+                kind: .subtype, left: .type(implicitReceiverType), right: .type(receiverType),
+                blameRange: range
+            )]
+        }
+        // The nominal representation preserves `out` instead of erasing it
+        // into invariant KClass<T>. Only an inferred, read-only extension can
+        // approximate the captured argument by that projection's upper bound.
+        if explicitTypeArgs.isEmpty,
+           signature.reifiedTypeParameterIndices.isEmpty,
+           case let .classType(actualClass) = typeSystem.kind(of: implicitReceiverType),
+           actualClass.classSymbol == typeSystem.kClassInterfaceSymbol,
+           actualClass.args.count == 1,
+           case let .out(upperBound) = actualClass.args[0],
+           case let .kClassType(declaredKClass) = typeSystem.kind(of: receiverType),
+           case let .typeParam(parameter) = typeSystem.kind(of: declaredKClass.argument),
+           typeVarBySymbol[parameter.symbol] != nil,
+           !(signature.parameterTypes + signature.contextReceiverTypes).contains(where: {
+               typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol)
+           }),
+           !signature.typeParameterSymbols.enumerated().contains(where: { index, symbol in
+               guard symbol != parameter.symbol else { return false }
+               let bounds = (index < signature.typeParameterUpperBoundsList.count
+                   ? signature.typeParameterUpperBoundsList[index] : [])
+                   + (typeSystem.symbolTable?.typeParameterUpperBounds(for: symbol) ?? [])
+               return bounds.contains { typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol) }
+           }),
+           typeSystem.canApproximateCapturedUpperBound(
+               in: signature.returnType, parameter: parameter.symbol
+           )
+        {
+            return decomposeSubtypeConstraint(
+                subtype: typeSystem.makeKClassType(argument: upperBound, nullability: actualClass.nullability),
+                supertype: receiverType, typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem, blameRange: range
+            )
         }
         // Infer a receiver parameter from the receiver itself, not a LUB of its
         // separate bounds. Dependent bound arguments are projected after solving.

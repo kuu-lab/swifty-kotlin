@@ -230,7 +230,7 @@ extension CallTypeChecker {
                     )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type, isTrailingLambda: argument.isTrailingLambda)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }
                 for group in orderedMemberGroups {
                     let resolved = ctx.resolver.resolveCall(
@@ -338,7 +338,7 @@ extension CallTypeChecker {
                     driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
                 let resolvedOuterArgs = zip(args, outerArgTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type, isTrailingLambda: argument.isTrailingLambda)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }
                 let resolvedOuter = ctx.resolver.resolveCall(
                     candidates: outerRegularCandidates,

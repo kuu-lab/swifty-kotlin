@@ -323,11 +323,8 @@ extension CallTypeChecker {
     static let inputOnlyExternalLinkNames: Set<String> = [
     ]
 
-    /// Returns the parameter type for a lambda argument, including Kotlin's
-    /// trailing-lambda rule: a final lambda may bind to a later function
-    /// parameter when the parameters between the explicit arguments and that
-    /// function parameter all have defaults (for example
-    /// `joinToString("|") { ... }`).
+    /// Uses final overload resolution's mapping for both parenthesized arguments
+    /// and a trailing lambda, including named arguments and omitted varargs.
     func lambdaParameterTypeForArgument(
         at index: Int,
         args: [CallArgument],

@@ -361,7 +361,7 @@ extension CallTypeChecker {
             if extensionCandidates.isEmpty || ctx.resolver.probeCall(
                 candidates: extensionCandidates,
                 call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type, isTrailingLambda: argument.isTrailingLambda)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,

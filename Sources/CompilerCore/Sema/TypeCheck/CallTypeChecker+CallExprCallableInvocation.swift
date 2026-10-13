@@ -203,7 +203,7 @@ extension CallTypeChecker {
             }
             if !invokeCandidates.isEmpty {
                 let resolvedArgs = zip(args, argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type, isTrailingLambda: argument.isTrailingLambda)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }
                 let resolved = ctx.resolver.resolveCall(
                     candidates: invokeCandidates,

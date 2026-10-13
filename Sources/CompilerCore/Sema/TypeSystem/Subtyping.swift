@@ -221,6 +221,20 @@ extension TypeSystem {
             if leftClass.args.count != rightClass.args.count {
                 return false
             }
+            // Star and in-projected KClass types still read through the Any
+            // upper bound, including synthetic declarations without bound metadata.
+            if leftClass.classSymbol == kClassInterfaceSymbol,
+               leftClass.args.count == 1,
+               {
+                   switch leftClass.args[0] {
+                   case .in, .star: true
+                   case .invariant, .out: false
+                   }
+               }(),
+               case let .out(upperBound) = rightClass.args[0]
+            {
+                return isSubtype(anyType, upperBound)
+            }
             let nominalOwner = symbolTable?.actualSymbol(for: leftClass.classSymbol)
                 ?? symbolTable?.actualSymbol(for: rightClass.classSymbol)
                 ?? leftClass.classSymbol
@@ -419,12 +433,12 @@ extension TypeSystem {
         case let (.any(leftNullability), .any(rightNullability)):
             return nullabilitySubtype(leftNullability, rightNullability)
 
-        // KClass<T> is covariant in T, matching Kotlin's `KClass<out T : Any>`.
+        // Kotlin declares KClass<T : Any> with an invariant type parameter.
         case let (.kClassType(leftKClass), .kClassType(rightKClass)):
             guard nullabilitySubtype(leftKClass.nullability, rightKClass.nullability) else {
                 return false
             }
-            return isSubtype(leftKClass.argument, rightKClass.argument)
+            return isProjectionSubtype(.invariant(leftKClass.argument), .invariant(rightKClass.argument))
 
         case let (.kClassType(leftKClass), .classType(rightClass)):
             guard let kClassSymbol = kClassInterfaceSymbol,
@@ -435,14 +449,7 @@ extension TypeSystem {
             if rightClass.classSymbol == kClassSymbol {
                 if rightClass.args.isEmpty { return true }
                 guard rightClass.args.count == 1 else { return false }
-                switch rightClass.args[0] {
-                case .star:
-                    return true
-                case let .out(type), let .invariant(type):
-                    return isSubtype(leftKClass.argument, type)
-                case .in:
-                    return true
-                }
+                return isProjectionSubtype(.invariant(leftKClass.argument), projection(from: rightClass.args[0]))
             }
             guard isNominalSubtypeSymbol(kClassSymbol, of: rightClass.classSymbol) else {
                 return false
@@ -459,16 +466,8 @@ extension TypeSystem {
                 return false
             }
             if leftClass.classSymbol == kClassSymbol {
-                if leftClass.args.isEmpty { return isSubtype(anyType, rightKClass.argument) }
                 guard leftClass.args.count == 1 else { return false }
-                switch leftClass.args[0] {
-                case .star:
-                    return isSubtype(anyType, rightKClass.argument)
-                case let .out(type), let .invariant(type):
-                    return isSubtype(type, rightKClass.argument)
-                case let .in(type):
-                    return isSubtype(type, rightKClass.argument)
-                }
+                return isProjectionSubtype(projection(from: leftClass.args[0]), .invariant(rightKClass.argument))
             }
             return false
 
@@ -1081,25 +1080,56 @@ extension TypeSystem {
         }
     }
 
-    /// If **all** types in `filtered` are `KClass<…>`, compute
-    /// `KClass<lub(T1, T2, …)>` with the appropriate nullability.
+    /// If all inputs are KClass types, preserve a dominating input or compute
+    /// a projected common upper bound with the appropriate nullability.
     /// Returns `nil` when the types are not all KClass.
     private func lubKClassTypes(_ filtered: [TypeID]) -> TypeID? {
         var arguments: [TypeID] = []
+        var invariantArguments = true
         var hasNullable = false
         for typeID in filtered {
-            guard case let .kClassType(kc) = kind(of: typeID) else {
+            switch kind(of: typeID) {
+            case let .kClassType(kc):
+                arguments.append(kc.argument)
+            case let .classType(ct) where ct.classSymbol == kClassInterfaceSymbol && ct.args.count == 1:
+                switch ct.args[0] {
+                case let .invariant(argument): arguments.append(argument)
+                case let .out(argument):
+                    invariantArguments = false
+                    arguments.append(argument)
+                case .in, .star:
+                    invariantArguments = false
+                    arguments.append(anyType)
+                }
+            default:
                 return nil
             }
-            arguments.append(kc.argument)
-            if kc.nullability == .nullable || kc.nullability == .platformType {
+            if nullability(of: typeID) != .nonNull {
                 hasNullable = true
             }
         }
         guard !arguments.isEmpty else { return nil }
-        let argLub = lub(arguments)
         let resultNullability: Nullability = hasNullable ? .nullable : .nonNull
-        return makeKClassType(argument: argLub, nullability: resultNullability)
+        // Preserve an existing common supertype, including an in-projected
+        // lower bound, before approximating unrelated captures by their upper bounds.
+        if let existing = filtered.first(where: { candidate in
+            filtered.allSatisfy { isSubtype($0, candidate) }
+        }) {
+            return withNullability(resultNullability, for: existing)
+        }
+        let argLub = lub(arguments)
+        if invariantArguments,
+           arguments.allSatisfy({ isSubtype($0, arguments[0]) && isSubtype(arguments[0], $0) }) {
+            return makeKClassType(argument: arguments[0], nullability: resultNullability)
+        }
+        guard let kClassInterfaceSymbol else {
+            return withNullability(resultNullability, for: anyType)
+        }
+        return make(.classType(ClassType(
+            classSymbol: kClassInterfaceSymbol,
+            args: [.out(argLub)],
+            nullability: resultNullability
+        )))
     }
 
 }

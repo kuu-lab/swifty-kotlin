@@ -76,7 +76,8 @@ extension CallTypeChecker {
             }
         }
         guard narrowedCallCandidates(
-            candidates: candidates, args: args, callRange: callRange, inferredNonLambdaArgTypes: nonLambdaArgumentTypes,
+            candidates: candidates, args: args, callRange: callRange,
+            inferredNonLambdaArgTypes: nonLambdaArgumentTypes,
             receiverType: receiverType, forImplicitMemberApplicability: true, ctx: ctx
         ).isEmpty else { return }
 

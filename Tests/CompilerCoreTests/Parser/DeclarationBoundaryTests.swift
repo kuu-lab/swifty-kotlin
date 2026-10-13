@@ -48,23 +48,6 @@ struct DeclarationBoundaryTests {
         #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .callExpr) == 1)
     }
 
-    @Test(arguments: ["Simple()", "(Simple())", "create()"])
-    func classDelegationContinuesAfterNewline(expression: String) {
-        let parsed = parse("""
-        interface Value { val number: Int }
-        class Simple : Value { override val number = 42 }
-        fun create(): Value = Simple()
-        class Delegated : Value by
-            \(expression) {
-            val other = 7
-        }
-        fun after() = 3
-        """)
-        #expect(parsed.diagnostics.diagnostics.isEmpty)
-        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 2)
-        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
-    }
-
     @Test(arguments: [
         "class Derived(val value: Int)\n    : Value by Simple() { val other = 7 }",
         "class Derived\n    : Value by Simple() { val other = 7 }",

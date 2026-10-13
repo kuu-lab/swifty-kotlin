@@ -1,0 +1,168 @@
+/// Method binders are alpha-equivalent, but their upper bounds are part of
+/// overload/override identity. Class binders must be specialized first.
+func methodTypeParameterBounds(_ signature: FunctionSignature, types: TypeSystem) -> [[TypeID]] {
+    signature.typeParameterSymbols.indices.dropFirst(signature.classTypeParameterCount).map { index in
+        let declared = index < signature.typeParameterUpperBoundsList.count
+            ? signature.typeParameterUpperBoundsList[index] : []
+        let stored = types.symbolTable?.typeParameterUpperBounds(for: signature.typeParameterSymbols[index]) ?? []
+        let bounds = declared + stored.filter { !declared.contains($0) }
+        return bounds.isEmpty ? [types.nullableAnyType] : bounds
+    }
+}
+
+func alphaAlignedMethodType(
+    _ type: TypeID,
+    sourceParameters: [SymbolID],
+    targetParameters: [SymbolID],
+    types: TypeSystem
+) -> TypeID {
+    guard !sourceParameters.isEmpty else { return type }
+    let variables = types.makeTypeVarBySymbol(sourceParameters)
+    var substitution: [TypeVarID: TypeID] = [:]
+    for (source, target) in zip(sourceParameters, targetParameters) {
+        guard let variable = variables[source] else { continue }
+        substitution[variable] = types.make(.typeParam(TypeParamType(symbol: target, nullability: .nonNull)))
+    }
+    return types.substituteTypeParameters(in: type, substitution: substitution, typeVarBySymbol: variables)
+}
+
+func specializeMethodOwnerType(
+    _ type: TypeID,
+    owner: SymbolID?,
+    instanceOwner: SymbolID,
+    types: TypeSystem
+) -> TypeID {
+    guard let owner, !types.nominalTypeParameterSymbols(for: owner).isEmpty else { return type }
+    let instanceArgs = types.nominalTypeParameterSymbols(for: instanceOwner).map {
+        TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+    }
+    guard let ownerArgs = types.liftedNominalSupertypeArgs(from: instanceOwner, childArgs: instanceArgs, to: owner)
+    else { return type }
+    return types.substituteNominalTypeParameters(in: type, owner: owner, ownerArgs: ownerArgs)
+}
+
+func methodUpperBoundsMatch(
+    source: FunctionSignature,
+    target: FunctionSignature,
+    sourceOwner: SymbolID?,
+    targetOwner: SymbolID,
+    instanceOwner: SymbolID? = nil,
+    types: TypeSystem
+) -> Bool {
+    let sourceParameters = Array(source.typeParameterSymbols.dropFirst(source.classTypeParameterCount))
+    let targetParameters = Array(target.typeParameterSymbols.dropFirst(target.classTypeParameterCount))
+    guard sourceParameters.count == targetParameters.count else { return false }
+    guard !sourceParameters.isEmpty else { return true }
+    let instanceOwner = instanceOwner ?? targetOwner
+    let sourceBounds = methodTypeParameterBounds(source, types: types).map { bounds in
+        bounds.map { bound in
+            let specialized = specializeMethodOwnerType(bound, owner: sourceOwner, instanceOwner: instanceOwner, types: types)
+            return alphaAlignedMethodType(specialized, sourceParameters: sourceParameters,
+                                          targetParameters: targetParameters, types: types)
+        }
+    }
+    let targetBounds = methodTypeParameterBounds(target, types: types).map { bounds in
+        bounds.map { specializeMethodOwnerType($0, owner: targetOwner, instanceOwner: instanceOwner, types: types) }
+    }
+    return methodUpperBoundSetsMatch(sourceBounds, targetBounds, types: types)
+}
+
+/// Compare each binder's bound set without depending on declaration order,
+/// duplicate spellings, or redundant use-site variance.
+func methodUpperBoundSetsMatch(_ source: [[TypeID]], _ target: [[TypeID]], types: TypeSystem) -> Bool {
+    guard source.count == target.count else { return false }
+    return zip(source, target).allSatisfy { left, right in
+        func equivalent(_ lhs: TypeID, _ rhs: TypeID) -> Bool {
+            methodIdentityTypesMatch(lhs, rhs, types: types, allowTypeParameterWildcards: false)
+        }
+        return left.allSatisfy { bound in right.contains { equivalent(bound, $0) } }
+            && right.allSatisfy { bound in left.contains { equivalent(bound, $0) } }
+    }
+}
+
+func alignedMethodParameterTypes(
+    source: FunctionSignature,
+    target: FunctionSignature,
+    sourceOwner: SymbolID?,
+    instanceOwner: SymbolID,
+    types: TypeSystem
+) -> [TypeID] {
+    let sourceParameters = Array(source.typeParameterSymbols.dropFirst(source.classTypeParameterCount))
+    let targetParameters = Array(target.typeParameterSymbols.dropFirst(target.classTypeParameterCount))
+    return source.parameterTypes.map {
+        let specialized = specializeMethodOwnerType($0, owner: sourceOwner, instanceOwner: instanceOwner, types: types)
+        return alphaAlignedMethodType(specialized, sourceParameters: sourceParameters,
+                                      targetParameters: targetParameters, types: types)
+    }
+}
+
+func methodIdentityParameterTypesMatch(
+    candidateParameterTypes: [TypeID],
+    interfaceParameterTypes: [TypeID],
+    types: TypeSystem,
+    allowTypeParameterWildcards: Bool = false
+) -> Bool {
+    guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
+    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy {
+        methodIdentityTypesMatch($0, $1, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
+    }
+}
+
+private func methodIdentityTypesMatch(
+    _ candidate: TypeID, _ interface: TypeID, types: TypeSystem, allowTypeParameterWildcards: Bool
+) -> Bool {
+    if candidate == interface { return true }
+    if allowTypeParameterWildcards {
+        if case .typeParam = types.kind(of: candidate) { return true }
+        if case .typeParam = types.kind(of: interface) { return true }
+    }
+    switch (types.kind(of: candidate), types.kind(of: interface)) {
+    case let (.functionType(lhs), .functionType(rhs)):
+        guard lhs.isSuspend == rhs.isSuspend, lhs.nullability == rhs.nullability,
+              (lhs.receiver == nil) == (rhs.receiver == nil)
+        else { return false }
+        return methodIdentityParameterTypesMatch(
+            candidateParameterTypes: lhs.contextReceivers,
+            interfaceParameterTypes: rhs.contextReceivers, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards
+        ) && methodIdentityParameterTypesMatch(
+            candidateParameterTypes: lhs.receiver.map { [$0] } ?? [],
+            interfaceParameterTypes: rhs.receiver.map { [$0] } ?? [], types: types, allowTypeParameterWildcards: allowTypeParameterWildcards
+        ) && methodIdentityParameterTypesMatch(
+            candidateParameterTypes: lhs.params, interfaceParameterTypes: rhs.params, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards
+        ) && methodIdentityTypesMatch(lhs.returnType, rhs.returnType, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
+            && methodIdentityParameterTypesMatch(
+                candidateParameterTypes: lhs.throws, interfaceParameterTypes: rhs.throws, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards
+            )
+    case let (.classType(lhs), .classType(rhs)):
+        guard lhs.classSymbol == rhs.classSymbol, lhs.nullability == rhs.nullability,
+              lhs.args.count == rhs.args.count
+        else { return false }
+        let variances = types.normalizedNominalVariances(
+            for: lhs.classSymbol,
+            arity: lhs.args.count
+        )
+        return lhs.args.indices.allSatisfy { index in
+            let candidateArg = types.composedProjection(
+                declarationVariance: variances[index], useSite: lhs.args[index]
+            )
+            let interfaceArg = types.composedProjection(
+                declarationVariance: variances[index], useSite: rhs.args[index]
+            )
+            switch (candidateArg, interfaceArg) {
+            case let (.invariant(candidate), .invariant(interface)),
+                 let (.out(candidate), .out(interface)),
+                 let (.in(candidate), .in(interface)):
+                return methodIdentityTypesMatch(candidate, interface, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
+            case (.star, .star):
+                return true
+            default:
+                return false
+            }
+        }
+    case let (.kClassType(lhs), .kClassType(rhs)):
+        return lhs.nullability == rhs.nullability
+            && methodIdentityTypesMatch(lhs.argument, rhs.argument, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
+    default:
+        return false
+    }
+}

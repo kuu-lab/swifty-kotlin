@@ -85,7 +85,7 @@ extension CallTypeChecker {
                 candidates: [candidate],
                 call: CallExpr(
                     range: range, calleeName: calleeName,
-                    args: [CallArg(label: argument.label, isSpread: argument.isSpread, type: argumentType, isTrailingLambda: argument.isTrailingLambda)],
+                    args: [CallArg.source(argument, type: argumentType, callRange: range, ast: ctx.ast)],
                     explicitTypeArgs: explicitTypeArgs
                 ),
                 expectedType: nil,
