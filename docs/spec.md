@@ -102,6 +102,14 @@ public struct CompilerOptions: Equatable {
 
 ## J1.2 コンパイルの “単位”
 
+インクリメンタルコンパイルは既定でオフ。CLI の `--incremental` は
+`incremental` frontend flag、`--incremental-cache <path>` は
+`incrementalCachePath` を設定し、それぞれ単独で有効化する。
+`--no-incremental` は `no-incremental` frontend flag を設定し、指定順に関係なく
+有効化 flag と保存先指定に優先する。Driver は無効化時にキャッシュを読み書きしない。
+`-Xfrontend incremental` は互換のため引き続き利用可能。
+詳細と既定オフを維持する根拠は [`incremental-compilation.md`](incremental-compilation.md) を参照。
+
 * **CompilationSession**: 1回の `kswiftc` 実行
 * **Module**: Kotlin の “名前空間 + 生成物” 単位（`moduleName`）
 * **Library**: 別 Module を import 可能にする配布形態（Doc J12）
@@ -676,6 +684,7 @@ public enum TypeKind {
     case typeParam(TypeParamType)
     case functionType(FunctionType)
     case intersection([TypeID])
+    case kClassType(KClassType)
 }
 
 public struct ClassType {
@@ -699,6 +708,8 @@ public struct FunctionType {
     public let nullability: Nullability
 }
 ```
+
+`KClassType` は不変の `KClass<T : Any>` を表す。`out` / `in` / `*` の use-site projection は nominal `ClassType` の `TypeArg` に保持し、固定 receiver との適合判定やメタデータ保存で不変型へ消去しない。KClass 型の共通型は、入力型がすべての入力の上位型ならその型を保持し、それ以外では `KClass<out U>` に近似して `KClass<U>` の不変性を維持する。
 
 ## J8.2 TypeSystem API
 
@@ -970,6 +981,12 @@ hard error; the compiler does not fall back to injecting bundled sources.
 * public API の “ヘッダ情報” を入れる（型・シグネチャ・vtable slot・field offsets）
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
 * inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
+
+通常のライブラリを bundled stdlib ソースでコンパイルする場合、stdlib 本体も
+KIR・オブジェクトへ出力する。stdlib 宣言はライブラリの公開メタデータから除外し、
+bundled 関数には既存の `linkonce_odr` を適用する。プリコンパイル済み stdlib を
+指定した場合は、import 済みのリンク名でその artifact を参照する。
+そのライブラリの consumer にも、同じ stdlib artifact を依存先として指定する。
 
 **注意**：この方式は Kotlin の inline / reified を跨モジュールで成立させるために必須。
 

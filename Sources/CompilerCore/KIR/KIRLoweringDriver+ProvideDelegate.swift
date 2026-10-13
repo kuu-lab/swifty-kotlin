@@ -80,11 +80,16 @@ extension KIRLoweringDriver {
         let provideDelegateName = interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
+        let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
+            to: [delegateObjExpr, thisRefExprID, kPropertyExprID],
+            for: provideDelegateSymbol,
+            sema: sema
+        )
         initInstructions.append(
             .call(
                 symbol: provideDelegateSymbol,
                 callee: provideDelegateName,
-                arguments: [delegateObjExpr, thisRefExprID, kPropertyExprID],
+                arguments: provideDelegateArguments,
                 result: provideDelegateResult,
                 canThrow: false,
                 thrownResult: nil

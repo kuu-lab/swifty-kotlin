@@ -1010,7 +1010,7 @@ extension ExprTypeChecker {
                let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]
             {
                 let parameterTypes = sema.symbols.functionSignature(for: method.id)?.parameterTypes ?? []
-                if let matchedSlot = resolveOverriddenVtableSlot(parameterTypes: parameterTypes, candidates: candidates, types: sema.types) {
+                if let matchedSlot = resolveOverriddenVtableSlot(method: method, parameterTypes: parameterTypes, candidates: candidates, symbols: sema.symbols, types: sema.types) {
                     vtableSlots[method.id] = matchedSlot
                     continue
                 }

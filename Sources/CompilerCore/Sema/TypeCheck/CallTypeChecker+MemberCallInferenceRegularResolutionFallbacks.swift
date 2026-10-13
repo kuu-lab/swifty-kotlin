@@ -440,6 +440,10 @@ extension CallTypeChecker {
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            if sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
+               let searchType = sema.bindings.callBindings[id]?.substitutedTypeArguments.first {
+                sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
+            }
             let projectedReturnType = sema.types.substituteTypeParameters(
                 in: signature.returnType,
                 substitution: mergedSubstitution,

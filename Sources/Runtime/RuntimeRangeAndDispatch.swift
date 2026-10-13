@@ -421,15 +421,6 @@ func runtimeSignedRangeLastMatch(
     return 0
 }
 
-
-func runtimeRandomIndex(count: Int, randomRaw: Int?) -> Int {
-    if let randomRaw {
-        return runtimeRandomNextIntBelow(randomRaw, count)
-    }
-    return Int.random(in: 0 ..< count)
-}
-
-
 func runtimeCharRangeCount(_ range: RuntimeRangeBox) -> Int {
     let first = kk_unbox_char(range.first)
     let last = kk_unbox_char(range.last)
@@ -444,83 +435,18 @@ func runtimeCharRangeCount(_ range: RuntimeRangeBox) -> Int {
 }
 
 func runtimeSignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
-    guard range.step != 0 else { return runtimeNullSentinelInt }
-    let ascending = range.step > 0
-    guard ascending ? range.first <= range.last : range.first >= range.last else {
-        return runtimeNullSentinelInt
-    }
-    let absStep = UInt64(range.step.magnitude)
-    let signMask = UInt64(1) << 63
-    let firstOrdered = UInt64(bitPattern: Int64(range.first)) ^ signMask
-    let lastOrdered = UInt64(bitPattern: Int64(range.last)) ^ signMask
-    let distance = ascending ? lastOrdered &- firstOrdered : firstOrdered &- lastOrdered
-    if absStep == 1 && distance == UInt64.max {
-        let bits: UInt64
-        if let randomRaw {
-            bits = runtimeRandomBits(from: randomRaw)
-        } else {
-            var rng = SystemRandomNumberGenerator()
-            bits = rng.next()
-        }
-        return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: bits)), kind: range.kind)
-    }
-    let count = distance / absStep + 1
-    let index: UInt64
-    if let randomRaw {
-        index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
-    } else if count == UInt64.max {
-        var rng = SystemRandomNumberGenerator()
-        index = rng.next() % count
-    } else {
-        index = UInt64.random(in: 0 ..< count)
-    }
-    let offset = index &* absStep
-    let chosenOrdered = ascending ? firstOrdered &+ offset : firstOrdered &- offset
-    return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask)), kind: range.kind)
+    guard !runtimeRangeIsEmpty(range) else { return runtimeNullSentinelInt }
+    return runtimeRangeErasedElement(runtimeRangeRandomSample(range, randomRaw: randomRaw), kind: range.kind)
 }
 
 func runtimeUnsignedRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
-    guard range.step != 0 else { return runtimeNullSentinelInt }
-    let first = UInt64(UInt(bitPattern: range.first))
-    let last = UInt64(UInt(bitPattern: range.last))
-    let ascending = range.step > 0
-    guard ascending ? first <= last : first >= last else {
-        return runtimeNullSentinelInt
-    }
-    let absStep = UInt64(range.step.magnitude)
-    let distance = ascending ? last &- first : first &- last
-    if absStep == 1 && distance == UInt64.max {
-        let bits: UInt64
-        if let randomRaw {
-            bits = runtimeRandomBits(from: randomRaw)
-        } else {
-            var rng = SystemRandomNumberGenerator()
-            bits = rng.next()
-        }
-        return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: bits)), kind: range.kind)
-    }
-    let count = distance / absStep + 1
-    let index: UInt64
-    if let randomRaw {
-        index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
-    } else if count == UInt64.max {
-        var rng = SystemRandomNumberGenerator()
-        index = rng.next() % count
-    } else {
-        index = UInt64.random(in: 0 ..< count)
-    }
-    let offset = index &* absStep
-    let chosen = ascending ? first &+ offset : first &- offset
-    return runtimeRangeErasedElement(Int(bitPattern: UInt(truncatingIfNeeded: chosen)), kind: range.kind)
+    guard !runtimeRangeIsEmpty(range) else { return runtimeNullSentinelInt }
+    return runtimeRangeErasedElement(runtimeRangeRandomSample(range, randomRaw: randomRaw), kind: range.kind)
 }
 
 func runtimeCharRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
-    let count = runtimeCharRangeCount(range)
-    guard count > 0 else { return runtimeNullSentinelInt }
-    let index = runtimeRandomIndex(count: count, randomRaw: randomRaw)
-    let first = kk_unbox_char(range.first)
-    let value = first &+ (range.step &* index)
-    return kk_box_char(value)
+    guard runtimeCharRangeCount(range) > 0 else { return runtimeNullSentinelInt }
+    return runtimeRangeErasedElement(runtimeRangeRandomSample(range, randomRaw: randomRaw), kind: range.kind)
 }
 
 func runtimeCharRangeRandom(
@@ -529,66 +455,185 @@ func runtimeCharRangeRandom(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let count = runtimeCharRangeCount(range)
-    guard count > 0 else { return runtimeRangeRandomError(outThrown) }
-    let index = runtimeRandomIndex(upperBound: UInt64(count), randomRaw: randomRaw)
     let first = kk_unbox_char(range.first)
-    let value = first &+ (range.step &* Int(truncatingIfNeeded: index))
-    return kk_box_char(value)
+    let until = kk_unbox_char(range.last) + 1
+    var randomThrown = 0
+    let value = runtimeRandomNextIntRange(
+        randomRaw,
+        from: first,
+        until: until,
+        outThrown: &randomThrown
+    )
+    guard randomThrown != 0 else {
+        return kk_box_char(value)
+    }
+
+    let throwable = runtimeThrowableBox(from: randomThrown)
+    if let error = throwable as? RuntimeIllegalArgumentExceptionBox {
+        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: error.message)
+    } else {
+        outThrown?.pointee = randomThrown
+    }
+    return 0
 }
 
+// MARK: - Range.random(Random) helpers
 
 func runtimeRandomBits(from randomRaw: Int) -> UInt64 {
     runtimeRandomNextBits64(randomRaw)
 }
 
-func runtimeRandomIndex(upperBound: UInt64, randomRaw: Int) -> UInt64 {
+func runtimeRandomIndex(upperBound: UInt64, randomRaw: Int?) -> UInt64 {
     precondition(upperBound > 0)
     if upperBound == 1 {
         return 0
     }
-    // Rejection sampling keeps the index uniform without modulo bias.
+    if upperBound <= UInt64(Int32.max) {
+        if let randomRaw {
+            return UInt64(runtimeRandomNextIntBelow(randomRaw, Int(upperBound)))
+        }
+        return UInt64(Int.random(in: 0 ..< Int(upperBound)))
+    }
+    // Rejection sampling remains the fallback for progressions whose index
+    // count cannot be represented by Kotlin's positive Int bound.
     let rejectionLimit = UInt64.max - (UInt64.max % upperBound)
-    var candidate = runtimeRandomBits(from: randomRaw)
-    while candidate >= rejectionLimit {
+    var candidate: UInt64
+    if let randomRaw {
         candidate = runtimeRandomBits(from: randomRaw)
+    } else {
+        var rng = SystemRandomNumberGenerator()
+        candidate = rng.next()
+    }
+    while candidate >= rejectionLimit {
+        if let randomRaw {
+            candidate = runtimeRandomBits(from: randomRaw)
+        } else {
+            var rng = SystemRandomNumberGenerator()
+            candidate = rng.next()
+        }
     }
     return candidate % upperBound
 }
 
-func runtimeRangeRandomError(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Range is empty.")
-    return 0
-}
+private func runtimeRandomIntInclusive(_ first: Int, _ last: Int, randomRaw: Int?) -> Int {
+    guard let randomRaw else {
+        return Int.random(in: first ... last)
+    }
 
-func runtimeSignedRangeRandom(
-    first: Int,
-    last: Int,
-    step: Int,
-    randomRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard step != 0 else {
-        return runtimeRangeRandomError(outThrown)
+    let int32Min = Int(Int32.min)
+    let int32Max = Int(Int32.max)
+    if first >= int32Min && last <= int32Max {
+        let first32 = Int32(first)
+        let last32 = Int32(last)
+        if last32 < Int32.max {
+            return runtimeRandomNextIntRange(randomRaw, from: Int(first32), until: Int(last32 &+ 1))
+        }
+        if first32 > Int32.min {
+            return runtimeRandomNextIntRange(randomRaw, from: Int(first32 &- 1), until: Int(last32)) &+ 1
+        }
+        return Int(Int32(truncatingIfNeeded: runtimeRandomNextIntBits(randomRaw)))
     }
-    let ascending = step > 0
-    guard ascending ? first <= last : first >= last else {
-        return runtimeRangeRandomError(outThrown)
-    }
-    let absStep = UInt64(step.magnitude)
+
     let signMask = UInt64(1) << 63
     let firstOrdered = UInt64(bitPattern: Int64(first)) ^ signMask
     let lastOrdered = UInt64(bitPattern: Int64(last)) ^ signMask
-    if absStep == 1 {
-        // A full-width range can use the raw 64-bit random value directly.
-        if ascending && firstOrdered == 0 && lastOrdered == UInt64.max {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
-        }
-        if !ascending && firstOrdered == UInt64.max && lastOrdered == 0 {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
+    let distance = lastOrdered &- firstOrdered
+    if distance == UInt64.max {
+        return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
+    }
+    let index = runtimeRandomIndex(upperBound: distance + 1, randomRaw: randomRaw)
+    let chosenOrdered = firstOrdered &+ index
+    return Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask))
+}
+
+private func runtimeRandomLongInclusive(_ first: Int, _ last: Int, randomRaw: Int?) -> Int {
+    guard let randomRaw else {
+        return Int.random(in: first ... last)
+    }
+    if last < Int.max {
+        return runtimeRandomNextLongRange(randomRaw, from: first, until: last + 1)
+    }
+    if first > Int.min {
+        return runtimeRandomNextLongRange(randomRaw, from: first - 1, until: last) &+ 1
+    }
+    return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
+}
+
+private func runtimeRandomUIntInclusive(_ first: UInt64, _ last: UInt64, randomRaw: Int?) -> Int {
+    let first32 = UInt32(truncatingIfNeeded: first)
+    let last32 = UInt32(truncatingIfNeeded: last)
+    guard let randomRaw else {
+        return Int(UInt32.random(in: first32 ... last32))
+    }
+
+    let signMask = UInt32(1) << 31
+    let firstOrdered = Int(Int32(bitPattern: first32 ^ signMask))
+    let lastOrdered = Int(Int32(bitPattern: last32 ^ signMask))
+    let chosenOrdered = Int32(truncatingIfNeeded: runtimeRandomIntInclusive(firstOrdered, lastOrdered, randomRaw: randomRaw))
+    return Int(UInt32(bitPattern: chosenOrdered) ^ signMask)
+}
+
+private func runtimeRandomULongInclusive(_ first: UInt64, _ last: UInt64, randomRaw: Int?) -> Int {
+    let signMask = UInt64(1) << 63
+    let firstOrdered = Int(bitPattern: UInt(first ^ signMask))
+    let lastOrdered = Int(bitPattern: UInt(last ^ signMask))
+    let chosenOrdered = runtimeRandomLongInclusive(firstOrdered, lastOrdered, randomRaw: randomRaw)
+    let chosen = UInt64(bitPattern: Int64(chosenOrdered)) ^ signMask
+    return Int(bitPattern: UInt(chosen))
+}
+
+private func runtimeRangeRandomSample(_ range: RuntimeRangeBox, randomRaw: Int?) -> Int {
+    if range.step == 1 {
+        switch range.kind {
+        case .intRange:
+            return runtimeRandomIntInclusive(range.first, range.last, randomRaw: randomRaw)
+        case .longRange:
+            return runtimeRandomLongInclusive(range.first, range.last, randomRaw: randomRaw)
+        case .charRange:
+            return runtimeRandomIntInclusive(
+                kk_unbox_char(range.first),
+                kk_unbox_char(range.last),
+                randomRaw: randomRaw
+            )
+        case .uintRange:
+            return runtimeRandomUIntInclusive(
+                UInt64(UInt(bitPattern: range.first)),
+                UInt64(UInt(bitPattern: range.last)),
+                randomRaw: randomRaw
+            )
+        case .ulongRange:
+            return runtimeRandomULongInclusive(
+                UInt64(UInt(bitPattern: range.first)),
+                UInt64(UInt(bitPattern: range.last)),
+                randomRaw: randomRaw
+            )
+        case .intProgression, .longProgression, .charProgression, .uintProgression, .ulongProgression:
+            break
         }
     }
+
+    if range.kind == .charProgression {
+        let count = runtimeCharRangeCount(range)
+        let index = Int(truncatingIfNeeded: runtimeRandomIndex(upperBound: UInt64(count), randomRaw: randomRaw))
+        return kk_unbox_char(range.first) &+ (range.step &* index)
+    }
+
+    let ascending = range.step > 0
+    let absStep = UInt64(range.step.magnitude)
+    if range.kind.usesUnsignedValues {
+        let first = UInt64(UInt(bitPattern: range.first))
+        let last = UInt64(UInt(bitPattern: range.last))
+        let distance = ascending ? last &- first : first &- last
+        let count = distance / absStep + 1
+        let index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
+        let offset = index &* absStep
+        let chosen = ascending ? first &+ offset : first &- offset
+        return Int(bitPattern: UInt(truncatingIfNeeded: chosen))
+    }
+
+    let signMask = UInt64(1) << 63
+    let firstOrdered = UInt64(bitPattern: Int64(range.first)) ^ signMask
+    let lastOrdered = UInt64(bitPattern: Int64(range.last)) ^ signMask
     let distance = ascending ? lastOrdered &- firstOrdered : firstOrdered &- lastOrdered
     let count = distance / absStep + 1
     let index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
@@ -597,39 +642,35 @@ func runtimeSignedRangeRandom(
     return Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask))
 }
 
-func runtimeUnsignedRangeRandom(
-    first: UInt,
-    last: UInt,
-    step: Int,
+func runtimeRangeRandomError(_ range: RuntimeRangeBox, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = runtimeAllocateNoSuchElementException(
+        message: "Cannot get random in empty range: \(runtimeRangeToString(range))"
+    )
+    return 0
+}
+
+func runtimeSignedRangeRandom(
+    _ range: RuntimeRangeBox,
     randomRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard step != 0 else {
-        return runtimeRangeRandomError(outThrown)
+    guard !runtimeRangeIsEmpty(range) else {
+        return runtimeRangeRandomError(range, outThrown)
     }
-    let ascending = step > 0
-    guard ascending ? first <= last : first >= last else {
-        return runtimeRangeRandomError(outThrown)
+    return runtimeRangeRandomSample(range, randomRaw: randomRaw)
+}
+
+func runtimeUnsignedRangeRandom(
+    _ range: RuntimeRangeBox,
+    randomRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard !runtimeRangeIsEmpty(range) else {
+        return runtimeRangeRandomError(range, outThrown)
     }
-    let absStep = UInt64(step.magnitude)
-    let first64 = UInt64(first)
-    let last64 = UInt64(last)
-    if absStep == 1 {
-        // A full-width unsigned range can use the raw 64-bit random value directly.
-        if ascending && first64 == 0 && last64 == UInt64.max {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
-        }
-        if !ascending && first64 == UInt64.max && last64 == 0 {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
-        }
-    }
-    let distance = ascending ? last64 &- first64 : first64 &- last64
-    let count = distance / absStep + 1
-    let index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
-    let offset = index &* absStep
-    let chosen = ascending ? first64 &+ offset : first64 &- offset
-    return Int(bitPattern: UInt(truncatingIfNeeded: chosen))
+    return runtimeRangeRandomSample(range, randomRaw: randomRaw)
 }
 
 @_cdecl("kk_op_notnull")

@@ -578,6 +578,31 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     boxedArguments = arguments
                 }
 
+                // Synthesized delegation and imported bodies can reach this
+                // bridge with a Kotlin function value instead of the C callback
+                // pair produced by direct member-call lowering. Normalize only
+                // the unexpanded shape; already-expanded calls stay intact.
+                if runtimeLink == ctx.interner.intern("kk_context_fold"),
+                   boxedArguments.count == 3
+                {
+                    let operation = boxedArguments[2]
+                    let fnPtr = emitNonThrowingCall(
+                        callee: ctx.interner.intern("kk_function_value_fn_ptr"),
+                        arg: operation,
+                        resultType: types?.intType,
+                        arena: module.arena,
+                        into: &newBody
+                    )
+                    let closureRaw = emitNonThrowingCall(
+                        callee: ctx.interner.intern("kk_function_value_closure_raw"),
+                        arg: operation,
+                        resultType: types?.intType,
+                        arena: module.arena,
+                        into: &newBody
+                    )
+                    boxedArguments = [boxedArguments[0], boxedArguments[1], fnPtr, closureRaw]
+                }
+
                 // `generateSequence` reaches this private runtime bridge after
                 // its generic source wrapper is expanded. The bridge stores the
                 // seed in an erased sequence element slot, so a raw primitive or

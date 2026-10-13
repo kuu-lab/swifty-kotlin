@@ -134,13 +134,13 @@ struct LibraryImportStdlibModuleNameTests {
             )
             let stdlibModuleName = try #require(work.stdlibModuleName)
 
-            // Pick an imported symbol the same way the merge loop itself
-            // does, so the expected key is derived rather than guessed.
-            let (_, expectedKey) = try #require(
+            // Keep the original full scan as an independent oracle for the
+            // module-indexed merge, including callable/property/constructor keys.
+            let expectedKeys = Set(
                 symbols.allSymbols()
                     .filter { $0.flags.contains(.importedLibrary) }
                     .lazy
-                    .compactMap { symbol -> (SemanticSymbol, BundledMemberKey)? in
+                    .compactMap { symbol -> BundledMemberKey? in
                         guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { return nil }
                         guard let key = BundledDeclarationIndex.memberKey(
                             for: symbol,
@@ -149,10 +149,10 @@ struct LibraryImportStdlibModuleNameTests {
                             types: types,
                             interner: ctx.interner
                         ) else { return nil }
-                        return (symbol, key)
+                        return key
                     }
-                    .first
             )
+            #expect(!expectedKeys.isEmpty)
 
             // The regression scenario: manifest.json is gone by the time the
             // merge step runs (e.g. a concurrent rebuild elsewhere replaced
@@ -172,7 +172,9 @@ struct LibraryImportStdlibModuleNameTests {
                 interner: ctx.interner
             )
 
-            #expect(mergedIndex.contains(expectedKey))
+            for key in expectedKeys {
+                #expect(mergedIndex.contains(key))
+            }
         }
     }
 }

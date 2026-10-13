@@ -172,6 +172,19 @@ extension ExprTypeChecker {
             guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
                 return false
             }
+            // An import qualified by the singleton binds its receiver too.
+            // Package imports of the same extension still require a receiver.
+            if case let .classType(receiverClass) = sema.types.kind(of: declaredReceiver),
+               let receiver = sema.symbols.symbol(receiverClass.classSymbol),
+               receiver.kind == .object,
+               ctx.currentASTFile?.imports.contains(where: { importDecl in
+                   !importDecl.isWildcard
+                       && (importDecl.alias ?? importDecl.path.last) == name
+                       && importDecl.path == receiver.fqName + [candidate.name]
+               }) == true
+            {
+                return false
+            }
             guard let receiverType = ctx.implicitReceiverType else {
                 // Package-scope extension properties remain in import scopes
                 // so `receiver.property` can resolve them, but a bare name in
@@ -262,8 +275,12 @@ extension ExprTypeChecker {
         }) ?? candidates.first
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
-            if ctx.implicitReceiverType != nil,
-               sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id) != nil
+            if let receiverType = ctx.implicitReceiverType,
+               let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id),
+               sema.types.isSubtype(
+                   sema.types.makeNonNullable(receiverType),
+                   sema.types.makeNonNullable(declaredReceiver)
+               )
             {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
             }

@@ -32,10 +32,15 @@ extension ExprLowerer {
             instructions: &instructions
         )
         let providedExprID = arena.appendTemporary(type: sema.types.anyType)
+        let provideArguments = driver.memberLowerer.prependingMemberExtensionDispatchReceiver(
+            to: [rawDelegateID] + provideArgs,
+            for: provideDelegateSymbol,
+            sema: sema
+        )
         instructions.append(.call(
             symbol: provideDelegateSymbol,
             callee: interner.intern("provideDelegate"),
-            arguments: [rawDelegateID] + provideArgs,
+            arguments: provideArguments,
             result: providedExprID,
             canThrow: false,
             thrownResult: nil

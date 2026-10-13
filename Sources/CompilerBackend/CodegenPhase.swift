@@ -15,18 +15,18 @@ public final class CodegenPhase: CompilerPhase {
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }
-        let fileFacadeNamesByFileID = PhaseTimer.measureSubPhase("file facades", timer: ctx.phaseTimer) {
+        let fileFacadeNamesByFileID = withSubPhaseTiming("fileFacades", timer: ctx.phaseTimer) {
             CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
         }
-        let backend = try PhaseTimer.measureSubPhase("backend init", timer: ctx.phaseTimer) {
+        let backend = try withSubPhaseTiming("init", timer: ctx.phaseTimer) {
             try makeBackend(ctx: ctx)
         }
         // Shared by the reflection records, inline-KIR artifacts, and library
         // metadata: the map is a pure function of module + interner + symbols.
-        let functionLinkInfo = PhaseTimer.measureSubPhase("link info", timer: ctx.phaseTimer) {
+        let functionLinkInfo = withSubPhaseTiming("linkInfo", timer: ctx.phaseTimer) {
             makeFunctionLinkInfo(module: kir, ctx: ctx, fileFacadeNamesByFileID: fileFacadeNamesByFileID)
         }
-        let reflectionRecords = PhaseTimer.measureSubPhase("reflection records", timer: ctx.phaseTimer) {
+        let reflectionRecords = withSubPhaseTiming("reflectionRecords", timer: ctx.phaseTimer) {
             buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
         }
 
@@ -176,7 +176,7 @@ public final class CodegenPhase: CompilerPhase {
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
-        try PhaseTimer.measureSubPhase("inline-KIR artifacts", timer: ctx.phaseTimer) {
+        try withSubPhaseTiming("inlineKIRArtifacts", timer: ctx.phaseTimer) {
             try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
         }
 
@@ -212,7 +212,7 @@ public final class CodegenPhase: CompilerPhase {
         manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
         try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
-        try PhaseTimer.measureSubPhase("library metadata", timer: ctx.phaseTimer) {
+        try withSubPhaseTiming("libraryMetadata", timer: ctx.phaseTimer) {
             let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
             try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
         }

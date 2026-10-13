@@ -103,6 +103,9 @@ public final class CompilerDriver {
     }
 
     private func isIncrementalEnabled(options: CompilerOptions) -> Bool {
+        if options.frontendFlags.contains("no-incremental") {
+            return false
+        }
         if options.incrementalCachePath != nil {
             return true
         }

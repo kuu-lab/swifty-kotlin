@@ -122,7 +122,7 @@ final class RuntimeKConstructorRegistry: @unchecked Sendable {
             }
             return constructorRaw
         }
-        return constructors.first
+        return nil
     }
 
     func reset() {
