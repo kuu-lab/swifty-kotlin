@@ -84,7 +84,7 @@ final class LinkPhase: CompilerPhase {
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
         let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
         do {
-            let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(
+            let runtimeInputs = try CodegenRuntimeSupport.runtimeLinkInputs(
                 target: ctx.options.target,
                 configuration: .release
             )
@@ -108,7 +108,7 @@ final class LinkPhase: CompilerPhase {
             }
             let linkInputs = buildLinkInputs(
                 objectPath: objectPath, entryWrapperObjectPath: entryWrapperObjectPath,
-                runtimeObjects: runtimeObjects, autoLinkedObjects: autoLinkedObjects
+                runtimeObjects: runtimeInputs.objects, autoLinkedObjects: autoLinkedObjects
             )
             var args = linkInputs
             if let autolinkStubPath {
@@ -120,6 +120,24 @@ final class LinkPhase: CompilerPhase {
             ctx.options.libraryPaths.forEach { args.append("-L\($0)") }
             ctx.options.linkLibraries.forEach { args.append("-l\($0)") }
             let swiftcPath = CommandRunner.resolveExecutable("swiftc", fallback: "/usr/bin/swiftc")
+            if ctx.options.target.vendor == "apple", ctx.options.target.os == "macosx",
+               !ctx.options.debugInfo,
+               let plan = try? MacOSLinkerPlan.load(
+                   swiftcPath: swiftcPath,
+                   driverArguments: linkerDriverArgs(for: ctx.options.target),
+                   cacheDirectory: runtimeInputs.linkerCacheDirectory,
+                   phaseTimer: ctx.phaseTimer
+               ) {
+                _ = try CommandRunner.run(
+                    executable: plan.executable,
+                    arguments: plan.linkArguments(
+                        inputs: linkInputs, output: ctx.options.outputPath,
+                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries
+                    ),
+                    phaseTimer: ctx.phaseTimer, subPhaseName: "Link/clang"
+                )
+                return
+            }
             _ = try CommandRunner.run(
                 executable: swiftcPath, arguments: args,
                 phaseTimer: ctx.phaseTimer, subPhaseName: "Link/swiftc"
@@ -326,17 +344,12 @@ final class LinkPhase: CompilerPhase {
         var collected: [String] = []
         var seen: Set<String> = []
         for libraryDir in libraryDirs {
+            // objectPaths already resolves symlinks and verifies containment
+            // and regular-file status. Repeating that work for every returned
+            // object made large imported libraries needlessly expensive.
             for objectPath in objectPaths(from: libraryDir) {
-                let rootURL = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
-                guard let absolutePath = containedRegularFileURL(
-                    URL(fileURLWithPath: objectPath),
-                    under: rootURL,
-                    fileManager: fileManager
-                )?.path else {
-                    continue
-                }
-                if seen.insert(absolutePath).inserted {
-                    collected.append(absolutePath)
+                if seen.insert(objectPath).inserted {
+                    collected.append(objectPath)
                 }
             }
         }
