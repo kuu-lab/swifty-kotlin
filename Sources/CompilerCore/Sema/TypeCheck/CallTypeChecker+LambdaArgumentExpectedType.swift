@@ -164,11 +164,15 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            let concreteType: TypeID = switch concreteClassArgs[index] {
+            let concreteType: TypeID
+            switch concreteClassArgs[index] {
             case let .invariant(type), let .out(type), let .in(type):
-                type
+                concreteType = type
             case .star:
-                sema.types.anyType
+                // Match the upper bound used by receiver constraints. An
+                // unbounded star includes null; explicit bounds stay intact.
+                let bounds = sema.symbols.typeParameterUpperBounds(for: declaredTypeParam.symbol)
+                concreteType = bounds.isEmpty ? sema.types.nullableAnyType : sema.types.glb(bounds)
             }
             substitution[typeVar] = concreteType
         }
