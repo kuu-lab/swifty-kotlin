@@ -7,7 +7,7 @@ import kotlin.internal.__arrayContentDeepHashCode
 import kotlin.internal.__arrayContentDeepToString
 import kotlin.internal.__valuesEqual
 import kotlin.text.StringBuilder
-import kotlin.native.internal.KsSymbolName
+import kotlin.internal.KsSymbolName
 
 // Allocation preserves the actual component classifier through generic erasure.
 @KsSymbolName("__kk_array_new_same_component")
