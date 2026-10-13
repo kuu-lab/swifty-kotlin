@@ -222,25 +222,55 @@ extension TypeCheckHelpers {
         guard let expectedFunctionType else {
             return sorted.first
         }
-        let matching = sorted.filter { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return contextualCallableFunctionType(
-                for: signature,
-                bindReceiver: bindReceiver,
-                boundReceiver: boundReceiverType.map { (symbolID, $0) },
-                expectedFunctionType: expectedFunctionType,
-                interner: interner,
-                sema: sema
-            ) != nil
+        guard case let .functionType(expectedFunction) = sema.types.kind(of: expectedFunctionType) else {
+            return nil
         }
+        // A generic HOF's output (e.g. R in T.let) is inferred from the
+        // reference, but its specialized inputs already select an overload.
+        let matchingExpectedType = sema.types.typeContainsAnyTypeParam(expectedFunction.returnType)
+            ? sema.types.make(.functionType(FunctionType(
+                contextReceivers: expectedFunction.contextReceivers,
+                receiver: expectedFunction.receiver,
+                params: expectedFunction.params,
+                returnType: sema.types.nullableAnyType,
+                isSuspend: expectedFunction.isSuspend,
+                isCallableReference: expectedFunction.isCallableReference,
+                nullability: expectedFunction.nullability,
+                throws: expectedFunction.throws
+            )))
+            : expectedFunctionType
+        func matches(_ expected: TypeID) -> [SymbolID] {
+            sorted.filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                    return false
+                }
+                return contextualCallableFunctionType(
+                    for: signature,
+                    bindReceiver: bindReceiver,
+                    boundReceiver: boundReceiverType.map { (symbolID, $0) },
+                    expectedFunctionType: expected,
+                    interner: interner,
+                    sema: sema
+                ) != nil
+            }
+        }
+        // Preserve matches against rigid outer parameters and structured
+        // return types before relaxing an output still awaiting call inference.
+        let contextualMatches = matches(expectedFunctionType)
+        let matching = contextualMatches.isEmpty && matchingExpectedType != expectedFunctionType
+            ? matches(matchingExpectedType) : contextualMatches
         if let matched = matching.first(where: {
             sema.symbols.functionSignature(for: $0)?.typeParameterSymbols.isEmpty == true
         }) ?? matching.first {
             return matched
         }
-        return sorted.first
+        // A unique reference can supply an otherwise unknown input type to
+        // call inference. Multiple incompatible references must not be fixed
+        // by declaration order, nor may a concrete signature mismatch succeed.
+        let hasUnresolvedInput = expectedFunction.params.contains {
+            sema.types.typeContainsAnyTypeParam($0)
+        } || (expectedFunction.receiver.map { sema.types.typeContainsAnyTypeParam($0) } ?? false)
+        return sorted.count == 1 && hasUnresolvedInput ? sorted.first : nil
     }
 
     func contextualCallableFunctionType(
