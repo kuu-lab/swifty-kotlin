@@ -295,6 +295,20 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formIntersection(Self.mapCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+        // KUU-1926: the collection HOF fast path only infers count's result
+        // type for Collection/Iterable receivers, leaving the callee unbound.
+        // Use regular overload resolution for the bundled Iterable declarations
+        // so predicate checking and inline non-local returns retain their contract.
+        if calleeStr == "count",
+           (isCollectionReceiver || isIterableReceiver),
+           !isSequenceReceiver,
+           !isSetReceiver,
+           !isMapReceiver,
+           !isArrayReceiver,
+           !receiverClassifier.isConcreteListLikeType(receiverType)
+        {
+            return nil
+        }
         if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
            let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
            driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
