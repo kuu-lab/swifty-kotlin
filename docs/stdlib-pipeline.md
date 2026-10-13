@@ -390,7 +390,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
 | `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。残存する collection type fallback は `+SyntheticCollectionTypeFallbacks.swift` に分離。 |
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
-| `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
+| `HeaderHelpers+SyntheticThreadLocalStubs.swift` | deleted | (b) migrated | KUU-2018: Java `ThreadLocal<T>` and `kotlin.concurrent.getOrSet` are source-backed; Kotlin/Native annotation support remains separate. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
 | `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | ~~`java.net.URL`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-124, 2026-08-14)。公開 URL surface と URL runtime/ABI exports を除去し、Network の HTTP request builder handoff は保持。 |
@@ -874,6 +874,14 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    stdio's cursor with console input. `__kk_*` increases by one;
    `RuntimeABISpec.systemFunctions` registers the ABI and its canonical hash
    updates `specVersion`.
+   KUU-2018 adds four private `__kk_thread_local_*` storage bridges (reason:
+   syscall and memory representation): allocation, initialized-state lookup,
+   value lookup, and value storage use the native thread identity and GC root
+   table. Kotlin owns virtual `initialValue()`, `get()`, and `getOrSet` control
+   flow. The two old public `kk_thread_local_*` bridges and synthetic surface
+   are removed; `__kk_cdecl_count` increases by four and `kk_cdecl_count`
+   decreases by two. No user-facing bridge is added. `specVersion` changes
+   automatically through the canonical ABI hash.
    KUU-1973 adds one private bridge, `__kk_kclass_is_runtime` (reason: memory
    representation). The source-backed `KAnnotatedElement.annotations` getter
    must distinguish native KClass boxes from user implementations before
@@ -1139,3 +1147,24 @@ arrays and cannot construct omitted reference-vararg arrays from this metadata.
 Valid descriptors, reified component slots, primitive arrays, optional default
 masks and the existing private runtime ABI signatures are unchanged. Direct
 metadata controls and invocation counters remain proposed until executed.
+
+
+### KUU-1763 Apple IO draft bridge admission
+
+This proposed Apple-only SDK surface adds 43 private `__kk_foundation_*`
+entry points. Reasons: OS/SDK syscall dispatch, native byte/pointer memory
+representation and GC/ARC callback leases. The six public IO extension bodies
+and stream state/segment logic stay Kotlin. RuntimeABISpec registers all
+signatures in appleFoundationFunctions; canonical specVersion changes
+computationally. No public Kotlin IO behavior is moved into a Swift collection
+or stream model. ByteArray storage creates a native mirror only on typed
+addressOf, and all Kotlin array access paths reconcile it.
+
+SDK retention follows the existing owner's lifecycle: kk_alloc owners sweep,
+retained RuntimeObjectBox owners explicitly release. This is not an automatic
+boxed-object GC or general ObjC importer implementation. Strict SDK type/ABI
+checks and six Source/library/producer-consumer O0/O2 lanes remain unexecuted.
+No KUU-1763 API/test state may become VERIFIED based on this draft. CF opaque
+pointee typing, general foreign-object ingress/subclass protocol import, and
+cross-GC/ARC cycles remain documented review dependencies. The prepared macOS
+workflow is PR-triggered and also permits manual dispatch; no candidate execution is claimed.

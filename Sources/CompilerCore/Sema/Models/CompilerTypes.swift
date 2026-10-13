@@ -255,7 +255,8 @@ public struct CompilerOptions: Equatable {
     }
 
     /// The number of frontend parallel jobs parsed from `-Xfrontend jobs=N`.
-    /// Controls **BuildASTPhase** concurrency only; LexPhase and ParsePhase
+    /// Controls BuildASTPhase concurrency and, with sema-parallel enabled,
+    /// independent Sema preparation/body workers. LexPhase and ParsePhase
     /// always submit all file tasks concurrently (unchanged from pre-PR
     /// behaviour).  Returns 1 (sequential) when the flag is not present.
     public var frontendJobs: Int {

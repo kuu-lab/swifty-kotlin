@@ -142,6 +142,7 @@ extension CallTypeChecker {
     func collectArraySourceBackedCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
+        arguments: [CallArgument]? = nil,
         ctx: TypeInferenceContext,
         sema: SemaModule,
         interner: StringInterner
@@ -191,7 +192,42 @@ extension CallTypeChecker {
                 sema: sema
             )
         }
-        return userCandidates + sourceCandidates.filter { !userCandidates.contains($0) }
+        return userCandidates + sourceCandidates.filter { sourceCandidate in
+            guard !userCandidates.contains(sourceCandidate),
+                  let sourceSignature = sema.symbols.functionSignature(for: sourceCandidate)
+            else {
+                return false
+            }
+            guard memberName == "sumOf",
+                  receiverSymbol.name == interner.intern("CharArray"),
+                  sourceSignature.parameterTypes.count == 1,
+                  let arguments, arguments.count == 1,
+                  !arguments[0].isSpread
+            else {
+                return true
+            }
+            // Introducing CharArray.sumOf must not make an existing concrete
+            // user selector ambiguous. Only shadow the identical single-selector
+            // shape; different arities, varargs and labels remain resolver inputs.
+            return !userCandidates.contains { userCandidate in
+                guard let userSignature = sema.symbols.functionSignature(for: userCandidate),
+                      userSignature.typeParameterSymbols.isEmpty,
+                      sourceSignature.typeParameterSymbols.isEmpty,
+                      !userSignature.valueParameterIsVararg.contains(true),
+                      !sourceSignature.valueParameterIsVararg.contains(true),
+                      userSignature.contextReceiverTypes == sourceSignature.contextReceiverTypes,
+                      userSignature.isSuspend == sourceSignature.isSuspend
+                else {
+                    return false
+                }
+                return userSignature.receiverType == sourceSignature.receiverType
+                    && userSignature.parameterTypes == sourceSignature.parameterTypes
+                    && (arguments[0].label == nil
+                        || userSignature.valueParameterSymbols.first.flatMap {
+                            sema.symbols.symbol($0)?.name
+                        } == arguments[0].label)
+            }
+        }
     }
 
     func tryArrayMemberFallback(

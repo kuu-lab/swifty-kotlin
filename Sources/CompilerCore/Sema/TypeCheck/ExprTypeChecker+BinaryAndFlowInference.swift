@@ -115,10 +115,11 @@ extension ExprTypeChecker {
             else { return nil }
             return rhsType
         }()
-        let lhs = driver.inferExpr(
+        let inferredLhs = driver.inferExpr(
             lhsID, ctx: ctx, locals: &locals,
             expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
         )
+        let lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
         // Elvis uses an enclosing expected type for its RHS, but the LHS's
         // non-null type is only a contextual hint when no enclosing type exists.
         // Apply that hint to lambda inputs (so implicit `it` can be inferred)
@@ -158,7 +159,7 @@ extension ExprTypeChecker {
         } else {
             nil
         }
-        let rhs: TypeID
+        var rhs: TypeID
         if let earlyElvisRhs {
             rhs = earlyElvisRhs
         } else if op == .elvis,
@@ -178,6 +179,8 @@ extension ExprTypeChecker {
         } else {
             rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
         }
+        let inferredRhs = rhs
+        rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely.
@@ -467,6 +470,16 @@ extension ExprTypeChecker {
         }
         // String/Char concatenation and applicable operator overloads return above.
         // A textual RHS alone must not enable the primitive arithmetic fallback.
+        if sema.types.containsCapturedTypes(inferredLhs) || sema.types.containsCapturedTypes(inferredRhs),
+           [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+           !sema.types.isBuiltinArithmeticOperand(lhs) || !sema.types.isBuiltinArithmeticOperand(rhs)
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002", "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         let hasInvalidTextAddition = op == .add && (
             sema.types.isString(rhs)
                 || driver.callChecker.syntheticCharSequenceType(sema: sema).map {
