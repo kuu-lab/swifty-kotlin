@@ -272,7 +272,12 @@ extension TypeCheckHelpers {
         let hasUnresolvedInput = expectedFunction.params.contains {
             sema.types.typeContainsAnyTypeParam($0)
         } || (expectedFunction.receiver.map { sema.types.typeContainsAnyTypeParam($0) } ?? false)
-        return sorted.count == 1 && hasUnresolvedInput ? sorted.first : nil
+        // A single reified target still needs its contextual specialization
+        // check so incompatible shapes retain the dedicated inference diagnostic.
+        let singleReifiedTarget = sorted.count == 1 && sorted.first.flatMap {
+            sema.symbols.functionSignature(for: $0)
+        }.map { !$0.reifiedTypeParameterIndices.isEmpty } == true
+        return sorted.count == 1 && (hasUnresolvedInput || singleReifiedTarget) ? sorted.first : nil
     }
 
     func contextualCallableFunctionType(
@@ -363,18 +368,23 @@ extension TypeCheckHelpers {
                     blameRange: nil
                 )
             }
-            // A bound generic owner is specialized before function constraints are
-            // built, so seed its declaration-order slots explicitly as well.
-            if let boundReceiver, let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol) {
-                for symbol in signature.typeParameterSymbols.prefix(signature.classTypeParameterCount) {
-                    guard let variable = typeVars[symbol] else { continue }
+            // Seed real owner slots even when their argument is the same
+            // lexical T; subtype T <: T alone supplies no solver substitution.
+            if let boundReceiver, let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol),
+               case let .classType(receiver) = types.kind(of: types.makeNonNullable(
+                   types.capturedReadableUpperBound(of: boundReceiver.receiverType)
+               )),
+               types.isNominalSubtypeSymbol(receiver.classSymbol, of: owner),
+               let ownerArgs = types.liftedNominalSupertypeArgs(
+                   from: receiver.classSymbol, childArgs: receiver.args, to: owner
+               ) {
+                for (index, symbol) in signature.typeParameterSymbols.prefix(signature.classTypeParameterCount).enumerated() {
+                    guard ownerArgs.indices.contains(index), let variable = typeVars[symbol] else { continue }
                     let parameterType = types.make(.typeParam(TypeParamType(symbol: symbol)))
                     let argument = resolveMemberPropertyType(
                         parameterType, receiverType: boundReceiver.receiverType, ownerSymbol: owner, sema: sema
                     )
-                    if argument != parameterType {
-                        constraints.append(VariableConstraint(kind: .equal, left: .variable(variable), right: .type(argument)))
-                    }
+                    constraints.append(VariableConstraint(kind: .equal, left: .variable(variable), right: .type(argument)))
                 }
             }
             func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {
