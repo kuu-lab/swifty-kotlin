@@ -343,6 +343,13 @@ public extension RuntimeABISpec {
             }, returnType: .intptr, section: "Reflection", isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kclass_is_runtime",
+            parameters: [RuntimeABIParameter(name: "raw", type: .intptr)],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kclass_get_annotations",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),

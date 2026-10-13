@@ -32,7 +32,6 @@ public final class ImportedInlineFunctionStore {
         }
     }
 
-    /// Deferred bodies keyed by callee symbol.
     public private(set) var descriptors: [SymbolID: Descriptor] = [:]
 
     /// Bodies that are already usable as expansion targets: bodies seeded
@@ -62,8 +61,6 @@ public final class ImportedInlineFunctionStore {
         self.functions = functions
     }
 
-    /// Whether no imported inline bodies are known — neither deferred nor
-    /// already resolved.
     public var isEmpty: Bool {
         descriptors.isEmpty && functions.isEmpty
     }

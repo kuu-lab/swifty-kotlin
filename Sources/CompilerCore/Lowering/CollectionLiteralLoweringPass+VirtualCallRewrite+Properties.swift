@@ -1,7 +1,5 @@
 
 extension CollectionVirtualCallRewriteLoweringPass {
-    // MARK: - Collection property operations (size, contains, isEmpty)
-
     func rewriteCollectionPropertyVirtualCall(
         callee: InternedString,
         receiver: KIRExprID,

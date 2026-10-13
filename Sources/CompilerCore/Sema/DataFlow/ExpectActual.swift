@@ -20,9 +20,7 @@ extension DataFlowSemaPhase {
             sym.flags.contains(.expectDeclaration)
                 && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
-        let membersByParent = Dictionary(grouping: symbols.allSymbols().compactMap { symbol in
-            symbols.parentSymbol(for: symbol.id).map { ($0, symbol) }
-        }, by: \.0).mapValues { entries in entries.map(\.1) }
+        guard !expects.isEmpty else { return }
         let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
             guard case let .funDecl(function) = decl else { return nil }
             return function
@@ -80,7 +78,6 @@ extension DataFlowSemaPhase {
                     continue
                 }
 
-                // Enhanced diagnostic with detailed failure information
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count
 
@@ -91,7 +88,6 @@ extension DataFlowSemaPhase {
                     diagnosticMessage += " Found \(candidateCount) actual candidates but none were compatible."
                 }
 
-                // Add debug information about candidates
                 if !candidates.isEmpty {
                     let candidateKinds = candidates.map { "\($0.kind)" }.joined(separator: ", ")
                     diagnosticMessage += " Candidate kinds: [\(candidateKinds)]."
@@ -118,7 +114,6 @@ extension DataFlowSemaPhase {
             inheritAbstractActualMemberFlags(
                 expectOwner: expectSym,
                 actualOwner: actualSym,
-                membersByParent: membersByParent,
                 functionDeclarationsByRange: functionDeclarationsByRange,
                 symbols: symbols,
                 types: types
@@ -129,7 +124,6 @@ extension DataFlowSemaPhase {
     private func inheritAbstractActualMemberFlags(
         expectOwner: SemanticSymbol,
         actualOwner: SemanticSymbol,
-        membersByParent: [SymbolID: [SemanticSymbol]],
         functionDeclarationsByRange: [SourceRange: [FunDecl]],
         symbols: SymbolTable,
         types: TypeSystem
@@ -142,9 +136,19 @@ extension DataFlowSemaPhase {
             return
         }
 
-        let expectedFunctions = (membersByParent[expectOwner.id] ?? []).filter { $0.kind == .function }
-        let actualFunctions = (membersByParent[actualOwner.id] ?? []).filter {
-            $0.kind == .function && $0.flags.contains(.actualDeclaration)
+        // Query only source functions of the matched abstract classes. Imported
+        // shells have no AST body to inspect, and querying every symbol's parent
+        // would force the entire lazy metadata library to materialize.
+        let sourceFunctions = symbols.children(ofFQName: expectOwner.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .function && $0.declSite != nil }
+        // Expect/actual classes share an FQ name, so verify the exact owner ID.
+        let expectedFunctions = sourceFunctions.filter {
+            symbols.parentSymbol(for: $0.id) == expectOwner.id
+        }
+        let actualFunctions = sourceFunctions.filter {
+            $0.flags.contains(.actualDeclaration)
+                && symbols.parentSymbol(for: $0.id) == actualOwner.id
         }
 
         for expectFunction in expectedFunctions {
@@ -204,19 +208,16 @@ extension DataFlowSemaPhase {
         types: TypeSystem
     ) -> Bool {
         if expect.kind == .annotationClass, actual.kind == .typeAlias {
-            // Check if the typealias's underlying type points to an annotation class
             guard let resolvedType = symbols.typeAliasUnderlyingType(for: actual.id) else {
                 return false
             }
 
-            // The underlying type should be a class type pointing to an annotation class
             if case let .classType(classType) = types.kind(of: resolvedType) {
                 guard classType.nullability == .nonNull,
                       let underlyingSymbol = symbols.symbol(classType.classSymbol)
                 else {
                     return false
                 }
-                // The underlying symbol should be an annotation class
                 return underlyingSymbol.kind == .annotationClass
             }
             return false
@@ -267,12 +268,10 @@ extension DataFlowSemaPhase {
                 )
 
         case .class, .interface, .object, .enumClass, .annotationClass:
-            // Check type parameter count matches
             let expectTPs = types.nominalTypeParameterSymbols(for: expect.id)
             let actualTPs = types.nominalTypeParameterSymbols(for: actual.id)
             guard expectTPs.count == actualTPs.count else { return false }
             let typeParamMapping = Dictionary(uniqueKeysWithValues: zip(expectTPs, actualTPs))
-            // Check each type parameter's variance and upper bounds match
             let expectVariances = types.nominalTypeParameterVariances(for: expect.id)
             let actualVariances = types.nominalTypeParameterVariances(for: actual.id)
             for (index, (eTP, aTP)) in zip(expectTPs, actualTPs).enumerated() {
@@ -313,7 +312,6 @@ extension DataFlowSemaPhase {
             return expect.flags.contains(.valueType) == actual.flags.contains(.valueType)
 
         case .typeAlias:
-            // Check underlying types match
             let expectTPs = symbols.typeAliasTypeParameters(for: expect.id)
             let actualTPs = symbols.typeAliasTypeParameters(for: actual.id)
             guard expectTPs.count == actualTPs.count else {

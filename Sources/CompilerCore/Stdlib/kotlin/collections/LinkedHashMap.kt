@@ -47,7 +47,8 @@ package kotlin.collections
 // runtime map-box entry points (`mutableMapConstructorNames` in
 // `CollectionLiteralLoweringPass+LookupTables+Map.swift`), matching how
 // HashMap.kt's own four constructors are likewise all empty.
-public class LinkedHashMap<K, V>(
+// KUU-1944: the JVM-compatible LinkedHashMap contract permits user subclasses.
+public open class LinkedHashMap<K, V>(
     initialCapacity: Int = 0,
     loadFactor: Float = 1.0f
 ) : HashMap<K, V>(initialCapacity, loadFactor) {

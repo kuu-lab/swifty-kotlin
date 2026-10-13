@@ -4,8 +4,6 @@
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
 
-    // MARK: - Scope Function Lowering (STDLIB-004)
-
     /// Attempts to lower a residual scope function call (use/usePinned/useContents).
     /// Returns nil if the expression is not a scope function call.
     func tryScopeFunctionLowering(

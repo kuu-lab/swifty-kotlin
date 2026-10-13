@@ -9,12 +9,12 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let concurrentPkg = ensureAtomicPackage(
+        let concurrentPkg = ensurePackage(
             path: ["kotlin", "concurrent"],
             symbols: symbols,
             interner: interner
         )
-        let atomicsPkg = ensureAtomicPackage(
+        let atomicsPkg = ensurePackage(
             path: ["kotlin", "concurrent", "atomics"],
             symbols: symbols,
             interner: interner
@@ -213,7 +213,7 @@ extension DataFlowSemaPhase {
 
         // java.util.concurrent.atomic.AtomicInteger is a live compatibility
         // surface backed by the same box as kotlin.concurrent.AtomicInt.
-        let javaAtomicPkg = ensureAtomicPackage(
+        let javaAtomicPkg = ensurePackage(
             path: ["java", "util", "concurrent", "atomic"],
             symbols: symbols,
             interner: interner

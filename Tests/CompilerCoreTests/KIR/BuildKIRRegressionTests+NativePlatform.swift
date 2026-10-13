@@ -8,7 +8,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedNativePlatformMemoryModelKIRCtx = Result<CompilationContext, any Error> {
+    private static let _sharedNativePlatformMemoryModelKIRCtx = Result<CompilationContext, any Error> {
         // Keep this synthetic object-property fixture isolated; combining it with the other native bridge fixtures drops the runtime call from KIR.
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -32,7 +32,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedNativePlatformKIRCtx = Result<CompilationContext, any Error> {
+    private static let _sharedNativePlatformKIRCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -216,7 +216,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedNativePlatformAllAPIsKIRCtx = Result<CompilationContext, any Error> {
+    private static let _sharedNativePlatformAllAPIsKIRCtx = Result<CompilationContext, any Error> {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         @file:Suppress("DEPRECATION")

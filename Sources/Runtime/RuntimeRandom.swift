@@ -1,5 +1,4 @@
 
-// MARK: - Seeded Random (STDLIB-516)
 
 /// A deterministic PRNG using the xorshift64* algorithm.
 /// Each `Random(seed)` call creates a new instance whose state evolves
@@ -43,9 +42,15 @@ final class SeededRandomBox {
 
 private let randomSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomSource")
 private let randomLongSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomLongSource")
+private let randomIntBitsSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomIntBitsSource")
+private let randomIntRangeSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomIntRangeSource")
+private let randomLongRangeSourceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.random.RandomLongRangeSource")
 
 private typealias RandomNextIntFn = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RandomNextIntBitsFn = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RandomNextIntRangeFn = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 private typealias RandomNextLongFn = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RandomNextLongRangeFn = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
 func runtimeRandomNextIntBelow(_ receiver: Int, _ until: Int) -> Int {
     guard receiver != 0 else {
@@ -57,6 +62,54 @@ func runtimeRandomNextIntBelow(_ receiver: Int, _ until: Int) -> Int {
     }
     let fn = unsafeBitCast(fnPtr, to: RandomNextIntFn.self)
     return fn(receiver, until, nil)
+}
+
+func runtimeRandomNextIntBits(_ receiver: Int) -> Int {
+    guard receiver != 0 else {
+        return Int(Int32.random(in: Int32.min ... Int32.max))
+    }
+    let fnPtr = kk_itable_lookup_dynamic(
+        receiver,
+        Int(randomIntBitsSourceInterfaceTypeID),
+        0
+    )
+    guard fnPtr != 0 else {
+        return Int(Int32.random(in: Int32.min ... Int32.max))
+    }
+    let fn = unsafeBitCast(fnPtr, to: RandomNextIntBitsFn.self)
+    return fn(receiver, nil)
+}
+
+func runtimeRandomNextIntRange(
+    _ receiver: Int,
+    from: Int,
+    until: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    if receiver == 0 {
+        guard until > from else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bound must be greater than origin")
+            return 0
+        }
+        return Int.random(in: from ..< until)
+    }
+    let fnPtr = kk_itable_lookup_dynamic(
+        receiver,
+        Int(randomIntRangeSourceInterfaceTypeID),
+        0
+    )
+    guard fnPtr != 0 else {
+        guard until > from else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Random range is empty: [\(from), \(until))."
+            )
+            return 0
+        }
+        return Int.random(in: from ..< until)
+    }
+    let fn = unsafeBitCast(fnPtr, to: RandomNextIntRangeFn.self)
+    return fn(receiver, from, until, outThrown)
 }
 
 func runtimeRandomNextBits64(_ receiver: Int) -> UInt64 {
@@ -75,13 +128,31 @@ func runtimeRandomNextBits64(_ receiver: Int) -> UInt64 {
     return UInt64(bitPattern: Int64(longValue))
 }
 
+func runtimeRandomNextLongRange(_ receiver: Int, from: Int, until: Int) -> Int {
+    guard until > from else {
+        return from
+    }
+    if receiver == 0 {
+        return Int.random(in: from ..< until)
+    }
+    let fnPtr = kk_itable_lookup_dynamic(
+        receiver,
+        Int(randomLongRangeSourceInterfaceTypeID),
+        0
+    )
+    guard fnPtr != 0 else {
+        return Int.random(in: from ..< until)
+    }
+    let fn = unsafeBitCast(fnPtr, to: RandomNextLongRangeFn.self)
+    return kk_unbox_long(fn(receiver, from, until, nil))
+}
+
 @_cdecl("__kk_random_seed_entropy")
 public func __kk_random_seed_entropy() -> Int {
     var rng = SystemRandomNumberGenerator()
     return Int(bitPattern: UInt(truncatingIfNeeded: rng.next()))
 }
 
-// MARK: - SecureRandom (STDLIB-101)
 
 final class SecureRandomBox {
     // java.security.SecureRandom.setSeed only supplements a CSPRNG's entropy
@@ -187,7 +258,6 @@ private func runtimeRandomUIntRange(receiver: Int, from: UInt64, until: UInt64) 
     from + runtimeRandomUIntBelow(until - from, receiver: receiver)
 }
 
-// MARK: - Constructor
 
 private func runtimeCreateSeededRandom(seed: Int) -> Int {
     let box = SeededRandomBox(seed: seed)
@@ -204,7 +274,6 @@ public func __kk_random_create_seeded(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
 }
 
-// MARK: - SecureRandom Constructor / Factory
 
 @_cdecl("__kk_secure_random_get_instance")
 public func __kk_secure_random_get_instance() -> Int {
@@ -245,7 +314,6 @@ public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> I
     return arrayRaw
 }
 
-// MARK: - Random (STDLIB-165, STDLIB-514, STDLIB-515, STDLIB-516, STDLIB-653, STDLIB-654, STDLIB-655)
 
 public func __kk_random_default() -> Int {
     0
@@ -370,7 +438,6 @@ public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ o
     return Int(runtimeRandomUIntRange(receiver: receiver, from: first, until: exclusiveUpper))
 }
 
-// MARK: - nextBytes (STDLIB-653)
 
 private func runtimeRandomByte(receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
@@ -501,7 +568,6 @@ public func kk_random_nextUBytes_range(
     return arrayRaw
 }
 
-// MARK: - nextBits (STDLIB-RANDOM-100)
 
 public func kk_random_nextBits(_ receiver: Int, _ bitCount: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
