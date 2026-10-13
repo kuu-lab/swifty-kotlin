@@ -280,6 +280,7 @@ private final class TypeCheckWork: @unchecked Sendable {
 
     func run() {
         driver.typeCheckModule(fileScopes: fileScopes, files: files)
+        ValPropertyInitializationChecker(ast: driver.ast, sema: driver.sema, interner: driver.interner).check()
         ConstPropertyEvaluator(ast: driver.ast, sema: driver.sema, interner: driver.interner)
             .evaluate(diagnostics: driver.diagnostics)
         driver.validateJsFileNameAnnotationArguments(in: files)

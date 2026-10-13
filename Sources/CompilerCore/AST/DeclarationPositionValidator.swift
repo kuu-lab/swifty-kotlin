@@ -317,7 +317,7 @@ struct DeclarationPositionValidator {
         }
     }
 
-    private func accessorHasBody(_ accessor: PropertyAccessorDecl?) -> Bool {
+    func accessorHasBody(_ accessor: PropertyAccessorDecl?) -> Bool {
         guard let accessor else {
             return false
         }
@@ -329,7 +329,10 @@ struct DeclarationPositionValidator {
         }
     }
 
-    private func accessorUsesBackingField(_ accessor: PropertyAccessorDecl?) -> Bool {
+    func accessorUsesBackingField(
+        _ accessor: PropertyAccessorDecl?,
+        isBackingFieldReference: (ExprID) -> Bool = { _ in true }
+    ) -> Bool {
         guard let accessor else { return false }
         let roots: [ExprID] = switch accessor.body {
         case .unit:
@@ -342,7 +345,8 @@ struct DeclarationPositionValidator {
         var visited: Set<ExprID> = []
         let fieldName = interner.intern("field")
         for root in roots {
-            if expressionUsesBackingField(root, fieldName: fieldName, visited: &visited) {
+            if expressionUsesBackingField(root, fieldName: fieldName, visited: &visited,
+                                          isBackingFieldReference: isBackingFieldReference) {
                 return true
             }
         }
@@ -352,7 +356,8 @@ struct DeclarationPositionValidator {
     private func expressionUsesBackingField(
         _ exprID: ExprID,
         fieldName: InternedString,
-        visited: inout Set<ExprID>
+        visited: inout Set<ExprID>,
+        isBackingFieldReference: (ExprID) -> Bool
     ) -> Bool {
         guard visited.insert(exprID).inserted,
               let expr = astArena.expr(exprID)
@@ -363,12 +368,13 @@ struct DeclarationPositionValidator {
         case .nameRef(let name, _) where name == fieldName,
              .localAssign(let name, _, _) where name == fieldName,
              .compoundAssign(_, let name, _, _) where name == fieldName:
-            return true
+            if isBackingFieldReference(exprID) { return true }
         default:
             break
         }
         for child in expressionChildren(of: expr) {
-            if expressionUsesBackingField(child, fieldName: fieldName, visited: &visited) {
+            if expressionUsesBackingField(child, fieldName: fieldName, visited: &visited,
+                                          isBackingFieldReference: isBackingFieldReference) {
                 return true
             }
         }
