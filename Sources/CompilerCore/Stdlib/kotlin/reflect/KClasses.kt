@@ -219,9 +219,6 @@ private external fun __kk_kclass_members(kclass: KClass<*>): List<KCallable<*>>
 @KsSymbolName("__kk_kclass_nested_classes")
 private external fun __kk_kclass_nested_classes(kclass: KClass<*>): List<KClass<*>>
 
-@KsSymbolName("__kk_kclass_primary_constructor")
-private external fun __kk_kclass_primary_constructor(kclass: KClass<*>): Any?
-
 @KsSymbolName("__kk_kclass_member_properties")
 private external fun __kk_kclass_member_properties(kclass: KClass<*>): List<KProperty<*>>
 
@@ -266,10 +263,6 @@ public val KClass<*>.members: Collection<KCallable<*>>
 /** Returns the classes declared directly inside this class. */
 public val KClass<*>.nestedClasses: Collection<KClass<*>>
     get() = __kk_kclass_nested_classes(this)
-
-/** Returns the primary constructor of this class, or `null` if it has none. */
-public val KClass<*>.primaryConstructor: KFunction<*>?
-    get() = __kk_kclass_primary_constructor(this) as? KFunction<*>
 
 /** Returns all non-extension member properties declared in this class and its supertypes. */
 public val KClass<*>.memberProperties: Collection<KProperty<*>>

@@ -7,9 +7,18 @@
 
 package kotlin.reflect.full
 
+import kotlin.internal.KsSymbolName
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KType
+
+@KsSymbolName("__kk_kclass_primary_constructor")
+private external fun __kk_kclass_primary_constructor(kclass: KClass<*>): Any?
+
+/** Returns the primary constructor of this class, or `null` if it has none. */
+public val <T : Any> KClass<T>.primaryConstructor: KFunction<T>?
+    @Suppress("UNCHECKED_CAST")
+    get() = __kk_kclass_primary_constructor(this) as? KFunction<T>
 
 /**
  * Creates a new instance of the class, calling a constructor which either has no parameters or all
