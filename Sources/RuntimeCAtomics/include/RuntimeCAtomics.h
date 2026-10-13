@@ -10,6 +10,7 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "RuntimeCStdio.h"
 
 // Hardware atomic ops backing kotlin.concurrent.Atomic* boxes. Kotlin atomics
 // carry sequential-consistency visibility guarantees, so every op uses

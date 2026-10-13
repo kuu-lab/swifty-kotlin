@@ -1,10 +1,9 @@
 import Foundation
+import RuntimeCAtomics
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
-// The runtime never replaces libc's stdin pointer. Stdio synchronizes access
-// to the shared FILE buffer; Glibc's global lacks Swift concurrency annotations.
-@preconcurrency import Glibc
+import Glibc
 #endif
 
 /// Uses stdio's input buffer, shared with Swift.readLine(), so console and
@@ -86,7 +85,7 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
 
 @_cdecl("__kk_system_in")
 public func __kk_system_in() -> Int {
-    registerRuntimeObject(RuntimeStdioInputStreamBox(stream: stdin))
+    registerRuntimeObject(RuntimeStdioInputStreamBox(stream: kkrt_standard_input()))
 }
 
 func runtimePropagateInputStreamError(
