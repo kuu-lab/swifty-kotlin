@@ -42,6 +42,10 @@ final class TypeCheckDriver {
     /// Properties whose types were inferred in a safe module pre-pass so earlier
     /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
+    /// Top-level expression bodies whose header return type is still a placeholder.
+    var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
+    var checkingInferredReturnFunctions: Set<SymbolID> = []
+    var checkedInferredReturnFunctions: Set<SymbolID> = []
 
     let ast: ASTModule
     let sema: SemaModule
@@ -114,6 +118,9 @@ final class TypeCheckDriver {
             return subjectType
         }
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        if let callee = sema.bindings.callBinding(for: id)?.chosenCallee {
+            diagnoseRecursiveInferredReturnType(for: callee)
+        }
         if !suspendingCallNames(for: id).isEmpty {
             callSuspensionContexts[id] = ctx.suspensionContext
         }
@@ -209,6 +216,9 @@ final class TypeCheckDriver {
                 guard case let .funDecl(function)? = ast.arena.decl(declaration),
                       let symbol = sema.bindings.declSymbols[declaration]
                 else { continue }
+                if function.returnType == nil, case .expr = function.body {
+                    inferredReturnFunctions[symbol] = (function, inferCtx.with(currentDeclSymbol: symbol))
+                }
                 declChecker.precollectContractEffects(function: function, symbol: symbol, ctx: inferCtx)
             }
         }
@@ -307,6 +317,10 @@ final class TypeCheckDriver {
                 }
                 switch decl {
                 case let .funDecl(function):
+                    if inferredReturnFunctions[declSymbol] != nil {
+                        inferFunctionReturnTypesIfNeeded(for: [declSymbol])
+                        continue
+                    }
                     declChecker.typeCheckFunctionDecl(
                         function,
                         symbol: declSymbol,
