@@ -870,7 +870,9 @@ extension KIRLoweringDriver {
                       isClassDelegationDispatchMember(methodSymbol, sema: sema),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType != nil,
-                      signature.isSuspend == interfaceSignature.isSuspend
+                      signature.isSuspend == interfaceSignature.isSuspend,
+                      signature.typeParameterSymbols.count - signature.classTypeParameterCount
+                          == interfaceSignature.typeParameterSymbols.count - interfaceSignature.classTypeParameterCount
                 else {
                     continue
                 }

@@ -1304,15 +1304,52 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol, args: classTypeArgs, nullability: .nonNull
         )))
 
-        let parameterTypes = ifaceSig.parameterTypes.map {
+        // Class parameters come from the delegating receiver; method parameters
+        // need fresh binders owned by this forwarder, including in their bounds.
+        let interfaceMethodParameters = Array(ifaceSig.typeParameterSymbols.dropFirst(ifaceSig.classTypeParameterCount))
+        let localNamespace = forwardingFQName + [interner.intern("$\(forwardingSymbol.rawValue)")]
+        let methodParameters = interfaceMethodParameters.map { original in
+            let name = symbols.symbol(original)?.name ?? interner.intern("T\(original.rawValue)")
+            let parameter = symbols.define(
+                kind: .typeParameter,
+                name: name,
+                fqName: localNamespace + [name],
+                declSite: range,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(forwardingSymbol, for: parameter)
+            symbols.setAnnotations(symbols.annotations(for: original), for: parameter)
+            return parameter
+        }
+        var forwardingSubstitution = substitution
+        var forwardingTypeVars = typeVarBySymbol
+        for (original, parameter) in zip(interfaceMethodParameters, methodParameters) {
+            let typeVar = TypeVarID(rawValue: Int32(forwardingTypeVars.count))
+            forwardingTypeVars[original] = typeVar
+            forwardingSubstitution[typeVar] = types.make(.typeParam(TypeParamType(
+                symbol: parameter, nullability: .nonNull
+            )))
+        }
+        func substitute(_ type: TypeID) -> TypeID {
             substituteDelegationType(
-                $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                type, substitution: forwardingSubstitution, typeVarBySymbol: forwardingTypeVars, types: types
             )
         }
-        let returnType = substituteDelegationType(
-            ifaceSig.returnType, substitution: substitution,
-            typeVarBySymbol: typeVarBySymbol, types: types
-        )
+        let methodBounds = interfaceMethodParameters.enumerated().map { index, original in
+            let signatureIndex = ifaceSig.classTypeParameterCount + index
+            let bounds = signatureIndex < ifaceSig.typeParameterUpperBoundsList.count
+                ? ifaceSig.typeParameterUpperBoundsList[signatureIndex]
+                : symbols.typeParameterUpperBounds(for: original)
+            let substitutedBounds = bounds.map(substitute)
+            symbols.setTypeParameterUpperBounds(substitutedBounds, for: methodParameters[index])
+            return substitutedBounds
+        }
+
+        let parameterTypes = ifaceSig.parameterTypes.map {
+            substitute($0)
+        }
+        let returnType = substitute(ifaceSig.returnType)
 
         var paramSymbols: [SymbolID] = []
         for (index, paramType) in parameterTypes.enumerated() {
@@ -1341,7 +1378,10 @@ extension DataFlowSemaPhase {
             valueParameterSymbols: paramSymbols,
             valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
             valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count),
-            typeParameterSymbols: classTypeParameterSymbols,
+            typeParameterSymbols: classTypeParameterSymbols + methodParameters,
+            typeParameterUpperBoundsList: classTypeParameterSymbols.map {
+                symbols.typeParameterUpperBounds(for: $0)
+            } + methodBounds,
             classTypeParameterCount: classTypeParameterSymbols.count
         )
         symbols.setFunctionSignature(forwardingSig, for: forwardingSymbol)
