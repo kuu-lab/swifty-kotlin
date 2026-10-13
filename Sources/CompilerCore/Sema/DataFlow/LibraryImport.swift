@@ -7,6 +7,7 @@ extension DataFlowSemaPhase {
         let moduleName: String?
         let isValid: Bool
         var topLevelInitializerLinkName: String? = nil
+        var sourceArrayComponentABI: Bool = false
     }
 
     struct LibraryImportDeferredWork {
@@ -89,6 +90,7 @@ extension DataFlowSemaPhase {
         /// names still alias to the merged symbol so bodies in the losing
         /// library that reference the declaration keep resolving.
         var boundSymbolOrigins: [SymbolID: (origin: String, metadataPath: String)] = [:]
+        var sourceArrayComponentABIByMetadataPath: [String: Bool] = [:]
         var shadowedDuplicateRecords: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
         /// FQ names of records that were shadowed — the duplicates
         /// themselves plus the member records hidden underneath them — so
@@ -189,6 +191,9 @@ extension DataFlowSemaPhase {
             }
             let name = record.fqName.last ?? interner.intern("_")
             var flags: SymbolFlags = [.synthetic, .importedLibrary]
+            if sourceArrayComponentABIByMetadataPath[metadataPath] != true {
+                flags.insert(.legacyReifiedClassTokenABI)
+            }
             if record.isSuspend, record.kind == .function {
                 flags.insert(.suspendFunction)
             }
@@ -369,6 +374,7 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(linkName, for: symbol)
             }
             let metadataPath = manifestInfo.metadataPath
+            sourceArrayComponentABIByMetadataPath[metadataPath] = manifestInfo.sourceArrayComponentABI
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
             if stdlibArtifact {
                 stdlibModuleName = libraryModuleFQN

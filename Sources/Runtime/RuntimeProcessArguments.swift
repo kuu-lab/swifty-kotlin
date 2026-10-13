@@ -7,6 +7,9 @@ import RuntimeABI
 public func __kk_process_args_from_argv(_ argc: Int32, _ argvRaw: UnsafeRawPointer?) -> Int {
     let count = argc > 1 && argvRaw != nil ? Int(argc) - 1 : 0
     let box = RuntimeArrayBox(length: count)
+    // main(args: Array<String>) promises String storage even for empty argv.
+    // Install the allocation descriptor before the array escapes to reflection.
+    box.installComponentTypeIfAbsent(__kk_array_component_type(2, 0))
     if let argvRaw, count > 0 {
         let argv = argvRaw.assumingMemoryBound(to: UnsafePointer<UInt8>?.self)
         for index in 0..<count {

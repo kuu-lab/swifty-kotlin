@@ -261,7 +261,19 @@ extension DataFlowSemaPhase {
                         importedInlineFunctions.register(
                             ImportedInlineFunctionStore.Descriptor(
                                 path: path, signature: symbols.functionSignature(for: stubSymbol),
-                                name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default")
+                                name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default"),
+                                // Stub signature already contains explicit
+                                // hidden Int words/mask; only physical value
+                                // storage needs replacement, after its leading
+                                // member-extension parameters. The receiver
+                                // remains the signature's separate first slot.
+                                packedValueParameterTypes: importedInlinePackedValueTypes(
+                                    signature, binding: binding, symbol: symbol,
+                                    symbols: symbols, types: types, interner: interner
+                                ).map { packed in
+                                    stubLeadingParameters + packed
+                                        + Array(repeating: intType, count: reifiedCount) + [intType]
+                                }
                             ), for: stubSymbol
                         )
                     }
@@ -286,6 +298,8 @@ extension DataFlowSemaPhase {
                 binding,
                 symbol: symbol,
                 signature: signature,
+                symbols: symbols,
+                types: types,
                 diagnostics: diagnostics,
                 interner: interner,
                 importedInlineFunctions: importedInlineFunctions

@@ -343,7 +343,7 @@ final class LambdaLowerer {
         for capture in functionCaptureBindings {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-            bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
+            bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
                 driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
@@ -385,7 +385,7 @@ final class LambdaLowerer {
            let closureParam = lambdaParameters.first,
            let closureExpr = driver.ctx.localValue(for: closureParam.symbol)
         {
-            bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
+            bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
                 driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureParam.symbol)
@@ -415,7 +415,7 @@ final class LambdaLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
+                bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
                     driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
@@ -628,7 +628,10 @@ final class LambdaLowerer {
     private func bindCapturedLambdaValue(
         _ capturedValue: KIRExprID,
         capture: (capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID),
-        sema: SemaModule
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
     ) {
         if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
             driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
@@ -650,8 +653,21 @@ final class LambdaLowerer {
            semanticSymbol.flags.contains(.reifiedTypeParameter)
         {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
-            driver.ctx.setLocalValue(capturedValue, for: tokenSymbol)
+            let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capture.capturedSymbol)
+            let classToken = arena.appendTemporary(type: sema.types.intType)
+            let componentToken = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_pair_first"), arguments: [capturedValue],
+                result: classToken, canThrow: false, thrownResult: nil
+            ))
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("__kk_pair_second"), arguments: [capturedValue],
+                result: componentToken, canThrow: false, thrownResult: nil
+            ))
+            driver.ctx.setLocalValue(classToken, for: tokenSymbol)
             driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+            driver.ctx.setLocalValue(componentToken, for: componentSymbol)
+            driver.ctx.setLocalDeclaredType(sema.types.intType, for: componentSymbol)
         }
     }
 
