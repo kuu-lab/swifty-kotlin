@@ -212,6 +212,12 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         runtimeElementKeyHash(tripleBox.thirdValue.legacyRawValue, into: &hasher, depth: depth + 1)
         return
     }
+    if let entry = runtimeMapEntryValues(rawValue: value) {
+        hasher.combine(14)
+        runtimeElementKeyHash(entry.key, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(entry.value, into: &hasher, depth: depth + 1)
+        return
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         hasher.combine(9)
         hasher.combine(localeBox.language)
@@ -247,19 +253,6 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     hasher.combine(15)
     hasher.combine(Int(bitPattern: pointer))
-}
-
-/// Extracts elements from an opaque `otherRaw` handle that may be either a
-/// set or a list box.  Used by intersect / union / subtract to avoid
-/// duplicating the same unboxing logic.
-func runtimeUnboxCollectionElements(_ otherRaw: Int) -> [Int] {
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        return otherSet.elements
-    }
-    if let otherList = runtimeListBox(from: otherRaw) {
-        return otherList.elements
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: unexpected runtime handle in runtimeUnboxCollectionElements – neither set nor list")
 }
 
 func runtimeDeduplicatePreservingOrder(_ elements: [Int]) -> [Int] {
@@ -310,7 +303,6 @@ func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
     return (normalizedKeys, normalizedValues)
 }
 
-// MARK: - List Functions (STDLIB-001)
 
 @_cdecl("__kk_list_of")
 public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
@@ -705,7 +697,7 @@ func runtimeListIteratorSet(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMuta
         runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
         return runtimeExceptionCaughtSentinel
     }
-    guard iter.setLastReturned(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem)) else {
+    guard iter.setLastReturned(runtimeValueFromCollectionABI(elem)) else {
         runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
         return runtimeExceptionCaughtSentinel
     }
@@ -721,7 +713,7 @@ func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMuta
         runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
         return runtimeExceptionCaughtSentinel
     }
-    iter.addBeforeNext(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem))
+    iter.addBeforeNext(runtimeValueFromCollectionABI(elem))
     return 0
 }
 
@@ -789,7 +781,6 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
     return runtimeMakeStringPointer(str)
 }
 
-// MARK: - List toMap (STDLIB-200)
 
 @inline(__always)
 func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
@@ -827,7 +818,7 @@ public func kk_mutable_collection_add_throwing(
     guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
     if let list = runtimeListBox(from: collectionRaw) {
         list.withMutableValues { values in
-            values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+            values.append(runtimeValueFromCollectionABI(elem))
         }
         return kk_box_bool(1)
     }
@@ -1019,19 +1010,6 @@ public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
     return destRaw
 }
 
-private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
-    let value = runtimeValueFromCollectionABI(rawValue)
-    if value.tag == RuntimeValue.charTag {
-        return value
-    }
-    if !currentValues.isEmpty,
-       currentValues.allSatisfy({ $0.tag == RuntimeValue.charTag })
-    {
-        return RuntimeValue(charScalar: maybeUnbox(rawValue))
-    }
-    return value
-}
-
 @_cdecl("__kk_mutable_list_add")
 public func kk_mutable_list_add(
     _ listRaw: Int,
@@ -1054,7 +1032,7 @@ public func kk_mutable_list_add(
     guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
     guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
     list.withMutableValues { values in
-        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+        values.append(runtimeValueFromCollectionABI(elem))
     }
     return kk_box_bool(1)
 }
@@ -1210,7 +1188,7 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
     }
     guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     list.withMutableValues { values in
-        values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
+        values.insert(runtimeValueFromCollectionABI(element), at: index)
     }
     return 0
 }
@@ -1281,12 +1259,11 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     let values = list.values
     let old = values[index]
-    let replacement = runtimeMutableListInsertedValue(for: values, rawValue: element)
+    let replacement = runtimeValueFromCollectionABI(element)
     list.setValue(replacement, at: index)
     return old.legacyRawValue
 }
 
-// MARK: - MutableList bulk operations (STDLIB-207)
 
 @_cdecl("__kk_mutable_list_addAll")
 public func kk_mutable_list_addAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
@@ -1413,7 +1390,6 @@ public func kk_mutable_list_as_reversed(_ listRaw: Int) -> Int {
     )
 }
 
-// MARK: - asSequence (STDLIB-471)
 
 @_cdecl("kk_list_asSequence")
 public func kk_list_asSequence(_ listRaw: Int) -> Int {
@@ -1441,7 +1417,6 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-// MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)
 
 /// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).
 /// LinkedHashSet copy-constructor storage, also used by `Iterable.toMutableSet()`.

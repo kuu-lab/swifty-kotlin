@@ -40,6 +40,13 @@ public open class Exception : Throwable {
 
     @KsSymbolName("__kk_exception_new_cause")
     public constructor(cause: Throwable?)
+
+    protected constructor(
+        message: String?,
+        cause: Throwable?,
+        enableSuppression: Boolean,
+        writableStackTrace: Boolean
+    ) : super(message, cause, enableSuppression, writableStackTrace)
 }
 
 public open class IllegalArgumentException : RuntimeException {

@@ -12,18 +12,23 @@ import kotlin.internal.KsSymbolName
 // KSP-704: split out of CollectionAliases.kt into its own 本家-named file
 // (docs/stdlib-pipeline.md §6).
 // KSP-1057: the receiver members are source-backed on the nominal class.
-// Every instance is a tagged RuntimeSetBox produced by the `HashSet(...)` /
-// `hashSetOf` constructor lowering (`CollectionLiteralLoweringPass`), so the
-// members bind directly to the shared set storage bridges instead of object
-// fields or a class vtable. The Kotlin/Native `KonanSet` marker interface and
-// its backing `HashMap` storage are platform internals that KSwiftK does not
-// model.
+// Direct instances are tagged RuntimeSetBoxes produced by the `HashSet(...)` /
+// `hashSetOf` constructor lowering (`CollectionLiteralLoweringPass`). Members
+// bind to the shared set storage bridges, which also support the backing boxes
+// attached to source-allocated HashSet subclasses. The Kotlin/Native
+// `KonanSet` marker interface and its backing `HashMap` storage are platform
+// internals that KSwiftK does not model.
 
 @KsSymbolName("__kk_set_size")
 private external fun <E> __kkHashSetSize(set: HashSet<E>): Int
 
 @KsSymbolName("__kk_builder_set_freeze")
 private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
+
+// The shared initializer attaches set storage without replacing the source
+// object's nominal identity or its subclass fields.
+@KsSymbolName("__kk_linked_hash_set_init")
+private external fun <E> __kkHashSetInit(set: HashSet<E>)
 
 /**
  * Hash-based mutable set implementation.
@@ -32,11 +37,20 @@ private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
  * modeled by KSwiftK. The public nominal hierarchy is preserved here while
  * the shared runtime set box supplies storage and collection operations.
  */
-public class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
+public open class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
+    init {
+        __kkHashSetInit(this)
+    }
+
     constructor()
-    constructor(initialCapacity: Int)
-    constructor(initialCapacity: Int, loadFactor: Float)
-    constructor(elements: Collection<E>)
+    constructor(initialCapacity: Int) : this(initialCapacity, 0.75f)
+    constructor(initialCapacity: Int, loadFactor: Float) {
+        require(initialCapacity >= 0) { "Illegal Capacity: $initialCapacity" }
+        require(loadFactor > 0f) { "Illegal Load: $loadFactor" }
+    }
+    constructor(elements: Collection<E>) : this() {
+        addAll(elements)
+    }
 
     override val size: Int
         get() = __kkHashSetSize(this)

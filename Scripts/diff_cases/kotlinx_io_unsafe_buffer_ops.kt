@@ -1,12 +1,32 @@
 import kotlinx.io.Buffer
 import kotlinx.io.UnsafeIoApi
 import kotlinx.io.unsafe.UnsafeBufferOperations
-import kotlinx.io.unsafe.SegmentReadContext
-import kotlinx.io.unsafe.SegmentWriteContext
 import kotlinx.io.unsafe.withData
 
 // Exercises kotlinx.io.unsafe.UnsafeBufferOperations: moveToTail, readFromHead,
 // writeToTail, iterate, forEachSegment and the unchecked context accessors.
+
+private inline fun <T> withNestedOffset(action: (Int) -> T): T = action(0)
+
+private fun Buffer.readByteArray(): ByteArray = ByteArray(size.toInt()) { readByte() }
+
+@OptIn(UnsafeIoApi::class)
+private fun firstMatchingByteWithNestedInlineCallbacks(buffer: Buffer, target: Byte): Int {
+    var inspected = 0
+    UnsafeBufferOperations.forEachSegment(buffer) { ctx, segment ->
+        ctx.withData(segment) { data, startIndex, endIndex ->
+            var index = startIndex
+            while (index < endIndex) {
+                inspected++
+                withNestedOffset { nestedOffset ->
+                    if (data[index + nestedOffset] == target) return inspected
+                }
+                index++
+            }
+        }
+    }
+    return 0
+}
 
 @OptIn(UnsafeIoApi::class)
 fun main() {
@@ -71,11 +91,18 @@ fun main() {
     }
     println(w2)
 
+    val sizeBeforeLookup = buf.size
+    println(firstMatchingByteWithNestedInlineCallbacks(buf, 40))
+    println(buf.size == sizeBeforeLookup)
+
     val last = UnsafeBufferOperations.readFromHead(buf) { ctx, segment ->
         println(ctx.getUnchecked(segment, 0))
-        buf.size.toInt()
+        segment.size
     }
     println(last)
+    println(buf.size)
+    val remaining = buf.readByteArray()
+    println(remaining.joinToString(",") { it.toInt().toString() })
     println(buf.size)
     println(buf.exhausted())
 }

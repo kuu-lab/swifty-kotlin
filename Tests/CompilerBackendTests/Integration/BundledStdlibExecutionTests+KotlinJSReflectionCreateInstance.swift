@@ -9,6 +9,7 @@ extension BundledStdlibExecutionTests {
         try compileAndRunKotlin(
             """
             @file:OptIn(kotlin.js.ExperimentalJsReflectionCreateInstance::class)
+            import kotlin.reflect.KClass
             import kotlin.reflect.createInstance
 
             var defaultEvaluationCount = 0
@@ -38,6 +39,9 @@ extension BundledStdlibExecutionTests {
                 val createInstanceReference = ExportedBox::class::createInstance
                 println("${ExportedBox::class.simpleName}:${createInstanceReference.name}:${ExportedBox::class.createInstance().value}")
 
+                val unboundCreateInstanceReference = KClass<ExportedBox>::createInstance
+                println("${unboundCreateInstanceReference.name}:${unboundCreateInstanceReference(ExportedBox::class).value}")
+
                 try {
                     RequiredConstructor::class.createInstance()
                     println("required:unexpected")
@@ -53,7 +57,7 @@ extension BundledStdlibExecutionTests {
                 }
             }
             """,
-            expectedOutput: "7\n42\n41\n1\n42\n2\nExportedBox:createInstance:7\nrequired:rejected\nmultiple:rejected\n",
+            expectedOutput: "7\n42\n41\n1\n42\n2\nExportedBox:createInstance:7\ncreateInstance:7\nrequired:rejected\nmultiple:rejected\n",
             moduleName: "KotlinJSReflectionCreateInstance",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )

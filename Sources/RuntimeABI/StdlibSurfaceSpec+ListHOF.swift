@@ -1,5 +1,3 @@
-// MARK: - List higher-order function surface
-//
 // Split from `StdlibSurfaceSpec.swift` so that parallel branches adding
 // `kotlin.collections.List` member entries do not collide on the same
 // central array. New `list(...)` entries go here.

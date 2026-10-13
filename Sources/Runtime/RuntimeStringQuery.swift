@@ -175,10 +175,10 @@ public func kk_charsequence_ifEmpty(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
+    guard let length = runtimeCharSequenceUTF16Length(from: sequenceRaw) else {
         return 0
     }
-    guard codeUnits.isEmpty else {
+    guard length == 0 else {
         return sequenceRaw
     }
     return runtimeInvokeCharSequenceDefaultValue(

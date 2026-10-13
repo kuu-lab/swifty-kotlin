@@ -3,6 +3,37 @@ import Testing
 
 extension SymbolTableTests {
     @Test
+    func testModuleIndexTracksAssignmentsWithoutDuplicatesOrStaleMembership() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let firstModule = interner.intern("First")
+        let secondModule = interner.intern("Second")
+        let first = symbols.define(kind: .function, name: interner.intern("a"),
+                                   fqName: [interner.intern("a")], declSite: nil, visibility: .public)
+        let second = symbols.define(kind: .class, name: interner.intern("B"),
+                                    fqName: [interner.intern("B")], declSite: nil, visibility: .public)
+        #expect(symbols.symbols(inModule: firstModule).isEmpty)
+        symbols.setModuleFQN(firstModule, for: second)
+        symbols.setModuleFQN(firstModule, for: first)
+        symbols.setModuleFQN(firstModule, for: second)
+        #expect(symbols.symbols(inModule: firstModule) == [second, first])
+        let snapshot = symbols.symbols(inModule: firstModule)
+
+        symbols.setModuleFQN(secondModule, for: second)
+        #expect(symbols.symbols(inModule: firstModule) == [first])
+        #expect(symbols.symbols(inModule: secondModule) == [second])
+        #expect(symbols.moduleFQN(for: second) == secondModule)
+        #expect(snapshot == [second, first])
+
+        symbols.setModuleFQN(secondModule, for: first)
+        #expect(symbols.symbols(inModule: firstModule).isEmpty)
+        #expect(symbols.symbols(inModule: secondModule) == [second, first])
+        symbols.setModuleFQN(firstModule, for: second)
+        #expect(symbols.symbols(inModule: firstModule) == [second])
+        #expect(symbols.symbols(inModule: secondModule) == [first])
+    }
+
+    @Test
     func testParentSymbolReturnsNilForUnset() {
         let symbols = SymbolTable()
         #expect(symbols.parentSymbol(for: SymbolID(rawValue: 0)) == nil)

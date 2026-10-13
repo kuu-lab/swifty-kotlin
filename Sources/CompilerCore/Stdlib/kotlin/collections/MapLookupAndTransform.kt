@@ -110,6 +110,17 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
     return answer
 }
 
+/**
+ * Associates [value] with [key] when the key is absent or currently maps to null.
+ *
+ * @return the previous non-null value, or null when the key was absent or mapped to null.
+ */
+public fun <K, V> MutableMap<K, V>.putIfAbsent(key: K, value: V): V? {
+    val oldValue = this[key]
+    if (oldValue != null) return oldValue
+    return put(key, value)
+}
+
 public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
     return __kk_mutable_map_remove(this, key)
 }

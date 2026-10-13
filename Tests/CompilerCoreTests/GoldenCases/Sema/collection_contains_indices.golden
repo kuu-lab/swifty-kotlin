@@ -16,7 +16,7 @@ expr e@5:5 localDecl containsAll mutable=0 type=_ init=e@5:23#1 type=Unit ref=__
 expr e@6:31 name(containsAll) type=Boolean ref=__local_0.containsAll[kind=local;type=Boolean;origin=fixture]
 expr e@6:5 localDecl checkedAll mutable=0 type=Boolean init=e@6:31 type=Unit ref=__local_1.checkedAll[kind=local;type=Boolean;origin=fixture]
 expr e@7:17 name(values) type=kotlin.collections.Collection<Int> ref=golden.sema.collectionQueries.$0.values[kind=vparam;origin=fixture]
-expr e@7:17#1 memberCall recv=e@7:17 callee=count args=[] type=Int
+expr e@7:17#1 memberCall recv=e@7:17 callee=count args=[] type=Int call=kotlin.collections.count[kind=fun;recv=kotlin.collections.Collection<T0>;params=;ret=Int;gen=1] targs=[Int]
 expr e@7:5 localDecl count mutable=0 type=_ init=e@7:17#1 type=Unit ref=__local_2.count[kind=local;type=Int;origin=fixture]
 expr e@8:29 name(count) type=Int ref=__local_2.count[kind=local;type=Int;origin=fixture]
 expr e@8:5 localDecl checkedCount mutable=0 type=Int init=e@8:29 type=Unit ref=__local_3.checkedCount[kind=local;type=Int;origin=fixture]

@@ -120,6 +120,35 @@ struct RuntimeAnyEqualityTests {
         #expect(!boolValue(kk_any_equals(first, 0, triple, 0)))
     }
 
+    @Test
+    func testMapEntryCompareAndHashStructurallyAcrossEntryKinds() {
+        let readOnly = runtimeMapEntryNew(key: 7, value: 8)
+        let sameReadOnly = runtimeMapEntryNew(key: 7, value: 8)
+        let otherKey = runtimeMapEntryNew(key: 9, value: 8)
+        let otherValue = runtimeMapEntryNew(key: 7, value: 10)
+
+        let firstMap = registerRuntimeObject(RuntimeMapBox(keys: [7], values: [8]))
+        let secondMap = registerRuntimeObject(RuntimeMapBox(keys: [7], values: [8]))
+        let mutableEntry = runtimeMutableMapEntryNew(mapRaw: firstMap, key: 7, value: 8)
+        let sameMutableEntry = runtimeMutableMapEntryNew(mapRaw: secondMap, key: 7, value: 8)
+
+        #expect(kk_structural_eq(readOnly, sameReadOnly) == 1)
+        #expect(kk_structural_eq(mutableEntry, sameMutableEntry) == 1)
+        #expect(kk_structural_eq(readOnly, mutableEntry) == 1)
+        #expect(kk_structural_eq(mutableEntry, readOnly) == 1)
+        #expect(kk_structural_eq(readOnly, otherKey) == 0)
+        #expect(kk_structural_eq(readOnly, otherValue) == 0)
+
+        #expect(kk_any_hashCode(readOnly, 0) == kk_any_hashCode(sameMutableEntry, 0))
+        let firstKey = RuntimeElementKey(value: readOnly)
+        let secondKey = RuntimeElementKey(value: sameMutableEntry)
+        #expect(firstKey == secondKey)
+        #expect(firstKey.hashValue == secondKey.hashValue)
+
+        _ = kk_mutable_map_put(secondMap, 7, 11, nil)
+        #expect(kk_structural_eq(mutableEntry, sameMutableEntry) == 0)
+    }
+
     // Pairs the runtime allocates for its own plumbing (comparator pairs and
     // the like) stay untagged and keep reference identity, so they never look
     // like a Kotlin `Pair` to `is`/`==`.

@@ -70,6 +70,18 @@ struct RuntimeKClassCastAndMembersTests {
         #expect(list.elements.isEmpty)
     }
 
+    @Test func primaryConstructorRequiresPrimaryFlag() {
+        let kclass = registerKClass(typeToken: 1011, qualifiedName: "pkg.Constructors", simpleName: "Constructors")
+        #expect(__kk_kclass_primary_constructor(kclass) == runtimeNullSentinelInt)
+
+        let secondary = __kk_kconstructor_create(makeRuntimeString("<init>"), 0, 0, 0, 0, 0, kclass)
+        #expect(runtimeKConstructorRegistry.constructors(for: kclass) == [secondary])
+        #expect(__kk_kclass_primary_constructor(kclass) == runtimeNullSentinelInt)
+
+        let primary = __kk_kconstructor_create(makeRuntimeString("<init>"), 1, 0, 0, 1, 0, kclass)
+        #expect(__kk_kclass_primary_constructor(kclass) == primary)
+    }
+
     @Test func registerMemberReturnsZero() {
         let kclass = registerKClass(typeToken: 1002, qualifiedName: "pkg.B", simpleName: "B")
         let fnRaw = __kk_kfunction_create(

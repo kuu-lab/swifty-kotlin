@@ -128,6 +128,33 @@ extension CallLowerer {
             return nil
         }
 
+        switch sema.bindings.stdlibSpecialCallKind(for: exprID) {
+        case .enumValues:
+            if let result = lowerEnumValuesCallExpr(
+                exprID,
+                args: args,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return result
+            }
+        case .enumEntries:
+            if let result = lowerEnumEntriesCallExpr(
+                exprID,
+                args: args,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return result
+            }
+        default:
+            break
+        }
+
         // Qualified `kotlin.reflect.typeOf<T>()` expands through the same
         // intrinsic lowering as the unqualified call (KSP-1323).
         if let typeOfResult = lowerTypeOfCallExpr(

@@ -722,7 +722,6 @@ private struct TypeCheckFixture {
         return TypeInferenceContext(
             ast: ast,
             sema: sema,
-            semaCtx: sema,
             resolver: resolver,
             dataFlow: dataFlow,
             interner: interner,
@@ -779,7 +778,6 @@ private func makeTypeCheckFixture() -> TypeCheckFixture {
     let driver = TypeCheckDriver(
         ast: ast,
         sema: sema,
-        semaCtx: sema,
         solver: ConstraintSolver(),
         resolver: resolver,
         dataFlow: dataFlow,

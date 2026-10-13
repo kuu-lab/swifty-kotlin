@@ -123,7 +123,7 @@ extension DataFlowSemaPhase {
         types.setNominalSupertypeTypeArgs(entryTypeArgs, for: mutableEntrySymbol, supertype: entrySymbol)
     }
 
-    private func ensureSyntheticMapEntryTypeParameter(
+    func ensureSyntheticMapEntryTypeParameter(
         symbols: SymbolTable,
         interner: StringInterner,
         ownerFQName: [InternedString],
