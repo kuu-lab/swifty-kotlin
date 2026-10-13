@@ -609,7 +609,7 @@ extension DataFlowSemaPhase {
             let upperBounds = allPropertyParameters.map {
                 symbols.typeParameterUpperBounds(for: $0)
             }
-            let resolvedType = resolveTypeRef(
+            var resolvedType = resolveTypeRef(
                 propertyDecl.type,
                 ast: ast,
                 symbols: symbols,
@@ -623,6 +623,18 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
+            if propertyDecl.isSynthesizedPrimaryConstructorProperty,
+               let constructor = symbols.lookupAll(fqName: ownerFQName + [interner.intern("<init>")])
+                   .compactMap({ symbols.functionSignature(for: $0) }).first,
+               let index = constructor.valueParameterSymbols.firstIndex(where: {
+                   symbols.symbol($0)?.name == propertyDecl.name
+               }), constructor.valueParameterIsVararg.indices.contains(index),
+               constructor.valueParameterIsVararg[index], constructor.parameterTypes.indices.contains(index),
+               let array = primitiveVarargArrayType(elementType: constructor.parameterTypes[index],
+                                                   symbols: symbols, types: types, interner: interner) {
+                // Resolve aliases and shadowed primitive names before choosing the array class.
+                resolvedType = array
+            }
             symbols.setPropertyType(resolvedType, for: memberSymbol)
 
             // Kotlin permits extension properties inside a companion object,
@@ -1283,6 +1295,23 @@ extension DataFlowSemaPhase {
                     interner: interner,
                     diagnostics: diagnostics,
                     localTypeParameters: nestedLocalTypeParameters
+                )
+            }
+            if nestedClassKind == .annotationClass {
+                collectSyntheticHashCode(
+                    ownerSymbol: nestedSymbol, ownerFQName: nestedFQName, ownerType: nestedType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: nestedScope, interner: interner
+                )
+                collectSyntheticToString(
+                    ownerSymbol: nestedSymbol, ownerFQName: nestedFQName, ownerType: nestedType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: nestedScope, interner: interner
+                )
+                collectSyntheticEquals(
+                    ownerSymbol: nestedSymbol, ownerFQName: nestedFQName, ownerType: nestedType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: nestedScope, interner: interner
                 )
             }
             if symbols.symbol(nestedSymbol)?.flags.contains(.valueType) == true {

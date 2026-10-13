@@ -34,11 +34,33 @@ func emitKClassAnnotationRegistration(
         let argCountExpr = arena.appendExpr(.intLiteral(argCount), type: intType)
         instructions.append(.constValue(result: argCountExpr, value: .intLiteral(argCount)))
 
+        var callee = registrationCallee
+        var registrationArguments = [typeTokenExpr, nameExpr, argsExpr, argCountExpr]
+        var factory = annotation.factorySymbol
+        if factory == nil, let linkName = annotation.factoryLinkName {
+            let name = interner.intern(linkName)
+            let imported = sema.symbols.lookup(fqName: [name]) ?? sema.symbols.define(
+                kind: .function, name: name, fqName: [name], declSite: nil,
+                visibility: .private, flags: [.synthetic]
+            )
+            sema.symbols.setFunctionSignature(FunctionSignature(
+                parameterTypes: [], returnType: sema.types.anyType, canThrow: true
+            ), for: imported)
+            sema.symbols.setExternalLinkName(linkName, for: imported)
+            factory = imported
+        }
+        if let factory {
+            let pointer = arena.appendExpr(.symbolRef(factory), type: sema.types.anyType)
+            instructions.append(.constValue(result: pointer, value: .symbolRef(factory)))
+            registrationArguments.append(pointer)
+            callee = registrationCallee == "__kk_kcallable_register_single_annotation"
+                ? "__kk_kcallable_register_annotation_factory" : "__kk_kclass_register_annotation_factory"
+        }
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern(registrationCallee),
-            arguments: [typeTokenExpr, nameExpr, argsExpr, argCountExpr],
+            callee: interner.intern(callee),
+            arguments: registrationArguments,
             result: registerResult,
             canThrow: false,
             thrownResult: nil

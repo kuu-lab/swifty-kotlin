@@ -273,17 +273,26 @@ public struct MetadataAnnotationRecord: Equatable {
     /// Producer-side retention survives when the annotation class is non-public.
     /// Older metadata without this field is classified from its declaration.
     public let retention: AnnotationRetentionKind?
+    public let usageID: String?
+    public let factorySymbol: SymbolID?
+    public let factoryLinkName: String?
 
     public init(
         annotationFQName: String,
         arguments: [String] = [],
         useSiteTarget: String? = nil,
-        retention: AnnotationRetentionKind? = nil
+        retention: AnnotationRetentionKind? = nil,
+        usageID: String? = nil,
+        factorySymbol: SymbolID? = nil,
+        factoryLinkName: String? = nil
     ) {
         self.annotationFQName = annotationFQName
         self.arguments = arguments
         self.useSiteTarget = useSiteTarget
         self.retention = retention
+        self.usageID = usageID
+        self.factorySymbol = factorySymbol
+        self.factoryLinkName = factoryLinkName
     }
 }
 

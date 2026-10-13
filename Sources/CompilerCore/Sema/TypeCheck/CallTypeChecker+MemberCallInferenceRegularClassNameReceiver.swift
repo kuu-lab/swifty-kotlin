@@ -453,7 +453,7 @@ extension CallTypeChecker {
                             if ast.arena.isExplicitCall(id),
                                let nestedOwner = sema.symbols.parentSymbol(for: zeroArgNested),
                                let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
-                               nestedOwnerSymbol.kind == .class,
+                               (nestedOwnerSymbol.kind == .class || nestedOwnerSymbol.kind == .annotationClass),
                                !nestedOwnerSymbol.flags.contains(.innerClass)
                             {
                                 sema.bindings.markTypeQualifiedConstructorCallExpr(id)
@@ -569,7 +569,7 @@ extension CallTypeChecker {
                         if ast.arena.isExplicitCall(id),
                            let nestedOwner = sema.symbols.parentSymbol(for: chosen),
                            let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
-                           nestedOwnerSymbol.kind == .class,
+                           (nestedOwnerSymbol.kind == .class || nestedOwnerSymbol.kind == .annotationClass),
                            !nestedOwnerSymbol.flags.contains(.innerClass)
                         {
                             sema.bindings.markTypeQualifiedConstructorCallExpr(id)

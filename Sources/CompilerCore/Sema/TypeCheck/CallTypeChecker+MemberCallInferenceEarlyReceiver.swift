@@ -123,7 +123,7 @@ extension CallTypeChecker {
 
         if let result = tryInferKClassReceiverMemberCall(
             id, receiverType: receiverType, calleeName: calleeName, args: args,
-            explicitTypeArgs: explicitTypeArgs, range: range, ctx: ctx, locals: &locals
+            explicitTypeArgs: explicitTypeArgs, expectedType: request.expectedType, range: range, ctx: ctx, locals: &locals
         ) {
             return result
         }

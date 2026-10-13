@@ -399,12 +399,16 @@ final class MetadataDecoder {
         }
         var useSiteTarget: String?
         var retention: AnnotationRetentionKind?
+        var factoryLinkName: String?
         var arguments: [String] = []
         for part in parts.dropFirst() {
             if part.hasPrefix("target:") {
                 useSiteTarget = String(part.dropFirst("target:".count))
             } else if part.hasPrefix("retention:") {
                 retention = AnnotationRetentionKind(rawValue: String(part.dropFirst("retention:".count)))
+            } else if part.hasPrefix("factory:"),
+                      let data = Data(base64Encoded: String(part.dropFirst("factory:".count))) {
+                factoryLinkName = String(data: data, encoding: .utf8)
             } else if part.hasPrefix("args:") {
                 let argsStr = String(part.dropFirst("args:".count))
                 arguments = argsStr.split(separator: ",", omittingEmptySubsequences: false).compactMap { b64 in
@@ -419,7 +423,8 @@ final class MetadataDecoder {
             annotationFQName: annotationFQName,
             arguments: arguments,
             useSiteTarget: useSiteTarget,
-            retention: retention
+            retention: retention,
+            factoryLinkName: factoryLinkName
         )
     }
 

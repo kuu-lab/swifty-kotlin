@@ -3,6 +3,7 @@
  * Copyright JetBrains s.r.o. Licensed under the Apache License, Version 2.0.
  */
 @file:Suppress("DEPRECATION", "INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
+@file:OptIn(ExperimentalMultiplatform::class)
 package kotlinx.atomicfu
 
 import kotlin.internal.InlineOnly

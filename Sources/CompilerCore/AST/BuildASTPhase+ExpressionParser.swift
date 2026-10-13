@@ -46,6 +46,7 @@ extension BuildASTPhase {
         let astArena: ASTArena
         let diagnostics: DiagnosticEngine?
         var index: Int
+        var allowAnnotationArrayLiterals = false
 
         // Bounded declaration prefixes must not accept recovered expressions
         // whose operand or control-flow branch was cut off by the slice.

@@ -93,6 +93,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        typeCheckAnnotationFactories(classDecl.annotations, symbol: symbol, ctx: ctx)
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
@@ -136,6 +137,11 @@ extension DeclTypeChecker {
         )
         typeCheckInitBlocks(classDecl.initBlocks, ctx: classCtx, baseLocals: primaryCtorLocals)
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        if classDecl.modifiers.contains(.annotationClass) {
+            for parameter in classDecl.primaryConstructorParams {
+                if let value = parameter.defaultValue { validateAnnotationDefaultValue(value, ctx: classCtx) }
+            }
+        }
         typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
         let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
@@ -311,6 +317,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        typeCheckAnnotationFactories(objectDecl.annotations, symbol: symbol, ctx: ctx)
         let objectCtx = makeObjectTypeCheckContext(objectDecl: objectDecl, symbol: symbol, ctx: ctx)
 
         validateClassLikeHeaderOptInTypes(
@@ -406,6 +413,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        typeCheckAnnotationFactories(interfaceDecl.annotations, symbol: symbol, ctx: ctx)
         let sema = ctx.sema
         var allNestedObjects = interfaceDecl.nestedObjects
         if let companionDeclID = interfaceDecl.companionObject {

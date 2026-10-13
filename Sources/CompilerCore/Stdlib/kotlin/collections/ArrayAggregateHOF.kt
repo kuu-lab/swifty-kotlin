@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.experimental.ExperimentalTypeInference
+
 // KSP-433: Array<T> fold/reduce HOFs are bundled Kotlin source. Primitive-array
 // variants are defined in PrimitiveArrayHOF.kt.
 //

@@ -1,0 +1,4 @@
+constants:object-class:vararg:inferred
+typed:properties:constructor:wire.Record:9
+enum:arrays:class-literal:nested:defaults
+equality:hash:annotationClass:findAnnotation
