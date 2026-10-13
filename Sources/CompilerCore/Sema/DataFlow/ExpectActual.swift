@@ -20,9 +20,7 @@ extension DataFlowSemaPhase {
             sym.flags.contains(.expectDeclaration)
                 && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
-        let membersByParent = Dictionary(grouping: symbols.allSymbols().compactMap { symbol in
-            symbols.parentSymbol(for: symbol.id).map { ($0, symbol) }
-        }, by: \.0).mapValues { entries in entries.map(\.1) }
+        guard !expects.isEmpty else { return }
         let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
             guard case let .funDecl(function) = decl else { return nil }
             return function
@@ -116,7 +114,6 @@ extension DataFlowSemaPhase {
             inheritAbstractActualMemberFlags(
                 expectOwner: expectSym,
                 actualOwner: actualSym,
-                membersByParent: membersByParent,
                 functionDeclarationsByRange: functionDeclarationsByRange,
                 symbols: symbols,
                 types: types
@@ -127,7 +124,6 @@ extension DataFlowSemaPhase {
     private func inheritAbstractActualMemberFlags(
         expectOwner: SemanticSymbol,
         actualOwner: SemanticSymbol,
-        membersByParent: [SymbolID: [SemanticSymbol]],
         functionDeclarationsByRange: [SourceRange: [FunDecl]],
         symbols: SymbolTable,
         types: TypeSystem
@@ -140,9 +136,19 @@ extension DataFlowSemaPhase {
             return
         }
 
-        let expectedFunctions = (membersByParent[expectOwner.id] ?? []).filter { $0.kind == .function }
-        let actualFunctions = (membersByParent[actualOwner.id] ?? []).filter {
-            $0.kind == .function && $0.flags.contains(.actualDeclaration)
+        // Query only source functions of the matched abstract classes. Imported
+        // shells have no AST body to inspect, and querying every symbol's parent
+        // would force the entire lazy metadata library to materialize.
+        let sourceFunctions = symbols.children(ofFQName: expectOwner.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .function && $0.declSite != nil }
+        // Expect/actual classes share an FQ name, so verify the exact owner ID.
+        let expectedFunctions = sourceFunctions.filter {
+            symbols.parentSymbol(for: $0.id) == expectOwner.id
+        }
+        let actualFunctions = sourceFunctions.filter {
+            $0.flags.contains(.actualDeclaration)
+                && symbols.parentSymbol(for: $0.id) == actualOwner.id
         }
 
         for expectFunction in expectedFunctions {

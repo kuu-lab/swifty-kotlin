@@ -90,7 +90,7 @@ extension CallTypeChecker {
                 }
                 if !visibleStaticMethods.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+                        CallArg(label: arg.label, isSpread: arg.isSpread, isTrailingLambda: arg.isTrailingLambda, type: type)
                     }
                     let call = CallExpr(
                         range: range,
@@ -226,7 +226,7 @@ extension CallTypeChecker {
                 }
                 if !visibleOwnerExtensions.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+                        CallArg(label: arg.label, isSpread: arg.isSpread, isTrailingLambda: arg.isTrailingLambda, type: type)
                     }
                     let call = CallExpr(
                         range: range,

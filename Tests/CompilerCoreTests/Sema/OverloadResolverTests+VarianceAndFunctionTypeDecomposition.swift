@@ -187,21 +187,24 @@ extension OverloadResolverTests {
 
     // MARK: - Coverage: isSuspend mismatch in function type falls through
 
-    @Test func testUnifiedInference_SuspendMismatchFunctionTypeFallsThrough() {
+    @Test(arguments: [false, true])
+    func testUnifiedInference_SuspendFunctionTypeConversion(parameterIsSuspend: Bool) {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "susp_T", symbols: symbols, interner: interner)
         let tType = types.make(.typeParam(TypeParamType(symbol: tSym)))
-        // Parameter: suspend (T) -> T
-        let suspendFuncOfT = types.make(.functionType(FunctionType(params: [tType], returnType: tType, isSuspend: true)))
-        // Argument: (Int) -> Int  (non-suspend – mismatch)
-        let nonSuspendFunc = types.make(.functionType(FunctionType(params: [intType], returnType: intType, isSuspend: false)))
+        let parameterFunction = types.make(.functionType(FunctionType(
+            params: [tType], returnType: tType, isSuspend: parameterIsSuspend
+        )))
+        let argumentFunction = types.make(.functionType(FunctionType(
+            params: [intType], returnType: intType, isSuspend: !parameterIsSuspend
+        )))
 
         let fn = defineSymbol(kind: .function, name: "runSusp", suffix: "susp_runSusp", symbols: symbols, interner: interner)
         let paramSym = defineSymbol(kind: .valueParameter, name: "f", suffix: "susp_f", symbols: symbols, interner: interner)
         symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: [suspendFuncOfT],
+                parameterTypes: [parameterFunction],
                 returnType: tType,
                 valueParameterSymbols: [paramSym],
                 typeParameterSymbols: [tSym]
@@ -212,13 +215,18 @@ extension OverloadResolverTests {
         let call = CallExpr(
             range: makeRange(start: 6100, end: 6110),
             calleeName: interner.intern("runSusp"),
-            args: [CallArg(type: nonSuspendFunc)]
+            args: [CallArg(type: argumentFunction)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        // isSuspend mismatch means function decomposition is skipped; falls through
-        // to simple type constraint which fails.
-        #expect(resolved.chosenCallee == nil)
-        #expect(resolved.diagnostic != nil)
+        // Kotlin permits lifting a non-suspend value to a suspend function type.
+        if parameterIsSuspend {
+            #expect(resolved.chosenCallee == fn)
+            #expect(resolved.diagnostic == nil)
+            #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
+        } else {
+            #expect(resolved.chosenCallee == nil)
+            #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+        }
     }
 
     // MARK: - Coverage: class type arg count mismatch falls through
