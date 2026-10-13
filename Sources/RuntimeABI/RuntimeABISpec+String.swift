@@ -669,6 +669,11 @@ public extension RuntimeABISpec {
         stringReplaceCharFlatSpec,
         stringReplaceIgnoreCaseFlatSpec,
         stringReplaceCharIgnoreCaseFlatSpec,
+        RuntimeABIFunctionSpec(name: "__kk_any_to_string_throwing", parameters: [
+            RuntimeABIParameter(name: "value", type: .intptr),
+            RuntimeABIParameter(name: "tag", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .opaquePointer, section: "String", isThrowing: true),
         RuntimeABIFunctionSpec(
             name: "kk_any_to_string",
             parameters: [

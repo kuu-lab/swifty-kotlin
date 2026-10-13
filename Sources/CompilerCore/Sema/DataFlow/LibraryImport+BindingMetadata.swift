@@ -194,8 +194,23 @@ extension DataFlowSemaPhase {
                 metadataPath: binding.metadataPath,
                 cache: cache,
                 allowPlaceholders: isStdlibArtifact,
-                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? []
+                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? [],
+                isStdlibArtifact: isStdlibArtifact
             )
+            let usesLegacyABI = symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) == true
+            let hasReferenceVararg = signature.parameterTypes.indices.contains { index in
+                guard signature.valueParameterIsVararg.indices.contains(index), signature.valueParameterIsVararg[index] else { return false }
+                if case .primitive(_, .nonNull) = types.kind(of: signature.parameterTypes[index]) { return false }
+                return true
+            }
+            if usesLegacyABI, hasReferenceVararg, CallLowerer.isSourceBackedLinkName(record.externalLinkName) {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0034",
+                    "Source reference-vararg storage ABI is incompatible; rebuild the library with this compiler.",
+                    range: nil
+                )
+                return
+            }
             symbols.setFunctionSignature(signature, for: symbol)
             // Extension functions are represented as package-level FQ names in
             // metadata, but source compilation attaches them to their nominal
@@ -218,6 +233,7 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
                 let intType = types.intType
                 let reifiedCount = signature.reifiedTypeParameterIndices.count
+                    * (usesLegacyABI || !CallLowerer.isSourceBackedLinkName(record.externalLinkName) ? 1 : 2)
                 var stubReceiverType = signature.receiverType
                 var stubLeadingParameters: [TypeID] = []
                 if record.isMemberExtension,
@@ -297,9 +313,7 @@ extension DataFlowSemaPhase {
             importInlineFunctionIfNeeded(
                 binding,
                 symbol: symbol,
-                signature: signature,
-                symbols: symbols,
-                types: types,
+                signature: signature, symbols: symbols, types: types,
                 diagnostics: diagnostics,
                 interner: interner,
                 importedInlineFunctions: importedInlineFunctions

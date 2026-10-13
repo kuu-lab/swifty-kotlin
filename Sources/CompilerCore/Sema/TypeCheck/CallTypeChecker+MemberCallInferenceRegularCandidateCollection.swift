@@ -346,6 +346,7 @@ extension CallTypeChecker {
             let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                arguments: args,
                 ctx: ctx,
                 sema: sema,
                 interner: interner

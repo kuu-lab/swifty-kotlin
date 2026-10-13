@@ -27,21 +27,24 @@ extension DataFlowSemaPhase {
         let channelSymbol = context.channelSymbol!
         let kotlinCoroutinesPkg = context.kotlinCoroutinesPkg
 
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "runBlocking",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                receiver: coroutineScopeType,
-                params: [],
-                returnType: types.nullableAnyType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: types.anyType,
-            symbols: symbols,
-            interner: interner
-        )
+        // Bundled runBlocking owns the generic context and suspend-block contract.
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("runBlocking"), arity: 2) {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "runBlocking",
+                packageFQName: coroutinesPkg,
+                parameterName: "block",
+                parameterType: types.make(.functionType(FunctionType(
+                    receiver: coroutineScopeType,
+                    params: [],
+                    returnType: types.nullableAnyType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                ))),
+                returnType: types.anyType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         // Bundled launch owns the CoroutineContext/start/receiver contract.
         // Retain legacy launcher declarations only for --no-stdlib builds.
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {

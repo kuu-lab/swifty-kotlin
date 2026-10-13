@@ -31,7 +31,7 @@ private external fun <K, V> __kk_map_implicit_default(map: Map<K, V>, key: K): V
 private external fun <K, V> __kk_map_has_default(map: Map<K, V>): Boolean
 
 @Suppress("UNCHECKED_CAST")
-public inline operator fun <K, V> Map<out K, V>.get(key: K): V? =
+public inline operator fun <@kotlin.internal.OnlyInputTypes K, V> Map<out K, V>.get(key: K): V? =
     (this as Map<K, V>).get(key)
 
 @KsSymbolName("__kk_mutable_map_iterator")

@@ -63,7 +63,7 @@ extension TypeCheckHelpers {
         case let .classType(ct):
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
         case let .typeParam(tp):
-            return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable)))
+            return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable, capture: tp.capture)))
         case let .functionType(ft):
             return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
@@ -416,6 +416,11 @@ extension TypeCheckHelpers {
                 )
             }
         case let .typeParam(typeParam):
+            if let capture = typeParam.capture {
+                return allNominalSymbolsImpl(
+                    of: capture.upper, types: types, symbols: symbols, interner: interner, visited: &visited
+                )
+            }
             // Guard against cycles (e.g. T : U, U : T).
             guard visited.insert(typeParam.symbol).inserted else { return [] }
             let bounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
@@ -718,7 +723,7 @@ extension TypeCheckHelpers {
         ownerSymbol: SymbolID,
         sema: SemaModule
     ) -> TypeID {
-        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        let nonNullReceiver = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: receiverType))
         guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
               sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerSymbol)
         else {
