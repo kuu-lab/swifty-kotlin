@@ -105,7 +105,7 @@ private func runtimeCallDeepRecursiveEntry(
         return (0, 0)
     }
     RuntimeContinuationState.installState(state, forTask: taskKey)
-    defer { RuntimeContinuationState.removeCurrent(forTask: taskKey) }
+    defer { RuntimeContinuationState.removeState(forTask: taskKey) }
     var thrown = 0
     let result = entryPoint(continuation, &thrown)
     return (result, thrown)

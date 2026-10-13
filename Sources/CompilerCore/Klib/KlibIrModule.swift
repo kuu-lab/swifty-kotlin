@@ -52,8 +52,6 @@ package struct KlibIrModule {
 
     package var fileCount: Int { files?.count ?? 0 }
 
-    // MARK: - Per-file decoded entities
-
     package func file(_ fileIndex: Int) throws -> KlibIrFile {
         guard let files else { throw KlibFormatError.corruptChunk("no files table") }
         return try KlibIrDecoding.file(ProtoFields(files.element(fileIndex)))
@@ -112,8 +110,6 @@ package struct KlibIrModule {
         else { return nil }
         return String(decoding: try signatureDebugInfos.element(row: fileIndex, column: Int(index)), as: UTF8.self)
     }
-
-    // MARK: - Index resolution helpers
 
     /// Fq-name segment list → dotted string.
     package func fqName(_ segments: [Int32], fileIndex: Int) throws -> String {

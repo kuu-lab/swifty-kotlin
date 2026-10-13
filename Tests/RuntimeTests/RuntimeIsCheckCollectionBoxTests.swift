@@ -4,6 +4,22 @@ import Testing
 
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeIsCheckCollectionBoxTests {
+    @Test
+    func hashSetSubclassesAttachBackingStorage() throws {
+        let subclassID = runtimeStableNominalTypeID(fqName: "test.HashSetSubclass")
+        runtimeRegisterTypeEdge(childTypeID: subclassID, parentTypeID: hashSetRuntimeTypeID)
+        let raw = kk_object_new(0, Int(subclassID))
+        let storage = try #require(runtimeSetBox(from: raw))
+        #expect(storage.count == 0)
+        var thrown = 0
+        #expect(kk_mutable_set_add(raw, 7, &thrown) == 1)
+        #expect(thrown == 0)
+        #expect(kk_set_size(raw) == 1)
+        #expect(kk_set_contains(raw, 7) == 1)
+        #expect(kk_op_is(raw, token("kotlin.collections.HashSet")) == 1)
+        #expect(kk_op_is(raw, token("kotlin.collections.LinkedHashSet")) == 0)
+    }
+
     @Test(arguments: [false, true])
     func mutableMapEntriesDispatchSetValueWithoutChangingReadOnlyGetters(useTypedValues: Bool) throws {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [2]))

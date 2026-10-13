@@ -163,7 +163,6 @@ func runtimePropagateThrownOrTrap(
     outThrown.pointee = thrown
 }
 
-// MARK: - Raw string helpers for RuntimeCollectionHOF
 
 func runtimeStringToCharListRaw(_ source: String) -> Int {
     runtimeMakeListRaw(runtimeKotlinStringUTF16CodeUnits(source).map { Int($0) })

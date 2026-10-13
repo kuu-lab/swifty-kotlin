@@ -4,6 +4,9 @@
 成果物は本書と [`fixtures/js_annotations/`](fixtures/js_annotations/)。
 製品実装は [KUU-1605〜1611](https://linear.app/kuu/issue/KUU-1602)、
 candidate-only runner は [KUU-1612](https://linear.app/kuu/issue/KUU-1612) が担当する。
+
+7検証子チケットの進捗と残る失敗、source/artifact の保存結果は
+[独立検証の集約](js-annotations-validation-status.md) を参照。
 元ケースの振り分け・移設・削除・SKIP 解除は [KUU-1480](https://linear.app/kuu/issue/KUU-1480) の担当である。
 
 ## 1. Oracle と監査範囲

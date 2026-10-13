@@ -10,12 +10,47 @@ struct LocalExtensionFunctionTests {
         sema: SemaModule
     ) -> SymbolID? {
         guard let index = ast.arena.exprs.indices.first(where: {
-            guard case let .localFunDecl(localName, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
+            guard case let .localFunDecl(localName, _, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
                 return false
             }
             return localName == name
         }) else { return nil }
         return sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index)))
+    }
+
+    @Test
+    func genericLocalFunctionAcceptsExplicitTypeArgumentsAndShadowsEnumIntrinsic() throws {
+        let ctx = makeContextFromSource("""
+        enum class Color { RED, GREEN, BLUE }
+        fun main() {
+            fun <T : Enum<T>> enumValueOf(name: String): String = "LOCAL:$name"
+            println(enumValueOf<Color>("BLUE"))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(localFunctionSymbol(
+            named: ctx.interner.intern("enumValueOf"),
+            in: ast,
+            sema: sema
+        ))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        #expect(signature.typeParameterSymbols.count == 1)
+        #expect(!sema.symbols.typeParameterUpperBounds(for: signature.typeParameterSymbols[0]).isEmpty)
+
+        let binding = try #require(sema.bindings.callBindings.values.first {
+            $0.chosenCallee == symbol
+        })
+        let colorSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Color")]))
+        let colorType = sema.types.make(.classType(ClassType(
+            classSymbol: colorSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        #expect(binding.substitutedTypeArguments == [colorType])
     }
 
     @Test
@@ -111,7 +146,7 @@ struct LocalExtensionFunctionTests {
             if case .localFunDecl = ast.arena.exprs[$0] { return true }
             return false
         })
-        guard case let .localFunDecl(name, receiver, params, _, _, _, _) = ast.arena.exprs[localID] else {
+        guard case let .localFunDecl(name, receiver, params, _, _, _, _, _) = ast.arena.exprs[localID] else {
             Issue.record("Expected local function")
             return
         }

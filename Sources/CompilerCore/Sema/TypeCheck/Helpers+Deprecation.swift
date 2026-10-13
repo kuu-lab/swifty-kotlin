@@ -621,7 +621,7 @@ extension TypeCheckHelpers {
         return component.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
     }
 
-    private func normalizeAnnotationStringLiteral(_ raw: String) -> String {
+    func normalizeAnnotationStringLiteral(_ raw: String) -> String {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Annotation arguments are rebuilt from raw tokens. Determine whether

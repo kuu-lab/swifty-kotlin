@@ -1,0 +1,211 @@
+@testable import CompilerCore
+import Foundation
+import Testing
+
+@Suite
+struct LazySymbolScanTests {
+    @Test func knownMetadataQueriesDoNotInvokeLoader() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let owner = symbols.define(kind: .class, name: interner.intern("Owner"), fqName: [interner.intern("Owner")], declSite: nil, visibility: .public)
+        let child = symbols.define(kind: .function, name: interner.intern("member"), fqName: [interner.intern("Owner"), interner.intern("member")], declSite: nil, visibility: .public, flags: [.importedLibrary])
+        symbols.setParentSymbol(owner, for: child)
+        symbols.setExternalLinkName("owner_member", for: child)
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { symbol in
+            loaded.append(symbol)
+            symbols.setFunctionSignature(FunctionSignature(parameterTypes: [], returnType: types.intType), for: symbol)
+        }
+        #expect(symbols.parentSymbolIfKnown(for: child) == owner)
+        #expect(symbols.children(of: owner) == [child])
+        #expect(symbols.externalLinkNameIfKnown(for: child) == "owner_member")
+        #expect(symbols.functionSignatureIfKnown(for: child) == nil)
+        #expect(loaded.isEmpty)
+        #expect(symbols.functionSignature(for: child)?.returnType == types.intType)
+        #expect(symbols.functionSignatureIfKnown(for: child)?.returnType == types.intType)
+        #expect(symbols.parentSymbol(for: child) == owner)
+        #expect(loaded == [child])
+    }
+
+    @Test func childrenIndexTracksReparentingAndRepeatedRegistration() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        func define(_ name: String, kind: SymbolKind) -> SymbolID {
+            symbols.define(kind: kind, name: interner.intern(name), fqName: [interner.intern(name)], declSite: nil, visibility: .public)
+        }
+        let firstOwner = define("First", kind: .class)
+        let secondOwner = define("Second", kind: .class)
+        let firstChild = define("first", kind: .function)
+        let secondChild = define("second", kind: .function)
+        symbols.setParentSymbol(firstOwner, for: secondChild)
+        symbols.setParentSymbol(firstOwner, for: firstChild)
+        symbols.setParentSymbol(firstOwner, for: firstChild)
+        #expect(symbols.children(of: firstOwner) == [firstChild, secondChild])
+        symbols.setParentSymbol(secondOwner, for: firstChild)
+        #expect(symbols.children(of: firstOwner) == [secondChild])
+        #expect(symbols.children(of: secondOwner) == [firstChild])
+        #expect(symbols.parentSymbolIfKnown(for: firstChild) == secondOwner)
+    }
+
+    @Test(arguments: [false, true])
+    func indexedImportsAndLoweringKeepUnusedShellsLazy(oldInitializerIndex: Bool) throws {
+        let fm = FileManager.default
+        let libDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: libDir) }
+        let records = [
+            // Put members before their owner to exercise late owner registration.
+            MetadataRecord(kind: .function, mangledName: "_member", fqName: "scan.Owner.member", arity: 0, isSuspend: false, typeSignature: "F0<I>", externalLinkName: "scan_member"),
+            MetadataRecord(kind: .property, mangledName: "_value", fqName: "scan.Owner.value", arity: 0, isSuspend: false, typeSignature: "I"),
+            MetadataRecord(kind: .function, mangledName: "_extension", fqName: "scan.extension", arity: 0, isSuspend: false, receiverOwnerFQName: "scan.Owner", typeSignature: "F0<RLscan.Owner;,I>"),
+            MetadataRecord(kind: .function, mangledName: "_member_extension", fqName: "scan.Owner.memberExtension", arity: 0, isSuspend: false, isMemberExtension: true, receiverOwnerFQName: "scan.Other", typeSignature: "F0<RLscan.Other;,I>"),
+            MetadataRecord(kind: .class, mangledName: "_nested", fqName: "scan.Owner.Nested", arity: 0, isSuspend: false),
+            MetadataRecord(kind: .class, mangledName: "_other", fqName: "scan.Other", arity: 0, isSuspend: false),
+            MetadataRecord(kind: .class, mangledName: "_owner", fqName: "scan.Owner", arity: 0, isSuspend: false),
+            MetadataRecord(kind: .object, mangledName: "_singleton", fqName: "scan.Singleton", arity: 0, isSuspend: false, objectInitializerLinkName: "scan_object_init"),
+        ]
+        var metadata = MetadataEncoder().serializeIndexed(records)
+        if oldInitializerIndex {
+            let sections = metadata.components(separatedBy: "\nbody\n")
+            let oldIndex = sections[0]
+                .replacingOccurrences(of: " initIndex=1", with: "")
+                .replacingOccurrences(of: " objectInitLink=scan_object_init", with: "")
+            metadata = oldIndex + "\nbody\n" + sections[1]
+        }
+        try "{\"formatVersion\":1,\"moduleName\":\"Scan\",\"metadata\":\"metadata.bin\"}".write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path], searchPaths: [libDir.path], includeStdlib: false)
+            // Bind source before importing to isolate these scans from KUU-1955.
+            try runFrontend(ctx)
+            let sourceContext = makeCompilationContext(inputs: [path], includeStdlib: false, interner: ctx.interner)
+            try runSema(sourceContext)
+            let sema = try #require(sourceContext.sema)
+            ctx.storeSema(sema)
+            let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options, symbols: sema.symbols, types: sema.types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                importedInlineFunctions: ImportedInlineFunctionStore()
+            )
+            let symbols = sema.symbols
+            func id(_ fqName: String) throws -> SymbolID {
+                try #require(symbols.lookup(fqName: fqName.split(separator: ".").map { ctx.interner.intern(String($0)) }))
+            }
+            let owner = try id("scan.Owner")
+            let member = try id("scan.Owner.member")
+            let property = try id("scan.Owner.value")
+            let ext = try id("scan.extension")
+            let memberExtension = try id("scan.Owner.memberExtension")
+            let nested = try id("scan.Owner.Nested")
+            #expect(symbols.parentSymbolIfKnown(for: member) == owner)
+            #expect(symbols.parentSymbolIfKnown(for: property) == owner)
+            #expect(symbols.parentSymbolIfKnown(for: ext) == owner)
+            #expect(symbols.parentSymbolIfKnown(for: memberExtension) == owner)
+            #expect(symbols.parentSymbolIfKnown(for: nested) == owner)
+            #expect(symbols.children(of: owner) == [member, property, ext, memberExtension, nested])
+            #expect(symbols.externalLinkNameIfKnown(for: member) == "scan_member")
+            #expect(symbols.functionSignatureIfKnown(for: member) == nil)
+            #expect(symbols.mayHaveImportedInitializers(for: owner) == oldInitializerIndex)
+            _ = TypeCheckScopeBuilder().collectLibraryTopLevelSymbolsByPackage(sema: sema, interner: ctx.interner)
+            #expect(work.importedBindings.allSatisfy { !$0.isMaterialized })
+
+            try BuildKIRPhase().run(ctx)
+            let module = try #require(ctx.kir)
+            let passContext = makeKIRContext(from: ctx)
+            try PropertyLoweringPass().run(module: module, ctx: passContext)
+            try ABILoweringPass().run(module: module, ctx: passContext)
+            for binding in work.importedBindings where [member, property, ext, memberExtension].contains(binding.symbol) {
+                #expect(!binding.isMaterialized)
+            }
+            let ownerBinding = try #require(work.importedBindings.first { $0.symbol == owner })
+            #expect(ownerBinding.isMaterialized == oldInitializerIndex)
+            let initializerCalls = module.arena.declarations.compactMap { $0.function }.flatMap(\.body).contains {
+                guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+                return ctx.interner.resolve(callee) == "scan_object_init"
+            }
+            #expect(initializerCalls)
+            #expect(!ctx.diagnostics.hasError)
+        }
+    }
+
+    @Test func compactIndexRetainsAllEagerInitializerLinks() throws {
+        let record = MetadataRecord(
+            kind: .enumClass, mangledName: "_enum", fqName: "scan.Enum",
+            arity: 0, isSuspend: false, objectInitializerLinkName: "object_init",
+            companionInitializerLinkName: "companion_init", enumStaticInitLinkName: "enum_init"
+        )
+        let indexed = try #require(IndexedMetadataFile(data: Data(MetadataEncoder().serializeIndexed([record]).utf8)))
+        let entry = try #require(indexed.entries.first)
+        #expect(entry.hasCompleteInitializerInfo)
+        #expect(entry.record.objectInitializerLinkName == "object_init")
+        #expect(entry.record.companionInitializerLinkName == "companion_init")
+        #expect(entry.record.enumStaticInitLinkName == "enum_init")
+    }
+
+    @Test func defaultArgumentScanLoadsDemandedBaseAndPreservesOriginalOwner() {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let types = TypeSystem()
+        func define(_ name: String, kind: SymbolKind, flags: SymbolFlags = []) -> SymbolID {
+            let fqName = name.split(separator: ".").map { interner.intern(String($0)) }
+            return symbols.define(kind: kind, name: fqName.last!, fqName: fqName, declSite: nil, visibility: .public, flags: flags)
+        }
+        let a = define("A", kind: .class)
+        let b = define("B", kind: .class)
+        let c = define("C", kind: .class)
+        // Visit the most-derived override first to exercise deferred snapshots.
+        let cFunction = define("C.f", kind: .function, flags: [.overrideMember])
+        let bFunction = define("B.f", kind: .function, flags: [.overrideMember])
+        let aFunction = define("A.f", kind: .function, flags: [.synthetic, .importedLibrary])
+        let unused = define("unused", kind: .function, flags: [.synthetic, .importedLibrary])
+        symbols.setParentSymbol(a, for: aFunction)
+        symbols.setParentSymbol(b, for: bFunction)
+        symbols.setParentSymbol(c, for: cFunction)
+        symbols.setDirectSupertypes([a], for: b)
+        symbols.setDirectSupertypes([b], for: c)
+        for function in [bFunction, cFunction] {
+            symbols.setFunctionSignature(FunctionSignature(parameterTypes: [types.intType], returnType: types.intType, valueParameterHasDefaultValues: [false]), for: function)
+        }
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader(alreadyLoaded: [a, b, c, bFunction, cFunction]) { symbol in
+            loaded.append(symbol)
+            if symbol == aFunction {
+                symbols.setFunctionSignature(FunctionSignature(parameterTypes: [types.intType], returnType: types.intType, valueParameterHasDefaultValues: [true]), for: symbol)
+            }
+        }
+        DataFlowSemaPhase().inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+        for function in [bFunction, cFunction] {
+            #expect(symbols.functionSignatureIfKnown(for: function)?.valueParameterHasDefaultValues == [true])
+            #expect(symbols.overrideDefaultsBaseSymbol(for: function) == aFunction)
+        }
+        #expect(loaded == [aFunction])
+        #expect(symbols.functionSignatureIfKnown(for: unused) == nil)
+    }
+
+    @Test func metadataExportFilteringDoesNotLoadExcludedImports() {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        _ = symbols.define(kind: .function, name: interner.intern("unused"), fqName: [interner.intern("unused")], declSite: nil, visibility: .public, flags: [.synthetic, .importedLibrary])
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { loaded.append($0) }
+        let records = MetadataEncoder().buildRecords(
+            symbols: symbols, types: TypeSystem(), moduleName: "Scan",
+            interner: interner, functionLinkNames: [:], includeSynthetic: false
+        )
+        #expect(records.isEmpty)
+        #expect(loaded.isEmpty)
+    }
+
+    @Test func defaultArgumentScanDoesNotLoadUnrelatedFunctions() {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let function = symbols.define(kind: .function, name: interner.intern("unused"), fqName: [interner.intern("unused")], declSite: nil, visibility: .public, flags: [.importedLibrary])
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { loaded.append($0) }
+        DataFlowSemaPhase().inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: TypeSystem())
+        #expect(symbols.functionSignatureIfKnown(for: function) == nil)
+        #expect(loaded.isEmpty)
+    }
+}

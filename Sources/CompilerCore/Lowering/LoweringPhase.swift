@@ -89,23 +89,25 @@ public final class LoweringPhase: CompilerPhase {
         // provide deterministic ID assignment.
         for pass in passes {
             let passType = type(of: pass)
-            try module.validateLoweringStage(
-                passName: passType.name,
-                required: passType.requiredStage,
-                produced: passType.producedStage
-            )
-            if pass.shouldRun(module: module, ctx: kirCtx) {
-                try pass.run(module: module, ctx: kirCtx)
-                // A pass that ran may have synthesized instructions the
-                // pre-pipeline scan never saw; drop the snapshot so the next
-                // `shouldRun` gate re-scans lazily instead of skipping on
-                // stale features (e.g. IntegerNarrowing after data-class
-                // hashCode synthesis in a module with no user arithmetic).
-                module.invalidateFeatureScan()
-            } else {
-                module.recordLowering(type(of: pass).name)
+            try withSubPhaseTiming(passType.name, timer: ctx.phaseTimer) {
+                try module.validateLoweringStage(
+                    passName: passType.name,
+                    required: passType.requiredStage,
+                    produced: passType.producedStage
+                )
+                if pass.shouldRun(module: module, ctx: kirCtx) {
+                    try pass.run(module: module, ctx: kirCtx)
+                    // A pass that ran may have synthesized instructions the
+                    // pre-pipeline scan never saw; drop the snapshot so the next
+                    // `shouldRun` gate re-scans lazily instead of skipping on
+                    // stale features (e.g. IntegerNarrowing after data-class
+                    // hashCode synthesis in a module with no user arithmetic).
+                    module.invalidateFeatureScan()
+                } else {
+                    module.recordLowering(type(of: pass).name)
+                }
+                module.advanceLoweringStage(to: passType.producedStage)
             }
-            module.advanceLoweringStage(to: passType.producedStage)
         }
         if KIRVerifier.isEnabled {
             let failures = KIRVerifier.verify(

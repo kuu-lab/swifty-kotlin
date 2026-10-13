@@ -38,7 +38,7 @@ struct ConstantCollectorTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedPosCtx = Result<CompilationContext, any Error> {
+    private static let _sharedPosCtx = Result<CompilationContext, any Error> {
         let ctx = makeContextFromSources(Self.sharedPosSources)
         try runSema(ctx)
         return ctx
@@ -52,7 +52,7 @@ struct ConstantCollectorTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedNegCtx = Result<CompilationContext, any Error> {
+    private static let _sharedNegCtx = Result<CompilationContext, any Error> {
         let ctx = makeContextFromSources(Self.sharedNegSources)
         try runSema(ctx)
         return ctx

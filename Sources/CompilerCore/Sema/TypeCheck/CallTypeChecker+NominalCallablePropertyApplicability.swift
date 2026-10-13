@@ -63,7 +63,7 @@ extension CallTypeChecker {
                 candidates: [candidate],
                 call: CallExpr(range: request.range, calleeName: invoke, args: callArgs, explicitTypeArgs: request.explicitTypeArgs),
                 expectedType: nil, implicitReceiverType: type,
-                candidateArgumentTypes: [candidate: replacements], ctx: ctx.semaCtx
+                candidateArgumentTypes: [candidate: replacements], ctx: ctx.sema
             )
             if !probe.viableCandidates.isEmpty { return true }
         }

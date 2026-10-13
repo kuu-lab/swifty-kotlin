@@ -757,43 +757,33 @@ struct LinkPhaseIntegrationTests {
 
     @Test
     func testLinkPhaseReportsDiagnosticForUnsupportedTargetArchitecture() throws {
-        let tempObjectURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
-        try Data().write(to: tempObjectURL)
+        try withTemporaryFile(contents: "fun main() {}") { inputPath in
+            let tempObjectURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
+            try Data().write(to: tempObjectURL)
+            defer { try? FileManager.default.removeItem(at: tempObjectURL) }
 
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let mainSym = SymbolID(rawValue: 99)
-        let mainDecl = arena.appendDecl(.function(KIRFunction(
-            symbol: mainSym,
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [.returnUnit],
-            isSuspend: false,
-            isInline: false
-        )))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainDecl])], arena: arena)
+            let options = CompilerOptions(
+                moduleName: "BadTarget",
+                inputs: [inputPath],
+                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+                emit: .executable,
+                target: TargetTriple(arch: "definitely-bad-arch", vendor: "apple", os: "macosx", osVersion: nil),
+                includeStdlib: false
+            )
+            let ctx = CompilationContext(
+                options: options, sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(), interner: StringInterner()
+            )
+            // Entry resolution needs real AST/bindings; a KIR-only fixture
+            // reports missing main before it can exercise target diagnostics.
+            try runToKIR(ctx)
+            ctx.generatedObjectPath = tempObjectURL.path
 
-        let badTargetOptions = CompilerOptions(
-            moduleName: "BadTarget",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-            emit: .executable,
-            target: TargetTriple(arch: "definitely-bad-arch", vendor: "apple", os: "macosx", osVersion: nil)
-        )
-        let badTargetCtx = CompilationContext(
-            options: badTargetOptions,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        badTargetCtx.generatedObjectPath = tempObjectURL.path
-        badTargetCtx.kir = module
-
-        #expect(throws: (any Error).self) {
-            try LinkPhase().run(badTargetCtx)
+            #expect(throws: (any Error).self) {
+                try LinkPhase().run(ctx)
+            }
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0001" })
         }
-        #expect(badTargetCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LINK-0001" })
     }
 
     #if os(macOS)

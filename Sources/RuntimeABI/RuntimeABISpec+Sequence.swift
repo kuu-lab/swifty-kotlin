@@ -723,16 +723,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_intersect",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
         sequenceElementAtOrNullSpec,
         RuntimeABIFunctionSpec(
             name: "kk_sequence_elementAt",
@@ -1013,28 +1003,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
                 RuntimeABIParameter(name: "element", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        // STDLIB-SEQ-FN-130: Sequence.union(other)
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_union",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        // STDLIB-SEQ-FN-115: Sequence.subtract(other)
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_subtract",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Sequence",

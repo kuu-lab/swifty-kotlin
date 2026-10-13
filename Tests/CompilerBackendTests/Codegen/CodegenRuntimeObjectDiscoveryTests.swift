@@ -363,7 +363,7 @@ struct CodegenRuntimeObjectDiscoveryTests {
             atomically: true,
             encoding: .utf8
         )
-        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics"] {
+        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics", "Sources/CSQLite"] {
             try fileManager.createDirectory(
                 at: root.appendingPathComponent(component, isDirectory: true),
                 withIntermediateDirectories: true
