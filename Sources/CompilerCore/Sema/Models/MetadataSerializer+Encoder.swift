@@ -279,7 +279,7 @@ package final class MetadataEncoder {
             types: types
         )
         return mangler.encodeType(
-            expandedType,
+            types.approximatingCapturedTypes(in: expandedType),
             symbols: symbols,
             types: types,
             nameResolver: nameResolver,

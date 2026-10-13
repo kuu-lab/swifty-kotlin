@@ -114,11 +114,21 @@ extension TypeArg {
 public struct TypeParamType: Hashable, Sendable {
     public let symbol: SymbolID
     public let nullability: Nullability
+    /// An existential parameter captured from a use-site projection. Its identity
+    /// is local to inference; the declaration symbol still supplies ABI erasure.
+    public let capture: CapturedTypeBounds?
 
-    public init(symbol: SymbolID, nullability: Nullability = .nonNull) {
+    public init(symbol: SymbolID, nullability: Nullability = .nonNull, capture: CapturedTypeBounds? = nil) {
         self.symbol = symbol
         self.nullability = nullability
+        self.capture = capture
     }
+}
+
+public struct CapturedTypeBounds: Hashable, Sendable {
+    public let identity: Int
+    public let lower: TypeID
+    public let upper: TypeID
 }
 
 public struct FunctionType: Hashable, Sendable, CustomStringConvertible {

@@ -656,7 +656,7 @@ extension DataFlowSemaPhase {
         case let .classType(ct):
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
         case let .typeParam(tp):
-            return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable)))
+            return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable, capture: tp.capture)))
         case let .functionType(ft):
             return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
