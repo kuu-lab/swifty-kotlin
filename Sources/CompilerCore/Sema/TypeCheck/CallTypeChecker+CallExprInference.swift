@@ -74,6 +74,12 @@ extension CallTypeChecker {
         ) {
             return builderType
         }
+        if let memberType = inferPostponedImplicitReceiverMemberCall(
+            id, calleeName: calleeName, args: args, range: range,
+            ctx: ctx, locals: &locals, explicitTypeArgs: explicitTypeArgs
+        ) {
+            return memberType
+        }
         if let customBuilderType = inferExperimentalBuilderCallExpr(
             id,
             calleeName: calleeName,

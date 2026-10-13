@@ -266,22 +266,25 @@ extension CallTypeChecker {
                    let bestCandidate = regularMemberCandidates.first,
                    let sig = sema.symbols.functionSignature(for: bestCandidate)
                 {
-                    // Fallback: bind directly if resolver could not pick (single candidate).
-                    var mapping: [Int: Int] = [:]
-                    for i in args.indices { mapping[i] = i }
-                    sema.bindings.bindCall(
-                        id,
-                        binding: CallBinding(
-                            chosenCallee: bestCandidate,
-                            substitutedTypeArguments: [],
-                            parameterMapping: mapping
-                        )
-                    )
-                    sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
-                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-                    let resultType = sig.returnType
-                    sema.bindings.bindExprType(id, type: resultType)
-                    return resultType
+                    if sig.classTypeParameterCount > 0 {
+                        if let result = bindClassOnlyImplicitReceiverMemberFallback(
+                            id, chosen: bestCandidate, calleeName: calleeName,
+                            args: args, argTypes: memberArgTypes, range: range,
+                            receiverType: nonNullReceiver, explicitTypeArgs: explicitTypeArgs, ctx: ctx
+                        ) {
+                            return result
+                        }
+                    } else {
+                        // Preserve the existing fallback for non-generic members.
+                        let mapping = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                        sema.bindings.bindCall(id, binding: CallBinding(
+                            chosenCallee: bestCandidate, substitutedTypeArguments: [], parameterMapping: mapping
+                        ))
+                        sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
+                        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                        sema.bindings.bindExprType(id, type: sig.returnType)
+                        return sig.returnType
+                    }
                 }
             }
             // Kotlin's implicit-receiver tower: when the innermost receiver

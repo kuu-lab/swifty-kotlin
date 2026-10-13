@@ -289,7 +289,7 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID {
-        if request.ctx.interner.resolve(request.calleeName) == "transform",
+        if ["transform", "transformLatest"].contains(request.ctx.interner.resolve(request.calleeName)),
            case let .classType(receiverClass) = request.ctx.sema.types.kind(
                of: request.ctx.sema.types.makeNonNullable(receiverType)
            ),
@@ -304,7 +304,7 @@ extension CallTypeChecker {
                 request.ctx.interner.intern("kotlinx"),
                 request.ctx.interner.intern("coroutines"),
                 request.ctx.interner.intern("flow"),
-                request.ctx.interner.intern("transform"),
+                request.calleeName,
             ]).filter { candidate in
                 guard let symbol = request.ctx.sema.symbols.symbol(candidate),
                       symbol.kind == .function,

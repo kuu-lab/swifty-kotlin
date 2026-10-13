@@ -143,28 +143,39 @@ extension CallTypeChecker {
                    ).isEmpty,
                    let calleeName
                 {
-                    // The merged implicit-receiver member failed constraint
-                    // solving — e.g. `FlowCollector<R>.emit` inside
-                    // `transform`, where `R` is an outer call's type parameter
-                    // opaque to this resolver. The general member path below
-                    // would still bind such a lone member leniently; mirror
-                    // that fallback here so the call is not hard-errored.
-                    // Concrete argument mismatches must still be rejected.
-                    var mapping: [Int: Int] = [:]
-                    for i in args.indices { mapping[i] = i }
-                    sema.bindings.bindCall(
-                        id,
-                        binding: CallBinding(
-                            chosenCallee: bestCandidate,
-                            substitutedTypeArguments: [],
-                            parameterMapping: mapping
+                    if signature.classTypeParameterCount > 0 {
+                        if let receiver = callImplicitReceiverType,
+                           let result = bindClassOnlyImplicitReceiverMemberFallback(
+                               id, chosen: bestCandidate, calleeName: calleeName,
+                               args: args, argTypes: argTypes, range: range,
+                               receiverType: receiver, explicitTypeArgs: explicitTypeArgs, ctx: ctx
+                           ) {
+                            return result
+                        }
+                    } else {
+                        // The merged implicit-receiver member failed constraint
+                        // solving — e.g. `FlowCollector<R>.emit` inside
+                        // `transform`, where `R` is an outer call's type parameter
+                        // opaque to this resolver. The general member path below
+                        // would still bind such a lone member leniently; mirror
+                        // that fallback here so the call is not hard-errored.
+                        // Concrete argument mismatches must still be rejected.
+                        var mapping: [Int: Int] = [:]
+                        for i in args.indices { mapping[i] = i }
+                        sema.bindings.bindCall(
+                            id,
+                            binding: CallBinding(
+                                chosenCallee: bestCandidate,
+                                substitutedTypeArguments: [],
+                                parameterMapping: mapping
+                            )
                         )
-                    )
-                    sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
-                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-                    let resultType = signature.returnType
-                    sema.bindings.bindExprType(id, type: resultType)
-                    return resultType
+                        sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
+                        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                        let resultType = signature.returnType
+                        sema.bindings.bindExprType(id, type: resultType)
+                        return resultType
+                    }
                 }
                 if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
                    let calleeName,
@@ -289,14 +300,7 @@ extension CallTypeChecker {
             // the same convention for its suspend TestScope receiver. Mark the
             // lambda only after overload resolution selects the bundled
             // declaration, so a same-named user function keeps the regular ABI.
-            if isSourceBackedProducerFlowBuilder(chosen, ctx: ctx)
-            {
-                for argument in args {
-                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
-                        sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
-                    }
-                }
-            }
+            markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
             // ANNO-001: Check for @Deprecated annotation on the resolved callee.
             driver.helpers.checkDeprecation(
                 for: chosen,

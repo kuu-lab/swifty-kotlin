@@ -31,6 +31,37 @@ extension CallTypeChecker {
     ) -> PreparedCallArguments {
         let ast = ctx.ast
         let sema = ctx.sema
+        var expectedTypeOverrides = expectedTypeOverrides
+        if ctx.builderInference != nil,
+           candidates.count == 1, let candidate = candidates.first,
+           sema.symbols.symbol(candidate)?.kind != .constructor,
+           let signature = sema.symbols.functionSignature(for: candidate),
+           signature.classTypeParameterCount > 0,
+           signature.typeParameterSymbols.count == signature.classTypeParameterCount,
+           sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+           let receiver = receiverType ?? ctx.implicitReceiverType,
+           let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
+        {
+            for (argument, parameter) in mapping where expectedTypeOverrides[argument] == nil {
+                guard let sourceType = contextualCallArgumentType(
+                    args[argument], parameterIndex: parameter, in: signature, ctx: ctx
+                ) else { continue }
+                let specializedType = applyReceiverClassTypeArgs(
+                    to: sourceType, signature: signature, candidate: candidate,
+                    receiverType: receiver, sema: sema
+                )
+                guard ctx.builderInference?.mentionsVariable(specializedType, types: sema.types) != true else { continue }
+                switch ast.arena.expr(args[argument].expr) {
+                case .intLiteral, .uintLiteral:
+                    expectedTypeOverrides[argument] = specializedType
+                case let .unaryExpr(op, operand, _) where op == .unaryPlus || op == .unaryMinus:
+                    if case .intLiteral = ast.arena.expr(operand) {
+                        expectedTypeOverrides[argument] = specializedType
+                    }
+                default: break
+                }
+            }
+        }
 
         var inferredNonLambdaArgTypes = preInferredNonLambdaArgTypes
         var lambdaLiteralIndices: Set<Int> = []
@@ -386,7 +417,7 @@ extension CallTypeChecker {
         return PreparedCallArguments(
             argTypes: collectPostponedArgumentConstraints(
                 args: args, range: callRange, argTypes: refinedArgTypes, candidates: candidates,
-                ctx: ctx
+                receiverType: receiverType, ctx: ctx
             ),
             lambdaLiteralIndices: lambdaLiteralIndices,
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,

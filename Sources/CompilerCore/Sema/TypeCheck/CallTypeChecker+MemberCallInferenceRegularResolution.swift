@@ -114,7 +114,10 @@ extension CallTypeChecker {
             // inferred member is available. Re-read names and retry inferable
             // nested calls whose cached result still contains an error.
             let inferredType: TypeID
-            if case .nameRef = ast.arena.expr(arg.expr) {
+            if ctx.builderInference != nil || {
+                if case .nameRef = ast.arena.expr(arg.expr) { return true }
+                return false
+            }() {
                 inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
             } else if let boundType = sema.bindings.exprType(for: arg.expr) {
                 if typeContainsErrorType(boundType, sema: sema),
