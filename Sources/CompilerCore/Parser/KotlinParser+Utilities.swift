@@ -123,16 +123,18 @@ extension KotlinParser {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            // Only a proven parameter prefix at '(' or after a parameter
-            // comma may cross a declaration-looking newline. Keep the usual
-            // recovery boundary for a missing ')' and following declarations.
+            // A proven parameter prefix or anonymous default expression may
+            // cross a declaration-looking newline. Keep recovery boundaries
+            // for a missing ')' and following named declarations.
             if parsesConstructorParameters, closingSymbols.count == 1, atConstructorParameterStart {
                 constructorParameterPrefixEnd = lookaheadConstructorParameterPrefixEnd()
             }
             let isConstructorParameterPrefix = parsesConstructorParameters
                 && constructorParameterPrefixEnd.map { stream.index < $0 } == true
+            let isConstructorDefaultExpressionStart = parsesConstructorParameters
+                && constructorInDefaultValue && startsAnonymousConstructorDefault()
             if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token),
-               !isConstructorParameterPrefix {
+               !isConstructorParameterPrefix, !isConstructorDefaultExpressionStart {
                 break
             }
 
@@ -178,6 +180,16 @@ extension KotlinParser {
             range: stream.peek().rangeIfAvailable
         )
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
+    }
+
+    private func startsAnonymousConstructorDefault() -> Bool {
+        // Limit shielding to the first token after '='. A completed default
+        // must not hide a following declaration when ')' is missing.
+        guard lastConsumedToken?.kind == .symbol(.assign) else { return false }
+        if stream.peek().kind == .keyword(.fun) {
+            return stream.peek(1).kind == .symbol(.lParen)
+        }
+        return isObjectExpressionStart(stream.peek())
     }
 
     /// Called once per constructor parameter boundary; the cached end also
