@@ -262,7 +262,9 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         // STDLIB-581: Charsets.UTF_8 / ISO_8859_1 / US_ASCII / UTF_16 / ...
         if let parentInfo = sema.symbols.symbol(parent),
-           parentInfo.name == knownNames.charsets
+           parentInfo.name == knownNames.charsets,
+           parentInfo.fqName.map(interner.resolve) == ["kotlin", "text", "Charsets"],
+           !sema.symbols.isSourceBackedSymbol(valueSym)
         {
             let runtimeCallee = interner.intern("__kk_charset_\(interner.resolve(info.name).lowercased())")
             let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
