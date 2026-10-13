@@ -65,13 +65,22 @@ private struct LLVMEntryPointConstants {
 struct LLVMEntryPointObjectEmitter {
     private let bindings: LLVMCAPIBindings
     private let target: TargetTriple
+    private let phaseTimer: PhaseTimer?
     private let takesArguments: Bool
     private let panicMessageText = "KSwiftK panic [KSWIFTK-LINK-0003]: Unhandled top-level exception\n"
 
-    init(target: TargetTriple, takesArguments: Bool = false) throws {
-        guard let bindings = LLVMCAPIBindings.loadUsable() else {
+    init(
+        target: TargetTriple,
+        takesArguments: Bool = false,
+        phaseTimer: PhaseTimer? = nil,
+        session: LLVMBackendSession = LLVMBackendSession()
+    ) throws {
+        guard let bindings = PhaseTimer.measureSubPhase("entry/backend init", timer: phaseTimer, {
+            session.loadBindings()
+        }) else {
             throw LLVMEntryPointObjectEmitterError.bindingsUnavailable
         }
+        self.phaseTimer = phaseTimer
         self.bindings = bindings
         self.target = target
         self.takesArguments = takesArguments
@@ -92,7 +101,9 @@ struct LLVMEntryPointObjectEmitter {
             // scopes still permits another worker to mutate that state while
             // this wrapper is using it.
             try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-                try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+                try PhaseTimer.measureSubPhase("entry emission", timer: phaseTimer) {
+                    try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+                }
             }
         } catch {
             // On success the caller owns the directory and removes it after linking; on failure it
@@ -133,7 +144,9 @@ struct LLVMEntryPointObjectEmitter {
         let triple = CodegenRuntimeSupport.targetTripleString(target)
         bindings.setTarget(module, triple: triple)
 
-        guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: .O0) else {
+        guard let targetMachine = PhaseTimer.measureSubPhase("entry/target machine", timer: phaseTimer, {
+            bindings.createTargetMachine(triple: triple, optLevel: .O0)
+        }) else {
             throw LLVMEntryPointObjectEmitterError.emissionFailed("failed to create LLVM target machine for entry wrapper")
         }
         defer {
@@ -161,11 +174,9 @@ struct LLVMEntryPointObjectEmitter {
             functions: functions
         )
 
-        if let errorMessage = bindings.emitObject(
-            targetMachine: targetMachine,
-            module: module,
-            outputPath: objectURL.path
-        ) {
+        if let errorMessage = PhaseTimer.measureSubPhase("entry/object write", timer: phaseTimer, {
+            bindings.emitObject(targetMachine: targetMachine, module: module, outputPath: objectURL.path)
+        }) {
             throw LLVMEntryPointObjectEmitterError.emissionFailed(errorMessage)
         }
     }

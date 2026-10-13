@@ -11,20 +11,18 @@ func findKIRFunction(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws -> KIRFunction {
-    try CompilerTestSupport.findKIRFunction(named: name, in: module, interner: interner, file: file, line: line)
+    try CompilerTestSupport.findKIRFunction(named: name, in: module, interner: interner, sourceLocation: sourceLocation)
 }
 
 func findKIRFunctionBody(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws -> [KIRInstruction] {
-    try CompilerTestSupport.findKIRFunctionBody(named: name, in: module, interner: interner, file: file, line: line)
+    try CompilerTestSupport.findKIRFunctionBody(named: name, in: module, interner: interner, sourceLocation: sourceLocation)
 }
 
 func extractCallees(
@@ -51,31 +49,16 @@ func extractThrowFlags(
     CompilerTestSupport.extractThrowFlags(from: body, interner: interner)
 }
 
-private func exprID(
+func firstExprID(
     in ast: ASTModule,
-    scanning indices: some Sequence<Int>,
     where predicate: (ExprID, Expr) -> Bool
 ) -> ExprID? {
-    for index in indices {
+    for index in ast.arena.exprs.indices {
         let exprID = ExprID(rawValue: Int32(index))
         guard let expr = ast.arena.expr(exprID) else { continue }
         if predicate(exprID, expr) { return exprID }
     }
     return nil
-}
-
-func firstExprID(
-    in ast: ASTModule,
-    where predicate: (ExprID, Expr) -> Bool
-) -> ExprID? {
-    exprID(in: ast, scanning: ast.arena.exprs.indices, where: predicate)
-}
-
-func lastExprID(
-    in ast: ASTModule,
-    where predicate: (ExprID, Expr) -> Bool
-) -> ExprID? {
-    exprID(in: ast, scanning: ast.arena.exprs.indices.reversed(), where: predicate)
 }
 
 /// First call expression whose callee is a bare name reference to `name`.

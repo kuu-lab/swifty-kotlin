@@ -6,7 +6,6 @@ import Foundation
 import Testing
 
 @Suite struct CodegenBackendIntegrationTests {
-    private let pipelineHelper = CodegenBackendTestSupport()
     @Test
     func testCodegenEmitsKirDumpArtifact() throws {
         let source = """
@@ -18,7 +17,7 @@ import Testing
             let tempDir = FileManager.default.temporaryDirectory
 
             let kirBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "KirMod", emit: .kirDump, outputPath: kirBase)
+            _ = try runCodegenPipeline(inputPath: path, moduleName: "KirMod", emit: .kirDump, outputPath: kirBase, stdlibLibraryPath: try testStdlibArtifactPath())
             #expect(FileManager.default.fileExists(atPath: kirBase + ".kir"))
         }
     }
@@ -33,7 +32,7 @@ import Testing
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let llvmBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            let llvmCtx = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "LLMod", emit: .llvmIR, outputPath: llvmBase)
+            let llvmCtx = try runCodegenPipeline(inputPath: path, moduleName: "LLMod", emit: .llvmIR, outputPath: llvmBase, stdlibLibraryPath: try testStdlibArtifactPath())
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             #expect(llvmPath.hasSuffix(".ll"))
             #expect(FileManager.default.fileExists(atPath: llvmPath))
@@ -50,7 +49,7 @@ import Testing
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let libBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "LibMod", emit: .library, outputPath: libBase)
+            _ = try runCodegenPipeline(inputPath: path, moduleName: "LibMod", emit: .library, outputPath: libBase, stdlibLibraryPath: try testStdlibArtifactPath())
 
             let libDir = libBase + ".kklib"
             let manifestPath = libDir + "/manifest.json"
@@ -88,7 +87,7 @@ import Testing
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let libBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase)
+            _ = try runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase, stdlibLibraryPath: try testStdlibArtifactPath())
 
             let metadataPath = libBase + ".kklib/metadata.bin"
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
@@ -186,11 +185,12 @@ import Testing
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
+            let ctx = try runCodegenPipeline(
                 inputPath: path,
                 moduleName: "StringStdlibMixedThrowCalls",
                 emit: .object,
-                outputPath: outputBase
+                outputPath: outputBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let objectPath = try #require(ctx.generatedObjectPath)
             #expect(FileManager.default.fileExists(atPath: objectPath))
@@ -215,11 +215,12 @@ import Testing
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
+            let ctx = try runCodegenPipeline(
                 inputPath: path,
                 moduleName: "MathTopLevelCalls",
                 emit: .object,
-                outputPath: outputBase
+                outputPath: outputBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let objectPath = try #require(ctx.generatedObjectPath)
             #expect(FileManager.default.fileExists(atPath: objectPath))
@@ -1332,28 +1333,6 @@ import Testing
     }
     // MARK: - Private Helpers
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
-
     private func assertDeterministicCodegenOutput(source: String, emit: EmitMode) throws {
         try withTemporaryFile(contents: source) { path in
             let fm = FileManager.default
@@ -1435,11 +1414,12 @@ import Testing
     }
 
     private func readCodegenArtifact(inputPath: String, emit: EmitMode, outputPath: String) throws -> Data {
-        let ctx = try pipelineHelper.runCodegenPipeline(
+        let ctx = try runCodegenPipeline(
             inputPath: inputPath,
             moduleName: "Determinism",
             emit: emit,
-            outputPath: outputPath
+            outputPath: outputPath,
+            stdlibLibraryPath: try testStdlibArtifactPath(),
         )
 
         let artifactPath: String

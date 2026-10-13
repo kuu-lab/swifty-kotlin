@@ -97,6 +97,17 @@ public fun <T> Array<T>.lastIndexOf(element: T): Int {
     return -1
 }
 
+// KUU-1889: keep the standard covariant receiver and stop at the first match.
+public inline fun <T> Array<out T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
 // KSP-433: predicate-based search / quantifier HOFs are source-backed.
 // Exception messages match kotlinc's Array wording
 // ("Array is empty." / "Array contains no element matching the predicate.").

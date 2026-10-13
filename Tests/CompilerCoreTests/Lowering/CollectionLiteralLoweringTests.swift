@@ -5,6 +5,40 @@ import Testing
 
 @Suite
 struct CollectionLiteralLoweringTests {
+    /// KUU-1939: known bare names must not replace a resolved user constructor.
+    @Test(arguments: ["HashSet", "LinkedHashSet", "HashMap", "LinkedHashMap"], [false, true])
+    func userCollectionConstructorsKeepTheirCalls(name: String, includeSymbol: Bool) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let ownerFQName = ["mypkg", name].map(interner.intern)
+        let owner = symbols.define(
+            kind: .class, name: interner.intern(name), fqName: ownerFQName,
+            declSite: nil, visibility: .public, flags: []
+        )
+        let constructor = symbols.define(
+            kind: .constructor, name: interner.intern(name),
+            fqName: ownerFQName + [interner.intern("<init>")],
+            declSite: nil, visibility: .public, flags: []
+        )
+        symbols.setParentSymbol(owner, for: constructor)
+        let type = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+        let receiver = arena.appendExpr(.temporary(0), type: type)
+        let result = arena.appendExpr(.temporary(1), type: type)
+        let iterator = arena.appendExpr(.temporary(2))
+        let (module, declID) = makeModule(body: [
+            .call(symbol: includeSymbol ? constructor : nil, callee: interner.intern(name),
+                  arguments: [receiver], result: result, canThrow: true, thrownResult: nil),
+            .virtualCall(symbol: nil, callee: interner.intern("iterator"), receiver: result,
+                         arguments: [], result: iterator, canThrow: true, thrownResult: nil,
+                         dispatch: .vtable(slot: 0)),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        let originalBody = bodyInDecl(declID, module: module)
+        try runPass(module: module, kirCtx: ctx)
+        #expect(bodyInDecl(declID, module: module) == originalBody)
+    }
+
     // MARK: - Helper
 
     private func makeModuleWithCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {

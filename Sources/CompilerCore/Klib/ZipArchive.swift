@@ -138,8 +138,6 @@ package struct ZipArchive {
         return contents
     }
 
-    // MARK: - Parsing helpers
-
     private static func findEndOfCentralDirectory(in bytes: [UInt8]) throws -> Int {
         // EOCD is 22 bytes + optional comment (up to 64KiB). Scan backwards
         // for the signature PK\x05\x06.
@@ -197,8 +195,6 @@ package struct ZipArchive {
             | UInt32(bytes[offset + 2]) << 16
             | UInt32(bytes[offset + 3]) << 24
     }
-
-    // MARK: - CRC-32 (IEEE, table-driven)
 
     private static let crcTable: [UInt32] = (0 ..< 256).map { value in
         var crc = UInt32(value)

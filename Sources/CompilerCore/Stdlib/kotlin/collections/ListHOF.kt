@@ -8,7 +8,7 @@ package kotlin.collections
 // NOTE: Runtime ABI entry points are intentionally kept as bridge/compatibility
 // helpers while stdlib-source dispatch is rolled out incrementally.
 
-public fun <T, R> List<T>.map(transform: (T) -> R): List<R> {
+public inline fun <T, R> List<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     while (i < size) { result.add(transform(this[i])); i += 1 }

@@ -5,6 +5,40 @@ import Testing
 
 extension CompilerCoreTests {
     @Test(arguments: [
+        ("visit({ 1 })", false), ("visit { 1 }", true),
+        ("visit<Int>({ 1 })", false), ("visit<Int> { 1 }", true),
+        ("visit<Int>() { 1 }", true), ("visit label@ { 1 }", true),
+        ("receiver.visit({ 1 })", false), ("receiver.visit { 1 }", true),
+        ("receiver?.visit<Int>({ 1 })", false), ("receiver?.visit<Int>() { 1 }", true),
+    ])
+    func testCallArgumentPreservesTrailingLambdaSyntaxThroughSerialization(
+        expression: String, trailing: Bool
+    ) throws {
+        let (ast, ctx) = try buildASTModule(from: "fun test() = \(expression)", includeStdlib: false)
+        #expect(!ctx.diagnostics.hasError)
+        let function = try #require(topLevelFunction(named: "test", in: ast, interner: ctx.interner))
+        guard case let .expr(callID, _) = function.body else {
+            Issue.record("Expected an expression body")
+            return
+        }
+        let args: [CallArgument]
+        switch ast.arena.expr(callID) {
+        case let .call(_, _, arguments, _),
+             let .memberCall(_, _, _, arguments, _),
+             let .safeMemberCall(_, _, _, arguments, _):
+            args = arguments
+        default:
+            Issue.record("Expected a call")
+            return
+        }
+        let argument = try #require(args.last)
+        #expect(argument.isTrailingLambda == trailing)
+        let restored = try JSONDecoder().decode([CallArgument].self, from: JSONEncoder().encode(args))
+        #expect(restored == args)
+        #expect(restored.last?.isTrailingLambda == trailing)
+    }
+
+    @Test(arguments: [
         "receiver.visit label@{ it }",
         "receiver.visit() label@{ it }",
         "receiver.visit(7) label@{ it }",

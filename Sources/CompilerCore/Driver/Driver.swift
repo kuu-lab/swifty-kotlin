@@ -103,6 +103,9 @@ public final class CompilerDriver {
     }
 
     private func isIncrementalEnabled(options: CompilerOptions) -> Bool {
+        if options.frontendFlags.contains("no-incremental") {
+            return false
+        }
         if options.incrementalCachePath != nil {
             return true
         }
@@ -827,10 +830,38 @@ public final class CompilerDriver {
             }
         }
 
+        func collectExpr(_ exprID: ExprID) {
+            collectExprDependencies(exprID: exprID, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+        }
+
+        func collectTypeRef(_ typeRefID: TypeRefID) {
+            collectTypeRefDependencies(typeRefID: typeRefID, ast: ast, interner: interner, depended: &depended)
+        }
+
         func collectTypeArgs(_ typeArgs: [TypeRefID]) {
             for typeArg in typeArgs {
-                collectTypeRefDependencies(typeRefID: typeArg, ast: ast, interner: interner, depended: &depended)
+                collectTypeRef(typeArg)
             }
+        }
+
+        func collectCallArgs(_ arguments: [CallArgument]) {
+            collectCallArguments(arguments, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+        }
+
+        func collectDecl(_ declID: DeclID) {
+            collectDeclDependencies(declID: declID, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+        }
+
+        func collectBody(_ body: FunctionBody) {
+            collectFunctionBodyDependencies(body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+        }
+
+        func collectParams(_ params: [ValueParamDecl]) {
+            collectValueParameterDependencies(params, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+        }
+
+        func collectTypeParams(_ params: [TypeParamDecl]) {
+            collectTypeParameterDependencies(params, ast: ast, interner: interner, depended: &depended)
         }
 
         switch expr {
@@ -841,149 +872,144 @@ public final class CompilerDriver {
         case let .stringTemplate(parts, _):
             for part in parts {
                 if case let .expression(expression) = part {
-                    collectExprDependencies(
-                        exprID: expression,
-                        ast: ast,
-                        interner: interner,
-                        availableSymbols: availableSymbols,
-                        depended: &depended
-                    )
+                    collectExpr(expression)
                 }
             }
         case let .nameRef(name, _):
             collectName(name)
         case let .forExpr(_, iterable, body, _, _), let .forDestructuringExpr(_, iterable, body, _):
-            collectExprDependencies(exprID: iterable, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectExprDependencies(exprID: body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(iterable)
+            collectExpr(body)
         case let .whileExpr(condition, body, _, _), let .doWhileExpr(body, condition, _, _):
-            collectExprDependencies(exprID: condition, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectExprDependencies(exprID: body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(condition)
+            collectExpr(body)
         case let .localDecl(_, _, typeAnnotation, initializer, _, _, _):
             if let typeAnnotation {
-                collectTypeRefDependencies(typeRefID: typeAnnotation, ast: ast, interner: interner, depended: &depended)
+                collectTypeRef(typeAnnotation)
             }
             if let initializer {
-                collectExprDependencies(exprID: initializer, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(initializer)
             }
         case let .localAssign(_, value, _), let .throwExpr(value, _), let .returnExpr(value: value?, _, _):
-            collectExprDependencies(exprID: value, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(value)
         case .returnExpr(value: nil, _, _):
             break
         case let .memberAssign(receiver, callee, value, _):
             collectName(callee)
-            collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectExprDependencies(exprID: value, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(receiver)
+            collectExpr(value)
         case let .indexedAssign(receiver, indices, value, _):
-            collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(receiver)
             for index in indices {
-                collectExprDependencies(exprID: index, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(index)
             }
-            collectExprDependencies(exprID: value, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(value)
         case let .call(callee, typeArgs, args, _):
             collectTypeArgs(typeArgs)
-            collectExprDependencies(exprID: callee, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectCallArguments(args, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(callee)
+            collectCallArgs(args)
         case let .memberCall(receiver, callee, typeArgs, args, _), let .safeMemberCall(receiver, callee, typeArgs, args, _):
             collectName(callee)
             collectTypeArgs(typeArgs)
-            collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectCallArguments(args, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(receiver)
+            collectCallArgs(args)
         case let .indexedAccess(receiver, indices, _):
-            collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(receiver)
             for index in indices {
-                collectExprDependencies(exprID: index, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(index)
             }
         case let .binary(_, lhs, rhs, _), let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
-            collectExprDependencies(exprID: lhs, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectExprDependencies(exprID: rhs, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(lhs)
+            collectExpr(rhs)
         case let .whenExpr(subject, branches, elseExpr, _):
             if let subject {
-                collectExprDependencies(exprID: subject, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(subject)
             }
             for branch in branches {
                 for condition in branch.conditions {
-                    collectExprDependencies(exprID: condition, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                    collectExpr(condition)
                 }
                 if let guardExpr = branch.guard_ {
-                    collectExprDependencies(exprID: guardExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                    collectExpr(guardExpr)
                 }
-                collectExprDependencies(exprID: branch.body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(branch.body)
             }
             if let elseExpr {
-                collectExprDependencies(exprID: elseExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(elseExpr)
             }
         case let .ifExpr(condition, thenExpr, elseExpr, _):
-            collectExprDependencies(exprID: condition, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectExprDependencies(exprID: thenExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(condition)
+            collectExpr(thenExpr)
             if let elseExpr {
-                collectExprDependencies(exprID: elseExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(elseExpr)
             }
         case let .tryExpr(body, catchClauses, finallyExpr, _):
-            collectExprDependencies(exprID: body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(body)
             for clause in catchClauses {
-                collectExprDependencies(exprID: clause.body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(clause.body)
                 if let paramType = clause.paramType {
-                    collectTypeRefDependencies(typeRefID: paramType, ast: ast, interner: interner, depended: &depended)
+                    collectTypeRef(paramType)
                 }
             }
             if let finallyExpr {
-                collectExprDependencies(exprID: finallyExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(finallyExpr)
             }
         case let .unaryExpr(_, operand, _), let .nullAssert(operand, _):
-            collectExprDependencies(exprID: operand, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(operand)
         case let .isCheck(expression, type, _, _), let .asCast(expression, type, _, _):
-            collectExprDependencies(exprID: expression, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectTypeRefDependencies(typeRefID: type, ast: ast, interner: interner, depended: &depended)
+            collectExpr(expression)
+            collectTypeRef(type)
         case let .compoundAssign(_, _, value, _):
-            collectExprDependencies(exprID: value, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(value)
         case let .indexedCompoundAssign(_, receiver, indices, value, _):
-            collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(receiver)
             for index in indices {
-                collectExprDependencies(exprID: index, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(index)
             }
-            collectExprDependencies(exprID: value, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(value)
         case let .memberCompoundAssign(_, receiver, callee, value, _):
             collectName(callee)
-            collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-            collectExprDependencies(exprID: value, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(receiver)
+            collectExpr(value)
         case let .lambdaLiteral(_, body, _, _):
-            collectExprDependencies(exprID: body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(body)
         case let .objectLiteral(superTypes, decl, _):
             for superType in superTypes {
-                collectTypeRefDependencies(typeRefID: superType, ast: ast, interner: interner, depended: &depended)
+                collectTypeRef(superType)
             }
             if let decl {
-                collectDeclDependencies(declID: decl, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectDecl(decl)
             }
         case let .callableRef(receiver, member, _):
             collectName(member)
             if let receiver {
-                collectExprDependencies(exprID: receiver, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(receiver)
             }
-        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _):
+        case let .localFunDecl(_, receiverType, valueParams, returnType, body, _, _, typeParams):
             if let receiverType {
-                collectTypeRefDependencies(typeRefID: receiverType, ast: ast, interner: interner, depended: &depended)
+                collectTypeRef(receiverType)
             }
-            collectValueParameterDependencies(valueParams, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectTypeParams(typeParams)
+            collectParams(valueParams)
             if let returnType {
-                collectTypeRefDependencies(typeRefID: returnType, ast: ast, interner: interner, depended: &depended)
+                collectTypeRef(returnType)
             }
-            collectFunctionBodyDependencies(body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectBody(body)
         case let .localNominalDecl(declID, _):
-            collectDeclDependencies(declID: declID, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectDecl(declID)
         case let .blockExpr(statements, trailingExpr, _):
             for statement in statements {
-                collectExprDependencies(exprID: statement, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(statement)
             }
             if let trailingExpr {
-                collectExprDependencies(exprID: trailingExpr, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+                collectExpr(trailingExpr)
             }
         case let .superRef(interfaceQualifier, _):
             if let interfaceQualifier {
                 collectName(interfaceQualifier)
             }
         case let .destructuringDecl(_, _, initializer, _):
-            collectExprDependencies(exprID: initializer, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
+            collectExpr(initializer)
         }
     }
 

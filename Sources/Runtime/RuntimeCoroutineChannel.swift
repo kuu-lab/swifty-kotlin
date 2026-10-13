@@ -5,7 +5,6 @@ import Foundation
 //
 // Split out from `RuntimeCoroutine.swift`.
 
-// MARK: - Channel Runtime (CORO-001)
 
 /// Out-of-band status codes returned by channel operations.
 /// The actual payload (when present) is written to an `outValue` pointer on receive,
@@ -791,7 +790,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         return (senderQueue.count, receiverQueue.count)
     }
 
-    // MARK: - Private helpers
 
     /// CORO-004: Resume a suspended sender using continuation model if available,
     /// falling back to semaphore for backward compatibility.
@@ -1204,7 +1202,6 @@ public func __kk_channel_cancel(_ handle: Int, _ cause: Int) -> Int {
     return channel.cancel(cause: cause) ? 1 : 0
 }
 
-// MARK: - ChannelResult Box (KSP-1572; close-cause extension KSP-1571)
 //
 // `ChannelResult<T>` is exposed to bundled Kotlin source as an opaque box
 // handle, mirroring `RuntimeResultBox` / `kotlin.Result`. The box pairs the
@@ -1393,7 +1390,6 @@ public func __kk_channel_result_get_or_throw(
     }
 }
 
-// MARK: - Channel Iterator (CORO-075)
 //
 // A lightweight wrapper that allows channels to participate in the
 // `kk_range_iterator` / `kk_range_hasNext` / `kk_range_next` loop protocol.
@@ -1507,7 +1503,6 @@ public func kk_channel_iterator_next(_ iterHandle: Int) -> Int {
     return iter.takeValue()
 }
 
-// MARK: - Channel exception constructor bridges (KUU-1404)
 //
 // Bundled `kotlinx.coroutines.channels.ClosedReceiveChannelException` /
 // `ClosedSendChannelException` declare these as `@KsSymbolName` constructor

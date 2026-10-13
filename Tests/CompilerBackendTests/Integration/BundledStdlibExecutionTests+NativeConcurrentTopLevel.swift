@@ -1,8 +1,10 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    @Test
-    func testNativeConcurrentTopLevelFunctionsExecuteThroughSourceWrappers() throws {
+    @Test(arguments: [false, true])
+    func testNativeConcurrentTopLevelFunctionsExecuteThroughSourceWrappers(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
         try compileAndRunKotlin(
             """
             @file:Suppress("DEPRECATION_ERROR")
@@ -25,7 +27,8 @@ extension BundledStdlibExecutionTests {
                 println(result)
             }
             """,
-            expectedOutput: "42\nstable\n1\n42\n"
+            expectedOutput: "42\nstable\n1\n42\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 }
