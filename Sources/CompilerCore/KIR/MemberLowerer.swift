@@ -670,6 +670,9 @@ final class MemberLowerer {
                 let typeParamSymbol = signature.typeParameterSymbols[index]
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParamSymbol)
                 params.append(KIRParameter(symbol: tokenSymbol, type: intType))
+                params.append(KIRParameter(
+                    symbol: SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParamSymbol), type: intType
+                ))
             }
         }
         let returnType = signature?.returnType ?? sema.types.unitType
