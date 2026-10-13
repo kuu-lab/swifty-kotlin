@@ -1432,16 +1432,7 @@ public func kk_channel_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: I
 /// the distinct entry point preserves the public ABI surface.
 @_cdecl("kk_callback_flow_create")
 public func kk_callback_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: Int) -> Int {
-    return runtimeRegisterFlowHandle(
-        RuntimeFlowHandle(
-            source: .channelProducer(
-                RuntimeChannelProducer(
-                    emitterFnPtr: emitterFnPtr,
-                    templateContinuation: emitterContinuation
-                )
-            )
-        )
-    )
+    kk_channel_flow_create(emitterFnPtr, emitterContinuation)
 }
 
 /// Return the flow-stop sentinel pointer. This is a unique object pointer that
