@@ -3,6 +3,14 @@
 import Testing
 
 @Suite struct CodegenBackendObjectLiteralInterfaceDelegationTests {
+    @Test func nestedMemberInterfaceDelegateExecutes() throws {
+        try compileAndRunKotlin(
+            diffCaseSource("object_literal_member_nested_interface_delegation.kt"),
+            expectedOutput: "1\n",
+            moduleName: "ObjectLiteralNestedInterfaceDelegation"
+        )
+    }
+
     @Test(arguments: [true, false])
     func anonymousObjectDelegateExecutes(_ allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

@@ -620,6 +620,11 @@ extension BuildASTPhase.ExpressionParser {
     private func topLevelDelegateIndex(in tokens: [Token]) -> Int? {
         var depth = BuildASTPhase.BracketDepth()
         for (index, token) in tokens.enumerated() {
+            if token.kind == .symbol(.assign), depth.isBracketBraceParenTopLevel {
+                // After `=`, `by` belongs to the initializer (for example,
+                // `object : Iface by impl {}`), not to the member property.
+                return nil
+            }
             if case .softKeyword(.by) = token.kind,
                depth.isBracketBraceParenTopLevel
             {
