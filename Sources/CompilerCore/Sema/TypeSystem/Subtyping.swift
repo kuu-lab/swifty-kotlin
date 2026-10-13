@@ -870,7 +870,8 @@ extension TypeSystem {
     /// input is a supertype of the other, but they share
     /// `CoroutineContext` above them. Collects the ancestor symbols
     /// reachable from every input, keeps instantiations that accept all inputs
-    /// under the declared variance, and returns the single most specific
+    /// under the declared variance, or synthesizes their covariant argument LUBs,
+    /// and returns the single most specific
     /// candidate (a subtype of every other candidate). Returns `nil` for
     /// non-class inputs, incompatible args, or ambiguity — the caller then
     /// uses the nearest-common-ancestor approximation.
@@ -893,6 +894,8 @@ extension TypeSystem {
         }
         var candidates: Set<TypeID> = []
         for ancestor in common {
+            var argumentLists: [[TypeArg]] = []
+            var hasExistingCandidate = false
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
@@ -903,16 +906,66 @@ extension TypeSystem {
                 else {
                     continue
                 }
+                argumentLists.append(lifted)
                 // A later branch may provide the common instantiation:
                 // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
                 let candidate = make(.classType(ClassType(classSymbol: ancestor, args: lifted, nullability: .nonNull)))
                 if !candidates.contains(candidate), types.allSatisfy({ isSubtype($0, candidate) }) {
                     candidates.insert(candidate)
+                    hasExistingCandidate = true
                 }
+            }
+            // Retain existing instantiations (including Nothing-based branches)
+            // before synthesizing a wider covariant argument.
+            if !hasExistingCandidate, argumentLists.count == types.count,
+               let combined = combinedCovariantNominalSupertype(
+                   ancestor, argumentLists: argumentLists, inputs: types
+               )
+            {
+                candidates.insert(combined)
             }
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
+    }
+
+    private func combinedCovariantNominalSupertype(
+        _ symbol: SymbolID,
+        argumentLists: [[TypeArg]],
+        inputs: [TypeID]
+    ) -> TypeID? {
+        guard let first = argumentLists.first,
+              argumentLists.allSatisfy({ $0.count == first.count })
+        else { return nil }
+
+        let inputSet = Set(inputs)
+        // Recursive supertypes may repeat the same inputs or grow their type
+        // arguments at each step. Bound the additional recursion from argument
+        // synthesis; at the limit, use the existing sound Any approximation.
+        guard activeNominalLUBInputs.count < Self.maxNominalLUBDepth,
+              activeNominalLUBInputs.insert(inputSet).inserted
+        else { return nil }
+        defer { activeNominalLUBInputs.remove(inputSet) }
+
+        let variances = normalizedNominalVariances(for: symbol, arity: first.count)
+        var combined: [TypeArg] = []
+        for index in first.indices {
+            let arguments = argumentLists.map { $0[index] }
+            if arguments.allSatisfy({ $0 == first[index] }) {
+                combined.append(first[index])
+                continue
+            }
+            var upperBounds: [TypeID] = []
+            for argument in arguments {
+                guard case let .out(bound) = composedProjection(
+                    declarationVariance: variances[index], useSite: argument
+                ) else { return nil }
+                upperBounds.append(bound)
+            }
+            combined.append(.out(lub(upperBounds)))
+        }
+        let candidate = make(.classType(ClassType(classSymbol: symbol, args: combined, nullability: .nonNull)))
+        return inputs.allSatisfy({ isSubtype($0, candidate) }) ? candidate : nil
     }
 
     /// Arity of `kotlin.Function.FunctionN` when `classSymbol` is one of the
