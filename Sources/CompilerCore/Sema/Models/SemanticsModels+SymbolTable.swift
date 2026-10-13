@@ -179,6 +179,80 @@ public final class SymbolTable {
     /// A plain NSLock would self-deadlock on that path.
     private let lock = NSRecursiveLock()
 
+    /// Copy-on-write snapshot at the module barrier. Lazy loader callbacks
+    /// capture module-owned types/inline stores and cannot cross this boundary.
+    func makeSemaWorkerSymbols() -> SymbolTable {
+        lock.lock()
+        defer { lock.unlock() }
+        precondition(lazyImportedMetadataLoader == nil)
+        let worker = SymbolTable()
+        worker.symbolsStorage = symbolsStorage
+        worker.byFQName = byFQName
+        worker.byShortName = byShortName
+        worker.byKind = byKind
+        worker.byParentFQName = byParentFQName
+        worker.byDeclSite = byDeclSite
+        worker.functionSignatures = functionSignatures
+        worker.valueParameterOwners = valueParameterOwners
+        worker.propertyTypes = propertyTypes
+        worker.propertyHasCustomGetter = propertyHasCustomGetter
+        worker.directSupertypes = directSupertypes
+        worker.directSubtypesIndex = directSubtypesIndex
+        worker.supertypeTypeArgsMap = supertypeTypeArgsMap
+        worker.nominalLayouts = nominalLayouts
+        worker.nominalLayoutHints = nominalLayoutHints
+        worker.externalLinkNames = externalLinkNames
+        worker.functionABIReturnTypes = functionABIReturnTypes
+        worker.stdlibSpecialCallKindsBySymbol = stdlibSpecialCallKindsBySymbol
+        worker.typeAliasUnderlyingTypes = typeAliasUnderlyingTypes
+        worker.typeAliasTypeParameters = typeAliasTypeParameters
+        worker.childrenByParent = childrenByParent
+        worker.parentSymbols = parentSymbols
+        worker.backingFieldSymbols = backingFieldSymbols
+        worker.delegateStorageSymbols = delegateStorageSymbols
+        worker.delegateGetValueSymbols = delegateGetValueSymbols
+        worker.delegateSetValueSymbols = delegateSetValueSymbols
+        worker.delegateProvideDelegateSymbols = delegateProvideDelegateSymbols
+        worker.accessorOwnerProperties = accessorOwnerProperties
+        worker.extensionPropertyReceiverTypes = extensionPropertyReceiverTypes
+        worker.declaredExtensionProperties = declaredExtensionProperties
+        worker.extensionPropertyGetterAccessors = extensionPropertyGetterAccessors
+        worker.extensionPropertySetterAccessors = extensionPropertySetterAccessors
+        worker.typeParameterUpperBoundsMap = typeParameterUpperBoundsMap
+        worker.pendingTypeParameterBoundConflictChecks = pendingTypeParameterBoundConflictChecks
+        worker.sourceFileIDs = sourceFileIDs
+        worker.moduleFQNames = moduleFQNames
+        worker.byModuleFQN = byModuleFQN
+        worker.annotationsStorage = annotationsStorage
+        worker.companionObjectSymbols = companionObjectSymbols
+        worker.outerInstanceFieldSymbols = outerInstanceFieldSymbols
+        worker.objectInitializerSymbols = objectInitializerSymbols
+        worker.objectLazyInitializerSymbols = objectLazyInitializerSymbols
+        worker.companionObjectInitializerSymbols = companionObjectInitializerSymbols
+        worker.enumStaticInitSymbols = enumStaticInitSymbols
+        worker.enumEntryDispatchTargets = enumEntryDispatchTargets
+        worker.enumEntryDispatchBaseSymbols = enumEntryDispatchBaseSymbols
+        worker.valueClassUnderlyingTypes = valueClassUnderlyingTypes
+        worker.sealedSubclassesStorage = sealedSubclassesStorage
+        worker.constValueExprKinds = constValueExprKinds
+        worker.delegateHasProvideDelegate = delegateHasProvideDelegate
+        worker.expectActualLinks = expectActualLinks
+        worker.contractNonNullEffects = contractNonNullEffects
+        worker.contractImplicationEffects = contractImplicationEffects
+        worker.contractReturnsEffects = contractReturnsEffects
+        worker.contractCallsInPlaceEffects = contractCallsInPlaceEffects
+        worker.contractReturnsNotNullEffects = contractReturnsNotNullEffects
+        worker.contractConditionEffects = contractConditionEffects
+        worker.lazyImportedMetadataLoaded = lazyImportedMetadataLoaded
+        worker.lazyImportedMetadataLoadInProgress = lazyImportedMetadataLoadInProgress
+        worker.importedNominalsWithoutInitializers = importedNominalsWithoutInitializers
+        worker.importedMemberIndexShapes = importedMemberIndexShapes
+        worker.delegatedInterfacesByClass = delegatedInterfacesByClass
+        worker.klibDefinedGlobalSymbols = klibDefinedGlobalSymbols
+        worker.overrideDefaultsBaseSymbols = overrideDefaultsBaseSymbols
+        return worker
+    }
+
     public init() {}
 
     /// Installs the per-compilation loader used by indexed `.kklib` metadata.

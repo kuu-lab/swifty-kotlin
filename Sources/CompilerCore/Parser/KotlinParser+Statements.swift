@@ -888,7 +888,10 @@ extension KotlinParser {
         }
     }
 
-    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false, allowsSupertypeContinuation: Bool = false) {
+    func parseTail(
+        inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator,
+        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false
+    ) {
         var progress = false
         var sawAssignment = false
         var sawTryKeyword = false
@@ -990,9 +993,11 @@ extension KotlinParser {
                 // expression body, as can the line after an infix operator
                 // name (`a or\n    (b)`) or after an `if (...)` condition whose
                 // branch body starts on the next line.
+                // In a class header, a supertype colon may also follow the
+                // implicit constructor on the next line.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
-                    || (allowsSupertypeContinuation && stream.peek().kind == .symbol(.colon))
+                    || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {

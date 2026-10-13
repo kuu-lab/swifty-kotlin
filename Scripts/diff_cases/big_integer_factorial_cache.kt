@@ -30,9 +30,10 @@ fun main() {
     println(factorial.compute(0))
     println(factorial.compute(1))
     println(factorial.compute(-1))
-    println(factorial.compute(30))
+    // Preserve the upstream test order: populate 50, read cached 30, then extend to 70.
     val fifty = factorial.compute(50)
     println(fifty)
+    println(factorial.compute(30))
     println(fifty === factorial.compute(50))
     println(factorial.compute(70))
     println(BigInteger.valueOf(-3L).multiply(2.toBigInteger()))

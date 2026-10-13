@@ -1,6 +1,6 @@
 import Foundation
 
-private final class LockedIndexedResults<Element>: @unchecked Sendable {
+final class LockedIndexedResults<Element>: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [Element?]
 
