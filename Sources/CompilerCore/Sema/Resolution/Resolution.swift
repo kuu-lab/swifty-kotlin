@@ -743,15 +743,17 @@ extension OverloadResolver {
         // The nominal representation preserves `out` instead of erasing it
         // into invariant KClass<T>. Only an inferred, read-only extension can
         // approximate the captured argument by that projection's upper bound.
+        // Star and in projections retain the nominal representation too; the
+        // captured argument is then approximated by KClass's Any bound.
         if explicitTypeArgs.isEmpty,
            signature.reifiedTypeParameterIndices.isEmpty,
            case let .classType(actualClass) = typeSystem.kind(of: implicitReceiverType),
            actualClass.classSymbol == typeSystem.kClassInterfaceSymbol,
            actualClass.args.count == 1,
-           case let .out(upperBound) = actualClass.args[0],
            case let .kClassType(declaredKClass) = typeSystem.kind(of: receiverType),
            case let .typeParam(parameter) = typeSystem.kind(of: declaredKClass.argument),
            typeVarBySymbol[parameter.symbol] != nil,
+           signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).contains(parameter.symbol),
            !(signature.parameterTypes + signature.contextReceiverTypes).contains(where: {
                typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol)
            }),
@@ -766,8 +768,12 @@ extension OverloadResolver {
                in: signature.returnType, parameter: parameter.symbol
            )
         {
+            let capturedArgument: TypeID = switch actualClass.args[0] {
+            case let .invariant(type), let .out(type): type
+            case .star, .in: typeSystem.anyType
+            }
             return decomposeSubtypeConstraint(
-                subtype: typeSystem.makeKClassType(argument: upperBound, nullability: actualClass.nullability),
+                subtype: typeSystem.makeKClassType(argument: capturedArgument, nullability: actualClass.nullability),
                 supertype: receiverType, typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem, blameRange: range
             )
