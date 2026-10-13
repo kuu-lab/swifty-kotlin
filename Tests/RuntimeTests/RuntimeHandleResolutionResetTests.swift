@@ -53,7 +53,7 @@ struct RuntimeHandleResolutionResetTests {
     /// their handles must stop resolving instead of pointing at freed memory.
     @Test
     func testResetDropsRegistrationOfBoxesItReleases() {
-        let threadLocal = kk_thread_local_new()
+        let threadLocal = __kk_thread_local_new()
         let kClass = __kk_kclass_create(0x1234_5678, makeString("Sample"))
         #expect(runtimeIsObjectPointerRaw(threadLocal))
         #expect(runtimeIsObjectPointerRaw(kClass))

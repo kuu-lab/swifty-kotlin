@@ -10,8 +10,10 @@ import sys
 import tempfile
 
 
+# Parent scopes include their children; these metrics must not be summed.
 METRICS = (
-    "Sema", "sema-setup", "header-collection", "declaration-validation", "body-checks", "type-check",
+    "Sema", "DataFlowSema", "TypeCheckSema", "sema-setup",
+    "collectAllHeaders", "runValidationPasses", "runBodyAnalysis", "type-check",
 )
 
 

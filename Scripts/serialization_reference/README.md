@@ -4,9 +4,10 @@ This directory pins serialization 1.10.0 source/ABI evidence and real JVM
 references for KUU-1724. Full API compatibility remains unfinished.
 
 KUU-1745 adds the bounded primitive descriptor factory implementation, and
-KUU-1746 adds the `SerialDescriptor.nullable` / `nonNullOriginal` wrappers. The
+KUU-1746 adds the `SerialDescriptor.nullable` / `nonNullOriginal` wrappers,
+KUU-1747 adds the rename wrapper, and KUU-1748 adds the list/map/set factories. The
 immutable dump inventory remains reproducible with `implementation: unmapped`;
-`implementations.json` is a separate overlay linking eight JVM/KLIB declaration IDs to
+`implementations.json` is a separate overlay linking JVM/KLIB declaration IDs to
 bundled source, fixtures, and the source/cache/separate-library O0/O2 test suite.
 `verify` checks those IDs and paths without changing the upstream inventory.
 The rest of serialization is still incomplete.
@@ -93,3 +94,22 @@ Kotlin 2.3.10. For the full eight-module suite, Native/macOS backend and distrib
 KSwiftK source/prebuilt/separate-library consumers, and O0/O2 compatibility remain
 work for other children of KUU-1724. HOCON's Java dependencies require a real native
 implementation or explicit bridge; this JVM reference does not settle that choice.
+
+`KUU-1747` の stable `SerialDescriptor(serialName, original)` factory は
+`SerialDescriptors.kt` の原本と `PluginGeneratedSerialDescriptor.kt` の表示 helper を
+別々の path/hash で固定し、JVM/KLIB の2公開宣言 IDを対応 overlay に記録します。
+`--case wrapped-descriptor` は published 1.10.0 に対する改名、全11 APIへの委譲、
+名前検証の順序、equality/hash/表示と整数 overflow の実測 fixture です。
+`SerializationWrappedDescriptorTests` は source/cache と producer-generated wrapper の
+別 `.kklib` consumer を O0/O2 で確認し、stable factory の annotation と internal
+wrapper/helper の境界、null 引数の対象呼び出しでの拒否も検査します。
+他の builders、reified serializer と format module の全対応は親 `KUU-1724` に残ります。
+
+`KUU-1748` は descriptor 引数の `listSerialDescriptor` / `mapSerialDescriptor` /
+`setSerialDescriptor` の3 overload を実装し、JVM/KLIB の6宣言 IDを対応 overlay に
+記録します。factory と internal collection descriptor の上流原本を別々に固定し、
+`--case collection-descriptor` は published JVM の index 変換、上限を持たない
+non-negative element index、負数の例外、equality/表示と live child hash の fixture です。
+source/cache と producer-generated descriptor の別 `.kklib` consumer を O0/O2 で確認し、
+experimental marker と internal boundary を検証します。reified overload、serializer、
+class builder と format module はこの3 overload の実装に含まれません。

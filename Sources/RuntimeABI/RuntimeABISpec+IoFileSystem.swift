@@ -1,6 +1,13 @@
 public extension RuntimeABISpec {
     static let ioFileSystemFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_io_fs_temporary_directory",
+            parameters: [],
+            returnType: .intptr,
+            section: "IoFileSystem",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_io_fs_exists",
             parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr)],
             returnType: .intptr,

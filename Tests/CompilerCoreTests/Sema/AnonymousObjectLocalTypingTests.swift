@@ -165,7 +165,7 @@ struct AnonymousObjectLocalTypingTests {
 
                 let localDeclExprID = try #require(statements.first)
                 guard let localDeclExpr = ast.arena.expr(localDeclExprID),
-                      case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
+                      case let .localDecl(_, _, _, initializer, _, _, _) = localDeclExpr,
                       let initializer
                 else {
                     Issue.record("Expected local declaration with object literal initializer.")

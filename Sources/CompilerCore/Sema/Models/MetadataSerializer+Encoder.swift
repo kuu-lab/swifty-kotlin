@@ -31,6 +31,20 @@ package final class MetadataEncoder {
                 if !includeNonPublic && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
                 }
+                if !includeNonPublic {
+                    // A public member of a hidden class is not a module API.
+                    // Exporting it without its nominal owner makes the decoder
+                    // erase its receiver and creates spurious overloads.
+                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    while let parent = parentID, let owner = symbols.symbol(parent) {
+                        if Self.nominalKinds.contains(owner.kind),
+                           owner.visibility != .public, owner.visibility != .protected
+                        {
+                            return false
+                        }
+                        parentID = symbols.parentSymbol(for: parent)
+                    }
+                }
                 // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
                 // source-backed data class are synthesized symbols, but they are part of
                 // the class's public surface and are compiled into the artifact. Without
@@ -237,6 +251,21 @@ package final class MetadataEncoder {
         return (selfSignature, supertypeSignatures)
     }
 
+    /// SOURCE-retention annotations (e.g. `kotlin.OptIn`) are compile-time-only
+    /// markers; they must not survive into serialized metadata.
+    private func isSourceRetentionAnnotation(
+        _ annotation: MetadataAnnotationRecord,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        let fqParts = annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) }
+        guard let annotationClass = symbols.lookup(fqName: fqParts) else { return false }
+        return symbols.annotations(for: annotationClass).contains {
+            $0.annotationFQName == "kotlin.annotation.Retention"
+                && $0.arguments.contains { $0.hasSuffix("SOURCE") }
+        }
+    }
+
     private func metadataTypeSignature(
         _ type: TypeID,
         symbols: SymbolTable,
@@ -250,7 +279,7 @@ package final class MetadataEncoder {
             types: types
         )
         return mangler.encodeType(
-            expandedType,
+            types.approximatingCapturedTypes(in: expandedType),
             symbols: symbols,
             types: types,
             nameResolver: nameResolver,
@@ -487,6 +516,7 @@ package final class MetadataEncoder {
                     superFQName: computedSuperFQName,
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
+                    isInnerClass: symbol.flags.contains(.innerClass),
                     modality: symbol.flags.contains(.abstractType)
                         ? .abstract
                         : (symbol.flags.contains(.openType) ? .open : .final),
@@ -506,6 +536,7 @@ package final class MetadataEncoder {
                 superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
+                isInnerClass: symbol.flags.contains(.innerClass),
                 modality: symbol.flags.contains(.abstractType)
                     ? .abstract
                     : (symbol.flags.contains(.openType) ? .open : .final),
@@ -904,7 +935,9 @@ package final class MetadataEncoder {
         // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
         let isValueClass = symbol.flags.contains(.valueType)
 
-        let annotationEntries = symbols.annotations(for: symbol.id)
+        let annotationEntries = symbols.annotations(for: symbol.id).filter {
+            !isSourceRetentionAnnotation($0, symbols: symbols, interner: interner)
+        }
 
         // P5-78: collect sealed subclass FQ names for cross-module exhaustiveness
         var sealedSubclassFQNames: [String] = []
@@ -966,6 +999,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
+            isInnerClass: symbol.flags.contains(.innerClass),
             modality: modality,
             isSealedClass: isSealedClass,
             isFunInterface: isFunInterface,
@@ -1342,6 +1376,7 @@ package final class MetadataEncoder {
             if record.isOpenClass {
                 fields.append("openClass=1")
             }
+            if record.isInnerClass { fields.append("innerClass=1") }
             if record.modality != .final {
                 fields.append("modality=\(record.modality.rawValue)")
             }
@@ -1474,6 +1509,7 @@ package final class MetadataEncoder {
         }
         if record.isDataClass { fields.append("dataClass=1") }
         if record.isOpenClass { fields.append("openClass=1") }
+        if record.isInnerClass { fields.append("innerClass=1") }
         if record.modality != .final { fields.append("modality=\(record.modality.rawValue)") }
         if record.isSealedClass { fields.append("sealedClass=1") }
         if record.isFunInterface { fields.append("funInterface=1") }
@@ -1519,7 +1555,14 @@ package final class MetadataEncoder {
                 return nil
             }
             if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
-                return nil
+                // An inner constructor's caller stores this ABI-only enclosing-instance
+                // link before invoking the producer constructor. Keep its actual slot,
+                // without exporting the private field as a Kotlin declaration.
+                guard let owner = symbols.parentSymbol(for: symbolID),
+                      includedSymbolIDs.contains(owner),
+                      symbols.symbol(owner)?.flags.contains(.innerClass) == true,
+                      symbols.outerInstanceFieldSymbol(for: owner) == symbolID
+                else { return nil }
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {

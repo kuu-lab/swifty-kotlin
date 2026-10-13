@@ -334,6 +334,7 @@ enum RuntimeKParameterFlags {
 /// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
     var typeToken: Int?
+    var arrayComponentType: Int?
     var callableOwner = 0
     var boundArguments: [Int] = []
     /// Parameter index (0-based).

@@ -122,6 +122,7 @@ final class TypeCheckDriver {
         if let subjectType = ctx.whenSubjectTypes[id] {
             return subjectType
         }
+        let ctx = ctx.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
         notePendingDeclarationDependency(at: id)
         if let callee = sema.bindings.callBinding(for: id)?.chosenCallee {
@@ -154,7 +155,7 @@ final class TypeCheckDriver {
         )
     }
 
-    func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile]) {
+    func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile], frontendJobs: Int = 1) throws {
         let invisibleAccessFiles = Set(files.compactMap { file -> Int32? in
             file.annotations.contains { annotation in
                 guard KnownCompilerAnnotation.suppress.matches(annotation.name) else {
@@ -354,6 +355,10 @@ final class TypeCheckDriver {
             }
         } while precheckedPropertyDecls.count > previousPrecheckedCount
 
+        // Dependency inference and contract collection above remain module-owned.
+        // Workers cannot demand an inferred declaration or modify a signature.
+        let independentBodies = try checkIndependentBodies(files: files, fileScopes: fileScopes, frontendJobs: frontendJobs)
+
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
@@ -363,6 +368,15 @@ final class TypeCheckDriver {
                     continue
                 }
                 if precheckedPropertyDecls.contains(declID) {
+                    continue
+                }
+                if let result = independentBodies[declID] {
+                    let typeMapping = sema.types.mergeWorkerTypes(result.newTypes, startingAt: result.initialTypeCount)
+                    sema.bindings.mergeIndependentScalarExpressions(
+                        types: result.expressionTypes, identifiers: result.identifierSymbols, typeMapping: typeMapping
+                    )
+                    for diagnostic in result.diagnostics { diagnostics.emit(diagnostic) }
+                    sema.independentBodyCount += 1
                     continue
                 }
                 switch decl {

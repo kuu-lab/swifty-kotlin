@@ -24,9 +24,6 @@ public annotation class JvmStatic
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CONSTRUCTOR)
 public annotation class JvmOverloads
 
-@Target(AnnotationTarget.PROPERTY, AnnotationTarget.FIELD)
-public annotation class JvmField
-
 // Generic extension properties are not yet supported by the parser. Keep the
 // Annotation upper bound, as with the source-backed KClass extension properties.
 /** Returns the class of this annotation instance. */

@@ -8,6 +8,20 @@
 
 package kotlinx.coroutines.flow
 
+// The existing non-reified snapshot core has Object-array storage. Preserve
+// that representation explicitly rather than requesting a reified public
+// Collection.toTypedArray allocation with an erased type parameter.
+@Suppress("UNCHECKED_CAST")
+private fun <T> List<T>.toErasedSnapshotArray(): Array<T> {
+    val result = arrayOfNulls<Any?>(size)
+    var index = 0
+    while (index < size) {
+        result[index] = this[index]
+        index++
+    }
+    return result as Array<T>
+}
+
 // Match the existing two-flow combine's sequential snapshot model: emit
 // indexed values, retaining each shorter flow's last value until all end.
 public fun <T, R> combine(vararg flows: Flow<T>, transform: suspend (Array<T>) -> R): Flow<R> =
@@ -28,7 +42,7 @@ public fun <T, R> combine(flows: Iterable<Flow<T>>, transform: suspend (Array<T>
         for (source in sources) {
             values.add(source[if (index < source.size) index else source.size - 1])
         }
-        emit(transform(values.toTypedArray()))
+        emit(transform(values.toErasedSnapshotArray()))
         index += 1
     }
 }
@@ -90,7 +104,7 @@ public fun <T, R> combineTransform(
         for (source in sources) {
             values.add(source[if (index < source.size) index else source.size - 1])
         }
-        transform(collector, values.toTypedArray())
+        transform(collector, values.toErasedSnapshotArray())
         index += 1
     }
 }

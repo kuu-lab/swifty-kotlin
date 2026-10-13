@@ -68,6 +68,7 @@ extension DataFlowSemaPhase {
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
+        let isInnerClass: Bool
         let modality: MetadataModality
         let isSealedClass: Bool
         let isFunInterface: Bool
@@ -122,24 +123,25 @@ extension DataFlowSemaPhase {
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
-        declaredInstanceSizeWords: Int? = nil,
-        declaredVtableSize: Int? = nil,
-        declaredItableSize: Int? = nil,
-        superFQName: [InternedString]? = nil,
-        superFQNames: [[InternedString]]? = nil,
+            declaredInstanceSizeWords: Int? = nil,
+            declaredVtableSize: Int? = nil,
+            declaredItableSize: Int? = nil,
+            superFQName: [InternedString]? = nil,
+            superFQNames: [[InternedString]]? = nil,
             companionObjectFQName: [InternedString]? = nil,
             fieldOffsets: [ImportedFieldOffsetEntry] = [],
             vtableSlots: [ImportedVTableSlotEntry] = [],
-        itableSlots: [ImportedITableSlotEntry] = [],
-        objectInitializerLinkName: String? = nil,
-        companionInitializerLinkName: String? = nil,
-        objectLazyInitializerLinkName: String? = nil,
-        enumStaticInitLinkName: String? = nil,
-        isDataClass: Bool = false,
-        isOpenClass: Bool = false,
-        modality: MetadataModality = .final,
-        isSealedClass: Bool = false,
-        isFunInterface: Bool = false,
+            itableSlots: [ImportedITableSlotEntry] = [],
+            objectInitializerLinkName: String? = nil,
+            companionInitializerLinkName: String? = nil,
+            objectLazyInitializerLinkName: String? = nil,
+            enumStaticInitLinkName: String? = nil,
+            isDataClass: Bool = false,
+            isOpenClass: Bool = false,
+            isInnerClass: Bool = false,
+            modality: MetadataModality = .final,
+            isSealedClass: Bool = false,
+            isFunInterface: Bool = false,
             isValueClass: Bool = false,
             isExpect: Bool = false,
             isActual: Bool = false,
@@ -152,9 +154,9 @@ extension DataFlowSemaPhase {
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
-        nominalTypeParametersSignature: String? = nil,
-        ownerNominalTypeParametersSignature: String? = nil,
-        nominalSupertypeSignatures: [String] = [],
+            nominalTypeParametersSignature: String? = nil,
+            ownerNominalTypeParametersSignature: String? = nil,
+            nominalSupertypeSignatures: [String] = [],
             constValueLiteral: String? = nil,
             nominalTypeParameters: String? = nil
         ) {
@@ -200,6 +202,7 @@ extension DataFlowSemaPhase {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.isInnerClass = isInnerClass
         self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface

@@ -187,6 +187,7 @@ extension DataFlowSemaPhase {
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isOpenClass: metadataRecord.isOpenClass,
+                isInnerClass: metadataRecord.isInnerClass,
                 modality: metadataRecord.modality,
                 isSealedClass: metadataRecord.isSealedClass,
                 isFunInterface: metadataRecord.isFunInterface,
@@ -286,7 +287,8 @@ extension DataFlowSemaPhase {
         metadataPath: String,
         cache: LibraryMetadataCache? = nil,
         allowPlaceholders: Bool = false,
-        phantomTypeParameterSymbols: [SymbolID] = []
+        phantomTypeParameterSymbols: [SymbolID] = [],
+        isStdlibArtifact: Bool = false
     ) -> FunctionSignature {
         guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
             diagnostics.error(
@@ -565,7 +567,9 @@ extension DataFlowSemaPhase {
         return FunctionSignature(
             receiverType: functionType.receiver,
             parameterTypes: functionType.params,
-            returnType: functionType.returnType,
+            returnType: isStdlibArtifact ? javaThreadLocalReturnType(
+                functionType.returnType, fqName: record.fqName, types: types, interner: interner
+            ) : functionType.returnType,
             isSuspend: functionType.isSuspend,
             canThrow: record.canThrow,
             valueParameterSymbols: valueParameterSymbols,

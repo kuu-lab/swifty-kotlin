@@ -4,7 +4,7 @@ extension CallTypeChecker {
     /// Effective receiver selection and the pre-resolution synthetic fallbacks,
     /// extracted verbatim from `inferRegularMemberCall`: super MutableMap and
     /// callable-reference receiver adjustments, then the collection,
-    /// ThreadLocal getOrSet, comparator and callable-property scope-priority
+    /// Comparator and callable-property scope-priority
     /// fallbacks that must run before lambda argument preparation.
     /// `earlyReturnType` carries a bound result when a fallback handles the call.
     func selectRegularMemberCallReceiverAndFallbacks(
@@ -148,17 +148,7 @@ extension CallTypeChecker {
         ) {
             return (effectiveReceiverType, fallbackType)
         }
-        if let fallbackType = tryBindThreadLocalGetOrSetFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return (effectiveReceiverType, fallbackType)
-        }
+
         if let fallbackType = tryBindComparatorMemberFallback(
             id,
             calleeName: calleeName,
@@ -239,6 +229,7 @@ extension CallTypeChecker {
         prepareSingleCandidateNestedCallExpectedTypes(
             args: args,
             candidates: candidates,
+            preInferredArgumentTypes: cachedNonLambdaArgTypes,
             ctx: ctx,
             expectedTypeOverrides: &argumentExpectedTypeOverrides
         )

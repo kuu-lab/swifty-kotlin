@@ -275,7 +275,7 @@ final class ValPropertyInitializationChecker {
         case let .localFunDecl(_, _, _, _, body, _, _, _):
             var deferred = Flow(entry)
             walk(body, flow: &deferred, permitsInitialization: false)
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer { visit(initializer) }
         case let .destructuringDecl(_, _, initializer, _): visit(initializer)
         case let .indexedAccess(receiver, indices, _):
