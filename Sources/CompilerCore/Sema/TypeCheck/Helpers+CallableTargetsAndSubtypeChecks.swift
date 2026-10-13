@@ -263,9 +263,7 @@ extension TypeCheckHelpers {
                 sema: sema
             )
             let inferredType = unitCoercedCallableReferenceType(
-                callableType,
-                expectedFunctionType: expectedFunctionType,
-                sema: sema
+                callableType, expectedFunctionType: expectedFunctionType, sema: sema
             ) ?? callableType
             let types = sema.types
             let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)

@@ -1,0 +1,306 @@
+{
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "Kotlin_version": "2.3.10",
+  "references": [
+    {
+      "directory": "jvm-behavior-oracle1",
+      "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+        "compile.phase.json": "8151ec42601d2ae2a3cd1f521076b45035dddcb8d4252f989ee3fb5ec96f32ed",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "JVMInteropBehaviors.kt": "a9cf1d892df6360f2d4533bb605f5ca5c76de4ea1f5ab109bcace13ac5637d94",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "02b2ccd61516887809389c4b611a39336a2a6ebb3428aedc8a1dc7d651b9256c",
+        "run.phase.json": "d2eb2d9048ca2c60ccba599dd33ae2313330eedc2ba40d8c6d4a501dab4df26a",
+        "authorization.json": "e613648cc8b4c41ecdc1c14e788b7e0081bb09d9876968b72b73bfc4b78e1d8b",
+        "report.json": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72",
+        "jvm_interop_behaviors.reference.expected": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 28,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-abi-oracle1",
+      "report_sha256": "adffcad73ad38c87284cab929e59178db5b676fca9e361c1cf7cac61fdce65cd",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "932a797215a2174ca5cb9fb9f379b85a50f16f6547d442f1f255f6f7fa0d7dfa",
+        "jvm_abi155.reference.expected": "932a797215a2174ca5cb9fb9f379b85a50f16f6547d442f1f255f6f7fa0d7dfa",
+        "compile.phase.json": "f950279d8a57e9303457161e4a6d2a0165aad97f6141eada7b0e22a887ed02b7",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "a5eb7e107f5600d75ba1214bd1eff60b125c0d09e73a90c0b51a1ae38a2ae4b0",
+        "run.phase.json": "0e24189c11962f9e956e0f1da8579b47ba0ecd574c3662075e72238bbe83f9e9",
+        "authorization.json": "cf589672e8901a0a50ec9e1d20013cfcb46b7c51b225297241c8e8dc2472649a",
+        "report.json": "adffcad73ad38c87284cab929e59178db5b676fca9e361c1cf7cac61fdce65cd",
+        "JVMABIReflectionLedgerProbe.kt": "d62bc3f1b8a77689f19413aafacde438c35495ab6cac20d52a0353ce878cf132",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 155,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-buffer-state-oracle1",
+      "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+        "ByteBufferStateControls.kt": "dac158f522ebd1ee78e1057610054142ae695180e2787bd447c3de14b0e1c3cf",
+        "buffer_state6.reference.expected": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+        "compile.phase.json": "71c5f972d84e6eaacc5fe4bae9177ab6a1e0378b8ea58bec4e4e320f04bd7913",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "b349e8c4244443f6e40e8deb00c2a901148b62f3c52432d6537979678bf00701",
+        "run.phase.json": "8b9c50be585cf7ac87a2a2d7bdd6ba290b146263227b1d03c6c4139cb3a19df3",
+        "authorization.json": "a85db8c2c6ddc6845f537320da62c06d6318081d75a4c0e05b48020261c9b6ed",
+        "report.json": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 6,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-nio-closure-optin-oracle2",
+      "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+        "compile.phase.json": "64093624622a3119f1e42f2f76e5ef42f06c788c617d739747aebc6f4e547f1f",
+        "nio_closure11.reference.expected": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "5da49a3dcef98a437acaa4e8cc0451a1c21e1ba87958ae547c4285cc21d5c753",
+        "run.phase.json": "ad96d1e5733d1f0f2f748ee35a9405bce891ca43430147d736db1414d63d231b",
+        "authorization.json": "182040f569d8aed0c06b2b466a7bcc81e962410ee7d1216a194abad1fb9af8da",
+        "report.json": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "guard.json": "df878a48da87bbc5e5aa37b05a60d06a9436dcb2e7ac29ef1135553457f0f37a",
+        "NioClosureControls.kt": "1c4563c38003c1d002eeb95324c6a9a2b9fec9044a7c31d21a7fc70c06016241"
+      },
+      "rows": 11,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-shared-native-oracle1",
+      "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+        "compile.phase.json": "45b0f5a6d87f52d9e04a2062c96d4d189d62ab7df960f8efe3fe812fb6f9dc9a",
+        "SharedInteropControls.kt": "5784400b19d72c106a066593d114f79f5cb5853fa5e6573b51f554a3b9e7dd1d",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "3fc1cf2f54ce809cb846012a8aa84e3f236d4b83b351f5b47a91f711243b6aad",
+        "shared_interop.reference.expected": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+        "interop-reference.jar": "3c4038a3bb11308dea4d15520b2592422fdeef5371abfe87b6b5eeb001556047",
+        "run.phase.json": "5058c03b1097f5c47722613965bacc5a614952d1b1f6f31b69d652e535111528",
+        "authorization.json": "4327d187fa51bff56900753e1c48d757983c479a76740dbb01af94917498c387",
+        "report.json": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 35,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-buffer-charset-closure-oracle1",
+      "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+        "compile.phase.json": "ff30b293c0895a8380049ef251f497ade2e92ff0295b24a151e971617afb3884",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "c1ce01c2e22a702661ff5da0b76ebb622f4c871f495ce922e5bc7aa6eb8ebdfd",
+        "run.phase.json": "86a3d87c801f194e4436cf9d6691137fa417146333424e750b2d23f14c4916d7",
+        "authorization.json": "0b3d1539ec89c984024e921d4dfdfb5efa51c07b21fac99ae4c0a9d5b4618f66",
+        "report.json": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795",
+        "BufferCharsetClosureControls.kt": "3df3bf7d6274a45a2e7e1574983bf87b00a96396334329badbcfe0908d0b4e8f",
+        "buffer_charset.reference.expected": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 25,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-charset-empty-malformed-oracle1",
+      "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+        "compile.phase.json": "678389094198877f745b077ad10093f6f91024162bdcf13ee6f8aeaa32493d14",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "bb06676bb2bffea6f1074e2c0f1ce7c4cb5a6f5a60bb27b62b3367f59f322d54",
+        "run.phase.json": "46d98392b58826de321a9ae0a9953bb093719d8b99630d761f532ef8f2ca7461",
+        "authorization.json": "6db16cf7a22112553eeb3864f17afbc7b7564560b64510374e99ce4bde69399f",
+        "report.json": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0",
+        "charset_empty_malformed.reference.expected": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+        "CharsetEmptyMalformedControls.kt": "513d967c7a3f0cf5abe54c8faaf3f73e403bb8c4a4f3df54070791137d672de8",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 12,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-native-model-prerequisites-oracle1",
+      "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+        "NativeModelPrerequisitesControls.kt": "7383f2ccafe0532e936d2631a5992b4cadc43d03688b0563412938e5239c16cd",
+        "compile.phase.json": "f4d67f5de6063f6810dd5fb6830d1e981c6ed2ac6577c826ac01d9082f4e389a",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "native_model_prerequisites.reference.expected": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "e3281faef6c87f66bb358f228012f642fefbad15f1098f8a190ea1e56d0e620d",
+        "run.phase.json": "a95f38396a19052264cd937bd17c27b7303465095d9e75fd05b463fb89e43d29",
+        "authorization.json": "13b8032ede0fc1c1e414b23a2878e6746a58a364277a24be8acae1995022f3f5",
+        "report.json": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 21,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-stream-storage-oracle1",
+      "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df",
+      "status": "PASS_REFERENCE_ONLY",
+      "evidence_sha256": {
+        "run.stdout": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+        "compile.phase.json": "00cd3388993e088b01d95586b5eb17b2cf27d1e025a63d814f2eb865eb578f5d",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "e9431df2ad74c090dd26a35501ec56450b6127a391055e0c8b3c4bb518fb6c63",
+        "run.phase.json": "2fc232246991b2936943cb69bcb4952a4f4020b6d4074b51be00f2cc4a20f4c3",
+        "authorization.json": "d65790ec05e6c6461e6a5355e5c71f772dc3036f9ee390bc3d9f1534b083b4a6",
+        "report.json": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df",
+        "stream_storage.reference.expected": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+        "StreamStorageControls.kt": "cbb02b02e93aaf1fcd6988cdb735fafddf2681250ee07e4596e7614bb25dd86e",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "rows": 11,
+      "candidate_observed": false
+    },
+    {
+      "directory": "jvm-filechannel-producer-oracle1",
+      "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f",
+      "status": "PASS_REFERENCE_ONLY",
+      "rows": 12,
+      "candidate_observed": false,
+      "evidence_sha256": {
+        "FileChannelProducerControls.kt": "3bf16e4a7884ae86a2f93bc8b8818b9b48b003837b37f4c772da5b26f322e824",
+        "authorization.json": "70fc24cba83d90a471f4c50b4457fd7fd80284b1294fb73cff21532c77481800",
+        "compile.phase.json": "818b6d1fce1ea1883dc8dcf8399ea73b0806e02e1c5d0885e285c5f3756c050a",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "filechannel_producer.reference.expected": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+        "interop-reference.jar": "4c71c535cda4c93a81d2c3b636bb0d0753ad20310a5c39cd327e1fb68fb5fbbf",
+        "report.json": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f",
+        "run.phase.json": "184a7023dbe1f38c4a401d1041ff5855499ee84556148e8c9307fbcc72f2ab1c",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.stdout": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8"
+      }
+    },
+    {
+      "directory": "jvm-stream-description-oracle1",
+      "report_sha256": "f43d5a3ee8742d501fd257dbb8334b2deda06394f5f337a5e962c7aded8a5e72",
+      "status": "PASS_REFERENCE_ONLY",
+      "rows": 4,
+      "candidate_observed": false,
+      "evidence_sha256": {
+        "StreamDescriptionControls.kt": "5c4471c185bc246564412366fffdf882e9000bd7b4a102fd5ad88a82d308b87e",
+        "authorization.json": "3a3a8f4202a8a5656476f8c4c4a0ccf1bbd67e3ae33c6ee8f83c1bd9dc159672",
+        "compile.phase.json": "0a653d9e3f3e45630962dfe1e3797752a307c5f129e5cb446359dc1ec879722f",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "0f820567633bf2ca2285e4a9ce963978908b43eefa4270d24f89e27c28178ece",
+        "report.json": "f43d5a3ee8742d501fd257dbb8334b2deda06394f5f337a5e962c7aded8a5e72",
+        "run.phase.json": "624fbb18e60c04180ba1df5c2713b41c9b9750fce898c38ea7bc234f0df71263",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.stdout": "a9b7fa2e1945f28d88d276325f979d3cd646cb8043c559a79bd7601f0c061eb5",
+        "stream_description.reference.expected": "a9b7fa2e1945f28d88d276325f979d3cd646cb8043c559a79bd7601f0c061eb5"
+      }
+    },
+    {
+      "directory": "jvm-sequence-composition-oracle1",
+      "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a",
+      "status": "PASS_REFERENCE_ONLY",
+      "rows": 7,
+      "candidate_observed": false,
+      "evidence_sha256": {
+        "SequenceCompositionControls.kt": "d859c98f3f26463d0a3d744a620c083bcec828f01a5302f3a5c37810fd165148",
+        "authorization.json": "ad074f452fc03b901d0e49cc6040fb7ab38a72df2e885aa84b82348b54fec881",
+        "compile.phase.json": "7cfbc9c5d5bbefa0eaea48cdcadaf7753d7e3dd7682b70aebcc0d16e8f94b7a7",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "96e65f8a7c7d310d7d7c696f2f04a83a832d00ceb540077613ff613bc6188c8a",
+        "report.json": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a",
+        "run.phase.json": "63aa56995b92df71e4b604b7292992dda0bb1f575609b01dbc8c78459b2521f5",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.stdout": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+        "sequence_composition.reference.expected": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728"
+      }
+    },
+    {
+      "directory": "jvm-sequence-edge-oracle1",
+      "report_sha256": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e",
+      "status": "PASS_REFERENCE_ONLY",
+      "rows": 5,
+      "candidate_observed": false,
+      "evidence_sha256": {
+        "SequenceEdgeControls.kt": "a599bec360e4f15a06fff275afa4cee776288bfb3350c5dc7db1ff3de13af8e6",
+        "authorization.json": "0bf37b9054bf02fb9c339295a432e1612e313997b8b723cc5bdd4936de86d5c1",
+        "compile.phase.json": "189136827cdf495c88a66bc4f09d3d12965e8acb4c6a5ae9c1d204a974f9897b",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "eefb004c0a1b42173aa259312defeb8753604097e0ab930ee2b6b11b5f29dd49",
+        "report.json": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e",
+        "run.phase.json": "7c858e4f1316f2f25a6e28c43d609892f454dd077ead7825e6cbbfb0ee59c85e",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.stdout": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c",
+        "sequence_edge.reference.expected": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c"
+      }
+    },
+    {
+      "directory": "jvm-sequence-copy-oracle1",
+      "report_sha256": "267a113f2b8aa0592067205b2897e3e5b6398b0bb2da0b820f9a0df00dabd27b",
+      "status": "PASS_REFERENCE_ONLY",
+      "rows": 3,
+      "candidate_observed": false,
+      "evidence_sha256": {
+        "SequenceCopyControls.kt": "7713f44e1c47a31ef12e1d408bb4cfd3a7260050eea5e8d8edc911b4da813678",
+        "authorization.json": "fd2815d5716f69f8102a2845fcb05b4fb7e917165e22430edfe2e8183d069afc",
+        "compile.phase.json": "a692c68bed23549c1ee8f52360894488cbe5b3b1d7adf906c682d4ee9babf7aa",
+        "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-reference.jar": "e74931fbc44e0db3cf8ab36b52ab929ccf5f010989193e50001c9508815e1603",
+        "report.json": "267a113f2b8aa0592067205b2897e3e5b6398b0bb2da0b820f9a0df00dabd27b",
+        "run.phase.json": "3b6e0b6e8b37dbc597b4a0568d146cb42a0537e2f1bfc2f2f519c94e4e8fc8dd",
+        "run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run.stdout": "88c6e56196b900c94bc10812d4badb71bbd5ca71d249646c4a9a6a5c7fe3f5b0",
+        "sequence_copy.reference.expected": "88c6e56196b900c94bc10812d4badb71bbd5ca71d249646c4a9a6a5c7fe3f5b0"
+      }
+    }
+  ],
+  "prior_optin_failure": {
+    "path": "/workspace/scratch/io-1762-jvm-preparation/jvm-nio-closure-oracle1/report.json",
+    "sha256": "070c217cb9bb2f7d19b82c0d8a72864717819fc27c246c4c09a04f65e6b96178",
+    "preserved": true
+  },
+  "prior_v4_patch": {
+    "path": "/workspace/scratch/io-1762-jvm-preparation/native-nio-minimum-v4.proposal.patch",
+    "sha256": "c845088c1d65dfc3c8af7556c22f72efd51e62c66ca67d7588ece7bd7e8ce5ec"
+  },
+  "captured_output_clarification": {
+    "path": "/workspace/scratch/io-1762-jvm-preparation/captured-output-clarification-v1.json",
+    "sha256": "d4d9173701eecbd7c519813b2c35f3749a71407a12234608925be5962e1c3aae"
+  },
+  "reference_only": true,
+  "candidate_execution": 0,
+  "V5_kept_immutable": true,
+  "V6_reference_only": true,
+  "V6_kept_immutable": true,
+  "V7_reference_only": true
+}
