@@ -361,6 +361,23 @@ extension DataFlowSemaPhase {
                 )
             }
 
+            // The native implementation stays E?, while Java callers see E!.
+            // Restrict the compatibility contract to this compiler-owned API;
+            // user Kotlin declarations in java.util retain normal nullable rules.
+            let callableReturnType: TypeID
+            if sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true,
+               ownerFQName == ["java", "util", "LinkedList"].map(interner.intern),
+               funDecl.name == interner.intern("peekLast"),
+               params.paramTypes.isEmpty,
+               case let .typeParam(element) = types.kind(of: returnType),
+               element.nullability == .nullable,
+               classTypeParameterSymbols.contains(element.symbol)
+            {
+                callableReturnType = types.withNullability(.platformType, for: returnType)
+            } else {
+                callableReturnType = returnType
+            }
+
             // Include class type parameter symbols so the overload resolver can
             // infer them from the receiver type arguments.
             let allTypeParameterSymbols = classTypeParameterSymbols + typeParamResult.typeParameterSymbols
@@ -395,7 +412,7 @@ extension DataFlowSemaPhase {
                     receiverType: extensionReceiverType ?? ownerType,
                     contextReceiverTypes: contextReceiverTypes,
                     parameterTypes: params.paramTypes,
-                    returnType: returnType,
+                    returnType: callableReturnType,
                     isSuspend: funDecl.isSuspend,
                     valueParameterSymbols: params.paramSymbols,
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,

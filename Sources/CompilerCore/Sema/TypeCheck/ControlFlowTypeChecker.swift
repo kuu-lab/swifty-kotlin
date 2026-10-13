@@ -660,7 +660,7 @@ final class ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let boolType = sema.types.booleanType
-        let conditionType = driver.inferExpr(condition, ctx: ctx, locals: &locals)
+        let conditionType = driver.inferExpr(condition, ctx: ctx, locals: &locals, expectedType: boolType)
         if conditionType != boolType {
             driver.emitSubtypeConstraint(
                 left: conditionType,

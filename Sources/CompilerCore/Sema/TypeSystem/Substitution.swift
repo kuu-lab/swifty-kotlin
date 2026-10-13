@@ -220,8 +220,13 @@ public extension TypeSystem {
                let concrete = substitution[variable]
             {
                 switch typeParam.nullability {
-                case .nullable, .platformType:
-                    return withNullability(typeParam.nullability, for: concrete)
+                case .nullable:
+                    return makeNullable(concrete)
+                case .platformType:
+                    // A nullable Java type argument collapses the flexible
+                    // bounds to T?, so it must never become assignable to T.
+                    if nullability(of: concrete) == .nullable { return concrete }
+                    return withNullability(.platformType, for: concrete)
                 case .nonNull:
                     return concrete
                 }

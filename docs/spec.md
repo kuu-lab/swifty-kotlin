@@ -670,7 +670,7 @@ public final class SemaModule {
 ```swift
 public struct TypeID: Hashable { public let rawValue: Int32 }
 
-public enum Nullability { case nonNull, nullable }
+public enum Nullability { case nonNull, nullable, platformType }
 
 public enum TypeKind {
     case error
@@ -912,6 +912,9 @@ _KK_<module>__<fqname>__<declkind>__<signature>__<hash>
 * `Boolean` -> `Z`
 * `String` -> `Lkotlin_String;`
 * `T?` -> `Q<T>`
+* `.kklib` の型 signature は Java 境界の `T!` を `P<T>` として保存・復元する。link-name mangling は従来どおり `Q<T>` に消去する。
+* bundled `java.util.LinkedList.peekLast` は Kotlin 実装の `E?` 宣言を保ち、呼び出し signature に限って `E!` を公開する。ユーザーが同じ FQ name で宣言した Kotlin 関数には適用しない。`E!` を nullable 型引数で置換した場合は nullable を保持する（`LinkedList<Int?>.peekLast(): Int?`）。通常の Kotlin `T? → T` は許可しない。platform 値を具体的な非 nullable 型または非 nullable 上限を持つ型変数へ渡す際は KIR の `nullAssert` を挿入し、null なら NPE を投げる。上限なしの `T` への戻り値には挿入しない。具体型 `Unit!` の表現は [KUU-2035](https://linear.app/kuu/issue/KUU-2035) の別制約として未対応。
+* `print` / `println` に platform String を渡す場合は nullable `Any?` overload を選び、空 `peekLast` の null をそのまま表示する。
 * `Function2<A,B,R>` -> `F2<A,B,R>`
 * `suspend` 関数型 -> `SF…`
 

@@ -43,7 +43,7 @@ extension ExprTypeChecker {
         let uintType = sema.types.uintType
 
         if op == .logicalAnd || op == .logicalOr {
-            let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals)
+            let lhs = driver.inferExpr(lhsID, ctx: ctx, locals: &locals, expectedType: boolType)
             driver.emitSubtypeConstraint(
                 left: lhs,
                 right: boolType,
@@ -67,7 +67,8 @@ extension ExprTypeChecker {
             let rhs = driver.inferExpr(
                 rhsID,
                 ctx: ctx.copying(flowState: rhsState),
-                locals: &rhsLocals
+                locals: &rhsLocals,
+                expectedType: boolType
             )
             driver.emitSubtypeConstraint(
                 left: rhs,
@@ -119,7 +120,7 @@ extension ExprTypeChecker {
             lhsID, ctx: ctx, locals: &locals,
             expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
         )
-        let lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
+        var lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
         // Elvis uses an enclosing expected type for its RHS, but the LHS's
         // non-null type is only a contextual hint when no enclosing type exists.
         // Apply that hint to lambda inputs (so implicit `it` can be inferred)
@@ -181,6 +182,22 @@ extension ExprTypeChecker {
         }
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)
+
+        if [.add, .subtract, .multiply, .divide, .modulo,
+            .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
+            .rangeTo, .rangeUntil, .downTo, .step].contains(op) {
+            if case .primitive(_, .platformType) = sema.types.kind(of: lhs) {
+                let target = sema.types.makeNonNullable(lhs)
+                driver.recordPlatformNullAssertion(lhsID, sourceType: lhs, targetType: target)
+                lhs = target
+            }
+            if case .primitive = sema.types.kind(of: lhs),
+               case .primitive(_, .platformType) = sema.types.kind(of: rhs) {
+                let target = sema.types.makeNonNullable(rhs)
+                driver.recordPlatformNullAssertion(rhsID, sourceType: rhs, targetType: target)
+                rhs = target
+            }
+        }
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely.

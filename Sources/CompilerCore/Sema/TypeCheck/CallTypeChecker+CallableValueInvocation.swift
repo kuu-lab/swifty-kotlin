@@ -87,10 +87,11 @@ extension CallTypeChecker {
 
     func bindCallAndResolveReturnType(
         _ id: ExprID,
-        chosen: SymbolID,
+        chosen initialCallee: SymbolID,
         resolved: ResolvedCall,
         sema: SemaModule
     ) -> TypeID {
+        let chosen = nullableConsoleCallee(id, chosen: initialCallee, sema: sema)
         bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.bindCall(
             id,
@@ -115,6 +116,28 @@ extension CallTypeChecker {
         let returnType: TypeID
         if let signature = sema.symbols.functionSignature(for: chosen) {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let arguments: [CallArgument]
+            switch driver.ast.arena.expr(id) {
+            case let .call(_, _, args, _), let .memberCall(_, _, _, args, _),
+                 let .safeMemberCall(_, _, _, args, _):
+                arguments = args
+            case let .binary(_, _, rhs, _):
+                arguments = [CallArgument(expr: rhs)]
+            default:
+                arguments = []
+            }
+            for (index, argument) in arguments.enumerated() where !argument.isSpread {
+                guard let parameterIndex = resolved.parameterMapping[index],
+                      signature.parameterTypes.indices.contains(parameterIndex),
+                      let sourceType = sema.bindings.exprType(for: argument.expr)
+                else { continue }
+                let targetType = sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[parameterIndex],
+                    substitution: resolved.substitutedTypeArguments,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                driver.recordPlatformNullAssertion(argument.expr, sourceType: sourceType, targetType: targetType)
+            }
             returnType = sema.types.substituteTypeParameters(
                 in: signature.returnType,
                 substitution: resolved.substitutedTypeArguments,
@@ -125,6 +148,39 @@ extension CallTypeChecker {
         }
         markRangeCallBindings(id, chosen: chosen, returnType: returnType, sema: sema)
         return returnType
+    }
+
+    /// Native console metadata retains a String-specialized overload. Java
+    /// platform Strings must use its nullable Any? sibling so printing an empty
+    /// peek does not introduce a non-null parameter assertion.
+    private func nullableConsoleCallee(_ id: ExprID, chosen: SymbolID, sema: SemaModule) -> SymbolID {
+        guard let symbol = sema.symbols.symbol(chosen),
+              symbol.fqName.count == 3,
+              Array(symbol.fqName.prefix(2)) == ["kotlin", "io"].map(driver.interner.intern),
+              ["print", "println"].map(driver.interner.intern).contains(symbol.name),
+              let signature = sema.symbols.functionSignature(for: chosen),
+              signature.parameterTypes == [sema.types.stringType]
+        else { return chosen }
+        let bundled = sema.symbols.sourceFileID(for: chosen).flatMap {
+            driver.sourceManager?.origin(of: $0)?.isBundledStdlib
+        } == true
+        guard bundled || symbol.flags.contains(.importedLibrary) || symbol.flags.contains(.synthetic)
+        else { return chosen }
+        let arguments: [CallArgument]
+        switch driver.ast.arena.expr(id) {
+        case let .call(_, _, args, _), let .memberCall(_, _, _, args, _): arguments = args
+        default: return chosen
+        }
+        guard arguments.count == 1,
+              let type = sema.bindings.exprType(for: arguments[0].expr),
+              sema.types.isString(type), sema.types.nullability(of: type) == .platformType
+        else { return chosen }
+        guard let nullableCallee = sema.symbols.lookupAll(fqName: symbol.fqName).first(where: {
+            sema.symbols.functionSignature(for: $0)?.parameterTypes == [sema.types.nullableAnyType]
+        }) else { return chosen }
+        // Discard a tentative String hint now that the actual parameter accepts null.
+        sema.bindings.bindPlatformNullAssertion(arguments[0].expr, targetType: nil)
+        return nullableCallee
     }
 
     /// How an extension-function-typed callee's own receiver (if any) may be
@@ -212,8 +268,11 @@ extension CallTypeChecker {
             if receiverArgOffset == 0 {
                 parameterMapping[argIndex] = paramIndex
             }
+            let argumentType = contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex])
+            driver.recordPlatformNullAssertion(args[argIndex].expr, sourceType: argumentType,
+                                               targetType: functionType.params[paramIndex])
             driver.emitSubtypeConstraint(
-                left: contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex]),
+                left: argumentType,
                 right: functionType.params[paramIndex],
                 range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),

@@ -50,7 +50,8 @@ package final class NameMangler {
         symbols: SymbolTable,
         types: TypeSystem,
         nameResolver: ((InternedString) -> String)? = nil,
-        unboxValueClasses: Bool = true
+        unboxValueClasses: Bool = true,
+        preservePlatformNullability: Bool = false
     ) -> String {
         switch symbol.kind {
         case .function, .constructor:
@@ -73,7 +74,8 @@ package final class NameMangler {
                 symbols: symbols,
                 types: types,
                 nameResolver: nameResolver,
-                unboxValueClasses: unboxValueClasses
+                unboxValueClasses: unboxValueClasses,
+                preservePlatformNullability: preservePlatformNullability
             )
 
         case .property, .field, .backingField:
@@ -85,7 +87,8 @@ package final class NameMangler {
                 symbols: symbols,
                 types: types,
                 nameResolver: nameResolver,
-                unboxValueClasses: unboxValueClasses
+                unboxValueClasses: unboxValueClasses,
+                preservePlatformNullability: preservePlatformNullability
             )
 
         case .typeAlias:
@@ -97,7 +100,8 @@ package final class NameMangler {
                 symbols: symbols,
                 types: types,
                 nameResolver: nameResolver,
-                unboxValueClasses: unboxValueClasses
+                unboxValueClasses: unboxValueClasses,
+                preservePlatformNullability: preservePlatformNullability
             )
 
         default:
@@ -173,8 +177,19 @@ package final class NameMangler {
         symbols: SymbolTable,
         types: TypeSystem,
         nameResolver: ((InternedString) -> String)?,
-        unboxValueClasses: Bool = true
+        unboxValueClasses: Bool = true,
+        preservePlatformNullability: Bool = false
     ) -> String {
+        // Library metadata must retain the flexible Java boundary contract.
+        // Link-name mangling keeps its historical two-state encoding.
+        if preservePlatformNullability, types.nullability(of: type) == .platformType {
+            let inner = encodeType(
+                types.makeNonNullable(type), symbols: symbols, types: types,
+                nameResolver: nameResolver, unboxValueClasses: unboxValueClasses,
+                preservePlatformNullability: true
+            )
+            return "P<\(inner)>"
+        }
         switch types.kind(of: type) {
         case .error:
             return "E"
@@ -245,7 +260,8 @@ package final class NameMangler {
                     symbols: symbols,
                     types: types,
                     nameResolver: nameResolver,
-                    unboxValueClasses: unboxValueClasses
+                    unboxValueClasses: unboxValueClasses,
+                    preservePlatformNullability: preservePlatformNullability
                 )
                 return "VC<\(underlyingEncoded)>"
             }
@@ -265,7 +281,8 @@ package final class NameMangler {
                         symbols: symbols,
                         types: types,
                         nameResolver: nameResolver,
-                        unboxValueClasses: unboxValueClasses
+                        unboxValueClasses: unboxValueClasses,
+                        preservePlatformNullability: preservePlatformNullability
                     )
                 }.joined(separator: ",")
                 encoded += "<\(args)>"
@@ -286,31 +303,32 @@ package final class NameMangler {
                         symbols: symbols,
                         types: types,
                         nameResolver: nameResolver,
-                        unboxValueClasses: unboxValueClasses
+                        unboxValueClasses: unboxValueClasses,
+                        preservePlatformNullability: preservePlatformNullability
                     )
                 }.joined(separator: ",")
                 components.append("C\(functionType.contextReceivers.count)<\(encodedContextReceivers)>")
             }
             if let receiver = functionType.receiver {
-                components.append("R\(encodeType(receiver, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))")
+                components.append("R\(encodeType(receiver, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability))")
             }
             components.append(contentsOf: functionType.params.map {
-                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
+                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability)
             })
-            components.append(encodeType(functionType.returnType, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))
+            components.append(encodeType(functionType.returnType, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability))
             let prefix = (functionType.isCallableReference ? "K" : "")
                 + (functionType.isSuspend ? "SF" : "F")
             let encoded = "\(prefix)\(functionType.params.count)<\(components.joined(separator: ","))>"
             return applyNullability(encoded, nullability: functionType.nullability)
 
         case let .kClassType(kClassType):
-            let argEncoded = encodeType(kClassType.argument, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
+            let argEncoded = encodeType(kClassType.argument, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability)
             let encoded = "KC<\(argEncoded)>"
             return applyNullability(encoded, nullability: kClassType.nullability)
 
         case let .intersection(parts):
             let encodedParts = parts.map {
-                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
+                encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability)
             }.joined(separator: "&")
             return "X<\(encodedParts)>"
         }
@@ -321,15 +339,16 @@ package final class NameMangler {
         symbols: SymbolTable,
         types: TypeSystem,
         nameResolver: ((InternedString) -> String)?,
-        unboxValueClasses: Bool
+        unboxValueClasses: Bool,
+        preservePlatformNullability: Bool
     ) -> String {
         switch arg {
         case let .invariant(type):
-            encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
+            encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability)
         case let .out(type):
-            "O<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))>"
+            "O<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability))>"
         case let .in(type):
-            "N<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))>"
+            "N<\(encodeType(type, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses, preservePlatformNullability: preservePlatformNullability))>"
         case .star:
             "*"
         }

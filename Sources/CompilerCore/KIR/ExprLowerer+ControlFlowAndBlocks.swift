@@ -30,6 +30,11 @@ extension ExprLowerer {
         {
             return wrapper
         }
+        if let targetType = sema.bindings.platformNullAssertionTypes[exprID] {
+            let checked = arena.appendTemporary(type: targetType)
+            instructions.append(.nullAssert(operand: value, result: checked))
+            return checked
+        }
         return value
     }
 
