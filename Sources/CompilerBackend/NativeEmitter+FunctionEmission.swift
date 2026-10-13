@@ -1907,7 +1907,11 @@ extension NativeEmitter {
                     return declareExternalFunction(
                         named: name,
                         argumentCount: observedArgumentCount,
+                        // Private adapters referenced by imported inline bodies
+                        // have no exported signature, but retain the mandatory
+                        // thrown parameter of every compiler-generated function.
                         appendThrownChannel: appendThrown
+                            || name.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix)
                     )
                 },
                 declareExternalSymbolFunction: { symbol in
