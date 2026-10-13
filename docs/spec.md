@@ -1272,7 +1272,7 @@ swift test --show-codecov-path
 
 `AnnotationNode.constructionTokens` preserves constructor tokens (including aliases,
 escaped strings, array literals, named arguments and defaults) through frontend
-snapshots. `IncrementalFrontendState.supportedVersion = 4` rejects older snapshots.
+snapshots. `IncrementalFrontendState.supportedVersion = 5` rejects older snapshots.
 After headers, annotation construction is resolved in the declaration's lexical
 scope. After all declaration bodies are bound, all retention kinds require constant arguments/defaults; only RUNTIME
 records receive a private producer-owned constructor factory. Constant primitive
