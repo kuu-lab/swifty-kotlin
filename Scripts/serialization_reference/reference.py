@@ -190,6 +190,8 @@ def run_reference(root, manifest, cache, kotlin_home, output, case="modules"):
                                 fixtures / "serialization_nullable_descriptor.expected", "Serialization_nullable_descriptorKt"),
         "wrapped-descriptor": (fixtures / "serialization_wrapped_descriptor.kt",
                                fixtures / "serialization_wrapped_descriptor.expected", "Serialization_wrapped_descriptorKt"),
+        "collection-descriptor": (fixtures / "serialization_collection_descriptor.kt",
+                                  fixtures / "serialization_collection_descriptor.expected", "Serialization_collection_descriptorKt"),
     }[case]
     jar = output / "reference.jar"
     jar.unlink(missing_ok=True)
@@ -223,7 +225,7 @@ def main():
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/kswiftk/serialization-1.10.0")
     parser.add_argument("--kotlin-home", type=Path, default=os.environ.get("KOTLIN_HOME"))
     parser.add_argument("--output", type=Path, default=Path("serialization-reference-output"))
-    parser.add_argument("--case", choices=["modules", "primitive-descriptor", "nullable-descriptor", "wrapped-descriptor"], default="modules")
+    parser.add_argument("--case", choices=["modules", "primitive-descriptor", "nullable-descriptor", "wrapped-descriptor", "collection-descriptor"], default="modules")
     args = parser.parse_args()
     manifest = read_manifest()
     verify_files(ROOT, manifest)
