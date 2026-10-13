@@ -222,10 +222,12 @@ extension CallTypeChecker {
 
         if let calleeName {
             let resolvedName = interner.resolve(calleeName)
-            // mapOf has both fixed-arity and vararg source declarations. Let the
-            // regular resolver distinguish them for non-empty calls instead of
-            // binding the first collection-factory candidate unconditionally.
-            if !(resolvedName == "mapOf" && !args.isEmpty),
+            // listOf must use the declaration's argument and result constraints,
+            // including explicit type arguments and spread arrays. Assigning the
+            // expected result directly would accept List<String> = listOf(1).
+            // mapOf also needs regular resolution to select its fixed/vararg
+            // overloads for non-empty calls.
+            if resolvedName != "listOf", !(resolvedName == "mapOf" && !args.isEmpty),
                let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
                !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
                let chosen = candidates.first(where: { candidate in
