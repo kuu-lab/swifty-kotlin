@@ -312,6 +312,7 @@ extension CallTypeChecker {
         at index: Int,
         argumentLabel: InternedString?,
         args: [CallArgument],
+        callRange: SourceRange,
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
@@ -332,7 +333,7 @@ extension CallTypeChecker {
             }
             // The inference probe uses declaration parameter indices, while
             // known types are indexed by call arguments (possibly reordered).
-            let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+            let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
             var knownParameterTypes: [Int: TypeID] = [:]
             for (argumentIndex, type) in inferredNonLambdaArgTypes {
                 if let parameterIndex = parameterMapping?[argumentIndex] {
@@ -373,6 +374,7 @@ extension CallTypeChecker {
     func lambdaParameterTypeForArgument(
         at index: Int,
         args: [CallArgument],
+        callRange: SourceRange,
         callRange: SourceRange,
         in signature: FunctionSignature,
         ctx: TypeInferenceContext
