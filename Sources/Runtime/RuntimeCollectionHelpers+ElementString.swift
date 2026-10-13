@@ -39,7 +39,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return stringBox.value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
-        return intBox.enumEntryName ?? "\(intBox.value)"
+        return intBox.renderedString
     }
     if let boolBox = tryCast(ptr, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"

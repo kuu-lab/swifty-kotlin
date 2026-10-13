@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Uuid Runtime Support (kotlin.uuid.Uuid)
-
 /// Internal box holding a UUID value as two 64-bit integers (most significant, least significant).
 final class RuntimeUuidBox {
     let mostSignificantBits: Int64
@@ -162,8 +160,6 @@ private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBi
     return raw
 }
 
-// MARK: - Uuid.random()
-
 @_cdecl("__kk_uuid_random")
 public func __kk_uuid_random() -> Int {
     // Generate a version-4 (random) UUID
@@ -186,8 +182,6 @@ public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
         leastSignificantBits: Int64(kk_unbox_long(lsbRaw))
     )
 }
-
-// MARK: - java.util.UUID.toKotlinUuid()
 
 // Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
 // object shape (object header slots plus most/least significant bits).

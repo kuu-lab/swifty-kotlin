@@ -212,7 +212,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Helper function shells
 
     private func defineEnumHelperSymbol(
         name: InternedString,
@@ -385,7 +384,6 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: generatedDecls)
     }
 
-    // MARK: - Literal fast path
 
     private func synthesizeLiteralEnumPropertyGetters(
         classDecl: ClassDecl,
@@ -422,7 +420,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Entry storage + lazy initializer
 
     private func synthesizeEnumEntryStorage(
         classDecl: ClassDecl,
@@ -718,7 +715,6 @@ extension KIRLoweringDriver {
             .flatMap { sema.symbols.functionSignature(for: $0) }
     }
 
-    // MARK: - Lazy-init trigger
 
     /// Inserts a call to the owning enum's lazy initializer in front of
     /// every entry reference lowered in this compilation, so `init` blocks

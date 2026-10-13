@@ -66,7 +66,8 @@ python3 docs/fixtures/js_annotations/capture_reference.py \
 Kotlin/JS reference の runtime 4ケースと variance 診断1ケース。Runtime/RuntimeABI/Package.swift は基準 HEAD と同一で、
 候補 compiler は別 worktree でビルドし、完成済み runtime cache は
 `KSWIFTK_PACKAGE_ROOT` で検証済み元 checkout のものを使用した。
-source injection / O2 の往復 matrix は KUU-1616、CI 接続は KUU-1617 が担当する。
+source injection / 新規 bundled `.kklib` × O0/O2 の往復 matrix は KUU-1616、
+CI 接続は KUU-1617 が担当する。
 全 Swift テスト・全 Golden・全 diff・JS emission/annotation/reflection は未実行。
 
 既存 `collection_imports` fixture は未使用の未解決 import が受理される

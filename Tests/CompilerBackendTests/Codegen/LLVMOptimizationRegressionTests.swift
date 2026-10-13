@@ -9,6 +9,70 @@ import Testing
 /// pipeline first ran against the bundled standard library.
 @Suite
 struct LLVMOptimizationRegressionTests {
+    /// KUU-1981: preserve the original inline lambda, function reference, and
+    /// exception paths through both stdlib representations at O0 and O2.
+    @Test
+    func measureTimeDurationKeepsValidBlocksAndPropagatesExceptions() throws {
+        let source = try diffCaseSource("measure_time_duration.kt")
+        let target = TargetTriple.hostDefault()
+        let artifactBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("measure-time-stdlib-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: artifactBase + ".kklib") }
+        let artifactPath = try StdlibArtifactBuilder.build(outputBase: artifactBase, target: target)
+        for optimization in [OptimizationLevel.O0, .O2] {
+            for stdlibFromSource in [false, true] {
+                try assertOutput(
+                    source,
+                    moduleName: "MeasureTimeDurationBlocks",
+                    expected: "true\ntrue\ntest error\n",
+                    optimization: optimization,
+                    stdlibPath: stdlibFromSource ? nil : artifactPath,
+                    stdlibFromSource: stdlibFromSource,
+                    target: target
+                )
+            }
+        }
+    }
+
+    @Test(arguments: [0, 1, 2, 3])
+    func integerPrintlnEmitsObjectAtEachOptimizationLevel(optimization: Int) throws {
+        try withTemporaryFile(contents: "fun main() { println(1+1) }\n") { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent("integer-println-\(UUID().uuidString).o").path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let context = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "IntegerPrintlnObject", inputs: [path], outputPath: outputPath,
+                    emit: .object, target: TargetTriple.hostDefault(),
+                    optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+                    allowDefaultStdlibLibrary: false
+                ),
+                sourceManager: SourceManager(), diagnostics: DiagnosticEngine(), interner: StringInterner()
+            )
+            try runToKIR(context)
+            try LoweringPhase().run(context)
+            try CodegenPhase().run(context)
+            #expect(!context.diagnostics.hasError)
+            let generatedPath = try #require(context.generatedObjectPath)
+            #expect(!(try Data(contentsOf: URL(fileURLWithPath: generatedPath))).isEmpty)
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func optimizedLocaleToStringUsesTheFlatRuntimeABI(stdlibFromSource: Bool) throws {
+        try assertOutput(
+            """
+            import java.util.Locale
+            fun main() {
+                println(1+1)
+                println(Locale("en", "US").toString())
+            }
+            """,
+            moduleName: "OptimizedLocaleToString", expected: "2\nen_US\n",
+            optimization: .O2, stdlibFromSource: stdlibFromSource
+        )
+    }
+
     @Test(arguments: [0, 2])
     func annotatedSecondaryConstructorsKeepTheirDelegation(optimization: Int) throws {
         let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -460,7 +524,8 @@ struct LLVMOptimizationRegressionTests {
         expected: String,
         optimization: OptimizationLevel,
         stdlibPath: String? = nil,
-        stdlibFromSource: Bool = false
+        stdlibFromSource: Bool = false,
+        target: TargetTriple? = nil
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputPath = FileManager.default.temporaryDirectory
@@ -479,7 +544,7 @@ struct LLVMOptimizationRegressionTests {
                 inputs: [path],
                 outputPath: outputPath,
                 emit: .executable,
-                target: defaultTargetTriple(),
+                target: target ?? defaultTargetTriple(),
                 optLevel: optimization,
                 stdlibLibraryPath: libraryPath,
                 allowDefaultStdlibLibrary: !stdlibFromSource

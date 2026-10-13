@@ -28,12 +28,9 @@ public enum CodeActionFeature {
             else {
                 return nil
             }
-            let lspDiagnostic = LSPDiagnostic(
-                range: LSPConvert.range(primaryRange, sourceManager),
-                severity: severity(for: diagnostic.severity).rawValue,
-                code: diagnostic.code,
-                source: "kswiftk",
-                message: diagnostic.message
+            let lspDiagnostic = LSPConvert.diagnostic(
+                diagnostic,
+                range: LSPConvert.range(primaryRange, sourceManager)
             )
             return (diagnostic, lspDiagnostic)
         }
@@ -205,9 +202,7 @@ public enum CodeActionFeature {
     ) -> Bool {
         let endOffset = sourceManager.contents(of: fileID).count
         let end = sourceManager.lspPosition(of: SourceLocation(file: fileID, offset: endOffset))
-        if position.line > end.line { return false }
-        if position.line == end.line, position.character > end.character { return false }
-        return true
+        return (position.line, position.character) <= (end.line, end.character)
     }
 
     private static func isNonNegative(_ position: LSPPosition) -> Bool {
@@ -215,10 +210,7 @@ public enum CodeActionFeature {
     }
 
     private static func isOrdered(_ range: LSPRange) -> Bool {
-        if range.start.line != range.end.line {
-            return range.start.line < range.end.line
-        }
-        return range.start.character <= range.end.character
+        (range.start.line, range.start.character) <= (range.end.line, range.end.character)
     }
 
     private static func rangesOverlap(_ lhs: LSPRange, _ rhs: LSPRange) -> Bool {
@@ -226,7 +218,7 @@ public enum CodeActionFeature {
     }
 
     private static func isBefore(_ lhs: LSPPosition, _ rhs: LSPPosition) -> Bool {
-        lhs.line < rhs.line || (lhs.line == rhs.line && lhs.character < rhs.character)
+        (lhs.line, lhs.character) < (rhs.line, rhs.character)
     }
 
     private static func matchesContext(_ diagnostic: LSPDiagnostic, _ context: [LSPDiagnostic]) -> Bool {
@@ -240,15 +232,6 @@ public enum CodeActionFeature {
         guard let only, !only.isEmpty else { return true }
         return only.contains { requested in
             kind == requested || kind.hasPrefix(requested + ".")
-        }
-    }
-
-    private static func severity(for severity: DiagnosticSeverity) -> LSPDiagnosticSeverity {
-        switch severity {
-        case .error: .error
-        case .warning: .warning
-        case .note: .information
-        case .info: .hint
         }
     }
 

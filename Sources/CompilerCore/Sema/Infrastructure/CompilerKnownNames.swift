@@ -339,7 +339,6 @@ package struct KnownCompilerNames {
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
-    // StringBuilder member names
     let append: InternedString
     let appendLine: InternedString
     let appendRange: InternedString
@@ -629,6 +628,12 @@ package struct KnownCompilerNames {
     /// Bundled Kotlin-source Array copy entry points (KSP-1515).
     let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
+    /// `MutableMap` plus its concrete stdlib/`java.util` subtype FQ names,
+    /// shared by `isMutableMapSymbol` and `isMapLikeSymbol`.
+    let mutableMapLikeFQNames: Set<[InternedString]>
+    /// `MutableSet` plus its concrete stdlib/`java.util` subtype FQ names,
+    /// shared by `isMutableSetSymbol` and `isSetLikeSymbol`.
+    let mutableSetLikeFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
         self = interner.cachedCompilerNames {
@@ -761,7 +766,6 @@ package struct KnownCompilerNames {
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
-        // StringBuilder member names
         append = interner.intern("append")
         appendLine = interner.intern("appendLine")
         appendRange = interner.intern("appendRange")
@@ -871,6 +875,28 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicLongArrayName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicArrayName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
+        ]
+
+        // KUU-556: LinkedHashMap is a real HashMap subclass (its own symbol),
+        // not a MutableMap typealias resolving straight through to MutableMap.
+        // KUU-1361: the sorted java.util types are MutableMap/MutableSet
+        // subtypes backed by a sorted RuntimeMapBox/RuntimeSetBox; calls
+        // through any static receiver type must reach the __kk bridges.
+        mutableMapLikeFQNames = [
+            kotlinCollectionsMutableMapFQName,
+            kotlinCollectionsHashMapFQName,
+            kotlinCollectionsLinkedHashMapFQName,
+            javaUtilSortedMapFQName,
+            javaUtilNavigableMapFQName,
+            javaUtilTreeMapFQName,
+        ]
+        mutableSetLikeFQNames = [
+            kotlinCollectionsMutableSetFQName,
+            kotlinCollectionsHashSetFQName,
+            kotlinCollectionsLinkedHashSetFQName,
+            javaUtilSortedSetFQName,
+            javaUtilNavigableSetFQName,
+            javaUtilTreeSetFQName,
         ]
 
 
@@ -1030,13 +1056,9 @@ package struct KnownCompilerNames {
         sequenceScope = interner.intern("SequenceScope")
         closedFloatingPointRange = interner.intern("ClosedFloatingPointRange")
         self.kotlin = kotlin
-        let kotlinEnums = interner.intern("enums")
-        enumIntrinsicFQNames = [
-            [kotlin, enumValues],
-            [kotlin, enumValueOf],
-            [kotlin, kotlinEnums, enumEntries],
-            [kotlin, kotlinEnums, enumEntriesIntrinsic],
-        ]
+        enumIntrinsicFQNames = Set(WellKnownEnumIntrinsic.allCases.map {
+            $0.fqNameParts.map(interner.intern)
+        })
         sequences = interner.intern("sequences")
         initName = interner.intern("<init>")
         invoke = interner.intern("invoke")
@@ -1210,22 +1232,17 @@ package struct KnownCompilerNames {
     /// classes, unsigned variants included. For-loop lowering routes these
     /// classes through their bundled `iterator()` operators.
     func isRangeLikeClassName(_ name: InternedString) -> Bool {
-        name == intRange || name == longRange || name == charRange
+        isSignedRangeLikeClassName(name)
             || name == uintRange || name == ulongRange
-            || name == intProgression || name == longProgression
-            || name == charProgression || name == uintProgression
-            || name == ulongProgression
+            || name == uintProgression || name == ulongProgression
     }
 
-    /// The signed subset of `isRangeLikeClassName` (Int/Long/Char only).
     func isSignedRangeLikeClassName(_ name: InternedString) -> Bool {
         name == intRange || name == longRange || name == charRange
             || name == intProgression || name == longProgression
             || name == charProgression
     }
 
-    /// True when `symbol` is a built-in `kotlin.ranges` Range / Progression
-    /// class (unsigned variants included).
     func isRangeLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.fqName.starts(with: kotlinRangesPackageFQName)
             && (symbol.fqName.last.map { isRangeLikeClassName($0) } ?? false)
@@ -1247,23 +1264,6 @@ package struct KnownCompilerNames {
             || name == uintArray
     }
 
-    /// Returns true if the name is a primitive array constructor type name
-    /// (e.g. Array, IntArray, LongArray, etc.).
-    func isPrimitiveArrayConstructorTypeName(_ name: InternedString) -> Bool {
-        name == array
-            || name == intArray
-            || name == longArray
-            || name == shortArray
-            || name == byteArray
-            || name == ubyteArray
-            || name == ushortArray
-            || name == ulongArray
-            || name == doubleArray
-            || name == floatArray
-            || name == booleanArray
-            || name == charArray
-            || name == uintArray
-    }
 
     /// The set of stdlib collection factory function names used for marking
     /// collection literal expressions. Shared across call type-checking sites
@@ -1308,50 +1308,25 @@ package struct KnownCompilerNames {
     }
 
     func isMapLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == map || symbol.name == mutableMap
+        symbol.name == map
             || symbolMatches(symbol, fqName: kotlinCollectionsMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
-            // KUU-556: LinkedHashMap is now a real HashMap subclass (its own
-            // symbol), not a MutableMap typealias resolving straight through
-            // to the mutableMap check above.
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
-            // KUU-1361: sorted map types are MutableMap subtypes backed by a
-            // sorted RuntimeMapBox; calls through any static receiver type
-            // must reach the __kk map bridges.
-            || symbolMatches(symbol, fqName: javaUtilSortedMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeMapFQName)
+            || isMutableMapSymbol(symbol)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableMap
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilSortedMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeMapFQName)
+        (symbol.fqName.isEmpty && symbol.name == mutableMap)
+            || mutableMapLikeFQNames.contains(symbol.fqName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilSortedSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeSetFQName)
+        (symbol.fqName.isEmpty
+            && (symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet))
+            || mutableSetLikeFQNames.contains(symbol.fqName)
     }
 
     func isSetLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         if symbolMatches(symbol, fqName: kotlinCollectionsSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilSortedSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeSetFQName)
+            || mutableSetLikeFQNames.contains(symbol.fqName)
         {
             return true
         }

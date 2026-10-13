@@ -347,8 +347,16 @@ extension TypeCheckHelpers {
         return copy
     }
 
+    func localFunctionOptInContext(_ ctx: TypeInferenceContext) -> TypeInferenceContext {
+        var copy = ctx
+        // A local extension changes currentDeclSymbol for receiver resolution,
+        // but its body still inherits the enclosing declaration's opt-ins.
+        copy.inheritedOptInMarkers = activeOptInMarkers(in: ctx)
+        return copy
+    }
+
     private func activeOptInMarkers(in ctx: TypeInferenceContext) -> Set<SymbolID> {
-        var markers = ctx.accessorOptInMarkers
+        var markers = ctx.accessorOptInMarkers.union(ctx.inheritedOptInMarkers)
         let file = currentFile(in: ctx)
 
         for markerName in ctx.globalOptInMarkerNames {
@@ -481,7 +489,7 @@ extension TypeCheckHelpers {
             }
         }
 
-        let message = normalizeOptInStringLiteral(namedArgs["message"] ?? positionalArgs.first ?? "")
+        let message = normalizeAnnotationStringLiteral(namedArgs["message"] ?? positionalArgs.first ?? "")
         let levelCandidate = namedArgs["level"] ?? positionalArgs.first(where: { parseOptInLevel($0) != nil })
         return (
             message: message,
@@ -494,7 +502,7 @@ extension TypeCheckHelpers {
             return nil
         }
         raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        raw = normalizeOptInStringLiteral(raw)
+        raw = normalizeAnnotationStringLiteral(raw)
         let normalized = raw.replacingOccurrences(of: " ", with: "")
         let levelName = normalized.split(separator: ".").last.map(String.init)?.uppercased() ?? normalized.uppercased()
         return switch levelName {
@@ -570,21 +578,6 @@ extension TypeCheckHelpers {
             return nil
         }
         return (name, value)
-    }
-
-    private func normalizeOptInStringLiteral(_ raw: String) -> String {
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Annotation arguments are rebuilt from raw tokens. Determine whether
-        // the value is a string literal (regular or raw, with optional
-        // multi-dollar prefix) and extract its content. Raw strings must not
-        // be escape-decoded; regular strings are decoded like any other
-        // Kotlin string literal.
-        if let extraction = extractKotlinStringLiteralContent(value) {
-            return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
-        }
-
-        return decodeKotlinStringEscapes(value)
     }
 
 

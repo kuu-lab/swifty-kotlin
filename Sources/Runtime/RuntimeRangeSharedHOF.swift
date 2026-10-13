@@ -66,8 +66,7 @@ enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
     }
 
     static func random(_ range: RuntimeRangeBox, randomRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        runtimeSignedRangeRandom(first: range.first, last: range.last, step: range.step,
-                                 randomRaw: randomRaw, outThrown: outThrown)
+        runtimeSignedRangeRandom(range, randomRaw: randomRaw, outThrown: outThrown)
     }
 }
 
@@ -111,11 +110,7 @@ enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
     }
 
     static func random(_ range: RuntimeRangeBox, randomRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        runtimeUnsignedRangeRandom(first: UInt(bitPattern: range.first),
-                                   last: UInt(bitPattern: range.last),
-                                   step: range.step,
-                                   randomRaw: randomRaw,
-                                   outThrown: outThrown)
+        runtimeUnsignedRangeRandom(range, randomRaw: randomRaw, outThrown: outThrown)
     }
 }
 

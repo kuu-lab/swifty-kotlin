@@ -30,6 +30,20 @@ struct SequenceMemberAvailabilityTests {
             "s.reduceRightOrNull { a, b -> a - b }",
             "s.reduceRightIndexed { i, a, b -> a - b - i }",
             "s.reduceRightIndexedOrNull { i, a, b -> a - b - i }",
+            // KUU-1846: these are Iterable/Set operations, not Sequence
+            // operations. kotlinc rejects both Sequence and Iterable arguments.
+            "sequenceOf(1, 2, 3).union(sequenceOf(2, 3, 4))",
+            "s.union(other)",
+            "s.union(listOf(1, 2))",
+            "s.subtract(other)",
+            "s.subtract(listOf(1, 2))",
+            "s.subtract(sequenceOf(1, 2))",
+            "s.intersect(other)",
+            "s.intersect(listOf(1, 2))",
+            "s.intersect(sequenceOf(1, 2))",
+            // Sequence.toMap accepts Pair elements or a destination map; it
+            // does not accept a transform lambda (use associate instead).
+            "sequenceOf(1, 2, 3).toMap { it to it }",
         ]
         let sources = expressions.enumerated().map { index, expression in
             """

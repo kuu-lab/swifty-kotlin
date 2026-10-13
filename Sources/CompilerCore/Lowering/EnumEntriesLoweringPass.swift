@@ -84,31 +84,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         else {
             return nil
         }
-        // Verify the property belongs to an enum class (or its companion).
-        guard let enumClassSymbol = findOwnerEnumClass(for: propSym, sema: sema) else {
-            return nil
-        }
-        guard let classSym = sema.symbols.symbol(enumClassSymbol) else {
-            return nil
-        }
-        // Look up the synthesized entries$get function.
-        // It may be owned by the companion or by the enum class itself.
-        let ownerFQName = classSym.fqName
-        let getterFQName = ownerFQName + [entriesGetName]
-        // Also try companion owner
-        let companionOwner = sema.symbols.companionObjectSymbol(for: enumClassSymbol)
-        let companionFQName: [InternedString]? = companionOwner.flatMap { companion in
-            sema.symbols.symbol(companion)?.fqName
-        }
-        let getterSymbol: SymbolID? =
-            sema.symbols.lookupAll(fqName: getterFQName).first(where: { id in
-                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-            }) ?? companionFQName.flatMap { fq in
-                sema.symbols.lookupAll(fqName: fq + [entriesGetName]).first(where: { id in
-                    sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-                })
-            }
-        guard let getter = getterSymbol else {
+        guard let getter = entriesGetFunctionSymbol(
+            forPropertySymbol: propSym,
+            sema: sema,
+            entriesGetName: entriesGetName
+        ) else {
             return nil
         }
         let targetResult = normalizePropertyResult(
@@ -144,27 +124,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         else {
             return nil
         }
-        guard let enumClassSymbol = findOwnerEnumClass(for: sym, sema: sema) else {
-            return nil
-        }
-        guard let classSym = sema.symbols.symbol(enumClassSymbol) else {
-            return nil
-        }
-        let ownerFQName = classSym.fqName
-        let getterFQName = ownerFQName + [entriesGetName]
-        let companionOwner = sema.symbols.companionObjectSymbol(for: enumClassSymbol)
-        let companionFQName: [InternedString]? = companionOwner.flatMap { companion in
-            sema.symbols.symbol(companion)?.fqName
-        }
-        let getterSymbol: SymbolID? =
-            sema.symbols.lookupAll(fqName: getterFQName).first(where: { id in
-                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-            }) ?? companionFQName.flatMap { fq in
-                sema.symbols.lookupAll(fqName: fq + [entriesGetName]).first(where: { id in
-                    sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-                })
-            }
-        guard let getter = getterSymbol else {
+        guard let getter = entriesGetFunctionSymbol(
+            forPropertySymbol: sym,
+            sema: sema,
+            entriesGetName: entriesGetName
+        ) else {
             return nil
         }
         _ = normalizePropertyResult(cvResult, propertySymbol: sym, arena: arena)
@@ -195,27 +159,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         else {
             return nil
         }
-        guard let enumClassSymbol = findOwnerEnumClass(for: symbol, sema: sema) else {
-            return nil
-        }
-        guard let classSym = sema.symbols.symbol(enumClassSymbol) else {
-            return nil
-        }
-        let ownerFQName = classSym.fqName
-        let getterFQName = ownerFQName + [entriesGetName]
-        let companionOwner = sema.symbols.companionObjectSymbol(for: enumClassSymbol)
-        let companionFQName: [InternedString]? = companionOwner.flatMap { companion in
-            sema.symbols.symbol(companion)?.fqName
-        }
-        let getterSymbol: SymbolID? =
-            sema.symbols.lookupAll(fqName: getterFQName).first(where: { id in
-                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-            }) ?? companionFQName.flatMap { fq in
-                sema.symbols.lookupAll(fqName: fq + [entriesGetName]).first(where: { id in
-                    sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-                })
-            }
-        guard let getter = getterSymbol else {
+        guard let getter = entriesGetFunctionSymbol(
+            forPropertySymbol: symbol,
+            sema: sema,
+            entriesGetName: entriesGetName
+        ) else {
             return nil
         }
         let normalizedResult = normalizePropertyResult(
@@ -231,6 +179,32 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    /// Resolves the synthesized `entries$get` function for the enum class
+    /// that owns `propertySymbol` (the property may live on the enum class or
+    /// on its companion object). The helper may be registered under either the
+    /// enum class's or the companion's fqName, so both are tried in that order.
+    private func entriesGetFunctionSymbol(
+        forPropertySymbol propertySymbol: SymbolID,
+        sema: SemaModule,
+        entriesGetName: InternedString
+    ) -> SymbolID? {
+        guard let enumClassSymbol = findOwnerEnumClass(for: propertySymbol, sema: sema),
+              let classSym = sema.symbols.symbol(enumClassSymbol)
+        else {
+            return nil
+        }
+        let getterFQName = classSym.fqName + [entriesGetName]
+        let companionFQName = sema.symbols.companionObjectSymbol(for: enumClassSymbol)
+            .flatMap { sema.symbols.symbol($0)?.fqName }
+        return sema.symbols.lookupAll(fqName: getterFQName).first(where: { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }) ?? companionFQName.flatMap { fq in
+            sema.symbols.lookupAll(fqName: fq + [entriesGetName]).first(where: { id in
+                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+            })
+        }
     }
 
     private func normalizePropertyResult(

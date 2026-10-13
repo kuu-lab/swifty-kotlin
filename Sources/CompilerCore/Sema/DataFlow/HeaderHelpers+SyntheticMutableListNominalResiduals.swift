@@ -28,7 +28,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
-        // Define type parameter E for MutableList<E>
         let mlTypeParamFQName = mutableListFQName + [listTypeParamName]
         let mlTypeParamSymbol = symbols.define(
             kind: .typeParameter,

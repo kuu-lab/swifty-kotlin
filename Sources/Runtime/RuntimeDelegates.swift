@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - KProperty Stub (PROP-007, STDLIB-REFLECT-062)
-
 /// Minimal KProperty<*> stub carrying property name and return type.
 /// Used as the `property` argument for `provideDelegate`, `getValue`, and `setValue`.
 final class RuntimeKPropertyStub {
