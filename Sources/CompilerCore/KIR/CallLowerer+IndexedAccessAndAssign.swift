@@ -328,7 +328,7 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let receiverID = driver.lowerExpr(
+        let rawReceiverID = driver.lowerExpr(
             receiverExpr,
             ast: ast,
             sema: sema,
@@ -337,21 +337,29 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        // Built-in array set only supports a single Int index
+        let receiverID = needsEvaluationOrderFreeze(receiverExpr, ast: ast, sema: sema)
+            && anyExpressionMayMutateState(indices + [valueExpr], ast: ast)
+            ? freezeEvaluationOrderOperand(rawReceiverID, arena: arena, instructions: &instructions)
+            : rawReceiverID
         assert(!indices.isEmpty, "indices must not be empty for indexed assign")
-        let rawIndexID = driver.lowerExpr(
-            indices[0],
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
-        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
-            && expressionMayMutateState(valueExpr, ast: ast)
-            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
-            : rawIndexID
+        var loweredIndices: [KIRExprID] = []
+        for (position, indexExpr) in indices.enumerated() {
+            let rawIndexID = driver.lowerExpr(
+                indexExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let laterOperands = indices.dropFirst(position + 1) + [valueExpr]
+            let indexID = needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
+                && anyExpressionMayMutateState(laterOperands, ast: ast)
+                ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+                : rawIndexID
+            loweredIndices.append(indexID)
+        }
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -361,10 +369,6 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        // A cast to Array<Any?> can make Sema bind the generic `Array.set`
-        // member, but indexed assignment still has to use the array runtime
-        // entry point. Emitting the source-backed member call here drops the
-        // write from the KIR body and leaves the original array unchanged.
         let assignReceiverType = sema.types.makeNonNullable(
             sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         )
@@ -373,25 +377,27 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
-        if let callBinding = sema.bindings.callBindings[exprID], !assignReceiverIsArrayLike {
+        let resolvedCallBinding = sema.bindings.callBindings[exprID]
+        let chosenSetIsIntrinsic: Bool = if assignReceiverIsArrayLike,
+            indices.count == 1,
+            let chosenSet = resolvedCallBinding?.chosenCallee,
+            let symbol = sema.symbols.symbol(chosenSet),
+            symbol.fqName.count == 3,
+            symbol.fqName[0] == interner.intern("kotlin"),
+            KnownCompilerNames(interner: interner).isArrayLikeName(symbol.fqName[1]),
+            symbol.fqName[2] == interner.intern("set"),
+            let signature = sema.symbols.functionSignature(for: chosenSet)
+        {
+            signature.parameterTypes.count == 2
+                && signature.parameterTypes[0] == sema.types.intType
+        } else {
+            false
+        }
+        // Preserve the intrinsic for canonical Int-indexed Array.set (including
+        // casts to Array<Any?>). User overloads retain their resolved dispatch,
+        // even when the receiver itself uses the array runtime representation.
+        if let callBinding = resolvedCallBinding, !chosenSetIsIntrinsic {
             let chosenSet = callBinding.chosenCallee
-            var loweredIndices: [KIRExprID] = []
-            for (i, indexExpr) in indices.enumerated() {
-                if i == 0 {
-                    loweredIndices.append(indexID)
-                } else {
-                    let loweredIndex = driver.lowerExpr(
-                        indexExpr,
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers,
-                        instructions: &instructions
-                    )
-                    loweredIndices.append(loweredIndex)
-                }
-            }
             let loweredArgs = loweredIndices + [valueID]
             let callResult = arena.appendTemporary(type: sema.types.unitType)
             emitMemberCallInstruction(
@@ -451,7 +457,7 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
-            arguments: [receiverID, indexID, storedValueID],
+            arguments: [receiverID, loweredIndices[0], storedValueID],
             result: nil,
             canThrow: false,
             thrownResult: nil
