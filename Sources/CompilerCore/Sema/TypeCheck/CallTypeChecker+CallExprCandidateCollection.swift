@@ -58,9 +58,14 @@ extension CallTypeChecker {
             if locals[calleeName] == nil,
                let receiverType = ctx.implicitReceiverType
             {
-                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                var memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                 )
+                if memberCandidates.isEmpty {
+                    memberCandidates = collectWorkerExecuteMemberCandidates(
+                        named: calleeName, receiverType: receiverType, sema: sema, interner: interner
+                    )
+                }
                 // Imported library declarations also carry the synthetic flag.
                 // Include them before argument inference so receiver lambdas on
                 // members such as HexFormat.Builder.bytes get their expected type.
