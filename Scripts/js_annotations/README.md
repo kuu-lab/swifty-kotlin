@@ -137,3 +137,42 @@ Run the runner's API-independent regressions with:
 
 The regression uses a fake candidate compiler and traps java/kotlinc on PATH to
 confirm the reference tools are not launched.
+
+## Daily CI and KUU-1480 handoff (KUU-1617)
+
+Build an optimized CompilerCore first for the complete matrix, then use the
+same entrypoint as the nightly CI job:
+
+    KSWIFTK_OPTIMIZE_COMPILER_CORE=1 swift build --product kswiftc
+    KOTLINC=/not-used JAVA_BIN=/not-used python3 Scripts/js_annotations/run_ci.py \
+      --kswiftc .build/out/Products/Debug/kswiftc
+
+Use `.build/debug/kswiftc` for a native SwiftPM build layout. The entrypoint runs
+three runner/aggregation regression scripts, then all 27 native fixtures through
+the complete four-cell matrix. It accepts no case filter or existing artifact.
+Evidence is kept under `.artifacts/js_annotations_ci/<unique-run>/`:
+`inputs.json` (Python/runner hashes, current diff-case snapshot identity, CI run URL),
+`runner-results.json`, exact regression process logs, `matrix-results.json`,
+`evidence.md/json`, and the matrix's full build/compile/runtime outputs. Nonzero
+exit is preserved for failures, timeouts, incomplete matrices, and stale inputs.
+The aggregator explicitly distinguishes `fail`, `timeout`, and `not-run`; it
+never treats out-of-native-lane fixtures as candidate passes.
+
+PR/merge-queue `ci.yml` runs the three fast regression scripts in Repository
+checks. `nightly-full.yml` runs `verify-js-annotations` daily and on manual
+workflow dispatch, using its checked release compiler artifact and a fresh
+stdlib build. The matrix job fails on mismatches and uploads evidence even on
+failure. Its job summary links the original observations through the
+[KUU-1480 handoff](../../docs/js-annotations-ci-evidence.md). It does not require JVM
+reference setup. Saved evidence is retained for 30 days; preserve the run URL and
+artifact when passing the result to KUU-1480.
+
+To inspect saved matrix evidence without rerunning the compiler:
+
+    python3 Scripts/js_annotations/summarize_evidence.py \
+      --matrix docs/fixtures/js_annotations/evidence/native-matrix-results.json \
+      --output /tmp/js-annotations-saved-evidence.md
+
+This returns failure for the existing 52 failed cells and marks runner
+regressions not-run unless `--runner-results <run>/runner-results.json` is
+supplied. It is a historical aggregation, not a current compiler validation.
