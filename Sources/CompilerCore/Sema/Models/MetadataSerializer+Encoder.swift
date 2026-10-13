@@ -501,6 +501,7 @@ package final class MetadataEncoder {
                     superFQName: computedSuperFQName,
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
+                    isInnerClass: symbol.flags.contains(.innerClass),
                     modality: symbol.flags.contains(.abstractType)
                         ? .abstract
                         : (symbol.flags.contains(.openType) ? .open : .final),
@@ -520,6 +521,7 @@ package final class MetadataEncoder {
                 superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
+                isInnerClass: symbol.flags.contains(.innerClass),
                 modality: symbol.flags.contains(.abstractType)
                     ? .abstract
                     : (symbol.flags.contains(.openType) ? .open : .final),
@@ -988,6 +990,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
+            isInnerClass: symbol.flags.contains(.innerClass),
             modality: modality,
             isSealedClass: isSealedClass,
             isFunInterface: isFunInterface,
@@ -1364,6 +1367,7 @@ package final class MetadataEncoder {
             if record.isOpenClass {
                 fields.append("openClass=1")
             }
+            if record.isInnerClass { fields.append("innerClass=1") }
             if record.modality != .final {
                 fields.append("modality=\(record.modality.rawValue)")
             }
@@ -1496,6 +1500,7 @@ package final class MetadataEncoder {
         }
         if record.isDataClass { fields.append("dataClass=1") }
         if record.isOpenClass { fields.append("openClass=1") }
+        if record.isInnerClass { fields.append("innerClass=1") }
         if record.modality != .final { fields.append("modality=\(record.modality.rawValue)") }
         if record.isSealedClass { fields.append("sealedClass=1") }
         if record.isFunInterface { fields.append("funInterface=1") }
@@ -1541,7 +1546,14 @@ package final class MetadataEncoder {
                 return nil
             }
             if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
-                return nil
+                // An inner constructor's caller stores this ABI-only enclosing-instance
+                // link before invoking the producer constructor. Keep its actual slot,
+                // without exporting the private field as a Kotlin declaration.
+                guard let owner = symbols.parentSymbol(for: symbolID),
+                      includedSymbolIDs.contains(owner),
+                      symbols.symbol(owner)?.flags.contains(.innerClass) == true,
+                      symbols.outerInstanceFieldSymbol(for: owner) == symbolID
+                else { return nil }
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {

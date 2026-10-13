@@ -235,7 +235,7 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
-        case let .localDecl(_, isMutable, _, initializer, isDelegated, _):
+        case let .localDecl(_, isMutable, _, initializer, isDelegated, _, _):
             return lowerLocalDecl(
                 isMutable: isMutable,
                 initializer: initializer,

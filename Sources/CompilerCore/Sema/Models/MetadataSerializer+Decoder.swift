@@ -208,6 +208,7 @@ final class MetadataDecoder {
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
+        var isInnerClass: Bool = false
         var modality: MetadataModality = .final
         var isSealedClass: Bool = false
         var isFunInterface: Bool = false
@@ -341,6 +342,8 @@ final class MetadataDecoder {
             record.isDataClass = value == "1" || value == "true"
         case "openClass":
             record.isOpenClass = value == "1" || value == "true"
+        case "innerClass":
+            record.isInnerClass = value == "1" || value == "true"
         case "modality":
             record.modality = MetadataModality(rawValue: value) ?? .final
         case "sealedClass":

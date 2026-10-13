@@ -1,0 +1,10 @@
+declared
+read:lateinit property local has not been initialized
+initialized:ready
+lambda-created
+lambda:lateinit property captured has not been initialized
+lambda-after:first
+lambda-reassigned:second
+lambda-write:written
+callable:lateinit property callback has not been initialized
+callable-after:called
