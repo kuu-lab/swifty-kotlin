@@ -193,12 +193,19 @@ private struct JVMInteropNioArtifactSnapshot {
 }
 
 private func jvmInteropNioArtifactHashes(_ directory: URL) throws -> [String: String] {
-    let root = directory.resolvingSymlinksInPath().standardizedFileURL
+    // Keep the root and enumerated child URLs on the same lexical path. Resolving
+    // only the root turns macOS /private/tmp into /tmp while enumeration keeps
+    // returning /private/tmp children, which corrupts every relative key.
+    let root = directory.standardizedFileURL
+    let rootPrefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
     let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]))
     var hashes: [String: String] = [:]
     for case let file as URL in enumerator {
         guard try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { continue }
-        hashes[String(file.path.dropFirst(root.path.count + 1))] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
+        let filePath = file.standardizedFileURL.path
+        try #require(filePath.hasPrefix(rootPrefix), "Artifact entry escaped producer library root")
+        let relativePath = String(filePath.dropFirst(rootPrefix.count))
+        hashes[relativePath] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
     }
     return hashes
 }
