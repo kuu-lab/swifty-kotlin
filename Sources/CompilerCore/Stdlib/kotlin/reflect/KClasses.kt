@@ -184,14 +184,11 @@ public val KClass<*>.isFun: Boolean
 // `List<Any?>` because the runtime still reports raw parameter indices
 // rather than KTypeParameter handles.
 //
-// NOTE: `findAnnotation<T>()` is NOT covered here — it takes a reified
-// type argument, which this compiler only supports for a fixed, non-nested
-// set of built-in intrinsics (see how `typeOf<T>()` is special-cased).
-// Forwarding a reified type parameter as the type argument of a *nested*
-// reified call is not yet general, so it remains a compiler special case
-// (Sources/CompilerCore/KIR/CallLowerer+KClassReflectMemberCalls.swift).
-// `findAssociatedObject<T>()` is likewise expanded by that special case,
-// but its bundled source declaration now lives in AssociatedObjects.kt.
+// `findAnnotation<T>()` is declared in reflect/full/KAnnotatedElements.kt
+// with the upstream KAnnotatedElement receiver. Its resolved KClass calls
+// use the native annotation lookup; other receivers execute the inline body.
+// `findAssociatedObject<T>()` remains a reified compiler special case,
+// with its source declaration in AssociatedObjects.kt.
 //
 // NOTE: `properties` is also NOT covered here, unlike its `memberProperties`/
 // `declaredMemberProperties` siblings. It is not a real kotlin-stdlib name
@@ -218,9 +215,6 @@ private external fun __kk_kclass_members(kclass: KClass<*>): List<KCallable<*>>
 
 @KsSymbolName("__kk_kclass_nested_classes")
 private external fun __kk_kclass_nested_classes(kclass: KClass<*>): List<KClass<*>>
-
-@KsSymbolName("__kk_kclass_primary_constructor")
-private external fun __kk_kclass_primary_constructor(kclass: KClass<*>): Any?
 
 @KsSymbolName("__kk_kclass_member_properties")
 private external fun __kk_kclass_member_properties(kclass: KClass<*>): List<KProperty<*>>
@@ -266,10 +260,6 @@ public val KClass<*>.members: Collection<KCallable<*>>
 /** Returns the classes declared directly inside this class. */
 public val KClass<*>.nestedClasses: Collection<KClass<*>>
     get() = __kk_kclass_nested_classes(this)
-
-/** Returns the primary constructor of this class, or `null` if it has none. */
-public val KClass<*>.primaryConstructor: KFunction<*>?
-    get() = __kk_kclass_primary_constructor(this) as? KFunction<*>
 
 /** Returns all non-extension member properties declared in this class and its supertypes. */
 public val KClass<*>.memberProperties: Collection<KProperty<*>>

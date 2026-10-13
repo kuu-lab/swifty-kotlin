@@ -23,7 +23,7 @@ struct IterableFactoryNamedArgumentTests {
                 return name == KnownCompilerNames(interner: ctx.interner).iterable
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
-            let chosen = try #require(binding.chosenCallee)
+            let chosen = binding.chosenCallee
             let symbol = try #require(sema.symbols.symbol(chosen))
             let signature = try #require(sema.symbols.functionSignature(for: chosen))
             let file = try #require(sema.symbols.sourceFileID(for: chosen))

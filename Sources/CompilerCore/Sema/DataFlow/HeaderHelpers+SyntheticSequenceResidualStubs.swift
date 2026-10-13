@@ -60,7 +60,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // random(): T
         registerSequenceMemberStub(
             named: "random",
             externalLinkName: "kk_sequence_random",
@@ -75,7 +74,6 @@ extension DataFlowSemaPhase {
             canThrow: true
         )
 
-        // randomOrNull(): T?
         registerSequenceMemberStub(
             named: "randomOrNull",
             externalLinkName: "kk_sequence_randomOrNull",

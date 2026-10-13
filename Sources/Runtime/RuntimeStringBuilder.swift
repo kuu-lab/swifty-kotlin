@@ -1,6 +1,4 @@
 
-// MARK: - StringBuilder Runtime Type (STDLIB-255/256/257)
-
 final class RuntimeStringBuilderBox {
     /// Contents as Kotlin UTF-16 code units. Positional runtime operations
     /// (length/get/indexOf/insert/substring/...) work on this buffer directly;
@@ -93,8 +91,6 @@ private func runtimeStringBuilderBox(from raw: Int) -> RuntimeStringBuilderBox? 
 private func sbMakeStringRaw(_ value: String) -> Int {
     runtimeMakeStringRaw(value)
 }
-
-// MARK: - @_cdecl functions
 
 @_cdecl("__kk_string_builder_new")
 public func __kk_string_builder_new() -> Int {

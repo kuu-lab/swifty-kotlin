@@ -52,7 +52,7 @@ struct SequenceLastFunctionTests {
                 }, "Expected \(name) member call with \(arity) args")
 
                 let binding = try #require(sema.bindings.callBinding(for: callExprID))
-                let chosenCallee = try #require(binding.chosenCallee)
+                let chosenCallee = binding.chosenCallee
                 let fqName = try #require(sema.symbols.symbol(chosenCallee)?.fqName)
                     .map { ctx.interner.resolve($0) }
                 #expect(fqName == ["kotlin", "sequences", name])

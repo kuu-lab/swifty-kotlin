@@ -9,12 +9,15 @@ import Glibc
 #endif
 
 private enum TestStdlibCacheError: Error, CustomStringConvertible {
+    case compilerFingerprintUnavailable
     case artifactMissing(String)
     case lockFileCreateFailed(String, Int32)
     case lockFailed(String, Int32)
 
     var description: String {
         switch self {
+        case .compilerFingerprintUnavailable:
+            return "Could not identify the loaded compiler binary; refusing to reuse a shared stdlib artifact"
         case .artifactMissing(let path):
             return "Shared stdlib artifact was not produced at \(path)"
         case .lockFileCreateFailed(let path, let errnoCode):
@@ -45,7 +48,7 @@ private enum TestStdlibCacheError: Error, CustomStringConvertible {
 /// call. An earlier version of this cache used one fixed path plus an
 /// mtime/size "staleness" check, and deleted-then-rebuilt in place when that
 /// check said stale. Because the check treats an unresolvable fingerprint as
-/// "stale" (see `currentCompilerFingerprint()`), and that fingerprint search
+/// "stale", and that fingerprint search
 /// could fail to locate the test binary under some build layouts, a fresh
 /// process could decide a perfectly valid, in-use artifact was stale and
 /// delete it out from under a worker that was still reading it. Content
@@ -82,7 +85,10 @@ public final class TestStdlibCache: @unchecked Sendable {
             .appendingPathComponent(".build", isDirectory: true)
         return try Self.resolveOrBuildArtifact(
             buildDirectory: buildURL,
-            contentKey: Self.contentKey(),
+            contentKey: try Self.contentKey(
+                manifestHash: BundledStdlib.manifestHash(),
+                compilerFingerprint: Self.currentCompilerFingerprint()
+            ),
             fileManager: fm
         ) { outputBase in
             try StdlibArtifactBuilder.build(outputBase: outputBase, target: TargetTriple.hostDefault())
@@ -152,93 +158,61 @@ public final class TestStdlibCache: @unchecked Sendable {
         return artifactPath
     }
 
-    private static func contentKey() -> String {
-        let manifestHash = BundledStdlib.manifestHash()
-        let fingerprint = currentCompilerFingerprint() ?? "unknown"
-        return StableFNV1a64.hex("\(manifestHash)|\(fingerprint)")
+    /// Missing compiler identity must not map to a reusable "unknown" key.
+    /// `prepare()` reports this error and leaves source-based compilation available.
+    static func contentKey(manifestHash: String, compilerFingerprint: String?) throws -> String {
+        guard let compilerFingerprint, !compilerFingerprint.isEmpty else {
+            throw TestStdlibCacheError.compilerFingerprintUnavailable
+        }
+        return StableFNV1a64.hex("\(manifestHash)|\(compilerFingerprint)")
     }
 
-    /// A cheap fingerprint (mtime + size) of the `KSwiftKPackageTests` test
-    /// binary itself, which statically links every module including
-    /// CompilerCore/CompilerBackend (there are no `.dylib`s under `.build` —
-    /// `find .build/debug -iname '*.dylib'` returns nothing). Folded into
-    /// `contentKey()` because the bundled `.kt` stdlib sources hashed by
-    /// `BundledStdlib.manifestHash()` don't change when only Swift-side
-    /// lowering/codegen/runtime ABI changes (e.g. a `kk_*` callee gaining a
-    /// parameter) — that hash alone can't distinguish artifacts built by two
-    /// different compiler binaries.
-    ///
-    /// Deliberately NOT `Bundle.main.executablePath`: under
-    /// `swiftpm-testing-helper`, that resolves to the helper binary itself
-    /// (part of the Xcode toolchain, unrelated to and untouched by this
-    /// repo's own rebuilds), not to `KSwiftKPackageTests` — verified by
-    /// comparing the two paths' sizes/mtimes directly, which differed by
-    /// orders of magnitude and months.
-    ///
-    /// Searches the same fixed-depth candidates as before, then falls back to
-    /// the same bounded recursive scan of `.build` that
-    /// `GoldenHarnessSupport/GoldenHarnessAPI.swift`'s `workerExecutableURL()`
-    /// uses to find `GoldenHarnessWorker` — the fixed-depth candidates alone
-    /// miss layouts this repo actually produces (e.g. `swiftbuild`'s
-    /// `.build/out/Products/Debug/`). Before content-addressing, returning
-    /// `nil` here meant "assume stale," which forced every freshly started
-    /// process to rebuild and, worse, to delete-then-rebuild the one shared
-    /// path every other process's readers were using.
-    private static func currentCompilerFingerprint() -> String? {
-        let fm = FileManager.default
-        let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
-        let workerName = "KSwiftKPackageTests"
-
-        var candidates: [URL] = []
-        #if os(Linux)
-        candidates.append(contentsOf: [
-            cwd.appendingPathComponent(".build/debug/\(workerName).xctest"),
-            cwd.appendingPathComponent(".build/x86_64-unknown-linux-gnu/debug/\(workerName).xctest"),
-            cwd.appendingPathComponent(".build/aarch64-unknown-linux-gnu/debug/\(workerName).xctest"),
-        ])
-        #else
-        candidates.append(contentsOf: [
-            cwd.appendingPathComponent(".build/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
-            cwd.appendingPathComponent(".build/arm64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
-            cwd.appendingPathComponent(".build/x86_64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
-        ])
-        #endif
-
-        for candidate in candidates where fm.isExecutableFile(atPath: candidate.path) {
-            return fileFingerprint(at: candidate.path, fm: fm)
-        }
-
-        // Last resort: a bounded recursive scan for the `.xctest` bundle
-        // itself, mirroring workerExecutableURL()'s fallback search.
-        let buildRoot = cwd.appendingPathComponent(".build")
-        guard let enumerator = fm.enumerator(
-            at: buildRoot,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
+    /// Locate the image containing this module, which SwiftPM statically links
+    /// alongside CompilerCore and CompilerBackend in both aggregate and per-target
+    /// test products. Under swiftpm-testing-helper, Bundle.main identifies the
+    /// toolchain helper instead; searching .build can select an unrelated, stale
+    /// product when multiple layouts or configurations coexist.
+    static func currentCompilerImageURL() -> URL? {
+        #if canImport(Darwin)
+        let anchor: @convention(c) () -> Void = testStdlibCacheImageAnchor
+        var info = Dl_info()
+        guard dladdr(unsafeBitCast(anchor, to: UnsafeRawPointer.self), &info) != 0,
+              let filename = info.dli_fname
+        else {
             return nil
         }
-        let targetBundleName = "\(workerName).xctest"
-        for case let candidate as URL in enumerator where candidate.lastPathComponent == targetBundleName {
-            #if os(Linux)
-            let binaryPath = candidate.path
-            #else
-            let binaryPath = candidate.appendingPathComponent("Contents/MacOS/\(workerName)").path
-            #endif
-            if fm.isExecutableFile(atPath: binaryPath) {
-                return fileFingerprint(at: binaryPath, fm: fm)
-            }
-        }
+        return URL(fileURLWithPath: String(cString: filename)).standardizedFileURL
+        #elseif os(Linux)
+        // Linux SwiftPM runs the statically linked .xctest executable directly.
+        return URL(fileURLWithPath: "/proc/self/exe").resolvingSymlinksInPath()
+        #else
         return nil
+        #endif
     }
 
-    private static func fileFingerprint(at path: String, fm: FileManager) -> String? {
-        guard let attrs = try? fm.attributesOfItem(atPath: path),
+    /// A cheap build fingerprint of the loaded compiler image. Include its path
+    /// to keep distinct test products/configurations separate even when their
+    /// sizes and modification times happen to match. No on-disk product search
+    /// is allowed when the actual loaded image cannot be identified or stat'ed.
+    static func currentCompilerFingerprint(
+        compilerImageURL: URL? = currentCompilerImageURL(),
+        fileManager fm: FileManager = .default
+    ) -> String? {
+        guard let compilerImageURL,
+              let attrs = try? fm.attributesOfItem(atPath: compilerImageURL.path),
+              attrs[.type] as? FileAttributeType == .typeRegular,
               let size = attrs[.size] as? UInt64,
               let modified = attrs[.modificationDate] as? Date
         else {
             return nil
         }
-        return "\(size)-\(modified.timeIntervalSince1970)"
+        return "loaded-image-v1|\(compilerImageURL.path)|\(size)|\(modified.timeIntervalSince1970)"
     }
 }
+
+#if canImport(Darwin)
+// A C function pointer lets dladdr resolve this module's loaded Mach-O image,
+// including when swiftpm-testing-helper dynamically loads an .xctest bundle.
+@_cdecl("kswiftk_test_stdlib_cache_image_anchor")
+private func testStdlibCacheImageAnchor() {}
+#endif

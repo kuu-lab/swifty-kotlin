@@ -24,8 +24,6 @@ final class LambdaClosureConversionPass: LoweringPass {
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered
 
-    // MARK: - Analysis types
-
     /// Information about a lambda function with captures.
     private struct LambdaCaptureInfo {
         let function: KIRFunction
@@ -105,8 +103,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         return CallSiteIndex.build(from: module)
     }
 
-    // MARK: - shouldRun
-
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()
         let markerCallee = ctx.interner.intern("<lambda>")
@@ -133,8 +129,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         }
         return false
     }
-
-    // MARK: - run
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         let interner = ctx.interner
@@ -224,8 +218,6 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         module.recordLowering(Self.name)
     }
-
-    // MARK: - Phase 1: Identify lambdas with captures
 
     private func identifyLambdasWithCaptures(
         module: KIRModule,
@@ -336,8 +328,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         return Int64(rawName.dropFirst(prefix.count))
     }
 
-    // MARK: - Phase 2: Synthesize closure object
-
     private func synthesizeClosureObject(
         lambdaInfo: LambdaCaptureInfo,
         module: KIRModule,
@@ -355,8 +345,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         _ = interner.intern("kk_closure_obj_\(lambdaSymbolRaw)")
         let nominalSymbol = SymbolID(rawValue: Int32(clamping: -(41_000_000 + Int64(lambdaSymbolRaw))))
         let nominalDecl = KIRDecl.nominalType(KIRNominalType(symbol: nominalSymbol))
-
-        // Invoke wrapper function.
         let invokeWrapperName = interner.intern("kk_closure_invoke_\(lambdaSymbolRaw)")
         let invokeSymbol = SymbolID(rawValue: Int32(clamping: -(42_000_000 + Int64(lambdaSymbolRaw))))
 
@@ -434,8 +422,6 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         return (invokeWrapperName, invokeSymbol, [nominalDecl, invokeFuncDecl])
     }
-
-    // MARK: - Phase 3: Rewrite call sites
 
     private func rewriteCallSites(
         function: KIRFunction,

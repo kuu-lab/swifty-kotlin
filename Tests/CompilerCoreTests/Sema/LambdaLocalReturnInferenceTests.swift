@@ -4,6 +4,35 @@ import Testing
 
 @Suite
 struct LambdaLocalReturnInferenceTests {
+    @Test func preservesSourceDeclaredAnyReturnBoundaries() throws {
+        let source = """
+        fun consume(block: () -> Any) { block() }
+        fun consumeNullable(block: () -> Any?) { block() }
+        fun <T> evaluate(block: () -> T): T = block()
+        fun main() {
+            consume nonNull@{ 9223372036854775808uL }
+            consume explicit@{ return@explicit 18446744073709551615uL }
+            consumeNullable nullable@{ 9223372036854775808uL }
+            val stored: () -> Any = stored@{ 18446744073709551615uL }
+            val inferred = evaluate inferred@{ 9223372036854775808uL }
+            val direct: ULong = { 9223372036854775808uL }()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            try expectLambdaReturns([
+                "nonNull": sema.types.anyType,
+                "explicit": sema.types.anyType,
+                "nullable": sema.types.nullableAnyType,
+                "stored": sema.types.anyType,
+                "inferred": sema.types.ulongType,
+            ], ctx: ctx, path: path)
+        }
+    }
+
     @Test func infersLocalReturnValuesAndFallthrough() throws {
         let source = """
         fun <T> evaluate(action: () -> T): T = action()

@@ -91,6 +91,17 @@ func runtimeIsMapEntry(rawValue: Int) -> Bool {
     runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
 }
 
+@inline(__always)
+func runtimeMapEntryValues(rawValue: Int) -> (key: Int, value: Int)? {
+    guard runtimeIsMapEntry(rawValue: rawValue),
+          let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+          let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+    else {
+        return nil
+    }
+    return (pairBox.first, kk_pair_second(rawValue))
+}
+
 func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
@@ -119,6 +130,19 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     return nil
 }
 
+/// Only nominal HashMap objects need source dispatch ahead of their backing
+/// storage. Native map boxes and other source Map implementations keep their
+/// existing routes.
+func runtimeHashMapObject(from rawValue: Int) -> RuntimeObjectBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue),
+          runtimeIsObjectPointer(ptr),
+          let objectBox = tryCast(ptr, to: RuntimeObjectBox.self),
+          let typeID = runtimeObjectTypeID(rawValue: rawValue),
+          runtimeIsAssignable(sourceTypeID: typeID, targetTypeID: hashMapRuntimeTypeID)
+    else { return nil }
+    return objectBox
+}
+
 func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
@@ -127,6 +151,11 @@ func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
         return mapBox
     }
     if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
+        // Generic bridges must honor source overrides even after storage is
+        // attached. Only HashMap's base bodies unwrap their native storage.
+        if runtimeHashMapObject(from: rawValue) != nil {
+            return nil
+        }
         if let backingMapBox = objectBox.backingMapBox {
             return backingMapBox
         }
@@ -163,8 +192,11 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
             registerSortedCollectionTypeEdgesOnce()
             if runtimeIsAssignable(
                 sourceTypeID: objectTypeID,
-                targetTypeID: linkedHashSetRuntimeTypeID
+                targetTypeID: hashSetRuntimeTypeID
             ) {
+                // KUU-1940: HashSet is open. Attach storage to all source
+                // subclasses, including LinkedHashSet subclasses whose init
+                // bridge was not emitted.
                 let backingSetBox = RuntimeSetBox(elements: [])
                 objectBox.backingSetBox = backingSetBox
                 return backingSetBox

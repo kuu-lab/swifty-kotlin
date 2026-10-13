@@ -121,8 +121,6 @@ public final class SourceManager: @unchecked Sendable {
         return Substring(text)
     }
 
-    // MARK: - LSP position conversion (0-based, UTF-16)
-
     /// Converts a byte `SourceLocation` to a 0-based LSP position. `character`
     /// counts UTF-16 code units from the start of the line, matching LSP's
     /// default `utf-16` position encoding.

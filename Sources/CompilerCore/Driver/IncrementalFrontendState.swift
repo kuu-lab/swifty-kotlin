@@ -1,7 +1,7 @@
 
 public struct IncrementalFrontendState: Codable {
-    // Version 4 preserves annotation constructor tokens for typed reflection.
-    public static let supportedVersion = 4
+    // Version 5 combines typed annotation tokens and trailing-lambda syntax.
+    public static let supportedVersion = 5
 
     public let version: Int
     public let buildConfigurationHash: String

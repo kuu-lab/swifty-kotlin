@@ -2,6 +2,17 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testInterceptorKeyTypeChecks(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("coroutine_interceptor_key_type_checks.kt", file: #filePath),
+            expectedOutput: String(repeating: "true\n", count: 8)
+                + String(repeating: "false\n", count: 4)
+                + String(repeating: "true\n", count: 6) + "false\ntrue\ntrue\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testJobAndDispatcherElementKeys(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """

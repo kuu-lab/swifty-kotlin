@@ -1,8 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - kotlin.time experimental time runtime (STDLIB-TIME-180)
-
 final class RuntimeJSDateBox {
     let epochMilliseconds: Double
 
@@ -133,8 +131,6 @@ public func __kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int
     kk_time_source_as_clock(sourceRaw, originRaw)
 }
 
-// MARK: - TimeMark reading bridges (KSP-648 / KSP-649)
-//
 // elapsedNow / hasPassedNow / hasNotPassedNow / plus / minus / minus-mark / compareTo now
 // live in Sources/CompilerCore/Stdlib/kotlin/time/TimeMark.kt. Only the mark reading itself
 // (which touches RuntimeTimeMarkBox internals and the monotonic clock) stays native.
@@ -243,8 +239,6 @@ public func __kk_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
     registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: Int64(readingNanos)))
 }
 
-// MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
-
 /// Converts a kotlin.time.Instant to a Foundation.Date (Native/macOS bridge).
 ///
 /// Kotlin/Native: instant.toNSDate()
@@ -266,8 +260,6 @@ public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
     }
     return registerRuntimeObject(runtimeInstantFromEpochMilliseconds(jsDate.epochMilliseconds))
 }
-
-// MARK: - Native: clock_gettime bridge (STDLIB-TIME-181)
 
 /// Returns monotonic time in nanoseconds using POSIX clock_gettime(CLOCK_MONOTONIC).
 ///
@@ -297,8 +289,6 @@ public func kk_clock_monotonic_mark_now() -> Int {
     )
     return registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: ns))
 }
-
-// MARK: - Type-safe epoch conversion helpers (STDLIB-TIME-181)
 
 /// Returns the epoch-millisecond representation of a kotlin.time.Instant as a Long.
 ///

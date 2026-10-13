@@ -3,6 +3,7 @@
  */
 
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+@file:OptIn(ExperimentalMultiplatform::class)
 
 package kotlinx.atomicfu
 

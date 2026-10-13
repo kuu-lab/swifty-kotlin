@@ -1,7 +1,7 @@
 final class KotlinParser {
-    /// Caps active recursive parser productions across blocks, statements, and
-    /// declarations. The budget is shared because those productions call one
-    /// another to parse nested control flow and declaration bodies.
+    /// The budget is shared across blocks, statements, and declarations because
+    /// those productions call one another to parse nested control flow and
+    /// declaration bodies.
     static let maxNestingDepth = 128
 
     let stream: TokenStream
@@ -21,8 +21,6 @@ final class KotlinParser {
         arena = SyntaxArena()
     }
 
-    /// Enters one recursive grammar production. The caller must pair success
-    /// with `leaveNesting()` using `defer`.
     func enterNesting() -> Bool {
         nestingDepth += 1
         guard nestingDepth <= Self.maxNestingDepth else {
@@ -36,8 +34,6 @@ final class KotlinParser {
         nestingDepth -= 1
     }
 
-    /// Produces a partial node and iteratively skips to the next parser
-    /// synchronization point after the shared nesting budget is exhausted.
     func recoverFromNestingLimit(inBlock: Bool, kind: SyntaxKind = .statement) -> NodeID {
         let start = stream.peek().range
         if !nestingLimitReported {
@@ -49,12 +45,13 @@ final class KotlinParser {
             )
         }
 
+        let recoveryStartIndex = stream.index
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         while !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
             _ = consumeToken(into: &children, range: &range)
         }
-        if children.isEmpty, !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
+        if stream.index == recoveryStartIndex, !stream.atEOF() {
             _ = consumeToken(into: &children, range: &range)
         }
         return arena.appendNode(kind: kind, range: range.value ?? start, children)
@@ -115,17 +112,25 @@ final class KotlinParser {
             case .keyword(.import):
                 node = parseImportHeader()
             case _ where isDeclarationStart(token.kind):
-                if isAmbiguousDeclarationPrefix(token),
-                   declarationPrefixVerdict(at: 0) == .overBudget {
-                    // The prefix ran out of lookahead budget; consume it as
-                    // statements so recovery stays iterative instead of
-                    // rescanning the same run through parseDeclaration.
+                if case .softKeyword(.context) = token.kind {
+                    switch declarationPrefixVerdict(at: 0) {
+                    case .declaration:
+                        node = parseDeclaration()
+                    case .notDeclaration, .overBudget:
+                        // `context` can also be an ordinary identifier at the
+                        // start of an expression. Recover over-budget prefixes
+                        // iteratively through the statement parser.
+                        node = parseTopLevelStatement()
+                    }
+                } else if isAmbiguousDeclarationPrefix(token),
+                          declarationPrefixVerdict(at: 0) == .overBudget {
+                    // Check modifier-starting prefixes too, but keep their
+                    // existing declaration/expression fallback below the limit.
+                    // Statement recovery consumes an over-budget run iteratively.
                     node = parseTopLevelStatement()
                 } else {
                     node = parseDeclaration()
                 }
-            case .softKeyword(.context):
-                node = parseDeclaration()
             default:
                 node = parseTopLevelStatement()
             }
@@ -152,6 +157,12 @@ final class KotlinParser {
 
             children.append(.node(node))
             range.append(arena.node(node).range)
+
+            // Braced declarations can leave their separator unconsumed.
+            // Treating it as a statement would incorrectly select script mode.
+            while stream.peek().kind == .symbol(.semicolon) {
+                _ = consumeToken(into: &children, range: &range)
+            }
         }
 
         flushPendingImportsIfNeeded()

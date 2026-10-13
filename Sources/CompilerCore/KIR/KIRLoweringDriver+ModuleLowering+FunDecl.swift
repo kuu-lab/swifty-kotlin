@@ -70,7 +70,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Parameter building
 
     private func buildFunDeclParams(
         _ function: FunDecl,
@@ -90,7 +89,7 @@ extension KIRLoweringDriver {
                     exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
                 )
             }
-            let isVararg = callSupportLowerer.normalizeBoolFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+            let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
                 if index < isVararg.count, isVararg[index] {
@@ -131,7 +130,6 @@ extension KIRLoweringDriver {
         return params
     }
 
-    // MARK: - Default stub
 
     private func appendDefaultStub(
         symbol: SymbolID,
@@ -149,7 +147,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Body lowering
 
     private func lowerFunDeclBody(
         _ function: FunDecl,
@@ -269,26 +266,10 @@ extension KIRLoweringDriver {
             }
         }
 
-        let kotlinTextPackage = [
-            interner.intern("kotlin"),
-            interner.intern("text"),
-        ]
-        if packageFQName == kotlinTextPackage {
-            // The String indent/format helpers are pure Kotlin; only the
-            // private __kk_string_* bridges are external and skipped by the
-            // external-function path. Public functions must be lowered so user
-            // calls dispatch through the source declarations.
-            return false
-        }
-
-        let kotlinTimePackage = [
-            interner.intern("kotlin"),
-            interner.intern("time"),
-        ]
-        if packageFQName == kotlinTimePackage {
-            return false
-        }
-
+        // The String indent/format helpers are pure Kotlin; only the
+        // private __kk_string_* bridges are external and skipped by the
+        // external-function path. Public functions must be lowered so user
+        // calls dispatch through the source declarations.
         return false
     }
 }

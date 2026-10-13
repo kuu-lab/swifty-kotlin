@@ -98,7 +98,7 @@ public fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R> =
 // Result length equals the shorter of the two iterables, matching Kotlin
 // stdlib and the Swift ABI implementation (min(lhs.count, rhs.count)).
 
-public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> {
+public infix fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> {
     val first = iterator()
     val second = other.iterator()
     val result = mutableListOf<Pair<T, R>>()
