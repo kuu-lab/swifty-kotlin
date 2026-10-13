@@ -130,6 +130,19 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     return nil
 }
 
+/// Only nominal HashMap objects need source dispatch ahead of their backing
+/// storage. Native map boxes and other source Map implementations keep their
+/// existing routes.
+func runtimeHashMapObject(from rawValue: Int) -> RuntimeObjectBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue),
+          runtimeIsObjectPointer(ptr),
+          let objectBox = tryCast(ptr, to: RuntimeObjectBox.self),
+          let typeID = runtimeObjectTypeID(rawValue: rawValue),
+          runtimeIsAssignable(sourceTypeID: typeID, targetTypeID: hashMapRuntimeTypeID)
+    else { return nil }
+    return objectBox
+}
+
 func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
@@ -138,6 +151,11 @@ func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
         return mapBox
     }
     if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
+        // Generic bridges must honor source overrides even after storage is
+        // attached. Only HashMap's base bodies unwrap their native storage.
+        if runtimeHashMapObject(from: rawValue) != nil {
+            return nil
+        }
         if let backingMapBox = objectBox.backingMapBox {
             return backingMapBox
         }
