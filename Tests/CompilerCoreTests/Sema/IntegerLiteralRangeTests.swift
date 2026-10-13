@@ -22,7 +22,7 @@ struct IntegerLiteralRangeTests {
     ) -> [String: ExprID] {
         Dictionary(uniqueKeysWithValues: ast.arena.exprs.enumerated().compactMap { (index, expr) -> (String, ExprID)? in
             let exprID = ExprID(rawValue: Int32(index))
-            guard case let .localDecl(name, _, _, initializer?, _, _) = expr,
+            guard case let .localDecl(name, _, _, initializer?, _, _, _) = expr,
                   ast.arena.exprRange(exprID)?.start.file == fileID
             else {
                 return nil

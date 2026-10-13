@@ -337,15 +337,22 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> TypeRefID? {
         let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        // A use-site annotation before the declaration can contain a colon
+        // (`@get:JvmSynthetic`). It must not become the property's type separator.
+        guard let declarationIndex = tokens.firstIndex(where: {
+            $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
+        }) else {
+            return nil
+        }
         var sawName = false
         var colonIndex: Int?
-        for (index, token) in tokens.enumerated() {
+        for (index, token) in tokens.enumerated().dropFirst(declarationIndex + 1) {
             if !sawName {
                 switch token.kind {
                 case .keyword(.val), .keyword(.var):
                     continue
                 default:
-                    if TypeRefParserCore.isTypeLikeNameToken(token.kind) {
+                    if TypeRefParserCore.isDeclarationNameToken(token.kind) {
                         sawName = true
                     }
                     continue
