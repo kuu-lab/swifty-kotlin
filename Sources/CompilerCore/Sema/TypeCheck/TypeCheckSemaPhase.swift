@@ -83,6 +83,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
+        validateTailrecFunctions(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+
         let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
         validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
         driver.validateSuspensionContexts(
