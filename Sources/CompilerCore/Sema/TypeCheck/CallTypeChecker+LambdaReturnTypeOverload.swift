@@ -258,9 +258,13 @@ extension CallTypeChecker {
                     ).type ?? callableReferenceExpectedType(
                         at: index,
                         argumentLabel: argument.label,
+                        args: args,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
-                        sema: sema
+                        receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        resolver: ctx.resolver,
+                        ctx: ctx
                     )
                     let contextualType = contextualCallableArgumentType(
                         expectation, callResultType: contextualCallResultType,
