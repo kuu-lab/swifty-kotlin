@@ -23,7 +23,8 @@ package final class MetadataEncoder {
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
         objectLazyInitializerLinkNames: [SymbolID: String] = [:],
-        enumStaticInitLinkNames: [SymbolID: String] = [:]
+        enumStaticInitLinkNames: [SymbolID: String] = [:],
+        runtimeReflectionOnly: Bool = false
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -155,6 +156,16 @@ package final class MetadataEncoder {
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
         for symbol in exported {
+            // Runtime blobs consume a small projection of library metadata.
+            // Preserve the same selection and ordering, without constructing
+            // mangled signatures, contracts, annotations, or dispatch maps.
+            if runtimeReflectionOnly {
+                records.append(buildRuntimeReflectionRecord(
+                    for: symbol, symbols: symbols, interner: interner,
+                    inlineFunctionSymbols: inlineFunctionSymbols
+                ))
+                continue
+            }
             let isSyntheticNominalAnchor = !includeSynthetic
                 && includeSyntheticNominalAnchors
                 && symbol.flags.contains(.synthetic)
@@ -1022,7 +1033,7 @@ package final class MetadataEncoder {
     ]
 
     /// Nominal kinds that carry layout information in metadata.
-    private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
+    static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
     /// True when `symbolID` is (or belongs to) a compiler-generated member of a
     /// source-backed data class (KSP-626).

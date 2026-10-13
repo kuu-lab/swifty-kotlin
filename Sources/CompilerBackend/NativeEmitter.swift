@@ -71,6 +71,7 @@ struct NativeEmitter {
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     let reflectionMetadataRecords: [MetadataRecord]
+    let phaseTimer: PhaseTimer?
     let reflectionMetadataSymbolPrefix: String?
     /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
     /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
@@ -89,9 +90,11 @@ struct NativeEmitter {
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
+        phaseTimer: PhaseTimer? = nil,
         reflectionMetadataSymbolPrefix: String? = nil,
         linkOnceODRSymbols: Set<SymbolID> = []
     ) {
+        self.phaseTimer = phaseTimer
         self.target = target
         self.optLevel = optLevel
         self.debugInfo = debugInfo
@@ -421,7 +424,9 @@ struct NativeEmitter {
     }
 
     func emitLLVMIR(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try PhaseTimer.measureSubPhase("IR emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -435,18 +440,26 @@ struct NativeEmitter {
             bindings.setTarget(built.module, triple: triple)
 
             if optLevel != .O0 {
-                let targetMachine = try configuredTargetMachine(for: built.module)
+                let targetMachine = try PhaseTimer.measureSubPhase("target machine", timer: phaseTimer) {
+                    try configuredTargetMachine(for: built.module)
+                }
                 defer { bindings.disposeTargetMachine(targetMachine) }
-                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                if let error = PhaseTimer.measureSubPhase("opt pipeline", timer: phaseTimer, {
+                    bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel)
+                }) {
                     throw LLVMBackendError.nativeEmissionFailed(error)
                 }
             }
 
-            guard let llvmIR = bindings.printModule(built.module) else {
+            guard let llvmIR = PhaseTimer.measureSubPhase("IR print", timer: phaseTimer, {
+                bindings.printModule(built.module)
+            }) else {
                 throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
             }
             do {
-                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                try PhaseTimer.measureSubPhase("IR write", timer: phaseTimer) {
+                    try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                }
             } catch {
                 throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
             }
@@ -454,7 +467,9 @@ struct NativeEmitter {
     }
 
     func emitObject(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try PhaseTimer.measureSubPhase("IR emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -464,14 +479,20 @@ struct NativeEmitter {
         // on Linux. Keep module construction parallel, but serialize only the
         // target-machine section that is not thread-safe.
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            let targetMachine = try configuredTargetMachine(for: built.module)
+            let targetMachine = try PhaseTimer.measureSubPhase("target machine", timer: phaseTimer) {
+                try configuredTargetMachine(for: built.module)
+            }
             defer { bindings.disposeTargetMachine(targetMachine) }
 
-            if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+            if let error = PhaseTimer.measureSubPhase("opt pipeline", timer: phaseTimer, {
+                bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel)
+            }) {
                 throw LLVMBackendError.nativeEmissionFailed(error)
             }
 
-            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
+            if let errorMessage = PhaseTimer.measureSubPhase("object write", timer: phaseTimer, {
+                bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath)
+            }) {
                 throw LLVMBackendError.nativeEmissionFailed(errorMessage)
             }
         }
@@ -851,14 +872,16 @@ struct NativeEmitter {
             }
         }
 
-        RuntimeReflectionMetadataEmitter.emitGlobals(
-            records: reflectionMetadataRecords,
-            bindings: bindings,
-            module: llvmModule,
-            context: context,
-            int64Type: int64Type,
-            symbolPrefix: reflectionMetadataSymbolPrefix
-        )
+        PhaseTimer.measureSubPhase("IR/reflection globals", timer: phaseTimer) {
+            RuntimeReflectionMetadataEmitter.emitGlobals(
+                records: reflectionMetadataRecords,
+                bindings: bindings,
+                module: llvmModule,
+                context: context,
+                int64Type: int64Type,
+                symbolPrefix: reflectionMetadataSymbolPrefix
+            )
+        }
 
         return (context: context, module: llvmModule)
     }
