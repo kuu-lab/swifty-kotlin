@@ -176,7 +176,7 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 ## 7. コンパイル時間戦略とキャッシュ
 
-方針: 通常の executable ユーザーコンパイルは事前コンパイル済み `.kklib` を既定経路にし、
+方針: 通常のユーザーコンパイルは全 emit mode で事前コンパイル済み `.kklib` を既定経路にし、
 `--stdlib-from-source` を明示したデバッグ実行だけが bundled Kotlin source を注入する。
 `diff_kotlinc.sh` は shard ごとに stdlib を事前ビルドし、全 candidate compile から共有する。
 移行効果は計測で確認し、基準を満たさない場合は CI の切り替えを完了扱いにしない。
@@ -198,9 +198,15 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
    暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
 
-既定artifactは `emit == executable` に限定する。`object`、`llvm`、`kir` は source/introspection
-境界を保持し、LSPのartifact配線は ARCH-006 で扱う。`--stdlib-from-source` は既定artifactの
-発見・生成を無効化し、従来の bundled source 経路を明示的に選択する。
+既定artifactは `executable`、`object`、`llvm`、`kir`、`library` の全モードで解決する。
+`--stdlib-from-source` は既定artifactの発見・生成を無効化し、bundled source 経路を明示的に
+選択する。`--no-stdlib`、`--stdlib-only`、明示的な `--stdlib-library` は既定解決の対象外。
+ソースを introspect する API 呼び出しは `allowDefaultStdlibLibrary: false` を指定する。
+
+Golden ハーネスはケースの `stdlib-profile` を優先する。`source` はソース注入、`artifact` は
+渡された artifact、`no-stdlib` は stdlib なしで実行する。spec 無しケースもテストハーネスが
+共有 artifact を渡す既存経路を利用するが、artifact が渡されない直接実行の source fallback は
+維持する。プロセスの既定 artifact で明示的な source profile を上書きしない。
 
 `diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
 各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`

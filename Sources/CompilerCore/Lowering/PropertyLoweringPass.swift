@@ -75,15 +75,15 @@ final class PropertyLoweringPass: LoweringPass {
             guard let sema = ctx.sema else { return [] }
             var result = Set<SymbolID>()
             for sym in sema.symbols.allSymbols() {
+                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
                 guard sym.kind == .property,
+                      emittedReceiverFreeGetterSymbols.contains(getterSymbol),
                       sema.symbols.extensionPropertyReceiverType(for: sym.id) == nil
                 else { continue }
                 let parentKind = sema.symbols.parentSymbol(for: sym.id).flatMap {
                     sema.symbols.symbol($0)?.kind
                 }
                 guard parentKind == nil || parentKind == .package || parentKind == .object else { continue }
-                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym.id)
-                guard emittedReceiverFreeGetterSymbols.contains(getterSymbol) else { continue }
                 result.insert(sym.id)
             }
             return result

@@ -65,10 +65,8 @@ struct CodegenBackendMapHOFTests {
 
     // MARK: - no redirect to the legacy runtime exports
 
-    /// Artifact path: the stdlib comes from a precompiled `.kklib`. The
-    /// process-wide default artifact only applies to `emit == .executable`
-    /// (`CompilerOptions.shouldUseDefaultStdlib`), so an IR-emitting test has
-    /// to name the artifact itself to exercise this path at all.
+    /// Artifact path: explicitly select the shared precompiled `.kklib`
+    /// so this test exercises imported stdlib symbols.
     @Test
     func mapHOFKeepSourceCalleesThroughStdlibArtifact() throws {
         try withTemporaryFile(contents: Self.allFamiliesSource) { path in

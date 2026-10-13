@@ -182,7 +182,9 @@ extension DeclTypeChecker {
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
             .filter { candidate in
                 guard let candidateInfo = sema.symbols.symbol(candidate) else { return false }
-                return candidateInfo.kind == .constructor && candidate != primaryCtorSymbol.id
+                return candidateInfo.kind == .constructor
+                    && sema.symbols.parentSymbol(for: candidate) == superclassSymbol
+                    && candidate != primaryCtorSymbol.id
             }
         guard !candidates.isEmpty else { return }
 
@@ -255,7 +257,7 @@ extension DeclTypeChecker {
         }
         var resolved = resolveArguments(prepared.argTypes)
         var callArgs = zip(args, prepared.argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         if resolved.diagnostic != nil,
            reinferConstructorDelegationArguments(
@@ -283,7 +285,16 @@ extension DeclTypeChecker {
         sema.symbols.directSupertypes(for: symbol).first {
             let kind = sema.symbols.symbol($0)?.kind
             return kind == .class || kind == .enumClass
+        }.map { linkedActualConstructorOwner($0, sema: sema) }
+    }
+
+    private func linkedActualConstructorOwner(_ owner: SymbolID, sema: SemaModule) -> SymbolID {
+        guard let actual = sema.symbols.actualSymbol(for: owner),
+              sema.symbols.symbol(actual)?.kind == sema.symbols.symbol(owner)?.kind
+        else {
+            return owner
         }
+        return actual
     }
 
     /// Returns the class-kind superclass written in the source header.
@@ -474,6 +485,11 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         guard let delegation = ctor.delegationCall else { return }
 
+        // Resolve candidates and their expected superclass type with the same owner.
+        let explicitSuperclassSymbol = explicitSuperclassSymbol.map { superclass in
+            linkedActualConstructorOwner(superclass, sema: sema)
+        }
+        let targetOwner = delegation.kind == .this ? ownerSymbol : explicitSuperclassSymbol
         let delegationTargetFQName = resolveDelegationTarget(
             delegation: delegation,
             ownerSymbol: ownerSymbol,
@@ -485,7 +501,9 @@ extension DeclTypeChecker {
             let candidates = sema.symbols.lookupAll(fqName: delegationTargetFQName)
                 .filter { candidate in
                     guard let symbol = sema.symbols.symbol(candidate) else { return false }
-                    return symbol.kind == .constructor && candidate != currentCtorSymbolID
+                    return symbol.kind == .constructor
+                        && sema.symbols.parentSymbol(for: candidate) == targetOwner
+                        && candidate != currentCtorSymbolID
                 }
 
             if candidates.isEmpty {
@@ -598,7 +616,7 @@ extension DeclTypeChecker {
                   )
             else { continue }
             let type = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: argumentExpectedType)
-            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            argTypes[index] = CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             didReinfer = true
         }
         return didReinfer
@@ -628,8 +646,15 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID? {
         guard let ownerSymbol, let superclassSymbol else { return nil }
+        let directSupertypes = ctx.sema.symbols.directSupertypes(for: ownerSymbol)
+        // Local classes and object literals can retain the expect edge's key.
+        let registeredSuperclass = directSupertypes.contains(superclassSymbol)
+            ? superclassSymbol
+            : directSupertypes.first {
+                linkedActualConstructorOwner($0, sema: ctx.sema) == superclassSymbol
+            } ?? superclassSymbol
         let typeArguments = ctx.sema.symbols.supertypeTypeArgs(
-            for: ownerSymbol, supertype: superclassSymbol
+            for: ownerSymbol, supertype: registeredSuperclass
         )
         return ctx.sema.types.make(.classType(ClassType(
             classSymbol: superclassSymbol,

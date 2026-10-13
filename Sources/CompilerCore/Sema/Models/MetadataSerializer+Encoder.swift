@@ -23,7 +23,8 @@ package final class MetadataEncoder {
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
         objectLazyInitializerLinkNames: [SymbolID: String] = [:],
-        enumStaticInitLinkNames: [SymbolID: String] = [:]
+        enumStaticInitLinkNames: [SymbolID: String] = [:],
+        runtimeReflectionOnly: Bool = false
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -95,7 +96,7 @@ package final class MetadataEncoder {
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
                 if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember, !keepAsEnumClassMember {
-                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    var parentID = symbols.parentSymbolIfKnown(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
                             let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(parent.kind)
@@ -104,7 +105,7 @@ package final class MetadataEncoder {
                                 return false
                             }
                         }
-                        parentID = symbols.parentSymbol(for: p)
+                        parentID = symbols.parentSymbolIfKnown(for: p)
                     }
                 }
                 if symbol.kind == .package {
@@ -155,6 +156,16 @@ package final class MetadataEncoder {
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
         for symbol in exported {
+            // Runtime blobs consume a small projection of library metadata.
+            // Preserve the same selection and ordering, without constructing
+            // mangled signatures, contracts, annotations, or dispatch maps.
+            if runtimeReflectionOnly {
+                records.append(buildRuntimeReflectionRecord(
+                    for: symbol, symbols: symbols, interner: interner,
+                    inlineFunctionSymbols: inlineFunctionSymbols
+                ))
+                continue
+            }
             let isSyntheticNominalAnchor = !includeSynthetic
                 && includeSyntheticNominalAnchors
                 && symbol.flags.contains(.synthetic)
@@ -1022,7 +1033,7 @@ package final class MetadataEncoder {
     ]
 
     /// Nominal kinds that carry layout information in metadata.
-    private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
+    static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
     /// True when `symbolID` is (or belongs to) a compiler-generated member of a
     /// source-backed data class (KSP-626).
@@ -1031,7 +1042,7 @@ package final class MetadataEncoder {
         symbols: SymbolTable,
         excludedSourceFileIDs: Set<Int32>
     ) -> Bool {
-        var currentID = symbols.parentSymbol(for: symbolID)
+        var currentID = symbols.parentSymbolIfKnown(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if nominalKinds.contains(parent.kind) {
                 guard parent.flags.contains(.dataType),
@@ -1047,7 +1058,7 @@ package final class MetadataEncoder {
                 }
                 return true
             }
-            currentID = symbols.parentSymbol(for: parentID)
+            currentID = symbols.parentSymbolIfKnown(for: parentID)
         }
         return false
     }
@@ -1083,7 +1094,7 @@ package final class MetadataEncoder {
         excludedSourceFileIDs: Set<Int32>,
         allowShellBackedEnum: Bool = false
     ) -> Bool {
-        var currentID = symbols.parentSymbol(for: symbolID)
+        var currentID = symbols.parentSymbolIfKnown(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if Self.nominalKinds.contains(parent.kind) {
                 if parent.kind == .enumClass,
@@ -1113,14 +1124,14 @@ package final class MetadataEncoder {
                 // Synthetic companions / nested anchors may sit between the
                 // member and the owning enum class; keep walking.
                 if parent.flags.contains(.synthetic) {
-                    currentID = symbols.parentSymbol(for: parentID)
+                    currentID = symbols.parentSymbolIfKnown(for: parentID)
                     continue
                 }
                 // valueOf / entries are synthesized on the companion object,
                 // which may be a user-declared (non-synthetic) companion. Walk
                 // through it to reach the owning enum class.
                 if parent.kind == .object,
-                   let grandparentID = symbols.parentSymbol(for: parentID),
+                   let grandparentID = symbols.parentSymbolIfKnown(for: parentID),
                    symbols.companionObjectSymbol(for: grandparentID) == parentID
                 {
                     currentID = grandparentID
@@ -1128,7 +1139,7 @@ package final class MetadataEncoder {
                 }
                 return false
             }
-            currentID = symbols.parentSymbol(for: parentID)
+            currentID = symbols.parentSymbolIfKnown(for: parentID)
         }
         return false
     }
@@ -1447,6 +1458,20 @@ package final class MetadataEncoder {
         {
             fields.append("companionFq=\(companionFQName)")
         }
+        if Self.nominalKinds.contains(record.kind) {
+            // A completeness marker distinguishes no initializer from an old
+            // index that left these links in the declaration body only.
+            fields.append("initIndex=1")
+            if let link = record.objectInitializerLinkName, !link.isEmpty {
+                fields.append("objectInitLink=\(link)")
+            }
+            if let link = record.companionInitializerLinkName, !link.isEmpty {
+                fields.append("companionInitLink=\(link)")
+            }
+            if let link = record.enumStaticInitLinkName, !link.isEmpty {
+                fields.append("enumStaticInitLink=\(link)")
+            }
+        }
         if record.isDataClass { fields.append("dataClass=1") }
         if record.isOpenClass { fields.append("openClass=1") }
         if record.modality != .final { fields.append("modality=\(record.modality.rawValue)") }
@@ -1527,12 +1552,12 @@ package final class MetadataEncoder {
         guard name == "values" || name == "valueOf" || name == "entries" else {
             return false
         }
-        var ancestorID = symbols.parentSymbol(for: symbol.id)
+        var ancestorID = symbols.parentSymbolIfKnown(for: symbol.id)
         while let ancestor = ancestorID, let ancestorSymbol = symbols.symbol(ancestor) {
             if ancestorSymbol.kind == .enumClass {
                 return ancestorSymbol.visibility != .public
             }
-            ancestorID = symbols.parentSymbol(for: ancestor)
+            ancestorID = symbols.parentSymbolIfKnown(for: ancestor)
         }
         return false
     }
