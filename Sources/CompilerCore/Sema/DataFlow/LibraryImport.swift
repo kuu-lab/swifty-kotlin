@@ -66,7 +66,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         importedInlineFunctions: ImportedInlineFunctionStore,
-        cache: LibraryMetadataCache? = nil
+        cache: LibraryMetadataCache? = nil,
+        phaseTimer: PhaseTimer? = nil
     ) -> LibraryImportDeferredWork {
         // Imported function bounds may refer to java.io.Closeable before the
         // synthetic FileIO registration phase creates its compatibility anchor.
@@ -371,43 +372,47 @@ extension DataFlowSemaPhase {
             if stdlibArtifact {
                 stdlibModuleName = libraryModuleFQN
             }
-            let indexedFile = cache?.cachedIndexedMetadataFile(metadataPath: metadataPath)
-                ?? (try? Data(contentsOf: URL(fileURLWithPath: metadataPath))).flatMap(IndexedMetadataFile.init(data:))
+            let indexedFile = withSubPhaseTiming("indexDecode", timer: phaseTimer) {
+                cache?.cachedIndexedMetadataFile(metadataPath: metadataPath)
+                    ?? (try? Data(contentsOf: URL(fileURLWithPath: metadataPath))).flatMap(IndexedMetadataFile.init(data:))
+            }
             if let indexedFile {
                 cache?.cacheIndexedMetadataFile(indexedFile, metadataPath: metadataPath)
-                let nominalTypeParametersByFQName = Dictionary(
-                    uniqueKeysWithValues: indexedFile.entries.compactMap { entry -> (String, String)? in
-                        guard let signature = entry.record.nominalTypeParametersSignature else { return nil }
-                        return (entry.record.fqName, signature)
-                    }
-                )
-                for entry in indexedFile.entries {
-                    guard let shell = makeImportedLibraryRecord(
-                        entry.record,
-                        path: metadataPath,
-                        diagnostics: diagnostics,
-                        interner: interner,
-                        nominalTypeParametersByFQName: nominalTypeParametersByFQName
-                    ) else { continue }
-                    appendImportedBinding(
-                        shell,
-                        metadataPath: metadataPath,
-                        inlineKIRDir: manifestInfo.inlineKIRDir,
-                        isStdlibArtifact: stdlibArtifact,
-                        materializeBody: { [indexedFile] in
-                            guard let bodyRecord = indexedFile.record(for: entry)
-                            else { return nil }
-                            return self.makeImportedLibraryRecord(
-                                bodyRecord,
-                                path: metadataPath,
-                                diagnostics: diagnostics,
-                                interner: interner,
-                                nominalTypeParametersByFQName: nominalTypeParametersByFQName
-                            )
-                        },
-                        hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
-                        moduleFQN: libraryModuleFQN
+                withSubPhaseTiming("registerShells", timer: phaseTimer) {
+                    let nominalTypeParametersByFQName = Dictionary(
+                        uniqueKeysWithValues: indexedFile.entries.compactMap { entry -> (String, String)? in
+                            guard let signature = entry.record.nominalTypeParametersSignature else { return nil }
+                            return (entry.record.fqName, signature)
+                        }
                     )
+                    for entry in indexedFile.entries {
+                        guard let shell = makeImportedLibraryRecord(
+                            entry.record,
+                            path: metadataPath,
+                            diagnostics: diagnostics,
+                            interner: interner,
+                            nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                        ) else { continue }
+                        appendImportedBinding(
+                            shell,
+                            metadataPath: metadataPath,
+                            inlineKIRDir: manifestInfo.inlineKIRDir,
+                            isStdlibArtifact: stdlibArtifact,
+                            materializeBody: { [indexedFile] in
+                                guard let bodyRecord = indexedFile.record(for: entry)
+                                else { return nil }
+                                return self.makeImportedLibraryRecord(
+                                    bodyRecord,
+                                    path: metadataPath,
+                                    diagnostics: diagnostics,
+                                    interner: interner,
+                                    nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                                )
+                            },
+                            hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
+                            moduleFQN: libraryModuleFQN
+                        )
+                    }
                 }
             } else {
                 let records: [ImportedLibrarySymbolRecord]
@@ -637,48 +642,50 @@ extension DataFlowSemaPhase {
             // itself, so a strong capture would be a retain cycle leaking the
             // table (and every captured import structure) past compilation end.
             symbols.setLazyImportedMetadataLoader(alreadyLoaded: preloadedGetterBindingSymbols) { [self, weak symbols] symbol in
-            guard let symbols else { return }
-            guard let binding = bindingsBySymbol[symbol] else { return }
-            var bindingEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
-            self.applyImportedBinding(
-                binding,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics,
-                interner: interner,
-                importedInlineFunctions: importedInlineFunctions,
-                pendingSupertypeEdges: &bindingEdges,
-                cache: cache,
-                isStdlibArtifact: binding.isStdlibArtifact,
-                phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
-            )
-            let layoutDiagnostics: DiagnosticEngine
-            if lazyLoaderState.layoutBootstrapComplete {
-                layoutDiagnostics = diagnostics
-            } else {
-                layoutDiagnostics = DiagnosticEngine()
-                lazyLoaderState.pendingLayoutRetries.append(binding)
-            }
-            self.applyImportedLibraryBindingDeferredDetails(
-                binding,
-                pendingSupertypeEdges: bindingEdges,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics,
-                layoutDiagnostics: layoutDiagnostics,
-                bundledIndexReady: lazyLoaderState.layoutBootstrapComplete,
-                interner: interner,
-                bundledIndex: lazyLoaderState.bundledIndex,
-                indexedBindingsBySymbol: bindingsBySymbol
-            )
-            self.normalizeImportedMemberBinding(
-                binding,
-                symbols: symbols,
-                types: types,
-                diagnostics: diagnostics,
-                interner: interner,
-                cache: cache
-            )
+                guard let symbols else { return }
+                guard let binding = bindingsBySymbol[symbol] else { return }
+                withSubPhaseTiming("imports.lazyMaterialize", timer: phaseTimer, accumulating: true) {
+                    var bindingEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
+                    self.applyImportedBinding(
+                        binding,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        importedInlineFunctions: importedInlineFunctions,
+                        pendingSupertypeEdges: &bindingEdges,
+                        cache: cache,
+                        isStdlibArtifact: binding.isStdlibArtifact,
+                        phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
+                    )
+                    let layoutDiagnostics: DiagnosticEngine
+                    if lazyLoaderState.layoutBootstrapComplete {
+                        layoutDiagnostics = diagnostics
+                    } else {
+                        layoutDiagnostics = DiagnosticEngine()
+                        lazyLoaderState.pendingLayoutRetries.append(binding)
+                    }
+                    self.applyImportedLibraryBindingDeferredDetails(
+                        binding,
+                        pendingSupertypeEdges: bindingEdges,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        layoutDiagnostics: layoutDiagnostics,
+                        bundledIndexReady: lazyLoaderState.layoutBootstrapComplete,
+                        interner: interner,
+                        bundledIndex: lazyLoaderState.bundledIndex,
+                        indexedBindingsBySymbol: bindingsBySymbol
+                    )
+                    self.normalizeImportedMemberBinding(
+                        binding,
+                        symbols: symbols,
+                        types: types,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        cache: cache
+                    )
+                }
             }
             // Stored on `lazyLoaderState` itself; weak captures break the
             // self-cycle and the state -> symbols back-reference.

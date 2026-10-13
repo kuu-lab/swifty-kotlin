@@ -132,6 +132,38 @@ Tests-only observation with the same `minLines=5` / `minTokens=50` settings:
 
 The CI observation step is report-only. Set a Tests-specific threshold after enough runs confirm a stable target.
 
+## Compiler Sub-phase Timing
+
+`kswiftc -Xfrontend time-phases` prints nested, inclusive wall-clock timings
+under the existing top-level phases. Labels are printed in full, including long
+validation and lowering pass names. `TOTAL` and percentages still use only the
+sum of top-level phase durations; do not add sub-phase durations to `TOTAL`.
+
+- **Sema:** DataFlowSema and TypeCheckSema, with bundled-index construction,
+  import loading, early header predeclaration, imported stdlib index merge,
+  synthetic registration, deferred import work, header collection, every
+  validation pass, and body analysis nested under DataFlowSema.
+- **Imports:** `indexDecode` measures the indexed metadata cache lookup or
+  read/decode; `registerShells` measures compact-index shell registration.
+  `imports.lazyMaterialize` accumulates demanded signature/body-record
+  materialization and binding work in the top-level phase where it actually
+  runs, including later BuildKIR or Lowerings work. Recursive materializations
+  are counted once. This inclusive subtotal overlaps other scopes and is not
+  an additional phase. No timing forces an unused declaration to materialize.
+- **Lowerings:** one record for each pass, in `executedLowerings` order,
+  including stage checks and feature-gated skips.
+- **Codegen:** backend `init`, `prepareMetadata`, `initEmitter`, KIR-to-LLVM `emit`, target-machine
+  `initTarget`, LLVM `opt`, and output `write`. LLVM IR at O0 omits `opt` and
+  `initTarget` because those operations are skipped. Object `write` includes
+  LLVM's native object emission. Library exports also record
+  `writeLibraryMetadata` for inline KIR, manifest and metadata serialization.
+- **Link:** library object discovery, runtime object resolution, entry wrapper,
+  autolink stub preparation and the existing `Link/swiftc` driver invocation.
+
+Timing scopes record elapsed work even if that work throws. Without a phase
+timer, the scopes execute their body directly without reading the clock,
+building timing labels or allocating timing records.
+
 ## Bundled Stdlib Injection Cost
 
 The injection cost is the paired full-phase difference, not one bundled-source
