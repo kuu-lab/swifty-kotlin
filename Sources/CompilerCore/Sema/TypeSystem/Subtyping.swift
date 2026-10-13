@@ -868,11 +868,12 @@ extension TypeSystem {
     /// `lub(EmptyCoroutineContext, Element) == CoroutineContext`: neither
     /// input is a supertype of the other, but they share
     /// `CoroutineContext` above them. Collects the ancestor symbols
-    /// reachable from every input, keeps instantiations that accept all inputs
-    /// under the declared variance, and returns the single most specific
-    /// candidate (a subtype of every other candidate). Returns `nil` for
-    /// non-class inputs, incompatible args, or ambiguity — the caller then
-    /// uses the nearest-common-ancestor approximation.
+    /// reachable from every input, first preserves a lifted input
+    /// instantiation when it accepts all inputs, then combines differing
+    /// declaration-site covariant arguments if none does. Returns the single
+    /// most specific candidate (a subtype of every other candidate). Returns
+    /// `nil` for non-class inputs, incompatible arguments, or ambiguity — the
+    /// caller then uses the nearest-common-ancestor approximation.
     private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
         var ancestorSets: [Set<SymbolID>] = []
         for input in types {
@@ -892,6 +893,10 @@ extension TypeSystem {
         }
         var candidates: Set<TypeID> = []
         for ancestor in common {
+            var liftedArguments: [[TypeArg]] = []
+            var canCombineArguments = true
+            var liftedCandidates: Set<TypeID> = []
+            var hasAcceptingInputCandidate = false
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
@@ -900,18 +905,68 @@ extension TypeSystem {
                           to: ancestor
                       )
                 else {
+                    canCombineArguments = false
                     continue
                 }
+                liftedArguments.append(lifted)
                 // A later branch may provide the common instantiation:
                 // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
                 let candidate = make(.classType(ClassType(classSymbol: ancestor, args: lifted, nullability: .nonNull)))
-                if !candidates.contains(candidate), types.allSatisfy({ isSubtype($0, candidate) }) {
+                if liftedCandidates.insert(candidate).inserted,
+                   types.allSatisfy({ isSubtype($0, candidate) }) {
                     candidates.insert(candidate)
+                    hasAcceptingInputCandidate = true
                 }
+            }
+            guard canCombineArguments,
+                  liftedArguments.count == types.count,
+                  !hasAcceptingInputCandidate,
+                  let args = commonNominalSupertypeArguments(liftedArguments, for: ancestor)
+            else {
+                continue
+            }
+            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            if types.allSatisfy({ isSubtype($0, candidate) }) {
+                candidates.insert(candidate)
             }
         }
         let best = Set(candidates.filter { candidate in candidates.allSatisfy { isSubtype(candidate, $0) } })
         return best.count == 1 ? best.first : nil
+    }
+
+    private func commonNominalSupertypeArguments(
+        _ argumentSets: [[TypeArg]],
+        for nominal: SymbolID
+    ) -> [TypeArg]? {
+        guard let first = argumentSets.first,
+              argumentSets.allSatisfy({ $0.count == first.count })
+        else {
+            return nil
+        }
+
+        let variances = normalizedNominalVariances(for: nominal, arity: first.count)
+        var result: [TypeArg] = []
+        result.reserveCapacity(first.count)
+        for index in first.indices {
+            let arguments = argumentSets.map { $0[index] }
+            if arguments.dropFirst().allSatisfy({ $0 == arguments[0] }) {
+                result.append(arguments[0])
+                continue
+            }
+
+            guard variances[index] == .out else { return nil }
+            var projectedTypes: [TypeID] = []
+            for argument in arguments {
+                switch argument {
+                case let .invariant(type), let .out(type):
+                    projectedTypes.append(type)
+                case .in, .star:
+                    return nil
+                }
+            }
+            result.append(.out(lub(projectedTypes)))
+        }
+        return result
     }
 
     /// Arity of `kotlin.Function.FunctionN` when `classSymbol` is one of the
