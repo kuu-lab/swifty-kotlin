@@ -9,6 +9,56 @@ import Testing
 /// pipeline first ran against the bundled standard library.
 @Suite
 struct LLVMOptimizationRegressionTests {
+    /// KUU-2030: runtime-owned Locale handles retain nominal identity after
+    /// erasure, through both stdlib representations at O0 and O2.
+    @Test
+    func localeRuntimeTypeIdentitySurvivesErasure() throws {
+        let source = try diffCaseSource("locale_runtime_type_identity.kt")
+        let target = TargetTriple.hostDefault()
+        let artifactBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("locale-type-stdlib-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: artifactBase + ".kklib") }
+        let artifactPath = try StdlibArtifactBuilder.build(outputBase: artifactBase, target: target)
+        for optimization in [OptimizationLevel.O0, .O2] {
+            for stdlibFromSource in [false, true] {
+                try assertOutput(
+                    source,
+                    moduleName: "LocaleRuntimeTypeIdentity",
+                    expected: """
+                    true
+                    true
+                    true
+                    true
+                    true
+                    false
+                    true
+                    false
+                    true
+                    true
+                    true
+                    true
+                    true
+                    true
+                    true
+                    en_US
+                    bad cast
+                    true
+                    true
+                    false
+                    false
+                    2
+                    true
+                    false
+                    """ + "\n",
+                    optimization: optimization,
+                    stdlibPath: stdlibFromSource ? nil : artifactPath,
+                    stdlibFromSource: stdlibFromSource,
+                    target: target
+                )
+            }
+        }
+    }
+
     /// KUU-1981: preserve the original inline lambda, function reference, and
     /// exception paths through both stdlib representations at O0 and O2.
     @Test

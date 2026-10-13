@@ -65,6 +65,25 @@ struct RuntimeStringLocaleTests {
     }
 
     @Test
+    func localeConstructorsRegisterNominalTypeIdentity() {
+        let localeTypeID = runtimeStableNominalTypeID(fqName: "java.util.Locale")
+        let localeToken = nominalTypeToken(for: "java.util.Locale")
+        let nullableToken = localeToken | Int(RuntimeTypeTokenEncoding.nullableBit)
+        let locales = [makeLocale("tr"), RuntimeTests.makeLocale(language: "en", country: "US")]
+        for locale in locales {
+            #expect(runtimeObjectTypeID(rawValue: locale) == localeTypeID)
+            #expect(kk_op_is(locale, localeToken) == 1)
+            #expect(kk_op_is(locale, nullableToken) == 1)
+            #expect(kk_op_safe_cast(locale, localeToken) == locale)
+            #expect(kk_op_is(locale, nominalTypeToken(for: "java.text.DateFormat")) == 0)
+            #expect(kk_op_is(locale, Int(RuntimeTypeTokenEncoding.stringBase)) == 0)
+        }
+        #expect(kk_op_is(runtimeNullSentinelInt, localeToken) == 0)
+        #expect(kk_op_is(runtimeNullSentinelInt, nullableToken) == 1)
+        #expect(kk_op_is(runtimeMakeStringRaw("en_US"), localeToken) == 0)
+    }
+
+    @Test
     func testLocaleLowercaseUsesTurkishRules() {
         let result = flatLocaleStringValue(
             "I",
