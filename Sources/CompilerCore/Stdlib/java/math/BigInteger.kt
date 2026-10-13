@@ -24,7 +24,111 @@ public class BigInteger private constructor(private val decimalValue: String) {
         return BigInteger((if (negative) "-" else "") + product)
     }
 
+    /**
+     * Shifts exactly, reversing direction for negative distances.
+     * Results outside (-2^Int.MAX_VALUE, 2^Int.MAX_VALUE) throw ArithmeticException.
+     */
+    public fun shiftLeft(n: Int): BigInteger {
+        if (n == 0 || decimalValue == "0") {
+            return this
+        }
+        val negative = decimalValue[0] == '-'
+        val start = if (negative) 1 else 0
+        if (n < 0) {
+            val digits = decimalMagnitudeDigits(decimalValue, start)
+            var length = decimalValue.length - start
+            // Widen before negating: Int.MIN_VALUE is a valid right-shift distance.
+            var remaining = -n.toLong()
+            var discarded = false
+            while (remaining > 0L && length > 0) {
+                if (digits[0] % 2 != 0) {
+                    discarded = true
+                }
+                length = halveDecimalMagnitude(digits, length)
+                remaining--
+            }
+            // Arithmetic right shifts round negative values toward negative infinity.
+            if (negative && discarded) {
+                var index = 0
+                while (index < length && digits[index] == 9) {
+                    digits[index] = 0
+                    index++
+                }
+                digits[index]++
+                if (index == length) {
+                    length++
+                }
+            }
+            if (length == 0) {
+                return valueOf(0L)
+            }
+            var result = if (negative) "-" else ""
+            var index = length - 1
+            while (index >= 0) {
+                result += digits[index].toString()
+                index--
+            }
+            return BigInteger(result)
+        }
+
+        // Four bits per decimal digit is a safe upper bound. Only values near
+        // the supported boundary need an exact magnitude bit-length calculation.
+        if (n.toLong() + (decimalValue.length - start).toLong() * 4L > Int.MAX_VALUE.toLong()) {
+            val digits = decimalMagnitudeDigits(decimalValue, start)
+            var length = decimalValue.length - start
+            var bits = 0L
+            while (length > 0) {
+                length = halveDecimalMagnitude(digits, length)
+                bits++
+            }
+            if (bits + n.toLong() > Int.MAX_VALUE.toLong()) {
+                throw ArithmeticException("BigInteger would overflow supported range")
+            }
+        }
+        var result = this
+        var factor = valueOf(2L)
+        var remaining = n
+        while (remaining > 0) {
+            if (remaining % 2 != 0) {
+                result = result.multiply(factor)
+            }
+            remaining /= 2
+            if (remaining > 0) {
+                factor = factor.multiply(factor)
+            }
+        }
+        return result
+    }
+
     override fun toString(): String = decimalValue
+}
+
+// Little-endian decimal digits, with one spare slot for negative right-shift rounding.
+private fun decimalMagnitudeDigits(value: String, start: Int): IntArray {
+    val length = value.length - start
+    val digits = IntArray(length + 1)
+    var index = 0
+    while (index < length) {
+        digits[index] = value[value.length - index - 1].code - '0'.code
+        index++
+    }
+    return digits
+}
+
+private fun halveDecimalMagnitude(digits: IntArray, length: Int): Int {
+    var carry = 0
+    var index = length - 1
+    while (index >= 0) {
+        val value = carry * 10 + digits[index]
+        digits[index] = value / 2
+        carry = value % 2
+        index--
+    }
+    var resultLength = length
+    while (resultLength > 0 && digits[resultLength - 1] == 0) {
+        resultLength--
+    }
+    return resultLength
 }
 
 private fun multiplyDecimalDigits(
@@ -43,9 +147,9 @@ private fun multiplyDecimalDigits(
         var secondIndex = secondLength - 1
         while (secondIndex >= 0) {
             val resultIndex = firstIndex + secondIndex + 1
-            val value = digits[resultIndex]
-                + firstDigit * (second[secondStart + secondIndex].code - '0'.code)
-                + carry
+            val value = digits[resultIndex] +
+                firstDigit * (second[secondStart + secondIndex].code - '0'.code) +
+                carry
             digits[resultIndex] = value % 10
             carry = value / 10
             secondIndex--
