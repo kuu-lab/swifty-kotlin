@@ -69,15 +69,13 @@ enum GoldenHarnessTargetSection {
                     origin: origin
                 )
             }
-            rendered.append((key, renderTarget(symbol, key: key, origin: origin, ctx: ctx, sema: sema, interner: interner)))
+            rendered.append((key, renderTarget(symbol, key: key, origin: origin, ctx: ctx, sema: sema)))
         }
 
         return rendered
             .sorted { $0.key.compare($1.key, options: .numeric) == .orderedAscending }
             .map(\.line)
     }
-
-    // MARK: - Resolution
 
     /// `target` is either a complete meaning key (`fq[kind=…;…]`, the exact
     /// string a `call=`/`ref=`/`symbol fq=` field prints) or a bare FQName
@@ -132,15 +130,12 @@ enum GoldenHarnessTargetSection {
         return candidates.sorted()
     }
 
-    // MARK: - Rendering
-
     private static func renderTarget(
         _ symbol: SemanticSymbol,
         key: String,
         origin: GoldenSymbolOrigin,
         ctx: StableRenderContext,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> String {
         var parts = [
             "target fq=\(key)",

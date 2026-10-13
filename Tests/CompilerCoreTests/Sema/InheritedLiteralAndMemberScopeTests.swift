@@ -204,7 +204,7 @@ struct InheritedLiteralAndMemberScopeTests {
         let resolver = OverloadResolver()
         let dataFlow = DataFlowAnalyzer()
         let driver = TypeCheckDriver(
-            ast: ast, sema: sema, semaCtx: sema, solver: ConstraintSolver(),
+            ast: ast, sema: sema, solver: ConstraintSolver(),
             resolver: resolver, dataFlow: dataFlow, interner: interner, diagnostics: diagnostics
         )
         let ownerName = interner.intern("ProbeReceiver")
@@ -256,7 +256,7 @@ struct InheritedLiteralAndMemberScopeTests {
                                 end: SourceLocation(file: FileID(rawValue: 0), offset: 1))
         let expression = arena.appendExpr(.nameRef(inputName, range))
         let context = TypeInferenceContext(
-            ast: ast, sema: sema, semaCtx: sema, resolver: resolver, dataFlow: dataFlow,
+            ast: ast, sema: sema, resolver: resolver, dataFlow: dataFlow,
             interner: interner, scope: scope, implicitReceiverType: receiverType,
             loopDepth: 0, loopLabelStack: [], lambdaLabelStack: [], exportBlockLocalsForExpr: nil,
             flowState: DataFlowState(), currentFileID: FileID(rawValue: 0), enclosingClassSymbol: owner,

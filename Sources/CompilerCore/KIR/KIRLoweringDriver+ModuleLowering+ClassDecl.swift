@@ -281,7 +281,29 @@ extension KIRLoweringDriver {
             }
 
             body.append(.label(fallbackLabel))
-            if let fallbackMethodSymbol {
+            let hasRuntimeBridge = [info.interfaceMethodSymbol, fallbackMethodSymbol].compactMap { $0 }.contains {
+                sema.symbols.externalLinkName(for: $0).map { RuntimeABISpec.byName[$0] != nil } == true
+            }
+            if let methodSlot = sema.symbols.nominalLayout(for: info.interfaceSymbol)?.vtableSlots[info.interfaceMethodSymbol],
+               !hasRuntimeBridge
+            {
+                // An implementation defined by a library consumer is absent
+                // from the known targets. Dispatch through its interface table
+                // before considering an ordinary interface default body.
+                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: info.interfaceSymbol, sema: sema, interner: shared.interner
+                )
+                body.append(.virtualCall(
+                    symbol: info.interfaceMethodSymbol,
+                    callee: calleeName,
+                    receiver: delegateResultID,
+                    arguments: callArgExprs,
+                    result: resultExprID,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+                ))
+            } else if let fallbackMethodSymbol {
                 let fallbackCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: fallbackMethodSymbol),
                                                             !externalLinkName.isEmpty
                 {
@@ -495,9 +517,11 @@ extension KIRLoweringDriver {
         let callArgs: [KIRExprID] = valueExprID.map { [delegateResultID, $0] } ?? [delegateResultID]
         for (target, label) in zip(dispatchTargets, branchLabels) {
             body.append(.label(label))
+            let targetCallee = sema.symbols.externalLinkName(for: target.accessorSymbol)
+                .map { interner.intern($0) } ?? accessorName
             body.append(.call(
                 symbol: target.accessorSymbol,
-                callee: accessorName,
+                callee: targetCallee,
                 arguments: callArgs,
                 result: resultExprID,
                 canThrow: false,
@@ -524,7 +548,12 @@ extension KIRLoweringDriver {
                 thrownResult: nil,
                 isSuperCall: false
             ))
-        } else if let fallbackAccessorSymbol {
+        } else if let fallbackAccessorSymbol,
+                  let link = sema.symbols.externalLinkName(for: fallbackAccessorSymbol),
+                  RuntimeABISpec.byName[link] != nil
+        {
+            // Imported runtime bridges may live on the accessor rather than
+            // the property. Keep them ahead of the ordinary default getter.
             body.append(.call(
                 symbol: fallbackAccessorSymbol,
                 callee: accessorName,
@@ -544,8 +573,9 @@ extension KIRLoweringDriver {
         {
             // A delegate whose runtime type is not among the compile-time
             // known subtypes (imported or externally-provided implementations)
-            // still reaches its getter through the itable slot registered on
-            // the interface.
+            // still reaches its getter through the itable slot. This must take
+            // precedence over calling an interface default getter directly:
+            // the downstream type may override that default.
             let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                 symbol: info.interfaceSymbol,
                 sema: sema,
@@ -563,6 +593,16 @@ extension KIRLoweringDriver {
                     interfaceTypeID: interfaceTypeID,
                     methodSlot: methodSlot
                 )
+            ))
+        } else if let fallbackAccessorSymbol {
+            body.append(.call(
+                symbol: fallbackAccessorSymbol,
+                callee: accessorName,
+                arguments: callArgs,
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
             ))
         } else {
             body.append(.call(
@@ -707,7 +747,16 @@ extension KIRLoweringDriver {
         kind: PropertyAccessorKind,
         sema: SemaModule
     ) -> SymbolID {
-        switch kind {
+        // Source-declared runtime properties have no emitted getter body.
+        // Preserve their ABI link when selecting a concrete delegation target,
+        // just as imported accessors and the interface fallback already do.
+        if kind == .getter,
+           let link = sema.symbols.externalLinkName(for: propertySymbol),
+           RuntimeABISpec.byName[link] != nil
+        {
+            return propertySymbol
+        }
+        return switch kind {
         case .getter:
             sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
@@ -819,28 +868,26 @@ extension KIRLoweringDriver {
                 guard sema.symbols.parentSymbol(for: candidate) == owner,
                       let methodSymbol = sema.symbols.symbol(candidate),
                       isClassDelegationDispatchMember(methodSymbol, sema: sema),
+                      !methodSymbol.flags.contains(.abstractType),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType != nil,
-                      signature.isSuspend == interfaceSignature.isSuspend
+                      signature.isSuspend == interfaceSignature.isSuspend,
+                      signature.typeParameterSymbols.count - signature.classTypeParameterCount
+                          == interfaceSignature.typeParameterSymbols.count - interfaceSignature.classTypeParameterCount
                 else {
                     continue
                 }
-                let interfaceParameterTypes = kirAlignedOverrideParameterTypes(
-                    interfaceSignature: interfaceSignature,
-                    candidateSignature: signature,
-                    interfaceOwner: sema.symbols.parentSymbol(for: interfaceMethodSymbol),
-                    candidateOwner: owner,
-                    types: sema.types
-                )
-                guard kirOverrideParameterTypesMatch(
-                    candidateParameterTypes: signature.parameterTypes,
-                    interfaceParameterTypes: interfaceParameterTypes,
-                    types: sema.types
+                guard kirMethodSignatureMatches(
+                    source: interfaceSignature, target: signature,
+                    sourceOwner: sema.symbols.parentSymbol(for: interfaceMethodSymbol),
+                    targetOwner: owner, instanceOwner: concreteTypeSymbol, types: sema.types
                 ) else {
                     continue
                 }
 
-                if methodSymbol.flags.contains(.overrideMember) {
+                // Inherited class implementations take precedence over
+                // interface defaults, even when declared without `override`.
+                if ownerSymbol.kind != .interface || methodSymbol.flags.contains(.overrideMember) {
                     return candidate
                 }
                 if fallbackMatch == nil {
@@ -848,7 +895,9 @@ extension KIRLoweringDriver {
                 }
             }
 
-            queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+            let supertypes = sema.symbols.directSupertypes(for: owner)
+            queue.insert(contentsOf: supertypes.filter { sema.symbols.symbol($0)?.kind != .interface }, at: 0)
+            queue.append(contentsOf: supertypes.filter { sema.symbols.symbol($0)?.kind == .interface })
         }
 
         if let fallbackMatch {

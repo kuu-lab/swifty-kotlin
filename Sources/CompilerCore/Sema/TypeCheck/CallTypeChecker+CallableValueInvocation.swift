@@ -91,6 +91,7 @@ extension CallTypeChecker {
         resolved: ResolvedCall,
         sema: SemaModule
     ) -> TypeID {
+        bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -102,6 +103,12 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        // Resolve imports, aliases, bounds and the receiver normally before
+        // recording the reified argument for the native KClass fast path.
+        if sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(driver.interner.intern),
+           let searchType = sema.bindings.callBindings[id]?.substitutedTypeArguments.first {
+            sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
+        }
         if sema.symbols.externalLinkName(for: chosen) == "__kk_string_split" {
             sema.bindings.markCollectionExpr(id)
         }
@@ -174,7 +181,7 @@ extension CallTypeChecker {
         guard !args.contains(where: { $0.label != nil || $0.isSpread }),
               functionType.params.count + receiverArgOffset == argTypes.count
         else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for call.",
                 range: range
@@ -197,7 +204,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         for paramIndex in functionType.params.indices {
@@ -211,7 +218,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         if let expectedType {
@@ -221,7 +228,7 @@ extension CallTypeChecker {
                 range: range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         // A bare receiver-function call in an escaping lambda reads an outer
@@ -327,7 +334,7 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
         }
         guard functionType.nullability == .nonNull, request.explicitTypeArgs.isEmpty else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "Cannot invoke nullable or type-argument-qualified function value '\(ctx.interner.resolve(name))'.",
                 range: request.range

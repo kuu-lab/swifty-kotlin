@@ -94,6 +94,46 @@ func runtimeParseNarrowKotlinInteger<T: FixedWidthInteger & SignedInteger>(
     return Int(value)
 }
 
+/// Shared `String.to<Int>OrNull()` body: parses the source as decimal and
+/// returns `box(value)`, or the null sentinel when the input is unparsable.
+private func runtimeStringIntegerOrNull<T: FixedWidthInteger>(
+    _ strRaw: Int,
+    as _: T.Type,
+    caller: StaticString,
+    box: (T) -> Int
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: caller)
+    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: T.self) else {
+        return runtimeNullSentinelInt
+    }
+    return box(value)
+}
+
+/// Shared `String.to<Int>OrNull(radix:)` body: validates radix 2..36 through
+/// `outThrown`, then parses and boxes like `runtimeStringIntegerOrNull`.
+private func runtimeStringIntegerOrNullRadix<T: FixedWidthInteger>(
+    _ strRaw: Int,
+    _ radix: Int,
+    as _: T.Type,
+    caller: StaticString,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    box: (T) -> Int
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: caller)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: T.self) else {
+        return runtimeNullSentinelInt
+    }
+    return box(value)
+}
+
 @_cdecl("__kk_string_toInt")
 public func __kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -129,11 +169,7 @@ public func __kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Un
 
 @_cdecl("__kk_string_toIntOrNull")
 public func __kk_string_toIntOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int32.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNull(strRaw, as: Int32.self, caller: #function) { Int($0) }
 }
 
 @_cdecl("__kk_string_toIntOrNull_radix")
@@ -142,58 +178,32 @@ public func __kk_string_toIntOrNull_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
-    }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: Int32.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNullRadix(strRaw, radix, as: Int32.self, caller: #function, outThrown) { Int($0) }
 }
 
 // SPEC-NUM-0007: String.toUByteOrNull() / toUShortOrNull() / toUIntOrNull() / toULongOrNull() — no-arg (radix 10)
 
 @_cdecl("__kk_string_toUByteOrNull")
 public func __kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: UInt8.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNull(strRaw, as: UInt8.self, caller: #function) { Int($0) }
 }
 
 @_cdecl("__kk_string_toUShortOrNull")
 public func __kk_string_toUShortOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: UInt16.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNull(strRaw, as: UInt16.self, caller: #function) { Int($0) }
 }
 
 @_cdecl("__kk_string_toUIntOrNull")
 public func __kk_string_toUIntOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: UInt32.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNull(strRaw, as: UInt32.self, caller: #function) { Int($0) }
 }
 
 @_cdecl("__kk_string_toULongOrNull")
 public func __kk_string_toULongOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: UInt64.self) else {
-        return runtimeNullSentinelInt
-    }
     // ULong? slots hold box-or-sentinel: 2^63 bit-equals the sentinel (KUU-854).
-    return kk_box_ulong_nonnull(Int(bitPattern: UInt(value)))
+    return runtimeStringIntegerOrNull(strRaw, as: UInt64.self, caller: #function) {
+        kk_box_ulong_nonnull(Int(bitPattern: UInt($0)))
+    }
 }
 
 @_cdecl("__kk_string_toUByteOrNull_radix")
@@ -202,19 +212,7 @@ public func __kk_string_toUByteOrNull_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
-    }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: UInt8.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNullRadix(strRaw, radix, as: UInt8.self, caller: #function, outThrown) { Int($0) }
 }
 
 @_cdecl("__kk_string_toUShortOrNull_radix")
@@ -223,19 +221,7 @@ public func __kk_string_toUShortOrNull_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
-    }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: UInt16.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNullRadix(strRaw, radix, as: UInt16.self, caller: #function, outThrown) { Int($0) }
 }
 
 @_cdecl("__kk_string_toUIntOrNull_radix")
@@ -244,19 +230,7 @@ public func __kk_string_toUIntOrNull_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
-    }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: UInt32.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNullRadix(strRaw, radix, as: UInt32.self, caller: #function, outThrown) { Int($0) }
 }
 
 @_cdecl("__kk_string_toULongOrNull_radix")
@@ -265,19 +239,9 @@ public func __kk_string_toULongOrNull_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
+    return runtimeStringIntegerOrNullRadix(strRaw, radix, as: UInt64.self, caller: #function, outThrown) {
+        kk_box_ulong_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: $0)))
     }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: UInt64.self) else {
-        return runtimeNullSentinelInt
-    }
-    return kk_box_ulong_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: value)))
 }
 
 @_cdecl("__kk_string_toULongOrNull_radix_flat")
@@ -397,8 +361,6 @@ public func __kk_string_toDoubleOrNull_flat(
     __kk_string_toDoubleOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
-// MARK: - STDLIB-420 String.toLong / toLongOrNull / toFloat / toFloatOrNull
-
 #if !arch(arm64) && !arch(x86_64)
 #error("Long conversion assumes 64-bit Int")
 #endif
@@ -444,13 +406,11 @@ public func __kk_string_toLong(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
 
 @_cdecl("__kk_string_toLongOrNull")
 public func __kk_string_toLongOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int64.self) else {
-        return runtimeNullSentinelInt
-    }
     // Long? slots hold box-or-sentinel: Long.MIN_VALUE bit-equals the
     // sentinel (KUU-854).
-    return kk_box_long_nonnull(Int(truncatingIfNeeded: value))
+    return runtimeStringIntegerOrNull(strRaw, as: Int64.self, caller: #function) {
+        kk_box_long_nonnull(Int(truncatingIfNeeded: $0))
+    }
 }
 
 @_cdecl("__kk_string_toLong_radix")
@@ -479,21 +439,11 @@ public func __kk_string_toLongOrNull_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
-    }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: Int64.self) else {
-        return runtimeNullSentinelInt
-    }
     // Long? slots hold box-or-sentinel: Long.MIN_VALUE bit-equals the
     // sentinel (KUU-854).
-    return kk_box_long_nonnull(Int(truncatingIfNeeded: value))
+    return runtimeStringIntegerOrNullRadix(strRaw, radix, as: Int64.self, caller: #function, outThrown) {
+        kk_box_long_nonnull(Int(truncatingIfNeeded: $0))
+    }
 }
 
 @_cdecl("__kk_string_toFloat")
@@ -586,11 +536,7 @@ public func __kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer
 
 @_cdecl("__kk_string_toShortOrNull")
 public func __kk_string_toShortOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int16.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNull(strRaw, as: Int16.self, caller: #function) { Int($0) }
 }
 
 @_cdecl("__kk_string_toByte")
@@ -620,14 +566,8 @@ public func __kk_string_toByte_radix(
 
 @_cdecl("__kk_string_toByteOrNull")
 public func __kk_string_toByteOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let value = runtimeParseKotlinInteger(source, radix: 10, as: Int8.self) else {
-        return runtimeNullSentinelInt
-    }
-    return Int(value)
+    runtimeStringIntegerOrNull(strRaw, as: Int8.self, caller: #function) { Int($0) }
 }
-
-// MARK: - STDLIB-TEXT-FN-083: String.toBigDecimal()
 
 /// BigDecimal is represented as a boxed string in KSwiftK.
 /// The runtime validates the format and stores the string representation.

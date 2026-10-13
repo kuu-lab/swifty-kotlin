@@ -77,6 +77,51 @@ struct ImportedInlineKIRRegressionTests {
     }
 
     @Test
+    func importedInlineWritesUpdateTopLevelVariables() throws {
+        try withCompiledLibrary(
+            source: """
+            package inlinewrites
+            var counter: Int = 0
+            lateinit var lazyName: String
+
+            inline fun accumulate(label: String, action: () -> Int): Int {
+                counter += 1
+                return action()
+            }
+            inline fun initLazy(v: String) { lazyName = v }
+            """,
+            moduleName: "InlineTopLevelWrites"
+        ) { libraryPath in
+            try withTemporaryFile(contents: """
+            import inlinewrites.accumulate
+            import inlinewrites.counter
+            import inlinewrites.initLazy
+            import inlinewrites.lazyName
+
+            fun main() {
+                println(accumulate("run") { counter })
+                initLazy("lazy!")
+                println(lazyName)
+            }
+            """) { path in
+                let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = makeCompilationContext(
+                    inputs: [path], emit: .executable, outputPath: output, searchPaths: [libraryPath]
+                )
+                try runToLowering(context)
+                #expect(!context.diagnostics.hasError, "unexpected diagnostics: \(context.diagnostics.diagnostics)")
+                try CodegenPhase().run(context)
+                try LinkPhase().run(context)
+
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout == "1\nlazy!\n")
+            }
+        }
+    }
+
+    @Test
     func importedInlineFunctionKeepsOwnNonLocalReturnTarget() throws {
         try withCompiledLibrary(
             source: """

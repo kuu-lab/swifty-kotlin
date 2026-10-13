@@ -12,13 +12,13 @@ extension DataFlowSemaPhase {
         let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
         guard let mapSymbol = symbols.lookup(fqName: mapFQName) else { return }
 
-        let mapKeySymbol = ensureSyntheticMapRuntimeTypeParameter(
+        let mapKeySymbol = ensureSyntheticMapEntryTypeParameter(
             symbols: symbols,
             interner: interner,
             ownerFQName: mapFQName,
             name: "K"
         )
-        let mapValueSymbol = ensureSyntheticMapRuntimeTypeParameter(
+        let mapValueSymbol = ensureSyntheticMapEntryTypeParameter(
             symbols: symbols,
             interner: interner,
             ownerFQName: mapFQName,
@@ -106,13 +106,13 @@ extension DataFlowSemaPhase {
 
         let mutableMapFQName = kotlinCollectionsPkg + [interner.intern("MutableMap")]
         guard let mutableMapSymbol = symbols.lookup(fqName: mutableMapFQName) else { return }
-        let mutableKeySymbol = ensureSyntheticMapRuntimeTypeParameter(
+        let mutableKeySymbol = ensureSyntheticMapEntryTypeParameter(
             symbols: symbols,
             interner: interner,
             ownerFQName: mutableMapFQName,
             name: "K"
         )
-        let mutableValueSymbol = ensureSyntheticMapRuntimeTypeParameter(
+        let mutableValueSymbol = ensureSyntheticMapEntryTypeParameter(
             symbols: symbols,
             interner: interner,
             ownerFQName: mutableMapFQName,
@@ -258,26 +258,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func ensureSyntheticMapRuntimeTypeParameter(
-        symbols: SymbolTable,
-        interner: StringInterner,
-        ownerFQName: [InternedString],
-        name: String
-    ) -> SymbolID {
-        let nameID = interner.intern(name)
-        let fqName = ownerFQName + [nameID]
-        if let existing = symbols.lookup(fqName: fqName) {
-            return existing
-        }
-        return symbols.define(
-            kind: .typeParameter,
-            name: nameID,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-    }
 
     private func registerSyntheticMapProperty(
         symbols: SymbolTable,

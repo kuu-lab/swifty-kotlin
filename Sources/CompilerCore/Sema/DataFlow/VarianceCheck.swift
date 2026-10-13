@@ -58,8 +58,6 @@ extension DataFlowSemaPhase {
         var ownerFQName: [InternedString] = []
     }
 
-    // MARK: - Declaration dispatch
-
     private func validateVarianceForDecl(
         declID: DeclID, env: VarianceCheckEnv,
         outerVarianceMap: [InternedString: TypeVariance] = [:]
@@ -123,8 +121,6 @@ extension DataFlowSemaPhase {
             validateVarianceForDecl(declID: nestedDeclID, env: env, outerVarianceMap: outerMap)
         }
     }
-
-    // MARK: - Member iteration
 
     private func validateMemberFunctions(
         _ funDeclIDs: [DeclID],
@@ -203,8 +199,6 @@ extension DataFlowSemaPhase {
         checkTypeRefVariance(typeRefID, position: .out,
                              varianceMap: varianceMap, env: env, memberRange: propertyDecl.range)
     }
-
-    // MARK: - Type reference variance checking
 
     private func checkTypeRefVariance(
         _ typeRefID: TypeRefID,

@@ -387,14 +387,6 @@ public class Buffer : Source, Sink {
         return t
     }
 
-    override fun write(source: ByteArray) {
-        write(source, 0, source.size)
-    }
-
-    override fun write(source: ByteArray, startIndex: Int) {
-        write(source, startIndex, source.size)
-    }
-
     override fun write(source: ByteArray, startIndex: Int, endIndex: Int) {
         checkBounds(source.size, startIndex, endIndex)
         var currentOffset = startIndex

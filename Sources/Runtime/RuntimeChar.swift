@@ -281,7 +281,6 @@ public func kk_char_isTitleCase(_ value: Int) -> Int {
     return kk_box_bool(scalar.properties.generalCategory == .titlecaseLetter ? 1 : 0)
 }
 
-// MARK: - STDLIB-TEXT-PROP-009: Char.isJavaIdentifierPart
 
 /// Returns true if this character may be part of a Java/Kotlin identifier as other than the first character.
 /// Matches java.lang.Character.isJavaIdentifierPart: letters, digits, currency symbols,
@@ -313,7 +312,6 @@ public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
     }
 }
 
-// MARK: - STDLIB-TEXT-PROP-008: Char.isIdentifierIgnorable
 
 @_cdecl("kk_char_isIdentifierIgnorable")
 public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
@@ -355,7 +353,6 @@ public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
     }
 }
 
-// MARK: - STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
 
 /// fun Char.isJavaIdentifierStart(): Boolean
 /// Returns true if this character is permissible as the first character of a

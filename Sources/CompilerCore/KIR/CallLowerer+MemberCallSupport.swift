@@ -25,9 +25,10 @@ struct MemberCallReceiver {
 /// reinterpretation, or even "null" for values whose bit pattern equals
 /// Int.min). UInt/UByte/UShort are zero-extended into this container, so their
 /// dedicated tags let `kk_any_hashCode` reinterpret the low 32/8/16 bits as
-/// Kotlin's signed backing value. `kk_any_to_string` and `kk_any_equals` treat
-/// tags 8 through 11 like tag 1, preserving their existing rendering and
-/// comparison behavior. This is a free function
+/// Kotlin's signed backing value. UIntArray views may retain sign-extended
+/// IntArray words, so `kk_any_to_string` also interprets tag 9 as a 32-bit
+/// unsigned value. `kk_any_equals` keeps the existing comparison behavior.
+/// This is a free function
 /// (not a `CallLowerer` method) so every lowering pass that stringifies an
 /// arbitrary Any-typed value can share the exact same tag computation instead
 /// of drifting out of sync.

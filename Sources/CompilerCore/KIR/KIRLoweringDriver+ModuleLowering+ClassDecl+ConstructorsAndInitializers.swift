@@ -1,6 +1,5 @@
 
 extension KIRLoweringDriver {
-    // MARK: - Constructor lowering
 
     /// Lowers a single constructor (primary or secondary) into KIR declarations.
     func lowerConstructor(
@@ -779,7 +778,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Secondary constructor body emission
 
     func emitSecondaryConstructorBody(
         classDecl: ClassDecl,
@@ -991,9 +989,14 @@ extension KIRLoweringDriver {
         let provideDelegateName = shared.interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
+        let provideDelegateArguments = memberLowerer.prependingMemberExtensionDispatchReceiver(
+            to: [delegateValue, thisRefExprID, kPropertyExprID],
+            for: provideDelegateSymbol,
+            sema: sema
+        )
         body.append(.call(
             symbol: provideDelegateSymbol, callee: provideDelegateName,
-            arguments: [delegateValue, thisRefExprID, kPropertyExprID],
+            arguments: provideDelegateArguments,
             result: provideDelegateResult,
             canThrow: false, thrownResult: nil
         ))
@@ -1220,7 +1223,6 @@ extension KIRLoweringDriver {
         return [declID] + ctx.drainGeneratedCallableDecls()
     }
 
-    // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
 
     /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
     /// declared member and generated data-class component function, followed by

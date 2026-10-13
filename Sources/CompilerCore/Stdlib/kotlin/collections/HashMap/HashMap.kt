@@ -15,47 +15,55 @@ import kotlin.internal.__valuesEqual
 // diff oracle's kotlinc-jvm reference, where java.util.LinkedHashMap extends
 // java.util.HashMap) instead of a typealias onto an unrelated interface.
 
+// KUU-1941: base implementations use a native storage handle, while calls on
+// the Kotlin object retain interface dispatch to user overrides.
+@KsSymbolName("__kk_hash_map_storage")
+private external fun <K, V> __hashMapStorage(map: HashMap<K, V>): MutableMap<K, V>
+
+@KsSymbolName("__kk_map_size")
+private external fun <K, V> __hashMapSize(map: MutableMap<K, V>): Int
+
+@KsSymbolName("__kk_map_is_empty")
+private external fun <K, V> __hashMapIsEmpty(map: MutableMap<K, V>): Boolean
+
+@KsSymbolName("__kk_map_get")
+private external fun <K, V> __hashMapGet(map: MutableMap<K, V>, key: K): V?
+
+@KsSymbolName("__kk_mutable_map_put")
+private external fun <K, V> __hashMapPut(map: MutableMap<K, V>, key: K, value: V): V?
+
+@KsSymbolName("__kk_mutable_map_remove")
+private external fun <K, V> __hashMapRemove(map: MutableMap<K, V>, key: K): V?
+
+@KsSymbolName("__kk_mutable_map_clear")
+private external fun <K, V> __hashMapClear(map: MutableMap<K, V>)
+
+@KsSymbolName("__kk_map_entries")
+private external fun <K, V> __hashMapEntries(map: MutableMap<K, V>): MutableSet<MutableMap.MutableEntry<K, V>>
+
+@KsSymbolName("__kk_map_keys")
+private external fun <K, V> __hashMapKeys(map: MutableMap<K, V>): MutableSet<K>
+
+@KsSymbolName("__kk_map_values")
+private external fun <K, V> __hashMapValues(map: MutableMap<K, V>): MutableCollection<V>
+
+@KsSymbolName("__kk_builder_map_freeze")
+private external fun <K, V> __hashMapFreeze(map: MutableMap<K, V>): Map<K, V>
+
 public open class HashMap<K, V> : MutableMap<K, V> {
     constructor()
     constructor(initialCapacity: Int)
     constructor(initialCapacity: Int, loadFactor: Float)
     constructor(original: Map<out K, V>)
 
-    @KsSymbolName("__kk_map_size")
-    private external fun __hashMapSize(): Int
-
-    @KsSymbolName("__kk_map_is_empty")
-    private external fun __hashMapIsEmpty(): Boolean
-
-    @KsSymbolName("__kk_map_get")
-    private external fun __hashMapGet(key: K): V?
-
-    @KsSymbolName("__kk_mutable_map_put")
-    private external fun __hashMapPut(key: K, value: V): V?
-
-    @KsSymbolName("__kk_mutable_map_remove")
-    private external fun __hashMapRemove(key: K): V?
-
-    @KsSymbolName("__kk_mutable_map_clear")
-    private external fun __hashMapClear(): Unit
-
-    @KsSymbolName("__kk_map_entries")
-    private external fun __hashMapEntries(): MutableSet<MutableMap.MutableEntry<K, V>>
-
-    @KsSymbolName("__kk_map_keys")
-    private external fun __hashMapKeys(): MutableSet<K>
-
-    @KsSymbolName("__kk_map_values")
-    private external fun __hashMapValues(): MutableCollection<V>
-
-    @KsSymbolName("__kk_builder_map_freeze")
-    private external fun __hashMapFreeze(): Map<K, V>
-
     @PublishedApi
-    internal fun build(): Map<K, V> = __hashMapFreeze()
+    internal fun build(): Map<K, V> {
+        __hashMapFreeze(__hashMapStorage(this))
+        return this
+    }
 
     override fun clear() {
-        __hashMapClear()
+        __hashMapClear(__hashMapStorage(this))
     }
 
     override fun containsKey(key: K): Boolean {
@@ -73,7 +81,7 @@ public open class HashMap<K, V> : MutableMap<K, V> {
     }
 
     override val entries: MutableSet<MutableMap.MutableEntry<K, V>>
-        get() = __hashMapEntries()
+        get() = __hashMapEntries(__hashMapStorage(this))
 
     override fun equals(other: Any?): Boolean {
         if (other === this) return true
@@ -96,7 +104,7 @@ public open class HashMap<K, V> : MutableMap<K, V> {
         return true
     }
 
-    override operator fun get(key: K): V? = __hashMapGet(key)
+    override operator fun get(key: K): V? = __hashMapGet(__hashMapStorage(this), key)
 
     override fun hashCode(): Int {
         var result = 0
@@ -108,13 +116,13 @@ public open class HashMap<K, V> : MutableMap<K, V> {
         return result
     }
 
-    override fun isEmpty(): Boolean = __hashMapIsEmpty()
+    override fun isEmpty(): Boolean = __hashMapIsEmpty(__hashMapStorage(this))
 
     override val keys: MutableSet<K>
-        get() = __hashMapKeys()
+        get() = __hashMapKeys(__hashMapStorage(this))
 
     @IgnorableReturnValue
-    override fun put(key: K, value: V): V? = __hashMapPut(key, value)
+    override fun put(key: K, value: V): V? = __hashMapPut(__hashMapStorage(this), key, value)
 
     override fun putAll(from: Map<out K, V>) {
         for (entry in from.entries) {
@@ -123,10 +131,10 @@ public open class HashMap<K, V> : MutableMap<K, V> {
     }
 
     @IgnorableReturnValue
-    override fun remove(key: K): V? = __hashMapRemove(key)
+    override fun remove(key: K): V? = __hashMapRemove(__hashMapStorage(this), key)
 
     override val size: Int
-        get() = __hashMapSize()
+        get() = __hashMapSize(__hashMapStorage(this))
 
     override fun toString(): String {
         val builder = StringBuilder()
@@ -152,5 +160,5 @@ public open class HashMap<K, V> : MutableMap<K, V> {
     }
 
     override val values: MutableCollection<V>
-        get() = __hashMapValues()
+        get() = __hashMapValues(__hashMapStorage(this))
 }
