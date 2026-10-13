@@ -353,9 +353,46 @@ extension LambdaLowerer {
             {
                 captures.append(receiverSymbol)
             }
-            return captures
+            return expandingLocalFunctionCaptures(captures, sema: sema, arena: arena)
         }
-        return lexicalCaptures
+        return expandingLocalFunctionCaptures(lexicalCaptures, sema: sema, arena: arena)
+    }
+
+    /// Forward a named local function's environment across the lambda boundary.
+    /// Capturing its function pointer alone loses the extra parameters used by
+    /// direct calls, including recursive calls from a nested lambda.
+    private func expandingLocalFunctionCaptures(_ symbols: [SymbolID], sema: SemaModule, arena: KIRArena) -> [SymbolID] {
+        var captures = symbols
+        var seen = Set(captures)
+        var symbolByValue: [KIRExprID: SymbolID] = [:]
+        for (symbol, value) in driver.ctx.allLocalValues().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            symbolByValue[value] = symbol
+        }
+        for (symbol, value) in driver.ctx.localDelegateStorageBySymbol.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            symbolByValue[value] = symbol
+        }
+        var index = 0
+        while index < captures.count {
+            let symbol = captures[index]
+            index += 1
+            guard sema.symbols.symbol(symbol)?.flags.contains(.localFunction) == true,
+                  let value = driver.ctx.localValue(for: symbol),
+                  let callable = driver.ctx.callableValueInfo(for: value)
+            else { continue }
+            for argument in callable.captureArguments {
+                let dependency: SymbolID? = if let bound = symbolByValue[argument] {
+                    bound
+                } else if case let .symbolRef(bound) = arena.expr(argument) {
+                    bound
+                } else {
+                    nil
+                }
+                if let dependency, seen.insert(dependency).inserted {
+                    captures.append(dependency)
+                }
+            }
+        }
+        return captures
     }
 
     private func lexicalCaptureSymbolsForLambda(

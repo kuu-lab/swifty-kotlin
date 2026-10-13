@@ -12,6 +12,14 @@ private func semaContext(for source: String) throws -> CompilationContext {
     return ctx
 }
 
+private func semaContextWithoutStdlib(for source: String) throws -> CompilationContext {
+    let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
+    let ctx = makeCompilationContext(inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false)
+    _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+    try runSema(ctx)
+    return ctx
+}
+
 @Suite(.serialized)
 struct DeclarationPositionValidationTests {
 
@@ -78,6 +86,37 @@ struct DeclarationPositionValidationTests {
             fun f() { interface J { fun g() } }
             """)
         assertHasDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
+    }
+
+    @Test func localFunInterfaceIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            fun f() { fun interface Action { fun run(n: Int): Int }; }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0429", in: ctx)
+    }
+
+    @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
+    func topLevelFunInterfaceBeforeSeparatedFunctionsIsAccepted(separator: String) throws {
+        let source = """
+            fun interface Action { fun run(n: Int): Int }
+            fun make(): (Int) -> Int = { it }\(separator)fun test(): Int = 1
+            """
+        let ctx = try semaContextWithoutStdlib(for: source)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let file = try #require(ast.files.first)
+        #expect(file.scriptBody.isEmpty)
+        let declarations = file.topLevelDecls.compactMap { ast.arena.decl($0) }
+        let functions = declarations.compactMap { decl -> String? in
+            guard case let .funDecl(function) = decl else { return nil }
+            return ctx.interner.resolve(function.name)
+        }
+        #expect(functions == ["make", "test"])
+        #expect(declarations.count { decl in
+            guard case let .interfaceDecl(interface) = decl else { return false }
+            return ctx.interner.resolve(interface.name) == "Action"
+        } == 1)
     }
 
     @Test func localAnnotationClassIsRejected() throws {

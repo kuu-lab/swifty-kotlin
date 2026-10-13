@@ -527,6 +527,14 @@ extension CallTypeChecker {
             return true
         }
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
+           case let .classType(actualClass) = sema.types.kind(of: actual),
+           actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
+           actualClass.args.count == 1,
+           case let .out(argument) = actualClass.args[0]
+        {
+            return typeArgumentLikeMatch(actual: argument, declared: declaredKClass.argument)
+        }
+        if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
            case let .kClassType(actualKClass) = sema.types.kind(of: actual)
         {
             return typeArgumentLikeMatch(actual: actualKClass.argument, declared: declaredKClass.argument)
