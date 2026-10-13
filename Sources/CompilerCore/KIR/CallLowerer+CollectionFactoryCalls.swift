@@ -20,8 +20,21 @@ extension CallLowerer {
                 emitNoArgCall("__kk_emptyList", result: result, interner: interner, instructions: &instructions)
                 return result
             }
+            // A named vararg holds the whole array. Only the selected vararg
+            // overload expands it; listOf(element = array) remains one element.
+            let hasVarargParameter = chosenCallee.flatMap {
+                sema.symbols.functionSignature(for: $0)
+            }?.valueParameterIsVararg == [true]
+            let packedArgs = args.map { argument in
+                CallArgument(
+                    label: argument.label,
+                    isSpread: argument.isSpread || (hasVarargParameter && argument.label != nil),
+                    isTrailingLambda: argument.isTrailingLambda,
+                    expr: argument.expr
+                )
+            }
             let packed = emitPackedCollectionFactoryArguments(
-                args: args,
+                args: packedArgs,
                 loweredArgIDs: loweredArgIDs,
                 sema: sema,
                 arena: arena,

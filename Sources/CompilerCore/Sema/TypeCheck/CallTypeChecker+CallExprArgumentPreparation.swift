@@ -233,15 +233,33 @@ extension CallTypeChecker {
             for candidate in candidates {
                 guard let signature = sema.symbols.functionSignature(for: candidate),
                       !signature.typeParameterSymbols.isEmpty,
-                      case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
-                      returnClassType.classSymbol == expectedClassType.classSymbol,
-                      returnClassType.args.count == expectedClassType.args.count
+                      case let .classType(returnClassType) = sema.types.kind(of: signature.returnType)
                 else {
                     continue
                 }
+                let isListOfFactory = ctx.cachedSymbol(candidate)?.fqName == [
+                    knownNames.kotlin, knownNames.collections, interner.intern("listOf"),
+                ]
+                // listOf can be expected as Collection/Iterable as well as List.
+                // Lift its declared result to that owner before seeding inputs;
+                // the ordinary resolver still checks the actual result subtype.
+                let contextualReturnArgs: [TypeArg]? = if returnClassType.classSymbol == expectedClassType.classSymbol {
+                    returnClassType.args
+                } else if isListOfFactory {
+                    sema.types.liftedNominalSupertypeArgs(
+                        from: returnClassType.classSymbol,
+                        childArgs: returnClassType.args,
+                        to: expectedClassType.classSymbol
+                    )
+                } else {
+                    nil
+                }
+                guard let contextualReturnArgs,
+                      contextualReturnArgs.count == expectedClassType.args.count
+                else { continue }
                 let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                 var substitution: [TypeVarID: TypeID] = [:]
-                for (returnArg, expectedArg) in zip(returnClassType.args, expectedClassType.args) {
+                for (returnArg, expectedArg) in zip(contextualReturnArgs, expectedClassType.args) {
                     guard let returnArgType = argType(returnArg),
                           let expectedArgType = argType(expectedArg),
                           case let .typeParam(returnTypeParam) = sema.types.kind(of: returnArgType),
@@ -262,7 +280,14 @@ extension CallTypeChecker {
                     } else {
                         false
                     }
-                    guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast),
+                    // listOf's ordinary resolver also needs primitive context
+                    // before an unsuffixed integer literal defaults to Int/UInt.
+                    // Other values retain their actual type for constraint checking.
+                    let isListOfIntegerLiteral = isListOfFactory
+                        && (isContextualizableIntegerLiteral(args[index].expr, ast: ast)
+                        || isContextualizableUnsignedIntegerLiteral(args[index].expr, ast: ast))
+                    guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast)
+                        || isListOfIntegerLiteral,
                           let parameterIndex = parameterMapping[index],
                           let parameterType = contextualCallArgumentType(
                               args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
