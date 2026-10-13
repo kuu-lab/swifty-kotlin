@@ -43,9 +43,9 @@ private fun multiplyDecimalDigits(
         var secondIndex = secondLength - 1
         while (secondIndex >= 0) {
             val resultIndex = firstIndex + secondIndex + 1
-            val value = digits[resultIndex]
-                + firstDigit * (second[secondStart + secondIndex].code - '0'.code)
-                + carry
+            val value = digits[resultIndex] +
+                firstDigit * (second[secondStart + secondIndex].code - '0'.code) +
+                carry
             digits[resultIndex] = value % 10
             carry = value / 10
             secondIndex--
