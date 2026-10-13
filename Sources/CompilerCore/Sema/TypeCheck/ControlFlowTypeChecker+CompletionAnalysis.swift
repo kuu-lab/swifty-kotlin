@@ -20,7 +20,7 @@ extension ControlFlowTypeChecker {
             if let subject, !completes(subject) { return false }
             guard ctx.sema.bindings.whenExhaustiveness[id] == true else { return true }
             return branches.contains { completes($0.body) } || (elseExpr.map(completes) ?? false)
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             return initializer.map(completes) ?? true
         case let .localAssign(_, value, _), let .compoundAssign(_, _, value, _),
              let .destructuringDecl(_, _, value, _):

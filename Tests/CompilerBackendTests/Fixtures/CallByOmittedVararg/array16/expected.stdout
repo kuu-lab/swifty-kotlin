@@ -1,0 +1,16 @@
+spread-copy:false
+named-array:false
+default-identity:true
+reflect-identity:true
+reflect-default:true
+function-invoke:true
+constructor-invoke:true
+primitive-spread-copy:false
+primitive-named:false
+nullable-component:true
+generic-erasure:true
+bound-reject:IAE
+bound-accept:true
+empty-copy-component:IAE
+array-list:2:b
+direct-values:x, y

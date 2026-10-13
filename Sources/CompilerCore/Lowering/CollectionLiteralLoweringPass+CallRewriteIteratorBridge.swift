@@ -375,7 +375,10 @@ extension CollectionLiteralConstructionLoweringPass {
             canThrow: false,
             thrownResult: nil
         ))
-        return taggedArray
+        return appendRuntimeArrayComponentTag(
+            taggedArray, arrayType: type, sema: sema, arena: module.arena,
+            interner: ctx.interner, instructions: &loweredBody
+        )
     }
 
     /// Emits a `kk_list_iterator_next`-style call and, when the result expression

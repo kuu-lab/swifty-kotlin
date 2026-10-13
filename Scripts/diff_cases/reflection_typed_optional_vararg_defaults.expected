@@ -1,0 +1,16 @@
+ctor-flags:true:true
+ctor-default:2:alpha
+ctor-empty:0
+top-flags:true:true
+top-default:2:alpha
+top-empty:0:-
+top-values:1:given
+bound-default:12
+unbound-default:12
+member-prefix:22
+member-empty:10
+double-default:2:1.5
+double-empty:0:-
+nullable-elements:2
+ordinary-function-default:2:alpha
+ordinary-constructor-default:2

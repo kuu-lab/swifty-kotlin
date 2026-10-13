@@ -150,7 +150,7 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
 
-        case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, range):
+        case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, isLateinit, range):
             return driver.localDeclChecker.inferLocalDeclExpr(
                 id,
                 name: name,
@@ -158,6 +158,7 @@ final class ExprTypeChecker {
                 typeAnnotation: typeAnnotation,
                 initializer: initializer,
                 isDelegated: isDelegated,
+                isLateinit: isLateinit,
                 range: range,
                 ctx: ctx,
                 locals: &locals
@@ -558,7 +559,10 @@ final class ExprTypeChecker {
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
                let assertLocal = locals[assertVarName],
-               driver.helpers.isStableLocalSymbol(assertLocal.symbol, sema: sema)
+               let reference = ctx.dataFlow.resolveStableReference(
+                   exprID, locals: locals, ast: ast, sema: sema,
+                   interner: interner, narrowingType: type
+               ), reference.isStable
             {
                 locals[assertVarName] = (type, assertLocal.symbol, assertLocal.isMutable, assertLocal.isInitialized)
             }
