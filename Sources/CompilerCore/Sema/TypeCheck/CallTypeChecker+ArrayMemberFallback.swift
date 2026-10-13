@@ -75,6 +75,8 @@ extension CallTypeChecker {
         "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
         "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedWith",
         "partition", "groupBy", "associate", "associateBy",
+        "elementAt", "elementAtOrElse", "getOrNull", "single", "singleOrNull",
+        "indexOfFirst", "indexOfLast", "toSet",
     ]
 
     private static let arraySourceBackedNames: Set<String> = [
@@ -86,10 +88,10 @@ extension CallTypeChecker {
         "sum", "average", "min", "max", "minOrNull", "maxOrNull",
         "foldRight", "reduceRight", "scan", "runningFold",
         "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
-        "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
+        "mapIndexedNotNull", "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
-        "indexOf", "lastIndexOf", "fill", "sortedBy", "sortedWith",
+        "indexOf", "lastIndexOf", "indexOfFirst", "fill", "sortedBy", "sortedWith",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import
@@ -478,9 +480,7 @@ extension CallTypeChecker {
         return primitiveMapping.first { $0.0 == className }?.1
     }
 
-    // MARK: - KFunction member call fallback (STDLIB-REFLECT-063)
-
-    /// Checks whether the receiver type is `kotlin.reflect.KFunction<*>`.
+    /// STDLIB-REFLECT-063: Checks whether the receiver type is `kotlin.reflect.KFunction<*>`.
     private func isKFunctionReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule

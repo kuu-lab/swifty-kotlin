@@ -161,7 +161,7 @@ struct IterableRangeNullableContainsTests {
             #expect(symbol.flags.contains(.extensionMemberAlias) == false)
             #expect(sema.symbols.functionSignature(for: symbol.id)?.classTypeParameterCount == 1)
             if ownerName.last == "OpenEndRange" {
-                #expect(sema.symbols.externalLinkName(for: symbol.id) == "__kk_range_contains")
+                #expect(sema.symbols.externalLinkName(for: symbol.id) == runtimeABIName(.rangeContains))
             }
             memberCalls += 1
         }

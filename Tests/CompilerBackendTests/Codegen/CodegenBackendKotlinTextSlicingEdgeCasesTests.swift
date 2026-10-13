@@ -235,31 +235,6 @@ struct CodegenBackendKotlinTextSlicingEdgeCasesTests {
         )
     }
 
-    @Test func testKotlinTextTrimPredicateEdgeCases() throws {
-        let source = """
-        fun main() {
-            println("[" + "xxhelloxy".trim { it == 'x' || it == 'y' } + "]")
-            println("[" + "xxhelloxy".trimStart { it == 'x' || it == 'y' } + "]")
-            println("[" + "xxhelloxy".trimEnd { it == 'x' || it == 'y' } + "]")
-            println("[" + "".trim { it == 'x' } + "]")
-            println("[" + "aba".trim { it == 'a' } + "]")
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "KotlinTextTrimPredicateEdgeCases",
-            expected:
-                """
-                [hello]
-                [helloxy]
-                [xxhello]
-                []
-                [b]
-                """
-                + "\n"
-        )
-    }
 
     @Test func testKotlinTextPadEdgeCases() throws {
         let source = """

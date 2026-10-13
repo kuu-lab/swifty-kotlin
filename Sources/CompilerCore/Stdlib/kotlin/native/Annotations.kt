@@ -88,14 +88,20 @@ public annotation class HiddenFromObjC
 
 @kotlin.annotation.Target(AnnotationTarget.ANNOTATION_CLASS)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.MustBeDocumented
+@kotlin.experimental.ExperimentalObjCRefinement
+@kotlin.SinceKotlin("1.8")
 public annotation class RefinesInSwift
 
+@kotlin.native.RefinesInSwift
 @kotlin.annotation.Target(
-    AnnotationTarget.CLASS,
-    AnnotationTarget.FUNCTION,
-    AnnotationTarget.PROPERTY
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.FUNCTION
 )
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.MustBeDocumented
+@kotlin.experimental.ExperimentalObjCRefinement
+@kotlin.SinceKotlin("1.8")
 public annotation class ShouldRefineInSwift
 
 // KSP-1541: upstream declares this under `kotlinx.cinterop`

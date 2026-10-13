@@ -29,14 +29,14 @@ struct ExtensionFunctionLabelTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let reader = try #require(sema.symbols.allSymbols().first {
-            ctx.interner.resolve($0.name) == "reader" && $0.kind == .function
-        })
+        let readerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("reader")]))
+        let reader = try #require(sema.symbols.symbol(readerSymbol))
+        #expect(reader.kind == .function)
         let receiver = SyntheticSymbolScheme.receiverParameterSymbol(for: reader.id)
         let receiverType = try #require(sema.symbols.functionSignature(for: reader.id)?.receiverType)
         let qualifiedRefs = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
             guard case let .thisRef(label?, _) = expr,
-                  ctx.interner.resolve(label) == "reader" else { return nil }
+                  label == reader.name else { return nil }
             return ExprID(rawValue: Int32(index))
         }
         #expect(qualifiedRefs.count == 2)
@@ -46,7 +46,7 @@ struct ExtensionFunctionLabelTests {
         }
         let lambda = try #require(ast.arena.exprs.enumerated().first { _, expr in
             if case let .lambdaLiteral(_, _, label?, _) = expr {
-                return ctx.interner.resolve(label) == "launch2"
+                return label == ctx.interner.intern("launch2")
             }
             return false
         })

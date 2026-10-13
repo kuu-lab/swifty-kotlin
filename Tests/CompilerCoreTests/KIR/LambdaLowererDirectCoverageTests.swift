@@ -27,20 +27,14 @@ struct LambdaLowererDirectCoverageTests {
             interner: fixture.interner, propertyConstantInitializers: [:],
             instructions: &instructions
         )
-        let tag = try #require(instructions.first {
-            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
-            return fixture.interner.resolve(callee) == "kk_function_value_tag_arity"
-        })
-        guard case let .call(_, _, arguments, result, canThrow, _, _, _) = tag else { return }
+        let tag = try #require(kirCalls(to: .functionTagArity, in: instructions, interner: fixture.interner).first)
+        let arguments = tag.arguments
         #expect(arguments.first == callable)
         #expect(fixture.kirArena.expr(arguments[1]) == .intLiteral(Int64(parameterCount + (hasReceiver ? 1 : 0))))
-        #expect(result == nil)
-        #expect(!canThrow)
+        #expect(tag.result == nil)
+        #expect(!tag.canThrow)
         #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.captureArguments.isEmpty == true)
-        #expect(!instructions.contains {
-            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
-            return fixture.interner.resolve(callee).hasPrefix("kk_function_create_")
-        })
+        #expect(kirFunctionCreationCalls(in: instructions, interner: fixture.interner).isEmpty)
     }
 
     @Test(arguments: [false, true], [nil, false, true] as [Bool?])
@@ -74,10 +68,7 @@ struct LambdaLowererDirectCoverageTests {
             interner: fixture.interner, propertyConstantInitializers: [:],
             instructions: &instructions
         )
-        let createsFunctionObject = instructions.contains {
-            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
-            return fixture.interner.resolve(callee).hasPrefix("kk_function_create_")
-        }
+        let createsFunctionObject = !kirFunctionCreationCalls(in: instructions, interner: fixture.interner).isEmpty
         #expect(createsFunctionObject == !allowsNonLocalReturn)
         if allowsNonLocalReturn {
             #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.captureArguments == [captured])
@@ -96,12 +87,20 @@ struct LambdaLowererDirectCoverageTests {
                 sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
                 instructions: &instructions, arguments: &arguments
             )
-            // A capturing callable cannot cross an imported inline boundary as a
-            // raw symbol even when the parameter allows non-local returns: the
-            // environment can only travel inside a FunctionN object, so the
-            // materialization wraps it regardless of the metadata flag.
-            #expect(arguments != [callable])
-            #expect(instructions.count > instructionCount)
+            if importedParameterAllowsNonLocalReturn == true {
+                // Explicit inline metadata preserves the raw callable; positional
+                // captures remain available to the cross-module inline expansion.
+                #expect(arguments == [callable])
+                #expect(instructions.count == instructionCount)
+                let info = fixture.driver.ctx.callableValueInfo(for: callable)
+                #expect(info?.captureArguments == [captured])
+                #expect(info.flatMap { fixture.kirArena.lambdaCaptureArgsBySymbol[$0.symbol] } == [captured])
+            } else {
+                // Unknown or escaping parameter metadata needs a function object
+                // to carry the environment across the imported call boundary.
+                #expect(arguments != [callable])
+                #expect(instructions.count > instructionCount)
+            }
         }
     }
 

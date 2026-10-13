@@ -29,7 +29,6 @@ enum TypeRefParserCore {
         let consumed: Int
     }
 
-    /// Maximum recursion/nesting depth allowed while parsing a type reference.
     /// Guards the mutually recursive type parser against unbounded native stack
     /// growth on deeply nested untrusted source (a stack-overflow DoS).
     // Function-type recursion retains several native frames per nested type.
@@ -51,9 +50,7 @@ enum TypeRefParserCore {
         isTypeNameToken(kind, options: .declaration)
     }
 
-    /// True for a token that may name a declaration.
-    ///
-    /// This is deliberately wider than `isTypeLikeNameToken`: that predicate
+    /// Deliberately wider than `isTypeLikeNameToken`: that predicate
     /// answers for a *type* position, where `out` is the declaration-site
     /// variance modifier and must stay reserved (`List<out T>`). A declaration
     /// *name* position has no variance, so `out` is an ordinary identifier
@@ -476,11 +473,9 @@ enum TypeRefParserCore {
             }
         }
 
-        // Try to parse a receiver type for `suspend ReceiverType.() -> ReturnType`
         if isSuspend, next < tokens.count, tokens[next].kind != .symbol(.lParen) {
             // After `suspend`, we expect either `(` for a plain function type or
             // a named type for a receiver function type like `suspend StringBuilder.() -> Unit`.
-            // Try to parse a named type as receiver.
             if let receiverParse = parseNamedTypeOnly(
                 tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
             ) {
@@ -600,8 +595,6 @@ enum TypeRefParserCore {
         return (ref, returnRef.next)
     }
 
-    /// Re-append `ref` absorbing an outer `suspend`/`context` prefix and the
-    /// `(T)` parenthesized group's optional `?` nullability mark.
     private static func wrapTypeRefInGroup(
         _ refID: TypeRefID,
         astArena: ASTArena,
@@ -838,9 +831,8 @@ enum TypeRefParserCore {
         }
     }
 
-    /// Returns a `TypeRefID` equivalent to `ref` but with its `nullable` flag
-    /// set, rebuilding the arena entry when necessary. Used when a `?` suffix
-    /// follows a parenthesized type group, e.g. `((Int) -> Int)?`.
+    /// Used when a `?` suffix follows a parenthesized type group, e.g.
+    /// `((Int) -> Int)?`.
     private static func nullableVariant(of ref: TypeRefID, astArena: ASTArena) -> TypeRefID {
         switch astArena.typeRef(ref) {
         case let .named(path, args, nullable):
@@ -953,7 +945,6 @@ enum TypeRefParserCore {
             next = parsedArgs.next
         }
 
-        // Allow qualified paths like `com.example.MyType`
         if options.allowQualifiedPath {
             while next + 1 < tokens.count,
                   tokens[next].kind == .symbol(.dot),
@@ -984,8 +975,6 @@ enum TypeRefParserCore {
         return (ref, next)
     }
 
-    /// Parse the suffix `(params) -> ReturnType` of a receiver function type,
-    /// starting at the receiver's optional nullability marker and `.`.
     private static func parseReceiverFunctionTypeRefSuffix(
         _ tokens: [Token],
         from receiverEnd: Int,

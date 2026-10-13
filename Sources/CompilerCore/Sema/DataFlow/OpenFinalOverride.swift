@@ -43,8 +43,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Per-declaration dispatch
-
     private func validateOFODecl(
         _ declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -92,9 +90,11 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             ctx: ctx
         )
-    }
 
-    // MARK: - DATA-CTOR: data class primary constructor parameter validation
+        if case let .interfaceDecl(interfaceDecl) = decl {
+            validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)
+        }
+    }
 
     private func validateDataClassConstructorParams(
         classDecl: ClassDecl,
@@ -155,8 +155,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Declaration info extraction
-
     private struct OFODeclInfo {
         let memberFunctions: [DeclID]
         let memberProperties: [DeclID]
@@ -194,24 +192,38 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Check 1: supertype openness
-
     private func validateSupertypesAreOpen(
         symbol: SymbolID,
         declRange: SourceRange,
         ctx: OpenFinalOverrideContext
     ) {
-        for supertypeID in ctx.symbols.directSupertypes(for: symbol) {
-            guard let sup = ctx.symbols.symbol(supertypeID) else {
+        validateSupertypesAreOpen(
+            directSupertypes: ctx.symbols.directSupertypes(for: symbol),
+            declRange: declRange,
+            symbols: ctx.symbols,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
+    }
+
+    func validateSupertypesAreOpen(
+        directSupertypes: [SymbolID],
+        declRange: SourceRange,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        for supertypeID in directSupertypes {
+            guard let sup = symbols.symbol(supertypeID) else {
                 continue
             }
 
             // STDLIB-DATA-014: Check if attempting to inherit from a data class
             if sup.flags.contains(.dataType) {
                 let name = sup.fqName
-                    .map { ctx.interner.resolve($0) }
+                    .map { interner.resolve($0) }
                     .joined(separator: ".")
-                ctx.diagnostics.error(
+                diagnostics.error(
                     "KSWIFTK-SEMA-DATA-INHERIT",
                     "Cannot inherit from data class '\(name)'. Data classes cannot be inherited from.",
                     range: declRange
@@ -219,11 +231,11 @@ extension DataFlowSemaPhase {
                 continue
             }
 
-            if isSubclassable(sup, interner: ctx.interner) { continue }
+            if isSubclassable(sup, interner: interner) { continue }
             let name = sup.fqName
-                .map { ctx.interner.resolve($0) }
+                .map { interner.resolve($0) }
                 .joined(separator: ".")
-            ctx.diagnostics.error(
+            diagnostics.error(
                 "KSWIFTK-SEMA-FINAL",
                 "Cannot inherit from final class '\(name)'. "
                     + "Mark it as 'open' to allow subclassing.",
@@ -247,8 +259,6 @@ extension DataFlowSemaPhase {
         if sym.flags.contains(.openType) { return true }
         return false
     }
-
-    // MARK: - Check 2 & 3: member override constraints
 
     private func validateMemberOverrides(
         _ memberDeclIDs: [DeclID],
@@ -376,8 +386,6 @@ extension DataFlowSemaPhase {
         return .public // Default visibility
     }
 
-    // MARK: - Check 7: visibility constraints validation
-
     private func validateVisibilityConstraints(
         memberMeta: MemberMeta,
         ownerSymbol: SymbolID,
@@ -412,8 +420,6 @@ extension DataFlowSemaPhase {
         case .public: return "public"
         }
     }
-
-    // MARK: - Check 6: modifier combination validation
 
     private func validateModifierCombinations(
         memberMeta: MemberMeta,
@@ -456,9 +462,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Rule 3b: override without actual parent implementation (already checked in validateOverrideTarget)
-        // This is handled elsewhere
-
         // Rule 3c: Check interface-specific constraints
         if ownerSym.kind == .interface {
             // Interface members cannot be final
@@ -493,7 +496,66 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Check 5: override openness validation
+    private func validateInterfaceProtectedMembers(
+        _ interfaceDecl: InterfaceDecl,
+        ctx: OpenFinalOverrideContext
+    ) {
+        // Kotlin rejects 'protected' on every member kind declared directly in
+        // an interface body: functions, properties, nested types, objects,
+        // companion objects, and type aliases. Member functions and properties
+        // cannot reuse the MemberMeta path because nested type declarations
+        // never reach validateMemberOverrides.
+        var memberDeclIDs = interfaceDecl.memberFunctions + interfaceDecl.memberProperties
+            + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+        if let companionObject = interfaceDecl.companionObject {
+            memberDeclIDs.append(companionObject)
+        }
+        for memberDeclID in memberDeclIDs {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  let range = protectedDeclRange(memberDecl)
+            else { continue }
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "modifier 'protected' is not applicable inside 'interface'.",
+                range: range
+            )
+        }
+        for typeAlias in interfaceDecl.nestedTypeAliases where typeAlias.modifiers.contains(.protected) {
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "modifier 'protected' is not applicable inside 'interface'.",
+                range: typeAlias.range
+            )
+        }
+    }
+
+    private func protectedDeclRange(_ decl: Decl) -> SourceRange? {
+        let modifiers: Modifiers
+        let range: SourceRange
+        switch decl {
+        case let .classDecl(classDecl):
+            modifiers = classDecl.modifiers
+            range = classDecl.range
+        case let .interfaceDecl(interfaceDecl):
+            modifiers = interfaceDecl.modifiers
+            range = interfaceDecl.range
+        case let .funDecl(funDecl):
+            modifiers = funDecl.modifiers
+            range = funDecl.range
+        case let .propertyDecl(propertyDecl):
+            modifiers = propertyDecl.modifiers
+            range = propertyDecl.range
+        case let .objectDecl(objectDecl):
+            modifiers = objectDecl.modifiers
+            range = objectDecl.range
+        case let .typeAliasDecl(typeAliasDecl):
+            modifiers = typeAliasDecl.modifiers
+            range = typeAliasDecl.range
+        case .enumEntryDecl:
+            return nil
+        }
+        return modifiers.contains(.protected) ? range : nil
+    }
 
     private func validateOverrideOpenness(
         memberMeta: MemberMeta,
@@ -503,18 +565,9 @@ extension DataFlowSemaPhase {
         // STDLIB-INHERIT-018: Validate that override members follow Kotlin's openness rules
 
         guard let memberSym = ctx.symbols.symbol(memberSymbol) else { return }
-
-        // Check if this is an override member
         if memberMeta.hasOverride {
-            // Rule: Override members are implicitly open unless marked final
             if !memberMeta.hasFinal {
-                // This override member should be overridable by subclasses
-                // The isMemberOverridable function already handles this logic
-                // but we can add additional validation here if needed
-
-                // Ensure the symbol has the overrideMember flag set
                 if !memberSym.flags.contains(.overrideMember) {
-                    // This would be a symbol table consistency issue
                     let memberName = ctx.interner.resolve(memberMeta.name)
                     ctx.diagnostics.error(
                         "KSWIFTK-SEMA-INTERNAL",
@@ -523,8 +576,6 @@ extension DataFlowSemaPhase {
                     )
                 }
             } else {
-                // final override - this member cannot be further overridden
-                // Ensure both flags are set correctly
                 if !memberSym.flags.contains(.overrideMember) || !memberSym.flags.contains(.finalMember) {
                     let memberName = ctx.interner.resolve(memberMeta.name)
                     ctx.diagnostics.error(
@@ -537,8 +588,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Check 4: abstract override constraints
-
     private func validateAbstractOverrideConstraints(
         memberMeta: MemberMeta,
         ownerSymbol: SymbolID,
@@ -546,7 +595,6 @@ extension DataFlowSemaPhase {
     ) {
         // STDLIB-INHERIT-018: Validate abstract override combinations
 
-        // Check 1: abstract override is only allowed in abstract classes
         if memberMeta.hasAbstract {
             guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
 
@@ -561,7 +609,6 @@ extension DataFlowSemaPhase {
                 return
             }
 
-            // Check 2: abstract override must reference an inherited declaration.
             let parent = findInheritedMember(
                 named: memberMeta.name,
                 for: ownerSymbol,
@@ -578,7 +625,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Check 3: final override cannot be used with abstract
         if memberMeta.hasAbstract && memberMeta.hasFinal {
             let memberName = ctx.interner.resolve(memberMeta.name)
             ctx.diagnostics.error(
@@ -588,8 +634,6 @@ extension DataFlowSemaPhase {
             )
         }
     }
-
-    // MARK: - Check 2: override target is not final
 
     private func validateOverrideTarget(
         memberName: InternedString,
@@ -611,7 +655,6 @@ extension DataFlowSemaPhase {
         }
 
         if isMemberOverridable(parentSym, parent: parent) {
-            // Check return type covariance
             if let returnType = returnType {
                 validateReturnTypeCovariance(
                     childReturnType: returnType,
@@ -623,7 +666,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // Check exception type covariance
             validateExceptionTypeCovariance(
                 memberName: memberName,
                 memberRange: memberRange,
@@ -643,8 +685,6 @@ extension DataFlowSemaPhase {
             range: memberRange
         )
     }
-
-    // MARK: - Check 2a: return type covariance
 
     private func validateReturnTypeCovariance(
         childReturnType: TypeID,
@@ -723,8 +763,6 @@ extension DataFlowSemaPhase {
             range: memberRange
         )
     }
-
-    // MARK: - Check 2c: exception type covariance
 
     private func validateExceptionTypeCovariance(
         memberName: InternedString,
@@ -999,8 +1037,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    // MARK: - Check 2b: visibility expansion
-
     private func validateVisibilityExpansion(
         childVisibility: Visibility,
         childOwnerSymbol: SymbolID,
@@ -1172,8 +1208,6 @@ extension DataFlowSemaPhase {
         return childIndex >= parentIndex
     }
 
-    // MARK: - Check 3: missing override modifier
-
     private func validateMissingOverride(
         memberName: InternedString,
         memberRange: SourceRange,
@@ -1263,8 +1297,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Overridability check
-
     /// A member is overridable when it belongs to an interface,
     /// is explicitly `open`, is `abstract`, or is a non-final
     /// `override` (override members are implicitly open in Kotlin
@@ -1282,8 +1314,6 @@ extension DataFlowSemaPhase {
         }
         return false
     }
-
-    // MARK: - Inherited member lookup (BFS)
 
     private struct OFOInheritedMember {
         let memberID: SymbolID
@@ -1409,12 +1439,10 @@ extension DataFlowSemaPhase {
     }
 
     private func signaturesMatch(child: FunctionSignature, parent: FunctionSignature, ctx: OpenFinalOverrideContext) -> Bool {
-        // Check parameter count
         guard child.parameterTypes.count == parent.parameterTypes.count else {
             return false
         }
 
-        // Check parameter types (covariant for return, contravariant for parameters)
         for (childParam, parentParam) in zip(child.parameterTypes, parent.parameterTypes) {
             // swiftlint:disable:next for_where
             if !ctx.types.isSubtype(parentParam, childParam) {
@@ -1422,12 +1450,10 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Check return type (covariant)
         if !ctx.types.isSubtype(child.returnType, parent.returnType) {
             return false
         }
 
-        // Check other signature aspects
         return child.isSuspend == parent.isSuspend
     }
 }

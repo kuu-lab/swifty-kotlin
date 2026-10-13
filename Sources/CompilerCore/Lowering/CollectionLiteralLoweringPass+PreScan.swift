@@ -5,6 +5,7 @@ extension CollectionLiteralLoweringSupport {
         lookup: CollectionLiteralLookupTables,
         arena: KIRArena,
         sema: SemaModule?,
+        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         // Seed tracking sets from static type information (LOWERING-001).
@@ -56,9 +57,10 @@ extension CollectionLiteralLoweringSupport {
 
         for instruction in function.body {
             switch instruction {
-            case let .call(_, callee, arguments, result, _, _, _, _):
+            case let .call(symbol, callee, arguments, result, _, _, _, _):
                 handleCallInstruction(
-                    callee: callee, arguments: arguments, result: result,
+                    symbol: symbol, callee: callee, arguments: arguments, result: result,
+                    arena: arena, sema: sema, interner: interner,
                     lookup: lookup, charValuedExprIDs: charValuedExprIDs,
                     ulongValuedExprIDs: ulongValuedExprIDs,
                     state: &state
@@ -85,16 +87,21 @@ extension CollectionLiteralLoweringSupport {
     }
 
     private func handleCallInstruction(
+        symbol: SymbolID?,
         callee: InternedString,
         arguments: [KIRExprID],
         result: KIRExprID?,
+        arena: KIRArena,
+        sema: SemaModule?,
+        interner: StringInterner,
         lookup: CollectionLiteralLookupTables,
         charValuedExprIDs: Set<Int32>,
         ulongValuedExprIDs: Set<Int32>,
         state: inout CollectionRewriteState
     ) {
         classifyFactoryCall(
-            callee: callee, result: result, lookup: lookup,
+            symbol: symbol, callee: callee, result: result, lookup: lookup,
+            arena: arena, sema: sema, interner: interner,
             state: &state
         )
         // Classify range factory calls
@@ -155,12 +162,23 @@ extension CollectionLiteralLoweringSupport {
     }
 
     private func classifyFactoryCall(
+        symbol: SymbolID?,
         callee: InternedString,
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
+        arena: KIRArena,
+        sema: SemaModule?,
+        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         guard let result else { return }
+        if (lookup.mutableSetConstructorNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)),
+           !isStdlibCollectionConstructor(
+               symbol: symbol, className: callee, result: result,
+               arena: arena, sema: sema, interner: interner
+           ) {
+            return
+        }
         if lookup.listFactoryNames.contains(callee) || lookup.mutableListConstructorNames.contains(callee)
             || callee == lookup.kkListOfName
             || callee == lookup.kkArrayListOfName
@@ -171,10 +189,24 @@ extension CollectionLiteralLoweringSupport {
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
                     || callee == lookup.kkSetOfName
                     || callee == lookup.kkLinkedHashSetOfName
-                    || callee == lookup.kkSetOfNotNullName {
+                    || callee == lookup.kkSetOfNotNullName
+                    // java.util.TreeSet construction and the sortedSetOf factory
+                    // produce RuntimeSetBox results — KUU-1361.
+                    || callee == lookup.treeSetName
+                    || callee == lookup.sortedSetOfName
+                    || callee == lookup.kkTreeSetNewName
+                    || callee == lookup.kkTreeSetNewCollectionName
+                    || callee == lookup.kkTreeSetNewSortedSetName {
             state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
-                    || callee == lookup.kkMapOfName {
+                    || callee == lookup.kkMapOfName
+                    // java.util.TreeMap construction and the sortedMapOf
+                    // factory produce RuntimeMapBox results — KUU-1361.
+                    || callee == lookup.treeMapName
+                    || callee == lookup.sortedMapOfName
+                    || callee == lookup.kkTreeMapNewName
+                    || callee == lookup.kkTreeMapNewMapName
+                    || callee == lookup.kkTreeMapNewSortedMapName {
             state.mapExprIDs.insert(result.rawValue)
         } else if lookup.arrayOfFactoryNames.contains(callee)
             || callee == lookup.kkArrayNewName
@@ -329,8 +361,6 @@ extension CollectionLiteralLoweringSupport {
             }
         }
     }
-
-    // MARK: - Static type based collection classification (LOWERING-001)
 
     /// Collect expression IDs referenced in a function's body that participate
     /// in collection-type propagation. This covers instruction kinds that

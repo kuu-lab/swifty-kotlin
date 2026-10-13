@@ -15,22 +15,22 @@ struct MemberRuntimeDispatchTests {
             (.uintRange, "randomOrNull", 0, nil),
             (.ulongRange, "randomOrNull", 1, nil),
             (.charRange, "randomOrNull", 0, nil),
-            (.longRange, "firstOrNull", 0, "__kk_long_range_firstOrNull"),
-            (.longRange, "firstOrNull", 2, "kk_range_firstOrNull_predicate"),
-            (.longRange, "lastOrNull", 0, "__kk_long_range_lastOrNull"),
-            (.longRange, "lastOrNull", 2, "kk_range_lastOrNull_predicate"),
-            (.charProgression, "toList", 0, "__kk_char_range_toList"),
-            (.charProgression, "step", 1, "__kk_char_range_step"),
-            (.longProgression, "step", 0, "__kk_long_range_step"),
+            (.longRange, "firstOrNull", 0, runtimeABIName(.longRangeFirstOrNull)),
+            (.longRange, "firstOrNull", 2, runtimeABIName(.rangeFirstOrNullPredicate)),
+            (.longRange, "lastOrNull", 0, runtimeABIName(.longRangeLastOrNull)),
+            (.longRange, "lastOrNull", 2, runtimeABIName(.rangeLastOrNullPredicate)),
+            (.charProgression, "toList", 0, runtimeABIName(.charRangeToList)),
+            (.charProgression, "step", 1, runtimeABIName(.charRangeStep)),
+            (.longProgression, "step", 0, runtimeABIName(.longRangeStep)),
             (.uintProgression, "step", 2, nil),
             (.ulongProgression, "contains", 1, nil),
             // step(n) as a dot call (arity 1) must resolve to the progression-
             // constructing runtime function, not the step-property getter
             // (KSWIFTK-RUNTIME-0001: (1L..10L).step(2L) used to alias the getter
             // and hand back a raw step value instead of a new range handle).
-            (.intRange, "step", 1, "__kk_op_step"),
-            (.longRange, "step", 1, "__kk_op_step"),
-            (.longProgression, "step", 1, "__kk_op_step"),
+            (.intRange, "step", 1, runtimeABIName(.opStep)),
+            (.longRange, "step", 1, runtimeABIName(.opStep)),
+            (.longProgression, "step", 1, runtimeABIName(.opStep)),
             (.uintRange, "step", 1, nil),
             (.ulongRange, "step", 1, nil),
         ]
@@ -75,12 +75,12 @@ struct MemberRuntimeDispatchTests {
         }
 
         let uintProgressionKey = MemberDispatchKey(receiverKind: .uintProgression, memberName: "reduce", arity: 1)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintProgressionKey) == "__kk_uint_range_reduce")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintProgressionKey) == runtimeABIName(.uintRangeReduce))
 
         // KSP-1523 retains the constant-time step property bridge (arity 0),
         // demoted to an internal `__kk_` link by KSP-709.
         let uintStepPropertyKey = MemberDispatchKey(receiverKind: .uintProgression, memberName: "step", arity: 0)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == "__kk_uint_range_step")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == runtimeABIName(.uintRangeStep))
     }
 
     // KSP-1523: none of these 13 members may resolve to a kk_uint_range_*
@@ -100,8 +100,7 @@ struct MemberRuntimeDispatchTests {
             let key = MemberDispatchKey(receiverKind: .uintRange, memberName: member.0, arity: member.1)
             let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
             #expect(
-                resolved?.hasPrefix("kk_uint_range_") != true
-                    && resolved?.hasPrefix("__kk_uint_range_") != true,
+                !hasRuntimeABIFamily(resolved, .uintRange),
                 "UIntRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
             )
         }
@@ -147,12 +146,12 @@ struct MemberRuntimeDispatchTests {
         // scope and still share the (KSP-709-demoted) __kk_ulong_range_*
         // runtime prefix.
         let ulongProgressionKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "reduce", arity: 1)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey) == "__kk_ulong_range_reduce")
+        #expect(isInternalCompilerDispatch(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey), .ulongRangeReduce))
 
         // KSP-1524 retains the constant-time step property bridge (arity 0),
         // demoted to an internal `__kk_` link by KSP-709.
         let ulongStepPropertyKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "step", arity: 0)
-        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == "__kk_ulong_range_step")
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == runtimeABIName(.ulongRangeStep))
     }
 
     @Test func testULongRangeKSP1524MembersNeverResolveToDeletedRuntimeNames() {
@@ -165,8 +164,7 @@ struct MemberRuntimeDispatchTests {
             let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
             let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
             #expect(
-                resolved?.hasPrefix("kk_ulong_range_") != true
-                    && resolved?.hasPrefix("__kk_ulong_range_") != true,
+                !hasRuntimeABIFamily(resolved, .ulongRange),
                 "ULongRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
             )
         }
@@ -174,9 +172,9 @@ struct MemberRuntimeDispatchTests {
 
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
-            (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),
-            (.list, "forEach", 1, "kk_list_forEach"),
-            (.sequence, "firstOrNull", 0, "kk_sequence_firstOrNull"),
+            (.iterable, "firstNotNullOf", 1, runtimeABIName(.iterableFirstNotNullOf)),
+            (.list, "forEach", 1, runtimeABIName(.listForEach)),
+            (.sequence, "firstOrNull", 0, runtimeABIName(.sequenceFirstOrNull)),
         ]
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
@@ -269,7 +267,7 @@ struct MemberRuntimeDispatchTests {
 
     @Test func testStringRuntimeDispatchUsesFlatStringTable() {
         let cases: [(String, Int, String, Bool, MemberRuntimeArgumentMode, MemberRuntimeThrownResultMode)] = [
-            ("lowercase", 0, "kk_string_lowercase_flat", false, .lowered, .none),
+            ("lowercase", 0, runtimeABIName(.stringLowercaseFlat), false, .lowered, .none),
         ]
 
         for (memberName, arity, expectedLinkName, canThrow, argumentMode, thrownResultMode) in cases {

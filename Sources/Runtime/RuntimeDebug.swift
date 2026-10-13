@@ -54,12 +54,14 @@ public func __kk_assertions_enabled() -> Int {
     runtimeAreAssertionsEnabled() ? 1 : 0
 }
 
+// DEAD-CDECL-TEST-HOOK: ASSERTION-CONTROL - Runtime tests toggle assertion checks for focused cases.
 @_cdecl("kk_assertions_set_enabled")
 public func kk_assertions_set_enabled(_ enabled: Int) -> Int {
     runtimeSetAssertionsEnabled(enabled != 0)
     return 0
 }
 
+// DEAD-CDECL-TEST-HOOK: ASSERTION-CONTROL - Runtime tests reset assertion state between cases.
 @_cdecl("kk_assertions_reset")
 public func kk_assertions_reset() -> Int {
     runtimeResetDebugState()
@@ -109,16 +111,19 @@ public func __kk_debugging_dump_memory(_ fd: Int) -> Int {
     return written == bytes.count ? 1 : 0
 }
 
+// DEAD-CDECL-TEST-HOOK: RUNTIME-METRICS - Runtime tests inspect GC suspension state.
 @_cdecl("kk_debugging_gc_suspend_count")
 public func kk_debugging_gc_suspend_count() -> Int {
     0
 }
 
+// DEAD-CDECL-TEST-HOOK: RUNTIME-METRICS - Runtime tests inspect runtime thread state.
 @_cdecl("kk_debugging_thread_count")
 public func kk_debugging_thread_count() -> Int {
     1
 }
 
+// DEAD-CDECL-TEST-HOOK: RUNTIME-METRICS - Runtime tests inspect retained object counts.
 @_cdecl("kk_debugging_global_object_count")
 public func kk_debugging_global_object_count() -> Int {
     runtimeStorage.withGCLock { state in

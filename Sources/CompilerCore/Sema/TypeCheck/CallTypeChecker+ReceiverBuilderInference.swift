@@ -20,9 +20,11 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
-        explicitTypeArgs: [TypeID]
+        explicitTypeArgs: [TypeID],
+        receiverType: TypeID? = nil,
+        candidateOverride: [SymbolID]? = nil
     ) -> TypeID? {
-        guard let calleeName, locals[calleeName] == nil else { return nil }
+        guard let calleeName, (receiverType != nil || locals[calleeName] == nil) else { return nil }
         // Coroutine launcher and sequence builders (`produce { }`,
         // `runBlocking { }`, `sequence { }`, ...) have dedicated handling
         // below that derives their element/result type from `send`/`yield`
@@ -42,17 +44,17 @@ extension CallTypeChecker {
               calleeName != launcherNames.suspendCoroutine,
               calleeName != launcherNames.sequenceFn
         else { return nil }
-        let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        let candidates = candidateOverride ?? ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         guard candidates.count == 1,
               let candidate = candidates.first,
               let signature = ctx.sema.symbols.functionSignature(for: candidate),
-              signature.receiverType == nil,
+              (signature.receiverType == nil) == (receiverType == nil),
               signature.classTypeParameterCount == 0,
               !signature.typeParameterSymbols.isEmpty,
               explicitTypeArgs.isEmpty,
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
-                  callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
+                  callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, isTrailingLambda: $0.isTrailingLambda, type: ctx.sema.types.anyType) },
                   symbols: ctx.sema.symbols,
                   typeSystem: ctx.sema.types,
                   isCallableArgument: { ctx.ast.arena.expr(args[$0].expr)?.isLambdaOrCallableRef == true }
@@ -61,6 +63,12 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let session = BuilderInferenceSession(typeVarBySymbol: variables)
+        if let receiverType, let declaredReceiver = signature.receiverType {
+            session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                subtype: receiverType, supertype: declaredReceiver,
+                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: range
+            ))
+        }
         let lambdaIndices = args.indices.filter { index in
             guard case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr),
                   let parameter = mapping[index],
@@ -110,22 +118,31 @@ extension CallTypeChecker {
                 ))
             }
         }
-        let seed = ctx.resolver.probeArgumentTypeSubstitution(
+        var seed = ctx.resolver.probeArgumentTypeSubstitution(
             signature: signature, typeVarBySymbol: variables,
             knownArgumentTypes: knownArguments, typeSystem: sema.types
         )
+        if receiverType != nil {
+            let receiverSolution = ConstraintSolver().solve(
+                vars: ctx.resolver.usedTypeVariables(from: session.constraints),
+                constraints: session.constraints, typeSystem: sema.types
+            )
+            if receiverSolution.isSuccess {
+                seed.merge(receiverSolution.substitution) { _, receiverValue in receiverValue }
+            }
+        }
         let provisionalLambdaType = sema.types.substituteTypeParameters(
             in: signature.parameterTypes[parameterIndex], substitution: seed, typeVarBySymbol: variables
         )
         var provisionalContext = ctx
         provisionalContext.builderInference = session
         var provisionalLocals = locals
-        let checkpoint = ctx.semaCtx.diagnostics.checkpoint()
+        let checkpoint = ctx.sema.diagnostics.checkpoint()
         _ = driver.inferExpr(
             args[lambdaIndex].expr, ctx: provisionalContext,
             locals: &provisionalLocals, expectedType: provisionalLambdaType
         )
-        ctx.semaCtx.diagnostics.rollback(to: checkpoint)
+        ctx.sema.diagnostics.rollback(to: checkpoint)
 
         let solution = ConstraintSolver().solve(
             vars: ctx.resolver.usedTypeVariables(from: session.constraints),
@@ -143,7 +160,7 @@ extension CallTypeChecker {
             if hasGenericCollectionReceiverLambda(signature: signature, sema: sema, interner: ctx.interner) {
                 return nil
             }
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
@@ -157,22 +174,22 @@ extension CallTypeChecker {
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
             call: CallExpr(range: range, calleeName: calleeName, args: zip(args, argumentTypes).map {
-                CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                CallArg(label: $0.0.label, isSpread: $0.0.isSpread, isTrailingLambda: $0.0.isTrailingLambda, type: $0.1)
             }, explicitTypeArgs: signature.typeParameterSymbols.compactMap { symbol in
                 variables[symbol].flatMap { solution.substitution[$0] }
             }),
-            expectedType: expectedType, implicitReceiverType: ctx.implicitReceiverType, ctx: sema
+            expectedType: expectedType, implicitReceiverType: receiverType ?? ctx.implicitReceiverType, ctx: sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
         guard let chosen = resolved.chosenCallee else { return nil }
         driver.helpers.checkDeprecation(
-            for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.semaCtx.diagnostics
+            for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.sema.diagnostics
         )
-        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
+        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         sema.bindings.bindExprType(id, type: resultType)
@@ -193,16 +210,23 @@ extension CallTypeChecker {
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
                   callArgs: zip(args, argTypes).map {
-                      CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                      CallArg(label: $0.0.label, isSpread: $0.0.isSpread, isTrailingLambda: $0.0.isTrailingLambda, type: $0.1)
                   },
                   symbols: ctx.sema.symbols, typeSystem: ctx.sema.types
               )
         else { return argTypes }
         let sema = ctx.sema
-        for index in args.indices where session.mentionsVariable(argTypes[index], types: sema.types) {
+        for index in args.indices {
             guard let parameter = mapping[index] else { continue }
+            let parameterType = applyDispatchReceiverClassTypeArgs(
+                to: signature.parameterTypes[parameter], signature: signature,
+                candidate: candidate, ctx: ctx
+            )
+            guard session.mentionsVariable(parameterType, types: sema.types)
+                || session.mentionsVariable(argTypes[index], types: sema.types)
+            else { continue }
             session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
-                subtype: argTypes[index], supertype: signature.parameterTypes[parameter],
+                subtype: argTypes[index], supertype: parameterType,
                 typeVarBySymbol: session.typeVarBySymbol, typeSystem: sema.types,
                 blameRange: ctx.ast.arena.exprRange(args[index].expr)
             ))

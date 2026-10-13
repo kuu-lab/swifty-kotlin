@@ -36,7 +36,7 @@ extension BuildKIRRegressionTests {
         let rangeTargets = copyTargets(rangeBody)
         var sawInductionCompare = false
         for case let .call(_, callee, arguments, _, _, _, _, _) in rangeBody
-            where ctx.interner.resolve(callee) == "__kk_int_range_induction_le"
+            where callee == ctx.interner.intern(runtimeCallee(.intRangeInductionLe))
         {
             sawInductionCompare = true
             #expect(rangeTargets.contains(arguments[1]), "range upper bound must be a snapshot temporary, not the variable's storage")
@@ -47,7 +47,7 @@ extension BuildKIRRegressionTests {
         let arrayTargets = copyTargets(arrayBody)
         var sawArrayGet = false
         for case let .call(_, callee, arguments, _, _, _, _, _) in arrayBody
-            where ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+            where callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds))
         {
             sawArrayGet = true
             #expect(arrayTargets.contains(arguments[0]), "iterated array must be a snapshot temporary, not the variable's storage")

@@ -1,6 +1,193 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Resolve callable properties after applicable member/extension functions.
+    func tryInferCallableMemberPropertyInvocation(
+        _ request: MemberCallInferenceRequest,
+        memberLookupType: TypeID,
+        argTypes: [TypeID],
+        isClassNameReceiver: Bool,
+        locals: inout LocalBindings,
+        maximumPropertyPriority: Int? = nil
+    ) -> TypeID? {
+        let id = request.id
+        let calleeName = request.calleeName
+        let args = request.args
+        let range = request.range
+        let ctx = request.ctx
+        let expectedType = request.expectedType
+        let explicitTypeArgs = request.explicitTypeArgs
+        let safeCall = request.safeCall
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let calleeStr = interner.resolve(calleeName)
+        let invocationLocals = locals
+        let isSuperReceiver = if case .superRef = ast.arena.expr(request.receiverID) { true } else { false }
+        // For non-empty-arg member calls, try member property/field lookup.
+        // This handles callable property syntax (e.g. `receiver.f(...)`);
+        // an explicit `receiver.f()` call takes the same path so a
+        // zero-parameter function-typed property can be invoked (KUU-644).
+        // Skip this for class-name receivers — only companion members are
+        // accessible via `ClassName.member`, not instance properties.
+        let memberProperty = driver.helpers.lookupMemberProperty(
+            named: calleeName, receiverType: memberLookupType, sema: sema
+        )
+        // Lexical receiver-function values precede package extension properties.
+        // Nominal member properties retain their existing priority.
+        if !isClassNameReceiver, !isSuperReceiver,
+           !args.isEmpty || ast.arena.isExplicitCall(id), memberProperty == nil,
+           maximumPropertyPriority.map({ $0 >= 1 }) ?? true {
+            let lexicalType = locals[calleeName]?.type ?? ctx.implicitReceiverType.flatMap { receiver in
+                guard let property = driver.helpers.lookupMemberProperty(named: calleeName, receiverType: receiver, sema: sema),
+                      let symbol = sema.symbols.symbol(property.symbol),
+                      ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                else { return TypeID?.none }
+                return property.type
+            }
+            if let lexicalType,
+               case let .functionType(function) = sema.types.kind(of: lexicalType),
+               let receiver = function.receiver,
+               sema.types.isSubtype(memberLookupType, receiver),
+               maximumPropertyPriority == nil || callableValueAcceptsArgumentShape(
+                   function, receiverIsExplicit: false, request: request, argTypes: argTypes, locals: invocationLocals
+               ),
+               let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, locals: &locals) {
+                return result
+            }
+        }
+        let callableProperty: (symbol: SymbolID, type: TypeID)? = {
+            guard !isClassNameReceiver, !args.isEmpty || ast.arena.isExplicitCall(id) else {
+                return nil
+            }
+            if let memberProperty {
+                if !explicitTypeArgs.isEmpty,
+                   inferFunctionTypeOrError(from: memberProperty.type, sema: sema) != nil { return nil }
+                if let maximumPropertyPriority,
+                   (callableInvocationScopePriority(memberProperty.symbol, named: calleeName, ctx: ctx) > maximumPropertyPriority
+                       || sema.symbols.symbol(memberProperty.symbol).map({
+                           !ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                       }) == true
+                       || !callablePropertyAcceptsArgumentShape(
+                           memberProperty.symbol, request: request, argTypes: argTypes, receiverType: memberLookupType,
+                           typeOverride: memberProperty.type, locals: invocationLocals
+                       )) {
+                    return nil
+                }
+                return memberProperty
+            }
+            if isSuperReceiver { return nil }
+            // Package-owned extension properties have getter accessors rather
+            // than nominal fields. Resolve the getter without replacing this
+            // expression's eventual function-value invocation binding.
+            guard let propertyType = resolveExtensionPropertyGetter(
+                id: id, calleeName: calleeName, range: range,
+                receiverType: memberLookupType, expectedType: nil, ctx: ctx, bindCall: false, requireInScope: true,
+                invocationCandidateFilter: { property in
+                        (maximumPropertyPriority.map {
+                            self.callableInvocationScopePriority(property, named: calleeName, ctx: ctx) <= $0
+                        } ?? true)
+                            && (maximumPropertyPriority == nil || ctx.sema.symbols.symbol(property).map {
+                                ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                            } == true)
+                            && self.callablePropertyAcceptsArgumentShape(
+                                property, request: request, argTypes: argTypes, receiverType: memberLookupType, locals: invocationLocals
+                            )
+                }
+            ), let property = sema.bindings.identifierSymbol(for: id) else {
+                return nil
+            }
+            return (property, propertyType)
+        }()
+        if let propResult = callableProperty {
+            // Check visibility before trying callable-style resolution.
+            if let propSymbol = sema.symbols.symbol(propResult.symbol),
+               !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+            {
+                driver.helpers.emitVisibilityError(for: propSymbol, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
+
+            // Property value call with function type (`receiver.f(...)`).
+            // Kotlin requires `?.`/`!!` to call a nullable function value,
+            // so a `f: ((Int) -> Int)?` property must not take this arm — a
+            // null function object would reach kk_function_invoke (KUU-644).
+            let isNullableFunctionValue = if case let .functionType(propFunctionType) = sema.types.kind(of: propResult.type) {
+                propFunctionType.nullability == .nullable
+            } else {
+                false
+            }
+            if !isNullableFunctionValue,
+               let callableType = inferFunctionTypeOrError(from: propResult.type, sema: sema) {
+                if let callableResult = inferCallableValueInvocation(
+                    id,
+                    calleeType: callableType,
+                    callableTarget: .localValue(propResult.symbol),
+                    args: args,
+                    argTypes: argTypes,
+                    range: range,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: expectedType,
+                    arityPolicy: sema.symbols.extensionPropertyReceiverType(for: propResult.symbol) == nil
+                        ? .receiverNeverExplicit : .receiverRequiredExplicit
+                ) {
+                    let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
+
+            // Property value call through `operator fun invoke(...)`.
+            let invokeName = interner.intern("invoke")
+            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: invokeName,
+                receiverType: propResult.type,
+                sema: sema,
+                interner: interner
+            ).filter { candidateID in
+                guard let sym = sema.symbols.symbol(candidateID) else { return false }
+                return sym.flags.contains(.operatorFunction)
+                    && ctx.visibilityChecker.isAccessible(sym, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+            }
+
+            if !invokeCandidates.isEmpty {
+                let prepared = prepareCallArguments(
+                    args: args, candidates: invokeCandidates, explicitTypeArgs: explicitTypeArgs,
+                    receiverType: propResult.type, ctx: ctx, locals: &locals
+                )
+                let resolved = resolveCallRespectingLambdaReturnType(
+                    candidates: invokeCandidates, args: args, argTypes: prepared.argTypes,
+                    range: range, calleeName: invokeName, explicitTypeArgs: explicitTypeArgs,
+                    expectedType: expectedType, implicitReceiverType: propResult.type,
+                    lambdaLiteralIndices: prepared.lambdaLiteralIndices,
+                    inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
+                    blockedLambdaRefinement: prepared.blockedLambdaRefinement,
+                    hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
+                    ctx: ctx
+                )
+                if let diagnostic = resolved.diagnostic {
+                    ctx.sema.diagnostics.emit(diagnostic)
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                if let chosen = resolved.chosenCallee {
+                    let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+                    sema.bindings.markInvokeOperatorCall(id)
+                    sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+                    sema.bindings.bindInvokeOperatorPropertyCall(id, binding: InvokeOperatorPropertyBinding(
+                        property: propResult.symbol, propertyType: propResult.type, resultType: returnType
+                    ))
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            }
+        }
+
+        return nil
+    }
+
     func inferRegularMemberCallWithoutCandidates(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -46,7 +233,7 @@ extension CallTypeChecker {
                    enclosingClass: ctx.enclosingClassSymbol
                )
             {
-                driver.helpers.emitVisibilityError(for: memberSymbol, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                driver.helpers.emitVisibilityError(for: memberSymbol, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
@@ -75,7 +262,7 @@ extension CallTypeChecker {
                sema.types.nullability(of: lookupReceiverType) == .nullable,
                sema.types.isSubtype(sema.types.makeNonNullable(lookupReceiverType), sema.types.stringType)
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0026",
                     "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
                     range: range
@@ -225,7 +412,7 @@ extension CallTypeChecker {
                     if args.count == 1, let hexFormatType {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: hexFormatType)
                     }
-                    driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
+                    driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
                     let returnType = bindCallAndResolveReturnType(
                         id,
                         chosen: chosen,
@@ -1096,99 +1283,10 @@ extension CallTypeChecker {
                 }
             }
         }
-        // For non-empty-arg member calls, try member property/field lookup.
-        // This handles callable property syntax (e.g. `receiver.f(...)`);
-        // an explicit `receiver.f()` call takes the same path so a
-        // zero-parameter function-typed property can be invoked (KUU-644).
-        // Skip this for class-name receivers — only companion members are
-        // accessible via `ClassName.member`, not instance properties.
-        if !isClassNameReceiver,
-           (!args.isEmpty || ast.arena.isExplicitCall(id)),
-           let propResult = driver.helpers.lookupMemberProperty(
-               named: calleeName,
-               receiverType: memberLookupType,
-               sema: sema
-           )
-        {
-            // Check visibility before trying callable-style resolution.
-            if let propSymbol = sema.symbols.symbol(propResult.symbol),
-               !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
-            {
-                driver.helpers.emitVisibilityError(for: propSymbol, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
-
-            // Property value call with function type (`receiver.f(...)`).
-            // Kotlin requires `?.`/`!!` to call a nullable function value,
-            // so a `f: ((Int) -> Int)?` property must not take this arm — a
-            // null function object would reach kk_function_invoke (KUU-644).
-            let isNullableFunctionValue = if case let .functionType(propFunctionType) = sema.types.kind(of: propResult.type) {
-                propFunctionType.nullability == .nullable
-            } else {
-                false
-            }
-            if !isNullableFunctionValue,
-               let callableType = inferFunctionTypeOrError(from: propResult.type, sema: sema) {
-                if let callableResult = inferCallableValueInvocation(
-                    id,
-                    calleeType: callableType,
-                    callableTarget: .localValue(propResult.symbol),
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    locals: &locals,
-                    expectedType: expectedType
-                ) {
-                    let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
-
-            // Property value call through `operator fun invoke(...)`.
-            let invokeName = interner.intern("invoke")
-            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
-                named: invokeName,
-                receiverType: propResult.type,
-                sema: sema,
-                interner: interner
-            ).filter { candidateID in
-                guard let sym = sema.symbols.symbol(candidateID) else { return false }
-                return sym.flags.contains(.operatorFunction)
-            }
-
-            if !invokeCandidates.isEmpty {
-                let resolvedArgs = zip(args, argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
-                }
-                let resolved = ctx.resolver.resolveCall(
-                    candidates: invokeCandidates,
-                    call: CallExpr(
-                        range: range,
-                        calleeName: invokeName,
-                        args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
-                    ),
-                    expectedType: expectedType,
-                    implicitReceiverType: propResult.type,
-                    ctx: ctx.semaCtx
-                )
-                if let diagnostic = resolved.diagnostic {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-                }
-                if let chosen = resolved.chosenCallee {
-                    let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-                    sema.bindings.markInvokeOperatorCall(id)
-                    sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
-                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
+        if let result = tryInferCallableMemberPropertyInvocation(
+            request, memberLookupType: memberLookupType, argTypes: argTypes,
+            isClassNameReceiver: isClassNameReceiver, locals: &locals
+        ) { return result }
 
         // Explicit `invoke` sugar on a function-typed value:
         // `f.invoke(args)` / `prop?.invoke(args)` (KUU-644). Function types
@@ -1258,91 +1356,14 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            driver.helpers.emitVisibilityError(for: firstInvisible, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
+            driver.helpers.emitVisibilityError(for: firstInvisible, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        if let fallbackType = tryRegexMemberFallback(
-            id,
-            calleeName: calleeName,
+        if let fallbackType = tryCommonMemberCallFallbacks(
+            request,
             isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryKFunctionMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryStringMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryFileMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryCollectionMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            expectedType: expectedType,
+            collectionFallbackFirst: false,
             admitNominalIterableReceiver: true,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryArrayMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryRangeMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
             locals: &locals
         ) {
             return fallbackType
@@ -1439,11 +1460,8 @@ extension CallTypeChecker {
             }
         }
 
-        let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
-            lookupReceiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isCoroutineHandleReceiver = ReceiverClassifier(sema: sema, interner: interner)
+            .isCoroutineHandleReceiverType(lookupReceiverType)
         if !isClassNameReceiver, args.isEmpty, isCoroutineHandleReceiver {
             let memberName = calleeStr
             switch memberName {
@@ -1692,7 +1710,7 @@ extension CallTypeChecker {
             return fallbackType
         }
 
-        ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)
+        ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
     }
 }

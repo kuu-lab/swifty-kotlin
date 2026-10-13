@@ -1,6 +1,6 @@
-// Number.toDouble()/toFloat()/toLong()/toInt()/toShort()/toByte() dispatch for
-// an erased/abstract receiver (a `Number`-typed variable, or a `T : Number`
-// type parameter) — see KSP-1540 / DEBT-DIFF-008 and
+// Number.toDouble()/toFloat()/toLong()/toInt()/toShort()/toByte()/toChar()
+// dispatch for an erased/abstract receiver (a `Number`-typed variable, or a
+// `T : Number` type parameter) — see KSP-1540 / DEBT-DIFF-008 and
 // CallLowerer+NumberConversionMemberCalls.swift for the KIR-side lowering
 // that routes calls here.
 
@@ -14,6 +14,7 @@ private enum RuntimeNumberConversionTargetKind: Int32 {
     case int = 3
     case short = 4
     case byte = 5
+    case char = 6
 }
 
 /// Runtime dispatch for `Number.to*()` called through an erased/abstract
@@ -80,6 +81,9 @@ private func runtimeConvertBoxedNumberInt(_ value: Int, to targetKind: RuntimeNu
     case .int: value
     case .short: kk_int_to_short(value)
     case .byte: kk_int_to_byte(value)
+    // Number.toChar() is toInt().toChar(); Byte/Short share this box with a
+    // canonical sign-extended payload, so the plain Int conversion is right.
+    case .char: kk_int_to_char(value)
     }
 }
 
@@ -91,6 +95,7 @@ private func runtimeConvertBoxedNumberLong(_ value: Int, to targetKind: RuntimeN
     case .int: kk_long_to_int(value)
     case .short: kk_long_to_short(value)
     case .byte: kk_long_to_byte(value)
+    case .char: kk_int_to_char(kk_long_to_int(value))
     }
 }
 
@@ -101,9 +106,10 @@ private func runtimeConvertBoxedNumberDouble(_ value: Double, to targetKind: Run
     case .float: kk_double_to_float(bits)
     case .long: __kk_double_to_long(bits)
     case .int: __kk_double_to_int(bits)
-    // Double.toShort()/toByte() are documented as toInt().toShort()/toByte().
+    // Double.toShort()/toByte()/toChar() are documented as toInt().toX().
     case .short: kk_int_to_short(__kk_double_to_int(bits))
     case .byte: kk_int_to_byte(__kk_double_to_int(bits))
+    case .char: kk_int_to_char(__kk_double_to_int(bits))
     }
 }
 
@@ -114,8 +120,9 @@ private func runtimeConvertBoxedNumberFloat(_ value: Float, to targetKind: Runti
     case .float: bits
     case .long: __kk_float_to_long(bits)
     case .int: __kk_float_to_int(bits)
-    // Float.toShort()/toByte() are documented as toInt().toShort()/toByte().
+    // Float.toShort()/toByte()/toChar() are documented as toInt().toX().
     case .short: kk_int_to_short(__kk_float_to_int(bits))
     case .byte: kk_int_to_byte(__kk_float_to_int(bits))
+    case .char: kk_int_to_char(__kk_float_to_int(bits))
     }
 }

@@ -94,14 +94,15 @@ struct TokenStreamTests {
     @Test
     func testConsumeIfPredicateCanAccessTokenDetails() {
         let interner = StringInterner()
-        let id = makeToken(kind: .identifier(interner.intern("hello")))
+        let helloID = interner.intern("hello")
+        let id = makeToken(kind: .identifier(helloID))
         let plus = makeToken(kind: .symbol(.plus), start: 5, end: 6)
         let num = makeToken(kind: .intLiteral("42"), start: 6, end: 8)
         let stream = TokenStream([id, plus, num])
 
         let matched = stream.consumeIf { token in
             if case let .identifier(interned) = token.kind {
-                return interner.resolve(interned) == "hello"
+                return interned == helloID
             }
             return false
         }

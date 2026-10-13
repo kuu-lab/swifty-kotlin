@@ -5,7 +5,10 @@ import Testing
 
 @Suite
 struct CallableReferenceParsingTests {
-    @Test(arguments: ["Array<Int>?::class", "Array<Int>? ::class"])
+    @Test(arguments: [
+        "Array<Int>?::class", "Array<Int>? ::class", "BooleanArray?::contentToString",
+        "BooleanArray? ::contentEquals", "kotlin.IntArray?::contentToString",
+    ])
     func nullableTypeReceiverPreservesQuestionMark(_ source: String) throws {
         let lexed = lex(source)
         let arena = ASTArena()
@@ -43,7 +46,7 @@ struct CallableReferenceParsingTests {
             return
         }
         #expect(receiver != nil)
-        #expect(lexed.interner.resolve(member) == "echo")
+        #expect(member == lexed.interner.intern("echo"))
         #expect(range.start.offset == 0)
         #expect(range.end.offset == source.utf8.count)
         #expect(lexed.diagnostics.diagnostics.isEmpty)
@@ -53,7 +56,8 @@ struct CallableReferenceParsingTests {
             Issue.record("Expected a named type receiver.")
             return
         }
-        #expect(lexed.interner.resolve(try #require(path.last)) == "Box")
+        let typeName = try #require(path.last)
+        #expect(typeName == lexed.interner.intern("Box"))
         #expect(args.count == 1)
         #expect(!nullable)
         let encoded = try JSONEncoder().encode(arena.snapshot())
@@ -158,7 +162,7 @@ struct CallableReferenceParsingTests {
         #expect(lexed.diagnostics.diagnostics.isEmpty)
         #expect((receiver == nil) == source.hasPrefix("::"))
         let expectedMember = source.components(separatedBy: "::")[1].replacingOccurrences(of: "`", with: "")
-        #expect(lexed.interner.resolve(member) == expectedMember)
+        #expect(member == lexed.interner.intern(expectedMember))
         #expect(range.start.offset == 0)
         #expect(range.end.offset == source.utf8.count)
         #expect(parser.current() == nil)
@@ -183,6 +187,85 @@ struct CallableReferenceParsingTests {
         #expect(ctx.diagnostics.diagnostics.contains {
             $0.code == "KSWIFTK-PARSE-0014" && $0.severity == .error
         })
+    }
+
+    /// KUU-1376: `T::class.findAssociatedObject<A>()` hung the parser. After a
+    /// consumed `::class`, the `<` suffix re-matched the already-folded `::`
+    /// in `tryParseCallableReferenceTypeReceiver`, rewound `index`, and the
+    /// postfix loop re-parsed `.member<` forever. A `::` behind the cursor is
+    /// already consumed, so the `<A>` must fall through to ordinary member
+    /// type arguments.
+    @Test(arguments: [
+        "Tgt::class.findAssociatedObject<AOK>()",
+        "Tgt::class.findAnnotation<AOK>()",
+        "Tgt::class.member<AOK>",
+        "a.b<T>::c.d<E>::f",
+    ])
+    func memberTypeArgsAfterCallableReferenceDoNotRewind(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(), interner: lexed.interner,
+            astArena: arena, diagnostics: lexed.diagnostics
+        )
+        let exprID = try #require(parser.parse())
+        #expect(parser.current() == nil)
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+
+        if source.hasSuffix("::f") {
+            guard case let .callableRef(receiver, member, _) = arena.expr(exprID) else {
+                Issue.record("Expected a callable reference")
+                return
+            }
+            #expect(member == lexed.interner.intern("f"))
+            guard case .memberCall = arena.expr(try #require(receiver)) else {
+                Issue.record("Expected a member-call receiver")
+                return
+            }
+            return
+        }
+
+        guard case let .memberCall(receiver, callee, typeArgs, _, _) = arena.expr(exprID) else {
+            Issue.record("Expected a member call")
+            return
+        }
+        #expect(typeArgs.count == 1)
+        let className = KnownCompilerNames(interner: lexed.interner).className
+        #expect(callee != className)
+        guard case let .callableRef(_, classMember, _) = arena.expr(receiver) else {
+            Issue.record("Expected a callable-ref receiver")
+            return
+        }
+        #expect(classMember == className)
+    }
+
+    /// KUU-1376 (sibling path): an infix `<` after `T::class` hit the same
+    /// rewind loop through the top-level `<` branch of parsePostfixSuffixes.
+    @Test
+    func infixLessThanAfterCallableReferenceDoesNotRewind() throws {
+        let lexed = lex("A::class < B::class")
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(), interner: lexed.interner,
+            astArena: arena, diagnostics: lexed.diagnostics
+        )
+        let exprID = try #require(parser.parse())
+        guard case let .binary(op, lhs, rhs, _) = arena.expr(exprID) else {
+            Issue.record("Expected a binary comparison")
+            return
+        }
+        #expect(op == .lessThan)
+        let className = KnownCompilerNames(interner: lexed.interner).className
+        for side in [lhs, rhs] {
+            guard case let .callableRef(_, member, _) = arena.expr(side) else {
+                Issue.record("Expected callable-ref operands")
+                return
+            }
+            #expect(member == className)
+        }
+        #expect(parser.current() == nil)
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+        #expect(arena.snapshot().callableRefReceiverTypeRefs.isEmpty)
     }
 }
 #endif

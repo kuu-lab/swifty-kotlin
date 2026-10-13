@@ -1,4 +1,5 @@
 import Foundation
+import Dispatch
 
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
@@ -13,6 +14,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         guard let ast = ctx.ast else {
             throw CompilerPipelineError.invalidInput("No AST available for semantic analysis.")
         }
+
+        let setupStart = ctx.phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
 
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -249,11 +252,18 @@ final class DataFlowSemaPhase: CompilerPhase {
         // while headers are collected for source-backed enum API skip guards.
         let previousBundledIndex = BundledSyntheticStubRegistration.bundledIndex
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
-        collectAllHeaders(
-            ast: ast, fileScopes: fileScopes,
-            symbols: symbols, types: types, bindings: bindings, ctx: ctx,
-            predeclared: predeclaredEarlyHeaders
-        )
+        if let setupStart {
+            ctx.phaseTimer?.recordSubPhase(
+                "sema-setup", startTime: setupStart, endTime: DispatchTime.now().uptimeNanoseconds
+            )
+        }
+        withSemaSubPhaseTiming("header-collection", ctx: ctx) {
+            collectAllHeaders(
+                ast: ast, fileScopes: fileScopes,
+                symbols: symbols, types: types, bindings: bindings, ctx: ctx,
+                predeclared: predeclaredEarlyHeaders
+            )
+        }
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
         patchSourceBackedNativeUnhandledExceptionHookContract(
             symbols: symbols,
@@ -347,7 +357,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         // already cleared by `registerSyntheticDelegateStubs`'s own `defer`
         // once header registration finished.
         sema.bundledIndex = bundledIndex
-        runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
+        withSemaSubPhaseTiming("declaration-validation", ctx: ctx) {
+            runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
+        }
         patchSourceBackedPreconditionContractEffects(
             symbols: symbols,
             types: types,
@@ -361,7 +373,9 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner,
             sourceManager: ctx.sourceManager
         )
-        runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
+        withSemaSubPhaseTiming("body-checks", ctx: ctx) {
+            runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
+        }
 
         ctx.storeSema(sema)
     }
@@ -578,6 +592,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner
         )
+        registerChannelSendChannelSubtype(symbols: symbols, types: types, interner: ctx.interner)
         // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
         // kotlin.Annotation source, because its source declaration has no
         // explicit supertype clause and would otherwise erase the synthetic
@@ -610,7 +625,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
+            diagnostics: ctx.diagnostics, interner: ctx.interner, sourceManager: ctx.sourceManager
         )
         validateClassDelegation(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
@@ -634,7 +649,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            commonModuleMode: ctx.options.isCommonModule
         )
         validateAnnotationTargets(
             ast: ast,
@@ -642,6 +658,23 @@ final class DataFlowSemaPhase: CompilerPhase {
             bindings: bindings,
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
+        )
+        validateJsExportDeclarations(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
+            globalOptInMarkerNames: ctx.options.optInMarkerNames
+        )
+        validateJsStaticDeclarations(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
+            globalOptInMarkerNames: ctx.options.optInMarkerNames
         )
         validateExperimentalTypeInferenceOptIn(
             ast: ast,
@@ -658,6 +691,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             options: ctx.options
         )
         validateConstructorDelegation(ast: ast, symbols: symbols, diagnostics: ctx.diagnostics)
+        validateDeclarationPositions(
+            ast: ast, symbols: symbols, types: types,
+            diagnostics: ctx.diagnostics, interner: ctx.interner,
+            sourceManager: ctx.sourceManager
+        )
         validateDeclarationSiteVariance(
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, diagnostics: ctx.diagnostics, interner: ctx.interner

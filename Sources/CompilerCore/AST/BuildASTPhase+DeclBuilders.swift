@@ -1,7 +1,5 @@
 
 extension BuildASTPhase {
-    /// Returns the index of the `class` keyword that introduces a class declaration,
-    /// skipping `Foo::class` class-literal expressions that appear before the declaration.
     private func classDeclarationKeywordIndex(in tokens: [Token]) -> Int? {
         firstTopLevelKeywordIndex(in: tokens, matching: [.class]) { previousToken in
             previousToken.kind == .symbol(.doubleColon)
@@ -12,13 +10,11 @@ extension BuildASTPhase {
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
     ]
 
-    /// Scans `tokens` from the start, tracking balanced bracket depth, and
-    /// returns the index of the first top-level keyword that matches one of
-    /// `keywords`. This avoids treating keywords inside annotation arguments
+    /// Tracking bracket depth avoids treating keywords inside annotation arguments
     /// (e.g. `::class` in `@file:OptIn(...::class)`) as declaration introducers.
-    /// `skippingIfPrecededBy`, when provided, rejects a match whose immediately
-    /// preceding token satisfies it (e.g. `::` before `class`, to skip class-literal
-    /// expressions like `Foo::class`) and keeps scanning for the next candidate.
+    /// `skippingIfPrecededBy` rejects a match whose immediately preceding token
+    /// satisfies it (e.g. `::` before `class`, to skip class-literal
+    /// expressions like `Foo::class`).
     func firstTopLevelKeywordIndex(
         in tokens: [Token],
         matching keywords: Set<Keyword>,
@@ -40,7 +36,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Returns the index of the next top-level keyword after `startIndex`.
     func firstTopLevelKeywordIndex(
         in tokens: [Token],
         after startIndex: Int
@@ -113,10 +108,8 @@ extension BuildASTPhase {
         )
     }
 
-    /// Scans the primary-constructor header of a class — from the class name up
-    /// to `constructor`/`(`/`:`/`{` — collecting annotations and candidate modifier
-    /// tokens along the way, so the two extractors below share one walk instead of
-    /// each re-scanning the header independently.
+    /// The two extractors below share one walk instead of each re-scanning the
+    /// header independently.
     private struct PrimaryConstructorHeaderScan {
         var annotations: [AnnotationNode] = []
         var modifiers: Modifiers = []
@@ -171,8 +164,6 @@ extension BuildASTPhase {
         return scan
     }
 
-    /// Extracts annotations placed on the primary constructor in a class header,
-    /// e.g. `class Foo @Inject constructor()`.
     private func declarationPrimaryConstructorAnnotations(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> [AnnotationNode] {
@@ -183,8 +174,6 @@ extension BuildASTPhase {
         return scanPrimaryConstructorHeader(classIndex: classIndex, in: tokens, interner: interner).annotations
     }
 
-    /// Extracts modifiers attached to the primary constructor declaration in a
-    /// class header, e.g. `class Foo private constructor()`.
     private func declarationPrimaryConstructorModifiers(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> Modifiers {
@@ -196,8 +185,6 @@ extension BuildASTPhase {
         return scan.sawConstructorKeyword ? scan.modifiers : []
     }
 
-    /// Detects whether the class header contains explicit constructor parentheses,
-    /// distinguishing `class Foo()` from `class Foo`.
     private func declarationHasPrimaryConstructorSyntax(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> Bool {
@@ -213,6 +200,20 @@ extension BuildASTPhase {
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        for initBody in declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0408",
+                "anonymous initializers in interfaces are prohibited.",
+                range: functionBodySourceRange(initBody) ?? node.range
+            )
+        }
+        for constructor in declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0409",
+                "interfaces cannot have constructors.",
+                range: constructor.range
+            )
+        }
         return InterfaceDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
@@ -230,7 +231,7 @@ extension BuildASTPhase {
         )
     }
 
-    func makeObjectDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ObjectDecl {
+    func makeObjectDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena, companionSiteName: String = "standalone object") -> ObjectDecl {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
@@ -241,6 +242,23 @@ extension BuildASTPhase {
             astArena: astArena
         )
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
+        for constructor in declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0417",
+                "constructors are not allowed for objects.",
+                range: constructor.range
+            )
+        }
+        if let companionDeclID = members.companionObject,
+           let companionDecl = astArena.decl(companionDeclID),
+           case .objectDecl(let companionObject) = companionDecl
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0401",
+                "modifier 'companion' is not applicable inside '\(companionSiteName)'.",
+                range: companionObject.range
+            )
+        }
         return ObjectDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
@@ -259,7 +277,22 @@ extension BuildASTPhase {
         )
     }
 
-    func makeFunDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> FunDecl {
+    private func functionBodySourceRange(_ body: FunctionBody) -> SourceRange? {
+        switch body {
+        case .block(_, let range), .expr(_, let range):
+            return range
+        case .unit:
+            return nil
+        }
+    }
+
+    func makeFunDecl(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena,
+        prefixedAnnotations: [AnnotationNode] = []
+    ) -> FunDecl {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let isSuspend = modifiers.contains(.suspend)
@@ -287,7 +320,7 @@ extension BuildASTPhase {
             range: node.range,
             name: functionName,
             modifiers: modifiers,
-            annotations: annotations,
+            annotations: prefixedAnnotations + annotations,
             typeParams: typeParams,
             receiverType: receiverType,
             contextReceivers: contextReceivers,
@@ -302,12 +335,13 @@ extension BuildASTPhase {
 
     func makePropertyDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> PropertyDecl {
         let node = arena.node(nodeID)
+        let typeParams = applyWhereClauses(
+            declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            whereClauses: declarationWhereClauses(from: nodeID, in: arena, interner: interner, astArena: astArena)
+        )
         let accessors = declarationPropertyAccessors(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let delegateExpr = declarationDelegateExpression(from: nodeID, in: arena, interner: interner, astArena: astArena)
 
-        // When a delegate expression contains a trailing lambda, reuse its
-        // parsed body here so KIR lowering can create the lambda function from
-        // the same AST nodes as ordinary call-argument checking.
         var delegateBody: FunctionBody?
         var delegateBodyParams: [InternedString] = []
         if let delegateExpr {
@@ -352,7 +386,6 @@ extension BuildASTPhase {
             declarationPropertyName(from: nodeID, in: arena, interner: interner)
         }
 
-        // Kotlin 2.0 explicit backing field: `field = expr` or `field: Type = expr`
         let explicitField = declarationExplicitBackingField(
             from: nodeID, in: arena, interner: interner, astArena: astArena
         )
@@ -362,6 +395,7 @@ extension BuildASTPhase {
             name: propertyName,
             modifiers: modifiers,
             annotations: annotations,
+            typeParams: typeParams,
             type: declarationPropertyType(from: nodeID, in: arena, interner: interner, astArena: astArena),
             isVar: declarationIsVar(from: nodeID, in: arena),
             initializer: declarationPropertyInitializer(from: nodeID, in: arena, interner: interner, astArena: astArena),
@@ -375,7 +409,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// Extracts the trailing lambda already parsed into a delegate call.
     /// Delegate lowering consumes `delegateBody`, so it must point at the same
     /// AST body that Sema checks as the call argument rather than a separately
     /// parsed copy.
@@ -523,8 +556,6 @@ extension BuildASTPhase {
         return firstDeclarationName(in: searchTokens, interner: interner) ?? interner.intern("")
     }
 
-    /// Terminators that end the name slot of a declaration header, e.g. the
-    /// parameter list, class body, or delegate assignment that follows the name.
     private func isDeclarationNameBoundaryToken(_ token: Token) -> Bool {
         token.kind == .symbol(.lParen)
             || token.kind == .symbol(.lBrace)
@@ -533,7 +564,6 @@ extension BuildASTPhase {
             || token.kind == .symbol(.semicolon)
     }
 
-    /// Returns the first identifier-like token in the declaration name slot.
     /// Modifier keywords are valid names once the declaration introducer has
     /// established that this is a name position.
     private func firstDeclarationName(
@@ -601,7 +631,7 @@ extension BuildASTPhase {
         case .classDecl:
             classPrimaryConstructorOpenParenIndex(in: tokens, interner: interner)
         case .constructorDecl:
-            constructorParameterOpenParenIndex(in: tokens)
+            constructorParameterOpenParenIndex(in: tokens, interner: interner)
         default:
             tokens.firstIndex(where: { token in
                 token.kind == .symbol(.lParen)
@@ -655,10 +685,26 @@ extension BuildASTPhase {
         return nil
     }
 
-    private func constructorParameterOpenParenIndex(in tokens: [Token]) -> Int? {
-        guard let ctorIndex = tokens.firstIndex(where: { token in
-            token.kind == .keyword(.constructor) || token.kind == .softKeyword(.constructor)
-        }) else {
+    func constructorParameterOpenParenIndex(in tokens: [Token], interner: StringInterner) -> Int? {
+        var scanIndex = 0
+        var constructorIndex: Int?
+        while scanIndex < tokens.count {
+            let kind = tokens[scanIndex].kind
+            if kind == .symbol(.at), let annotation = AnnotationParsingSupport.parseAnnotation(
+                from: tokens, start: scanIndex, interner: interner, allowUseSiteTarget: true
+            ) {
+                // Skip the whole annotation, including comparison expressions
+                // and an annotation whose alias itself is named `constructor`.
+                scanIndex = annotation.nextIndex
+                continue
+            }
+            if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
+                constructorIndex = scanIndex
+                break
+            }
+            scanIndex += 1
+        }
+        guard let ctorIndex = constructorIndex else {
             return tokens.firstIndex(where: { token in
                 token.kind == .symbol(.lParen)
             })
@@ -780,6 +826,7 @@ extension BuildASTPhase {
             isMutableProperty: isVarProperty,
             isOverrideProperty: isOverrideProperty,
             isOpenProperty: isOpenProperty,
+            isActualProperty: candidateModifiers.contains(.actual),
             propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
@@ -817,6 +864,9 @@ extension BuildASTPhase {
             }
             if param.isOpenProperty {
                 propertyModifiers.insert(.open)
+            }
+            if param.isActualProperty {
+                propertyModifiers.insert(.actual)
             }
             let property = PropertyDecl(
                 range: classRange,

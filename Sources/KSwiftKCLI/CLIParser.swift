@@ -24,7 +24,7 @@ enum CLIParser {
       -L <path>              Library path
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
-      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases)
+      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, common-module)
       -opt-in=<fqname>       Opt in to an experimental API marker
       -Xnew-inference        Enable the new type inference pipeline
       -Xunrestricted-builder-inference
@@ -39,6 +39,7 @@ enum CLIParser {
       --stdlib-only          Compile bundled stdlib only as a .kklib (implies --emit library)
       --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
+      --test                 Generate an executable runner for kotlin.test annotations
       -g                     Emit debug info
     """
 
@@ -86,10 +87,6 @@ enum CLIParser {
                 }
                 emitMode = mode
                 explicitEmitMode = mode
-            case "-O0", "-O1", "-O2", "-O3":
-                if let level = parseOptimizationLevel(String(arg.dropFirst())) {
-                    optLevel = level
-                }
             case _ where arg.hasPrefix("-O"):
                 guard let level = parseOptimizationLevel(String(arg.dropFirst())) else {
                     throw CLIParseError.unsupportedOptimizationLevel(arg)
@@ -151,6 +148,8 @@ enum CLIParser {
                 explicitIncludeStdlib = true
             case "-g":
                 debugInfo = true
+            case "--test", "-generate-test-runner":
+                frontendFlags.append("generate-test-runner")
             default:
                 if arg.hasPrefix("-") {
                     throw CLIParseError.unknownOption(arg)

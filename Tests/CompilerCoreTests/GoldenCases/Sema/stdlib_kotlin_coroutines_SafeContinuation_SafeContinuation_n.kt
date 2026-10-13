@@ -2,27 +2,25 @@
 import kotlin.coroutines.*
 import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 
+// KUU-1597 Sema owner: pin SafeContinuation constructors, context, and result APIs; state-machine behavior stays in Scripts/diff_cases/stdlib_kotlin_coroutines_SafeContinuation_SafeContinuation_n.kt.
 fun main() {
-    val completion = Continuation<Int>(EmptyCoroutineContext) { println(it.getOrThrow()) }
-    println(SafeContinuation(completion, 42).getOrThrow())
-    println(SafeContinuation(completion, null).getOrThrow())
-    val immediate = SafeContinuation(completion)
-    println(immediate.context === EmptyCoroutineContext)
+    val completion: Continuation<Int> = Continuation(EmptyCoroutineContext) {}
+    val withValue: SafeContinuation<Int> = SafeContinuation(completion, 42)
+    val initialValue: Any? = withValue.getOrThrow()
+    val withNull: SafeContinuation<Int?> = SafeContinuation(
+        Continuation<Int?>(EmptyCoroutineContext) {},
+        null,
+    )
+    val nullableValue: Any? = withNull.getOrThrow()
+
+    val immediate: SafeContinuation<Int> = SafeContinuation(completion)
+    val context: CoroutineContext = immediate.context
     immediate.resumeWith(Result.success(42))
-    println(immediate.getOrThrow())
-    try { immediate.resumeWith(Result.success(43)) } catch (e: IllegalStateException) { println(e.message) }
+    val resumedValue: Any? = immediate.getOrThrow()
 
-    val suspended = SafeContinuation(completion)
-    println(suspended.getOrThrow() === COROUTINE_SUSPENDED)
+    val suspended: SafeContinuation<Int> = SafeContinuation(completion)
+    val suspensionMarker: Any = COROUTINE_SUSPENDED
+    val suspendedValue: Any? = suspended.getOrThrow()
     suspended.resumeWith(Result.success(9))
-    println(suspended.getOrThrow() === COROUTINE_SUSPENDED)
-    try { suspended.resumeWith(Result.success(10)) } catch (e: IllegalStateException) { println(e.message) }
-
-    val failed = SafeContinuation(completion)
-    failed.resumeWith(Result.failure<Int>(IllegalStateException("failed-before-suspension")))
-    try { println(failed.getOrThrow()) } catch (e: IllegalStateException) { println(e.message) }
-
-    val nullable = SafeContinuation(Continuation<String?>(EmptyCoroutineContext) { println("unexpected") })
-    nullable.resumeWith(Result.success(null))
-    println(nullable.getOrThrow())
+    val completedValue: Any? = suspended.getOrThrow()
 }

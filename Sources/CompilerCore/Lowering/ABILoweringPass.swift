@@ -81,6 +81,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_fgt"),
             ctx.interner.intern("kk_op_fge"),
         ]
+        let unitEqualityCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_structural_eq"),
+            ctx.interner.intern("kk_structural_ne"),
+        ]
 
         // Type-check intrinsics: `value` is a bare Int that the runtime can only
         // tell apart as Int/UInt/ULong/Long/Double/Float/Char by inspecting a
@@ -100,14 +106,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_safe_cast"),
         ]
 
-        // Callees that retrieve an element from a generic collection. After
-        // 75507ca0d, kk_mutable_list_add boxes primitives for type erasure, so
-        // these accessors may return a boxed pointer even when the KIR result
-        // type is a non-null primitive. Unbox at the retrieval site so that all
-        // downstream uses of the element (arithmetic, comparisons, calls) see
-        // the plain primitive value.
+        // Callees that retrieve an element from a generic collection. List and
+        // map values are boxed for type erasure, so these accessors may return a
+        // boxed pointer even when the KIR result type is a non-null primitive.
+        // Unbox at the retrieval site so downstream arithmetic, comparisons,
+        // and calls see the plain primitive value.
         let collectionElementAccessorCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_list_get"),
+            ctx.interner.intern("__kk_map_get"),
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
@@ -173,7 +179,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         if let symbols {
             var ambiguousBoundaryBridges: Set<InternedString> = []
             for symbol in symbols.allSymbols() where symbol.kind == .function {
-                guard let linkName = symbols.externalLinkName(for: symbol.id),
+                guard let linkName = symbols.externalLinkNameIfKnown(for: symbol.id),
                       Self.typeParamBoxingBoundaryCallees.contains(linkName),
                       let signature = symbols.functionSignature(for: symbol.id)
                 else {
@@ -506,6 +512,27 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
+                // Default stubs do not have Sema signatures. Their KIR params
+                // include the receiver as an ordinary argument, so recover the
+                // concrete signature when an enum slot needs ABI adaptation.
+                if signature == nil,
+                   let stubSymbol = effectiveCallSymbol,
+                   SyntheticSymbolScheme.isSyntheticCallTarget(stubSymbol),
+                   !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(stubSymbol),
+                   let stub = module.arena.function(for: stubSymbol),
+                   let types,
+                   stub.params.contains(where: { parameter in
+                       guard case let .classType(classType) = types.kind(of: parameter.type) else { return false }
+                       return classType.nullability == .nonNull
+                           && symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+                   })
+                {
+                    signature = FunctionSignature(
+                        parameterTypes: stub.params.map(\.type),
+                        returnType: stub.returnType,
+                        isSuspend: stub.isSuspend
+                    )
+                }
                 // ABI-002: see boundaryBridgeSignatureByLinkName above.
                 if signature == nil, effectiveCallSymbol == nil {
                     signature = boundaryBridgeSignatureByLinkName[effectiveCallee]
@@ -590,6 +617,23 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             operand: boxedArguments[i], resultExpr: result,
                             module: module, types: types, symbols: symbols,
                             boxingCalleeTable: boxingCalleeTable, newBody: &newBody
+                        )
+                    }
+                }
+                // Unit may arrive as a raw builtin value or an erased singleton
+                // handle. Compare singleton handles for both representations,
+                // including when-branch equality emitted by OperatorLowering.
+                if signature == nil, let types,
+                   unitEqualityCallees.contains(effectiveCallee)
+                {
+                    for i in boxedArguments.indices {
+                        guard let argType = intrinsicArgType(boxedArguments[i], arena: module.arena, types: types),
+                              case .unit = types.kind(of: argType),
+                              let boxCallee = boxingCalleeTable.boxCallee(for: .unit, requireNonNull: true)
+                        else { continue }
+                        boxedArguments[i] = emitNonThrowingCall(
+                            callee: boxCallee, arg: boxedArguments[i], resultType: types.anyType,
+                            arena: module.arena, into: &newBody
                         )
                     }
                 }

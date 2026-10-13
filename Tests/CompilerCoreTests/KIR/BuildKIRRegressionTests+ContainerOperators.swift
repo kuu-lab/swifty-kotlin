@@ -30,7 +30,7 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains("set"), "Expected custom set call, got: \(callees)")
         #expect(callees.contains("contains"), "Expected custom contains call, got: \(callees)")
         #expect(callees.contains("rangeTo"), "Expected custom rangeTo call, got: \(callees)")
-        #expect(!(callees.contains("kk_op_rangeTo")), "Custom rangeTo should not lower to kk_op_rangeTo, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.opRangeTo))), "Custom rangeTo should not lower to kk_op_rangeTo, got: \(callees)")
     }
 
     // KSWIFTK-BUG: a bare integer literal index (`b[0]`) must contextualize to
@@ -63,8 +63,8 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("get"), "Expected custom Long-indexed get call, got: \(callees)")
         #expect(callees.contains("set"), "Expected custom Long-indexed set call, got: \(callees)")
-        #expect(!callees.contains("kk_array_get"), "Long-indexed get() must not fall back to raw array access, got: \(callees)")
-        #expect(!callees.contains("kk_array_set"), "Long-indexed set() must not fall back to raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arrayGet)), "Long-indexed get() must not fall back to raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arraySet)), "Long-indexed set() must not fall back to raw array access, got: \(callees)")
     }
 
     // KSWIFTK-BUG: `a[i] += v` / `a[i]++` on a receiver with a custom (or
@@ -98,8 +98,8 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("get"), "Expected custom get calls for the read halves, got: \(callees)")
         #expect(callees.contains("set"), "Expected custom set calls for the write-back halves, got: \(callees)")
-        #expect(!callees.contains("kk_array_get"), "Compound assign on a custom operator must not read via raw array access, got: \(callees)")
-        #expect(!callees.contains("kk_array_set"), "Compound assign on a custom operator must not write via raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arrayGet)), "Compound assign on a custom operator must not read via raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arraySet)), "Compound assign on a custom operator must not write via raw array access, got: \(callees)")
     }
 
     // A genuine built-in array must keep using the raw array/boxing runtime
@@ -122,8 +122,8 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_array_get"), "Built-in IntArray compound assign should still use the raw array read, got: \(callees)")
-        #expect(callees.contains("kk_array_set"), "Built-in IntArray compound assign should still use the raw array write, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arrayGet)), "Built-in IntArray compound assign should still use the raw array read, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arraySet)), "Built-in IntArray compound assign should still use the raw array write, got: \(callees)")
     }
 
     // KSWIFTK-BUG: the same dispatch-through-get()/set() fix above must also
@@ -154,18 +154,18 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(!callees.contains("kk_array_get"), "Multi-index compound assign must not read via raw array access, got: \(callees)")
-        #expect(!callees.contains("kk_array_set"), "Multi-index compound assign must not write via raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arrayGet)), "Multi-index compound assign must not read via raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arraySet)), "Multi-index compound assign must not write via raw array access, got: \(callees)")
 
         let getArgCounts: [Int] = body.compactMap { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "get"
+                  callee == KnownCompilerNames(interner: ctx.interner).get
             else { return nil }
             return arguments.count
         }
         let setArgCounts: [Int] = body.compactMap { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "set"
+                  callee == KnownCompilerNames(interner: ctx.interner).sbSet
             else { return nil }
             return arguments.count
         }
@@ -227,9 +227,9 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains("next"), "Expected custom next call, got: \(callees)")
         #expect(callees.contains("component1"), "Expected destructuring component1 call, got: \(callees)")
         #expect(callees.contains("component2"), "Expected destructuring component2 call, got: \(callees)")
-        #expect(!(callees.contains("kk_range_iterator")), "Custom iterator loop should not use kk_range_iterator, got: \(callees)")
-        #expect(!(callees.contains("kk_range_hasNext")), "Custom iterator loop should not use kk_range_hasNext, got: \(callees)")
-        #expect(!(callees.contains("kk_range_next")), "Custom iterator loop should not use kk_range_next, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "Custom iterator loop should not use kk_range_iterator, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "Custom iterator loop should not use kk_range_hasNext, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "Custom iterator loop should not use kk_range_next, got: \(callees)")
     }
 
     // BUG-013 / KSP-CAP-002: user-defined Iterator/Iterable should drive for-in
@@ -262,9 +262,9 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
         #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
-        #expect(!(callees.contains("kk_range_iterator")), "User Iterator loop should not use kk_range_iterator, got: \(callees)")
-        #expect(!(callees.contains("kk_range_hasNext")), "User Iterator loop should not use kk_range_hasNext, got: \(callees)")
-        #expect(!(callees.contains("kk_range_next")), "User Iterator loop should not use kk_range_next, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "User Iterator loop should not use kk_range_iterator, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "User Iterator loop should not use kk_range_hasNext, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "User Iterator loop should not use kk_range_next, got: \(callees)")
     }
 
     // KSP-938: a source-backed CharSequence.iterator() returns CharIterator,
@@ -322,9 +322,9 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("hasNext"), "Expected direct hasNext call, got: \(callees)")
         #expect(callees.contains("next"), "Expected direct next call, got: \(callees)")
-        #expect(!(callees.contains("kk_range_iterator")), "User nullable Iterator loop should not use kk_range_iterator, got: \(callees)")
-        #expect(!(callees.contains("kk_range_hasNext")), "User nullable Iterator loop should not use kk_range_hasNext, got: \(callees)")
-        #expect(!(callees.contains("kk_range_next")), "User nullable Iterator loop should not use kk_range_next, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeIterator))), "User nullable Iterator loop should not use kk_range_iterator, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeHasNext))), "User nullable Iterator loop should not use kk_range_hasNext, got: \(callees)")
+        #expect(!(callees.contains(runtimeCallee(.rangeNext))), "User nullable Iterator loop should not use kk_range_next, got: \(callees)")
     }
 
     @Test func testBuildKIRUsesUserIterableSubtypeIterator() throws {
@@ -361,16 +361,16 @@ extension BuildKIRRegressionTests {
 
         #expect(callCallees.contains("iterator"), "Expected custom iterator() call, got: \(callCallees)")
         #expect(
-            allCallees.contains("kk_iterator_hasNext") || virtualCallees.contains("hasNext"),
+            allCallees.contains(runtimeCallee(.iteratorHasNext)) || virtualCallees.contains("hasNext"),
             "Expected Iterator.hasNext to use the source-backed virtual dispatch or generic runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
         )
         #expect(
-            allCallees.contains("kk_iterator_next") || virtualCallees.contains("next"),
+            allCallees.contains(runtimeCallee(.iteratorNext)) || virtualCallees.contains("next"),
             "Expected Iterator.next to use the source-backed virtual dispatch or generic runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
         )
-        #expect(!allCallees.contains("kk_range_iterator"), "User Iterable loop should not use kk_range_iterator, got: \(allCallees)")
-        #expect(!allCallees.contains("kk_range_hasNext"), "User Iterable loop should not use kk_range_hasNext, got: \(allCallees)")
-        #expect(!allCallees.contains("kk_range_next"), "User Iterable loop should not use kk_range_next, got: \(allCallees)")
+        #expect(!allCallees.contains(runtimeCallee(.rangeIterator)), "User Iterable loop should not use kk_range_iterator, got: \(allCallees)")
+        #expect(!allCallees.contains(runtimeCallee(.rangeHasNext)), "User Iterable loop should not use kk_range_hasNext, got: \(allCallees)")
+        #expect(!allCallees.contains(runtimeCallee(.rangeNext)), "User Iterable loop should not use kk_range_next, got: \(allCallees)")
     }
 
     // KSP-697: List is source-backed and therefore no longer synthetic, but a
@@ -392,15 +392,15 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_list_iterator"), "Concrete List must use kk_list_iterator, got: \(callees)")
-        #expect(callees.contains("kk_list_iterator_hasNext"), "Concrete List must use list iterator hasNext, got: \(callees)")
-        #expect(callees.contains("kk_list_iterator_next"), "Concrete List must use list iterator next, got: \(callees)")
-        #expect(!callees.contains("kk_iterable_iterator"), "Concrete List must not use the generic Iterable bridge, got: \(callees)")
-        #expect(!callees.contains("kk_iterator_hasNext"), "Concrete List must not use generic hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_iterator_next"), "Concrete List must not use generic next, got: \(callees)")
-        #expect(!callees.contains("kk_range_iterator"), "Concrete List must not use the range iterator, got: \(callees)")
-        #expect(!callees.contains("kk_range_hasNext"), "Concrete List must not use range hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_range_next"), "Concrete List must not use range next, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.listIterator)), "Concrete List must use kk_list_iterator, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.listIteratorHasNext)), "Concrete List must use list iterator hasNext, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.listIteratorNext)), "Concrete List must use list iterator next, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.iterableIterator)), "Concrete List must not use the generic Iterable bridge, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.iteratorHasNext)), "Concrete List must not use generic hasNext, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.iteratorNext)), "Concrete List must not use generic next, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.rangeIterator)), "Concrete List must not use the range iterator, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.rangeHasNext)), "Concrete List must not use range hasNext, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.rangeNext)), "Concrete List must not use range next, got: \(callees)")
     }
 
     @Test func testBuildKIRUsesSourceBackedRangeContains() throws {
@@ -422,11 +422,11 @@ extension BuildKIRRegressionTests {
             // __kk_range_contains) instead of the generic kk_op_contains runtime stub.
             let hasSourceBackedRangeContains = body.contains { instruction in
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
-                return ctx.interner.resolve(callee) == "__kk_range_contains" && symbol != nil && symbol != .invalid
+                return callee == ctx.interner.intern(runtimeCallee(.rangeContains)) && symbol != nil && symbol != .invalid
             }
             #expect(hasSourceBackedRangeContains, "Expected source-backed range contains call, got: \(callees)")
-            #expect(callees.contains("__kk_range_contains"), "Expected __kk_range_contains callee, got: \(callees)")
-            #expect(!callees.contains("kk_op_contains"), "Range membership must not fall back to runtime kk_op_contains, got: \(callees)")
+            #expect(callees.contains(runtimeCallee(.rangeContains)), "Expected __kk_range_contains callee, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.opContains)), "Range membership must not fall back to runtime kk_op_contains, got: \(callees)")
         }
     }
 
@@ -443,7 +443,7 @@ extension BuildKIRRegressionTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
             let interfaceContainsCalls = body.filter { instruction in
                 guard case let .virtualCall(_, callee, _, _, _, _, _, dispatch) = instruction,
-                      ctx.interner.resolve(callee) == "contains",
+                      callee == KnownCompilerNames(interner: ctx.interner).contains,
                       case .itableDynamic = dispatch
                 else { return false }
                 return true
@@ -498,30 +498,30 @@ extension BuildKIRRegressionTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             if functionName == "sumInts" {
-                #expect(!callees.contains("kk_range_for_in_iterator"), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
-                #expect(!callees.contains("kk_range_for_in_hasNext"), "\(functionName): induction loop must not call hasNext, got: \(callees)")
-                #expect(!callees.contains("kk_range_for_in_next"), "\(functionName): induction loop must not call next, got: \(callees)")
-                #expect(!callees.contains("__kk_range_first"), "\(functionName): direct range should not load a range object bound, got: \(callees)")
-                #expect(!callees.contains("__kk_range_last"), "\(functionName): direct range should not load a range object bound, got: \(callees)")
-                #expect(callees.contains("__kk_int_range_induction_le"), "\(functionName): expected native induction comparison, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeForInIterator)), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeForInHasNext)), "\(functionName): induction loop must not call hasNext, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeForInNext)), "\(functionName): induction loop must not call next, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeFirst)), "\(functionName): direct range should not load a range object bound, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeLast)), "\(functionName): direct range should not load a range object bound, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.intRangeInductionLe)), "\(functionName): expected native induction comparison, got: \(callees)")
             } else if functionName == "sumTyped" {
-                #expect(!callees.contains("kk_range_for_in_iterator"), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
-                #expect(!callees.contains("kk_range_for_in_hasNext"), "\(functionName): induction loop must not call hasNext, got: \(callees)")
-                #expect(!callees.contains("kk_range_for_in_next"), "\(functionName): induction loop must not call next, got: \(callees)")
-                #expect(callees.contains("__kk_range_first"), "\(functionName): expected one-time first-bound load, got: \(callees)")
-                #expect(callees.contains("__kk_range_last"), "\(functionName): expected one-time last-bound load, got: \(callees)")
-                #expect(callees.contains("__kk_int_range_induction_le"), "\(functionName): expected native induction comparison, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeForInIterator)), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeForInHasNext)), "\(functionName): induction loop must not call hasNext, got: \(callees)")
+                #expect(!callees.contains(runtimeCallee(.rangeForInNext)), "\(functionName): induction loop must not call next, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.rangeFirst)), "\(functionName): expected one-time first-bound load, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.rangeLast)), "\(functionName): expected one-time last-bound load, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.intRangeInductionLe)), "\(functionName): expected native induction comparison, got: \(callees)")
             } else {
-                #expect(callees.contains("kk_range_for_in_iterator"), "\(functionName): expected range fast-path iterator, got: \(callees)")
-                #expect(callees.contains("kk_range_for_in_hasNext"), "\(functionName): expected range fast-path hasNext, got: \(callees)")
-                #expect(callees.contains("kk_range_for_in_next"), "\(functionName): expected range fast-path next, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.rangeForInIterator)), "\(functionName): expected range fast-path iterator, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.rangeForInHasNext)), "\(functionName): expected range fast-path hasNext, got: \(callees)")
+                #expect(callees.contains(runtimeCallee(.rangeForInNext)), "\(functionName): expected range fast-path next, got: \(callees)")
             }
             #expect(!callees.contains("iterator"), "\(functionName): for-in must not allocate the generic source iterator, got: \(callees)")
-            #expect(!callees.contains("kk_iterator_hasNext"), "\(functionName): for-in must not use generic hasNext dispatch, got: \(callees)")
-            #expect(!callees.contains("kk_iterator_next"), "\(functionName): for-in must not use generic next dispatch, got: \(callees)")
-            #expect(!callees.contains("kk_range_iterator"), "\(functionName): range loop must not use kk_range_iterator, got: \(callees)")
-            #expect(!callees.contains("kk_range_hasNext"), "\(functionName): range loop must not use kk_range_hasNext, got: \(callees)")
-            #expect(!callees.contains("kk_range_next"), "\(functionName): range loop must not use kk_range_next, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.iteratorHasNext)), "\(functionName): for-in must not use generic hasNext dispatch, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.iteratorNext)), "\(functionName): for-in must not use generic next dispatch, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.rangeIterator)), "\(functionName): range loop must not use kk_range_iterator, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.rangeHasNext)), "\(functionName): range loop must not use kk_range_hasNext, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.rangeNext)), "\(functionName): range loop must not use kk_range_next, got: \(callees)")
         }
     }
 
@@ -547,9 +547,9 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
         let expectedNames: Set<String> = [
-            "kk_iterable_iterator",
-            "kk_iterator_hasNext",
-            "kk_iterator_next",
+            runtimeCallee(.iterableIterator),
+            runtimeCallee(.iteratorHasNext),
+            runtimeCallee(.iteratorNext),
         ]
         let bridgeCalls: [(name: String, canThrow: Bool, hasThrownResult: Bool)] = body.compactMap { instruction in
             guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction else {

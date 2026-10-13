@@ -60,7 +60,7 @@ expr e@36:13 name(c) type=String? ref=__local_4.c[kind=local;type=String?;origin
 expr e@36:18 name(null) type=Nothing?
 expr e@36:13#1 binary(notEqual) lhs=e@36:13 rhs=e@36:18 type=Boolean
 expr e@36:26 string(c must not be null) type=String
-expr e@36:24 lambda params=[] body=e@36:26 label=require type=() -> Any
+expr e@36:24 lambda params=[] body=e@36:26 label=require type=() -> String
 expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13#1,_:e@36:24] type=Unit call=kotlin.require[kind=fun;params=Boolean,fn{p=;ret=Any};ret=Unit;nonlocal=[0,0];names=[value,lazyMessage]]
 expr e@37:13 name(c) type=String ref=__local_4.c[kind=local;type=String?;origin=fixture]
 expr e@37:13#1 memberCall recv=e@37:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]

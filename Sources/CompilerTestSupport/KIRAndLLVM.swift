@@ -17,17 +17,16 @@ func findKIRFunction(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
-    fileID: StaticString = #fileID,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws -> KIRFunction {
     guard let function = findAllKIRFunctions(in: module).first(where: { function in
         interner.resolve(function.name) == name
     }) else {
-        // Issue.record だけでは実行が続くため #require と同様に throw で中断する。
-        recordTestIssue(
+        // 非テストターゲットでは TestingMacros が使えないため #require の代わりに
+        // Issue.record + throw でテスト失敗とする。
+        Issue.record(
             "KIR function '\(name)' not found in module",
-            fileID: fileID, file: file, line: line
+            sourceLocation: sourceLocation
         )
         throw MissingKIRFunctionError(name: name)
     }
@@ -38,14 +37,11 @@ func findKIRFunctionBody(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
-    fileID: StaticString = #fileID,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) throws -> [KIRInstruction] {
-    let function = try findKIRFunction(
-        named: name, in: module, interner: interner, fileID: fileID, file: file, line: line
-    )
-    return function.body
+    try findKIRFunction(
+        named: name, in: module, interner: interner, sourceLocation: sourceLocation
+    ).body
 }
 
 func extractCallees(

@@ -214,18 +214,6 @@ with ThreadedTCPServer(("127.0.0.1", 0), Handler) as httpd:
 """
     }
 
-    private func runtimeString(_ text: String) -> Int {
-        text.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
-                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
-            }
-        }
-    }
-
-    private func stringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
     private func listStrings(_ raw: Int) -> [String] {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let list = tryCast(ptr, to: RuntimeListBox.self)

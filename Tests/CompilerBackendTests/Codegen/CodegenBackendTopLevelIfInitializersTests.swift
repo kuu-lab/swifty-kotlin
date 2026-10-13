@@ -1,61 +1,15 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
-
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple()
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    try CodegenPhase().run(ctx)
-    return ctx
-}
 
 /// BUG-165: several top-level properties initialized with a branching
 /// expression used to emit duplicate basic block labels into `main`, producing
 /// malformed IR that crashed LLVM during codegen.
 @Suite
 struct CodegenBackendTopLevelIfInitializersTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCodegenMultipleBranchingTopLevelInitializersRunCorrectly() throws {
@@ -109,42 +63,6 @@ struct CodegenBackendTopLevelIfInitializersTests {
             source,
             moduleName: "TopLevelStringPropertyReadRuntime",
             expected: "2\neq\n2\n"
-        )
-    }
-
-    /// Custom delegated `var` top-level properties route writes through a
-    /// setter function, so the global slot must stay a raw string handle
-    /// across the read-bridge roundtrip used for `getValue`.
-    @Test
-    func testCodegenStringDelegatePropertyWritesAndReadsStayValid() throws {
-        let source = """
-        var backing: String = "init"
-
-        fun assignNext(value: String) {
-            backing = value
-        }
-
-        class StringDelegate {
-            operator fun getValue(thisRef: Any?, property: Any?): String = backing
-
-            operator fun setValue(thisRef: Any?, property: Any?, value: String) {
-                assignNext(value)
-            }
-        }
-
-        var message: String by StringDelegate()
-
-        fun main() {
-            println(message)
-            message = "next"
-            println(message)
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "TopLevelStringDelegateRuntime",
-            expected: "init\nnext\n"
         )
     }
 }

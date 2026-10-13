@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "logging_advanced_unresolved.kt",
+      "range": {
+        "start": { "line": 3, "character": 4 },
+        "end": { "line": 3, "character": 7 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0022",
+      "source": "kswiftk",
+      "message": "Unresolved reference 'MDC'.",
+      "codeActions": [{ "title": "Check spelling or add import for symbol", "kind": "quickfix" }]
+    },
+    {
+      "file": "logging_advanced_unresolved.kt",
+      "range": {
+        "start": { "line": 4, "character": 4 },
+        "end": { "line": 4, "character": 18 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0022",
+      "source": "kswiftk",
+      "message": "Unresolved reference 'AdvancedLogger'.",
+      "codeActions": [{ "title": "Check spelling or add import for symbol", "kind": "quickfix" }]
+    },
+    {
+      "file": "logging_advanced_unresolved.kt",
+      "range": {
+        "start": { "line": 5, "character": 4 },
+        "end": { "line": 5, "character": 22 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0022",
+      "source": "kswiftk",
+      "message": "Unresolved reference 'StructuredAppender'.",
+      "codeActions": [{ "title": "Check spelling or add import for symbol", "kind": "quickfix" }]
+    }
+  ]
+}

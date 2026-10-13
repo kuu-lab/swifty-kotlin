@@ -39,14 +39,6 @@ struct RuntimeRegexNamedGroupTests {
         }
     }
 
-    private func runtimeString(_ raw: Int) -> String {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let box = tryCast(ptr, to: RuntimeStringBox.self) else {
-            return ""
-        }
-        return box.value
-    }
-
     @Test
     func testNamedGroupsExposeValuesByName() {
         let lease = RuntimeTestIsolationLease(lockSet: .all)

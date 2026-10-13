@@ -71,7 +71,7 @@ extension DataFlowSemaPhase {
         diagnostics.error(
             "KSWIFTK-SEMA-OPTIN",
             "Declaration annotated with '@OverloadResolutionByLambdaReturnType' must also be annotated with '@OptIn(kotlin.experimental.ExperimentalTypeInference::class)'.",
-            range: declarationRange(for: decl)
+            range: decl.range
         )
     }
 
@@ -94,25 +94,6 @@ extension DataFlowSemaPhase {
                 + objectDecl.nestedObjects
         default:
             []
-        }
-    }
-
-    private func declarationRange(for decl: Decl) -> SourceRange? {
-        switch decl {
-        case let .classDecl(classDecl):
-            classDecl.range
-        case let .interfaceDecl(interfaceDecl):
-            interfaceDecl.range
-        case let .funDecl(funDecl):
-            funDecl.range
-        case let .propertyDecl(propertyDecl):
-            propertyDecl.range
-        case let .typeAliasDecl(typeAliasDecl):
-            typeAliasDecl.range
-        case let .objectDecl(objectDecl):
-            objectDecl.range
-        case let .enumEntryDecl(enumEntryDecl):
-            enumEntryDecl.range
         }
     }
 
@@ -231,7 +212,7 @@ extension DataFlowSemaPhase {
         diagnostics.error(
             "KSWIFTK-SEMA-OPT-IN",
             "Annotation usage requires opt-in to '\(KnownCompilerAnnotation.experimentalVersionOverloading.qualifiedName)'. Annotate the declaration with '@OptIn(ExperimentalVersionOverloading::class)' or pass '-opt-in=kotlin.ExperimentalVersionOverloading'.",
-            range: declarationRange(for: decl)
+            range: decl.range
         )
     }
 
@@ -351,7 +332,7 @@ extension DataFlowSemaPhase {
         let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
-            let value = optInArgumentValue(argument)
+            let value = SemaAnnotationArgument.value(argument)
             let nsValue = value as NSString
             let matches = regex.matches(
                 in: value,
@@ -371,14 +352,6 @@ extension DataFlowSemaPhase {
         }
 
         return names
-    }
-
-    private func optInArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return String(trimmed[trimmed.index(after: equalIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func resolveAnnotationClassSymbol(

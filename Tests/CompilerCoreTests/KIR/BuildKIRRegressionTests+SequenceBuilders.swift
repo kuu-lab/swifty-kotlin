@@ -31,21 +31,19 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let sourcePath = ctx.options.inputs[0]
         let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: sourcePath))
+        let lambdaSymbols = Set(try findKIRLambdaFunctions(in: ctx).map(\.symbol))
         let sourceFunctions = findAllKIRFunctions(in: module).filter { function in
-            let name = ctx.interner.resolve(function.name)
-            let isSourceFunction = function.sourceRange?.start.file == sourceFileID
-            let isGeneratedLambdaFunction = name.contains("kk_lambda_")
-            return isSourceFunction || isGeneratedLambdaFunction
+            function.sourceRange?.start.file == sourceFileID || lambdaSymbols.contains(function.symbol)
         }
         let callees = sourceFunctions.flatMap { function -> [String] in
             return extractCallees(from: function.body, interner: ctx.interner)
         }
 
         #expect(!sourceFunctions.isEmpty, "Expected to find functions from \(sourcePath)")
-        #expect(callees.contains("__kk_sequence_builder_build"), "Expected sequence builder runtime construction, got: \(callees)")
-        #expect(callees.contains("__kk_iterator_builder_build"), "Expected iterator builder runtime construction, got: \(callees)")
-        #expect(callees.contains("__kk_sequence_builder_yield"), "Expected source builder lambda to yield through runtime, got: \(callees)")
-        #expect(!callees.contains("kk_duration_times_int"), "Builder loop Int arithmetic must not use Duration.times(Int), got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.sequenceBuilderBuild)), "Expected sequence builder runtime construction, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.iteratorBuilderBuild)), "Expected iterator builder runtime construction, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.sequenceBuilderYield)), "Expected source builder lambda to yield through runtime, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.durationTimesInt)), "Builder loop Int arithmetic must not use Duration.times(Int), got: \(callees)")
     }
 }
 #endif

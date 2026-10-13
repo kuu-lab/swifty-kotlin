@@ -181,7 +181,7 @@ struct InlineTerminationContractTests {
             functions.append(makeFunction(
                 String(format: "f%03d", i), symbol: Int32(i), interner: interner, types: types,
                 body: prefix + [
-                    call(to: nil, callee: "kk_function_invoke", interner: interner, arguments: [lambdaRef]),
+                    call(to: nil, callee: LoweringTestRuntime.name("function_invoke"), interner: interner, arguments: [lambdaRef]),
                     .returnUnit,
                 ], isInline: true, isInlineOnly: true
             ))
@@ -222,7 +222,7 @@ struct InlineTerminationContractTests {
         let invoke = makeFunction(
             "invoke", symbol: 1, interner: interner, types: types,
             body: [.constValue(result: blockRef, value: .symbolRef(blockSymbol)),
-                   call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [blockRef]), .returnUnit],
+                   call(to: nil, callee: LoweringTestRuntime.name("function_invoke_0"), interner: interner, arguments: [blockRef]), .returnUnit],
             isInline: true, params: [KIRParameter(symbol: blockSymbol, type: types.anyType)]
         )
         let mandatory = makeFunction(
@@ -264,7 +264,7 @@ struct InlineTerminationContractTests {
         }.first)
         let afterOffset = try #require(lowered.body.firstIndex {
             guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
-            return interner.resolve(callee) == "after"
+            return callee == interner.intern("after")
         })
         #expect(lowered.body[..<afterOffset].contains {
             if returnsValue, case .returnValue = $0 { return true }
@@ -551,7 +551,7 @@ struct InlineTerminationContractTests {
             let callable = module.arena.appendExpr(.symbolRef(lambdaSymbol))
             let wrapper = makeFunction(
                 "stage\(stage)", symbol: Int32(stage), interner: interner, types: types,
-                body: [call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [callable])],
+                body: [call(to: nil, callee: LoweringTestRuntime.name("function_invoke_0"), interner: interner, arguments: [callable])],
                 isInline: true
             )
             let lambda = makeFunction(
@@ -616,7 +616,7 @@ struct InlineTerminationContractTests {
         let value = module.arena.appendExpr(.intLiteral(42), type: types.intType)
         let once = makeFunction("once", symbol: 1, interner: interner, types: types, body: [
             .constValue(result: parameterExpr, value: .symbolRef(parameter)),
-            call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [parameterExpr]),
+            call(to: nil, callee: LoweringTestRuntime.name("function_invoke_0"), interner: interner, arguments: [parameterExpr]),
             .returnUnit,
         ], isInline: true, params: [KIRParameter(symbol: parameter, type: types.unitType)])
         let outer = makeFunction("outer", symbol: 2, interner: interner, types: types, body: [
@@ -652,7 +652,7 @@ struct InlineTerminationContractTests {
         let symbol = SymbolID(rawValue: 1)
         let callable = module.arena.appendExpr(.symbolRef(symbol))
         let lambda = makeFunction("recursiveLambda", symbol: 1, interner: interner, types: types, body: [
-            call(to: nil, callee: "kk_function_invoke_0", interner: interner, arguments: [callable]),
+            call(to: nil, callee: LoweringTestRuntime.name("function_invoke_0"), interner: interner, arguments: [callable]),
         ])
         _ = module.arena.appendDecl(.function(lambda))
         let caller = makeFunction("caller", symbol: 2, interner: interner, types: types, body: lambda.body)

@@ -26,7 +26,10 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: probeBody, interner: ctx.interner)
         #expect(callees.contains("single"), "Expected non-inline Iterable.single call in KIR")
         #expect(callees.contains("singleOrNull"), "Expected non-inline Iterable.singleOrNull call in KIR")
-        #expect(!callees.contains { $0.hasPrefix("kk_iterable_single") })
+        let names = KnownCompilerNames(interner: ctx.interner)
+        try expectSourceBackedCalls(named: names.single, in: probeBody, context: ctx, count: 2)
+        try expectSourceBackedCalls(named: names.singleOrNull, in: probeBody, context: ctx, count: 2)
+        try expectResolvedKIRCallTargets(in: probeBody, context: ctx)
     }
 }
 #endif

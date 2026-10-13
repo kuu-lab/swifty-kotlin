@@ -1,5 +1,6 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
 // STDLIB-REFLECT-061: KClass member access
+import kotlin.reflect.full.*
+
 data class Person(val name: String, val age: Int)
 
 class Counter {
@@ -12,17 +13,12 @@ fun main() {
     val personClass = Person::class
     val counterClass = Counter::class
 
-    // properties: includes inherited members
-    val personProperties = personClass.properties
-    println("Person::class.properties has name: ${personProperties.any { it.name == "name" }}")
-    println("Person::class.properties has age: ${personProperties.any { it.name == "age" }}")
-
     // memberProperties: non-extension properties
     val personMemberProps = personClass.memberProperties
     println("Person::class.memberProperties has name: ${personMemberProps.any { it.name == "name" }}")
     println("Person::class.memberProperties has age: ${personMemberProps.any { it.name == "age" }}")
 
-    // functions: includes inherited members
+    // functions: includes generated data-class component functions
     val personFunctions = personClass.functions
     println("Person::class.functions has component1: ${personFunctions.any { it.name == "component1" }}")
     println("Person::class.functions has component2: ${personFunctions.any { it.name == "component2" }}")

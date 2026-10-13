@@ -9,51 +9,10 @@
 
 import Foundation
 
-private func runtimeStringHOFElementValue(_ raw: Int) -> RuntimeValue {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return RuntimeValue(raw: maybeUnbox(raw))
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return RuntimeValue(raw: maybeUnbox(raw))
-    }
-    if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-        return RuntimeValue(charScalar: charBox.value)
-    }
-    if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
-        return runtimeStringHOFStringValue(stringBox.value)
-    }
-    return RuntimeValue(raw: maybeUnbox(raw))
-}
 
-private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
-    var length = 0
-    var byteCount = 0
-    var hash = 0
-    let data = runtimeRegisterFlatString(
-        value,
-        outLength: &length,
-        outByteCount: &byteCount,
-        outHash: &hash
-    )
-    guard let data else {
-        return RuntimeValue(raw: 0)
-    }
-    return RuntimeValue(
-        stringData: Int(bitPattern: data),
-        length: length,
-        byteCount: byteCount,
-        hash: hash
-    )
-}
-
-// MARK: - STDLIB-192: equals(other)
 // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt).
 
-@_cdecl("kk_string_equals")
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
     if otherRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)

@@ -11,4 +11,16 @@ fun main() {
     println(sequenceOf(1, 2, 3).zip(sequenceOf(3, 2, 1)) { a, b -> a < b }.toList())
     println(sequenceOf(1, 2, 3).map { it > 1 }.toList())
     println(sequenceOf(1, 2, 3).mapIndexed { i, v -> v > i }.toList())
+
+    // KUU-1434: transform results must keep the Boolean/Char type tag across
+    // the erased `R` boundary — nested List<Boolean> (ticket repro), a
+    // capturing transform, and a transform stored in a val.
+    val numbers = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    println(numbers.chunked(3) { chunk -> chunk.map { it % 2 == 0 } })
+    println(numbers.windowed(3) { chunk -> chunk.map { it % 2 == 0 } })
+    val limit = 2
+    println(listOf(1, 2, 3, 4).chunked(2) { it.first() <= limit })
+    val pred: (List<Int>) -> Boolean = { it.size == 2 }
+    println(listOf(1, 2, 3, 4).chunked(2, pred))
+    println(listOf('a', 'b', 'c', 'd').windowed(2) { it[0] })
 }

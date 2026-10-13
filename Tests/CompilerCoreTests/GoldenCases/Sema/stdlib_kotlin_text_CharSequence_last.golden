@@ -85,7 +85,7 @@ expr e@31:13 name(it) type=Char ref=s-3
 expr e@31:19 char(120) type=Char
 expr e@31:13#1 binary(equal) lhs=e@31:13 rhs=e@31:19 type=Boolean
 expr e@31:31 name(value) type=Char ref=golden.sema.nonLocalLast.$7.value[kind=vparam;origin=fixture]
-expr e@31:24 return value=e@31:31 type=Nothing
+expr e@31:24 return value=e@31:31 type=Nothing ref=golden.sema.nonLocalLast[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,value];origin=fixture]
 expr e@31:9 if cond=e@31:13#1 then=e@31:24 else=_ type=Unit
 expr e@32:9 bool(false) type=Boolean
 expr e@31:9#1 blockExpr stmts=[e@31:9] trailing=e@32:9 type=Boolean
@@ -95,14 +95,14 @@ expr e@34:12 char(63) type=Char
 expr e@34:5 return value=e@34:12 type=Nothing
 expr e@38:5 name(source) type=kotlin.CharSequence ref=golden.sema.capturedNonLocalLast.$1.source[kind=vparam;origin=fixture]
 expr e@39:16 name(captured) type=Char ref=golden.sema.capturedNonLocalLast.$1.captured[kind=vparam;origin=fixture]
-expr e@39:9 return value=e@39:16 type=Nothing
+expr e@39:9 return value=e@39:16 type=Nothing ref=golden.sema.capturedNonLocalLast[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,captured];origin=fixture]
 expr e@38:17 lambda params=[] body=e@39:9 label=last type=(Char) -> Boolean
 expr e@38:5#1 memberCall recv=e@38:5 callee=last args=[_:e@38:17] type=Char call=kotlin.text.last[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Char;names=[predicate]]
 expr e@41:12 char(63) type=Char
 expr e@41:5 return value=e@41:12 type=Nothing
 expr e@45:12 name(source) type=kotlin.CharSequence? ref=golden.sema.nullableCapturedLast.$8.source[kind=vparam;origin=fixture]
 expr e@46:16 name(captured) type=Char ref=golden.sema.nullableCapturedLast.$8.captured[kind=vparam;origin=fixture]
-expr e@46:9 return value=e@46:16 type=Nothing
+expr e@46:9 return value=e@46:16 type=Nothing ref=golden.sema.nullableCapturedLast[kind=fun;params=kotlin.CharSequence?,Char;ret=Char;names=[source,captured];origin=fixture]
 expr e@45:31 lambda params=[] body=e@46:9 label=lastOrNull type=(Char) -> Boolean
 expr e@45:12#1 safeMemberCall recv=e@45:12 callee=lastOrNull args=[_:e@45:31] type=Char? call=kotlin.text.lastOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Char?;names=[predicate]]
 expr e@47:10 char(63) type=Char

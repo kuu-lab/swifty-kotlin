@@ -24,7 +24,6 @@ public enum PrimitiveType: String, Hashable, Sendable {
 }
 
 public extension PrimitiveType {
-    /// The Kotlin source-level name for this primitive type.
     var kotlinName: String {
         switch self {
         case .boolean: "Boolean"
@@ -101,6 +100,17 @@ public enum TypeArg: Hashable, Sendable {
     case star
 }
 
+extension TypeArg {
+    func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeArg {
+        switch self {
+        case let .invariant(type): .invariant(transform(type))
+        case let .out(type): .out(transform(type))
+        case let .in(type): .in(transform(type))
+        case .star: .star
+        }
+    }
+}
+
 public struct TypeParamType: Hashable, Sendable {
     public let symbol: SymbolID
     public let nullability: Nullability
@@ -148,7 +158,6 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
 
 /// Represents `kotlin.reflect.KClass<T>`, the type of `T::class` expressions.
 public struct KClassType: Hashable, Sendable {
-    /// The type argument `T` — the class being referenced.
     public let argument: TypeID
     public let nullability: Nullability
 
@@ -161,6 +170,8 @@ public struct KClassType: Hashable, Sendable {
 public enum TypeKind: Hashable {
     case error
     case unit
+    /// A value-bearing Unit slot that can also contain the null sentinel.
+    case nullableUnit
     case nothing(Nullability)
     case any(Nullability)
 

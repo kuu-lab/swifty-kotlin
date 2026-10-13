@@ -115,6 +115,13 @@ extension DataFlowSemaPhase {
                         continue
                     }
                 }
+                TypeCheckHelpers().checkDeprecation(
+                    for: resolved.symbol,
+                    symbols: symbols,
+                    interner: interner,
+                    range: symbols.symbol(symbol)?.declSite,
+                    diagnostics: diagnostics
+                )
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -255,22 +262,23 @@ extension DataFlowSemaPhase {
         }
 
         if path.count == 1 {
-            // Keep same-package lookup ahead of imports, matching the existing
-            // inheritance behavior. Explicit imports must still precede the
-            // root-package fallback, which is not visible from a packaged file.
-            if !currentPackage.isEmpty {
-                append(currentPackage + path)
-            }
-
+            // Kotlin ranks explicit (single-type and alias) imports above
+            // same-package declarations in the classifier namespace, so they
+            // are expanded before the package path (KUU-1423). Wildcard and
+            // member-contributing imports stay below the package tier.
             let simpleName = path[0]
             for importDecl in imports {
                 if let alias = importDecl.alias {
                     if alias == simpleName {
                         append(importDecl.path)
                     }
-                } else if importDecl.path.last == simpleName {
+                } else if !importDecl.isWildcard, importDecl.path.last == simpleName {
                     append(importDecl.path)
                 }
+            }
+
+            if !currentPackage.isEmpty {
+                append(currentPackage + path)
             }
 
             // `extractQualifiedPath` removes the `*` from wildcard imports.
@@ -369,7 +377,9 @@ extension DataFlowSemaPhase {
                 guard let receiverType = resolveTypeRefForInheritance(
                     receiverRefID, currentPackage: currentPackage,
                     imports: imports,
-                    enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
                     symbols: symbols, types: types, interner: interner
                 ) else { return nil }
                 paramTypes.append(receiverType)
@@ -378,7 +388,9 @@ extension DataFlowSemaPhase {
                 guard let paramType = resolveTypeRefForInheritance(
                     paramRef, currentPackage: currentPackage,
                     imports: imports,
-                    enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
                     symbols: symbols, types: types, interner: interner
                 ) else { return nil }
                 paramTypes.append(paramType)
@@ -386,7 +398,9 @@ extension DataFlowSemaPhase {
             guard let returnType = resolveTypeRefForInheritance(
                 returnRefID, currentPackage: currentPackage,
                 imports: imports,
-                enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
                 symbols: symbols, types: types, interner: interner
             ) else { return nil }
             let functionFQName = [
@@ -428,13 +442,15 @@ extension DataFlowSemaPhase {
                     currentPackage: currentPackage,
                     imports: imports,
                     enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
                     ast: ast,
                     symbols: symbols,
                     types: types,
                     interner: interner
                 )
                 let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
-                return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
+                let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
+                return ResolvedSupertype(symbol: runtimeNominal, typeArgs: resolvedArgs)
             }
         }
 
@@ -453,13 +469,15 @@ extension DataFlowSemaPhase {
                         currentPackage: currentPackage,
                         imports: imports,
                         enclosingTypeParameters: enclosingTypeParameters,
+                        enclosingClassScopes: enclosingClassScopes,
                         ast: ast,
                         symbols: symbols,
                         types: types,
                         interner: interner
                     )
                     let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
-                    return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
+                    let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
+                    return ResolvedSupertype(symbol: runtimeNominal, typeArgs: resolvedArgs)
                 }
             }
         }
@@ -487,11 +505,34 @@ extension DataFlowSemaPhase {
             ?? classType.classSymbol
     }
 
+    /// Inheritance needs the platform declaration's body-bearing layout when a
+    /// source expect class has a matching actual declaration in the same module.
+    /// Keep the expect symbol when no actual nominal is available, as with a
+    /// common-only declaration that will be linked by a later compilation.
+    private func resolveActualNominalSupertype(_ symbol: SymbolID, symbols: SymbolTable) -> SymbolID {
+        guard let expect = symbols.symbol(symbol),
+              expect.flags.contains(.expectDeclaration),
+              isNominalTypeSymbol(expect.kind)
+        else {
+            return symbol
+        }
+
+        return symbols.lookupAll(fqName: expect.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.flags.contains(.actualDeclaration) && $0.kind == expect.kind }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+            .first?.id ?? symbol
+    }
+
+    /// Resolve type arguments through the enclosing classifier scopes as well
+    /// as package/import scopes, so nested self types such as `Hand` in
+    /// `Comparable<Hand>` keep their nominal identity.
     private func resolveTypeArgRefsForInheritance(
         _ argRefs: [TypeArgRef],
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -504,17 +545,47 @@ extension DataFlowSemaPhase {
         for argRef in argRefs {
             switch argRef {
             case let .invariant(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(
+                    innerRef,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) else {
                     return []
                 }
                 result.append(.invariant(resolved))
             case let .out(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(
+                    innerRef,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) else {
                     return []
                 }
                 result.append(.out(resolved))
             case let .in(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(
+                    innerRef,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) else {
                     return []
                 }
                 result.append(.in(resolved))
@@ -530,6 +601,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -557,8 +629,8 @@ extension DataFlowSemaPhase {
             // Looking up kotlin.Boolean as a nominal class here would record
             // ArgType<Class#Boolean> instead of ArgType<Boolean>.
             if path.count == 2, path[0] == interner.intern("kotlin"),
-               let builtinType = resolveBuiltinTypeNameForInheritance(
-                   path[1], interner: interner, nullability: nullability, types: types
+               let builtinType = BuiltinTypeNames(interner: interner).resolveBuiltinType(
+                   path[1], nullability: nullability, types: types
                )
             {
                 return builtinType
@@ -567,6 +639,7 @@ extension DataFlowSemaPhase {
                 for: path,
                 currentPackage: currentPackage,
                 imports: imports,
+                enclosingClassScopes: enclosingClassScopes,
                 symbols: symbols
             )
             for candidatePath in candidatePaths {
@@ -574,7 +647,17 @@ extension DataFlowSemaPhase {
                     .compactMap({ symbols.symbol($0) })
                     .first(where: { isNominalTypeSymbol($0.kind) })
                 {
-                    let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
+                    let resolvedArgs = resolveTypeArgRefsForInheritance(
+                        argRefs,
+                        currentPackage: currentPackage,
+                        imports: imports,
+                        enclosingTypeParameters: enclosingTypeParameters,
+                        enclosingClassScopes: enclosingClassScopes,
+                        ast: ast,
+                        symbols: symbols,
+                        types: types,
+                        interner: interner
+                    )
                     return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                 }
             }
@@ -582,9 +665,8 @@ extension DataFlowSemaPhase {
             // over the default-import packages (e.g. `Int` is the primitive Int,
             // not any class named `Int` that might exist under `kotlin`).
             if path.count == 1 {
-                if let builtinType = resolveBuiltinTypeNameForInheritance(
+                if let builtinType = BuiltinTypeNames(interner: interner).resolveBuiltinType(
                     path[0],
-                    interner: interner,
                     nullability: nullability,
                     types: types
                 ) {
@@ -600,7 +682,17 @@ extension DataFlowSemaPhase {
                         .compactMap({ symbols.symbol($0) })
                         .first(where: { isNominalTypeSymbol($0.kind) })
                     {
-                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
+                        let resolvedArgs = resolveTypeArgRefsForInheritance(
+                            argRefs,
+                            currentPackage: currentPackage,
+                            imports: imports,
+                            enclosingTypeParameters: enclosingTypeParameters,
+                            enclosingClassScopes: enclosingClassScopes,
+                            ast: ast,
+                            symbols: symbols,
+                            types: types,
+                            interner: interner
+                        )
                         return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                     }
                 }
@@ -610,10 +702,29 @@ extension DataFlowSemaPhase {
             return resolveFunctionTypeForInheritance(
                 contextReceiverRefIDs: contextReceiverRefIDs,
                 receiverRefID: receiverRefID, paramRefIDs: paramRefIDs, returnRefID: returnRefID, isSuspend: isSuspend, nullable: nullable,
-                currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             )
         case let .intersection(partRefs):
-            let partTypes = partRefs.compactMap { resolveTypeRefForInheritance($0, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) }
+            let partTypes = partRefs.compactMap {
+                resolveTypeRefForInheritance(
+                    $0,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )
+            }
             guard partTypes.count == partRefs.count else { return nil }
             return types.make(.intersection(partTypes))
         case let .annotated(base, annotations):
@@ -622,6 +733,7 @@ extension DataFlowSemaPhase {
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -650,6 +762,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -659,46 +772,63 @@ extension DataFlowSemaPhase {
         var contextReceiverTypes: [TypeID] = []
         for contextReceiverRef in contextReceiverRefIDs {
             guard let contextReceiverType = resolveTypeRefForInheritance(
-                contextReceiverRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                contextReceiverRef,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
         var receiverType: TypeID?
         if let receiverRefID {
             guard let resolved = resolveTypeRefForInheritance(
-                receiverRefID, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                receiverRefID,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             ) else { return nil }
             receiverType = resolved
         }
         var paramTypes: [TypeID] = []
         for paramRef in paramRefIDs {
             guard let paramType = resolveTypeRefForInheritance(
-                paramRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                paramRef,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             ) else { return nil }
             paramTypes.append(paramType)
         }
         guard let returnType = resolveTypeRefForInheritance(
-            returnRefID, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+            returnRefID,
+            currentPackage: currentPackage,
+            imports: imports,
+            enclosingTypeParameters: enclosingTypeParameters,
+            enclosingClassScopes: enclosingClassScopes,
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            interner: interner
         ) else { return nil }
         return types.make(.functionType(FunctionType(
             contextReceivers: contextReceiverTypes,
             receiver: receiverType, params: paramTypes, returnType: returnType, isSuspend: isSuspend, nullability: nullability
         )))
-    }
-
-    private func resolveBuiltinTypeNameForInheritance(
-        _ name: InternedString,
-        interner: StringInterner,
-        nullability: Nullability,
-        types: TypeSystem
-    ) -> TypeID? {
-        if let builtinType = BuiltinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
-            return builtinType
-        }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.make(.primitive(.int, nullability))
-        }
-        return nil
     }
 
     func isNominalTypeSymbol(_ kind: SymbolKind) -> Bool {
@@ -723,11 +853,9 @@ extension DataFlowSemaPhase {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 validateAbstractOverridesForDecl(
                     declID: declID,
-                    file: file,
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
-                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -748,8 +876,7 @@ extension DataFlowSemaPhase {
         for file in ast.sortedFiles {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 guard let decl = ast.arena.decl(declID),
-                      let classSymbol = bindings.declSymbols[declID],
-                      let classSym = symbols.symbol(classSymbol)
+                      let classSymbol = bindings.declSymbols[declID]
                 else {
                     continue
                 }
@@ -789,43 +916,70 @@ extension DataFlowSemaPhase {
                     ) else {
                         continue
                     }
-                    guard let superSymbol = symbols.symbol(resolved.symbol) else {
-                        continue
-                    }
-                    if superSymbol.kind != .interface {
-                        let name = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                        diagnostics.error(
-                            "KSWIFTK-SEMA-DELEGATE",
-                            "Class delegation is only supported for interfaces, not '\(name)'.",
-                            range: range
-                        )
-                    } else if let delegateExpr = entry.delegateExpression
-                    {
-                        symbols.addDelegatedInterface(resolved.symbol, forClass: classSymbol)
-                        symbols.setClassDelegationExpr(delegateExpr, forClass: classSymbol, interface: resolved.symbol)
-                        let interfaceName = interner.resolve(superSymbol.fqName.last ?? interner.intern(""))
-                        let fieldName = interner.intern("$delegate_\(interfaceName)")
-                        let fieldFQName = classSym.fqName + [fieldName]
-                        let fieldSymbol = symbols.define(
-                            kind: .field,
-                            name: fieldName,
-                            fqName: fieldFQName,
-                            declSite: range,
-                            visibility: .private,
-                            flags: []
-                        )
-                        symbols.setParentSymbol(classSymbol, for: fieldSymbol)
+                    if let delegateExpr = entry.delegateExpression {
                         let interfaceType = types.make(.classType(ClassType(
                             classSymbol: resolved.symbol,
                             args: resolved.typeArgs,
                             nullability: .nonNull
                         )))
-                        symbols.setPropertyType(interfaceType, for: fieldSymbol)
-                        symbols.setClassDelegationField(fieldSymbol, forClass: classSymbol, interface: resolved.symbol)
+                        registerClassDelegation(
+                            delegateExpression: delegateExpr,
+                            interfaceType: interfaceType,
+                            classSymbol: classSymbol,
+                            range: range,
+                            symbols: symbols,
+                            types: types,
+                            diagnostics: diagnostics,
+                            interner: interner
+                        )
                     }
                 }
             }
         }
+    }
+
+    /// Records the same delegation storage for header-time named nominals and
+    /// anonymous objects discovered later during body type checking.
+    @discardableResult
+    func registerClassDelegation(
+        delegateExpression: ExprID,
+        interfaceType: TypeID,
+        classSymbol: SymbolID,
+        range: SourceRange,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard case let .classType(delegatedType) = types.kind(of: interfaceType),
+              let interfaceSymbol = symbols.symbol(delegatedType.classSymbol),
+              let classInfo = symbols.symbol(classSymbol)
+        else { return nil }
+        guard interfaceSymbol.kind == .interface else {
+            let name = interfaceSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            diagnostics.error(
+                "KSWIFTK-SEMA-DELEGATE",
+                "Class delegation is only supported for interfaces, not '\(name)'.",
+                range: range
+            )
+            return nil
+        }
+        symbols.addDelegatedInterface(interfaceSymbol.id, forClass: classSymbol)
+        symbols.setClassDelegationExpr(delegateExpression, forClass: classSymbol, interface: interfaceSymbol.id)
+        let interfaceName = interner.resolve(interfaceSymbol.fqName.last ?? interner.intern(""))
+        let fieldName = interner.intern("$delegate_\(interfaceName)")
+        let fieldSymbol = symbols.define(
+            kind: .field,
+            name: fieldName,
+            fqName: classInfo.fqName + [fieldName],
+            declSite: range,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setParentSymbol(classSymbol, for: fieldSymbol)
+        symbols.setPropertyType(interfaceType, for: fieldSymbol)
+        symbols.setClassDelegationField(fieldSymbol, forClass: classSymbol, interface: interfaceSymbol.id)
+        return fieldSymbol
     }
 
     private func nominalDeclarationIDs(in file: ASTFile, ast: ASTModule) -> [DeclID] {
@@ -852,23 +1006,43 @@ extension DataFlowSemaPhase {
 
     /// CLASS-008: Create synthetic method symbols for delegated interface methods
     /// that the class does not override. These are used for itable layout and KIR lowering.
-    private struct DelegationDispatchKey: Hashable, CustomStringConvertible {
+    private struct DelegationDispatchKey {
         let name: InternedString
-        let arity: Int
+        let parameterTypes: [TypeID]
+        let methodTypeParameters: [SymbolID]
         let isSuspend: Bool
 
-        var description: String {
-            return "\(name):\(arity)"
+        func matches(_ other: DelegationDispatchKey, types: TypeSystem) -> Bool {
+            guard name == other.name, isSuspend == other.isSuspend,
+                  parameterTypes.count == other.parameterTypes.count,
+                  methodTypeParameters.count == other.methodTypeParameters.count
+            else { return false }
+            // Compare alpha-equivalent method parameters after the interface's
+            // class parameters have been substituted. Arity alone loses overloads.
+            let typeVarBySymbol = types.makeTypeVarBySymbol(methodTypeParameters)
+            var substitution: [TypeVarID: TypeID] = [:]
+            for (parameter, otherParameter) in zip(methodTypeParameters, other.methodTypeParameters) {
+                guard let typeVar = typeVarBySymbol[parameter] else { continue }
+                substitution[typeVar] = types.make(.typeParam(TypeParamType(
+                    symbol: otherParameter, nullability: .nonNull
+                )))
+            }
+            return parameterTypes.map {
+                types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+            } == other.parameterTypes
         }
     }
 
-    private func delegationDispatchKey(for methodSymbol: SymbolID, symbols: SymbolTable, interner: StringInterner) -> DelegationDispatchKey {
-        let signature = symbols.functionSignature(for: methodSymbol)
-        let methodInfo = symbols.symbol(methodSymbol)
+    private func delegationDispatchKey(
+        for method: SemanticSymbol,
+        signature: FunctionSignature,
+        parameterTypes: [TypeID]? = nil
+    ) -> DelegationDispatchKey {
         return DelegationDispatchKey(
-            name: methodInfo?.name ?? interner.intern(""),
-            arity: signature?.parameterTypes.count ?? 0,
-            isSuspend: signature?.isSuspend ?? false
+            name: method.name,
+            parameterTypes: parameterTypes ?? signature.parameterTypes,
+            methodTypeParameters: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)),
+            isSuspend: signature.isSuspend
         )
     }
 
@@ -911,7 +1085,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func synthesizeDelegationForwardingForClass(
+    func synthesizeDelegationForwardingForClass(
         range: SourceRange,
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
@@ -922,10 +1096,13 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        var classMethodKeys: Set<DelegationDispatchKey> = []
+        var classMethodKeys: [DelegationDispatchKey] = []
         for funDeclID in memberFunctions {
-            guard let funSymbol = bindings.declSymbols[funDeclID] else { continue }
-            classMethodKeys.insert(delegationDispatchKey(for: funSymbol, symbols: symbols, interner: interner))
+            guard let funSymbol = bindings.declSymbols[funDeclID],
+                  let method = symbols.symbol(funSymbol),
+                  let signature = symbols.functionSignature(for: funSymbol)
+            else { continue }
+            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature))
         }
         var classPropertyNames: Set<InternedString> = []
         for propDeclID in memberProperties {
@@ -983,10 +1160,17 @@ extension DataFlowSemaPhase {
                 for memberSym in interfaceMembers {
                     switch memberSym.kind {
                     case .function:
-                        let key = delegationDispatchKey(for: memberSym.id, symbols: symbols, interner: interner)
-                        guard seenMethodKeys.insert(key).inserted,
-                              let ifaceSig = symbols.functionSignature(for: memberSym.id)
-                        else { continue }
+                        guard let ifaceSig = symbols.functionSignature(for: memberSym.id) else { continue }
+                        let key = delegationDispatchKey(
+                            for: memberSym, signature: ifaceSig,
+                            parameterTypes: ifaceSig.parameterTypes.map {
+                                substituteDelegationType(
+                                    $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                                )
+                            }
+                        )
+                        guard !seenMethodKeys.contains(where: { key.matches($0, types: types) }) else { continue }
+                        seenMethodKeys.append(key)
                         synthesizeForwardingMethod(
                             methodSym: memberSym, ifaceSig: ifaceSig,
                             range: range, classSymbol: classSymbol, classFQName: classFQName,
@@ -1132,7 +1316,9 @@ extension DataFlowSemaPhase {
 
         var paramSymbols: [SymbolID] = []
         for (index, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern("p\(index)")
+            let paramName = index < ifaceSig.valueParameterSymbols.count
+                ? symbols.symbol(ifaceSig.valueParameterSymbols[index])?.name ?? interner.intern("p\(index)")
+                : interner.intern("p\(index)")
             let paramFQName = forwardingFQName + [paramName]
             let paramSymbol = symbols.define(
                 kind: .valueParameter,
@@ -1223,11 +1409,9 @@ extension DataFlowSemaPhase {
 
     private func validateAbstractOverridesForDecl(
         declID: DeclID,
-        file: ASTFile,
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -1238,13 +1422,16 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Only check concrete class/object declarations (not abstract, not interface)
         guard symbolInfo.kind == .class || symbolInfo.kind == .object,
-              !symbolInfo.flags.contains(.abstractType)
+              !symbolInfo.flags.contains(.abstractType),
+              !symbolInfo.flags.contains(.expectDeclaration)
         else {
             return
         }
 
+        // An expect declaration describes the common API but does not provide
+        // the platform implementation. Check inherited abstract obligations
+        // on its actual declaration, where the implementation is available.
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
@@ -1279,7 +1466,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Collects the set of member names that this class provides via `override`.
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
@@ -1320,23 +1506,47 @@ extension DataFlowSemaPhase {
         return overriddenNames
     }
 
-    // P5-78: Validate that direct subclasses of sealed types are in the same package.
+    // P5-78: Validate the package and module boundary of sealed hierarchies.
     func validateSealedHierarchy(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager
     ) {
+        func package(of symbol: SemanticSymbol) -> [InternedString] {
+            var root = symbol
+            while let parent = symbols.parentSymbol(for: root.id),
+                  let owner = symbols.symbol(parent), owner.kind != .package {
+                root = owner
+            }
+            return Array(root.fqName.dropLast())
+        }
         for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
+            var declarations = file.topLevelDecls
+            var index = 0
+            while index < declarations.count {
+                let declID = declarations[index]
+                index += 1
+                guard let decl = ast.arena.decl(declID) else { continue }
+                switch decl {
+                case let .classDecl(value):
+                    declarations += value.nestedClasses + value.nestedObjects
+                    if let companion = value.companionObject { declarations.append(companion) }
+                case let .interfaceDecl(value):
+                    declarations += value.nestedClasses + value.nestedObjects
+                    if let companion = value.companionObject { declarations.append(companion) }
+                case let .objectDecl(value):
+                    declarations += value.nestedClasses + value.nestedObjects
+                default:
+                    break
+                }
                 guard let symbol = bindings.declSymbols[declID],
-                      let decl = ast.arena.decl(declID),
                       let symbolInfo = symbols.symbol(symbol)
                 else {
                     continue
                 }
-                // Only check class and interface declarations that have supertypes
                 let hasSuperTypes: Bool
                 switch decl {
                 case let .classDecl(classDecl):
@@ -1357,15 +1567,26 @@ extension DataFlowSemaPhase {
                     else {
                         continue
                     }
-                    // Check same-package: compare package prefixes
-                    let subtypePackage = Array(symbolInfo.fqName.dropLast())
-                    let supertypePackage = Array(supertypeSymbol.fqName.dropLast())
-                    if subtypePackage != supertypePackage {
+                    let subclassIsBundled = symbolInfo.declSite.map {
+                        sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+                    } ?? false
+                    let superclassIsBundled = supertypeSymbol.declSite.map {
+                        sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+                    } ?? false
+                    let boundary: String?
+                    if supertypeSymbol.flags.contains(.importedLibrary) || (superclassIsBundled && !subclassIsBundled) {
+                        boundary = "module"
+                    } else if package(of: symbolInfo) != package(of: supertypeSymbol) {
+                        boundary = "package"
+                    } else {
+                        boundary = nil
+                    }
+                    if let boundary {
                         let subtypeName = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
                         let supertypeName = supertypeSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                         diagnostics.error(
                             "KSWIFTK-SEMA-0070",
-                            "'\(subtypeName)' cannot inherit from sealed type '\(supertypeName)': sealed subclasses must be in the same package.",
+                            "'\(subtypeName)' cannot inherit from sealed type '\(supertypeName)': sealed subclasses must be in the same \(boundary).",
                             range: ast.arena.decl(declID).flatMap { d -> SourceRange? in
                                 switch d {
                                 case let .classDecl(cd): return cd.range

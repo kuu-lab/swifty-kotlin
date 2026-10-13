@@ -60,7 +60,7 @@ expr e@22:5#1 memberCall recv=e@22:5 callee=close args=[] type=Unit call=kotlinx
 expr e@23:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
 expr e@23:18 name(it) type=kotlinx.io.Buffer ref=s-0
 expr e@23:18#1 memberCall recv=e@23:18 callee=clear args=[] type=Unit call=kotlinx.io.Buffer.clear[kind=fun;recv=kotlinx.io.Buffer;params=;ret=Unit]
-expr e@23:16 lambda params=[] body=e@23:18#1 label=use type=(kotlinx.io.Buffer) -> Any?
+expr e@23:16 lambda params=[] body=e@23:18#1 label=use type=(kotlinx.io.Buffer) -> Unit
 expr e@23:5#1 memberCall recv=e@23:5 callee=use args=[_:e@23:16] type=Unit
 expr e@24:12 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
 expr e@24:12#1 memberCall recv=e@24:12 callee=peek args=[] type=kotlinx.io.Source call=kotlinx.io.Buffer.peek[kind=fun;recv=kotlinx.io.Buffer;params=;ret=kotlinx.io.Source]

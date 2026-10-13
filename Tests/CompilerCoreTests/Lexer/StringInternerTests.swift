@@ -103,13 +103,15 @@ struct StringInternerTests {
 
     @Test func testInternUnicodeStrings() {
         let interner = StringInterner()
-        let id1 = interner.intern("日本語")
-        let id2 = interner.intern("emoji 🎉")
-        let id3 = interner.intern("日本語")
+        let japanese = "日本語"
+        let emoji = "emoji 🎉"
+        let id1 = interner.intern(japanese)
+        let id2 = interner.intern(emoji)
+        let id3 = interner.intern(japanese)
         #expect(id1 == id3)
         #expect(id1 != id2)
-        #expect(interner.resolve(id1) == "日本語")
-        #expect(interner.resolve(id2) == "emoji 🎉")
+        #expect(interner.resolve(id1) == japanese)
+        #expect(interner.resolve(id2) == emoji)
     }
 
     @Test func testInternDistinguishesCanonicallyEquivalentUTF16Sequences() {
@@ -126,8 +128,9 @@ struct StringInternerTests {
 
     @Test func testInternSpecialCharacters() {
         let interner = StringInterner()
-        let id = interner.intern("hello\nworld\ttab")
-        #expect(interner.resolve(id) == "hello\nworld\ttab")
+        let input = "hello\nworld\ttab"
+        let id = interner.intern(input)
+        #expect(interner.resolve(id) == input)
     }
 
     // MARK: - Thread safety

@@ -110,8 +110,36 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
     return answer
 }
 
+/**
+ * Associates [value] with [key] when the key is absent or currently maps to null.
+ *
+ * @return the previous non-null value, or null when the key was absent or mapped to null.
+ */
+public fun <K, V> MutableMap<K, V>.putIfAbsent(key: K, value: V): V? {
+    val oldValue = this[key]
+    if (oldValue != null) return oldValue
+    return put(key, value)
+}
+
 public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
     return __kk_mutable_map_remove(this, key)
+}
+
+/**
+ * Removes the entry for the specified key only if it is currently
+ * mapped to the specified value.
+ *
+ * @return `true` if the entry was removed.
+ */
+@SinceKotlin("1.1")
+@IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> MutableMap<out K, out V>.remove(key: K, value: V): Boolean {
+    val map = this as MutableMap<K, V>
+    val current = map[key]
+    if (current != value || (current == null && !map.containsKey(key))) return false
+    map.remove(key)
+    return true
 }
 
 public inline operator fun <V, V1 : V> MutableMap<in String, out V>.getValue(
@@ -227,6 +255,20 @@ public fun <K, V, C : MutableMap<in K, in V>> Map<out K, V>.toMap(destination: C
 public fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> {
     if (this == null) return emptyMap<K, V>()
     return this!!
+}
+
+// KUU-1361: JVM `Map.toSortedMap` returns `java.util.SortedMap` — the
+// concrete instance is a TreeMap ordered by natural or supplied comparator.
+public fun <K : Comparable<K>, V> Map<out K, V>.toSortedMap(): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>()
+    result.putAll(this)
+    return result
+}
+
+public fun <K, V> Map<out K, V>.toSortedMap(comparator: Comparator<in K>): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>(comparator)
+    result.putAll(this)
+    return result
 }
 
 public fun <K, V> Map<K, V>.withDefault(defaultValue: (K) -> V): Map<K, V> =

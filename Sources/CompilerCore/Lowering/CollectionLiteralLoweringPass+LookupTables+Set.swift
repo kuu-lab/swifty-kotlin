@@ -12,6 +12,11 @@ struct SetLookupNames {
     let emptySetName: InternedString
     let hashSetName: InternedString
     let linkedHashSetName: InternedString
+    let treeSetName: InternedString
+    let sortedSetOfName: InternedString
+    let kkTreeSetNewName: InternedString
+    let kkTreeSetNewCollectionName: InternedString
+    let kkTreeSetNewSortedSetName: InternedString
     let kkEmptySetName: InternedString
     let kkSetOfName: InternedString
     let kkSetOfNotNullName: InternedString
@@ -37,6 +42,11 @@ struct SetLookupNames {
         emptySetName = interner.intern("emptySet")
         hashSetName = interner.intern("HashSet")
         linkedHashSetName = interner.intern("LinkedHashSet")
+        treeSetName = interner.intern("TreeSet")
+        sortedSetOfName = interner.intern("sortedSetOf")
+        kkTreeSetNewName = interner.intern("__kk_tree_set_new")
+        kkTreeSetNewCollectionName = interner.intern("__kk_tree_set_new_collection")
+        kkTreeSetNewSortedSetName = interner.intern("__kk_tree_set_new_sorted_set")
         kkEmptySetName = interner.intern("__kk_emptySet")
         kkSetOfName = interner.intern("__kk_set_of")
         kkSetOfNotNullName = interner.intern("__kk_set_of_not_null")

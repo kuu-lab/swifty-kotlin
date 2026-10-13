@@ -340,8 +340,6 @@ final class StableRenderContext {
         requiredSymbols = visited
     }
 
-    // MARK: - Private
-
     /// Builds the stable expression keys for every expression in the arena.
     ///
     /// Each key is derived from the expression's source start position
@@ -468,7 +466,7 @@ final class StableRenderContext {
             collectTypeSymbols(kc.argument, into: &queue)
         case let .intersection(parts):
             for part in parts { collectTypeSymbols(part, into: &queue) }
-        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
+        case .error, .unit, .nullableUnit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }
@@ -628,8 +626,6 @@ private final class StableSemanticKeyComputer {
         }
     }
 
-    // MARK: - Inner key
-
     private func innerKey(for symbol: SemanticSymbol) -> String {
         var parts = ["kind=\(Self.kindToken(symbol.kind))"]
         if let signature = sema.symbols.functionSignature(for: symbol.id) {
@@ -776,8 +772,6 @@ private final class StableSemanticKeyComputer {
         }
     }
 
-    // MARK: - Structural type encoding
-
     /// Structural type key. Unlike `renderType`, nullability is part of the
     /// encoded shape: a nullable function type renders `fn{…}?` while a
     /// nullable return stays inside `ret=…?`, so the two never collapse.
@@ -792,6 +786,8 @@ private final class StableSemanticKeyComputer {
             result = "err"
         case .unit:
             result = "Unit"
+        case .nullableUnit:
+            result = "Unit?"
         case let .nothing(nullability):
             result = "Nothing\(Self.nullabilityMark(nullability))"
         case let .any(nullability):
@@ -870,8 +866,6 @@ private final class StableSemanticKeyComputer {
         return result
     }
 
-    // MARK: - Scope discriminator
-
     /// Last-resort identity when the semantic key collides: the declaration's
     /// own source position (stable across unrelated bundled-stdlib edits, same
     /// convention as `e@line:col` expression keys), or the enclosing symbol's
@@ -909,8 +903,6 @@ private final class StableSemanticKeyComputer {
         }
         return nil
     }
-
-    // MARK: - Atoms
 
     private static func nullabilityMark(_ nullability: Nullability) -> String {
         switch nullability {

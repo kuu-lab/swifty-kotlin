@@ -45,11 +45,12 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
             guard case .returnValue = $0 else { return false }
             return true
         })
-        let call = try #require(adapter.body.compactMap { instruction -> InternedString? in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-            return callee
-        }.first)
-        #expect(fixture.interner.resolve(call) == (hasCallableInfo ? "block" : "kk_function_invoke_0"))
+        let call = try #require(kirCalls(in: adapter.body).first)
+        if hasCallableInfo {
+            #expect(call.symbol == symbol)
+        } else {
+            #expect(call.callee == KIRRuntimeFunction.functionInvoke(arity: 0).name(in: fixture.interner))
+        }
         if !hasCallableInfo {
             #expect(adapter.body.contains {
                 guard case .rethrow = $0 else { return false }

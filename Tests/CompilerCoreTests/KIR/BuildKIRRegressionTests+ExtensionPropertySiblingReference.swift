@@ -37,7 +37,7 @@ extension BuildKIRRegressionTests {
         })
         let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: senderProperty))
         let inspect = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "inspect"
+            $0.name == ctx.interner.intern("inspect")
         })
         #expect(inspect.body.contains { instruction in
             guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction else { return false }
@@ -123,7 +123,7 @@ extension BuildKIRRegressionTests {
 
         // `label`'s getter references `id` bare on the implicit Box receiver.
         let labelGetterBody = try functionBody(of: labelProp.getter, named: "label$get")
-        try expectGetterCall(
+        expectGetterCall(
             in: labelGetterBody,
             to: idProp.getter,
             insteadOf: idProp.property,
@@ -138,7 +138,7 @@ extension BuildKIRRegressionTests {
             "Box.describe symbol not found"
         )
         let describeBody = try functionBody(of: describeSymbol, named: "describe")
-        try expectGetterCall(
+        expectGetterCall(
             in: describeBody,
             to: labelProp.getter,
             insteadOf: labelProp.property,

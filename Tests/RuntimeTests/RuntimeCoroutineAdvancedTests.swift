@@ -666,8 +666,8 @@ struct RuntimeCoroutineAdvancedTests {
         let start = Date()
         let result = kk_coroutine_yield(0)
         let elapsed = Date().timeIntervalSince(start)
-        #expect(result == 0, "kk_coroutine_yield must return 0 (Unit)")
-        #expect(elapsed < 1.0, "kk_coroutine_yield must not block for more than 1 second")
+        #expect(result == 0, "Yield outside an active coroutine must return Unit (0)")
+        #expect(elapsed < 1.0, "Yield outside an active coroutine must not block for more than 1 second")
     }
 
     // MARK: - Test 15: Concurrent launches converge via job_join

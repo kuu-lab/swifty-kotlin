@@ -52,10 +52,37 @@ extension TypeCheckHelpers {
         for signature: FunctionSignature,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        specializeGenericReceiver: Bool = true,
         sema: SemaModule
     ) -> TypeID {
         var params = signature.parameterTypes
         var returnType = signature.returnType
+        // A top-level generic extension's own type parameters are inferred
+        // from the explicit receiver, even when the surrounding expected
+        // function type still contains the caller's type parameters.
+        if specializeGenericReceiver,
+           let boundReceiver, let declaredReceiver = signature.receiverType,
+           !signature.typeParameterSymbols.isEmpty
+        {
+            let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let resolver = OverloadResolver()
+            let constraints = resolver.decomposeSubtypeConstraint(
+                subtype: boundReceiver.receiverType, supertype: declaredReceiver,
+                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: nil
+            )
+            let solution = ConstraintSolver().solve(
+                vars: resolver.usedTypeVariables(from: constraints), constraints: constraints,
+                typeSystem: sema.types
+            )
+            if solution.isSuccess {
+                params = params.map {
+                    sema.types.substituteTypeParameters(in: $0, substitution: solution.substitution, typeVarBySymbol: variables)
+                }
+                returnType = sema.types.substituteTypeParameters(
+                    in: returnType, substitution: solution.substitution, typeVarBySymbol: variables
+                )
+            }
+        }
         if let boundReceiver,
            let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol),
            sema.symbols.symbol(owner)?.kind == .class || sema.symbols.symbol(owner)?.kind == .interface
@@ -80,6 +107,35 @@ extension TypeCheckHelpers {
             isSuspend: signature.isSuspend,
             isCallableReference: true,
             nullability: .nonNull
+        )))
+    }
+
+    /// Adapts the result of a callable-reference expression when its expected
+    /// function type returns Unit. This is expression-contextual: a stored
+    /// function value with a non-Unit result keeps its original type.
+    func unitCoercedCallableReferenceType(
+        _ callableType: TypeID,
+        expectedFunctionType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        let types = sema.types
+        guard case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType),
+              expectedFunction.returnType == types.unitType,
+              case let .functionType(function) = types.kind(of: callableType),
+              function.isCallableReference,
+              function.returnType != types.unitType
+        else {
+            return nil
+        }
+        return types.make(.functionType(FunctionType(
+            contextReceivers: function.contextReceivers,
+            receiver: function.receiver,
+            params: function.params,
+            returnType: types.unitType,
+            isSuspend: function.isSuspend,
+            isCallableReference: true,
+            nullability: function.nullability,
+            throws: function.throws
         )))
     }
 
@@ -179,12 +235,18 @@ extension TypeCheckHelpers {
         expectedFunctionType: TypeID,
         sema: SemaModule
     ) -> TypeID? {
-        let inferredType = callableFunctionType(
+        let callableType = callableFunctionType(
             for: signature,
             bindReceiver: bindReceiver,
             boundReceiver: boundReceiver,
+            specializeGenericReceiver: false,
             sema: sema
         )
+        let inferredType = unitCoercedCallableReferenceType(
+            callableType,
+            expectedFunctionType: expectedFunctionType,
+            sema: sema
+        ) ?? callableType
         let types = sema.types
         let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         guard !typeVars.isEmpty else {

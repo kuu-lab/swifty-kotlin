@@ -5,8 +5,13 @@ extension BundledStdlibExecutionTests {
     func testStableHexFormatBuilder(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """
+            @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
             // KUU-1106: Kotlin 2.2+ HexFormat APIs are stable without stdlib opt-in.
             fun main() {
+                val directBuilder = HexFormat.Builder()
+                println(directBuilder.upperCase)
+                println(directBuilder.number.minLength)
+                println(directBuilder.bytes.byteSeparator)
                 println(255.toHexString())
                 println(255L.toHexString())
                 println(byteArrayOf(1, 2).toHexString())
@@ -46,7 +51,7 @@ extension BundledStdlibExecutionTests {
                 println(255.toHexString(HexFormat { number.removeLeadingZeros = true }))
             }
             """,
-            expectedOutput: "000000ff\n00000000000000ff\n0102\n255\n255\n255\n255\n255\n255\n255\n0102\n0203\nfalse\n000000FF\n:\n4\n0x00FF\n255\n[01]:[FF]\n01ff\nff\n",
+            expectedOutput: "false\n1\n\n000000ff\n00000000000000ff\n0102\n255\n255\n255\n255\n255\n255\n255\n0102\n0203\nfalse\n000000FF\n:\n4\n0x00FF\n255\n[01]:[FF]\n01ff\nff\n",
             moduleName: "KUU1106HexFormat",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )

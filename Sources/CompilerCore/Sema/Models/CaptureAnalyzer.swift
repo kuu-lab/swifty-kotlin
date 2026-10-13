@@ -78,6 +78,11 @@ struct CaptureAnalyzer {
             switch expr {
             case .nameRef:
                 recordCapture(for: currentExprID)
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
 
             case let .forExpr(_, iterable, body, _, _):
                 visit(iterable)
@@ -258,7 +263,7 @@ struct CaptureAnalyzer {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, _, body, _, _):
+            case let .localFunDecl(_, _, _, _, body, _, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
                 }
@@ -316,6 +321,9 @@ struct CaptureAnalyzer {
                 // literal itself sits inside a lambda.
                 for arg in objectDecl.superTypeConstructorArgs {
                     visit(arg.expr)
+                }
+                for delegateExpr in objectDecl.superTypeEntries.compactMap(\.delegateExpression) {
+                    visit(delegateExpr)
                 }
                 for memberFunctionID in objectDecl.memberFunctions {
                     guard let memberDecl = ast.arena.decl(memberFunctionID),

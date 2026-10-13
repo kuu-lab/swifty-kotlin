@@ -60,7 +60,7 @@ struct GenericFunctionExpectedTypeConstraintTests {
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       case let .funDecl(function) = decl,
-                      interner.resolve(function.name) == "main",
+                      function.name == KnownCompilerNames(interner: interner).main,
                       case let .block(statements, _) = function.body
                 else { continue }
                 return statements

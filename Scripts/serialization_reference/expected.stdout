@@ -1,0 +1,8 @@
+core: generated descriptor, names, defaults
+json: round trip, default, tree, malformed input
+cbor: round trip, truncated input
+protobuf: round trip, generated schema
+properties: typed and string maps
+json-io: round trip, lazy failure, caller closes source
+json-okio: round trip, lazy failure, caller closes source
+hocon: Config backend, Java duration

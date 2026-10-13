@@ -4,6 +4,63 @@
 ///
 /// Split out from `DataEnumSealedSynthesisPass.swift`.
 extension DataEnumSealedSynthesisPass {
+    /// Common declarations can bind qualified entry reads to expect fields.
+    /// Redirect them to the actual slots that the enum initializer populates.
+    func rewriteExpectEnumEntryReferences(module: KIRModule, sema: SemaModule) {
+        var actualEntries: [SymbolID: SymbolID] = [:]
+        for entry in sema.symbols.allSymbols() where entry.kind == .field {
+            guard let parent = sema.symbols.parentSymbol(for: entry.id),
+                  let owner = sema.symbols.symbol(parent),
+                  owner.kind == .enumClass,
+                  owner.flags.contains(.expectDeclaration),
+                  let actualOwner = sema.symbols.actualSymbol(for: parent),
+                  let actualEntry = sema.symbols.lookupAll(fqName: entry.fqName).first(where: {
+                      sema.symbols.symbol($0)?.kind == .field
+                          && sema.symbols.parentSymbol(for: $0) == actualOwner
+                  })
+            else { continue }
+            actualEntries[entry.id] = actualEntry
+        }
+        guard !actualEntries.isEmpty else { return }
+
+        for (index, expression) in module.arena.expressions.enumerated() {
+            guard case let .symbolRef(symbol) = expression,
+                  let actualEntry = actualEntries[symbol]
+            else { continue }
+            let id = KIRExprID(rawValue: Int32(index))
+            module.arena.replaceExpr(id, with: .symbolRef(actualEntry))
+            if let type = sema.symbols.propertyType(for: actualEntry) {
+                module.arena.setExprType(type, for: id)
+            }
+        }
+        module.arena.transformFunctions { function in
+            let body = function.body.map { instruction in
+                switch instruction {
+                case let .constValue(result, .symbolRef(symbol)):
+                    guard let actualEntry = actualEntries[symbol] else { return instruction }
+                    if let type = sema.symbols.propertyType(for: actualEntry) {
+                        module.arena.setExprType(type, for: result)
+                    }
+                    return .constValue(result: result, value: .symbolRef(actualEntry))
+                case let .loadGlobal(result, symbol):
+                    guard let actualEntry = actualEntries[symbol] else { return instruction }
+                    if let type = sema.symbols.propertyType(for: actualEntry) {
+                        module.arena.setExprType(type, for: result)
+                    }
+                    return .loadGlobal(result: result, symbol: actualEntry)
+                case let .storeGlobal(value, symbol):
+                    guard let actualEntry = actualEntries[symbol] else { return instruction }
+                    return .storeGlobal(value: value, symbol: actualEntry)
+                default:
+                    return instruction
+                }
+            }
+            var updated = function
+            updated.replaceBody(body, locations: function.instructionLocations)
+            return updated
+        }
+    }
+
     /// enum entry singletons.
     /// The body is: kk_array_new(count) -> kk_array_set for each entry -> kk_enum_make_values_array.
     func appendSyntheticEnumValuesIfNeeded(
@@ -92,11 +149,15 @@ extension DataEnumSealedSynthesisPass {
             guard let sym = sema.symbols.symbol(candidate),
                   sym.kind == .function,
                   sym.flags.contains(.synthetic),
-                  sema.symbols.parentSymbol(for: candidate) == owner.id
+                  let parent = sema.symbols.parentSymbol(for: candidate)
             else { return false }
-            return true
+            return parent == owner.id || sema.symbols.actualSymbol(for: parent) == owner.id
         }
         if let existingSymbol = existingValues, !existingFunctionSymbols.contains(existingSymbol) {
+            // Header collection registers one stub per FQName. When expect is
+            // first, keep its bound SymbolID but give the actual enum ownership
+            // of the runtime body and the Array<ActualEnum> signature.
+            sema.symbols.setParentSymbol(owner.id, for: existingSymbol)
             appendSyntheticFunctionWithSymbol(
                 functionSymbol: existingSymbol,
                 name: name,
@@ -794,8 +855,6 @@ extension DataEnumSealedSynthesisPass {
         existingFunctionSymbols: Set<SymbolID>,
         interner: StringInterner
     ) {
-        guard !entries.isEmpty else { return }
-
         let intType = sema.types.make(.primitive(.int, .nonNull))
         // Collect existing global symbols so we don't create duplicates.
         var existingGlobalSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
@@ -841,6 +900,66 @@ extension DataEnumSealedSynthesisPass {
             // Store ordinal into the global slot.
             body.append(.copy(from: ordinalExpr, to: entryRef))
         }
+
+        // Retain a token-indexed descriptor for enumValues<T>() calls that
+        // execute in non-inline lambdas after their factory has returned.
+        let enumType = sema.types.make(.classType(ClassType(
+            classSymbol: owner.id,
+            args: [],
+            nullability: .nonNull
+        )))
+        let typeToken = RuntimeTypeCheckToken.encode(type: enumType, sema: sema, interner: interner)
+        let typeTokenExpr = module.arena.appendExpr(.intLiteral(typeToken), type: intType)
+        body.append(.constValue(result: typeTokenExpr, value: .intLiteral(typeToken)))
+        let valuesCount = module.arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
+        body.append(.constValue(result: valuesCount, value: .intLiteral(Int64(entries.count))))
+        let valuesArray = module.arena.appendTemporary(type: sema.types.anyType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_new"),
+            arguments: [valuesCount],
+            result: valuesArray,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: owner.id,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
+        body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        for (ordinal, entry) in entries.enumerated() {
+            let ordinalExpr = module.arena.appendExpr(.intLiteral(Int64(ordinal)), type: intType)
+            body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
+            let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: sema.types.stringType)
+            body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
+            let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_enum_box_ordinal"),
+                arguments: [ordinalExpr, nameExpr, classIDExpr],
+                result: boxedEntry,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [valuesArray, ordinalExpr, boxedEntry],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_enum_register_values"),
+            arguments: [typeTokenExpr, valuesArray, valuesCount],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
 
         // Register supertype edges so boxed enum values can answer `is`/`as`
         // against kotlin.Enum and implemented interfaces (e.g. Comparable).

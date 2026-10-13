@@ -17,14 +17,9 @@ struct FunctionTypeIsCheckLoweringTests {
         #expect(!ctx.diagnostics.hasError)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "check", in: module, interner: ctx.interner)
-        let calls = body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_op_is"
-            else { return nil }
-            return arguments.last
-        }
+        let calls = kirCalls(to: .opIs, in: body, interner: ctx.interner)
         #expect(calls.count == 1)
-        let token = try #require(calls.first)
+        let token = try #require(calls.first?.arguments.last)
         let expected = RuntimeTypeCheckToken.encode(base: RuntimeTypeCheckToken.anyBase, nullable: nullableTarget)
         #expect(module.arena.expr(token) == .intLiteral(expected))
     }

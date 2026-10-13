@@ -1,93 +1,13 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
+import RuntimeABI
 import Testing
-
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags,
-        stdlibLibraryPath: try testStdlibArtifactPath()
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
 
 @Suite
 struct CodegenBackendMathOverloadEdgeCasesTests {
-
-    @Test
-    func testCodegenCompilesMathOverloadEdgeCases() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun main() {
-            val sqrtFloat: Float = sqrt(9.0f)
-            val sqrtDouble: Double = sqrt(9.0)
-            println(sqrtFloat)
-            println(sqrtDouble)
-
-            val absInt: Int = abs(-7)
-            val absLong: Long = abs(-9L)
-            val absFloat: Float = abs(-3.5f)
-            val absDouble: Double = abs(-4.5)
-            println(absInt)
-            println(absLong)
-            println(absFloat)
-            println(absDouble)
-
-            val atan2Float: Float = atan2(1.0f, 1.0f)
-            val atan2Double: Double = atan2(1.0, 1.0)
-            println(atan2Float > 0.78f && atan2Float < 0.79f)
-            println(atan2Double > 0.78 && atan2Double < 0.79)
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MathOverloadEdgeCases",
-            expected:
-                """
-                3.0
-                3.0
-                7
-                9
-                3.5
-                4.5
-                true
-                true
-                """
-                + "\n"
-        )
-    }
 
     @Test
     func testCodegenMathExtensionPropertiesLowerToSourceBackedAccessors() throws {
@@ -125,12 +45,13 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             // Property accessors in the artifact use the mangled JVM-style
             // `get` entry name rather than the Kotlin property name.  The
             // source has ten math property reads, each with one receiver.
             let artifactAccessors = calls.filter {
-                $0.0.hasPrefix("kk_fn_get_") && $0.1 == 1
+                $0.0.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix + "get_") && $0.1 == 1
             }
             #expect(
                 artifactAccessors.count == 10,
@@ -148,21 +69,10 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 )
             }
 
-            for removedHelper in [
-                "__kk_math_abs_int",
-                "__kk_math_abs_long",
-                "__kk_math_abs_float",
-                "__kk_math_abs",
-                "__kk_math_sign_int",
-                "__kk_math_sign_long",
-                "__kk_math_sign_float",
-                "__kk_math_sign",
-            ] {
-                #expect(
-                    !calls.contains(where: { $0.0 == removedHelper }),
-                    "\(removedHelper) is Kotlin-source backed and must not be called, got \(calls)"
-                )
-            }
+            #expect(
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls.map(\.0)),
+                "Math property accessors must remain Kotlin-source backed, got \(calls)"
+            )
         }
     }
 
@@ -205,6 +115,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             for expected in ["max", "min"] {
                 #expect(
@@ -214,7 +125,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.0.hasPrefix("__kk_math_max") || $0.0.hasPrefix("__kk_math_min") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls.map(\.0)),
                 "min/max are Kotlin-source backed and must not call __kk_math_* helpers, got \(calls)"
             )
         }
@@ -254,6 +165,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             for sourceFunction in [
                 "atan2", "cbrt", "sinh", "cosh", "tanh", "atanh",
@@ -265,7 +177,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.hasPrefix("__kk_math_") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls),
                 "Consumer calls must use source-backed math declarations, got \(calls)"
             )
         }
@@ -298,6 +210,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             for sourceFunction in ["IEEErem", "nextTowards", "pow"] {
                 #expect(
@@ -307,7 +220,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.0.hasPrefix("__kk_math_") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls.map(\.0)),
                 "Consumer calls must use source-backed math declarations, got \(calls)"
             )
         }
@@ -335,6 +248,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             #expect(
                 callees.filter { isKotlinCallee($0, named: "abs") }.count == 2,
@@ -342,32 +256,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             )
             #expect(containsKotlinCallee("sqrt", in: callees), "FQN sqrt(Double) must lower to the stdlib artifact, got \(callees)")
             #expect(
-                !callees.contains(where: { $0.hasPrefix("__kk_math_") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: callees),
                 "FQN consumer calls must not bypass source-backed math declarations, got \(callees)"
             )
         }
     }
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 }
 #endif

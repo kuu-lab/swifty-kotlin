@@ -140,10 +140,14 @@ extension CallTypeChecker {
                     {
                         continue
                     }
-                    if case .typeParam = sema.types.kind(of: actual) {
-                        continue
-                    }
-                    if case .typeParam = sema.types.kind(of: expected) {
+                    // Lambda argument types may have been inferred before a
+                    // generic extension receiver is substituted. A function
+                    // parameter such as `(T) -> Boolean` cannot be compared
+                    // against `(Int) -> Boolean` yet; let overload resolution
+                    // solve T from the receiver and check the lambda then.
+                    if sema.types.typeContainsAnyTypeParam(actual)
+                        || sema.types.typeContainsAnyTypeParam(expected)
+                    {
                         continue
                     }
                     guard sema.types.isSubtype(actual, expected) else {
@@ -168,8 +172,11 @@ extension CallTypeChecker {
             interner.intern("Iterable"),
         ]
         var remainingCandidates = candidates
-        let hasCollectionReceiver = receiverTypes.contains { _, receiver in
-            driver.helpers.nominalSymbol(of: receiver, types: sema.types)
+        let hasCollectionReceiver = receiverTypes.contains { candidate, receiver in
+            // An inapplicable Collection overload must not hide an Iterable
+            // overload, such as count() competing with count(predicate).
+            guard specificityCandidates.contains(candidate) else { return false }
+            return driver.helpers.nominalSymbol(of: receiver, types: sema.types)
                 .flatMap { sema.symbols.symbol($0)?.fqName } == collectionFQName
         }
         if hasCollectionReceiver,
@@ -371,6 +378,19 @@ extension CallTypeChecker {
         if sema.types.isSubtype(actual, declared) {
             return true
         }
+        // A smart-cast intersection (e.g. `R & List<*>` after
+        // `x != null && x is List<*>`) is a subtype of each of its parts,
+        // so an extension whose declared receiver matches any single part
+        // is applicable to the whole intersection.
+        if case let .intersection(parts) = sema.types.kind(of: actual),
+           parts.contains(where: {
+               extensionSyntheticFallbackReceiverMatches(
+                   callSiteReceiver: $0, declaredReceiver: declared, sema: sema
+               )
+           })
+        {
+            return true
+        }
         // Builtin nominal shells (notably String's Companion) may be recreated
         // while bundled source headers are collected.  Their SymbolIDs differ,
         // but they still denote the same FQName; accept that identity for
@@ -526,12 +546,16 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID? {
         let memberName = ctx.interner.resolve(calleeName)
+        // KUU-1351: this set must stay within the real kotlinx-coroutines Flow
+        // surface; `onErrorReturn`/`onErrorResume`/`delayEach` are not kotlinx
+        // Flow operators, so admitting them here would accept code that kotlinc
+        // rejects as unresolved.
         let flowMembers: Set = [
             "map", "filter", "take", "collect", "collectLatest", "toList", "first",
             "single",
             "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-            "buffer", "conflate", "flowOn", "debounce", "delayEach",
-            "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume",
+            "buffer", "conflate", "flowOn", "debounce",
+            "catch", "retry", "retryWhen",
         ]
         guard flowMembers.contains(memberName) else {
             return nil
@@ -577,7 +601,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
 
-        case "take", "buffer", "debounce", "delayEach", "flowOn":
+        case "take", "buffer", "debounce", "flowOn":
             guard args.count == 1 else {
                 return nil
             }
@@ -626,11 +650,17 @@ extension CallTypeChecker {
 
         case "map", "filter", "collect", "collectLatest", "transform", "takeWhile", "dropWhile",
              "flatMapConcat", "flatMapMerge", "flatMapLatest",
-             "catch", "retryWhen", "onErrorReturn", "onErrorResume":
-            guard args.count == 1 else {
+             "catch", "retryWhen":
+            let lambdaArgIndex: Int
+            if memberName == "flatMapMerge" && args.count == 2 {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                lambdaArgIndex = 1
+            } else if args.count == 1 {
+                lambdaArgIndex = 0
+            } else {
                 return nil
             }
-            let expectsLambdaTypeConstraint = switch ast.arena.expr(args[0].expr) {
+            let expectsLambdaTypeConstraint = switch ast.arena.expr(args[lambdaArgIndex].expr) {
             case .callableRef:
                 false
             default:
@@ -655,7 +685,7 @@ extension CallTypeChecker {
                 sema.types.anyType
             }
             let lambdaParameterTypes: [TypeID] = switch memberName {
-            case "catch", "onErrorResume":
+            case "catch":
                 [sema.types.anyType]
             case "retryWhen":
                 [sema.types.anyType, sema.types.longType]
@@ -665,19 +695,19 @@ extension CallTypeChecker {
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: lambdaParameterTypes,
                 returnType: lambdaReturnType,
-                isSuspend: ["collect", "collectLatest", "takeWhile", "dropWhile"].contains(memberName),
+                isSuspend: ["collect", "collectLatest", "takeWhile", "dropWhile", "map", "filter", "flatMapConcat", "flatMapMerge", "flatMapLatest", "retryWhen"].contains(memberName),
                 nullability: .nonNull
             )))
             if expectsLambdaTypeConstraint {
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                _ = driver.inferExpr(args[lambdaArgIndex].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             } else {
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                _ = driver.inferExpr(args[lambdaArgIndex].expr, ctx: ctx, locals: &locals)
             }
 
             if memberName != "collect" && memberName != "collectLatest" {
                 sema.bindings.markFlowExpr(id)
                 let resultElementType: TypeID = if memberName == "map",
-                                                   case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
+                                                   case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[lambdaArgIndex].expr),
                                                    let mappedType = sema.bindings.exprType(for: bodyExpr)
                 {
                     mappedType
@@ -687,8 +717,34 @@ extension CallTypeChecker {
                     // bridge and remain type-erased until a richer collector
                     // receiver model is available.
                     sema.types.anyType
-                } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest" {
-                    sema.types.anyType
+                } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest",
+                          case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[lambdaArgIndex].expr)
+                {
+                    if let elem = sema.bindings.flowElementType(forExpr: bodyExpr) {
+                        elem
+                    } else if case .nameRef = ast.arena.expr(bodyExpr),
+                              let sym = sema.bindings.identifierSymbol(for: bodyExpr),
+                              let elem = sema.bindings.flowElementType(forSymbol: sym)
+                    {
+                        elem
+                    } else if let bodyType = sema.bindings.exprType(for: bodyExpr),
+                              let flowClassSymbol = sema.symbols.lookup(fqName: [
+                                  ctx.interner.intern("kotlinx"), ctx.interner.intern("coroutines"),
+                                  ctx.interner.intern("flow"), ctx.interner.intern("Flow"),
+                              ]),
+                              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(bodyType)),
+                              classType.classSymbol == flowClassSymbol,
+                              let firstArg = classType.args.first
+                    {
+                        switch firstArg {
+                        case let .invariant(t), let .out(t), let .in(t):
+                            t
+                        case .star:
+                            sema.types.anyType
+                        }
+                    } else {
+                        sema.types.anyType
+                    }
                 } else {
                     receiverElementType
                 }
@@ -733,7 +789,7 @@ extension CallTypeChecker {
             return nil
         }
         guard args.count == 1 else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "No viable overload found for call.",
                 range: range
@@ -801,18 +857,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    func isCoroutineHandleReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isCoroutineHandleSymbol(symbol)
-    }
-
     /// Returns true when the receiver type is java.io.File.
     func isFileType(
         _ receiverType: TypeID,
@@ -845,18 +889,6 @@ extension CallTypeChecker {
         return symbol.fqName.count >= 2
             && interner.resolve(symbol.fqName.last!) == "BufferedReader"
             && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
-    }
-
-    func isChannelReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isChannelSymbol(symbol)
     }
 
     func kClassReceiverArgumentType(

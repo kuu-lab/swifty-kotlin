@@ -108,7 +108,6 @@ extension BuildASTPhase {
                 } else {
                     body = .unit
                 }
-                // Annotations from preceding sibling tokens + any inside the node
                 let nodeTokens = collectTokens(from: ctorNodeID, in: arena)
                 let combinedTokens = precedingTokens + nodeTokens
                 let annotations = annotationsFromTokens(combinedTokens, interner: interner)
@@ -133,7 +132,7 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> ConstructorDelegationCall? {
         let tokens = collectTokens(from: nodeID, in: arena)
-        guard let parenIndex = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else {
+        guard let parenIndex = constructorParameterOpenParenIndex(in: tokens, interner: interner) else {
             return nil
         }
         var index = skipBalancedBracket(in: tokens, from: parenIndex, open: .symbol(.lParen), close: .symbol(.rParen))

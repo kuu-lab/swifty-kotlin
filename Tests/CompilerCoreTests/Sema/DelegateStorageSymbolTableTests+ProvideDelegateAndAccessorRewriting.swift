@@ -136,7 +136,7 @@ private func hasDelegateStorageWrite(_ body: [KIRInstruction], interner: StringI
         case .copy:
             return true
         case let .call(_, callee, _, _, _, _, _, _):
-            return interner.resolve(callee) == "kk_array_set"
+            return interner.resolve(callee) == runtimeABIName(.arraySet)
         default:
             return false
         }

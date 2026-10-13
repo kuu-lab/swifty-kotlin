@@ -168,7 +168,7 @@ struct AnyConstructorRegressionTests {
         #expect(errors.isEmpty, "Generic delegations should resolve: \(errors)")
         let sema = try #require(ctx.sema)
         let fromSuper = try #require(sema.symbols.allSymbols().first {
-            $0.kind == .class && ctx.interner.resolve($0.name) == "FromSuper"
+            $0.kind == .class && $0.name == ctx.interner.intern("FromSuper")
         })
         let targets = sema.bindings.constructorDelegationTargets.compactMap { source, target -> SymbolID? in
             sema.symbols.parentSymbol(for: source) == fromSuper.id ? target : nil

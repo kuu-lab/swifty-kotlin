@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// DIFF_CANDIDATE_ONLY: kotlin.native.runtime APIs have no JVM reference; compare the constructed value's runtime type.
 import kotlin.native.runtime.GCInfo
 import kotlin.native.runtime.MemoryUsage
 import kotlin.native.runtime.RootSetStatistics
@@ -17,11 +17,11 @@ fun main() {
         null,
         null,
         null,
-        TODO(),
+        RootSetStatistics(7L, 8L, 9L, 10L),
         7L,
-        TODO(),
-        TODO(),
-        TODO(),
+        mapOf("mutator" to SweepStatistics(12L, 13L)),
+        mapOf("heap" to MemoryUsage(14L)),
+        mapOf("heap" to MemoryUsage(15L)),
     )
     println(value is GCInfo)
 }

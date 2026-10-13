@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): System.processStartNanos() is not yet available in kotlinc.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: system_process_start_nanos.expected.stdout
 fun main() {
     val startNanos = System.processStartNanos()
     val now = System.nanoTime()

@@ -1,12 +1,12 @@
 @testable import CompilerCore
 import Testing
 
-/// KUU-1263: clock APIs unavailable in Kotlin/JVM must not resolve through bundled source.
+/// KUU-1263/KUU-1468: clock getters unavailable in Kotlin/JVM must not resolve through bundled source.
 @Suite
 struct RemovedSystemTimeFunctionTests {
     @Test
     func removedFunctionsAreUnresolvedForAllImportStyles() throws {
-        let names = ["getTimeMillis", "getTimeNanos"]
+        let names = ["getTimeMillis", "getTimeMicros", "getTimeNanos"]
         let styles = ["explicit", "wildcard", "alias", "qualified"]
         var sources: [String] = []
         var callNames: [String] = []
@@ -60,8 +60,9 @@ struct RemovedSystemTimeFunctionTests {
         let ctx = makeContextFromSource("""
         import kotlin.system.*
         fun getTimeMillis(): Long = 1L
+        fun getTimeMicros(): Long = 2L
         fun getTimeNanos(): Long = 2L
-        fun now(): Long = getTimeMillis() + getTimeNanos()
+        fun now(): Long = getTimeMillis() + getTimeMicros() + getTimeNanos()
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError)

@@ -45,7 +45,6 @@ extension KotlinParser {
                 leadingRange: modifierRange.value
             )
         case .keyword(.fun):
-            // `fun interface` — consume `fun` as a modifier and parse as interface decl
             if stream.peek(1).kind == .keyword(.interface) {
                 _ = consumeToken(into: &modifierChildren, range: &modifierRange)
                 return parseNamedDeclaration(
@@ -133,7 +132,6 @@ extension KotlinParser {
         var range = RangeAccumulator(value: leadingRange)
         let supportsTypeParameters = kind == .classDecl || kind == .interfaceDecl
 
-        // Detect companion object: leading modifiers contain the `companion` keyword
         let isCompanionObject = kind == .objectDecl && leadingChildren.contains(where: { child in
             if case let .token(tokenID) = child,
                let token = arena.token(tokenID),
@@ -158,6 +156,18 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
+        // A primary-constructor annotation may start on the next line. Prove
+        // that the prefix ends in `constructor (` before consuming it, so a
+        // following annotated declaration remains outside this class.
+        if kind == .classDecl, startsPrimaryConstructorHeader() {
+            parseLeadingDeclarationPrefix(into: &children, range: &range)
+            _ = consumeToken(into: &children, range: &range)
+            let parameters = parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
+            )
+            children.append(.node(parameters))
+            range.append(childRange(.node(parameters)))
+        }
         parsePostDeclarationTail(
             into: &children,
             range: &range,
@@ -168,6 +178,23 @@ extension KotlinParser {
             kind: kind,
             range: range.value ?? invalidRange, children
         )
+    }
+
+    private func startsPrimaryConstructorHeader() -> Bool {
+        var offset = 0
+        while true {
+            let kind = stream.peek(offset).kind
+            if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
+                return stream.peek(offset + 1).kind == .symbol(.lParen)
+            }
+            if case let .keyword(keyword) = kind, Self.isDeclarationModifierKeyword(keyword) {
+                offset += 1
+                continue
+            }
+            guard kind == .symbol(.at) else { return false }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
+        }
     }
 
     func parseFunctionDeclaration(
@@ -195,7 +222,7 @@ extension KotlinParser {
             if case .symbol(.question) = stream.peek().kind {
                 _ = consumeToken(into: &children, range: &range)
             }
-            _ = consumeToken(into: &children, range: &range) // `.` or `?.`
+            _ = consumeToken(into: &children, range: &range)
         }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
@@ -223,9 +250,8 @@ extension KotlinParser {
         )
     }
 
-    /// Lookahead for `fun (Type).name(`: a parenthesized receiver group that is
-    /// followed by `.` / `?.` (optionally after a `?` nullability marker), as
-    /// opposed to the `(` that opens a value-parameter list.
+    /// Distinguishes a parenthesized receiver group followed by `.` / `?.` from
+    /// the `(` that opens a value-parameter list.
     private func parenthesizedReceiverPrecedesFunctionName() -> Bool {
         var offset = offsetPastBalancedGroup(from: 0, open: .symbol(.lParen), close: .symbol(.rParen))
         if stream.peek(offset).kind == .symbol(.question) {
@@ -247,6 +273,11 @@ extension KotlinParser {
         var range = RangeAccumulator(value: leadingRange)
 
         _ = consumeToken(into: &children, range: &range)
+        if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
+            let parameters = parseTypeArguments()
+            children.append(.node(parameters))
+            range.append(childRange(.node(parameters)))
+        }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else if case .symbol(.lParen) = stream.peek().kind {
@@ -281,8 +312,6 @@ extension KotlinParser {
         )
     }
 
-    /// Parse a single property accessor (`get() = expr` or `set(value) { ... }`)
-    /// into a dedicated `.propertyAccessor` CST node.
     private func parsePropertyAccessor(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var accessorChildren: [SyntaxChild] = []
         var accessorRange = RangeAccumulator()
@@ -300,9 +329,7 @@ extension KotlinParser {
         range.append(accessorNodeRange)
     }
 
-    /// Parse an explicit backing field declaration (`field = expr` or
-    /// `field: Type = expr`) into a dedicated `.propertyAccessor` CST node.
-    /// We reuse the `.propertyAccessor` kind so the AST builder can detect it
+    /// Reuses the `.propertyAccessor` kind so the AST builder can detect it
     /// via the leading `field` soft keyword.
     private func parseExplicitBackingField(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var fieldChildren: [SyntaxChild] = []
@@ -380,7 +407,6 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else if parseEnumHeaderTail(into: &children, range: &range) {
-            // The helper has already appended the enum body.
         } else {
             parseTail(inBlock: false, into: &children, range: &range)
         }
@@ -445,7 +471,7 @@ extension KotlinParser {
             return !enumEntryStartsAfterLeadingAnnotations()
         }
         if case .softKeyword(.context) = kind {
-            return true
+            return declarationPrefixVerdict(at: 0) == .declaration
         }
         guard case let .keyword(keyword) = kind, isDeclarationKeyword(keyword) else {
             return false
@@ -456,43 +482,15 @@ extension KotlinParser {
         return true
     }
 
-    /// Returns whether the current token starts an annotation-prefixed enum
-    /// entry. This lookahead mirrors the token shape consumed by
-    /// `consumeDeclarationAnnotationPrefixIfPresent` without mutating the
-    /// parser stream.
+    /// Mirrors the token shape consumed by `consumeDeclarationAnnotationPrefixIfPresent`
+    /// without mutating the parser stream.
     private func enumEntryStartsAfterLeadingAnnotations() -> Bool {
         guard stream.peek().kind == .symbol(.at) else { return false }
 
         var offset = 0
         while stream.peek(offset).kind == .symbol(.at) {
-            offset += 1
-
-            if isAnnotationUseSiteTarget(stream.peek(offset)),
-               stream.peek(offset + 1).kind == .symbol(.colon)
-            {
-                offset += 2
-            }
-
-            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
-            offset += 1
-            while stream.peek(offset).kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(offset + 1).kind)
-            {
-                offset += 2
-            }
-
-            if stream.peek(offset).kind == .symbol(.lParen) {
-                var depth = 0
-                repeat {
-                    let kind = stream.peek(offset).kind
-                    if kind == .symbol(.lParen) {
-                        depth += 1
-                    } else if kind == .symbol(.rParen) {
-                        depth -= 1
-                    }
-                    offset += 1
-                } while depth > 0 && stream.peek(offset - 1).kind != .eof
-            }
+            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
+            offset = end
         }
 
         let nextKind = stream.peek(offset).kind
@@ -533,14 +531,11 @@ extension KotlinParser {
         into children: inout [SyntaxChild],
         range: inout RangeAccumulator
     ) -> Bool {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var angleDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
 
         while !stream.atEOF() {
             let token = stream.peek()
-            let atTopLevel = parenDepth == 0 && bracketDepth == 0 && angleDepth == 0 && braceDepth == 0
+            let atTopLevel = depth.isTopLevel && depth.angle == 0
             if atTopLevel, case .symbol(.lBrace) = token.kind {
                 let body = parseEnumBody()
                 children.append(.node(body))
@@ -558,26 +553,7 @@ extension KotlinParser {
             }
 
             _ = consumeToken(into: &children, range: &range)
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lessThan):
-                angleDepth += 1
-            case .symbol(.greaterThan):
-                angleDepth = max(0, angleDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
         return false
     }
@@ -592,7 +568,9 @@ extension KotlinParser {
         _ = consumeToken(into: &children, range: &range)
 
         if case .symbol(.lParen) = stream.peek().kind {
-            children.append(.node(parseBalancedGroup(opening: .lParen, closing: .rParen)))
+            children.append(.node(parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
+            )))
             if let last = children.last {
                 range.append(childRange(last))
             }
@@ -627,7 +605,9 @@ extension KotlinParser {
     func parsePostDeclarationTail(into children: inout [SyntaxChild], range: inout RangeAccumulator, includeBlock: Bool) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
-                children.append(.node(parseBlock()))
+                let body = parseBlock()
+                children.append(.node(body))
+                range.append(childRange(.node(body)))
             } else {
                 _ = consumeToken(into: &children, range: &range)
             }

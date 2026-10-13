@@ -24,9 +24,21 @@ private external fun <T> __kkChannelCreate(capacity: Int): Channel<T>
 
 // Channel() is a rendezvous channel (capacity 0); Channel(capacity) is buffered.
 // Two explicit overloads mirror the previous synthetic factory bridges.
+// Negative `Channel.Factory` sentinels (CONFLATED -1, BUFFERED -2) keep their
+// kotlinx semantics: the runtime resolves them inside kk_channel_create.
+// Capacity < -2 throws IllegalArgumentException like upstream (KUU-1403).
 public fun <T> Channel(): Channel<T> = __kkChannelCreate(0)
 
-public fun <T> Channel(capacity: Int): Channel<T> = __kkChannelCreate(capacity)
+// Upstream `Channel(capacity)` is `Channel(capacity, BufferOverflow.SUSPEND)`:
+// the Channel.Factory sentinels (RENDEZVOUS / CONFLATED / BUFFERED /
+// UNLIMITED) are valid capacity arguments, so this factory
+// delegates to the policy-aware bridge instead of letting kk_channel_create
+// clamp negatives to a rendezvous channel (KUU-1415: Channel(Channel.BUFFERED)
+// and produce(capacity = Channel.BUFFERED) silently produced capacity 0).
+// OPTIONAL_CHANNEL (-3) is internal-only upstream and is rejected by the
+// policy-aware factory's require(capacity >= -2) like a raw negative.
+public fun <T> Channel(capacity: Int): Channel<T> =
+    Channel(capacity, BufferOverflow.SUSPEND)
 
 // The residual runtime bridges return an Int flag (0/1); convert to Boolean in
 // Kotlin so the ABI return width matches the c-soft `@_cdecl` signatures.
@@ -40,6 +52,34 @@ private external fun Channel<*>.__kkChannelIsClosedForSend(): Int
 private external fun Channel<*>.__kkChannelIsClosedForReceive(): Int
 
 public fun Channel<*>.close(): Boolean = this.__kkChannelClose() != 0
+
+// KUU-1404: Channel.cancel() residual bridge — cancels the channel, discards
+// pending elements, and makes subsequent send()/receive() fail with
+// CancellationException instead of a default payload.
+@KsSymbolName("kk_channel_cancel")
+private external fun Channel<*>.__kkChannelCancel(): Int
+
+public fun Channel<*>.cancel() {
+    this.__kkChannelCancel()
+}
+
+// KUU-1404: closed-channel exception surface. The runtime throws these from
+// send()/receive() when the channel reaches a terminal closed state, so the
+// classes are also user-visible for typed `catch` clauses. Runtime-allocated
+// boxes preserve the exact throwable identity, matching the
+// CancellationException source-backing pattern (KSP-1150).
+// JVM parity (kotlinx-coroutines 1.10.2): ClosedReceiveChannelException
+// extends NoSuchElementException, ClosedSendChannelException extends
+// IllegalStateException.
+public class ClosedReceiveChannelException : NoSuchElementException {
+    @KsSymbolName("__kk_closed_receive_channel_exception_new_message")
+    public constructor(message: String?)
+}
+
+public class ClosedSendChannelException : IllegalStateException {
+    @KsSymbolName("__kk_closed_send_channel_exception_new_message")
+    public constructor(message: String?)
+}
 
 // NOTE: extension *properties* use a star-projected `Channel<*>` receiver
 // because the parser does not accept type parameters on extension properties.

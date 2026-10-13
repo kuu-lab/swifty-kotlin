@@ -1,5 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 
 struct TestCompilationFailure: Error, CustomStringConvertible {
@@ -125,10 +126,26 @@ func assertKotlinCompilesToObject(
 func compileAndRunKotlin(
     _ source: String,
     expectedOutput: String,
+    expectedErrorOutput: String? = nil,
     moduleName: String = "ExecTest",
     allowDefaultStdlibLibrary: Bool = true
 ) throws {
-    try withTemporaryFile(contents: source) { path in
+    try compileAndRunKotlinSources(
+        [source], expectedOutput: expectedOutput, expectedErrorOutput: expectedErrorOutput, moduleName: moduleName,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+    )
+}
+
+/// Compile related fixtures together so source-injection coverage pays the
+/// bundled stdlib compilation cost once for the matrix.
+func compileAndRunKotlinSources(
+    _ sources: [String],
+    expectedOutput: String,
+    expectedErrorOutput: String? = nil,
+    moduleName: String,
+    allowDefaultStdlibLibrary: Bool
+) throws {
+    try withTemporaryFiles(contents: sources) { paths in
         let fm = FileManager.default
         let outputBase = fm.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
@@ -136,20 +153,41 @@ func compileAndRunKotlin(
 
         let options = makeTestOptions(
             moduleName: moduleName,
-            inputs: [path],
+            inputs: paths,
             outputPath: outputBase,
             emit: .executable,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
+        if allowDefaultStdlibLibrary {
+            guard let library = options.stdlibLibraryPath,
+                  fm.fileExists(atPath: library + "/manifest.json") else {
+                throw TestCompilationFailure(description: "Precompiled stdlib coverage requires an existing artifact")
+            }
+        } else if options.stdlibLibraryPath != nil || !options.includeStdlib {
+            throw TestCompilationFailure(description: "Source-injection coverage requires bundled stdlib sources")
+        }
         let result = makeTestDriver().runForTesting(options: options)
         try assertCompilationSucceeded(result)
 
         let runResult = try CommandRunner.run(executable: outputBase, arguments: [])
+        guard runResult.exitCode == 0 else {
+            throw TestCompilationFailure(
+                description: "Execution failed with exit \(runResult.exitCode): \(runResult.stderr)"
+            )
+        }
         let normalized = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
         guard normalized == expectedOutput else {
             throw TestCompilationFailure(
-                description: "Expected stdout '\(expectedOutput)' but got '\(normalized)'"
+                description: "Expected stdout \(String(reflecting: expectedOutput)) but got \(String(reflecting: normalized))"
             )
+        }
+        if let expectedErrorOutput {
+            let normalizedError = runResult.stderr.replacingOccurrences(of: "\r\n", with: "\n")
+            guard normalizedError == expectedErrorOutput else {
+                throw TestCompilationFailure(
+                    description: "Expected stderr \(String(reflecting: expectedErrorOutput)) but got \(String(reflecting: normalizedError))"
+                )
+            }
         }
     }
 }

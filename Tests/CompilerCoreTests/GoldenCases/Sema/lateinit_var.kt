@@ -1,3 +1,4 @@
+// KUU-1597 Sema owner: pin lateinit property access and isInitialized reference resolution; initialization failure/state transitions stay in Scripts/diff_cases/lateinit_var.kt.
 class Config {
     lateinit var name: String
 
@@ -7,14 +8,9 @@ class Config {
 }
 
 fun main() {
-    val c = Config()
-    println(c.isReady())
-    try {
-        println(c.name)
-    } catch (e: Exception) {
-        println("caught")
-    }
-    c.setup()
-    println(c.isReady())
-    println(c.name)
+    val config = Config()
+    val initiallyReady: Boolean = config.isReady()
+    config.setup()
+    val ready: Boolean = config.isReady()
+    val name: String = config.name
 }

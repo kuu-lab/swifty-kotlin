@@ -1,5 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlinx.cinterop handle types and the kotlin.native
-// identityHashCode surface are Kotlin/Native-only; JVM kotlinc cannot resolve them.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: native_cinterop_misc.expected.stdout
 @file:OptIn(kotlin.native.ExperimentalNativeApi::class)
 
 import kotlinx.cinterop.CPointed
@@ -13,6 +12,6 @@ fun probeTypes(p: CPointed?, f: CFunction<*>?, pl: NativePlacement?, fpl: Native
 
 fun main() {
     val obj = Any()
-    println(identityHashCode(obj) == identityHashCode(obj))
+    println(obj.identityHashCode() == obj.identityHashCode())
     println(probeTypes(null, null, null, null))
 }

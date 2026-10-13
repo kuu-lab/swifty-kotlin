@@ -1,12 +1,12 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite
 struct CodegenBackendSequenceLastIndexOfTests {
-    private let pipelineHelper = CodegenBackendTestSupport()
 
     @Test
     func testCodegenSequenceLastIndexOfReturnsFinalMatchingIndexOrMinusOne() throws {
@@ -44,33 +44,13 @@ struct CodegenBackendSequenceLastIndexOfTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            let legacyCallee = try runtimeABICallee("sequence_lastIndexOf")
             #expect(
-                containsKotlinCallee("lastIndexOf", in: callees) && !callees.contains("kk_sequence_lastIndexOf"),
+                containsKotlinCallee("lastIndexOf", in: callees) && !callees.contains(legacyCallee),
                 "Expected Sequence.lastIndexOf to resolve through the stdlib artifact, got callees: \(callees.sorted())"
             )
         }
     }
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 }
 #endif

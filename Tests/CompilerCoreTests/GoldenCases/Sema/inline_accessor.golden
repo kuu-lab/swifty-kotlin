@@ -7,7 +7,7 @@ file finline_accessor package=test
 expr e@5:17 name(width) type=Int ref=test.Rect.width[kind=prop;type=Int;origin=fixture]
 expr e@5:25 name(height) type=Int ref=test.Rect.height[kind=prop;type=Int;origin=fixture]
 expr e@5:17#1 binary(multiply) lhs=e@5:17 rhs=e@5:25 type=Int
+expr e@8:17 name(field) type=String ref=test.Rect.$backing_label[kind=bfield;type=String;mutable;origin=fixture]
 expr e@9:30 name(value) type=String ref=s-0
 expr e@9:22 localAssign field value=e@9:30 type=Unit ref=test.Rect.$backing_label[kind=bfield;type=String;mutable;origin=fixture]
-expr e@8:17 name(field) type=String ref=test.Rect.$backing_label[kind=bfield;type=String;mutable;origin=fixture]
 expr e@7:25 string() type=String

@@ -31,6 +31,7 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
         // Drop the seeded-Random tag together with the registration so a
         // later box reusing this address is not misread as a SeededRandomBox.
         state.seededRandomPointers.remove(key)
+        state.retainedAtomicReferenceHandles.remove(key)
         return state.objectPointers.remove(key) != nil
     }
     guard removed else {
@@ -67,7 +68,6 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
 ///
 /// Returns `1` when the retained allocation was released and `0` when the
 /// handle was null, stale, borrowed, pinned, or already released.
-@_cdecl("kk_object_release")
 public func kk_object_release(_ objectRaw: Int) -> Int {
     runtimeReleaseObject(objectRaw) ? 1 : 0
 }

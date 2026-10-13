@@ -1,0 +1,16 @@
+# These 13 immutable upstream source pins preserve their exact bytes and hashes.
+# Upstream comment whitespace is evidence, so only blank-at-eol is exempted.
+# Compiler sources and all other paths retain normal whitespace checks.
+commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt whitespace=-blank-at-eol
+commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt whitespace=-blank-at-eol
+commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt whitespace=-blank-at-eol
+commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt whitespace=-blank-at-eol
+commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt whitespace=-blank-at-eol
+commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt whitespace=-blank-at-eol
+concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt whitespace=-blank-at-eol
+nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt whitespace=-blank-at-eol
+nativeMain/kotlin/kotlinx/atomicfu/Trace.kt whitespace=-blank-at-eol
+nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt whitespace=-blank-at-eol
+nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt whitespace=-blank-at-eol
+nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt whitespace=-blank-at-eol
+commonMain/kotlin/kotlinx/atomicfu/MangledJsNames.kt whitespace=-blank-at-eol

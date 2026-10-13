@@ -96,8 +96,6 @@ private struct KlibRecordMaterializer {
         self.interner = interner
     }
 
-    // MARK: - Entry points
-
     mutating func materializeFile(_ fileIndex: Int) throws {
         let file = try module.file(fileIndex)
         let packageSegments = (try? module.fqName(file.fqName, fileIndex: fileIndex))
@@ -177,8 +175,6 @@ private struct KlibRecordMaterializer {
             break
         }
     }
-
-    // MARK: - Nominal declarations
 
     private mutating func materializeClass(
         _ klass: KlibClass,
@@ -267,8 +263,6 @@ private struct KlibRecordMaterializer {
             materializeClassMember(member, ownerClass: klass, ownerFqName: fqName, fileIndex: fileIndex)
         }
     }
-
-    // MARK: - Callables
 
     private mutating func materializeFunction(
         _ function: KlibFunction,
@@ -415,8 +409,6 @@ private struct KlibRecordMaterializer {
         )
     }
 
-    // MARK: - Properties and fields
-
     private mutating func materializeProperty(
         _ property: KlibProperty,
         containerFqName: [String],
@@ -562,8 +554,6 @@ private struct KlibRecordMaterializer {
         )
     }
 
-    // MARK: - Fq-name and signature resolution
-
     /// Resolves the declaration's fq-name segments from its signature.
     /// `CommonIdSignature` carries package + declaration segments directly;
     /// file-local/private declarations fall back to the walk context's
@@ -633,8 +623,6 @@ private struct KlibRecordMaterializer {
             return nil
         }
     }
-
-    // MARK: - Type signature encoding
 
     /// Encodes a `types`-table entry into the `.kklib` signature language.
     private mutating func encodeType(_ typeIndex: Int32, fileIndex: Int) -> String? {
@@ -725,8 +713,6 @@ private struct KlibRecordMaterializer {
         case .final: .final
         }
     }
-
-    // MARK: - Annotations and constants
 
     private func annotationRecords(_ annotations: [KlibAnnotation], fileIndex: Int) -> [MetadataAnnotationRecord] {
         annotations.compactMap { annotation in

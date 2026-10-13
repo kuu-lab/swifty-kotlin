@@ -58,7 +58,6 @@ public func kk_uint_to_ulong(_ value: Int) -> Int {
     value
 }
 
-// MARK: - Unsigned toByte / toShort Conversions (SPEC-NUM-0007)
 
 @_cdecl("kk_uint_to_byte")
 public func kk_uint_to_byte(_ value: Int) -> Int {
@@ -101,7 +100,6 @@ public func kk_ushort_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
 }
 
-// MARK: - Unsigned toFloat / toDouble Conversions
 
 @_cdecl("kk_uint_to_float")
 public func kk_uint_to_float(_ value: Int) -> Int {
@@ -143,7 +141,6 @@ public func kk_ushort_to_double(_ value: Int) -> Int {
     kk_double_to_bits(Double(value))
 }
 
-// MARK: - UByte and UShort Conversions (STDLIB-PRIM-002)
 
 @_cdecl("kk_int_to_ubyte")
 public func kk_int_to_ubyte(_ value: Int) -> Int {
@@ -254,44 +251,35 @@ public func kk_ushort_to_ulong(_ value: Int) -> Int {
     value
 }
 
-// MARK: - Char Conversions (STDLIB-PRIM-002)
 
 @_cdecl("kk_int_to_char")
 public func kk_int_to_char(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: kk_unbox_int(value)))
+    kk_int_to_ushort(value)
 }
 
-// MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
 
 
-@_cdecl("kk_byte_to_uint")
 public func kk_byte_to_uint(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_short_to_uint")
 public func kk_short_to_uint(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_byte_to_ulong")
 public func kk_byte_to_ulong(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_short_to_ulong")
 public func kk_short_to_ulong(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
-// MARK: - Additional Char Conversions (STDLIB-PRIM-002)
 
-@_cdecl("kk_byte_to_char")
 public func kk_byte_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int8(truncatingIfNeeded: value)))
 }
 
-@_cdecl("kk_short_to_char")
 public func kk_short_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int16(truncatingIfNeeded: value)))
 }

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "synthetic_member_properties_require_receiver.kt",
+      "range": {
+        "start": { "line": 3, "character": 12 },
+        "end": { "line": 3, "character": 23 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0022",
+      "source": "kswiftk",
+      "message": "Unresolved reference 'currentTime'.",
+      "codeActions": [{ "title": "Check spelling or add import for symbol", "kind": "quickfix" }]
+    },
+    {
+      "file": "synthetic_member_properties_require_receiver.kt",
+      "range": {
+        "start": { "line": 4, "character": 12 },
+        "end": { "line": 4, "character": 25 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0022",
+      "source": "kswiftk",
+      "message": "Unresolved reference 'testScheduler'.",
+      "codeActions": [{ "title": "Check spelling or add import for symbol", "kind": "quickfix" }]
+    },
+    {
+      "file": "synthetic_member_properties_require_receiver.kt",
+      "range": {
+        "start": { "line": 5, "character": 12 },
+        "end": { "line": 5, "character": 27 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0022",
+      "source": "kswiftk",
+      "message": "Unresolved reference 'backgroundScope'.",
+      "codeActions": [{ "title": "Check spelling or add import for symbol", "kind": "quickfix" }]
+    }
+  ]
+}

@@ -1,0 +1,709 @@
+{
+  "schema_version": 1,
+  "kotlin": "2.3.10",
+  "kotlinx_io": "0.9.1",
+  "repository": "https://github.com/Kotlin/kotlinx-io",
+  "commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "upstream_files": [
+    {
+      "path": "bytestring/apple/test/ByteStringAppleTest.kt",
+      "git_blob_sha": "45166786a343d75ace421102bb523f0619f0fbeb",
+      "sha256": "db1e588c7bb7d5a8299602111c43a51b3ad353ad49d05b5b2058f9304d1c527a",
+      "bytes": 2340
+    },
+    {
+      "path": "bytestring/apple/test/samples/samplesApple.kt",
+      "git_blob_sha": "9d0701638d7e201e1ab6eba0b5a0ec2322a0ea9e",
+      "sha256": "5a74904d944e24f6aaa05292cca58135f4f1ed3c171ee240145e012e5b90e797",
+      "bytes": 1177
+    },
+    {
+      "path": "bytestring/common/test/ByteStringBase64Test.kt",
+      "git_blob_sha": "32daee64a9286ade61f933de366e75aa4b47d81b",
+      "sha256": "26b11fbe7b6d375b2cbf44d4591d0232bf05b10794815cdbe5628e8187709435",
+      "bytes": 8846
+    },
+    {
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "git_blob_sha": "2fbb054083fa091ef563e62c51533fe07c1d0c9e",
+      "sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "bytes": 4494
+    },
+    {
+      "path": "bytestring/common/test/ByteStringHexTest.kt",
+      "git_blob_sha": "131830e22b25e12f10b2a06b911c9c7a5e759c12",
+      "sha256": "12aa04364b50e0e66552582c7adbf96eb1cb1fb6d3136ebc905e1f61a983b59b",
+      "bytes": 1915
+    },
+    {
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "git_blob_sha": "5aefaf5f5eaaf3ecfed336f5998d6cb717dd59c8",
+      "sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "bytes": 16826
+    },
+    {
+      "path": "bytestring/common/test/samples/samples.kt",
+      "git_blob_sha": "14cbf86d402c9f0c3b073af4abb263aa6fd51066",
+      "sha256": "374970e8b6269df3e2b91b4e5024181e36aa6caa9e8ecd46cd4f61f913bdc319",
+      "bytes": 9272
+    },
+    {
+      "path": "bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt",
+      "git_blob_sha": "a0b1902df09392cc663149382c40d81d0794be19",
+      "sha256": "d1b2850c996803000fe25c42f542f627589ed5c03ea01f308f91ef414820e704",
+      "bytes": 695
+    },
+    {
+      "path": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+      "git_blob_sha": "1a08ae36923dac14f1472165c26072608d62e98d",
+      "sha256": "231cd70ba86a816d802d029ca5ff75f02a7bcfa7f327248e7181218045d752c4",
+      "bytes": 3578
+    },
+    {
+      "path": "bytestring/jvm/test/ByteStringJvmTest.kt",
+      "git_blob_sha": "37f9b86ae0aaeef69a608220502ee111200caa77",
+      "sha256": "787ebe6d442eff9aff38af486d997c4cbdb274845c6697f002b4e7ae437c32dc",
+      "bytes": 1151
+    },
+    {
+      "path": "bytestring/jvm/test/samples/samplesJvm.kt",
+      "git_blob_sha": "ee97d186f1f457f628da02e632cab92eda0e144b",
+      "sha256": "353c5becb9df886b2d6cdae0f98e5398b8bd34b9702a35beeed454fdc3a071cc",
+      "bytes": 2502
+    },
+    {
+      "path": "core/apple/test/NSInputStreamSourceTest.kt",
+      "git_blob_sha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+      "sha256": "8d9cc441568543fdbf35edbffd31ec64c243156baf539664f9825d2d48c3a533",
+      "bytes": 2877
+    },
+    {
+      "path": "core/apple/test/NSOutputStreamSinkTest.kt",
+      "git_blob_sha": "2b14b6fda4bc6653cbebc880f3a4a4fa5367ee1c",
+      "sha256": "834c8aedacbf91b32c1e147c966a88fa4cb81503dbe2175b111b9cba95c828df",
+      "bytes": 1651
+    },
+    {
+      "path": "core/apple/test/SinkNSOutputStreamTest.kt",
+      "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+      "sha256": "3794605c9d61316bc4a47c92bc1070a1a2f5a7c1c2176cf131e02b995c81876c",
+      "bytes": 6695
+    },
+    {
+      "path": "core/apple/test/SourceNSInputStreamTest.kt",
+      "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+      "sha256": "3e28345e7b58b20279b0dd5683f47bbd98f36af0bd3800f735f26358a98189ef",
+      "bytes": 11241
+    },
+    {
+      "path": "core/apple/test/samples/samplesApple.kt",
+      "git_blob_sha": "99b062ccb723393051de440f69ed0e556a9dec7b",
+      "sha256": "af5b958303e7352d348ab3c0a41c7d862c8a58ced99c227fcba786a577f44a77",
+      "bytes": 1761
+    },
+    {
+      "path": "core/apple/test/utilApple.kt",
+      "git_blob_sha": "eb393be3145850b25c0c8ce8967f8d8cf8ce0b2f",
+      "sha256": "0b47e570260b8b6a5ed83311af27a85a6c5b4f31ff534c877067060703c524e5",
+      "bytes": 2361
+    },
+    {
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "git_blob_sha": "f52f5eb7b204ddeca7a3e502d01cfcf0dab1b19a",
+      "sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "bytes": 15919
+    },
+    {
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "git_blob_sha": "5c830ec8b7e60a46d12be3b55c194e4aab39fc87",
+      "sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "bytes": 55133
+    },
+    {
+      "path": "core/common/test/AlwaysSharedCopyTrackerTest.kt",
+      "git_blob_sha": "62418c8c0b854afc0aabf701b62220b2c172b8ac",
+      "sha256": "e18d931ec2d52d3dda8c31785622959711b1a92d9e2d415f66e3c63c5002bc45",
+      "bytes": 656
+    },
+    {
+      "path": "core/common/test/CommonBufferTest.kt",
+      "git_blob_sha": "801c21cca0aafcb5854de25d2cbdb6dd1c5f0f9e",
+      "sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "bytes": 21696
+    },
+    {
+      "path": "core/common/test/CommonPlatformTest.kt",
+      "git_blob_sha": "2cf8faa20a4c8f3de4498e300ea8e5608520518c",
+      "sha256": "bd825e64102804492d31089eae4d802d9cd15998de359b59e488d02a8fc9b6a6",
+      "bytes": 1515
+    },
+    {
+      "path": "core/common/test/CommonRealSinkTest.kt",
+      "git_blob_sha": "f6b454e97b779d097ffe934932f2997faa9083c6",
+      "sha256": "806d3fd49813a16920b9b604635ee86593825be360da4f4d35ada9811c133516",
+      "bytes": 7364
+    },
+    {
+      "path": "core/common/test/CommonRealSourceTest.kt",
+      "git_blob_sha": "b345516f2d022d8e50e44bfa44e6f0f5747be6a6",
+      "sha256": "870e20ff48f7705d05ecad3b38ac7840e85b18d1e994b06708612a3bf3932b4b",
+      "bytes": 7100
+    },
+    {
+      "path": "core/common/test/DelicateApiTest.kt",
+      "git_blob_sha": "70abc821bad133a4359c406b7ab737579a5dc77e",
+      "sha256": "1191ef1f99c20ad967245ec3542b5861b06716182bd8d19aff74768f59f2e206",
+      "bytes": 1513
+    },
+    {
+      "path": "core/common/test/LineSeparatorTest.kt",
+      "git_blob_sha": "ca03a987416bb30feafc5e69aae9d5e0c515fd1b",
+      "sha256": "b8509ddd99123e62e5b3af6467d5b02ea43c9dd3025df899dbde72b165f623be",
+      "bytes": 535
+    },
+    {
+      "path": "core/common/test/MockSink.kt",
+      "git_blob_sha": "30725f753c81b1e3698cfa4c4988488604fd5784",
+      "sha256": "f3d6e4274a67141f6e9a17cf261524dabaed9820e3d92489d202719c3aceab97",
+      "bytes": 1853
+    },
+    {
+      "path": "core/common/test/SinkFactory.kt",
+      "git_blob_sha": "54a4d54c8750a05349ac4d22eb196468ae16a600",
+      "sha256": "a8dc9b2a11c0b998665985eff476ba5183947afccabcc33a050a36134d2b7dbe",
+      "bytes": 1277
+    },
+    {
+      "path": "core/common/test/SourceFactory.kt",
+      "git_blob_sha": "554c7f74f0d89eed60c195d2caefcfb40b90c040",
+      "sha256": "ed5966777d8cd4b4890bca670631c97499f8296e81d7fb6cc3cbb6fa65aa32e5",
+      "bytes": 5115
+    },
+    {
+      "path": "core/common/test/Utf8Test.kt",
+      "git_blob_sha": "499039d7d5ecff8f3c39754aece19fa35afcc207",
+      "sha256": "dd3c87527d61d9284be5b93c3a7f61374c41676578e93060ead9d4bf50f6c774",
+      "bytes": 19582
+    },
+    {
+      "path": "core/common/test/UtilsTest.kt",
+      "git_blob_sha": "392dc7baffd906fbfe3ea6997601df39926fcdeb",
+      "sha256": "4ef65ed3fc7f450ea02615b6e2c27a500df16b86c75365fd6a98a5af41bee062",
+      "bytes": 1165
+    },
+    {
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "git_blob_sha": "db7824e7a348529bcb1cfcde76fbfe92ab0f493f",
+      "sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "bytes": 14635
+    },
+    {
+      "path": "core/common/test/files/SmokeFileTestWindows.kt",
+      "git_blob_sha": "5c11784195394700eaf23f4d8628f59c8e204a7a",
+      "sha256": "be1495dcf298ee67921c0ec69824018fd36955f98d12d6940ab01ebdcba8f355",
+      "bytes": 1580
+    },
+    {
+      "path": "core/common/test/files/UtilsTest.kt",
+      "git_blob_sha": "496ef423906a71c817aba2aec83fe459d3cd0258",
+      "sha256": "d4f9d1269f4420e72f5f90b366005c342bbebe8082afc8d29c5efaa561c13f7d",
+      "bytes": 2551
+    },
+    {
+      "path": "core/common/test/samples/byteStringSample.kt",
+      "git_blob_sha": "6b3c743325cca8a34b1871a567bc11154526d36f",
+      "sha256": "a1911438034dae5554d470b6f6d58aacc96bac73c4c86076a82549f0180b736b",
+      "bytes": 1340
+    },
+    {
+      "path": "core/common/test/samples/moduleDescriptionSample.kt",
+      "git_blob_sha": "fd2f3f6ccc30c334a7a73d8cd9a7cda0cd9e5358",
+      "sha256": "bdd8d1bbb815549fd047ff1bd0b63920d3ae376769acf9ea95d5c982546a7535",
+      "bytes": 2938
+    },
+    {
+      "path": "core/common/test/samples/rawSinkSample.kt",
+      "git_blob_sha": "ae25a396dc0d8366666766d636ae1e35ba14ce39",
+      "sha256": "b6e4f565977f0b7be9156ee99fbc04c00af8abc7c875faf98e28ceab5ea31cba",
+      "bytes": 2345
+    },
+    {
+      "path": "core/common/test/samples/rawSourceSample.kt",
+      "git_blob_sha": "6d25dba77930714149907de2509fb6653c0c157f",
+      "sha256": "4eaa66d1dca9175d95c6c9c47aa95f7cec7540231545aece196808a35f265906",
+      "bytes": 3033
+    },
+    {
+      "path": "core/common/test/samples/samples.kt",
+      "git_blob_sha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "sha256": "7b59c4fe909d22e75377bb89da2596f806b0f4b9390dffa3389aa3855b34436e",
+      "bytes": 23500
+    },
+    {
+      "path": "core/common/test/samples/unsafe/unsafeSamples.kt",
+      "git_blob_sha": "b51ba86f4d8fbb30e45d642f5876c055d1871dda",
+      "sha256": "7c1f689a565a8364d03d07b6884ff2f00cb094383adcfe668f9aec698b0fcef2",
+      "bytes": 12970
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsForEachTest.kt",
+      "git_blob_sha": "68ba2b5b6f1d0cc6ed4736629d05df24af5ddbdd",
+      "sha256": "74d0ff694d0c13533ae098d3a47adf32fe4fceb01e9ee2a7fe16b7da1dbc9bc6",
+      "bytes": 2108
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsIterationTest.kt",
+      "git_blob_sha": "16b07c12a633e0822d2d81cd6152b979356fc48c",
+      "sha256": "ef8e42c3a0e37114b6cff56a942aed708ddca8d4097ab9bea2129b27a7faffb6",
+      "bytes": 5452
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt",
+      "git_blob_sha": "b251c55923a912e141e089b1960496fdcba18a11",
+      "sha256": "6384cb82a0c5ff1b3ad15564d9190157daff614964ae065895c7801aacef0bc7",
+      "bytes": 2907
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsReadTest.kt",
+      "git_blob_sha": "7866afee0d37e9e03182b28e19f1b56a4ee715e2",
+      "sha256": "f966ef6dd6d0f2470aa05bf06fcae788f511be6f0fe6735a7b19ba075e4dab09",
+      "bytes": 6277
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+      "git_blob_sha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+      "sha256": "d49a734d0446659692b10032f751b1232ad8c57a8ce58ad4288f9115abf78eda",
+      "bytes": 8151
+    },
+    {
+      "path": "core/common/test/util.kt",
+      "git_blob_sha": "3d15705113a2da5629722f19e4da7d6396e72d76",
+      "sha256": "828ba55155aa655334db84312f11e65a27eae86ef7406177984a07b031d67434",
+      "bytes": 5858
+    },
+    {
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "git_blob_sha": "c143c151c02e9abd30133481ed5f7216ea4418b3",
+      "sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "bytes": 4767
+    },
+    {
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "git_blob_sha": "511446d903261c0d9d8bd2e90b7723add16fa086",
+      "sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "bytes": 8616
+    },
+    {
+      "path": "core/jvm/test/BufferTest.kt",
+      "git_blob_sha": "693cf67caf375cc51d568b7b39c27fff9a84dc98",
+      "sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "bytes": 8461
+    },
+    {
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "git_blob_sha": "220b067e7ddfaf5bf1cff901e6da7d8b91613df7",
+      "sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "bytes": 6371
+    },
+    {
+      "path": "core/jvm/test/NioTest.kt",
+      "git_blob_sha": "96c59629d256a6d75fa2ca9f16dfaff67707df18",
+      "sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "bytes": 5627
+    },
+    {
+      "path": "core/jvm/test/PoolingTest.kt",
+      "git_blob_sha": "009dc2eb3f88baaed66e6ca5c79791bbcb2d40a3",
+      "sha256": "45c5e0bac899cd59240020cc861353de1d06a50f761be4b58ea11759a8a3e59d",
+      "bytes": 5787
+    },
+    {
+      "path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+      "git_blob_sha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+      "sha256": "e15c85d294db3a8400bebf0496989564928b11be99740d8dd565f44388b4c8be",
+      "bytes": 968
+    },
+    {
+      "path": "core/jvm/test/files/SmokeFileTestWindowsJVM.kt",
+      "git_blob_sha": "d873a68b83ad99e55ea788601f324ce7b73c17c4",
+      "sha256": "bfbda74bde64e4349e9b424be25c387d8ffe608458d40966b0d4f26e93c3fd72",
+      "bytes": 578
+    },
+    {
+      "path": "core/jvm/test/samples/samplesJvm.kt",
+      "git_blob_sha": "f139d96fdb90092d5c346edd4bcd0db9fade8dff",
+      "sha256": "58989665f09beeaae056a6fd18a3d8cae8cd557528976347cca1123a50903a4a",
+      "bytes": 3955
+    },
+    {
+      "path": "core/jvm/test/samples/unsafeAccessSamplesJvm.kt",
+      "git_blob_sha": "e2dca4b6d4f75a28f30bdb1d5cda270ebceccf6b",
+      "sha256": "5ef6f48605bedda18f481f1f4cc64b41e571c34575784f64d4957ec5811d719e",
+      "bytes": 5230
+    },
+    {
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "git_blob_sha": "8d4d8af0451b44da4e88108a990a9c18ccbad20e",
+      "sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "bytes": 7312
+    },
+    {
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "git_blob_sha": "e6fd67a94b0f29638ba5d7d32aad4dfac04f444c",
+      "sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "bytes": 4524
+    },
+    {
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "git_blob_sha": "ebb99c5211cb03bcb82df92556d2da8c97690adb",
+      "sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "bytes": 3753
+    },
+    {
+      "path": "core/jvm/test/utilJVM.kt",
+      "git_blob_sha": "5d0833deeee8b9f433eb6a715ce20b86e7a6830c",
+      "sha256": "02b970d024139a634a4b015319a5722392d57438d8f2ce858f0429c8c5ddcca8",
+      "bytes": 847
+    },
+    {
+      "path": "core/native/test/util.kt",
+      "git_blob_sha": "0743a43ae0189bf4824693fc53b03e0d5600425c",
+      "sha256": "3df97b61b3d79867ccc44e666a91fb85277eb8398478699daea33740cc63188e",
+      "bytes": 833
+    }
+  ],
+  "jvm_artifacts": [
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-jvm/0.9.1/kotlinx-io-core-jvm-0.9.1.jar",
+      "sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370"
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/0.9.1/kotlinx-io-bytestring-jvm-0.9.1.jar",
+      "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+    },
+    {
+      "coordinate": "org.junit.platform:junit-platform-console-standalone:1.12.2",
+      "url": "https://repo.maven.apache.org/maven2/org/junit/platform/junit-platform-console-standalone/1.12.2/junit-platform-console-standalone-1.12.2.jar",
+      "sha256": "329bd10288875a74d04c9ca6b7c9889c265ddf87b21a9ea42a7f7392f391472a",
+      "bytes": 2950047
+    }
+  ],
+  "sdk_files": [
+    {
+      "path": "bin/kotlinc",
+      "sha256": "90750c977cc043dd2b05c69dd4e052c10377554925dd5a155e74ef732be28c7d"
+    },
+    {
+      "path": "lib/allopen-compiler-plugin.jar",
+      "sha256": "31b7748ab62f5f5879aea85a87b7a4cded65f545aebc7bae74f7f6e2b2740bb3"
+    },
+    {
+      "path": "lib/annotations-13.0.jar",
+      "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478"
+    },
+    {
+      "path": "lib/assignment-compiler-plugin.jar",
+      "sha256": "49c47d47d040aac599dd472b93b5d8acc290734efbedca383c598217937d2dc6"
+    },
+    {
+      "path": "lib/compose-compiler-plugin.jar",
+      "sha256": "de3ed66aaf3fbbd74c64164fd75ac93778e59f90146e1b5de7f9398189589d46"
+    },
+    {
+      "path": "lib/jvm-abi-gen.jar",
+      "sha256": "ffd4e08aca14cd06d27c9208376351dc065080bc6354ae8a023df585446922bf"
+    },
+    {
+      "path": "lib/kotlin-annotation-processing-cli.jar",
+      "sha256": "c6cae005cab063c28e2ec2af8421e6d0dc2c6be03fe73b433a6a5129061d907f"
+    },
+    {
+      "path": "lib/kotlin-annotation-processing-runtime.jar",
+      "sha256": "1ddca86ef9462961b656a03040caf5f940b850fd196a52db29065c9352dc8074"
+    },
+    {
+      "path": "lib/kotlin-annotation-processing.jar",
+      "sha256": "6f382abd85925cf6b9021e5e5a7a10ff441ff5ae35b06d7fb2118b62c978f660"
+    },
+    {
+      "path": "lib/kotlin-annotations-jvm-sources.jar",
+      "sha256": "bf594d0e3a35c21b1f07097d9e10b6ab524ae5bb2ffdb92ea9b1f79f28e8ab09"
+    },
+    {
+      "path": "lib/kotlin-annotations-jvm.jar",
+      "sha256": "6054230599c840c69af3657c292b768f2b585c25fba91d26cd5ad8c992757b03"
+    },
+    {
+      "path": "lib/kotlin-compiler.jar",
+      "sha256": "205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8"
+    },
+    {
+      "path": "lib/kotlin-daemon-client.jar",
+      "sha256": "d21a6f77d9803a615e6d150857377e10a9e8c7cd06ae6e1c1eb99920fda38b93"
+    },
+    {
+      "path": "lib/kotlin-daemon.jar",
+      "sha256": "5b9f59f55e4090f8060b299fcb7e5d67df6c98a0fafcc7273d82866e13be5101"
+    },
+    {
+      "path": "lib/kotlin-main-kts.jar",
+      "sha256": "693b9dafe66bcb518dbcd16142f35cac6cb9ccbb871643d96d2b02b11bde2f96"
+    },
+    {
+      "path": "lib/kotlin-metadata-jvm-sources.jar",
+      "sha256": "b57b430ec604edd61b4cc863e09b48efb5c67ca06bacf30857e105045d2f4ddd"
+    },
+    {
+      "path": "lib/kotlin-metadata-jvm.jar",
+      "sha256": "c1df5bc6530b4c744b13788dbf8540a469898fdfbcde6abca9119184f5d3707c"
+    },
+    {
+      "path": "lib/kotlin-preloader.jar",
+      "sha256": "af1a852e4d69a657a38c5116b44af9dcea18a94bccbf1c0792c07827cf02fb56"
+    },
+    {
+      "path": "lib/kotlin-reflect-sources.jar",
+      "sha256": "fa1664e3d51e4a27d7a2f440581e3f5ffce01795790c11b145a9965f5101cbfa"
+    },
+    {
+      "path": "lib/kotlin-reflect.jar",
+      "sha256": "10b4a1b5e3957efe90f474bd04a747249a259b2615a6f0504507d323c2be350b"
+    },
+    {
+      "path": "lib/kotlin-runner.jar",
+      "sha256": "8730617cf81d6c8392ba9d70e75232bc1e709f06226eacd5aba06bf7466a0561"
+    },
+    {
+      "path": "lib/kotlin-script-runtime-sources.jar",
+      "sha256": "d9d6b416bf1267d5d9a2fffb309c8d02fa707608154d7b0d7dd318d2dd7daa96"
+    },
+    {
+      "path": "lib/kotlin-script-runtime.jar",
+      "sha256": "d0b3b08ecf8901c6610aa0e8efb29db3731bfbd96afd4f987cc817016b1e003e"
+    },
+    {
+      "path": "lib/kotlin-scripting-common.jar",
+      "sha256": "7e9143d22c80b3d02c96982431b1c96ba091eff7bf4390ab4b8949ecee43f285"
+    },
+    {
+      "path": "lib/kotlin-scripting-compiler-impl.jar",
+      "sha256": "8955408e620788a43519a8394a89ae2a8f4ca19cc5137f733fdd2b67d6e9d57e"
+    },
+    {
+      "path": "lib/kotlin-scripting-compiler.jar",
+      "sha256": "6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08"
+    },
+    {
+      "path": "lib/kotlin-scripting-jvm.jar",
+      "sha256": "bf232a519af02952e101086fabd4884436257656c45db081783cac4b149664b7"
+    },
+    {
+      "path": "lib/kotlin-serialization-compiler-plugin.jar",
+      "sha256": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk7-sources.jar",
+      "sha256": "2534c8908432e06de73177509903d405b55f423dd4c2f747e16b92a2162611e6"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk7.jar",
+      "sha256": "9c208de17b6d0d701629cb972eb568d092f28af863e32ef68f22374dc8b8b8fb"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk8-sources.jar",
+      "sha256": "3cb6895054a0985bba591c165503fe4dd63a215af53263b67a071ccdc242bf6e"
+    },
+    {
+      "path": "lib/kotlin-stdlib-jdk8.jar",
+      "sha256": "6581d8c24374200577b84149d8be7f744e07e1cd3bc425179a3b9d07bf3f6741"
+    },
+    {
+      "path": "lib/kotlin-stdlib-js-sources.jar",
+      "sha256": "d1c87b3f87e58ad5494c5ed064053f79d96585e2bd627c7250e7c5d43faa68dc"
+    },
+    {
+      "path": "lib/kotlin-stdlib-sources.jar",
+      "sha256": "21a3acec677a5483cacd6e956bee49f1f816c0e9ece3b39d188b6fd3720fd306"
+    },
+    {
+      "path": "lib/kotlin-stdlib.jar",
+      "sha256": "f61662c6d3a2f8ef5bd34362a02d877772c39f393cd394feb259dfaf7f4d8437"
+    },
+    {
+      "path": "lib/kotlin-test-js-sources.jar",
+      "sha256": "9a52592696b63a75dea3f181bf8bb4ff0515f30a9b663058241885857507f6ac"
+    },
+    {
+      "path": "lib/kotlin-test-junit-sources.jar",
+      "sha256": "3fd39bbf3f8283cf7b7759e02abdd752ddde9964352f645467b779257bccef20"
+    },
+    {
+      "path": "lib/kotlin-test-junit.jar",
+      "sha256": "5b2a437aaed0af8212afac1b544c8982896c687c387fe561a8118037d92e55b5"
+    },
+    {
+      "path": "lib/kotlin-test-junit5-sources.jar",
+      "sha256": "5e0d4688277a3f859be086b874601b45f54b30b5b045800138b54e9418bdc95b"
+    },
+    {
+      "path": "lib/kotlin-test-junit5.jar",
+      "sha256": "cf8ca32a20b18130acdde3f6b8e29b01cc7ea7f792326a122c6fe5434214c889"
+    },
+    {
+      "path": "lib/kotlin-test-sources.jar",
+      "sha256": "031bd9d2f7cc9caaf369448c60eaa61f68788bd9777ae0c1141ec9b7fe5a83b4"
+    },
+    {
+      "path": "lib/kotlin-test-testng-sources.jar",
+      "sha256": "b88a8f12928480d14e29c6c879958c156afc946b9b8d333d1c2f4a428cdb1041"
+    },
+    {
+      "path": "lib/kotlin-test-testng.jar",
+      "sha256": "ed3fbd193452534df58d345d4e15ab079a08e5b2d79ced24896d01b1879e3099"
+    },
+    {
+      "path": "lib/kotlin-test.jar",
+      "sha256": "25e706274e2815ee00e051e2b27adc250dcc6450cd8ec4f79f7225f5b5a13cb8"
+    },
+    {
+      "path": "lib/kotlinx-coroutines-core-jvm.jar",
+      "sha256": "9860906a1937490bf5f3b06d2f0e10ef451e65b95b269f22daf68a3d1f5065c5"
+    },
+    {
+      "path": "lib/kotlinx-serialization-compiler-plugin.jar",
+      "sha256": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6"
+    },
+    {
+      "path": "lib/lombok-compiler-plugin.jar",
+      "sha256": "849f0a740c4fdd49e5c72b39a1e30c2c70bbc2dbf914160c228dd1ea9728ecea"
+    },
+    {
+      "path": "lib/mutability-annotations-compat.jar",
+      "sha256": "8c76693fde1f34baaeaf5298e1953fca489c8e90ce6c065f96dd20d978c2003b"
+    },
+    {
+      "path": "lib/noarg-compiler-plugin.jar",
+      "sha256": "98e509a1e1f94fb29e4fcd9ef3eccf3b16c33457b8a76e07251c411b327ddc63"
+    },
+    {
+      "path": "lib/parcelize-compiler.jar",
+      "sha256": "9a440c5b2e7cae6cf09623ffd0d49134c35e169183a0d01a8b819bca956e1630"
+    },
+    {
+      "path": "lib/parcelize-runtime.jar",
+      "sha256": "89ee89608e9f2b54364758c81448b3324afb11be9863c6ef410bb2e35c34e332"
+    },
+    {
+      "path": "lib/power-assert-compiler-plugin.jar",
+      "sha256": "19a8cb1ab7e5e342254cf0b724e5e2deb725deaa113c5a844473ea3aee7863e4"
+    },
+    {
+      "path": "lib/sam-with-receiver-compiler-plugin.jar",
+      "sha256": "db21d5c13f6e3663f09cf4e418a4cf2f05637ae758c615eafaded778d5348931"
+    },
+    {
+      "path": "lib/scripting-compiler.jar",
+      "sha256": "6a63a02a78c7344732d411eb22fdec6b87b377b65190d1ecd8ec28c174c12b08"
+    }
+  ],
+  "jvm_execution_catalog_sha256": "81026bbe093c7c0d150830a8b3de67097f9efcdc980494325f93fb6b537f8917",
+  "expected_jvm_execution_count": 1403,
+  "expected_jvm_function_id_count": 651,
+  "compiler_archive": {
+    "url": "https://github.com/JetBrains/kotlin/releases/download/v2.3.10/kotlin-compiler-2.3.10.zip",
+    "sha256": "c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e"
+  },
+  "native_artifacts": [
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-macosarm64:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-macosarm64/0.9.1/kotlinx-io-core-macosarm64-0.9.1.klib",
+      "sha256": "8af9ce3402b639aebcb029539cc7b71e2bada133e46c0f3be8793570223978bd",
+      "bytes": 233905
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-macosarm64:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-macosarm64/0.9.1/kotlinx-io-bytestring-macosarm64-0.9.1.klib",
+      "sha256": "b20ec12601f9bd20c346be668b5d0429fa960f22782b73955891273913c6db04",
+      "bytes": 40404
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-macosx64:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-macosx64/0.9.1/kotlinx-io-core-macosx64-0.9.1.klib",
+      "sha256": "18db85fccbfce3b1f5c661548bffd4da92c01cbb01a60017852f491e49e5f247",
+      "bytes": 233892
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-macosx64:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-macosx64/0.9.1/kotlinx-io-bytestring-macosx64-0.9.1.klib",
+      "sha256": "763a6508c8622948d63dccc769136f436da2d18192cc62ce978747e30a58817a",
+      "bytes": 40391
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-linuxx64:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-linuxx64/0.9.1/kotlinx-io-core-linuxx64-0.9.1.klib",
+      "sha256": "436a22a2528b0e66f4d2becfca32d37aa35e2b16c1131f94912ffd16c1b049c7",
+      "bytes": 199220
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-linuxx64:0.9.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-linuxx64/0.9.1/kotlinx-io-bytestring-linuxx64-0.9.1.klib",
+      "sha256": "166494f0fe3c1a94e4e4cb981a6721c10e2ba900320e915b54b87f8ffadfe496",
+      "bytes": 37638
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-coroutines-core-macosarm64:1.10.2",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-macosarm64/1.10.2/kotlinx-coroutines-core-macosarm64-1.10.2.klib",
+      "sha256": "82bffcd0f5f8802191b511777781b278772c587e4aa9273ee38aed30ac49e14e",
+      "bytes": 888192
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:atomicfu-macosarm64:0.26.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-macosarm64/0.26.1/atomicfu-macosarm64-0.26.1.klib",
+      "sha256": "657e9676e4c63ff597a5b5d3d43441b8556b3221ce4631a62338bd53f2e6d71b",
+      "bytes": 51173
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:atomicfu-macosarm64:0.26.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-macosarm64/0.26.1/atomicfu-macosarm64-0.26.1-cinterop-interop.klib",
+      "sha256": "274be07b17a85bcdaecd380fe6f74957c749b6fa40c06ffc0ad50173b100b080",
+      "bytes": 3770
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-coroutines-core-macosx64:1.10.2",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-macosx64/1.10.2/kotlinx-coroutines-core-macosx64-1.10.2.klib",
+      "sha256": "11f4a40d24ee9124fdea723c812af80c35b6085169f7a7fd4cbb483545464485",
+      "bytes": 888174
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:atomicfu-macosx64:0.26.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-macosx64/0.26.1/atomicfu-macosx64-0.26.1.klib",
+      "sha256": "1d2ed37cccf2c0a0b2b2f9dbf5d970f469851bec305625335b2e76c3ce564ce9",
+      "bytes": 51156
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:atomicfu-macosx64:0.26.1",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-macosx64/0.26.1/atomicfu-macosx64-0.26.1-cinterop-interop.klib",
+      "sha256": "7e5e0e295d4b0a0f85491a1c03e46ad52938ccdd9f40711688bab439ea78e064",
+      "bytes": 3789
+    }
+  ],
+  "native_compiler_archives": {
+    "macos_arm64": {
+      "url": "https://github.com/JetBrains/kotlin/releases/download/v2.3.10/kotlin-native-prebuilt-macos-aarch64-2.3.10.tar.gz",
+      "sha256": "6726393c58b504991034ec4cc54745efe65446c30cdb5329657d26a91a6ddcb3"
+    },
+    "macos_x64": {
+      "url": "https://github.com/JetBrains/kotlin/releases/download/v2.3.10/kotlin-native-prebuilt-macos-x86_64-2.3.10.tar.gz",
+      "sha256": "ab13bd762142cd7b09547f4ceee8303204c28a81da3fbc0349f7754c8df40d5a"
+    },
+    "linux_x64": {
+      "url": "https://github.com/JetBrains/kotlin/releases/download/v2.3.10/kotlin-native-prebuilt-linux-x86_64-2.3.10.tar.gz",
+      "sha256": "f78db338f8126d63a4ccb572aa62e8557aa243e672a668fb545b920e913550c5"
+    }
+  },
+  "native_execution_catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+  "expected_native_common_execution_count": 1188,
+  "expected_native_apple_execution_count": 29
+}

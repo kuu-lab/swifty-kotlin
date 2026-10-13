@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// KUU-655: an `override` inherits the *base* declaration's default
@@ -14,14 +15,7 @@ import Testing
 struct OverrideDefaultArgumentInheritanceTests {
     @Test
     func classOverrideAcceptsOmittedArgumentThroughBaseType() throws {
-        let source = """
-        open class A { open fun f(x: Int = 1) = "A$x" }
-        class B : A() { override fun f(x: Int) = "B$x" }
-        fun probe(): String {
-            val a: A = B()
-            return a.f() + B().f()
-        }
-        """
+        let source = KotlinSourceFixtures.classOverrideInheritedDefaultArgument
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
@@ -52,14 +46,7 @@ struct OverrideDefaultArgumentInheritanceTests {
 
     @Test
     func interfaceOverrideAcceptsOmittedArgument() throws {
-        let source = """
-        interface I { fun m(x: Int = 5): String }
-        class IC : I { override fun m(x: Int) = "IC$x" }
-        fun probe(): String {
-            val i: I = IC()
-            return i.m() + IC().m()
-        }
-        """
+        let source = KotlinSourceFixtures.interfaceOverrideInheritedDefaultArgument
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)

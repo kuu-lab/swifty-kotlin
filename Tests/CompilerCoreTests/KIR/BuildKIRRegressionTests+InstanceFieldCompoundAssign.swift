@@ -28,11 +28,11 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "bump", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_array_get_inbounds"), "Expected a field load before the compound assign, got: \(callees)")
-        #expect(callees.contains("kk_array_set"), "Expected the compound assign to write back through the field offset, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arrayGetInbounds)), "Expected a field load before the compound assign, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arraySet)), "Expected the compound assign to write back through the field offset, got: \(callees)")
 
-        let getIndex = callees.firstIndex(of: "kk_array_get_inbounds")
-        let setIndex = callees.firstIndex(of: "kk_array_set")
+        let getIndex = callees.firstIndex(of: runtimeCallee(.arrayGetInbounds))
+        let setIndex = callees.firstIndex(of: runtimeCallee(.arraySet))
         #expect(getIndex != nil && setIndex != nil && getIndex! < setIndex!, "Expected the field load to precede the field store, got: \(callees)")
     }
 
@@ -52,8 +52,8 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "bump", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_array_get_inbounds"), "Expected a field load before the increment, got: \(callees)")
-        #expect(callees.contains("kk_array_set"), "Expected the increment to write back through the field offset, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arrayGetInbounds)), "Expected a field load before the increment, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arraySet)), "Expected the increment to write back through the field offset, got: \(callees)")
     }
 
     @Test func testCompoundAssignOnMultipleInstanceFieldsUsesDistinctOffsets() throws {
@@ -84,7 +84,7 @@ extension BuildKIRRegressionTests {
         }
         let storeOffsets = body.compactMap { instruction -> Int64? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_set",
+                  callee == ctx.interner.intern(runtimeCallee(.arraySet)),
                   arguments.count == 3
             else { return nil }
             return intLiteralByResult[arguments[1]]

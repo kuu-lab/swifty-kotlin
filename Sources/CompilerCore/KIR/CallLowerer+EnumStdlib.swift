@@ -16,8 +16,13 @@ extension CallLowerer {
            case let .typeParam(parameter) = sema.types.kind(of: type),
            sema.bindings.stdlibSpecialCallKind(for: exprID) == .enumValues {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter.symbol)
-            let token = arena.appendExpr(.symbolRef(tokenSymbol), type: sema.types.intType)
-            instructions.append(.constValue(result: token, value: .symbolRef(tokenSymbol)))
+            let token: KIRExprID
+            if let capturedToken = driver.ctx.localValue(for: tokenSymbol) {
+                token = capturedToken
+            } else {
+                token = arena.appendExpr(.symbolRef(tokenSymbol), type: sema.types.intType)
+                instructions.append(.constValue(result: token, value: .symbolRef(tokenSymbol)))
+            }
             let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID])
             instructions.append(.call(
                 symbol: binding.chosenCallee, callee: interner.intern("$reifiedEnumValues"),

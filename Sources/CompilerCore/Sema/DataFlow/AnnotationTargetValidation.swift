@@ -79,14 +79,14 @@ extension DataFlowSemaPhase {
         let symbolID = bindings.declSymbols[declID]
         let ownerSymbol = symbolID.flatMap { symbols.symbol($0) }
 
-        for annotation in declarationAnnotations(for: decl) {
+        for annotation in decl.annotations {
             guard let site = annotationUsageSite(for: annotation, on: decl, ownerSymbol: ownerSymbol) else {
                 continue
             }
             validateAnnotationTarget(
                 annotation: annotation,
                 site: site,
-                ownerRange: ownerRange(for: decl),
+                ownerRange: decl.range,
                 decl: decl,
                 file: file,
                 propertySymbol: ownerSymbol?.kind == .property ? symbolID : nil,
@@ -132,12 +132,11 @@ extension DataFlowSemaPhase {
                     filesByID: filesByID
                 )
             }
-            // Validate primary constructor annotations
             for annotation in classDecl.primaryConstructorAnnotations {
                 validateAnnotationTarget(
                     annotation: annotation,
                     site: .constructor,
-                    ownerRange: ownerRange(for: decl),
+                    ownerRange: decl.range,
                     decl: decl,
                     file: file,
                     propertySymbol: nil,
@@ -147,7 +146,6 @@ extension DataFlowSemaPhase {
                     filesByID: filesByID
                 )
             }
-            // Validate primary constructor value parameter annotations
             for param in classDecl.primaryConstructorParams {
                 validateValueParamAnnotations(
                     param: param, ownerDecl: decl, file: file,
@@ -155,13 +153,12 @@ extension DataFlowSemaPhase {
                     interner: interner, filesByID: filesByID
                 )
             }
-            // Validate secondary constructor annotations and their parameters
             for ctor in classDecl.secondaryConstructors {
                 for annotation in ctor.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
                         site: .constructor,
-                        ownerRange: ownerRange(for: decl),
+                        ownerRange: decl.range,
                         decl: decl,
                         file: file,
                         propertySymbol: nil,
@@ -179,13 +176,12 @@ extension DataFlowSemaPhase {
                     )
                 }
             }
-            // Validate enum entry annotations
             for entry in classDecl.enumEntries {
                 for annotation in entry.annotations {
                     validateAnnotationTarget(
                         annotation: annotation,
                         site: .enumEntry,
-                        ownerRange: ownerRange(for: decl),
+                        ownerRange: decl.range,
                         decl: decl,
                         file: file,
                         propertySymbol: nil,
@@ -294,7 +290,7 @@ extension DataFlowSemaPhase {
             validateAnnotationTarget(
                 annotation: annotation,
                 site: site,
-                ownerRange: ownerRange(for: ownerDecl),
+                ownerRange: ownerDecl.range,
                 decl: ownerDecl,
                 file: file,
                 propertySymbol: nil,
@@ -507,8 +503,28 @@ extension DataFlowSemaPhase {
             allowedTargets.formUnion(parseAnnotationTargets(from: meta.arguments))
         }
 
-        return sawTargetMeta ? allowedTargets : nil
+        // Kotlin's default annotation target set includes every declaration
+        // target except FILE. In particular, opt-in marker annotations without
+        // an explicit @Target must not become file annotations.
+        return sawTargetMeta ? allowedTargets : Self.defaultDeclarationAnnotationTargets
     }
+
+    private static let defaultDeclarationAnnotationTargets: Set<String> = [
+        "CLASS",
+        "ANNOTATION_CLASS",
+        "TYPE_PARAMETER",
+        "PROPERTY",
+        "FIELD",
+        "LOCAL_VARIABLE",
+        "VALUE_PARAMETER",
+        "CONSTRUCTOR",
+        "FUNCTION",
+        "PROPERTY_GETTER",
+        "PROPERTY_SETTER",
+        "TYPE",
+        "EXPRESSION",
+        "TYPEALIAS",
+    ]
 
     private func isTargetMetaAnnotation(
         _ annotation: MetadataAnnotationRecord,
@@ -566,7 +582,7 @@ extension DataFlowSemaPhase {
 
         var parsed: Set<String> = []
         for argument in arguments {
-            let value = annotationArgumentValue(argument)
+            let value = SemaAnnotationArgument.value(argument)
             let tokens = value.split { character in
                 !(character.isLetter || character.isNumber || character == "_")
             }
@@ -578,14 +594,6 @@ extension DataFlowSemaPhase {
             }
         }
         return parsed
-    }
-
-    private func annotationArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return trimmed[trimmed.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func annotationTarget(
@@ -740,25 +748,6 @@ extension DataFlowSemaPhase {
             || propertyDecl.getter != nil
             || propertyDecl.setter != nil
             || propertyDecl.isSynthesizedPrimaryConstructorProperty
-    }
-
-    private func ownerRange(for decl: Decl) -> SourceRange {
-        switch decl {
-        case let .classDecl(classDecl):
-            classDecl.range
-        case let .interfaceDecl(interfaceDecl):
-            interfaceDecl.range
-        case let .objectDecl(objectDecl):
-            objectDecl.range
-        case let .funDecl(funDecl):
-            funDecl.range
-        case let .propertyDecl(propertyDecl):
-            propertyDecl.range
-        case let .typeAliasDecl(typeAliasDecl):
-            typeAliasDecl.range
-        case let .enumEntryDecl(entry):
-            entry.range
-        }
     }
 
     private enum AnnotationUsageSite {

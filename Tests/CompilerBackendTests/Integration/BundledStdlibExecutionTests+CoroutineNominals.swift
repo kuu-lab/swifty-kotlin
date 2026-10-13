@@ -49,62 +49,38 @@ extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
     func testScopeBuilderReceiverFunctionValues(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
+            try diffCaseSource("coroutine_scope_receiver_function_values.kt", file: #filePath),
+            expectedOutput: "23\n23\nnull\nnull\ncaptured\ntrue\n26\ncaptured\ntrue\n30\n11\n7\n11\ncaptured\ncaptured\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
+    func testRunTestChildDelayUsesVirtualTime(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
             """
             import kotlinx.coroutines.*
+            import kotlinx.coroutines.test.*
 
-            suspend fun throughCoroutine(block: suspend CoroutineScope.() -> Int): Any =
-                coroutineScope(block = block)
-            suspend fun throughSupervisor(block: suspend CoroutineScope.() -> Int): Any =
-                supervisorScope(block)
-
-            fun main() = runBlocking {
-                val block: suspend CoroutineScope.() -> Int = { 23 }
-                println(coroutineScope(block = block))
-                println(supervisorScope(block = block))
-                val nullable: suspend CoroutineScope.() -> Int? = { null }
-                println(coroutineScope(block = nullable))
-                println(supervisorScope(block = nullable))
-                val label = "captured"
-                val increment = 4
-                val offset = 19
-                var state = 3
-                val captured: suspend CoroutineScope.() -> Int = {
-                    delay(1)
-                    println(label)
-                    this.ensureActive()
-                    println(this.coroutineContext.job === currentCoroutineContext().job)
-                    state += increment
-                    state + offset
+            @OptIn(ExperimentalCoroutinesApi::class)
+            fun main() {
+                runTest {
+                    println("in-test")
+                    println(currentTime)
+                    launch { delay(10000); println("delayed") }
+                    advanceTimeBy(5000)
+                    println("t=$currentTime")
+                    advanceUntilIdle()
+                    println("idle t=$currentTime")
                 }
-                println(throughCoroutine(captured))
-                println(throughSupervisor(captured))
-                println(state)
-                println(coroutineScope {
-                    val scope: CoroutineScope = this
-                    scope.async { delay(1); 7 }.await()
-                })
-                println(supervisorScope {
-                    val scope: CoroutineScope = this
-                    scope.async { delay(1); 11 }.await()
-                })
-                val throwing: suspend CoroutineScope.() -> Int = {
-                    delay(1)
-                    throw IllegalArgumentException(label)
+                runTest {
+                    val testScope = this
+                    launch { delay(10000); println("auto t=${testScope.currentTime}") }
                 }
-                try {
-                    throughCoroutine(throwing)
-                } catch (e: IllegalArgumentException) {
-                    println(e.message)
-                }
-                try {
-                    throughSupervisor(throwing)
-                } catch (e: IllegalArgumentException) {
-                    println(e.message)
-                }
-                Unit
+                println("done")
             }
             """,
-            expectedOutput: "23\n23\nnull\nnull\ncaptured\ntrue\n26\ncaptured\ntrue\n30\n11\n7\n11\ncaptured\ncaptured\n",
+            expectedOutput: "in-test\n0\nt=5000\ndelayed\nidle t=10000\nauto t=10000\ndone\n",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }

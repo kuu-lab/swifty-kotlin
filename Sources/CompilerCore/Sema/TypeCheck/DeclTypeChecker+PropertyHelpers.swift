@@ -99,6 +99,18 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var result = inferredPropertyType
+        let thisName = interner.intern("this")
+        if locals[thisName] == nil, let receiverType = ctx.implicitReceiverType {
+            // Delegate lambdas capture the property's implicit receiver. Keep
+            // that receiver in locals so data-flow analysis can key stable
+            // member-property facts to the same `this` reference.
+            locals[thisName] = (
+                receiverType,
+                SyntheticSymbolScheme.receiverParameterSymbol(for: symbol),
+                false,
+                true
+            )
+        }
         let stdlibDelegateKind = StdlibDelegateKind.detect(
             delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
         )
@@ -429,7 +441,7 @@ extension DeclTypeChecker {
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             guard !probe.viableCandidates.isEmpty else {
                 return nil
@@ -439,7 +451,7 @@ extension DeclTypeChecker {
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             return PropertyDelegateFunctionResolution(
                 symbol: resolved.chosenCallee,
@@ -450,7 +462,7 @@ extension DeclTypeChecker {
 
         if let memberResolution = resolve(memberCandidates) {
             if let diagnostic = memberResolution.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
             }
             return memberResolution
         }
@@ -521,7 +533,7 @@ extension DeclTypeChecker {
         }
         if let extensionResolution = resolve(preferredExtensionCandidates) {
             if let diagnostic = extensionResolution.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
             }
             return extensionResolution
         }

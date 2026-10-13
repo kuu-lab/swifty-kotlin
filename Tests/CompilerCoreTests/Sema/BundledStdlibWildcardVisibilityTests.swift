@@ -34,7 +34,7 @@ struct BundledStdlibWildcardVisibilityTests {
                       ctx.sourceManager.path(of: range.start.file) == path,
                       case let .call(callee, _, _, _) = ast.arena.expr(exprID),
                       case let .nameRef(name, _) = ast.arena.expr(callee),
-                      ctx.interner.resolve(name) == "minOf"
+                      name == KnownCompilerNames(interner: ctx.interner).minOf
                 else { continue }
                 callTypes.append(try #require(sema.bindings.exprType(for: exprID)))
                 let chosen = binding.chosenCallee

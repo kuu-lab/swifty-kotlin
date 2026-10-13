@@ -56,6 +56,7 @@ extension CoroutineLoweringPass {
             interner.intern("kk_suspend_function_invoke_3"),
             interner.intern("kk_suspend_function_invoke_4"),
             interner.intern("kk_suspend_function_invoke_5"),
+            interner.intern("kk_suspend_function_invoke_6"),
             // KSP-1566: bundled `delay` overloads are declared straight on the
             // `kk_kxmini_delay` bridge, whose external suspend call emits the
             // cdecl directly with the caller continuation appended.

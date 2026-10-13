@@ -25,7 +25,10 @@ func makeCompilationContext(
         frontendFlags: frontendFlags,
         irFlags: irFlags,
         includeStdlib: includeStdlib,
-        stdlibLibraryPath: stdlibLibraryPath
+        stdlibLibraryPath: stdlibLibraryPath,
+        // The case profile chooses the artifact explicitly. In particular,
+        // a source profile must not inherit the process default artifact.
+        allowDefaultStdlibLibrary: false
     )
     return CompilationContext(
         options: options,
@@ -36,8 +39,5 @@ func makeCompilationContext(
 }
 
 func runFrontend(_ ctx: CompilationContext) throws {
-    try LoadSourcesPhase().run(ctx)
-    try LexPhase().run(ctx)
-    try ParsePhase().run(ctx)
-    try BuildASTPhase().run(ctx)
+    try runFrontendSyntaxPhases(ctx)
 }

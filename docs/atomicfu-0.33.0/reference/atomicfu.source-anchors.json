@@ -1,0 +1,2699 @@
+{
+  "kotlinx.atomicfu/AtomicArray|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 608,
+      "offset": 18164,
+      "header": "public class AtomicArray<T> internal constructor(size: Int) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicArray.size|{}size[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 612,
+      "offset": 18320,
+      "header": "public val size: Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 608,
+        "offset": 18164,
+        "header": "public class AtomicArray<T> internal constructor(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicArray.size.<get-size>|<get-size>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 612,
+      "offset": 18320,
+      "header": "public val size: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 608,
+        "offset": 18164,
+        "header": "public class AtomicArray<T> internal constructor(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicArray.get|get(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 616,
+      "offset": 18412,
+      "header": "public operator fun get(index: Int): AtomicRef<T?> = array[index]",
+      "mode": "declaration",
+      "owner": {
+        "line": 608,
+        "offset": 18164,
+        "header": "public class AtomicArray<T> internal constructor(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 129,
+      "offset": 4068,
+      "header": "public expect class AtomicRef<T> {",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 35,
+      "offset": 1488,
+      "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.value|{}value[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 133,
+      "offset": 4201,
+      "header": "public var value: T",
+      "mode": "declaration",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 36,
+      "offset": 1593,
+      "header": "public actual inline var value: T",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.value.<get-value>|<get-value>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 133,
+      "offset": 4201,
+      "header": "public var value: T",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 36,
+      "offset": 1593,
+      "header": "public actual inline var value: T",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.value.<set-value>|<set-value>(1:0){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 133,
+      "offset": 4201,
+      "header": "public var value: T",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 36,
+      "offset": 1593,
+      "header": "public actual inline var value: T",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.getAndSet|getAndSet(1:0){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 154,
+      "offset": 4744,
+      "header": "public fun getAndSet(value: T): T",
+      "mode": "declaration",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 56,
+      "offset": 2175,
+      "header": "public actual fun getAndSet(value: T): T {",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.toString|toString(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 64,
+      "offset": 2403,
+      "header": "override fun toString(): String = value.toString()",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 136,
+      "offset": 4242,
+      "header": "public inline operator fun getValue(thisRef: Any?, property: KProperty<*>): T",
+      "mode": "declaration",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 43,
+      "offset": 1731,
+      "header": "public actual inline operator fun getValue(thisRef: Any?, property: KProperty<*>): T = value",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.lazySet|lazySet(1:0){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 144,
+      "offset": 4501,
+      "header": "public fun lazySet(value: T)",
+      "mode": "declaration",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 48,
+      "offset": 1965,
+      "header": "public actual inline fun lazySet(value: T) {",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;1:0){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 139,
+      "offset": 4341,
+      "header": "public inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T)",
+      "mode": "declaration",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 46,
+      "offset": 1845,
+      "header": "public actual inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) { this.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.a|{}a[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 35,
+      "offset": 1556,
+      "header": "internal val a: KAtomicRef<T>) {",
+      "mode": "constructor_parameter",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.a.<get-a>|<get-a>(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 35,
+      "offset": 1556,
+      "header": "internal val a: KAtomicRef<T>) {",
+      "mode": "constructor_parameter_accessor",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicRef.compareAndSet|compareAndSet(1:0;1:0){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 149,
+      "offset": 4611,
+      "header": "public fun compareAndSet(expect: T, update: T): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 129,
+        "offset": 4068,
+        "header": "public expect class AtomicRef<T> {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 52,
+      "offset": 2045,
+      "header": "public actual inline fun compareAndSet(expect: T, update: T): Boolean {",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1488,
+        "header": "public actual class AtomicRef<T> internal constructor(@PublishedApi internal val a: KAtomicRef<T>) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronousMutex|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 35,
+      "offset": 1431,
+      "header": "public expect class SynchronousMutex() {",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 5,
+      "offset": 61,
+      "header": "public actual class SynchronousMutex {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronousMutex.<init>|<init>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 35,
+      "offset": 1431,
+      "header": "public expect class SynchronousMutex() {",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 35,
+        "offset": 1431,
+        "header": "public expect class SynchronousMutex() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 5,
+      "offset": 61,
+      "header": "public actual class SynchronousMutex {",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 5,
+        "offset": 61,
+        "header": "public actual class SynchronousMutex {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronousMutex.lock|lock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 65,
+      "offset": 2707,
+      "header": "public fun lock()",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1431,
+        "header": "public expect class SynchronousMutex() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 9,
+      "offset": 281,
+      "header": "public actual fun lock(): Unit = lock.lock()",
+      "mode": "declaration",
+      "owner": {
+        "line": 5,
+        "offset": 61,
+        "header": "public actual class SynchronousMutex {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronousMutex.tryLock|tryLock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 45,
+      "offset": 1878,
+      "header": "public fun tryLock(): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1431,
+        "header": "public expect class SynchronousMutex() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 7,
+      "offset": 141,
+      "header": "public actual fun tryLock(): Boolean = lock.tryLock()",
+      "mode": "declaration",
+      "owner": {
+        "line": 5,
+        "offset": 61,
+        "header": "public actual class SynchronousMutex {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronousMutex.tryLock|tryLock(kotlin.time.Duration){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 56,
+      "offset": 2334,
+      "header": "public fun tryLock(timeout: Duration): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1431,
+        "header": "public expect class SynchronousMutex() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 8,
+      "offset": 199,
+      "header": "public actual fun tryLock(timeout: Duration): Boolean = lock.tryLock(timeout)",
+      "mode": "declaration",
+      "owner": {
+        "line": 5,
+        "offset": 61,
+        "header": "public actual class SynchronousMutex {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronousMutex.unlock|unlock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 75,
+      "offset": 3093,
+      "header": "public fun unlock() ",
+      "mode": "declaration",
+      "owner": {
+        "line": 35,
+        "offset": 1431,
+        "header": "public expect class SynchronousMutex() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 10,
+      "offset": 330,
+      "header": "public actual fun unlock(): Unit = lock.unlock()",
+      "mode": "declaration",
+      "owner": {
+        "line": 5,
+        "offset": 61,
+        "header": "public actual class SynchronousMutex {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 207,
+      "offset": 6196,
+      "header": "public expect class AtomicBoolean {",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 69,
+      "offset": 2549,
+      "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.value|{}value[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 211,
+      "offset": 6330,
+      "header": "public var value: Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 70,
+      "offset": 2652,
+      "header": "public actual inline var value: Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.value.<get-value>|<get-value>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 211,
+      "offset": 6330,
+      "header": "public var value: Boolean",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 70,
+      "offset": 2652,
+      "header": "public actual inline var value: Boolean",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.value.<set-value>|<set-value>(kotlin.Boolean){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 211,
+      "offset": 6330,
+      "header": "public var value: Boolean",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 70,
+      "offset": 2652,
+      "header": "public actual inline var value: Boolean",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.compareAndSet|compareAndSet(kotlin.Boolean;kotlin.Boolean){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 227,
+      "offset": 6760,
+      "header": "public fun compareAndSet(expect: Boolean, update: Boolean): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 82,
+      "offset": 3118,
+      "header": "public actual fun compareAndSet(expect: Boolean, update: Boolean): Boolean {",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.getAndSet|getAndSet(kotlin.Boolean){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 232,
+      "offset": 6903,
+      "header": "public fun getAndSet(value: Boolean): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 88,
+      "offset": 3341,
+      "header": "public actual fun getAndSet(value: Boolean): Boolean {",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.toString|toString(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 97,
+      "offset": 3617,
+      "header": "override fun toString(): String = value.toString()",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 214,
+      "offset": 6377,
+      "header": "public inline operator fun getValue(thisRef: Any?, property: KProperty<*>): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 75,
+      "offset": 2795,
+      "header": "public actual inline operator fun getValue(thisRef: Any?, property: KProperty<*>): Boolean = value",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.lazySet|lazySet(kotlin.Boolean){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 222,
+      "offset": 6646,
+      "header": "public fun lazySet(value: Boolean)",
+      "mode": "declaration",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 80,
+      "offset": 3041,
+      "header": "public actual inline fun lazySet(value: Boolean) { this.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;kotlin.Boolean){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 217,
+      "offset": 6482,
+      "header": "public inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Boolean)",
+      "mode": "declaration",
+      "owner": {
+        "line": 207,
+        "offset": 6196,
+        "header": "public expect class AtomicBoolean {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 78,
+      "offset": 2915,
+      "header": "public actual inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Boolean) { this.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.a|{}a[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 69,
+      "offset": 2618,
+      "header": "internal val a: KAtomicInt) {",
+      "mode": "constructor_parameter",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBoolean.a.<get-a>|<get-a>(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 69,
+      "offset": 2618,
+      "header": "internal val a: KAtomicInt) {",
+      "mode": "constructor_parameter_accessor",
+      "owner": {
+        "line": 69,
+        "offset": 2549,
+        "header": "public actual class AtomicBoolean internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBooleanArray|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 587,
+      "offset": 17383,
+      "header": "public class AtomicBooleanArray(size: Int) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicBooleanArray.<init>|<init>(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 587,
+      "offset": 17383,
+      "header": "public class AtomicBooleanArray(size: Int) {",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 587,
+        "offset": 17383,
+        "header": "public class AtomicBooleanArray(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBooleanArray.size|{}size[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 591,
+      "offset": 17519,
+      "header": "public val size: Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 587,
+        "offset": 17383,
+        "header": "public class AtomicBooleanArray(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBooleanArray.size.<get-size>|<get-size>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 591,
+      "offset": 17519,
+      "header": "public val size: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 587,
+        "offset": 17383,
+        "header": "public class AtomicBooleanArray(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicBooleanArray.get|get(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 595,
+      "offset": 17611,
+      "header": "public operator fun get(index: Int): AtomicBoolean = array[index]",
+      "mode": "declaration",
+      "owner": {
+        "line": 587,
+        "offset": 17383,
+        "header": "public class AtomicBooleanArray(size: Int) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 285,
+      "offset": 8402,
+      "header": "public expect class AtomicInt {",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 102,
+      "offset": 3759,
+      "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.value|{}value[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 289,
+      "offset": 8532,
+      "header": "public var value: Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 103,
+      "offset": 3858,
+      "header": "public actual inline var value: Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.value.<get-value>|<get-value>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 289,
+      "offset": 8532,
+      "header": "public var value: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 103,
+      "offset": 3858,
+      "header": "public actual inline var value: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.value.<set-value>|<set-value>(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 289,
+      "offset": 8532,
+      "header": "public var value: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 103,
+      "offset": 3858,
+      "header": "public actual inline var value: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.getAndSet|getAndSet(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 310,
+      "offset": 9081,
+      "header": "public fun getAndSet(value: Int): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 118,
+      "offset": 4407,
+      "header": "public actual fun getAndSet(value: Int): Int {",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.toString|toString(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 136,
+      "offset": 5241,
+      "header": "override fun toString(): String = value.toString()",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 292,
+      "offset": 8575,
+      "header": "public inline operator fun getValue(thisRef: Any?, property: KProperty<*>): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 108,
+      "offset": 3978,
+      "header": "public actual inline operator fun getValue(thisRef: Any?, property: KProperty<*>): Int = value",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.lazySet|lazySet(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 300,
+      "offset": 8836,
+      "header": "public fun lazySet(value: Int)",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 113,
+      "offset": 4216,
+      "header": "public actual inline fun lazySet(value: Int) { a.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.minusAssign|minusAssign(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 350,
+      "offset": 9988,
+      "header": "public inline operator fun minusAssign(delta: Int)",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 134,
+      "offset": 5156,
+      "header": "public actual inline operator fun minusAssign(delta: Int) { getAndAdd(-delta) }",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.plusAssign|plusAssign(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 345,
+      "offset": 9870,
+      "header": "public inline operator fun plusAssign(delta: Int)",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 133,
+      "offset": 5074,
+      "header": "public actual inline operator fun plusAssign(delta: Int) { getAndAdd(delta) }",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 295,
+      "offset": 8676,
+      "header": "public inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Int)",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 111,
+      "offset": 4094,
+      "header": "public actual inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) { this.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.a|{}a[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 102,
+      "offset": 3824,
+      "header": "internal val a: KAtomicInt) {",
+      "mode": "constructor_parameter",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.a.<get-a>|<get-a>(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 102,
+      "offset": 3824,
+      "header": "internal val a: KAtomicInt) {",
+      "mode": "constructor_parameter_accessor",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.addAndGet|addAndGet(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 330,
+      "offset": 9537,
+      "header": "public fun addAndGet(delta: Int): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 129,
+      "offset": 4857,
+      "header": "public actual inline fun addAndGet(delta: Int): Int = a.addAndGet(delta)",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.compareAndSet|compareAndSet(kotlin.Int;kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 305,
+      "offset": 8946,
+      "header": "public fun compareAndSet(expect: Int, update: Int): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 115,
+      "offset": 4286,
+      "header": "public actual inline fun compareAndSet(expect: Int, update: Int): Boolean =",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.decrementAndGet|decrementAndGet(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 340,
+      "offset": 9771,
+      "header": "public fun decrementAndGet(): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 131,
+      "offset": 5003,
+      "header": "public actual inline fun decrementAndGet(): Int = a.addAndGet(-1)",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.getAndAdd|getAndAdd(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 325,
+      "offset": 9424,
+      "header": "public fun getAndAdd(delta: Int): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 128,
+      "offset": 4772,
+      "header": "public actual inline fun getAndAdd(delta: Int): Int = a.addAndGet(delta) - delta",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.getAndDecrement|getAndDecrement(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 320,
+      "offset": 9315,
+      "header": "public fun getAndDecrement(): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 127,
+      "offset": 4698,
+      "header": "public actual inline fun getAndDecrement(): Int = a.addAndGet(-1) + 1",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.getAndIncrement|getAndIncrement(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 315,
+      "offset": 9200,
+      "header": "public fun getAndIncrement(): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 126,
+      "offset": 4625,
+      "header": "public actual inline fun getAndIncrement(): Int = a.addAndGet(1) - 1",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicInt.incrementAndGet|incrementAndGet(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 335,
+      "offset": 9656,
+      "header": "public fun incrementAndGet(): Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 285,
+        "offset": 8402,
+        "header": "public expect class AtomicInt {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 130,
+      "offset": 4934,
+      "header": "public actual inline fun incrementAndGet(): Int = a.addAndGet(1)",
+      "mode": "declaration",
+      "owner": {
+        "line": 102,
+        "offset": 3759,
+        "header": "public actual class AtomicInt internal constructor(@PublishedApi internal val a: KAtomicInt) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicIntArray|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 525,
+      "offset": 14801,
+      "header": "public class AtomicIntArray",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicIntArray.<init>|<init>(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 532,
+      "offset": 15173,
+      "header": "public constructor(size: Int) {",
+      "mode": "explicit_constructor",
+      "owner": {
+        "line": 525,
+        "offset": 14801,
+        "header": "public class AtomicIntArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicIntArray.size|{}size[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 536,
+      "offset": 15292,
+      "header": "public val size: Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 525,
+        "offset": 14801,
+        "header": "public class AtomicIntArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicIntArray.size.<get-size>|<get-size>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 536,
+      "offset": 15292,
+      "header": "public val size: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 525,
+        "offset": 14801,
+        "header": "public class AtomicIntArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicIntArray.get|get(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 540,
+      "offset": 15384,
+      "header": "public operator fun get(index: Int): AtomicInt = array[index]",
+      "mode": "declaration",
+      "owner": {
+        "line": 525,
+        "offset": 14801,
+        "header": "public class AtomicIntArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 402,
+      "offset": 11440,
+      "header": "public expect class AtomicLong {",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 141,
+      "offset": 5384,
+      "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.value|{}value[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 406,
+      "offset": 11571,
+      "header": "public var value: Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 142,
+      "offset": 5485,
+      "header": "public actual inline var value: Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.value.<get-value>|<get-value>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 406,
+      "offset": 11571,
+      "header": "public var value: Long",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 142,
+      "offset": 5485,
+      "header": "public actual inline var value: Long",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.value.<set-value>|<set-value>(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 406,
+      "offset": 11571,
+      "header": "public var value: Long",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 142,
+      "offset": 5485,
+      "header": "public actual inline var value: Long",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.getAndSet|getAndSet(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 427,
+      "offset": 12103,
+      "header": "public fun getAndSet(value: Long): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 157,
+      "offset": 6040,
+      "header": "public actual fun getAndSet(value: Long): Long {",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.toString|toString(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 175,
+      "offset": 6890,
+      "header": "override fun toString(): String = value.toString()",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 409,
+      "offset": 11615,
+      "header": "public operator fun getValue(thisRef: Any?, property: KProperty<*>): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 147,
+      "offset": 5606,
+      "header": "public actual inline operator fun getValue(thisRef: Any?, property: KProperty<*>): Long = value",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.lazySet|lazySet(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 417,
+      "offset": 11861,
+      "header": "public fun lazySet(value: Long)",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 152,
+      "offset": 5846,
+      "header": "public actual inline fun lazySet(value: Long) { a.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.minusAssign|minusAssign(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 467,
+      "offset": 13003,
+      "header": "public inline operator fun minusAssign(delta: Long)",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 173,
+      "offset": 6804,
+      "header": "public actual inline operator fun minusAssign(delta: Long) { getAndAdd(-delta) }",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.plusAssign|plusAssign(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 462,
+      "offset": 12884,
+      "header": "public inline operator fun plusAssign(delta: Long)",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 172,
+      "offset": 6721,
+      "header": "public actual inline operator fun plusAssign(delta: Long) { getAndAdd(delta) }",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 412,
+      "offset": 11710,
+      "header": "public operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Long)",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 150,
+      "offset": 5723,
+      "header": "public actual inline operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Long) { this.value = value }",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.a|{}a[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 141,
+      "offset": 5450,
+      "header": "internal val a: KAtomicLong) {",
+      "mode": "constructor_parameter",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.a.<get-a>|<get-a>(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 141,
+      "offset": 5450,
+      "header": "internal val a: KAtomicLong) {",
+      "mode": "constructor_parameter_accessor",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.addAndGet|addAndGet(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 447,
+      "offset": 12553,
+      "header": "public fun addAndGet(delta: Long): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 168,
+      "offset": 6498,
+      "header": "public actual inline fun addAndGet(delta: Long): Long = a.addAndGet(delta)",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.compareAndSet|compareAndSet(kotlin.Long;kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 422,
+      "offset": 11969,
+      "header": "public fun compareAndSet(expect: Long, update: Long): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 154,
+      "offset": 5917,
+      "header": "public actual inline fun compareAndSet(expect: Long, update: Long): Boolean =",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.decrementAndGet|decrementAndGet(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 457,
+      "offset": 12784,
+      "header": "public fun decrementAndGet(): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 170,
+      "offset": 6648,
+      "header": "public actual inline fun decrementAndGet(): Long = a.addAndGet(-1L)",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.getAndAdd|getAndAdd(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 442,
+      "offset": 12441,
+      "header": "public fun getAndAdd(delta: Long): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 167,
+      "offset": 6411,
+      "header": "public actual inline fun getAndAdd(delta: Long): Long = a.addAndGet(delta) - delta",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.getAndDecrement|getAndDecrement(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 437,
+      "offset": 12334,
+      "header": "public fun getAndDecrement(): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 166,
+      "offset": 6335,
+      "header": "public actual inline fun getAndDecrement(): Long = a.addAndGet(-1L) + 1",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.getAndIncrement|getAndIncrement(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 432,
+      "offset": 12221,
+      "header": "public fun getAndIncrement(): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 165,
+      "offset": 6260,
+      "header": "public actual inline fun getAndIncrement(): Long = a.addAndGet(1L) - 1",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLong.incrementAndGet|incrementAndGet(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 452,
+      "offset": 12671,
+      "header": "public fun incrementAndGet(): Long",
+      "mode": "declaration",
+      "owner": {
+        "line": 402,
+        "offset": 11440,
+        "header": "public expect class AtomicLong {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 169,
+      "offset": 6577,
+      "header": "public actual inline fun incrementAndGet(): Long = a.addAndGet(1L)",
+      "mode": "declaration",
+      "owner": {
+        "line": 141,
+        "offset": 5384,
+        "header": "public actual class AtomicLong internal constructor(@PublishedApi internal val a: KAtomicLong) {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLongArray|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 556,
+      "offset": 16060,
+      "header": "public class AtomicLongArray",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/AtomicLongArray.<init>|<init>(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 563,
+      "offset": 16435,
+      "header": "public constructor(size: Int) {",
+      "mode": "explicit_constructor",
+      "owner": {
+        "line": 556,
+        "offset": 16060,
+        "header": "public class AtomicLongArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLongArray.size|{}size[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 567,
+      "offset": 16555,
+      "header": "public val size: Int",
+      "mode": "declaration",
+      "owner": {
+        "line": 556,
+        "offset": 16060,
+        "header": "public class AtomicLongArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLongArray.size.<get-size>|<get-size>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 567,
+      "offset": 16555,
+      "header": "public val size: Int",
+      "mode": "property_accessor",
+      "owner": {
+        "line": 556,
+        "offset": 16060,
+        "header": "public class AtomicLongArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/AtomicLongArray.get|get(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 571,
+      "offset": 16647,
+      "header": "public operator fun get(index: Int): AtomicLong = array[index]",
+      "mode": "declaration",
+      "owner": {
+        "line": 556,
+        "offset": 16060,
+        "header": "public class AtomicLongArray",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceBase|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 69,
+      "offset": 1858,
+      "header": "public open class TraceBase internal constructor() {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/TraceBase.invoke|invoke(kotlin.Function0<kotlin.Any>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 98,
+      "offset": 2818,
+      "header": "public inline operator fun invoke(event: () -> Any) {",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 1858,
+        "header": "public open class TraceBase internal constructor() {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 74,
+      "offset": 2031,
+      "header": "public open fun append(event: Any) {}",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 1858,
+        "header": "public open class TraceBase internal constructor() {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any;kotlin.Any){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 80,
+      "offset": 2210,
+      "header": "public open fun append(event1: Any, event2: Any) {}",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 1858,
+        "header": "public open class TraceBase internal constructor() {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any;kotlin.Any;kotlin.Any){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 86,
+      "offset": 2413,
+      "header": "public open fun append(event1: Any, event2: Any, event3: Any) {}",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 1858,
+        "header": "public open class TraceBase internal constructor() {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any;kotlin.Any;kotlin.Any;kotlin.Any){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 92,
+      "offset": 2639,
+      "header": "public open fun append(event1: Any, event2: Any, event3: Any, event4: Any) {}",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 1858,
+        "header": "public open class TraceBase internal constructor() {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceBase.None|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 105,
+      "offset": 2943,
+      "header": "public object None : TraceBase()",
+      "mode": "declaration",
+      "owner": {
+        "line": 69,
+        "offset": 1858,
+        "header": "public open class TraceBase internal constructor() {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceFormat|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt": {
+      "line": 17,
+      "offset": 351,
+      "header": "public open class TraceFormat {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/TraceFormat.<init>|<init>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt": {
+      "line": 17,
+      "offset": 351,
+      "header": "public open class TraceFormat {",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 17,
+        "offset": 351,
+        "header": "public open class TraceFormat {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/TraceFormat.format|format(kotlin.Int;kotlin.Any){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt": {
+      "line": 23,
+      "offset": 560,
+      "header": "public open fun format(index: Int, event: Any): String = \"$index: $event\"",
+      "mode": "declaration",
+      "owner": {
+        "line": 17,
+        "offset": 351,
+        "header": "public open class TraceFormat {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/traceFormatDefault|{}traceFormatDefault[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 63,
+      "offset": 1688,
+      "header": "public expect val traceFormatDefault: TraceFormat",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt": {
+      "line": 12,
+      "offset": 325,
+      "header": "public actual val traceFormatDefault: TraceFormat = TraceFormat()",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/traceFormatDefault.<get-traceFormatDefault>|<get-traceFormatDefault>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 63,
+      "offset": 1688,
+      "header": "public expect val traceFormatDefault: TraceFormat",
+      "mode": "property_accessor"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt": {
+      "line": 12,
+      "offset": 325,
+      "header": "public actual val traceFormatDefault: TraceFormat = TraceFormat()",
+      "mode": "property_accessor"
+    }
+  },
+  "kotlinx.atomicfu/named|named@kotlinx.atomicfu.TraceBase(kotlin.String){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 55,
+      "offset": 1434,
+      "header": "public expect fun TraceBase.named(name: String): TraceBase",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt": {
+      "line": 10,
+      "offset": 248,
+      "header": "public actual fun TraceBase.named(name: String): TraceBase = TraceBase.None",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(0:0){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 35,
+      "offset": 966,
+      "header": "public expect fun <T> atomic(initial: T): AtomicRef<T>",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 25,
+      "offset": 755,
+      "header": "public actual fun <T> atomic(initial: T): AtomicRef<T> = atomic(initial, None)",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(0:0;kotlinx.atomicfu.TraceBase){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 22,
+      "offset": 592,
+      "header": "public expect fun <T> atomic(initial: T, trace: TraceBase = None): AtomicRef<T>",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 24,
+      "offset": 646,
+      "header": "public actual fun <T> atomic(initial: T, trace: TraceBase): AtomicRef<T> = AtomicRef<T>(KAtomicRef(initial))",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomicArrayOfNulls|atomicArrayOfNulls(kotlin.Int){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 120,
+      "offset": 3708,
+      "header": "public fun <T> atomicArrayOfNulls(size: Int): AtomicArray<T?> = AtomicArray(size)",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/Trace|Trace(kotlin.Int;kotlinx.atomicfu.TraceFormat){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt": {
+      "line": 46,
+      "offset": 1214,
+      "header": "public expect fun Trace(size: Int = 32, format: TraceFormat = traceFormatDefault): TraceBase",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt": {
+      "line": 8,
+      "offset": 163,
+      "header": "public actual fun Trace(size: Int, format: TraceFormat): TraceBase = TraceBase.None",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(kotlin.Boolean){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 107,
+      "offset": 3091,
+      "header": "public expect fun atomic(initial: Boolean): AtomicBoolean",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 31,
+      "offset": 1317,
+      "header": "public actual fun atomic(initial: Boolean): AtomicBoolean = atomic(initial, None)",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(kotlin.Boolean;kotlinx.atomicfu.TraceBase){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 94,
+      "offset": 2713,
+      "header": "public expect fun atomic(initial: Boolean, trace: TraceBase = None): AtomicBoolean",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 30,
+      "offset": 1190,
+      "header": "public actual fun atomic(initial: Boolean, trace: TraceBase): AtomicBoolean = AtomicBoolean(KAtomicInt(if (initial) 1 else 0))",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(kotlin.Int){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 59,
+      "offset": 1667,
+      "header": "public expect fun atomic(initial: Int): AtomicInt",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 27,
+      "offset": 935,
+      "header": "public actual fun atomic(initial: Int): AtomicInt = atomic(initial, None)",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(kotlin.Int;kotlinx.atomicfu.TraceBase){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 46,
+      "offset": 1305,
+      "header": "public expect fun atomic(initial: Int, trace: TraceBase = None): AtomicInt",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 26,
+      "offset": 834,
+      "header": "public actual fun atomic(initial: Int, trace: TraceBase): AtomicInt = AtomicInt(KAtomicInt(initial))",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(kotlin.Long){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 83,
+      "offset": 2369,
+      "header": "public expect fun atomic(initial: Long): AtomicLong",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 29,
+      "offset": 1114,
+      "header": "public actual fun atomic(initial: Long): AtomicLong = atomic(initial, None)",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/atomic|atomic(kotlin.Long;kotlinx.atomicfu.TraceBase){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 70,
+      "offset": 2003,
+      "header": "public expect fun atomic(initial: Long, trace: TraceBase = None): AtomicLong",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt": {
+      "line": 28,
+      "offset": 1009,
+      "header": "public actual fun atomic(initial: Long, trace: TraceBase): AtomicLong = AtomicLong(KAtomicLong(initial))",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Boolean>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 259,
+      "offset": 7580,
+      "header": "public inline fun AtomicBoolean.getAndUpdate(function: (Boolean) -> Boolean): Boolean {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Unit>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 239,
+      "offset": 7060,
+      "header": "public inline fun AtomicBoolean.loop(action: (Boolean) -> Unit): Nothing {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Boolean>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 248,
+      "offset": 7269,
+      "header": "public inline fun AtomicBoolean.update(function: (Boolean) -> Boolean) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Boolean>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 270,
+      "offset": 7910,
+      "header": "public inline fun AtomicBoolean.updateAndGet(function: (Boolean) -> Boolean): Boolean {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Int>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 376,
+      "offset": 10649,
+      "header": "public inline fun AtomicInt.getAndUpdate(function: (Int) -> Int): Int {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Unit>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 356,
+      "offset": 10149,
+      "header": "public inline fun AtomicInt.loop(action: (Int) -> Unit): Nothing {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Int>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 365,
+      "offset": 10350,
+      "header": "public inline fun AtomicInt.update(function: (Int) -> Int) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Int>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 387,
+      "offset": 10963,
+      "header": "public inline fun AtomicInt.updateAndGet(function: (Int) -> Int): Int {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Long>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 493,
+      "offset": 13670,
+      "header": "public inline fun AtomicLong.getAndUpdate(function: (Long) -> Long): Long {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Unit>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 473,
+      "offset": 13165,
+      "header": "public inline fun AtomicLong.loop(action: (Long) -> Unit): Nothing {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Long>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 482,
+      "offset": 13368,
+      "header": "public inline fun AtomicLong.update(function: (Long) -> Long) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Long>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 504,
+      "offset": 13988,
+      "header": "public inline fun AtomicLong.updateAndGet(function: (Long) -> Long): Long {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/withLock|withLock@kotlinx.atomicfu.locks.SynchronousMutex(kotlin.Function0<0:0>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt": {
+      "line": 84,
+      "offset": 3255,
+      "header": "public inline fun <T> SynchronousMutex.withLock(block: () -> T): T {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,0:0>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 180,
+      "offset": 5396,
+      "header": "public inline fun <T> AtomicRef<T>.getAndUpdate(function: (T) -> T): T {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,kotlin.Unit>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 160,
+      "offset": 4888,
+      "header": "public inline fun <T> AtomicRef<T>.loop(action: (T) -> Unit): Nothing {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,0:0>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 169,
+      "offset": 5094,
+      "header": "public inline fun <T> AtomicRef<T>.update(function: (T) -> T) {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,0:0>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt": {
+      "line": 191,
+      "offset": 5711,
+      "header": "public inline fun <T> AtomicRef<T>.updateAndGet(function: (T) -> T): T {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/TraceFormat|TraceFormat(kotlin.Function2<kotlin.Int,kotlin.Any,kotlin.String>){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt": {
+      "line": 30,
+      "offset": 727,
+      "header": "public inline fun TraceFormat(crossinline format: (index: Int, event: Any) -> String): TraceFormat =",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/OptionalJsName|null[1]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt": {
+      "line": 18,
+      "offset": 539,
+      "header": "public expect annotation class OptionalJsName(val name: String)",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu/OptionalJsName.<init>|<init>(kotlin.String){}[1]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt": {
+      "line": 18,
+      "offset": 539,
+      "header": "public expect annotation class OptionalJsName(val name: String)",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 18,
+        "offset": 539,
+        "header": "public expect annotation class OptionalJsName(val name: String)",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/OptionalJsName.name|{}name[1]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt": {
+      "line": 18,
+      "offset": 539,
+      "header": "public expect annotation class OptionalJsName(val name: String)",
+      "mode": "annotation_parameter",
+      "owner": {
+        "line": 18,
+        "offset": 539,
+        "header": "public expect annotation class OptionalJsName(val name: String)",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu/OptionalJsName.name.<get-name>|<get-name>(){}[1]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt": {
+      "line": 18,
+      "offset": 539,
+      "header": "public expect annotation class OptionalJsName(val name: String)",
+      "mode": "parameter_accessor",
+      "owner": {
+        "line": 18,
+        "offset": 539,
+        "header": "public expect annotation class OptionalJsName(val name: String)",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi|null[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 123,
+      "offset": 5087,
+      "header": "public annotation class ExperimentalThreadBlockingApi",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi.<init>|<init>(){}[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 123,
+      "offset": 5087,
+      "header": "public annotation class ExperimentalThreadBlockingApi",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 123,
+        "offset": 5087,
+        "header": "public annotation class ExperimentalThreadBlockingApi",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/ParkingHandle|null[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 103,
+      "offset": 4397,
+      "header": "public expect class ParkingHandle",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 12,
+      "offset": 265,
+      "header": "public actual class ParkingHandle internal constructor() {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronizedObject|null[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 7,
+      "offset": 143,
+      "header": "public expect open class SynchronizedObject() // marker abstract class",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 21,
+      "offset": 546,
+      "header": "public actual open class SynchronizedObject {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronizedObject.<init>|<init>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 7,
+      "offset": 143,
+      "header": "public expect open class SynchronizedObject() // marker abstract class",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 7,
+        "offset": 143,
+        "header": "public expect open class SynchronizedObject() // marker abstract class",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 21,
+      "offset": 546,
+      "header": "public actual open class SynchronizedObject {",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 21,
+        "offset": 546,
+        "header": "public actual open class SynchronizedObject {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronizedObject.lock|lock(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 29,
+      "offset": 820,
+      "header": "public fun lock() {",
+      "mode": "declaration",
+      "owner": {
+        "line": 21,
+        "offset": 546,
+        "header": "public actual open class SynchronizedObject {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronizedObject.tryLock|tryLock(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 46,
+      "offset": 1325,
+      "header": "public fun tryLock(): Boolean {",
+      "mode": "declaration",
+      "owner": {
+        "line": 21,
+        "offset": 546,
+        "header": "public actual open class SynchronizedObject {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/SynchronizedObject.unlock|unlock(){}[0]": {
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 72,
+      "offset": 2073,
+      "header": "public fun unlock() {",
+      "mode": "declaration",
+      "owner": {
+        "line": 21,
+        "offset": 546,
+        "header": "public actual open class SynchronizedObject {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/ParkingSupport|null[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 44,
+      "offset": 1680,
+      "header": "public expect object ParkingSupport {",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 17,
+      "offset": 413,
+      "header": "public actual object ParkingSupport {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/ParkingSupport.currentThreadHandle|currentThreadHandle(){}[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 92,
+      "offset": 3949,
+      "header": "public fun currentThreadHandle(): ParkingHandle",
+      "mode": "declaration",
+      "owner": {
+        "line": 44,
+        "offset": 1680,
+        "header": "public expect object ParkingSupport {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 25,
+      "offset": 864,
+      "header": "public actual fun currentThreadHandle(): ParkingHandle = threadLocalParkingHandle",
+      "mode": "declaration",
+      "owner": {
+        "line": 17,
+        "offset": 413,
+        "header": "public actual object ParkingSupport {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/ParkingSupport.park|park(kotlin.time.Duration){}[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 56,
+      "offset": 2177,
+      "header": "public fun park(timeout: Duration)",
+      "mode": "declaration",
+      "owner": {
+        "line": 44,
+        "offset": 1680,
+        "header": "public expect object ParkingSupport {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 18,
+      "offset": 455,
+      "header": "public actual fun park(timeout: Duration) {",
+      "mode": "declaration",
+      "owner": {
+        "line": 17,
+        "offset": 413,
+        "header": "public actual object ParkingSupport {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/ParkingSupport.parkUntil|parkUntil(kotlin.time.TimeMark){}[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 68,
+      "offset": 2682,
+      "header": "public fun parkUntil(deadline: TimeMark)",
+      "mode": "declaration",
+      "owner": {
+        "line": 44,
+        "offset": 1680,
+        "header": "public expect object ParkingSupport {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 23,
+      "offset": 688,
+      "header": "public actual fun parkUntil(deadline: TimeMark): Unit = park(deadline.elapsedNow() * -1)",
+      "mode": "declaration",
+      "owner": {
+        "line": 17,
+        "offset": 413,
+        "header": "public actual object ParkingSupport {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/ParkingSupport.unpark|unpark(kotlinx.atomicfu.locks.ParkingHandle){}[0]": {
+    "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 79,
+      "offset": 3259,
+      "header": "public fun unpark(handle: ParkingHandle)",
+      "mode": "declaration",
+      "owner": {
+        "line": 44,
+        "offset": 1680,
+        "header": "public expect object ParkingSupport {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt": {
+      "line": 24,
+      "offset": 781,
+      "header": "public actual fun unpark(handle: ParkingHandle): Unit = handle.parker.unpark()",
+      "mode": "declaration",
+      "owner": {
+        "line": 17,
+        "offset": 413,
+        "header": "public actual object ParkingSupport {",
+        "mode": "declaration"
+      }
+    }
+  },
+  "kotlinx.atomicfu.locks/reentrantLock|reentrantLock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 9,
+      "offset": 215,
+      "header": "public expect fun reentrantLock(): ReentrantLock",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 105,
+      "offset": 3043,
+      "header": "public actual fun reentrantLock(): ReentrantLock = ReentrantLock()",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/withLock|withLock@kotlinx.atomicfu.locks.SynchronizedObject(kotlin.Function0<0:0>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 17,
+      "offset": 398,
+      "header": "public expect inline fun <T> ReentrantLock.withLock(block: () -> T): T",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 109,
+      "offset": 3171,
+      "header": "public actual inline fun <T> ReentrantLock.withLock(block: () -> T): T {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/synchronized|synchronized(kotlinx.atomicfu.locks.SynchronizedObject;kotlin.Function0<0:0>){0\u00a7<kotlin.Any?>}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 19,
+      "offset": 470,
+      "header": "public expect inline fun <T> synchronized(lock: SynchronizedObject, block: () -> T): T",
+      "mode": "declaration"
+    },
+    "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": {
+      "line": 118,
+      "offset": 3330,
+      "header": "public actual inline fun <T> synchronized(lock: SynchronizedObject, block: () -> T): T {",
+      "mode": "declaration"
+    }
+  },
+  "kotlinx.atomicfu.locks/ReentrantLock.<init>|<init>(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 11,
+      "offset": 265,
+      "header": "public expect class ReentrantLock() {",
+      "mode": "implicit_constructor",
+      "owner": {
+        "line": 11,
+        "offset": 265,
+        "header": "public expect class ReentrantLock() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": null
+  },
+  "kotlinx.atomicfu.locks/ReentrantLock.lock|lock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 12,
+      "offset": 307,
+      "header": "public fun lock(): Unit",
+      "mode": "declaration",
+      "owner": {
+        "line": 11,
+        "offset": 265,
+        "header": "public expect class ReentrantLock() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": null
+  },
+  "kotlinx.atomicfu.locks/ReentrantLock.tryLock|tryLock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 13,
+      "offset": 335,
+      "header": "public fun tryLock(): Boolean",
+      "mode": "declaration",
+      "owner": {
+        "line": 11,
+        "offset": 265,
+        "header": "public expect class ReentrantLock() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": null
+  },
+  "kotlinx.atomicfu.locks/ReentrantLock.unlock|unlock(){}[0]": {
+    "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt": {
+      "line": 14,
+      "offset": 369,
+      "header": "public fun unlock(): Unit",
+      "mode": "declaration",
+      "owner": {
+        "line": 11,
+        "offset": 265,
+        "header": "public expect class ReentrantLock() {",
+        "mode": "declaration"
+      }
+    },
+    "atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": null
+  },
+  "kotlinx.atomicfu.locks/Lock.<get-Lock>|<get-Lock>(){}[0]": {
+    "atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt": null
+  }
+}

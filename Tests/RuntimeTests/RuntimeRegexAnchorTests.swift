@@ -37,14 +37,6 @@ struct RuntimeRegexAnchorTests {
         }
     }
 
-    private func runtimeString(_ raw: Int) -> String {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let box = tryCast(ptr, to: RuntimeStringBox.self) else {
-            return ""
-        }
-        return box.value
-    }
-
     private func group0(_ matchRaw: Int) -> String {
         runtimeString(__kk_match_result_group_value(matchRaw, 0))
     }

@@ -1021,8 +1021,9 @@ extension AnnotationSemanticTests {
                 "SinceKotlin should carry declaration target metadata, got: \(annotations)"
             )
 
+            let versionFQName = sinceKotlinFQName + [ctx.interner.intern("version")]
             let versionSymbol = try #require(
-                sema.symbols.lookup(fqName: sinceKotlinFQName + [ctx.interner.intern("version")]),
+                sema.symbols.lookup(fqName: versionFQName),
                 "SinceKotlin.version property must be registered"
             )
             #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
@@ -1036,7 +1037,7 @@ extension AnnotationSemanticTests {
             )
             #expect(constructorSignature.valueParameterSymbols.count == 1)
             let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-            #expect(ctx.interner.resolve(parameter.name) == "version")
+            #expect(parameter.name == versionFQName.last)
 
             }
             // testDslMarkerSurfaceHasDocumentedMetadata
@@ -1127,8 +1128,9 @@ extension AnnotationSemanticTests {
                 "IntroducedAt should require ExperimentalVersionOverloading opt-in, got: \(annotations)"
             )
 
+            let versionFQName = introducedAtFQName + [ctx.interner.intern("version")]
             let versionSymbol = try #require(
-                sema.symbols.lookup(fqName: introducedAtFQName + [ctx.interner.intern("version")]),
+                sema.symbols.lookup(fqName: versionFQName),
                 "IntroducedAt.version property must be registered"
             )
             #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
@@ -1142,7 +1144,7 @@ extension AnnotationSemanticTests {
             )
             #expect(constructorSignature.valueParameterSymbols.count == 1)
             let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-            #expect(ctx.interner.resolve(parameter.name) == "version")
+            #expect(parameter.name == versionFQName.last)
 
             }
             // testOptionalExpectationSurfaceIsSourceBackedTargetedAndExperimental
@@ -1221,8 +1223,9 @@ extension AnnotationSemanticTests {
                 "Throws should carry function/getter/setter/constructor target metadata, got: \(annotations)"
             )
 
+            let exceptionClassesFQName = throwsFQName + [ctx.interner.intern("exceptionClasses")]
             let exceptionClassesSymbol = try #require(
-                sema.symbols.lookup(fqName: throwsFQName + [ctx.interner.intern("exceptionClasses")]),
+                sema.symbols.lookup(fqName: exceptionClassesFQName),
                 "Throws.exceptionClasses property must be registered"
             )
             let exceptionClassesType = try #require(sema.symbols.propertyType(for: exceptionClassesSymbol))
@@ -1238,7 +1241,7 @@ extension AnnotationSemanticTests {
             )
             try assertThrowableKClass(constructorSignature.parameterTypes[0], in: sema, interner: ctx.interner)
             let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-            #expect(ctx.interner.resolve(parameter.name) == "exceptionClasses")
+            #expect(parameter.name == exceptionClassesFQName.last)
 
             }
             // testMustBeDocumentedAnnotationIsSourceBackedAndTargetedToAnnotationClasses
@@ -1460,6 +1463,26 @@ extension AnnotationSemanticTests {
         let optInDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
         #expect(optInDiagnostics.count == 1)
         #expect(optInDiagnostics.first?.message.contains("ExperimentalStdlibApi") == true)
+    }
+
+    @Test func testUnboundJsCreateInstanceCallableReferenceRequiresReceiver() {
+        let ctx = runSemaCollectingDiagnostics(
+            """
+            @file:OptIn(kotlin.js.ExperimentalJsReflectionCreateInstance::class)
+            import kotlin.reflect.createInstance
+
+            fun invalidReferenceName() = (::createInstance).name
+            """
+        )
+        let errors = ctx.diagnostics.diagnostics.filter {
+            if case .error = $0.severity { return true }
+            return false
+        }
+
+        #expect(
+            errors.contains { $0.message.contains("createInstance") },
+            "An unbound reference to the generic extension should be rejected; bind a KClass receiver to inspect its name"
+        )
     }
 
     @Test func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {

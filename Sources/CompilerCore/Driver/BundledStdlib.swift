@@ -15,7 +15,6 @@ package enum BundledStdlib {
     // (KSP-501), and list sorting/extrema HOFs are in ListSortingHOF.kt and
     // ListExtremaHOF.kt. The remaining collection HOFs (filter, set) are in
     // ListFilterHOF.kt and SetHOF.kt respectively.
-    static let kotlinCollectionsSource = ""
 
     // repeat / reversed / padStart / padEnd have been migrated to StringBasics.kt.
     // toByteArray / encodeToByteArray / decodeToString / Charsets have been migrated to
@@ -24,7 +23,6 @@ package enum BundledStdlib {
     // indent / trimIndent / trimMargin / prependIndent / replaceIndent(ByMargin) have been
     // migrated to StringIndentFormat.kt. The case-conversion functions (lowercase, uppercase,
     // capitalize, replaceFirstChar, locale variants) have been migrated to StringCaseConversion.kt.
-    static let kotlinTextSource = ""
 
     /// Errors that can occur while loading bundled stdlib sources from the
     /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
@@ -104,7 +102,7 @@ package enum BundledStdlib {
     }
 
     // Rebuild artifacts predating metadata or callback ABI changes.
-    private static let _manifestHash: String = Self.stableFNV1a64Hex(
+    private static let _manifestHash: String = Self.manifestHash(
         for: _bundledStdlibSources + [
             (path: "__metadata_visibility_v2", contents: Data()),
             (path: "__metadata_callback_abi_v1", contents: Data()),
@@ -116,18 +114,12 @@ package enum BundledStdlib {
         _manifestHash
     }
 
-    private static func stableFNV1a64Hex(for sources: [(path: String, contents: Data)]) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+    private static func manifestHash(for sources: [(path: String, contents: Data)]) -> String {
+        var hasher = StableFNV1a64.Hasher()
         for (path, contents) in sources {
-            for byte in Data(path.utf8) {
-                hash ^= UInt64(byte)
-                hash &*= 0x100_0000_01B3
-            }
-            for byte in contents {
-                hash ^= UInt64(byte)
-                hash &*= 0x100_0000_01B3
-            }
+            hasher.update(bytes: path.utf8)
+            hasher.update(bytes: contents)
         }
-        return String(format: "%016llx", hash)
+        return hasher.hexString()
     }
 }

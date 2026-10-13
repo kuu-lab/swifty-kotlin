@@ -200,11 +200,11 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                callees.filter { $0 == "__kk_array_list_of" }.count == 4,
+                callees.filter { $0 == LoweringTestRuntime.name("array_list_of") }.count == 4,
                 "all four mutable list factory calls must use __kk_array_list_of; callees: \(callees)"
             )
             #expect(
-                !callees.contains("__kk_list_of"),
+                !callees.contains(LoweringTestRuntime.name("list_of")),
                 "no mutable list factory may fall back to the read-only List tag; callees: \(callees)"
             )
         }
@@ -235,11 +235,11 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                !callees.contains("__kk_array_list_of"),
+                !callees.contains(LoweringTestRuntime.name("array_list_of")),
                 "read-only list factories must not take the ArrayList tag; callees: \(callees)"
             )
             #expect(
-                callees.contains("__kk_emptyList") || callees.contains("__kk_list_of"),
+                callees.contains(LoweringTestRuntime.name("emptyList")) || callees.contains(LoweringTestRuntime.name("list_of")),
                 "read-only list factories must still reach a List-tagged bridge; callees: \(callees)"
             )
         }
@@ -275,11 +275,11 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                callees.filter { $0 == "__kk_linked_hash_set_of" }.count == 4,
+                callees.filter { $0 == LoweringTestRuntime.name("linked_hash_set_of") }.count == 4,
                 "all four mutable set factory calls must use __kk_linked_hash_set_of; callees: \(callees)"
             )
             #expect(
-                !callees.contains("__kk_set_of"),
+                !callees.contains(LoweringTestRuntime.name("set_of")),
                 "no mutable set factory may fall back to the read-only Set tag; callees: \(callees)"
             )
         }
@@ -313,12 +313,12 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                !callees.contains("__kk_linked_hash_set_of"),
+                !callees.contains(LoweringTestRuntime.name("linked_hash_set_of")),
                 "read-only set factories must not take the LinkedHashSet tag; callees: \(callees)"
             )
             #expect(
-                callees.contains("__kk_emptySet") || callees.contains("__kk_set_of")
-                    || callees.contains("__kk_set_of_not_null"),
+                callees.contains(LoweringTestRuntime.name("emptySet")) || callees.contains(LoweringTestRuntime.name("set_of"))
+                    || callees.contains(LoweringTestRuntime.name("set_of_not_null")),
                 "read-only set factories must still reach a Set-tagged bridge; callees: \(callees)"
             )
         }
@@ -349,11 +349,11 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                callees.filter { $0 == "__kk_hash_set_of" }.count == 2,
+                callees.filter { $0 == LoweringTestRuntime.name("hash_set_of") }.count == 2,
                 "both hashSetOf calls must use __kk_hash_set_of; callees: \(callees)"
             )
             #expect(
-                !callees.contains("__kk_linked_hash_set_of"),
+                !callees.contains(LoweringTestRuntime.name("linked_hash_set_of")),
                 "hashSetOf must not take the LinkedHashSet tag; callees: \(callees)"
             )
         }
@@ -390,27 +390,74 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                callees.filter { $0 == "__kk_linked_hash_set_of" }.count == 2,
+                callees.filter { $0 == LoweringTestRuntime.name("linked_hash_set_of") }.count == 2,
                 """
                 the 0-arg and capacity LinkedHashSet constructors must use \
                 __kk_linked_hash_set_of; callees: \(callees)
                 """
             )
             #expect(
-                callees.contains("__kk_iterable_toMutableSet"),
+                callees.contains(LoweringTestRuntime.name("iterable_toMutableSet")),
                 """
                 the copy constructor must use __kk_iterable_toMutableSet, which is \
                 retagged to LinkedHashSet; callees: \(callees)
                 """
             )
             #expect(
-                callees.filter { $0 == "__kk_hash_set_of" }.count == 1,
+                callees.filter { $0 == LoweringTestRuntime.name("hash_set_of") }.count == 1,
                 "HashSet() must keep its own tag; callees: \(callees)"
             )
             #expect(
-                !callees.contains("__kk_set_of"),
+                !callees.contains(LoweringTestRuntime.name("set_of")),
                 "no set constructor may fall back to the read-only Set tag; callees: \(callees)"
             )
+        }
+    }
+
+    @Test
+    func hashSetSuperclassCallsKeepTheReceiverAndConstructorBody() throws {
+        let source = """
+        class EmptySet : HashSet<Int>()
+        class CapacitySet : HashSet<Int>(8)
+        class FactorSet : HashSet<Int>(8, 0.75f)
+        class CopySet : HashSet<Int>(listOf(1, 2))
+        fun main() {
+            println(EmptySet().size)
+            println(CapacitySet().size)
+            println(FactorSet().size)
+            println(CopySet().size)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "HashSetSuperclassCalls", emit: .kirDump
+            )
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let module = try #require(ctx.kir)
+            let hashSet = try #require(sema.symbols.lookup(
+                fqName: ["kotlin", "collections", "HashSet"].map(ctx.interner.intern)
+            ))
+            for (name, argumentCount) in [("EmptySet", 1), ("CapacitySet", 2), ("FactorSet", 3), ("CopySet", 2)] {
+                let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(name)]))
+                let constructors = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+                    guard case let .function(function) = declaration,
+                          sema.symbols.symbol(function.symbol)?.kind == .constructor,
+                          sema.symbols.parentSymbol(for: function.symbol) == owner
+                    else { return nil }
+                    return function
+                }
+                let constructor = try #require(constructors.first)
+                #expect(constructor.body.contains { instruction in
+                    guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                          let symbol,
+                          sema.symbols.symbol(symbol)?.kind == .constructor,
+                          sema.symbols.parentSymbol(for: symbol) == hashSet
+                    else { return false }
+                    return arguments.count == argumentCount
+                }, "\(name) must initialize its receiver through the source constructor")
+            }
         }
     }
 
@@ -443,15 +490,15 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                callees.filter { $0 == "__kk_linked_hash_map_of" }.count == 4,
+                callees.filter { $0 == LoweringTestRuntime.name("linked_hash_map_of") }.count == 4,
                 "mutableMapOf/linkedMapOf must use __kk_linked_hash_map_of; callees: \(callees)"
             )
             #expect(
-                callees.filter { $0 == "__kk_hash_map_of" }.count == 2,
+                callees.filter { $0 == LoweringTestRuntime.name("hash_map_of") }.count == 2,
                 "both hashMapOf calls must use __kk_hash_map_of; callees: \(callees)"
             )
             #expect(
-                !callees.contains("__kk_map_of"),
+                !callees.contains(LoweringTestRuntime.name("map_of")),
                 "no mutable map factory may fall back to the read-only Map tag; callees: \(callees)"
             )
         }
@@ -483,15 +530,15 @@ struct CollectionFactorySourceMigrationTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
-                !callees.contains("__kk_linked_hash_map_of"),
+                !callees.contains(LoweringTestRuntime.name("linked_hash_map_of")),
                 "read-only map factories must not take the LinkedHashMap tag; callees: \(callees)"
             )
             #expect(
-                !callees.contains("__kk_hash_map_of"),
+                !callees.contains(LoweringTestRuntime.name("hash_map_of")),
                 "read-only map factories must not take the HashMap tag; callees: \(callees)"
             )
             #expect(
-                callees.contains("__kk_emptyMap") || callees.contains("__kk_map_of"),
+                callees.contains(LoweringTestRuntime.name("emptyMap")) || callees.contains(LoweringTestRuntime.name("map_of")),
                 "read-only map factories must still reach a Map-tagged bridge; callees: \(callees)"
             )
         }

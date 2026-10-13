@@ -1,0 +1,67 @@
+symbol fq=__local_0.intVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.IntVar
+symbol fq=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>
+symbol fq=__local_2.size[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_3.align[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_4.heapVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.IntVar
+symbol fq=golden.sema.roundTrip[kind=fun;params=;ret=String;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=kotlinx.cinterop.alignOf.T[kind=tparam;origin=unknown] kind=typeParameter vis=private flags=synthetic|reifiedTypeParameter
+symbol fq=kotlinx.cinterop.alignOf[kind=fun;params=;ret=Long;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];origin=unknown] kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=Long bounds=[kotlinx.cinterop.CVariable]
+symbol fq=kotlinx.cinterop.memScoped.R[kind=tparam;origin=unknown] kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.memScoped.block[kind=vparam;type=fn{r=kotlinx.cinterop.MemScope;p=;ret=T0};origin=unknown] kind=valueParameter vis=private flags=synthetic type=kotlinx.cinterop.MemScope.() -> kotlinx.cinterop.memScoped.R
+symbol fq=kotlinx.cinterop.memScoped[kind=fun;params=fn{r=kotlinx.cinterop.MemScope;p=;ret=T0};ret=T0;gen=1;names=[block];origin=unknown] kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[kotlinx.cinterop.MemScope.() -> kotlinx.cinterop.memScoped.R] ret=kotlinx.cinterop.memScoped.R
+symbol fq=kotlinx.cinterop.nativeHeap[kind=prop;type=kotlinx.cinterop.NativeFreeablePlacement;origin=unknown] kind=property vis=public flags=synthetic type=kotlinx.cinterop.NativeFreeablePlacement
+symbol fq=kotlinx.cinterop.sizeOf.T[kind=tparam;origin=unknown] kind=typeParameter vis=private flags=synthetic|reifiedTypeParameter
+symbol fq=kotlinx.cinterop.sizeOf[kind=fun;params=;ret=Long;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];origin=unknown] kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=Long bounds=[kotlinx.cinterop.CVariable]
+symbol fq=kotlinx.cinterop.toKString[kind=fun;recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>;params=;ret=String;origin=unknown] kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>> params=[] ret=String
+file fcinterop_memscoped_alloc package=golden.sema
+  decl golden.sema.roundTrip[kind=fun;params=;ret=String;origin=fixture] fun roundTrip sym=golden.sema.roundTrip[kind=fun;params=;ret=String;origin=fixture]
+expr e@16:18 call callee=e@16:18#1 args=[] type=kotlinx.cinterop.IntVar call=kotlinx.cinterop.NativePlacement.alloc[kind=fun;recv=kotlinx.cinterop.NativePlacement;params=;ret=T0;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0]] targs=[kotlinx.cinterop.IntVar]
+expr e@16:5 localDecl intVar mutable=0 type=_ init=e@16:18 type=Unit ref=__local_0.intVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
+expr e@17:5 name(intVar) type=kotlinx.cinterop.IntVar ref=__local_0.intVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
+expr e@17:20 int(42) type=Int
+expr e@17:5#1 memberAssign recv=e@17:5 callee=value value=e@17:20 type=Unit ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@18:34 int(2) type=Long
+expr e@18:15 call callee=e@18:15#1 args=[_:e@18:34] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> call=kotlinx.cinterop.NativePlacement.allocArray[kind=fun;recv=kotlinx.cinterop.NativePlacement;params=Long;ret=kotlinx.cinterop.CPointer<T0>;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];names=[length]] targs=[kotlinx.cinterop.IntVar]
+expr e@18:5 localDecl arr mutable=0 type=_ init=e@18:15 type=Unit ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
+expr e@19:5 name(arr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
+expr e@19:9 int(0) type=Int
+expr e@19:5#1 indexedAccess receiver=e@19:5 indices=[e@19:9] type=kotlinx.cinterop.IntVar call=kotlinx.cinterop.CPointer.get[kind=fun;recv=kotlinx.cinterop.CPointer<T0>;params=Int;ret=T0;gen=1;classGen=1;bounds=[kotlinx.cinterop.CPointed];names=[index]] targs=[kotlinx.cinterop.IntVar]
+expr e@19:20 int(1) type=Int
+expr e@19:5#2 memberAssign recv=e@19:5#1 callee=value value=e@19:20 type=Unit ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@20:5 name(arr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
+expr e@20:9 int(1) type=Int
+expr e@20:5#1 indexedAccess receiver=e@20:5 indices=[e@20:9] type=kotlinx.cinterop.IntVar call=kotlinx.cinterop.CPointer.get[kind=fun;recv=kotlinx.cinterop.CPointer<T0>;params=Int;ret=T0;gen=1;classGen=1;bounds=[kotlinx.cinterop.CPointed];names=[index]] targs=[kotlinx.cinterop.IntVar]
+expr e@20:20 int(2) type=Int
+expr e@20:5#2 memberAssign recv=e@20:5#1 callee=value value=e@20:20 type=Unit ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@21:16 call callee=e@21:16#1 args=[] type=Long call=kotlinx.cinterop.sizeOf[kind=fun;params=;ret=Long;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];origin=unknown] targs=[kotlinx.cinterop.IntVar]
+expr e@21:5 localDecl size mutable=0 type=_ init=e@21:16 type=Unit ref=__local_2.size[kind=local;type=Long;origin=fixture]
+expr e@22:17 call callee=e@22:17#1 args=[] type=Long call=kotlinx.cinterop.alignOf[kind=fun;params=;ret=Long;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];origin=unknown] targs=[kotlinx.cinterop.IntVar]
+expr e@22:5 localDecl align mutable=0 type=_ init=e@22:17 type=Unit ref=__local_3.align[kind=local;type=Long;origin=fixture]
+expr e@23:19 name(nativeHeap) type=kotlinx.cinterop.NativeFreeablePlacement ref=kotlinx.cinterop.nativeHeap[kind=prop;type=kotlinx.cinterop.NativeFreeablePlacement;origin=unknown]
+expr e@23:19#1 memberCall recv=e@23:19 callee=alloc args=[] type=kotlinx.cinterop.IntVar call=kotlinx.cinterop.NativePlacement.alloc[kind=fun;recv=kotlinx.cinterop.NativePlacement;params=;ret=T0;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0]] targs=[kotlinx.cinterop.IntVar]
+expr e@23:5 localDecl heapVar mutable=0 type=_ init=e@23:19#1 type=Unit ref=__local_4.heapVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
+expr e@24:5 name(heapVar) type=kotlinx.cinterop.IntVar ref=__local_4.heapVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
+expr e@24:21 int(7) type=Int
+expr e@24:5#1 memberAssign recv=e@24:5 callee=value value=e@24:21 type=Unit ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@25:5 name(nativeHeap) type=kotlinx.cinterop.NativeFreeablePlacement ref=kotlinx.cinterop.nativeHeap[kind=prop;type=kotlinx.cinterop.NativeFreeablePlacement;origin=unknown]
+expr e@25:21 name(heapVar) type=kotlinx.cinterop.IntVar ref=__local_4.heapVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
+expr e@25:21#1 memberCall recv=e@25:21 callee=ptr args=[] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=kotlinx.cinterop.IntVar.ptr[kind=prop;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>]
+expr e@25:5#1 memberCall recv=e@25:5 callee=free args=[_:e@25:21#1] type=Unit call=kotlinx.cinterop.NativeFreeablePlacement.free[kind=fun;recv=kotlinx.cinterop.NativeFreeablePlacement;params=kotlinx.cinterop.CPointer<*>?;ret=Unit;names=[ptr]]
+expr e@26:15 name(intVar) type=kotlinx.cinterop.IntVar ref=__local_0.intVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
+expr e@26:15#1 memberCall recv=e@26:15 callee=value args=[] type=Int ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@26:31 name(arr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
+expr e@26:35 int(0) type=Int
+expr e@26:31#1 indexedAccess receiver=e@26:31 indices=[e@26:35] type=kotlinx.cinterop.IntVar call=kotlinx.cinterop.CPointer.get[kind=fun;recv=kotlinx.cinterop.CPointer<T0>;params=Int;ret=T0;gen=1;classGen=1;bounds=[kotlinx.cinterop.CPointed];names=[index]] targs=[kotlinx.cinterop.IntVar]
+expr e@26:31#2 memberCall recv=e@26:31#1 callee=value args=[] type=Int ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@26:47 name(arr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
+expr e@26:51 int(1) type=Int
+expr e@26:47#1 indexedAccess receiver=e@26:47 indices=[e@26:51] type=kotlinx.cinterop.IntVar call=kotlinx.cinterop.CPointer.get[kind=fun;recv=kotlinx.cinterop.CPointer<T0>;params=Int;ret=T0;gen=1;classGen=1;bounds=[kotlinx.cinterop.CPointed];names=[index]] targs=[kotlinx.cinterop.IntVar]
+expr e@26:47#2 memberCall recv=e@26:47#1 callee=value args=[] type=Int ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
+expr e@26:62 name(size) type=Long ref=__local_2.size[kind=local;type=Long;origin=fixture]
+expr e@26:68 name(align) type=Long ref=__local_3.align[kind=local;type=Long;origin=fixture]
+expr e@26:5 stringTemplate[lit(answer-),expr(e@26:15#1),lit(-),expr(e@26:31#2),lit(-),expr(e@26:47#2),lit(-),expr(e@26:62),lit(-),expr(e@26:68)] type=String
+expr e@26:5#1 memberCall recv=e@26:5 callee=cstr args=[] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>> call=kotlinx.cinterop.MemScope.cstr.$get[kind=fun;recv=String;params=;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>]
+expr e@26:5#2 memberCall recv=e@26:5#1 callee=toKString args=[] type=String call=kotlinx.cinterop.toKString[kind=fun;recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>;params=;ret=String;origin=unknown]
+expr e@16:5#1 blockExpr stmts=[e@16:5,e@17:5#1,e@18:5,e@19:5#2,e@20:5#2,e@21:5,e@22:5,e@23:5,e@24:5#1,e@25:5#1] trailing=e@26:5#2 type=String
+expr e@15:37 lambda params=[] body=e@16:5#1 label=memScoped type=kotlinx.cinterop.MemScope.() -> String
+expr e@15:27 call callee=e@15:27#1 args=[_:e@15:37] type=String call=kotlinx.cinterop.memScoped[kind=fun;params=fn{r=kotlinx.cinterop.MemScope;p=;ret=T0};ret=T0;gen=1;names=[block];origin=unknown] targs=[String]

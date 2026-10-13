@@ -289,6 +289,44 @@ struct CallableReferenceExtensionReceiverTests {
         #expect(errors.isEmpty, "Bound `::m` member reference must keep working, got: \(errors)")
     }
 
+    @Test func testExplicitMemberReferenceOutranksSameNamedPackageExtension() throws {
+        let source = """
+        class Probe {
+            fun label(): String = "member"
+        }
+
+        fun Probe.label(): String = "extension"
+
+        fun capture(probe: Probe): () -> String = probe::label
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The explicit receiver member should remain a valid callable reference: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, member, range) = ast.arena.expr(exprID),
+                  ctx.interner.resolve(member) == "label",
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else {
+                return nil
+            }
+            return exprID
+        }.first)
+        guard case let .symbol(targetID)? = sema.bindings.callableTargets[callableRefExprID],
+              let ownerID = sema.symbols.parentSymbol(for: targetID),
+              let owner = sema.symbols.symbol(ownerID)
+        else {
+            Issue.record("probe::label should bind to a member function")
+            return
+        }
+        #expect(owner.kind == .class)
+    }
+
     @Test(arguments: [
         "with(\"s\") { with(1) { ::tag } }",
         "with(\"s\") { with(1) { with(true) { ::tag } } }",

@@ -81,10 +81,6 @@ final class DataFlowAnalyzer {
     var localDeclarations: [SymbolID: ExprID] = [:]
     init() {}
 
-    private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        BuiltinTypeNames(interner: interner)
-    }
-
     func branchOnCondition(
         _ conditionID: ExprID,
         base: DataFlowState,
@@ -194,7 +190,8 @@ final class DataFlowAnalyzer {
             locals: locals,
             ast: ast,
             sema: sema,
-            interner: interner
+            interner: interner,
+            narrowingToNonNull: true
         ), isStable else {
             return base
         }
@@ -231,8 +228,8 @@ final class DataFlowAnalyzer {
             let testedCall: ExprID?
             let trueResult: ContractReturnCondition
             var falseResult: ContractReturnCondition
-            if isNullLiteral(rhsID, ast: ast, interner: interner) || isNullLiteral(lhsID, ast: ast, interner: interner) {
-                testedCall = isNullLiteral(rhsID, ast: ast, interner: interner) ? lhsID : rhsID
+            if isNullLiteral(rhsID, ast: ast) || isNullLiteral(lhsID, ast: ast) {
+                testedCall = isNullLiteral(rhsID, ast: ast) ? lhsID : rhsID
                 trueResult = .returnsNull
                 falseResult = .returnsNotNull
             } else if let value = booleanLiteral(rhsID, ast: ast, interner: interner) {
@@ -331,15 +328,15 @@ final class DataFlowAnalyzer {
         interner: StringInterner
     ) -> ConditionBranch? {
         let variableID: ExprID
-        if isNullLiteral(rhsID, ast: ast, interner: interner) {
+        if isNullLiteral(rhsID, ast: ast) {
             variableID = lhsID
-        } else if isNullLiteral(lhsID, ast: ast, interner: interner) {
+        } else if isNullLiteral(lhsID, ast: ast) {
             variableID = rhsID
         } else {
             return nil
         }
         guard let (symbol, currentType, isStable) = resolveStableReference(
-            variableID, locals: locals, ast: ast, sema: sema, interner: interner
+            variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingToNonNull: true
         ), isStable else {
             return nil
         }
@@ -397,7 +394,7 @@ final class DataFlowAnalyzer {
         locals: LocalBindings, ast: ASTModule, sema: SemaModule, interner: StringInterner
     ) -> ConditionBranch {
         guard let (symbol, currentType, isStable) = resolveStableReference(
-            exprID, locals: locals, ast: ast, sema: sema, interner: interner
+            exprID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingType: rawTargetType
         ), isStable else {
             return ConditionBranch(trueState: base, falseState: base)
         }
@@ -419,13 +416,10 @@ final class DataFlowAnalyzer {
                                       let existingType = baseState.possibleTypes.first
         {
             if sema.types.isSubtype(existingType, targetType) {
-                // Existing flow type is already more specific; keep it.
                 existingType
             } else if sema.types.isSubtype(targetType, existingType) {
-                // New target type is more specific; use it.
                 targetType
             } else {
-                // Types are unrelated; intersect them for chained is-checks.
                 sema.types.make(.intersection([existingType, targetType]))
             }
         } else {
@@ -534,7 +528,7 @@ final class DataFlowAnalyzer {
         }
         switch conditionSymbol.kind {
         case .field:
-            guard let ownerID = enumOwnerSymbolID(for: conditionSymbol, symbols: sema.symbols),
+            guard let ownerID = sema.symbols.enumOwnerSymbol(for: conditionSymbol),
                   nominalSymbolID(of: subjectType, types: sema.types) == ownerID
             else {
                 return base
@@ -549,7 +543,7 @@ final class DataFlowAnalyzer {
             return vars
         case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
             guard let subjectNominal = nominalSymbolID(of: subjectType, types: sema.types),
-                  isNominalSubtype(conditionSymbolID, of: subjectNominal, symbols: sema.symbols)
+                  TypeCheckHelpers().isNominalSubtype(conditionSymbolID, of: subjectNominal, symbols: sema.symbols)
             else {
                 return base
             }
@@ -667,7 +661,7 @@ final class DataFlowAnalyzer {
         return narrowed
     }
 
-    private func isNullLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool {
+    private func isNullLiteral(_ id: ExprID, ast: ASTModule) -> Bool {
         guard let expr = ast.arena.expr(id),
               case .nullLiteral = expr
         else {
@@ -687,39 +681,6 @@ final class DataFlowAnalyzer {
         return nil
     }
 
-    private func isNominalSubtype(
-        _ candidate: SymbolID,
-        of base: SymbolID,
-        symbols: SymbolTable
-    ) -> Bool {
-        if candidate == base {
-            return true
-        }
-        var queue = symbols.directSupertypes(for: candidate)
-        var visited: Set<SymbolID> = [candidate]
-        while !queue.isEmpty {
-            let next = queue.removeFirst()
-            if next == base {
-                return true
-            }
-            if visited.insert(next).inserted {
-                queue.append(contentsOf: symbols.directSupertypes(for: next))
-            }
-        }
-        return false
-    }
-
-    private func enumOwnerSymbolID(for entrySymbol: SemanticSymbol, symbols: SymbolTable) -> SymbolID? {
-        guard entrySymbol.kind == .field,
-              entrySymbol.fqName.count >= 2
-        else {
-            return nil
-        }
-        let ownerFQName = Array(entrySymbol.fqName.dropLast())
-        return symbols.lookupAll(fqName: ownerFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .enumClass
-        })
-    }
 
     func merge(_ lhs: DataFlowState, _ rhs: DataFlowState) -> DataFlowState {
         var merged: [SymbolID: VariableFlowState] = [:]
@@ -874,18 +835,16 @@ final class DataFlowAnalyzer {
             return true
         }
         return branches.coveredTypeSymbols.contains {
-            isNominalSubtype(subtype, of: $0, symbols: sema.symbols)
+            TypeCheckHelpers().isNominalSubtype(subtype, of: $0, symbols: sema.symbols)
         }
     }
 
     /// P5-78: Get sealed subtype symbols, using sealedSubclasses metadata for cross-module support,
     /// falling back to directSubtypes for same-module sealed types.
     private func sealedSubtypeSymbols(for classSymbol: SemanticSymbol, sema: SemaModule) -> [SymbolID] {
-        // First try sealedSubclasses (populated from metadata for cross-module)
         if let sealedSubs = sema.symbols.sealedSubclasses(for: classSymbol.id) {
             return sealedSubs
         }
-        // Fall back to directSubtypes (same-module)
         return sema.symbols.directSubtypes(of: classSymbol.id)
     }
 
@@ -933,7 +892,7 @@ final class DataFlowAnalyzer {
         }
 
         if path.count == 1,
-           let typeParameterSymbol = resolveTypeParameterSymbol(shortName, scope: scope, sema: sema),
+           let typeParameterSymbol = TypeCheckHelpers().resolveTypeParameterSymbol(shortName, scope: scope, sema: sema),
            let typeParameter = sema.symbols.symbol(typeParameterSymbol),
            !typeParameter.flags.contains(.reifiedTypeParameter)
         {
@@ -946,15 +905,6 @@ final class DataFlowAnalyzer {
         return targetType == sema.types.errorType ? nil : targetType
     }
 
-    private func resolveTypeParameterSymbol(
-        _ name: InternedString,
-        scope: Scope,
-        sema: SemaModule
-    ) -> SymbolID? {
-        scope.lookup(name).first { symbolID in
-            sema.symbols.symbol(symbolID)?.kind == .typeParameter
-        }
-    }
 
     private func enumEntryNames(for enumSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {
         let childIDs = sema.symbols.children(ofFQName: enumSymbol.fqName)

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -252,17 +253,25 @@ struct CodegenBackendIOHelpersTests {
     }
 
     @Test
-    func testCodegenReadlnEOFThrows() throws {
+    func testCodegenReadLineEchoesInputLine() throws {
         let source = """
         fun main() {
-            try {
-                val line = readln()
-                println(line)
-            } catch (e: RuntimeException) {
-                println(e.message)
-            }
+            val line = readLine()
+            println("line: $line")
         }
         """
+
+        let normalizedStdout = try runWithStdin(
+            source,
+            moduleName: "ReadLineEchoInput",
+            shellInvocation: "printf 'hello\\n' | \"$1\""
+        )
+        #expect(normalizedStdout == "line: hello\n")
+    }
+
+    @Test
+    func testCodegenReadlnEOFThrows() throws {
+        let source = try diffCaseSource("readln_basic.kt")
 
         let normalizedStdout = try runWithStdin(source, moduleName: "ReadlnEOF", shellInvocation: "\"$1\" </dev/null")
         #expect(

@@ -1,47 +1,61 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendExitProcessTests {
+
+    @Test(arguments: [0, 2], [false, true])
+    func testJavaSystemExitPreservesJvmProcessStatus(optimization: Int, stdlibFromSource: Bool) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        let stdlibLibraryPath = stdlibFromSource ? nil : try testStdlibArtifactPath()
+        let source = """
+        fun exitWithStatus(status: Int): Unit = System.exit(status)
+        fun main(){System.exit(7);println("unreachable")}
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+            let options = CompilerOptions(
+                moduleName: "JavaSystemExit",
+                inputs: [inputPath],
+                outputPath: outputPath,
+                emit: .executable,
+                target: defaultTargetTriple(),
+                optLevel: optLevel,
+                includeStdlib: stdlibFromSource,
+                stdlibLibraryPath: stdlibLibraryPath,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result: CommandResult
+            do {
+                result = try CommandRunner.run(executable: outputPath, arguments: [])
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                result = failed
+            }
+
+            #expect(result.exitCode == 7)
+            #expect(result.stdout.isEmpty)
+            #expect(result.stderr.isEmpty)
+        }
+    }
 
     @Test
     func testExitProcessCodegenInDeadBranch() throws {

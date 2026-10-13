@@ -1,5 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.concurrent.atomics is Native-only
-// in Kotlin 2.3.10 and is unavailable in the JVM kotlinc reference environment.
+// CANDIDATE-ONLY: kotlin.concurrent.atomics is Native-only in Kotlin 2.3.10 and has no JVM kotlinc oracle.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_concurrent_atomics_AtomicNativePtr_n.expected.stdout
 
 @file:OptIn(
     kotlin.concurrent.atomics.ExperimentalAtomicApi::class,

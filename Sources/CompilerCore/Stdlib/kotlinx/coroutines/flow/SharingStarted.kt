@@ -37,7 +37,7 @@ private class StartedEagerly : SharingStarted {
 private class StartedLazily : SharingStarted {
     override fun command(subscriptionCount: StateFlow<Int>): Flow<SharingCommand> = flow {
         var started = false
-        for (count in subscriptionCount.toList()) {
+        subscriptionCount.collect { count ->
             if (count > 0 && !started) {
                 started = true
                 emit(SharingCommand.START)
@@ -46,7 +46,6 @@ private class StartedLazily : SharingStarted {
     }
 }
 
-// Subscription counts are finite snapshots on the bundled SharedFlow surface.
 private class StartedWhileSubscribed(
     private val stopTimeoutMillis: Long,
     private val replayExpirationMillis: Long
@@ -58,7 +57,7 @@ private class StartedWhileSubscribed(
 
     override fun command(subscriptionCount: StateFlow<Int>): Flow<SharingCommand> = flow {
         var started = false
-        for (count in subscriptionCount.toList()) {
+        subscriptionCount.collect { count ->
             if (count > 0) {
                 if (!started) emit(SharingCommand.START)
                 started = true

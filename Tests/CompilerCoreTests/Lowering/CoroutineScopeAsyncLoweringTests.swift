@@ -26,9 +26,9 @@ struct CoroutineScopeAsyncLoweringTests {
         let callees = findAllKIRFunctions(in: module).flatMap {
             extractCallees(from: $0.body, interner: ctx.interner)
         }
-        #expect(callees.contains("kk_coroutine_scope_async_with_cont"))
-        #expect(callees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(!callees.contains("kk_coroutine_scope_launch"))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_scope_async_with_cont")))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
+        #expect(!callees.contains(LoweringTestRuntime.name("coroutine_scope_launch")))
     }
     @Test(arguments: [false, true])
     func launchContextUsesReceiverContinuation(useArtifact: Bool) throws {
@@ -51,10 +51,10 @@ struct CoroutineScopeAsyncLoweringTests {
         let callees = findAllKIRFunctions(in: module).flatMap {
             extractCallees(from: $0.body, interner: ctx.interner)
         }
-        #expect(callees.contains("__kk_coroutine_scope_launch_context_with_cont"))
-        #expect(callees.contains("__kk_coroutine_scope_launch_context"))
-        #expect(callees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(!callees.contains("kk_coroutine_scope_launch"))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_scope_launch_context_with_cont")))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_scope_launch_context")))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
+        #expect(!callees.contains(LoweringTestRuntime.name("coroutine_scope_launch")))
     }
 
 }

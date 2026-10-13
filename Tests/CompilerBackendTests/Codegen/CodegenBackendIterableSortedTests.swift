@@ -1,34 +1,12 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite(.serialized)
 struct CodegenBackendIterableSortedTests {
-    private func runCodegenPipeline(
-        inputPath: String,
-        moduleName: String,
-        outputPath: String
-    ) throws -> CompilationContext {
-        let options = CompilerOptions(
-            moduleName: moduleName,
-            inputs: [inputPath],
-            outputPath: outputPath,
-            emit: .executable,
-            target: defaultTargetTriple()
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
-        )
-        try runToKIR(ctx)
-        try LoweringPhase().run(ctx)
-        try CodegenPhase().run(ctx)
-        return ctx
-    }
 
     @Test
     func testCodegenIterableSortedFamilyUsesSourceBackedDeclarations() throws {

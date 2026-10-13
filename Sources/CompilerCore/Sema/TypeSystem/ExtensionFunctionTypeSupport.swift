@@ -151,7 +151,7 @@ enum ExtensionFunctionTypeSupport {
             )
             return nil
         }
-        let value = annotationArgumentValue(argument)
+        let value = SemaAnnotationArgument.value(argument)
         guard let count = Int(value), count >= 0 else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-CONTEXT-FN-TYPE",
@@ -161,14 +161,6 @@ enum ExtensionFunctionTypeSupport {
             return nil
         }
         return count
-    }
-
-    private static func annotationArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return String(trimmed[trimmed.index(after: equalIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func diagnosticCode(hasContextFunctionTypeParams: Bool) -> String {

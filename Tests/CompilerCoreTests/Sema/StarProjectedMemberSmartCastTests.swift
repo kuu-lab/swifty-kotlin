@@ -28,7 +28,7 @@ struct StarProjectedMemberSmartCastTests {
         let calls = ast.arena.exprs.indices.map { ExprID(rawValue: Int32($0)) }.filter { id in
             guard let expr = ast.arena.expr(id) else { return false }
             guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(name) == "createCopy"
+            return name == ctx.interner.intern("createCopy")
         }
         #expect(calls.count == 4)
         let throwableType = try #require(TypeCheckHelpers().throwableType(sema: sema, interner: ctx.interner))
@@ -68,7 +68,7 @@ struct StarProjectedMemberSmartCastTests {
         let sema = try #require(ctx.sema)
         let call = try #require(firstExprID(in: ast) { _, expr in
             guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(name) == "createCopy"
+            return name == ctx.interner.intern("createCopy")
         })
         #expect(sema.bindings.exprType(for: call) == sema.types.nullableAnyType)
     }
@@ -103,6 +103,63 @@ struct StarProjectedMemberSmartCastTests {
         try runSema(ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
         #expect(ctx.diagnostics.hasError)
+    }
+
+    // KUU-1371: `x != null && x is List<*>` narrows a type-parameter member
+    // property `R?` to the intersection `R & List<*>`; extension member calls
+    // on the receiver must resolve against the `List` part.
+    @Test func typeParameterPropertyNarrowsToIntersectionAndResolvesExtension() throws {
+        let ctx = makeContextFromSource("""
+        class D<R>(val defaultValue: R?)
+        fun <R> check(d: D<R>): Boolean =
+            d.defaultValue != null && (d.defaultValue is List<*> && d.defaultValue.isNotEmpty() || d.defaultValue !is List<*>)
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(memberCallExprIDs(
+            named: "isNotEmpty",
+            in: ast,
+            path: ctx.options.inputs[0],
+            ctx: ctx,
+            interner: ctx.interner
+        ).first)
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee != nil)
+        #expect(sema.bindings.exprType(for: call) == sema.types.booleanType)
+        guard case let .memberCall(receiverID, _, _, _, _) = ast.arena.expr(call),
+              let receiverType = sema.bindings.exprType(for: receiverID),
+              case let .intersection(parts) = sema.types.kind(of: receiverType)
+        else {
+            Issue.record("expected intersection-narrowed receiver for isNotEmpty()")
+            return
+        }
+        #expect(parts.contains { part in
+            guard case let .classType(classType) = sema.types.kind(of: part),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else { return false }
+            return symbol.fqName.last == ctx.interner.intern("List")
+        })
+    }
+
+    // KUU-1463: a stable member property remains smart-castable when the `is`
+    // check is inside a non-inline lambda, including a delegated `lazy` value.
+    @Test func typeParameterPropertyNarrowsInsideNonInlineLambda() throws {
+        let ctx = makeContextFromSource("""
+        class D<R>(val defaultValue: R?) {
+            val defaultValueSet by lazy {
+                defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+            }
+            val explicitDefaultValueSet by lazy {
+                this.defaultValue != null && (this.defaultValue is List<*> && this.defaultValue.isNotEmpty() || this.defaultValue !is List<*>)
+            }
+            fun plain(): Boolean = defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+            fun inRun(): Boolean = run { defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>) }
+        }
+        fun read(d: D<List<Int>>): Boolean = d.defaultValueSet && d.explicitDefaultValueSet
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test(arguments: [

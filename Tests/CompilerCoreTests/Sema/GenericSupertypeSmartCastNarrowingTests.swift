@@ -32,7 +32,7 @@ struct GenericSupertypeSmartCastNarrowingTests {
             return ctx.interner.resolve(callee) == "compareTo"
         })
         let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosen) == "__kk_comparable_compareTo")
+        #expect(sema.symbols.externalLinkName(for: chosen) == runtimeABIName(.comparableCompareTo))
         guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call) else {
             Issue.record("Expected member call")
             return

@@ -61,7 +61,7 @@ extension LoweringPassRegressionTests {
                 let targetCalls = dispatch.body.compactMap { instruction -> (SymbolID, Int)? in
                     guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction,
                           let symbol = symbol,
-                          (ctx.interner.resolve(callee) == "f" || ctx.interner.resolve(callee) == "apply")
+                          (callee == ctx.interner.intern("f") || callee == ctx.interner.intern("apply"))
                     else {
                         return nil
                     }

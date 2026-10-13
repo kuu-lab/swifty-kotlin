@@ -9,6 +9,13 @@ public fun <T> Array<out T>.toHashSet(): HashSet<T> = asIterable().toHashSet()
 
 public fun <T> Array<out T>.toMutableSet(): MutableSet<T> = asIterable().toMutableSet()
 
+// KUU-1361: JVM `toSortedSet` array overloads.
+public fun <T : Comparable<T>> Array<out T>.toSortedSet(): java.util.SortedSet<T> =
+    asIterable().toSortedSet()
+
+public fun <T> Array<out T>.toSortedSet(comparator: Comparator<in T>): java.util.SortedSet<T> =
+    asIterable().toSortedSet(comparator)
+
 public fun <T, C : MutableCollection<in T>> Array<out T>.toCollection(destination: C): C =
     asIterable().toCollection(destination)
 

@@ -18,22 +18,24 @@ func runtimeCurrentPlatformThreadID() -> UInt64 {
 #endif
 }
 
-// MARK: - Kotlin/Native specific APIs (STDLIB-NATIVE-168)
 
 func runtimeCurrentStackTraceAddresses() -> [Int] {
     Thread.callStackReturnAddresses.map { Int(truncating: $0) }
 }
 
-// MARK: - CPointer / COpaquePointer
 
 /// Runtime backing for `kotlinx.cinterop.CPointer<T>`.
 ///
 /// Holds a raw C pointer value. In the KSwiftK ABI, pointer types are
 /// represented as boxed `Int` values that carry the machine-word address.
+/// `pointeeTypeID` is the nominal typeID of T (0 = opaque/untyped), used by
+/// `pointed`, `get`, and `reinterpret` to select the pointee's C layout.
 final class RuntimeCPointerBox: @unchecked Sendable {
     let address: UInt
-    init(address: UInt) {
+    let pointeeTypeID: Int64
+    init(address: UInt, pointeeTypeID: Int64 = 0) {
         self.address = address
+        self.pointeeTypeID = pointeeTypeID
     }
 }
 
@@ -79,8 +81,7 @@ public func kk_cpointer_address(_ handle: Int) -> Int {
 
 @_cdecl("kk_cpointer_toLong")
 public func kk_cpointer_toLong(_ handle: Int) -> Int {
-    guard let box = resolveCPointerBox(from: handle) else { return 0 }
-    return Int(bitPattern: box.address)
+    kk_cpointer_address(handle)
 }
 
 @_cdecl("kk_cpointer_toKStringFromUtf32")
@@ -166,9 +167,11 @@ public func kk_native_getStackTraceAddresses(_ throwableRaw: Int) -> Int {
        })
     {
         if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
-            addresses = throwable.stackTraceAddresses
+            addresses = throwable.writableStackTrace ? throwable.stackTraceAddresses : []
         } else if let throwable = tryCast(pointer, to: RuntimeObjectBox.self) {
-            addresses = throwable.throwableStackTraceAddresses ?? []
+            addresses = throwable.throwableWritableStackTrace
+                ? throwable.throwableStackTraceAddresses ?? []
+                : []
         } else {
             addresses = []
         }
@@ -186,6 +189,10 @@ public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
           }),
           let object = tryCast(pointer, to: RuntimeObjectBox.self)
     else {
+        return throwableRaw
+    }
+    guard object.throwableWritableStackTrace else {
+        object.throwableStackTraceAddresses = []
         return throwableRaw
     }
     if object.throwableStackTraceAddresses == nil {
@@ -244,7 +251,6 @@ public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Ne
     runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
 
-// MARK: - Native ByteArray accessors
 
 /// ImmutableBlob has the same element layout as ByteArray. The source-backed
 /// factory receives the raw Short vararg array; each element is truncated to
@@ -553,7 +559,6 @@ public func kk_native_byteArray_setDoubleAt(_ arrayRaw: Int, _ index: Int, _ val
     )
 }
 
-// MARK: - CValues<T> (STDLIB-CINTEROP-FN-018)
 
 /// Runtime backing for `kotlinx.cinterop.CValues<ByteVar>`.
 ///
@@ -633,7 +638,6 @@ public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
 }
 
-// MARK: - ImmutableBlob
 
 /// Returns a stable native address for `ImmutableBlob.asCPointer(offset)` /
 /// `asUCPointer(offset)` (upstream `Kotlin_ImmutableBlob_asCPointerImpl`).
@@ -663,7 +667,6 @@ public func __kk_immutable_blob_as_cpointer(_ blobRaw: Int, _ offset: Int) -> In
     return Int(bitPattern: baseAddress) + offset
 }
 
-// MARK: - Pinned<T>
 
 /// Runtime backing for `kotlin.native.ref.Pinned<T>`.
 ///
@@ -776,7 +779,6 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     }
 }
 
-// MARK: - StableRef<T>
 
 /// Runtime backing for `kotlinx.cinterop.StableRef<T>`.
 ///
@@ -846,7 +848,6 @@ public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
     }
 }
 
-// MARK: - WeakReference<T>
 
 /// Runtime backing for `kotlin.native.ref.WeakReference<T>`.
 ///
@@ -856,10 +857,15 @@ public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
 /// no longer present in either domain.
 final class RuntimeWeakReferenceBox: @unchecked Sendable {
     private let lock = NSLock()
-    private var objectRaw: Int
+    private var objectRaw: Int?
+    private let hasManagedReferent: Bool
 
     init(objectRaw: Int) {
         self.objectRaw = objectRaw
+        // Primitive values may arrive here as immediate words rather than
+        // registered object handles. Classify only by runtime registries; do
+        // not dereference an ABI word to decide whether it is a pointer.
+        self.hasManagedReferent = runtimeWeakReferentIsManaged(objectRaw)
     }
 
     func get() -> Int {
@@ -867,9 +873,9 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
         let current = objectRaw
         lock.unlock()
 
-        guard current != 0,
+        guard let current,
               current != runtimeNullSentinelInt,
-              runtimeWeakReferentIsLive(current)
+              !hasManagedReferent || runtimeWeakReferentIsLive(current)
         else {
             clear()
             // The Kotlin-level `get(): T?` is a generic Any-erased slot, where a
@@ -884,8 +890,23 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
 
     func clear() {
         lock.lock()
-        objectRaw = 0
+        // `nil` marks a cleared weak reference; zero is a live immediate value
+        // (Int(0), Boolean(false), or Char(0)).
+        objectRaw = nil
         lock.unlock()
+    }
+}
+
+private func runtimeWeakReferentIsManaged(_ objectRaw: Int) -> Bool {
+    guard objectRaw != 0,
+          objectRaw != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return false
+    }
+    let key = UInt(bitPattern: ptr)
+    return runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(key) || state.heapObjects[key] != nil
     }
 }
 
@@ -935,7 +956,6 @@ public func kk_weak_ref_clear(_ weakRefRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - createCleaner
 
 /// Runtime backing for `kotlin.native.ref.createCleaner`.
 ///
@@ -1005,7 +1025,6 @@ public func kk_cleaner_create(_ valueRaw: Int, _ blockRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCleanerBox(valueRaw: valueRaw, blockRaw: blockRaw))
 }
 
-@_cdecl("kk_cleaner_clean")
 public func kk_cleaner_clean(_ cleanerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let box = runtimeCleanerBox(from: cleanerRaw) else {
         return 0
@@ -1013,7 +1032,6 @@ public func kk_cleaner_clean(_ cleanerRaw: Int, _ outThrown: UnsafeMutablePointe
     return box.clean(outThrown: outThrown)
 }
 
-@_cdecl("kk_cleaner_dispose")
 public func kk_cleaner_dispose(_ cleanerRaw: Int) -> Int {
     guard let box = runtimeCleanerBox(from: cleanerRaw) else {
         return 0
@@ -1022,7 +1040,6 @@ public func kk_cleaner_dispose(_ cleanerRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - freeze() / isFrozen (Kotlin/Native legacy immutability)
 
 /// ABI-004: Protocol adopted by runtime boxes that store child object handles.
 ///
@@ -1109,12 +1126,10 @@ public func kk_freeze_object(_ objectRaw: Int) -> Int {
     return objectRaw
 }
 
-@_cdecl("kk_is_frozen")
 public func kk_is_frozen(_ objectRaw: Int) -> Int {
     runtimeFrozenSet.isFrozen(objectRaw) ? 1 : 0
 }
 
-// MARK: - Worker API
 
 /// Runtime backing for `kotlin.native.concurrent.Worker`.
 ///
@@ -1450,7 +1465,6 @@ public func kk_worker_name(_ workerHandle: Int) -> Int {
     return registerRuntimeObject(RuntimeStringBox(name))
 }
 
-// MARK: - @CName annotation (C interop export name)
 
 /// Registry for functions exported under a C-compatible external name via `@CName`.
 private final class RuntimeCNameRegistry: @unchecked Sendable {
@@ -1474,7 +1488,6 @@ private final class RuntimeCNameRegistry: @unchecked Sendable {
 
 private let runtimeCNameRegistry = RuntimeCNameRegistry()
 
-@_cdecl("kk_cname_register")
 public func kk_cname_register(_ externNameRaw: Int, _ fnPtr: Int) -> Int {
     guard let namePtr = UnsafeMutableRawPointer(bitPattern: externNameRaw),
           let name = extractString(from: namePtr)
@@ -1485,7 +1498,6 @@ public func kk_cname_register(_ externNameRaw: Int, _ fnPtr: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_cname_lookup")
 public func kk_cname_lookup(_ externNameRaw: Int) -> Int {
     guard let namePtr = UnsafeMutableRawPointer(bitPattern: externNameRaw),
           let name = extractString(from: namePtr)

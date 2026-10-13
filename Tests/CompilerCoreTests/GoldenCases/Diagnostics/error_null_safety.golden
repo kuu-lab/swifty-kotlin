@@ -43,6 +43,32 @@
     {
       "file": "error_null_safety.kt",
       "range": {
+        "start": { "line": 18, "character": 4 },
+        "end": { "line": 18, "character": 25 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-0096",
+      "source": "kswiftk",
+      "message": "Unreachable code.",
+      "codeActions": []
+    },
+    {
+      "file": "error_null_safety.kt",
+      "range": {
+        "start": { "line": 19, "character": 4 },
+        "end": { "line": 19, "character": 25 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-0096",
+      "source": "kswiftk",
+      "message": "Unreachable code.",
+      "codeActions": []
+    },
+    {
+      "file": "error_null_safety.kt",
+      "range": {
         "start": { "line": 20, "character": 4 },
         "end": { "line": 20, "character": 26 }
       },
@@ -51,6 +77,19 @@
       "code": "KSWIFTK-TYPE-0001",
       "source": "kswiftk",
       "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "error_null_safety.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 20, "character": 26 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-0096",
+      "source": "kswiftk",
+      "message": "Unreachable code.",
       "codeActions": []
     }
   ]

@@ -29,20 +29,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = collectionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "E",
+            in: collectionFQName,
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol, nullability: .nonNull
         )))
@@ -246,20 +238,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = abstractCollectionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "E",
+            in: abstractCollectionFQName,
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull
@@ -308,8 +292,6 @@ extension DataFlowSemaPhase {
         return abstractCollectionSymbol
     }
 
-
-    /// Register a minimal `kotlin.collections.MutableCollection<E>` interface surface.
     func registerSyntheticMutableCollectionStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -333,20 +315,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = mutableCollectionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "E",
+            in: mutableCollectionFQName,
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull
@@ -511,20 +485,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = abstractMutableCollectionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "E",
+            in: abstractMutableCollectionFQName,
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull
@@ -598,20 +564,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = iterableFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "E",
+            in: iterableFQName,
+            symbols: symbols,
+            interner: interner
+        )
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
 
@@ -857,20 +815,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = mutableIterableFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: mutableIterableFQName,
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull

@@ -4,15 +4,6 @@
 public extension RuntimeABISpec {
     static let charFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_char_minus",
-            parameters: [
-                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
-                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Char"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_char_rangeTo",
             parameters: [
                 RuntimeABIParameter(name: "startValue", type: .intptr),

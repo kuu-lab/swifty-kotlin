@@ -62,35 +62,35 @@ expr e@8:61 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMa
 expr e@8:76 name(it) type=Char ref=s-2
 expr e@8:76#1 memberCall recv=e@8:76 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
 expr e@8:76#2 memberCall recv=e@8:76#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=;ret=Double]
-expr e@8:74 lambda params=[] body=e@8:76#2 label=maxOf type=(Char) -> Any?
+expr e@8:74 lambda params=[] body=e@8:76#2 label=maxOf type=(Char) -> Double
 expr e@8:61#1 memberCall recv=e@8:61 callee=maxOf args=[_:e@8:74] type=Double call=kotlin.text.maxOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Double};ret=Double;names=[selector]]
 expr e@9:59 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMaxOfFloat.$5.source[kind=vparam;origin=fixture]
 expr e@9:74 name(it) type=Char ref=s-3
 expr e@9:74#1 memberCall recv=e@9:74 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
 expr e@9:74#2 memberCall recv=e@9:74#1 callee=toFloat args=[] type=Float
-expr e@9:72 lambda params=[] body=e@9:74#2 label=maxOf type=(Char) -> Any?
+expr e@9:72 lambda params=[] body=e@9:74#2 label=maxOf type=(Char) -> Float
 expr e@9:59#1 memberCall recv=e@9:59 callee=maxOf args=[_:e@9:72] type=Float call=kotlin.text.maxOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Float};ret=Float;names=[selector]]
 expr e@10:62 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMaxOfComparable.$3.source[kind=vparam;origin=fixture]
 expr e@10:77 name(it) type=Char ref=s-4
 expr e@10:77#1 memberCall recv=e@10:77 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
-expr e@10:75 lambda params=[] body=e@10:77#1 label=maxOf type=(Char) -> Any?
+expr e@10:75 lambda params=[] body=e@10:77#1 label=maxOf type=(Char) -> Int
 expr e@10:62#1 memberCall recv=e@10:62 callee=maxOf args=[_:e@10:75] type=Int call=kotlin.text.maxOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};ret=T0;gen=1;bounds=[kotlin.Comparable<T0>];names=[selector]] targs=[Int]
 expr e@11:68 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMaxOfOrNullDouble.$7.source[kind=vparam;origin=fixture]
 expr e@11:89 name(it) type=Char ref=s-5
 expr e@11:89#1 memberCall recv=e@11:89 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
 expr e@11:89#2 memberCall recv=e@11:89#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=;ret=Double]
-expr e@11:87 lambda params=[] body=e@11:89#2 label=maxOfOrNull type=(Char) -> Any?
+expr e@11:87 lambda params=[] body=e@11:89#2 label=maxOfOrNull type=(Char) -> Double
 expr e@11:68#1 memberCall recv=e@11:68 callee=maxOfOrNull args=[_:e@11:87] type=Double? call=kotlin.text.maxOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Double};ret=Double?;names=[selector]]
 expr e@12:66 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMaxOfOrNullFloat.$8.source[kind=vparam;origin=fixture]
 expr e@12:87 name(it) type=Char ref=s-6
 expr e@12:87#1 memberCall recv=e@12:87 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
 expr e@12:87#2 memberCall recv=e@12:87#1 callee=toFloat args=[] type=Float
-expr e@12:85 lambda params=[] body=e@12:87#2 label=maxOfOrNull type=(Char) -> Any?
+expr e@12:85 lambda params=[] body=e@12:87#2 label=maxOfOrNull type=(Char) -> Float
 expr e@12:66#1 memberCall recv=e@12:66 callee=maxOfOrNull args=[_:e@12:85] type=Float? call=kotlin.text.maxOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Float};ret=Float?;names=[selector]]
 expr e@13:69 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMaxOfOrNullComparable.$6.source[kind=vparam;origin=fixture]
 expr e@13:90 name(it) type=Char ref=s-7
 expr e@13:90#1 memberCall recv=e@13:90 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int;origin=unknown]
-expr e@13:88 lambda params=[] body=e@13:90#1 label=maxOfOrNull type=(Char) -> Any?
+expr e@13:88 lambda params=[] body=e@13:90#1 label=maxOfOrNull type=(Char) -> Int
 expr e@13:69#1 memberCall recv=e@13:69 callee=maxOfOrNull args=[_:e@13:88] type=Int? call=kotlin.text.maxOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};ret=T0?;gen=1;bounds=[kotlin.Comparable<T0>];names=[selector]] targs=[Int]
 expr e@15:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMaxOfWith.$9.source[kind=vparam;origin=fixture]
 expr e@15:22 name(comparator) type=kotlin.Comparator<Any> ref=golden.sema.charSequenceMaxOfWith.$9.comparator[kind=vparam;origin=fixture]

@@ -53,7 +53,6 @@ extension DataFlowSemaPhase {
             enumFQName: kotlinPkg + [interner.intern("Enum")]
         )
 
-        // kotlin.enums.EnumEntries<T> — List-like read-only container for enum entries
         let enumEntriesInterfaceSymbol = ensureEnumEntriesInterface(
             symbols: symbols,
             types: types,
@@ -264,8 +263,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Registers synthetic enum entry properties (name, ordinal) on an enum class.
-    /// Called from HeaderCollection when processing enum classes.
     func collectSyntheticEnumEntryProperties(
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],
@@ -365,8 +362,6 @@ extension DataFlowSemaPhase {
         scope.insert(funcSymbol)
     }
 
-    /// Registers synthetic companion members (valueOf, entries) for enum classes.
-    /// Call with companionSymbol and companionScope when the companion exists (or was synthesized).
     func collectSyntheticEnumCompanionMembers(
         companionSymbol: SymbolID,
         companionFQName: [InternedString],
@@ -420,7 +415,6 @@ extension DataFlowSemaPhase {
             scope.insert(funcSymbol)
         }
 
-        // entries: EnumEntries<T>
         let enumEntriesName = interner.intern("EnumEntries")
         let enumEntriesFQName = [interner.intern("kotlin"), interner.intern("enums"), enumEntriesName]
         guard let enumEntriesSymbol = symbols.lookup(fqName: enumEntriesFQName) else { return }

@@ -60,7 +60,7 @@ struct LocalDelegatePropertyKIRTests {
         var lastCallArguments: [KIRExprID] = []
         for instruction in mainBody {
             guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
-            if ctx.interner.resolve(callee) == "getValue" {
+            if callee == KnownCompilerNames(interner: ctx.interner).getValue {
                 getValueResult = result
             }
             lastCallArguments = arguments
@@ -197,13 +197,10 @@ struct LocalDelegatePropertyKIRTests {
         var getValueArguments: [KIRExprID] = []
         for instruction in mainBody {
             guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
-            switch ctx.interner.resolve(callee) {
-            case "provideDelegate":
+            if callee == ctx.interner.intern("provideDelegate") {
                 provideDelegateResult = result
-            case "getValue":
+            } else if callee == KnownCompilerNames(interner: ctx.interner).getValue {
                 getValueArguments = arguments
-            default:
-                break
             }
         }
 
@@ -290,13 +287,12 @@ struct LocalDelegatePropertyKIRTests {
             switch instruction {
             case let .call(_, callee, arguments, result, _, _, _, _),
                  let .virtualCall(_, callee, _, arguments, result, _, _, _):
-                let calleeName = ctx.interner.resolve(callee)
-                if calleeName == "getValue", let result {
+                if callee == KnownCompilerNames(interner: ctx.interner).getValue, let result {
                     derivedValues.insert(result)
                 } else if let result, arguments.contains(where: { derivedValues.contains($0) }) {
                     derivedValues.insert(result)
                 }
-                if calleeName == "println" || calleeName == "__kk_print_raw" || calleeName.hasPrefix("kk_println") {
+                if isKIRPrintCallee(callee, interner: ctx.interner) {
                     printCallArguments.append(arguments)
                 }
             default:
@@ -349,9 +345,14 @@ struct LocalDelegatePropertyKIRTests {
 
         #expect(virtualCallees.contains("setValue"), "assignment must notify the delegate, got: \(virtualCallees)")
         #expect(virtualCallees.contains("getValue"), "read must query the delegate, got: \(virtualCallees)")
-        let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let callees = kirCalls(in: mainBody)
+        let sema = try #require(ctx.sema)
+        let observable = try #require(sema.symbols.lookup(fqName: [
+            "kotlin", "properties", "Delegates", "observable",
+        ].map(ctx.interner.intern)))
         #expect(
-            callees.contains("observable") && !callees.contains("kk_observable_create"),
+            !kirCalls(to: observable, in: mainBody).isEmpty
+                && kirCalls(to: .observableCreate, in: mainBody, interner: ctx.interner).isEmpty,
             "the Delegates.observable factory call must resolve to the real bundled implementation, got: \(callees)"
         )
     }
@@ -406,11 +407,10 @@ struct LocalDelegatePropertyKIRTests {
             switch instruction {
             case let .call(_, callee, _, _, _, _, _, _),
                  let .virtualCall(_, callee, _, _, _, _, _, _):
-                let name = ctx.interner.resolve(callee)
-                if name == "getValue", getValueIndex == nil {
+                if callee == KnownCompilerNames(interner: ctx.interner).getValue, getValueIndex == nil {
                     getValueIndex = index
                 }
-                if (name == "println" || name.hasPrefix("kk_println")), firstPrintIndex == nil {
+                if isKIRPrintCallee(callee, interner: ctx.interner, includeRawPrint: false), firstPrintIndex == nil {
                     firstPrintIndex = index
                 }
             default:
@@ -450,7 +450,7 @@ struct LocalDelegatePropertyKIRTests {
                 switch instruction {
                 case let .call(_, callee, _, _, _, _, _, _),
                      let .virtualCall(_, callee, _, _, _, _, _, _):
-                    if ctx.interner.resolve(callee) == "getValue" { sawGetValue = true }
+                    if callee == KnownCompilerNames(interner: ctx.interner).getValue { sawGetValue = true }
                 default:
                     continue
                 }

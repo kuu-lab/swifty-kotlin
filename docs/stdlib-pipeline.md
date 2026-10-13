@@ -176,7 +176,7 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 ## 7. コンパイル時間戦略とキャッシュ
 
-方針: 通常の executable ユーザーコンパイルは事前コンパイル済み `.kklib` を既定経路にし、
+方針: 通常のユーザーコンパイルは全 emit mode で事前コンパイル済み `.kklib` を既定経路にし、
 `--stdlib-from-source` を明示したデバッグ実行だけが bundled Kotlin source を注入する。
 `diff_kotlinc.sh` は shard ごとに stdlib を事前ビルドし、全 candidate compile から共有する。
 移行効果は計測で確認し、基準を満たさない場合は CI の切り替えを完了扱いにしない。
@@ -186,15 +186,27 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 1. `KSWIFTK_STDLIB_LIBRARY`、実行ファイル相対の `KSwiftKStdlib.kklib`、SwiftPM resource bundle
    (`KSwiftK_CompilerCore.bundle/Contents/Resources` または `KSwiftK_CompilerCore.resources`)、または
    `<prefix>/lib/kswiftk/stdlib/KSwiftKStdlib.kklib` を検証する。
-2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash
-   ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
-   `stdlib-only` build を一度だけ生成する。生成中はcross-process lockを保持し、完成後にatomic moveする。
+2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash・
+   compiler binary fingerprint ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
+   `stdlib-only` build を一度だけ生成する。cache root は `KSWIFTK_STDLIB_CACHE_DIR` で
+   上書きできる（sandbox・テスト分離用）。異なる compiler fingerprint は別々の artifact
+   path を使い、同じ cache key の初回生成では cross-process lock を保持する。build は
+   試行ごとの `.building-<pid>-<uuid>` staging に行い、検証済みの完成品だけを move するため、
+   中断・失敗したコンパイルは `.lock` と残骸 staging だけを残し、cache を破損しない。
+   破損・不完全な artifact（manifest が参照する inline-KIR blob の欠落を含む）は
+   次回 resolve 時に検出されて自動再生成される。
 3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
    暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
 
-既定artifactは `emit == executable` に限定する。`object`、`llvm`、`kir` は source/introspection
-境界を保持し、LSPのartifact配線は ARCH-006 で扱う。`--stdlib-from-source` は既定artifactの
-発見・生成を無効化し、従来の bundled source 経路を明示的に選択する。
+既定artifactは `executable`、`object`、`llvm`、`kir`、`library` の全モードで解決する。
+`--stdlib-from-source` は既定artifactの発見・生成を無効化し、bundled source 経路を明示的に
+選択する。`--no-stdlib`、`--stdlib-only`、明示的な `--stdlib-library` は既定解決の対象外。
+ソースを introspect する API 呼び出しは `allowDefaultStdlibLibrary: false` を指定する。
+
+Golden ハーネスはケースの `stdlib-profile` を優先する。`source` はソース注入、`artifact` は
+渡された artifact、`no-stdlib` は stdlib なしで実行する。spec 無しケースもテストハーネスが
+共有 artifact を渡す既存経路を利用するが、artifact が渡されない直接実行の source fallback は
+維持する。プロセスの既定 artifact で明示的な source profile を上書きしない。
 
 `diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
 各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`
@@ -296,7 +308,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 1061 | (c) | **KSP-1542 完了（2026-09-16、PR #6784）**: `Collection`/`Iterable`/`Iterator` 系の nominal 宣言は KSP-700（PR #6837）などの bundled Kotlin source を正規経路とし、この Swift ファイルは `--no-stdlib`/precompiled metadata 用 fallback と、runtime box の itable 未登録を迂回する (c) bridge 残余を保持する。`Collection.E`/`Iterable.E`/`Iterator.T` は既存 symbol を再利用して source header collection との孤立化・重複を防ぐ。`__kk_collection_isEmpty`/`__kk_collection_size`/`kk_op_contains`/`__kk_collection_containsAll`/`kk_list_iterator`/`kk_iterable_iterator`/`__kk_mutable_collection_*`/`kk_iterator_hasNext`/`kk_iterator_next` は残置する。`kk_list_random`/`kk_list_randomOrNull` も KSP-1509（PR #6818）後なお no-stdlib/precompiled fallback が参照するため維持する。Set-backed interface dispatch の回帰は `Scripts/diff_cases/collection_interface_set_backed_dispatch.kt` で固定し、PR #6784 の Swift test/Backend/Runtime/CLI/LSP/Repository/kotlinc Diff の全 CI shard が green であることを確認済み。 |
 | `HeaderHelpers+SyntheticComparableResiduals.swift` | 68 | (c) | **KSP-700 で (c) 確定（2026-09-15）**: 旧 `+SyntheticComparableAndCollectionStubs.swift` の3分割先の一つ。`Comparable<in T>`/`compareTo` は bundled Kotlin source（`Comparable.kt`、KSP-797）で完結し、この行の型シェル lookup は `--no-stdlib`/precompiled-metadata フォールバックのみ。残る呼び出し先（`HeaderHelpers+SyntheticComparableHelpers.swift`）は Int/Double 等プリミティブ型を `Comparable<Self>` へ symbol-table レベルで適合させる処理で、プリミティブが宣言可能な supertype list を持たないコンパイラ組込型である以上 Kotlin source で代替できない。`registerOpenEndRangeComparableUpperBound`/`patchSyntheticClosedRangeTypeParameterUpperBound`（`HeaderHelpers+SyntheticRangeProgressionStubs.swift` 定義）への呼び出しは Range モジュール側（KSP-714）の担当のため現状維持。 |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 117 | (c) | 上記の呼び出し先。`setupPrimitiveComparableImplementations`（Int/Long/Double/Float/Char/Boolean/UInt/ULong/UByte/UShort を `Comparable<Self>` へ適合、Companion anchor 込み）。言語コアの組込宣言に相当し KSP-700 後も (c) 恒久残留。KUU-586 で `registerSyntheticPrimitiveCompanionAnchors`（旧 `+SyntheticMathStubs.swift` の Byte/Long/Short nominal + Companion anchor）を移設——同一の `ensureSyntheticPrimitiveCompanionSymbol` 実装を共用する。 |
-| `HeaderHelpers+SyntheticCollectionResiduals.swift` | 260 | (c)/(b) 混在 | 旧ファイルの3分割先の一つ。`registerSyntheticCollectionStubs` はorchestrator——Iterable/Collection/MutableCollection/MutableIterable/List/AbstractList/MutableList/Map/MutableMap の残余登録を正しい順序で呼び出すため、KSP-700 後も残置。Set/MutableSet の nominal shell 登録は KSP-704 で除去し、bundled source の早期 header predeclaration に移した。`registerSyntheticRandomAccessStub` は `RandomAccess.kt`（KSP-669）を lookup-or-fallback するのみで実質 (c)。`makeComparableTypeParam` ヘルパーは `HeaderHelpers+SyntheticMutableListStubs.swift`/`+SyntheticMapStubs.swift` から使用中。 |
+| `HeaderHelpers+SyntheticCollectionResiduals.swift` | 260 | (c)/(b) 混在 | 旧ファイルの3分割先の一つ。`registerSyntheticCollectionStubs` はorchestrator——Iterable/Collection/MutableCollection/MutableIterable/List/AbstractList/MutableList/Map/MutableMap の残余登録を正しい順序で呼び出すため、KSP-700 後も残置。Set/MutableSet の nominal shell 登録は KSP-704 で除去し、bundled source の早期 header predeclaration に移した。`registerSyntheticRandomAccessStub` は `RandomAccess.kt`（KSP-669）を lookup-or-fallback するのみで実質 (c)。 |
 | `HeaderHelpers+SyntheticListResiduals.swift` | 241 | (c)/(b) 混在 | 旧ファイルの3分割先の一つ。**KSP-700（2026-09-15）**: `List<E>.get`/`isEmpty`/`listIterator()`/`listIterator(index)` と `MutableList` の共変 iterator override を `Stdlib/kotlin/collections/List/List.kt`/`MutableList.kt` へ source 化し、既存 `__kk_list_get`/`kk_list_is_empty`/`kk_list_iterator`/`kk_list_iterator_at` link name を再利用した。`registerListGetOperator` は bundled source がない場合だけの fallback へ縮小し、移行済みの ListIterator/MutableListIterator synthetic member 登録と dead な set-ops/toMap/asSequence/contentEquals 登録を削除。**KSP-1063（2026-09-26）**: `List.size`（`__kk_collection_size` link）と `List.iterator`（`kk_list_iterator` link）の claimable synthetic stub を追加し、`List/List.kt` の source decl が claim して引き継ぐ形にした。`List.iterator` の `Iterable` alias を抑止して `Iterable.iterator` の KSP-998 stub を維持。残る List/AbstractList nominal fallback と `registerListTransformMembers`（別ファイル `+SyntheticListTransformMembers.swift` 定義、(b) 残・M3）は非 bundled/precompiled context の residual 責務として維持。 |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-1520）。既存の `kotlin/Comparator.kt` を `predeclareBundledComparatorHeaders` で早期 nominal 宣言し、`String.Companion.CASE_INSENSITIVE_ORDER` の初期参照を解決する。Comparator 固有の synthetic itable/vtable anchor は不要になったが、共有 `__kk_compare_with_comparator` と runtime singleton は保持する。 |
 | `HeaderHelpers+SyntheticComparisonStubs.swift` | 157 | (b) | **完了・ファイル削除済み**（KSP-684）。トップレベル `maxWith`/`minWith` は `Stdlib/kotlin/comparisons/Comparisons.kt` へ移行し、残る比較ヘルパーは source-backed Comparator member と共有比較コアで管理する。 |
@@ -700,8 +712,8 @@ bundled declaration が存在する operator call を name/provenance intrinsic 
 
 **Flow (b) 移行の前提条件（KSP-499 で解決）**: `Sources/CompilerCore/Lowering/CoroutineLoweringPass+Flow.swift`
 の `lowerFlowExpressions` は `map`/`filter`/`take`/`transform`/`single`/`takeWhile`/`dropWhile`/`flatMapConcat`/`flatMapMerge`/
-`flatMapLatest`/`combine`/`zip`/`merge`/`buffer`/`conflate`/`flowOn`/`debounce`/`sample`/`delayEach`/`catch`/`retry`/`retryWhen`/
-`onErrorReturn`/`onErrorResume`/`toList`/`first` の呼び出しを、**Sema が解決した callee symbol を参照せず**、
+`flatMapLatest`/`combine`/`zip`/`merge`/`buffer`/`conflate`/`flowOn`/`debounce`/`sample`/`catch`/`retry`/`retryWhen`/
+`toList`/`first` の呼び出しを、**Sema が解決した callee symbol を参照せず**、
 「レシーバが flow 由来の式かどうか（`flowExprIDs`/`flowGlobalSymbols` による provenance 追跡）」+「呼び出し名の文字列一致」
 だけで `kk_flow_*` へ KIR 構造的に書き換える。したがって、これらの名前を持つ Kotlin 実装を bundled stdlib に追加しても
 **Lowering 段階で無条件に上書きされ、呼ばれない**（`FlowLoweringNames` 構造体・その初期化コードに列挙された名前が対象）。
@@ -838,6 +850,14 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1941 adds one private bridge, `__kk_hash_map_storage` (reason: memory
+   representation). HashMap's inherited Kotlin bodies need a stable native
+   `RuntimeMapBox` handle, while the outer Kotlin object must retain interface
+   dispatch to user overrides. The handle is cached once per object and included
+   in child-reference traversal. Generic Map bridges continue to treat that
+   outer object as a source implementation. `__kk_*` increases by one;
+   `RuntimeABISpec` registers the signature and its canonical hash updates
+   `specVersion`.
    KUU-1244 adds two private launch bridges (reason: GC・continuation):
    `__kk_coroutine_scope_launch_context` and its `_with_cont` counterpart.
    A stored suspend block uses the function-value ABI, while a lowered literal
@@ -884,6 +904,35 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    同じPRのスコープや安全な修正方針を超える場合は、Linear に理由付きで起票する（AGENTS.md「バグ修正ルール」）。TODO.md には追加しない（並行セッションとの同一箇所挿入コンフリクトの原因になるため）。
 10. **粒度**: 1 タスク = 1 PR。目安「削除対象 kk_* ≤ 15・単一責務・golden 更新1回」。
     超えると判明したら枝番でなく新番号で分割する。
+
+### kotlinx-io / kotlinx-coroutines の追加方針（KSP-1586）
+
+`Stdlib/kotlinx/io/` と `Stdlib/kotlinx/coroutines/` も通常の bundled source として
+辞書順に注入される。`BundledStdlibOrderingTests.testKotlinxBundledFilenamesAreInjected`
+で io core / bytestring / files / unsafe、coroutines core / channels / flow / selects /
+sync / test のファイル名を明示的に固定する。これはリソース配線の確認であり、各 API の
+実装完了や本家との挙動一致は個別の実装チケットで検証する。
+
+- **expect → 直接宣言**: 単一ターゲットなので `expect`/`actual` の対は対象 platform の
+  本体を持つ通常の宣言へ置換する。例: io の `-CommonPlatform.kt` の例外クラス、
+  `Core.kt` の POSIX 改行、`SegmentPool.kt` の native no-op pool。
+- **sealed → plain interface**: これは一律変換ではない。io の `Source` / `Sink` は
+  現在も sealed interface を維持する。`SharedFlow` / `StateFlow` など plain interface
+  として提供する面は、sealed の継承制限や exhaustive `when` まで本家同等とは扱わない。
+- **Any 契約**: `equals(Any?)` / `hashCode()` / `toString()` は本家の型・値契約を保つ
+  （例: `ByteString` の内容比較）。既存の `Job.cancel(cause: Any?)` /
+  `completeExceptionally(Any?)` のような広い bridge 契約は、型付き upstream 契約との
+  差として扱い、宣言が存在するだけで本家一致を計上しない。
+- **縮退意味論**: 実装ファイルと台帳に具体的な差を記録する。現在の SharedFlow /
+  StateFlow の `collect` は有限 snapshot、`limitedParallelism` は検証後に同じ dispatcher
+  を返す。coroutines-test は実時間の blocking loop を使い、仮想時計の実行メソッドは
+  no-op、`runTest` の timeout は未強制。これらを完全な scheduler 対応として報告しない。
+
+JVM diff oracle の jar 選択は import 検出で行う（`requires_kotlinx_io` 相当）。
+io 0.9.1 / coroutines 1.10.2 の取得・checksum・手動 classpath の設定は
+[`Scripts/README.md`](../Scripts/README.md) を参照。`kotlinx.coroutines.test` は core jar
+だけでは提供されないため、test artifact が必要な reference ケースは手動 classpath で
+依存一式を供給する。縮退 API を使うケースは candidate-only テストで範囲を固定する。
 
 ### 構造逸脱台帳（§13-8）
 
@@ -946,3 +995,18 @@ integer values with scheduler tags. This adds one internal bridge with reason
 context operations, retaining the object handle for element identity and fold.
 IO and Unconfined retain their existing Default scheduler compatibility;
 this bridge does not implement a separate IO pool or an unconfined event loop.
+
+
+### Prepared KUU-1732 atomicfu private kernel admission
+
+The actual-source registration proposal adds eight `__kk_atomicfu_*` entries
+and no public `kk_*` entries. Reason codes are syscall (blocking monotonic waits
+and real thread ownership), memory representation (opaque native kernel objects
+owned by normal Kotlin fields), and GC/TLS (stable per-thread Kotlin wrapper
+factory/root and destructor). Public API selection, Duration conversion,
+annotations, factories, arrays, retry operations, Trace callback evaluation and
+nominal identity remain bundled Kotlin source. No performance exception is
+claimed. `RuntimeABISpec.atomicfuSynchronizationFunctions` registers all exact
+signatures and updates computed specVersion; direct Runtime tests cover those
+contracts. See [the complete contract](atomicfu-runtime-kernel-contract.md).
+This admission is prepared and unexecuted, not an enforcing-green completion.

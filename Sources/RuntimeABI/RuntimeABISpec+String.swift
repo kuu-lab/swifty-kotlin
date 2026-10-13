@@ -5,6 +5,194 @@
 /// Mirrors the existing per-section split convention used elsewhere in
 /// `Sources/RuntimeABI/` (`+Collection.swift`, `+Sequence.swift`, etc.).
 public extension RuntimeABISpec {
+    static let stringFromUtf8Spec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_string_from_utf8",
+        parameters: [
+            RuntimeABIParameter(name: "ptr", type: .constUInt8Pointer),
+            RuntimeABIParameter(name: "len", type: .int32),
+        ],
+        returnType: .opaquePointer,
+        section: "String"
+    )
+
+    static let bridgeStringConcatFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_string_concat_flat",
+        parameters: [
+            RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "lhsLength", type: .intptr),
+            RuntimeABIParameter(name: "lhsByteCount", type: .intptr),
+            RuntimeABIParameter(name: "lhsHash", type: .intptr),
+            RuntimeABIParameter(name: "rhsData", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "rhsLength", type: .intptr),
+            RuntimeABIParameter(name: "rhsByteCount", type: .intptr),
+            RuntimeABIParameter(name: "rhsHash", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String",
+        isThrowing: false
+    )
+
+    static let stringReplaceFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_string_replace_flat",
+        parameters: [
+            RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "byteCount", type: .intptr),
+            RuntimeABIParameter(name: "hash", type: .intptr),
+            RuntimeABIParameter(name: "oldData", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "oldLength", type: .intptr),
+            RuntimeABIParameter(name: "oldByteCount", type: .intptr),
+            RuntimeABIParameter(name: "oldHash", type: .intptr),
+            RuntimeABIParameter(name: "newData", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "newLength", type: .intptr),
+            RuntimeABIParameter(name: "newByteCount", type: .intptr),
+            RuntimeABIParameter(name: "newHash", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String"
+    )
+
+    static let stringReplaceFirstFlatSpec: RuntimeABIFunctionSpec = flatStringReturnSpec(
+        name: "kk_string_replaceFirst_flat",
+        trailingStringPrefixes: ["old", "new"]
+    )
+
+    static let charSequenceLengthSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_char_sequence_length",
+        parameters: [
+            RuntimeABIParameter(name: "raw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "String",
+        isThrowing: false
+    )
+
+    static let stringTrimPredicateFlatSpec: RuntimeABIFunctionSpec = flatStringHOFReturnSpec(name: "kk_string_trim_predicate_flat")
+
+    static let bridgeStringFormatFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_string_format_flat",
+        parameters: [
+            RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "byteCount", type: .intptr),
+            RuntimeABIParameter(name: "hash", type: .intptr),
+            RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String",
+        isThrowing: true
+    )
+
+    static let bridgeStringFormatLocaleFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_string_format_locale_flat",
+        parameters: [
+            RuntimeABIParameter(name: "localeRaw", type: .intptr),
+            RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "byteCount", type: .intptr),
+            RuntimeABIParameter(name: "hash", type: .intptr),
+            RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String",
+        isThrowing: true
+    )
+
+    static let stringReplaceCharFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_string_replace_char_flat",
+        parameters: [
+            RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "byteCount", type: .intptr),
+            RuntimeABIParameter(name: "hash", type: .intptr),
+            RuntimeABIParameter(name: "oldCharRaw", type: .intptr),
+            RuntimeABIParameter(name: "newCharRaw", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String"
+    )
+
+    static let stringReplaceIgnoreCaseFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_string_replace_ignoreCase_flat",
+        parameters: [
+            RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "byteCount", type: .intptr),
+            RuntimeABIParameter(name: "hash", type: .intptr),
+            RuntimeABIParameter(name: "oldData", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "oldLength", type: .intptr),
+            RuntimeABIParameter(name: "oldByteCount", type: .intptr),
+            RuntimeABIParameter(name: "oldHash", type: .intptr),
+            RuntimeABIParameter(name: "newData", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "newLength", type: .intptr),
+            RuntimeABIParameter(name: "newByteCount", type: .intptr),
+            RuntimeABIParameter(name: "newHash", type: .intptr),
+            RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String",
+        isThrowing: false
+    )
+
+    static let stringReplaceCharIgnoreCaseFlatSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_string_replace_char_ignoreCase_flat",
+        parameters: [
+            RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "byteCount", type: .intptr),
+            RuntimeABIParameter(name: "hash", type: .intptr),
+            RuntimeABIParameter(name: "oldCharRaw", type: .intptr),
+            RuntimeABIParameter(name: "newCharRaw", type: .intptr),
+            RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+        ],
+        returnType: .nullableUInt8Pointer,
+        section: "String"
+    )
+
+    static let stringTrimStartPredicateFlatSpec: RuntimeABIFunctionSpec = flatStringHOFReturnSpec(name: "kk_string_trimStart_predicate_flat")
+
+    static let stringTrimEndPredicateFlatSpec: RuntimeABIFunctionSpec = flatStringHOFReturnSpec(name: "kk_string_trimEnd_predicate_flat")
+
+    static let stringIfBlankFlatSpec: RuntimeABIFunctionSpec = flatStringHOFReturnSpec(name: "kk_string_ifBlank_flat")
+
+    static let stringIfEmptyFlatSpec: RuntimeABIFunctionSpec = flatStringHOFReturnSpec(name: "kk_string_ifEmpty_flat")
+
+    static let bridgeStringJoinToStringSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_string_joinToString",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+            RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+            RuntimeABIParameter(name: "postfixRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "String",
+        isThrowing: false
+    )
+
     static let stringFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_string_literal_from_utf8",
@@ -16,15 +204,7 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_from_utf8",
-            parameters: [
-                RuntimeABIParameter(name: "ptr", type: .constUInt8Pointer),
-                RuntimeABIParameter(name: "len", type: .int32),
-            ],
-            returnType: .opaquePointer,
-            section: "String"
-        ),
+        stringFromUtf8Spec,
         RuntimeABIFunctionSpec(
             name: "kk_string_from_flat",
             parameters: [
@@ -47,34 +227,7 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_flat_string_release",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_concat_flat",
-            parameters: [
-                RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "lhsLength", type: .intptr),
-                RuntimeABIParameter(name: "lhsByteCount", type: .intptr),
-                RuntimeABIParameter(name: "lhsHash", type: .intptr),
-                RuntimeABIParameter(name: "rhsData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "rhsLength", type: .intptr),
-                RuntimeABIParameter(name: "rhsByteCount", type: .intptr),
-                RuntimeABIParameter(name: "rhsHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: false
-        ),
+        bridgeStringConcatFlatSpec,
         RuntimeABIFunctionSpec(
             name: "kk_string_trim_flat",
             parameters: [
@@ -148,32 +301,8 @@ public extension RuntimeABISpec {
         ),
         // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt); its
         // flat ABI entry was removed.
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replace_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "oldData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "oldLength", type: .intptr),
-                RuntimeABIParameter(name: "oldByteCount", type: .intptr),
-                RuntimeABIParameter(name: "oldHash", type: .intptr),
-                RuntimeABIParameter(name: "newData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "newLength", type: .intptr),
-                RuntimeABIParameter(name: "newByteCount", type: .intptr),
-                RuntimeABIParameter(name: "newHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceFirst_flat",
-            trailingStringPrefixes: ["old", "new"]
-        ),
+        stringReplaceFlatSpec,
+        stringReplaceFirstFlatSpec,
         // KSP-406: substring/subSequence/removeRange/replaceRange flat entries removed;
         // now bundled Kotlin source (StringSubstringSlice.kt).
         // KSP-1390: padStart/padEnd are bundled Kotlin source (StringHOF.kt);
@@ -396,15 +525,7 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_char_sequence_length",
-            parameters: [
-                RuntimeABIParameter(name: "raw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
+        charSequenceLengthSpec,
         RuntimeABIFunctionSpec(
             name: "kk_char_sequence_get",
             parameters: [
@@ -449,7 +570,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        flatStringHOFReturnSpec(name: "kk_string_trim_predicate_flat"),
+        stringTrimPredicateFlatSpec,
         RuntimeABIFunctionSpec(
             name: "kk_string_lowercase",
             parameters: [
@@ -542,111 +663,14 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_format_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_format_locale_flat",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: true
-        ),
+        bridgeStringFormatFlatSpec,
+        bridgeStringFormatLocaleFlatSpec,
         // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replace_char_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "oldCharRaw", type: .intptr),
-                RuntimeABIParameter(name: "newCharRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replace_ignoreCase_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "oldData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "oldLength", type: .intptr),
-                RuntimeABIParameter(name: "oldByteCount", type: .intptr),
-                RuntimeABIParameter(name: "oldHash", type: .intptr),
-                RuntimeABIParameter(name: "newData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "newLength", type: .intptr),
-                RuntimeABIParameter(name: "newByteCount", type: .intptr),
-                RuntimeABIParameter(name: "newHash", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_replace_char_ignoreCase_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "oldCharRaw", type: .intptr),
-                RuntimeABIParameter(name: "newCharRaw", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
+        stringReplaceCharFlatSpec,
+        stringReplaceIgnoreCaseFlatSpec,
+        stringReplaceCharIgnoreCaseFlatSpec,
         RuntimeABIFunctionSpec(
             name: "kk_any_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "tag", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_any_to_string_nullable",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "tag", type: .intptr),
@@ -1173,6 +1197,27 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
+        // KUU-1462: runtime-token dispatch for enumValues<T>() in a noinline lambda.
+        RuntimeABIFunctionSpec(
+            name: "kk_enum_register_values",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "valuesRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_enum_values_for_token",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
         // ENUM-002: T.entries — returns EnumEntries<T> (List)
         RuntimeABIFunctionSpec(
             name: "kk_enum_make_entries_list",
@@ -1249,8 +1294,8 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-144: String.trimStart/trimEnd
-        flatStringHOFReturnSpec(name: "kk_string_trimStart_predicate_flat"),
-        flatStringHOFReturnSpec(name: "kk_string_trimEnd_predicate_flat"),
+        stringTrimStartPredicateFlatSpec,
+        stringTrimEndPredicateFlatSpec,
         // STDLIB-145: String.toByteArray
         RuntimeABIFunctionSpec(
             name: "__kk_string_toByteArray_flat",
@@ -1557,8 +1602,8 @@ public extension RuntimeABISpec {
         // STDLIB-187
         // Source-backed declarations retain flat compatibility lowering for
         // aggregate String receivers.
-        flatStringHOFReturnSpec(name: "kk_string_ifBlank_flat"),
-        flatStringHOFReturnSpec(name: "kk_string_ifEmpty_flat"),
+        stringIfBlankFlatSpec,
+        stringIfEmptyFlatSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBigDecimal_flat",
             parameters: [
@@ -1606,18 +1651,7 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_joinToString",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
+        bridgeStringJoinToStringSpec,
         RuntimeABIFunctionSpec(
             name: "kk_string_splitToSequence_flat",
             parameters: [
@@ -1636,14 +1670,6 @@ public extension RuntimeABISpec {
         // STDLIB-TEXT-FN-077: String.substringBeforeLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-FN-075: String.substringAfterLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
-        RuntimeABIFunctionSpec(
-            name: "kk_char_isUnicodeIdentifierPart",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         // STDLIB-534: String?.orEmpty()
         RuntimeABIFunctionSpec(
             name: "kk_string_orEmpty_flat",
@@ -1661,17 +1687,6 @@ public extension RuntimeABISpec {
         ),
         // MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_format_locale",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_codePointCount",
             parameters: [

@@ -24,7 +24,68 @@ public fun <T> flowOf(vararg elements: T): Flow<T> = flow {
 public fun <T> emptyFlow(): Flow<T> = flow {
 }
 
+public fun <T> (() -> T).asFlow(): Flow<T> {
+    val source = this
+    return flow {
+        emit(source())
+    }
+}
+
+public fun <T> (suspend () -> T).asFlow(): Flow<T> {
+    val source = this
+    return flow {
+        emit(source())
+    }
+}
+
 public fun <T> Iterable<T>.asFlow(): Flow<T> {
+    val source = this
+    return flow {
+        for (element in source) {
+            emit(element)
+        }
+    }
+}
+
+public fun <T> Iterator<T>.asFlow(): Flow<T> {
+    val source = this
+    return flow {
+        while (source.hasNext()) {
+            emit(source.next())
+        }
+    }
+}
+
+public fun <T> Sequence<T>.asFlow(): Flow<T> {
+    val source = this
+    return flow {
+        for (element in source) {
+            emit(element)
+        }
+    }
+}
+
+public fun <T> Array<T>.asFlow(): Flow<T> {
+    val source = this
+    return flow {
+        for (element in source) {
+            emit(element)
+        }
+    }
+}
+
+// Upstream kotlinx-coroutines defines asFlow only for IntArray and LongArray
+// among the primitive array types.
+public fun IntArray.asFlow(): Flow<Int> {
+    val source = this
+    return flow {
+        for (element in source) {
+            emit(element)
+        }
+    }
+}
+
+public fun LongArray.asFlow(): Flow<Long> {
     val source = this
     return flow {
         for (element in source) {

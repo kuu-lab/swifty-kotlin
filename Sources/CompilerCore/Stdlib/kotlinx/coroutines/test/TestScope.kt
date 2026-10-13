@@ -49,10 +49,10 @@ public fun TestScope.advanceTimeBy(delayTimeMillis: Long) {
     testScheduler.runCurrent()
 }
 
-/** Runs all enqueued work, advancing the clock as needed (degraded: no-op, KSP-1583). */
+/** Runs all enqueued work, advancing the virtual clock as needed. */
 @ExperimentalCoroutinesApi
 public fun TestScope.advanceUntilIdle() = testScheduler.advanceUntilIdle()
 
-/** Runs the work scheduled for the current virtual time (degraded: no-op, KSP-1583). */
+/** Runs the work scheduled for the current virtual time. */
 @ExperimentalCoroutinesApi
 public fun TestScope.runCurrent() = testScheduler.runCurrent()

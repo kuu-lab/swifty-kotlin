@@ -181,6 +181,8 @@ package final class NameMangler {
 
         case .unit:
             return "U"
+        case .nullableUnit:
+            return applyNullability("U", nullability: .nullable)
 
         case let .nothing(nullability):
             return applyNullability("N", nullability: nullability)

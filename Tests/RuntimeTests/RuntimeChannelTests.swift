@@ -251,7 +251,7 @@ struct RuntimeChannelTests {
         RuntimeCoroutineScope.installScope(activeScope, forTask: key)
         RuntimeJobHandle.current = job
         defer {
-            RuntimeContinuationState.removeCurrent(forTask: key)
+            RuntimeContinuationState.removeState(forTask: key)
             RuntimeCoroutineScope.removeScope(forTask: key)
             RuntimeCoroutineScopeTaskKey.installKey(previousKey)
             RuntimeJobHandle.current = previousJob
@@ -1133,6 +1133,169 @@ struct RuntimeChannelTests {
         #expect(kk_job_join(job, 0) == kChannelResultSuccess)
     }
 
+    // MARK: - KUU-1404: outThrown exception surface
+
+    /// Decode a thrown-channel pointer into its runtime throwable box.
+    private func thrownBox(_ raw: Int) -> RuntimeThrowableBox? {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+            return nil
+        }
+        return Unmanaged<RuntimeThrowableBox>.fromOpaque(ptr).takeUnretainedValue()
+    }
+
+    @Test func receiveOnClosedDrainedChannelReportsThrownClosedReceiveChannelException() {
+        let ch = kk_channel_create(2)
+        #expect(kk_channel_send(ch, 7, 0) == kChannelResultSuccess)
+        _ = kk_channel_close(ch)
+
+        // Buffered value still drains normally with no thrown object.
+        var value = 0
+        var thrown = -1
+        #expect(kk_channel_receive(ch, 0, &value, &thrown) == kChannelResultSuccess)
+        #expect(value == 7)
+        #expect(thrown == 0, "successful receive must not write a thrown object")
+
+        // Closed + drained -> .closed status plus a typed
+        // ClosedReceiveChannelException in outThrown (KUU-1404).
+        let status = kk_channel_receive(ch, 0, &value, &thrown)
+        #expect(status == kChannelResultClosed)
+        let box = thrownBox(thrown)
+        #expect(
+            box?.exceptionFQName == "kotlinx.coroutines.channels.ClosedReceiveChannelException",
+            "closed receive must throw ClosedReceiveChannelException"
+        )
+        // JVM kotlinx-coroutines: ClosedReceiveChannelException extends
+        // java.util.NoSuchElementException (kotlin.NoSuchElementException).
+        #expect(
+            box?.exceptionHierarchyFQNames.contains("kotlin.NoSuchElementException") == true,
+            "ClosedReceiveChannelException must be catchable as NoSuchElementException"
+        )
+        #expect(
+            box?.exceptionHierarchyFQNames.contains("kotlin.IllegalStateException") == false,
+            "ClosedReceiveChannelException must NOT be an IllegalStateException (JVM parity)"
+        )
+        #expect(kk_throwable_is_cancellation(thrown) == 0)
+    }
+
+    @Test func receiveOnCancelledChannelReportsThrownCancellationException() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_cancel(ch) == 1)
+
+        var value = 0
+        var thrown = 0
+        let status = kk_channel_receive(ch, 0, &value, &thrown)
+        #expect(status == kChannelResultCancelled)
+        #expect(kk_throwable_is_cancellation(thrown) == 1,
+                "cancelled receive must throw a CancellationException")
+    }
+
+    @Test func cancelDiscardsBufferedElementsBeforeReceive() {
+        let ch = kk_channel_create(4)
+        #expect(kk_channel_send(ch, 9, 0) == kChannelResultSuccess)
+        #expect(kk_channel_cancel(ch) == 1)
+
+        var value = -1
+        var thrown = 0
+        let status = kk_channel_receive(ch, 0, &value, &thrown)
+        #expect(status == kChannelResultCancelled,
+                "cancel discards buffered elements instead of draining them")
+        #expect(kk_throwable_is_cancellation(thrown) == 1)
+    }
+
+    @Test func sendOnClosedChannelReportsThrownClosedSendChannelException() {
+        let ch = kk_channel_create(1)
+        _ = kk_channel_close(ch)
+
+        var thrown = 0
+        let status = kk_channel_send(ch, 42, 0, &thrown)
+        #expect(status == kChannelResultClosed)
+        let box = thrownBox(thrown)
+        #expect(
+            box?.exceptionFQName == "kotlinx.coroutines.channels.ClosedSendChannelException",
+            "closed send must throw ClosedSendChannelException"
+        )
+    }
+
+    @Test func sendOnCancelledChannelReportsThrownCancellationException() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_cancel(ch) == 1)
+
+        var thrown = 0
+        let status = kk_channel_send(ch, 42, 0, &thrown)
+        #expect(status == kChannelResultCancelled)
+        #expect(kk_throwable_is_cancellation(thrown) == 1)
+    }
+
+    @Test func cancelReturnsTrueOnlyOnFirstCall() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_cancel(ch) == 1, "first cancel() should report the state change")
+        #expect(kk_channel_cancel(ch) == 0, "second cancel() is a no-op")
+
+        // close() on an already-cancelled channel reports false (already closed).
+        #expect(kk_channel_close(ch) == 0)
+
+        // And vice versa: cancel() on a closed channel reports false.
+        let ch2 = kk_channel_create(1)
+        _ = kk_channel_close(ch2)
+        #expect(kk_channel_cancel(ch2) == 0)
+    }
+
+    @Test func cancelWakesSuspendedReceiverWithCancelledStatus() {
+        let ch = kk_channel_create(0) // rendezvous: receiver suspends waiting for a sender
+
+        let receiveDone = ChannelTestSignal("receive wakes on cancel")
+        let receiveResult = ThreadSafeInt()
+        let receiveThrown = ThreadSafeInt()
+
+        DispatchQueue.global().async {
+            var value = 0
+            var thrown = 0
+            receiveResult.set(kk_channel_receive(ch, 0, &value, &thrown))
+            receiveThrown.set(thrown)
+            receiveDone.fulfill()
+        }
+
+        #expect(
+            waitForSuspendedWaiters(in: ch, receivers: 1),
+            "receiver should be suspended before cancel"
+        )
+
+        #expect(kk_channel_cancel(ch) == 1)
+
+        waitForSignals([receiveDone], timeout: 2.0)
+        #expect(receiveResult.get() == kChannelResultCancelled,
+                "suspended receiver must report cancelled after cancel()")
+        #expect(kk_throwable_is_cancellation(receiveThrown.get()) == 1)
+    }
+
+    @Test func cancelWakesSuspendedSenderWithCancelledStatus() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_send(ch, 1, 0) == kChannelResultSuccess) // fill buffer
+
+        let sendDone = ChannelTestSignal("send wakes on cancel")
+        let sendResult = ThreadSafeInt()
+        let sendThrown = ThreadSafeInt()
+
+        DispatchQueue.global().async {
+            var thrown = 0
+            sendResult.set(kk_channel_send(ch, 77, 0, &thrown))
+            sendThrown.set(thrown)
+            sendDone.fulfill()
+        }
+
+        #expect(
+            waitForSuspendedWaiters(in: ch, senders: 1),
+            "sender should be suspended on the full buffer before cancel"
+        )
+
+        #expect(kk_channel_cancel(ch) == 1)
+
+        waitForSignals([sendDone], timeout: 2.0)
+        #expect(sendResult.get() == kChannelResultCancelled,
+                "suspended sender must report cancelled after cancel()")
+        #expect(kk_throwable_is_cancellation(sendThrown.get()) == 1)
+    }
+
     // MARK: - Close cause / isEmpty / cancel (KSP-1571)
 
     /// `__kk_channel_close_cause` retains the `Throwable` handle of the first
@@ -1210,9 +1373,9 @@ struct RuntimeChannelTests {
         // A closed channel is never `isEmpty` upstream (receive side is done).
         #expect(kk_channel_is_empty(channel) == 0)
 
-        // Buffered elements are gone: the receive reports closed at once.
+        // Buffered elements are gone: the receive reports cancelled at once (KUU-1404).
         var value = 0
-        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultClosed)
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultCancelled)
 
         // tryReceive boxes the retained cancellation cause.
         let box = __kk_channel_try_receive(channel)
@@ -1334,5 +1497,95 @@ struct RuntimeChannelTests {
         // is normalised back to "no cause".
         let nullClosedBox = __kk_channel_result_create(kChannelResultClosed, 0, runtimeNullSentinelInt)
         #expect(__kk_channel_result_cause(nullClosedBox) == runtimeNullSentinelInt)
+    }
+
+    // MARK: - KUU-1403: Channel.Factory sentinel capacities
+
+    /// `Channel(Channel.BUFFERED)` (-2) resolves to the default 64-slot buffer
+    /// through the residual `kk_channel_create` bridge: trySend succeeds
+    /// without a receiver until the buffer is full.
+    @Test func bufferedSentinelCapacityUsesDefaultBufferSize() {
+        let channel = kk_channel_create(-2)
+        #expect(runtimeChannelHandle(channel).capacity == 64)
+        for i in 1 ... 64 {
+            #expect(kk_channel_try_send(channel, i) == kChannelResultSuccess)
+        }
+        #expect(kk_channel_try_send(channel, 65) == kChannelResultFailed)
+        for i in 1 ... 64 {
+            #expect(channelReceiveValue(channel, 0) == i)
+        }
+        _ = kk_channel_close(channel)
+    }
+
+    /// `Channel(Channel.CONFLATED)` (-1) keeps only the latest value: sends
+    /// never fail while the channel is open, and a receive observes only the
+    /// most recent element.
+    @Test func conflatedSentinelCapacityKeepsLatestValue() {
+        let channel = kk_channel_create(-1)
+        #expect(runtimeChannelHandle(channel).capacity == 1)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 2) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 3) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel, 0) == 3)
+        // `send` likewise never suspends on a conflated channel.
+        #expect(kk_channel_send(channel, 4, 0) == kChannelResultSuccess)
+        #expect(kk_channel_send(channel, 5, 0) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel, 0) == 5)
+        _ = kk_channel_close(channel)
+    }
+
+    /// `Channel(Channel.UNLIMITED)` keeps its unbounded buffer: trySend never
+    /// reports a full channel.
+    @Test func unlimitedSentinelCapacityNeverReportsFull() {
+        let channel = kk_channel_create(Int.max)
+        for i in 1 ... 128 {
+            #expect(kk_channel_try_send(channel, i) == kChannelResultSuccess)
+        }
+        _ = kk_channel_close(channel)
+    }
+
+    /// `OPTIONAL_CHANNEL` (-3) resolves to the default 64-slot buffer through
+    /// the residual create bridge — upstream treats it as an internal
+    /// "implementation default" marker that ChannelFlow.produceCapacity
+    /// normalizes to BUFFERED before a channel is allocated. The bundled
+    /// Kotlin factories reject a raw -3 with IllegalArgumentException before
+    /// reaching here, matching upstream's public `Channel(capacity)` behavior.
+    @Test func optionalChannelSentinelUsesDefaultBuffer() {
+        let channel = kk_channel_create(-3)
+        #expect(runtimeChannelHandle(channel).capacity == 64)
+        for i in 1 ... 64 {
+            #expect(kk_channel_try_send(channel, i) == kChannelResultSuccess)
+        }
+        #expect(kk_channel_try_send(channel, 65) == kChannelResultFailed)
+        _ = kk_channel_close(channel)
+    }
+
+    /// The with-policy bridge resolves the same sentinels plus the upstream
+    /// `RENDEZVOUS`-with-overflow rule: `Channel(0, DROP_OLDEST)` is a
+    /// one-slot conflated channel, `Channel(BUFFERED, DROP_LATEST)` a one-slot
+    /// channel that keeps the first element.
+    @Test func withPolicyResolvesSentinelsAndRendezvousOverflow() {
+        let dropOldest = __kk_channel_create_with_policy(0, 1)
+        #expect(runtimeChannelHandle(dropOldest).capacity == 1)
+        #expect(kk_channel_try_send(dropOldest, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(dropOldest, 20) == kChannelResultSuccess)
+        #expect(channelReceiveValue(dropOldest, 0) == 20)
+        _ = kk_channel_close(dropOldest)
+
+        let bufferedDropLatest = __kk_channel_create_with_policy(-2, 2)
+        #expect(runtimeChannelHandle(bufferedDropLatest).capacity == 1)
+        #expect(kk_channel_try_send(bufferedDropLatest, 7) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(bufferedDropLatest, 8) == kChannelResultSuccess)
+        #expect(channelReceiveValue(bufferedDropLatest, 0) == 7)
+        _ = kk_channel_close(bufferedDropLatest)
+
+        // OPTIONAL_CHANNEL (-3) shares BUFFERED's resolution: SUSPEND expands
+        // to the default 64-slot buffer, a non-suspend policy keeps one slot.
+        let optionalSuspend = __kk_channel_create_with_policy(-3, 0)
+        #expect(runtimeChannelHandle(optionalSuspend).capacity == 64)
+        _ = kk_channel_close(optionalSuspend)
+        let optionalDropOldest = __kk_channel_create_with_policy(-3, 1)
+        #expect(runtimeChannelHandle(optionalDropOldest).capacity == 1)
+        _ = kk_channel_close(optionalDropOldest)
     }
 }

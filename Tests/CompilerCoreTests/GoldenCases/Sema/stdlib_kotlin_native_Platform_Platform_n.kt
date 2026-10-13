@@ -1,5 +1,5 @@
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-@file:Suppress("DEPRECATION")
+@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")
 
 import kotlin.native.Platform
 

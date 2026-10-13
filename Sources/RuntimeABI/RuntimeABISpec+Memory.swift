@@ -2,24 +2,28 @@
 
 /// `RuntimeABISpec.memoryFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let allocSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_alloc",
+        parameters: [
+            RuntimeABIParameter(name: "size", type: .uint32),
+            RuntimeABIParameter(name: "typeInfo", type: .constTypeInfoPointer),
+        ],
+        returnType: .opaquePointer,
+        section: "Memory"
+    )
+
+    static let gcCollectSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_gc_collect",
+        parameters: [
+            RuntimeABIParameter(name: "gcRaw", type: .intptr),
+        ],
+        returnType: .void,
+        section: "Memory",
+        isThrowing: false,
+    )
+
     static let memoryFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_alloc",
-            parameters: [
-                RuntimeABIParameter(name: "size", type: .uint32),
-                RuntimeABIParameter(name: "typeInfo", type: .constTypeInfoPointer),
-            ],
-            returnType: .opaquePointer,
-            section: "Memory"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_gc_collect",
-            parameters: [
-                RuntimeABIParameter(name: "gcRaw", type: .intptr),
-            ],
-            returnType: .void,
-            section: "Memory",
-            isThrowing: false,
-        ),
+        allocSpec,
+        gcCollectSpec,
     ]
 }

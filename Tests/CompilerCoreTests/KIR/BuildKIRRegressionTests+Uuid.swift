@@ -69,39 +69,11 @@ extension BuildKIRRegressionTests {
             "compareTo",
         ] {
             #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")
+            try expectSourceBackedCalls(named: ctx.interner.intern(callee), in: body, context: ctx)
         }
 
-        #expect(callees.isDisjoint(with: [
-            "__kk_uuid_random",
-            "__kk_uuid_lexicalOrder",
-            "__kk_uuid_fromLongs",
-        ]))
-
-        let removedRuntimeCallees: Set<String> = [
-            "kk_uuid_fromByteArray",
-            "kk_uuid_fromLongs",
-            "kk_uuid_leastSignificantBits",
-            "kk_uuid_lexicalOrder",
-            "kk_uuid_mostSignificantBits",
-            "kk_uuid_nil",
-            "kk_uuid_parse",
-            "kk_uuid_parseHex",
-            "kk_uuid_parseHexDash",
-            "kk_uuid_parseHexDashOrNull",
-            "kk_uuid_parseHexOrNull",
-            "kk_uuid_parseOrNull",
-            "kk_uuid_random",
-            "kk_uuid_toByteArray",
-            "kk_uuid_toHexString",
-            "kk_uuid_toLongs",
-            "kk_uuid_toString",
-            "kk_uuid_variant",
-            "kk_uuid_version",
-        ]
-        #expect(
-            callees.isDisjoint(with: removedRuntimeCallees),
-            "Uuid pure logic should be Kotlinized; unexpected removed callees: \(callees.intersection(removedRuntimeCallees))"
-        )
+        #expect(callees.isDisjoint(with: runtimeCallees(in: .uuid)))
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 
     /// KSP-508: java.util.UUID.toKotlinUuid() and the java.nio.ByteBuffer.getUuid/putUuid
@@ -137,13 +109,11 @@ extension BuildKIRRegressionTests {
 
         for callee in ["toKotlinUuid", "getUuid", "putUuid"] {
             #expect(callees.contains(callee), "kotlin.uuid.\(callee) should remain Kotlin source-backed")
+            try expectSourceBackedCalls(named: ctx.interner.intern(callee), in: body, context: ctx)
         }
 
-        #expect(callees.isDisjoint(with: [
-            "kk_uuid_getUuid",
-            "kk_uuid_toKotlinUuid",
-            "__kk_uuid_toKotlinUuid",
-        ]))
+        #expect(callees.isDisjoint(with: runtimeCallees(in: .uuid)))
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 
     @Test func testUuidSizeConstantsLowerToImmediateConstants() throws {
@@ -182,30 +152,21 @@ extension BuildKIRRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        for callee in [
-            "__kk_uuid_random",
-            "__kk_uuid_lexicalOrder",
-            "__kk_uuid_fromLongs",
-            "__kk_uuid_toKotlinUuid",
-        ] {
+        let residualCallees: Set<String> = [
+            runtimeCallee(.uuidRandom),
+            runtimeCallee(.uuidLexicalOrder),
+            runtimeCallee(.uuidFromLongs),
+            runtimeCallee(.uuidToKotlinUuid),
+        ]
+        for callee in residualCallees {
             #expect(
                 callees.contains(interner.intern(callee)),
                 "\(callee) should not receive an outThrown slot during ABI lowering"
             )
         }
 
-        for removed in [
-            "kk_uuid_random",
-            "kk_uuid_parse",
-            "kk_uuid_toString",
-            "kk_uuid_fromLongs",
-            "kk_uuid_toKotlinUuid",
-            "kk_byteArray_putUuid",
-            "kk_byteArray_uuid",
-            "kk_uuid_getUuid",
-        ] {
-            #expect(!(callees.contains(interner.intern(removed))), "\(removed) should not remain in UUID ABI")
-        }
+        #expect(Set(callees.map(interner.resolve)).isSubset(of: registeredRuntimeCallees()))
+        #expect(Set(callees.map(interner.resolve)).intersection(runtimeCallees(in: .uuid)) == residualCallees)
     }
 }
 #endif

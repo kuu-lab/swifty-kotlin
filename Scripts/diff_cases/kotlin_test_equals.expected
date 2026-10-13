@@ -1,0 +1,4 @@
+equal
+Expected <1>, actual <2>.
+custom. Expected <a>, actual <b>.
+. Expected <null>, actual <value>.

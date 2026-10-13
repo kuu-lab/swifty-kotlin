@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression test for Scripts/diff_kotlinc.sh's run_case() script-mode exit
-# classification (see docs/diff-skip-inventory.md DEBT-DIFF-009).
+# script-mode classification regression for DEBT-DIFF-009.
 #
 # kotlinc -script bundles compile+run into one JVM process, so there is no
 # independently observable compile-phase exit on the reference side. This
@@ -27,8 +27,8 @@ FAKE_BIN_DIR="$TEMP_DIR/fake_bin"
 mkdir -p "$FAKE_BIN_DIR"
 
 # Fake kotlinc: only understands `-version` (warm-up) and `-script <file>`.
-# For a script whose name contains "mismatch", simulates a script that
-# compiles fine but throws an uncaught exception before printing anything:
+# For scripts whose names contain "mismatch", "expected", or "expectstdout", simulate scripts
+# that compile fine but throw an uncaught exception before printing anything:
 # empty stdout, exit 3 (mirroring kotlinc's real SCRIPT_EXECUTION_ERROR code,
 # confirmed empirically against kotlinc 2.4.10). For "okcase", prints
 # matching stdout and exits 0. For "candcompilefail", also succeeds (ref
@@ -48,7 +48,7 @@ if [[ -z "$script_arg" ]]; then
   exit 0
 fi
 case "$(basename "$script_arg")" in
-  *mismatch*)
+  *mismatch*|*expected*|*expectstdout*)
     echo "java.lang.ArithmeticException: / by zero" >&2
     exit 3
     ;;
@@ -97,6 +97,15 @@ case "$(basename "$src")" in
   *mismatch*)
     { echo '#!/usr/bin/env bash'; echo 'exit 7'; } >"$out"
     ;;
+  *expected*)
+    { echo '#!/usr/bin/env bash'; echo 'exit 1'; } >"$out"
+    ;;
+  *expectstdout*)
+    { echo '#!/usr/bin/env bash'; echo 'echo unexpected stdout'; echo 'exit 1'; } >"$out"
+    ;;
+  *candidateinline*)
+    { echo '#!/usr/bin/env bash'; echo 'echo "0, 7, true"'; } >"$out"
+    ;;
   *candcompilefail*)
     echo "fake compile error: something went wrong" >&2
     exit 42
@@ -121,8 +130,12 @@ echo '{}' >"$FAKE_STDLIB_DIR/manifest.json"
 CASES_DIR="$TEMP_DIR/cases"
 mkdir -p "$CASES_DIR"
 printf 'val x = 10 / 0\nprintln("unreachable")\n' >"$CASES_DIR/script_mismatch.kt"
+printf '// DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=1\nval x = 10 / 0\nprintln("unreachable")\n' >"$CASES_DIR/script_expectedexit.kt"
+printf '// DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=2\nval x = 10 / 0\nprintln("unreachable")\n' >"$CASES_DIR/script_expectedbad.kt"
+printf '// DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=1\nval x = 10 / 0\nprintln("unreachable")\n' >"$CASES_DIR/script_expectstdout.kt"
 printf 'println("ok output from script")\n' >"$CASES_DIR/script_okcase.kt"
 printf 'println("ok output from script")\n' >"$CASES_DIR/script_candcompilefail.kt"
+printf '// DIFF_CANDIDATE_ONLY\n// DIFF_EXPECT_STDOUT: 0, 7, true\nfun main() {}\n' >"$CASES_DIR/candidateinline.kt"
 
 ARTIFACT_ROOT="$TEMP_DIR/artifacts"
 OUTPUT_LOG="$TEMP_DIR/output.log"
@@ -159,6 +172,25 @@ if ! grep -qF "PASS $CASES_DIR/script_okcase.kt" "$OUTPUT_LOG"; then
   fail "script_okcase.kt (happy path, both sides exit 0 with matching stdout) should PASS"
 fi
 
+if ! grep -qF "PASS $CASES_DIR/script_expectedexit.kt" "$OUTPUT_LOG"; then
+  fail "script_expectedexit.kt should PASS when each runner exits with its declared code and stdout matches"
+fi
+if ! grep -qF "script exit expectation mismatch: expected ref=3 candidate=2, got ref=3 candidate=1" "$OUTPUT_LOG"; then
+  fail "script_expectedbad.kt should FAIL when an observed script exit differs from its declared code"
+fi
+stdout_case_log="$TEMP_DIR/expectstdout.log"
+awk '
+  /^CASE [0-9]+: .*script_expectstdout\.kt$/ { in_case=1; next }
+  /^CASE [0-9]+:|^Summary:/ { in_case=0 }
+  in_case { print }
+' "$OUTPUT_LOG" >"$stdout_case_log"
+if ! grep -qF "stdout mismatch:" "$stdout_case_log" || ! grep -qF "FAIL $CASES_DIR/script_expectstdout.kt" "$stdout_case_log"; then
+  fail "script_expectstdout.kt should FAIL when matching declared exits still produce different stdout"
+fi
+if grep -qF 'script exit expectation mismatch:' "$stdout_case_log"; then
+  fail "script_expectstdout.kt must have matching declared exits; only stdout should differ"
+fi
+
 # script_candcompilefail.kt: the reference script succeeds, but the
 # candidate's (genuinely separate) compile step fails. This must be reported
 # against the candidate's compile exit, not misread as a run-phase issue,
@@ -170,13 +202,27 @@ fi
 if ! grep -q "fake compile error: something went wrong" "$OUTPUT_LOG"; then
   fail "script_candcompilefail.kt's FAIL report should include the candidate's actual compile stderr"
 fi
-# Only script_mismatch.kt's candidate actually compiled and ran (exit 7), so
-# exactly one "candidate run stderr:" section should appear across both FAIL
-# cases — script_candcompilefail.kt's candidate never compiled, so it must
-# not get one.
+# script_candcompilefail.kt's candidate never compiled, so it must not get a
+# "candidate run stderr:" section. The other three failing candidates ran.
 candidate_run_stderr_sections="$(grep -c "candidate run stderr:" "$OUTPUT_LOG" || true)"
-if [[ "$candidate_run_stderr_sections" -ne 1 ]]; then
-  fail "expected exactly 1 'candidate run stderr:' section (from script_mismatch.kt only), found $candidate_run_stderr_sections"
+if [[ "$candidate_run_stderr_sections" -ne 3 ]]; then
+  fail "expected exactly 3 'candidate run stderr:' sections (script_mismatch.kt, script_expectedbad.kt, and script_expectstdout.kt), found $candidate_run_stderr_sections"
+fi
+
+inline_candidate_log="$TEMP_DIR/candidateinline.log"
+if KOTLINC="$FAKE_BIN_DIR/missing-kotlinc" \
+  JAVA_BIN="$FAKE_BIN_DIR/missing-java" \
+  KSWIFTC="$FAKE_BIN_DIR/fake_kswiftc" \
+  DIFF_STDLIB_LIBRARY="$FAKE_STDLIB_DIR" \
+  DIFF_REQUIRE_JDK21=1 \
+  DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
+  bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" "$CASES_DIR/candidateinline.kt" >"$inline_candidate_log" 2>&1; then
+  if ! grep -qF "PASS $CASES_DIR/candidateinline.kt (candidate-only expected output)" "$inline_candidate_log"; then
+    fail "candidateinline.kt should use its inline stdout expectation without JVM tools"
+  fi
+else
+  cat "$inline_candidate_log" >&2
+  fail "candidateinline.kt should not require kotlinc/JAVA_BIN when validating inline candidate-only stdout"
 fi
 
 echo "OK: diff_kotlinc.sh script-mode exit classification behaves correctly"

@@ -18,6 +18,14 @@ extension CallLowerer {
             return nil
         }
 
+        // kotlin.Unit is a namespace-qualified builtin value, not a nominal
+        // object handle. Use the same representation as bare Unit literals.
+        if symbolID == sema.types.unitClassSymbol {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: symbolID)
             ?? sema.types.anyType
@@ -118,6 +126,33 @@ extension CallLowerer {
               let callBinding = sema.bindings.callBinding(for: exprID)
         else {
             return nil
+        }
+
+        switch sema.bindings.stdlibSpecialCallKind(for: exprID) {
+        case .enumValues:
+            if let result = lowerEnumValuesCallExpr(
+                exprID,
+                args: args,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return result
+            }
+        case .enumEntries:
+            if let result = lowerEnumEntriesCallExpr(
+                exprID,
+                args: args,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return result
+            }
+        default:
+            break
         }
 
         // Qualified `kotlin.reflect.typeOf<T>()` expands through the same

@@ -45,12 +45,5 @@ struct RuntimeCollectionRequireNoNullsTests {
             }
         }
     }
-
-    private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-            return nil
-        }
-        return tryCast(ptr, to: RuntimeThrowableBox.self)
-    }
 }
 #endif

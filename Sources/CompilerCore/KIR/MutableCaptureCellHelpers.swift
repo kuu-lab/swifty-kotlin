@@ -25,7 +25,7 @@ func deferredLocalCaptureCellSeedValue(
         .doubleLiteral(0)
     case .primitive, .nothing:
         .intLiteral(0)
-    case .stringStruct, .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
+    case .nullableUnit, .stringStruct, .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
         .null
     case .error:
         .intLiteral(0)

@@ -23,7 +23,6 @@ final class KlibBodyLowerer {
     /// (types/signatures/strings/bodies) are file-local.
     private var fileIndex = 0
 
-    // MARK: - Per-callable state
 
     /// Serialized value-symbol signature index → bound KIR expression. Plays
     /// the role `ctx.localValuesBySymbol` plays for source lowering: value
@@ -42,7 +41,6 @@ final class KlibBodyLowerer {
     /// `instanceInitializerCall`.
     private var thisExpr: KIRExprID?
 
-    // MARK: - Per-module state
 
     /// Member field initializer bodies and anonymous-init bodies per class —
     /// collected before emitting the class's members so a ctor's
@@ -115,7 +113,6 @@ final class KlibBodyLowerer {
         )
     }
 
-    // MARK: - Declarations
 
     private func emitDeclaration(_ declaration: KlibIrDeclaration) -> [KIRDeclID] {
         switch declaration {
@@ -206,7 +203,6 @@ final class KlibBodyLowerer {
         return package.isEmpty ? declaration : "\(package).\(declaration)"
     }
 
-    // MARK: - Callable emission
 
     private enum AccessorKind {
         case getter
@@ -435,7 +431,6 @@ final class KlibBodyLowerer {
         return declIDs
     }
 
-    // MARK: - Classes
 
     private func emitClass(_ klass: KlibClass) -> [KIRDeclID] {
         guard let classSymbol = symbol(for: klass.base.symbol) else { return [] }
@@ -501,7 +496,6 @@ final class KlibBodyLowerer {
         return declIDs
     }
 
-    // MARK: - Fields and globals
 
     private func emitTopLevelField(_ field: KlibField) {
         guard let fieldSymbol = symbol(for: field.base.symbol) else { return }
@@ -533,14 +527,18 @@ final class KlibBodyLowerer {
         let type = typeIndex.flatMap { decodeType($0) }
             ?? symbols.propertyType(for: globalSymbol)
             ?? types.anyType
-        _ = arena.appendDecl(.global(KIRGlobal(symbol: globalSymbol, type: type)))
+        let isThreadLocal = symbols.annotations(for: globalSymbol).contains {
+            KnownCompilerAnnotation.nativeThreadLocal.matches($0.annotationFQName)
+        }
+        _ = arena.appendDecl(.global(KIRGlobal(
+            symbol: globalSymbol, type: type, isThreadLocal: isThreadLocal
+        )))
         // `.importedLibrary`-flagged globals normally resolve to extern
         // storage owned by a precompiled `.kklib` object. `.klib` modules
         // carry no precompiled object, so this compilation owns the slot.
         symbols.markKlibDefinedGlobal(globalSymbol)
     }
 
-    // MARK: - Object / enum singleton initialization
 
     /// Mirrors `synthesizeObjectInitializer`/`synthesizeObjectLazyInit` for an
     /// imported object: an eager allocation+registration function invoked from
@@ -642,7 +640,6 @@ final class KlibBodyLowerer {
         return nil
     }
 
-    // MARK: - Statements
 
     private func translateStatement(
         _ statement: KlibIrStatement,
@@ -692,7 +689,6 @@ final class KlibBodyLowerer {
         }
     }
 
-    // MARK: - Expressions
 
     @discardableResult
     private func translateExpression(
@@ -876,9 +872,9 @@ final class KlibBodyLowerer {
             }
             return translateExpression(result, into: &body)
 
-        case .vararg(let elementType, let elements):
+        case .vararg(_, let elements):
             return translateVararg(
-                elementType: elementType, elements: elements,
+                elements: elements,
                 resultType: resultType, into: &body
             )
 
@@ -914,7 +910,6 @@ final class KlibBodyLowerer {
         return lastValue ?? unitExpr(into: &body)
     }
 
-    // MARK: - Calls
 
     /// Splits a serialized member access into receiver and regular-argument
     /// lists. Kotlin 2.4 folds receivers into `arguments` (dispatch receiver
@@ -1197,7 +1192,6 @@ final class KlibBodyLowerer {
         }
     }
 
-    // MARK: - Control flow
 
     private func translateReturnableBlock(
         _ ref: KlibSymbolRef,
@@ -1288,7 +1282,6 @@ final class KlibBodyLowerer {
         return unitExpr(into: &body)
     }
 
-    // MARK: - Member field access
 
     private func fieldOffsetExpr(
         fieldSymbol: SymbolID,
@@ -1378,7 +1371,6 @@ final class KlibBodyLowerer {
         return result
     }
 
-    // MARK: - String concat
 
     private func translateStringConcat(
         _ arguments: [KlibIrExpression],
@@ -1418,7 +1410,6 @@ final class KlibBodyLowerer {
         return accumulated
     }
 
-    // MARK: - Type operators
 
     private func translateTypeOp(
         _ op: KlibTypeOperator,
@@ -1496,10 +1487,8 @@ final class KlibBodyLowerer {
         return expr
     }
 
-    // MARK: - Varargs
 
     private func translateVararg(
-        elementType: Int32,
         elements: [KlibVarargElement],
         resultType: TypeID,
         into body: inout KIRLoweringEmitContext
@@ -1533,7 +1522,6 @@ final class KlibBodyLowerer {
         return array
     }
 
-    // MARK: - Intrinsic member calls
 
     /// `kotlin.<Prim>.<op>` members have no serialized body anywhere — they are
     /// compiler intrinsics that source lowering maps onto `kk_op_*`/`kk_*`
@@ -1662,7 +1650,6 @@ final class KlibBodyLowerer {
         return result
     }
 
-    // MARK: - Types
 
     /// Serialized `IrType` → consumer `TypeID`. Reuses the primitive-mapping
     /// rules the declaration materializer encodes through signature text, so
@@ -1761,7 +1748,6 @@ final class KlibBodyLowerer {
         return nullable ? types.makeNullable(base) : base
     }
 
-    // MARK: - Helpers
 
     private func calleeName(for symbol: SymbolID, ref: KlibSymbolRef) -> InternedString {
         if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(symbol) {

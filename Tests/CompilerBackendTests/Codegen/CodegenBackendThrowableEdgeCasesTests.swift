@@ -27,27 +27,7 @@ struct CodegenBackendThrowableEdgeCasesTests {
 
     @Test(arguments: [true, false])
     func testCodegenThrowableSuppressedArrayProperty(allowDefaultStdlibLibrary: Bool) throws {
-        let source = """
-        fun main() {
-            val primary: Throwable = RuntimeException("primary")
-            val empty: Array<Throwable> = primary.suppressed
-            println(empty.size)
-            val first = IllegalStateException("first")
-            primary.addSuppressed(first)
-            val snapshot: Array<Throwable> = primary.suppressed
-            println(snapshot.size)
-            println(snapshot[0] === first)
-            snapshot[0] = Exception("replacement")
-            println(primary.suppressed[0].message)
-            primary.addSuppressed(IllegalArgumentException("second"))
-            println(snapshot.size)
-            println(primary.suppressed.size)
-            println(primary.suppressed[1].message)
-            println(primary.getSuppressed().size)
-            println(primary.suppressedExceptions.size)
-            println(RuntimeException("subtype").suppressed.size)
-        }
-        """
+        let source = try diffCaseSource("kuu1326_throwable_suppressed_array.kt")
 
         try assertKotlinOutput(
             source,
@@ -55,6 +35,122 @@ struct CodegenBackendThrowableEdgeCasesTests {
             expected: "0\n1\ntrue\nfirst\n1\n2\nsecond\n2\n2\n0\n",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
+    }
+
+    @Test
+    func testCodegenJVMCompatibleRuntimeExceptionConstructorHonorsFlags() throws {
+        let source = """
+        class Return(val value:Int):RuntimeException(null,null,false,false)
+        class KotloxReturn(val value: Any?) : RuntimeException(null, null, false, false)
+        class DisabledSuppression(message: String?, cause: Throwable?) :
+            RuntimeException(message, cause, false, true)
+        class DisabledStackTrace(message: String?, cause: Throwable?) :
+            RuntimeException(message, cause, true, false)
+        class EnabledOptions(message: String?, cause: Throwable?) :
+            RuntimeException(message, cause, true, true)
+        class CauseOnly(cause: Throwable?) : RuntimeException(cause)
+        class TwoArgument(message: String?, cause: Throwable?) : RuntimeException(message, cause)
+
+        fun main() {
+            try {
+                throw Return(3)
+            } catch (e: Return) {
+                println(e.value)
+                println(e.message)
+            }
+
+            try {
+                throw KotloxReturn(3)
+            } catch (e: KotloxReturn) {
+                println(e.value)
+                println(e.message)
+            }
+
+            val cause = IllegalArgumentException("root cause")
+            val disabledSuppression = DisabledSuppression("disabled", cause)
+            disabledSuppression.addSuppressed(IllegalStateException("ignored"))
+            println(disabledSuppression.message)
+            println(disabledSuppression.cause === cause)
+            println(disabledSuppression.getSuppressed().size)
+            println(disabledSuppression.getStackTrace().size > 0)
+
+            val disabledStackTrace = DisabledStackTrace("no stack", cause)
+            disabledStackTrace.addSuppressed(IllegalStateException("kept"))
+            println(disabledStackTrace.message)
+            println(disabledStackTrace.cause === cause)
+            println(disabledStackTrace.getSuppressed().size)
+            println(disabledStackTrace.getStackTrace().size)
+
+            val enabledOptions = EnabledOptions("enabled", cause)
+            enabledOptions.addSuppressed(IllegalStateException("kept"))
+            println(enabledOptions.message)
+            println(enabledOptions.getSuppressed().size)
+            println(enabledOptions.getStackTrace().size > 0)
+
+            val causeOnly = CauseOnly(cause)
+            println(causeOnly.message == cause.toString())
+            println(causeOnly.cause === cause)
+
+            val twoArgument = TwoArgument("two argument", cause)
+            println(twoArgument.message)
+            println(twoArgument.cause === cause)
+        }
+        """
+        let expected = """
+        3
+        null
+        3
+        null
+        disabled
+        true
+        0
+        true
+        no stack
+        true
+        1
+        0
+        enabled
+        1
+        true
+        true
+        true
+        two argument
+        true
+        """ + "\n"
+        let modes: [(allowDefaultStdlibLibrary: Bool, optLevel: OptimizationLevel)] = [
+            (false, .O0),
+            (false, .O2),
+            (true, .O0),
+            (true, .O2),
+        ]
+
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        try source.write(toFile: inputPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: inputPath) }
+
+        func assertMode(_ mode: (allowDefaultStdlibLibrary: Bool, optLevel: OptimizationLevel), index: Int) throws {
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "RuntimeExceptionFourArgumentOptions\(index)",
+                outputPath: outputBase,
+                optLevel: mode.optLevel,
+                allowDefaultStdlibLibrary: mode.allowDefaultStdlibLibrary
+            )
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
+            #expect(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+
+        for (index, mode) in modes.enumerated() {
+            try assertMode(mode, index: index)
+        }
     }
 
     // Regression test: string template interpolation ("$e") and the `+` concatenation

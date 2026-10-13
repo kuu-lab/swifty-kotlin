@@ -88,8 +88,8 @@ struct SuperCallAndQualifiedThisTests {
             .flatMap { extractSuperCallFlags(from: $0, interner: ctx.interner) }
         let superCall = try #require(calls.first { $0.isSuperCall })
         let qualifier = try #require(superCall.qualifiedSuperType)
-        let qualifierSymbol = try #require(sema.symbols.symbol(qualifier))
-        #expect(ctx.interner.resolve(qualifierSymbol.name) == "Base")
+        let base = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Base")]))
+        #expect(qualifier == base)
     }
 
     @Test(arguments: ["Root", "Other", "Missing"])
@@ -275,7 +275,7 @@ struct SuperCallAndQualifiedThisTests {
         // `this@withA` must be bound to the OUTER lambda's receiver symbol (never the inner one)...
         let ast = try #require(ctx.ast)
         let qualified = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
-            if case let .thisRef(label?, _) = expr, ctx.interner.resolve(label) == "withA" {
+            if case let .thisRef(label?, _) = expr, label == ctx.interner.intern("withA") {
                 return ExprID(rawValue: Int32(index))
             }
             return nil

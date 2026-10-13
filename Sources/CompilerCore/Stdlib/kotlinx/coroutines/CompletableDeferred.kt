@@ -1,21 +1,19 @@
 package kotlinx.coroutines
 
-import kotlin.coroutines.CoroutineContext
-
 public interface CompletableDeferred<T> : Deferred<T> {
     public fun complete(value: T): Boolean
     public fun completeExceptionally(exception: Throwable): Boolean
 }
 
-internal class CompletableDeferredImpl<T>(parent: Job?) : CompletableDeferred<T> {
+// KUU-1386: kotlinx's CompletableDeferredImpl is a JobSupport subclass, so
+// `cd is JobSupport`/`cd is ChildJob`/`cd is ParentJob` must hold. The bound
+// runtime job keeps the same delegation as the removed explicit overrides.
+internal class CompletableDeferredImpl<T>(parent: Job?) : JobSupport(true), CompletableDeferred<T> {
     private val job: Job = __kkJobBindWrapper(this, __kkJobNew(), parent)
 
-    override val isActive: Boolean get() = job.isActive
-    override val isCompleted: Boolean get() = job.isCompleted
-    override val isCancelled: Boolean get() = job.isCancelled
-
-    override val key: CoroutineContext.Key<*>
-        get() = Job.Key
+    init {
+        initParentJob(parent)
+    }
 
     override fun complete(value: T): Boolean = __kkJobComplete(job, value)
 

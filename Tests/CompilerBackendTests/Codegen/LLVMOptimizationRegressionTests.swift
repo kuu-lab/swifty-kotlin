@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -8,6 +9,54 @@ import Testing
 /// pipeline first ran against the bundled standard library.
 @Suite
 struct LLVMOptimizationRegressionTests {
+    @Test(arguments: [0, 1, 2, 3])
+    func integerPrintlnEmitsObjectAtEachOptimizationLevel(optimization: Int) throws {
+        try withTemporaryFile(contents: "fun main() { println(1+1) }\n") { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent("integer-println-\(UUID().uuidString).o").path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let context = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "IntegerPrintlnObject", inputs: [path], outputPath: outputPath,
+                    emit: .object, target: TargetTriple.hostDefault(),
+                    optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+                    allowDefaultStdlibLibrary: false
+                ),
+                sourceManager: SourceManager(), diagnostics: DiagnosticEngine(), interner: StringInterner()
+            )
+            try runToKIR(context)
+            try LoweringPhase().run(context)
+            try CodegenPhase().run(context)
+            #expect(!context.diagnostics.hasError)
+            let generatedPath = try #require(context.generatedObjectPath)
+            #expect(!(try Data(contentsOf: URL(fileURLWithPath: generatedPath))).isEmpty)
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func optimizedLocaleToStringUsesTheFlatRuntimeABI(stdlibFromSource: Bool) throws {
+        try assertOutput(
+            """
+            import java.util.Locale
+            fun main() {
+                println(1+1)
+                println(Locale("en", "US").toString())
+            }
+            """,
+            moduleName: "OptimizedLocaleToString", expected: "2\nen_US\n",
+            optimization: .O2, stdlibFromSource: stdlibFromSource
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func annotatedSecondaryConstructorsKeepTheirDelegation(optimization: Int) throws {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/annotated_constructor_delegation.kt"), encoding: .utf8)
+        try assertOutput(source, moduleName: "AnnotatedConstructorDelegation", expected: "7\n2\n9\n",
+                         optimization: try #require(OptimizationLevel(rawValue: optimization)))
+    }
+
     @Test(arguments: [0, 2])
     func sourceInjectedHelloUsesCoroutineMarkerABI(optimization: Int) throws {
         try assertOutput(
@@ -239,41 +288,7 @@ struct LLVMOptimizationRegressionTests {
 
     @Test(arguments: [0, 2])
     func nestedClassRuntimeSemanticsRemainValidAtEachOptimizationLevel(optimization: Int) throws {
-        let source = """
-        open class P {
-            class Q : P()
-            object O : P()
-        }
-
-        class Wrapper {
-            class Item(val v: Int) {
-                fun twice() = v * 2
-            }
-        }
-
-        sealed class S {
-            data class A(val n: Int) : S()
-            object B : S()
-        }
-
-        fun main() {
-            val q = P.Q()
-            println(q is P.Q)
-            println(q is P)
-            val p: P = q
-            println(p == P.O)
-            val erased: Any = P.Q()
-            println(erased is P.Q)
-            val s: S = S.A(5)
-            println(s is S.A)
-            println(when (s) {
-                is S.A -> "A${s.n}"
-                S.B -> "B"
-            })
-            println(Wrapper.Item(5).twice())
-            println(S.A(5))
-        }
-        """
+        let source = try diffCaseSource("kuu_593_nested_class_runtime.kt")
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationNestedClassRuntime",
@@ -300,29 +315,7 @@ struct LLVMOptimizationRegressionTests {
 
     @Test(arguments: [0, 2])
     func virtualPropertyGetterArityDoesNotCollideWithSameNamedMethodAtEachOptimizationLevel(optimization: Int) throws {
-        let source = """
-        abstract class Base {
-            abstract val size: Int
-            abstract fun get(index: Int): Int
-        }
-
-        class Impl : Base() {
-            override val size: Int = 3
-            override fun get(index: Int): Int = index * 10
-        }
-
-        fun probe(b: Base): Int {
-            var sum = 0
-            for (i in 0 until b.size) {
-                sum += b.get(i)
-            }
-            return sum
-        }
-
-        fun main() {
-            println(probe(Impl()))
-        }
-        """
+        let source = try diffCaseSource("llvm_virtual_property_getter_arity.kt")
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationVirtualGetterArity",
@@ -346,6 +339,26 @@ struct LLVMOptimizationRegressionTests {
             source,
             moduleName: "LLVMOptimizationStringVarargConstructor",
             expected: "3\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func reflectedStringVarargsRetainArrayABI(optimization: Int) throws {
+        try assertOutput(
+            try diffCaseSource("annotation_vararg_reflection.kt"),
+            moduleName: "ReflectedStringVarargABI",
+            expected: "label\n2\nb\n3\n5\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func boxedChannelCloseCallbackExpandsItsNamedABIPair(optimization: Int) throws {
+        try assertOutput(
+            try diffCaseSource("channel_boxed_close_callback.kt"),
+            moduleName: "BoxedChannelCloseCallbackABI",
+            expected: "true\ntrue\n1\n",
             optimization: try #require(OptimizationLevel(rawValue: optimization))
         )
     }
@@ -384,21 +397,7 @@ struct LLVMOptimizationRegressionTests {
 
     @Test
     func singleAssignmentAcrossControlFlowMergeRemainsValidAtO2() throws {
-        let source = """
-        fun main() {
-            val values: Iterable<Int> = listOf(1, 2, 3)
-            println(values.firstNotNullOf { value ->
-                if (value == 2) "two" else null
-            })
-            try {
-                println(values.firstNotNullOf { value ->
-                    if (value == 9) "nine" else null
-                })
-            } catch (e: NoSuchElementException) {
-                println("missing")
-            }
-        }
-        """
+        let source = try diffCaseSource("collection_firstnotnullof.kt")
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationControlFlowMerge",

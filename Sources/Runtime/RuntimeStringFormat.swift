@@ -3,8 +3,6 @@
 
 import Foundation
 
-// MARK: - Format parser internals
-
 private struct RuntimeFormatSpecifier {
     let explicitArgumentIndex: Int?
     let flags: String
@@ -59,7 +57,7 @@ private enum RuntimeParsedFormatToken {
     case specifier(RuntimeFormatSpecifier, next: Int)
 }
 
-// MARK: - Resource limits for String.format (KUU-804)
+// Resource limits for String.format (KUU-804)
 // Prevents memory exhaustion and arithmetic traps on maliciously large width/precision.
 internal let runtimeFormatMaxWidth = 100_000
 internal let runtimeFormatMaxPrecision = 100_000
@@ -957,8 +955,6 @@ private func runtimeNumericValueAllowsZeroPadding(_ value: String) -> Bool {
     return unwrapped != "nan" && unwrapped != "infinity"
 }
 
-// MARK: - %h / %H (hex hashCode)
-
 private func runtimeFormatArgumentIsNull(_ value: RuntimeValue) -> Bool {
     switch value.tag {
     case RuntimeValue.stringTag, RuntimeValue.charTag:
@@ -1007,8 +1003,6 @@ private func runtimeFormatHashConversion(
         return specifier.conversion.isUppercase ? rendered.uppercased() : rendered
     }
 }
-
-// MARK: - %t / %T date-time conversions
 
 private struct RuntimeFormatDateTimeInstant {
     let epochMilliseconds: Int64
@@ -1190,8 +1184,6 @@ private func runtimeRenderDateTime(
     return field(conversion)
 }
 
-// MARK: - Public @_cdecl functions: String.format
-
 @_cdecl("__kk_string_format_flat")
 public func __kk_string_format_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1222,33 +1214,6 @@ public func __kk_string_format_flat(
         outByteCount?.pointee = 0
         outHash?.pointee = 0
         return nil
-    } catch {
-        preconditionFailure("Unexpected format error")
-    }
-}
-
-@_cdecl("__kk_string_format_locale")
-public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let locale: Locale?
-    if localeRaw == runtimeNullSentinelInt {
-        locale = nil
-    } else {
-        guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale received invalid Locale handle")
-        }
-        locale = box.locale
-    }
-
-    let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    outThrown?.pointee = 0
-    do {
-        return runtimeMakeStringRaw(try runtimeFormatString(template, values: arguments, locale: locale))
-    } catch let error as RuntimeFormatError {
-        outThrown?.pointee = runtimeAllocateFormatException(error)
-        return runtimeNullSentinelInt
     } catch {
         preconditionFailure("Unexpected format error")
     }

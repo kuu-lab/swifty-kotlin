@@ -16,7 +16,12 @@ import kotlin.internal.KsSymbolName
 // allocates and owns the weak-reference handle, so construction bridges
 // straight to the factory instead of allocating a plain object first.
 @ExperimentalNativeApi
-public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T)
+public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T) {
+    /** Returns the referent while it is still alive, or null after collection. */
+    @ExperimentalNativeApi
+    public val value: T?
+        get() = __weakReferenceGet(this)
+}
 
 // Declared with the receiver's own type parameter (not `Any?` + an unchecked
 // cast) to match the Future<T>.consumeValue(): T bridge pattern elsewhere in
@@ -47,9 +52,9 @@ public fun <T : Any> WeakReference<T>.clear() {
 public fun <T : Any> WeakReference<T>.get(): T? =
     __weakReferenceGet(this)
 
-// Generic extension property type parameters are not supported by this parser;
-// the star-projected receiver preserves the nullable read contract.
-/** Returns the referent while it is still alive, or null after collection. */
+// Keep the original extension symbol so existing `import kotlin.native.ref.value`
+// declarations remain source-compatible. The class member above wins property
+// resolution for parameterized references and preserves their T? return type.
 @ExperimentalNativeApi
 public val WeakReference<*>.value: Any?
     get() = this.get()

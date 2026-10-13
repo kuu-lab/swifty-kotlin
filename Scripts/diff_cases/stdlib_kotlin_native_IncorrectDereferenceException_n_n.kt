@@ -1,4 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are only available on Kotlin/Native targets.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_IncorrectDereferenceException_n_n.expected.stdout
+// JVM kotlinc has no kotlin.native reference API for this fixture.
 @file:Suppress("DEPRECATION_ERROR")
 
 import kotlin.native.IncorrectDereferenceException
@@ -11,7 +12,9 @@ fun main() {
     println(message.message ?: "null")
     println(noArg is Throwable)
     println(message is RuntimeException)
-    println(message is IllegalStateException)
+    // Widen the static type to exercise the runtime check without a disjoint-type diagnostic.
+    val messageAsThrowable: Throwable = message
+    println(messageAsThrowable is IllegalStateException)
 
     try {
         throw message

@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -10,13 +11,7 @@ import Testing
 @Suite
 struct GenericClassPropertyInitTypeParamScopeTests {
     @Test func nullableReceiverFunctionPropertyWithExplicitClassTypeArgument() throws {
-        try withTemporaryFile(contents: """
-        fun <X> makeIt(x: X): X = x
-        class P<T : Any> {
-            private val instance = makeIt<T?.() -> Int>({ 1 })
-            fun read(value: T?): Int = instance(value)
-        }
-        """) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.genericClassPropertyInitializerTypeArgument) { path in
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")

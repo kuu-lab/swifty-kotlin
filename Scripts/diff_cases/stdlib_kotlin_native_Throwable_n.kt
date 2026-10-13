@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Native-only and unavailable to the JVM kotlinc reference environment.
+// CANDIDATE-ONLY: Kotlin/Native APIs have no JVM oracle; assert only stable equality behavior, not stack details.
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
 import kotlin.native.getStackTraceAddresses

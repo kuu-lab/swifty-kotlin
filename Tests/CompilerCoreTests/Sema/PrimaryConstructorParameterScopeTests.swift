@@ -23,10 +23,10 @@ struct PrimaryConstructorParameterScopeTests {
                 guard case let .classDecl(classDecl) = decl else { return nil }
                 return classDecl
             }
-            let ordinary = try #require(classes.first { ctx.interner.resolve($0.name) == "B" })
+            let ordinary = try #require(classes.first { $0.name == ctx.interner.intern("B") })
             #expect(ordinary.enumEntries.isEmpty)
             #expect(ordinary.initBlocks.count == 1)
-            let enumeration = try #require(classes.first { ctx.interner.resolve($0.name) == "E" })
+            let enumeration = try #require(classes.first { $0.name == ctx.interner.intern("E") })
             #expect(enumeration.enumEntries.map { ctx.interner.resolve($0.name) } == ["ONE", "TWO"])
             #expect(enumeration.initBlocks.count == 1)
         }

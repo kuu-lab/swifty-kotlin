@@ -9,25 +9,7 @@ struct CodegenBackendNoWhenBranchMatchedExceptionTests {
 
     @Test(arguments: [true, false])
     func testCodegenNoWhenBranchMatchedExceptionMessages(allowDefaultStdlibLibrary: Bool) throws {
-        let source = """
-        fun main() {
-            val cause = RuntimeException("cause")
-            println(NoWhenBranchMatchedException().message)
-            println(NoWhenBranchMatchedException(null as String?).message)
-            println(NoWhenBranchMatchedException("missing").message)
-            val withCause = NoWhenBranchMatchedException(null, cause)
-            println(withCause.message)
-            println(withCause.cause === cause)
-            val explicitMessage = NoWhenBranchMatchedException("explicit", cause)
-            println(explicitMessage.message)
-            println(explicitMessage.cause === cause)
-            val causeOnly = NoWhenBranchMatchedException(cause)
-            println(causeOnly.message)
-            println(causeOnly.cause === cause)
-            println(NoWhenBranchMatchedException(null as Throwable?).message)
-            println(NoWhenBranchMatchedException(null, null).cause == null)
-        }
-        """
+        let source = try diffCaseSource("kuu1326_no_when_branch_matched_exception.kt")
 
         try assertKotlinOutput(
             source,

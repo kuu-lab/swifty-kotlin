@@ -25,6 +25,9 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    /// Existing retained reference cells are external owners, not swept boxes.
+    /// Trace their direct kk_alloc payloads until replacement or owner release.
+    var retainedAtomicReferenceHandles: Set<UInt> = []
     var seededRandomPointers: Set<UInt> = []
     /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
     /// singleton or a dedicated runtime registry rather than passRetained.
@@ -46,12 +49,25 @@ struct GCState {
     /// _dispose). The same target object may be wrapped by several
     /// independent StableRef handles at once — see kk_stable_ref_create.
     var stableRefCounts: [UInt: Int] = [:]
+    /// Kotlin/JVM reference-identity cache for `kk_box_*` primitive boxing:
+    /// Boolean (both values), Char (0..127), and Int/Long/Short/Byte
+    /// (-128..127) boxes share one canonical object per value, so `===` on
+    /// two independently boxed values matches the JVM. Keys are
+    /// `(primitiveTypeBase << 32) | payloadBits`; values are tagged handles.
+    /// Unsigned kinds and Float/Double are deliberately absent — JVM does
+    /// not cache them.
+    var identityPrimitiveBoxCache: [Int64: Int] = [:]
+    /// Tagged handles minted through `identityPrimitiveBoxCache`. A shared
+    /// cache box must never be nominal-type tagged in place, so
+    /// `kk_tag_value_class_box` consults this set and clones instead.
+    var identityPrimitiveBoxHandles: Set<UInt> = []
 }
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
+    var enumValuesByTypeToken: [Int64: [RuntimeEnumValueDescriptor]] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
@@ -64,6 +80,18 @@ struct MetadataState {
     /// Same idea, for the range/progression nominal edges
     /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
     var rangeTypeEdgesRegistered = false
+    /// Same idea, for the coroutine job-family nominal edges
+    /// `registerJobFamilyTypeEdgesOnce` installs (KUU-1386).
+    var jobFamilyTypeEdgesRegistered = false
+    /// Same idea, for the `CoroutineDispatcher`/`ContinuationInterceptor`
+    /// nominal edges `registerCoroutineDispatcherTypeEdgesOnce` installs
+    /// (KUU-1395).
+    var coroutineDispatcherTypeEdgesRegistered = false
+    /// `registerSortedCollectionTypeEdgesOnce` installs (KUU-1361).
+    var sortedCollectionTypeEdgesRegistered = false
+    /// Same idea, for the kotlinx.cinterop MemScope/Arena/nativeHeap nominal
+    /// edges `registerCInteropRuntimeTypeMetadata` installs (KUU-1375).
+    var cinteropTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     /// Bitmask of object slot indices holding primary-constructor properties, per data class.
     /// Absent entries mean "every stored slot participates" (legacy registration).
@@ -422,9 +450,8 @@ public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store(_
     return 0
 }
 
-// (a) RF-DEAD-002: 配線予定 → GC global root API (CInterop / native global 変数サポート)
-// `kk_global_root_slot_*` 動的名が補間 emit だが、公開 API としての register/unregister も配線予定。
-@_cdecl("kk_register_global_root")
+// These Swift helpers remain available to Runtime tests. Restore their C exports
+// only when the Kotlin compiler has a global-root emission path.
 public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
     guard let slot else {
         return
@@ -434,7 +461,6 @@ public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRa
     }
 }
 
-@_cdecl("kk_unregister_global_root")
 public func kk_unregister_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
     guard let slot else {
         return
@@ -444,6 +470,7 @@ public func kk_unregister_global_root(_ slot: UnsafeMutablePointer<UnsafeMutable
     }
 }
 
+// DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests register synthetic stack maps.
 @_cdecl("kk_register_frame_map")
 public func kk_register_frame_map(_ functionID: UInt32, _ mapPtr: UnsafeRawPointer?) {
     runtimeStorage.withGCLock { state in
@@ -462,6 +489,7 @@ public func kk_register_frame_map(_ functionID: UInt32, _ mapPtr: UnsafeRawPoint
     }
 }
 
+// DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests exercise frame registration and scanning.
 @_cdecl("kk_push_frame")
 public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPointer?) {
     runtimeStorage.withGCLock { state in
@@ -469,6 +497,7 @@ public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPoi
     }
 }
 
+// DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests balance synthetic frames.
 @_cdecl("kk_pop_frame")
 public func kk_pop_frame() {
     runtimeStorage.withGCLock { state in
@@ -500,6 +529,7 @@ public func kk_unregister_coroutine_root(_ value: UnsafeMutableRawPointer?) {
 
 // (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
 // RuntimeTests がテスト間でヒープオブジェクト数を検査するためのセム。
+// DEAD-CDECL-TEST-HOOK: GC-METRICS - Runtime tests assert managed heap object counts.
 @_cdecl("kk_runtime_heap_object_count")
 public func kk_runtime_heap_object_count() -> UInt32 {
     runtimeStorage.withGCLock { state in
@@ -509,6 +539,7 @@ public func kk_runtime_heap_object_count() -> UInt32 {
 
 // (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
 // RuntimeTests がテスト間でランタイム全状態をリセットするためのセム。
+// DEAD-CDECL-TEST-HOOK: RUNTIME-RESET - Runtime tests isolate process-global runtime state.
 @_cdecl("kk_runtime_force_reset")
 public func kk_runtime_force_reset() {
     kk_runtime_reset_gc()
@@ -527,6 +558,7 @@ public func kk_runtime_force_reset() {
 /// panic (invalid range/array/string handle). Entries are removed by whoever
 /// releases the box.
 func kk_runtime_reset_gc() {
+    runtimeResetAtomicfuParkingCaches()
     runtimeStorage.withGCLock { state in
         for (_, object) in state.heapObjects {
             object.pointer.deallocate()
@@ -558,6 +590,10 @@ func kk_runtime_reset_metadata() {
         state.reflectionTypeEdgesRegistered = false
         state.primitiveTypeEdgesRegistered = false
         state.rangeTypeEdgesRegistered = false
+        state.jobFamilyTypeEdgesRegistered = false
+        state.coroutineDispatcherTypeEdgesRegistered = false
+        state.sortedCollectionTypeEdgesRegistered = false
+        state.cinteropTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.dataClassFieldMasks.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
@@ -574,6 +610,8 @@ func kk_runtime_reset_metadata() {
     runtimeKClassObjectRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
+    runtimeKCompanionRegistry.reset()
+    runtimeKNestedClassRegistry.reset()
 }
 
 func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
@@ -633,6 +671,7 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
         for pointer in pointers {
             let key = UInt(bitPattern: pointer)
             state.objectPointers.remove(key)
+            state.retainedAtomicReferenceHandles.remove(key)
             state.seededRandomPointers.remove(key)
         }
     }
@@ -661,6 +700,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     worklist.reserveCapacity(state.heapObjects.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
     worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+    collectRetainedAtomicPayloadRootsLocked(state: state, into: &worklist)
 
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)

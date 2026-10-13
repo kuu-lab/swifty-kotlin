@@ -68,9 +68,11 @@ extension BuildKIRRegressionTests {
         // `ARM64.bitness` emits a `$enumConstructorProperty$` placeholder
         // call that must resolve to the synthesized helper even though the
         // bundled stdlib file was skipped from output lowering.
+        let bitnessName = try #require(sema.symbols.symbol(bitnessSymbol)?.name)
+        let helperName = interner.intern(EnumPropertyHelperNames.getterPrefix + interner.resolve(bitnessName))
         let helperDecl = module.arena.declarations.contains { declaration in
             guard case let .function(function) = declaration else { return false }
-            return interner.resolve(function.name) == "$enumConstructorProperty$bitness"
+            return function.name == helperName
         }
         #expect(
             helperDecl,
@@ -79,7 +81,7 @@ extension BuildKIRRegressionTests {
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: interner)
         for instruction in mainBody {
             guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                  interner.resolve(callee).hasPrefix("$enumConstructorProperty$")
+                  interner.resolve(callee).hasPrefix(EnumPropertyHelperNames.getterPrefix)
             else {
                 continue
             }

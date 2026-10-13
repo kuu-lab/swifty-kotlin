@@ -54,6 +54,9 @@ extension CallLowerer {
         {
             return receiver
         }
+        // Imported object/companion extensions have no enclosing dispatch
+        // receiver. Their source bodies still require the singleton before
+        // the extension receiver, including primitive property getters.
         // Imported companion extensions can bind as ordinary member calls,
         // including property getters. They still need the singleton dispatch
         // receiver even when no lexical receiver is active.
@@ -81,13 +84,15 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
+        var result = arguments
         if let receiver = memberExtensionDispatchReceiver(
             for: accessor, callExprID: callExprID, sema: sema, arena: arena,
             interner: interner, instructions: &instructions
-        ) {
-            return [receiver] + arguments
-        }
-        return arguments
+        ) { result.insert(receiver, at: 0) }
+        let binding = callExprID.flatMap { sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0] }
+        appendReifiedTypeTokens(chosenCallee: accessor, callBinding: binding, sema: sema,
+                                       interner: interner, arena: arena, instructions: &instructions, arguments: &result)
+        return result
     }
 
     func sequenceBuilderRuntimeCalleeName(
@@ -267,22 +272,15 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isCoroutineHandleReceiver = receiverClassifier.isCoroutineHandleReceiverType(receiverType)
         if isCoroutineHandleReceiver,
            Self.unresolvedCoroutineHandleMemberNames.contains(calleeText)
         {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        let isChannelReceiver = isChannelReceiverType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isChannelReceiver = receiverClassifier.isChannelReceiverType(receiverType)
         if isChannelReceiver,
            Self.unresolvedChannelMemberNames.contains(calleeText)
         {
@@ -295,6 +293,69 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
+    }
+
+    /// Emits the ordinal dispatcher shared by ordinary and safe enum calls.
+    func tryEmitEnumEntryDispatchCall(
+        defaultMask: Int64,
+        isSuperCall: Bool,
+        chosenCallee: SymbolID?,
+        receiver: MemberCallReceiver,
+        result: KIRExprID,
+        sema: SemaModule,
+        interner: StringInterner,
+        arguments: [KIRExprID],
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        // Enum entry implementations are stored as ordinary functions whose
+        // first argument is the ordinal-backed enum value. Route the resolved
+        // enum member through the predeclared ordinal dispatcher before any
+        // runtime-name or virtual-dispatch rewriting can select the abstract
+        // declaration itself.
+        //
+        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
+        // or any interface member) that more than one enum class in this
+        // compilation registers entry-body dispatch for. A single
+        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
+        // would have the second such enum processed silently overwrite the
+        // first's registration. Resolve the helper directly under the
+        // *receiver's own* enum class fqName instead (deterministic from
+        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
+        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
+        // cross-resolve to each other's dispatch helper.
+        if defaultMask == 0,
+           !isSuperCall,
+           let chosenCallee,
+           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
+           let receiverType = receiver.type(in: sema),
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass,
+           let dispatchSymbol = {
+               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
+               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
+                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+               }
+           }(),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
+           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
+           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
+           !dispatchSignature.isSuspend,
+           arguments.first == receiver.loweredID
+        {
+            instructions.append(.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: arguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return true
+        }
+        return false
     }
 
     func emitMemberCallInstruction(
@@ -371,52 +432,17 @@ extension CallLowerer {
             ))
             return
         }
-        // Enum entry implementations are stored as ordinary functions whose
-        // first argument is the ordinal-backed enum value. Route the resolved
-        // enum member through the predeclared ordinal dispatcher before any
-        // runtime-name or virtual-dispatch rewriting can select the abstract
-        // declaration itself.
-        //
-        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
-        // or any interface member) that more than one enum class in this
-        // compilation registers entry-body dispatch for. A single
-        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
-        // would have the second such enum processed silently overwrite the
-        // first's registration. Resolve the helper directly under the
-        // *receiver's own* enum class fqName instead (deterministic from
-        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
-        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
-        // cross-resolve to each other's dispatch helper.
-        if normalized.defaultMask == 0,
-           !isSuperCall,
-           let chosenCallee,
-           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
-           let receiverType = sema.bindings.exprTypes[receiver.expr],
-           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
-               sema.types.makeNonNullable(receiverType), sema: sema
-           ),
-           receiverClassSymbol.kind == .enumClass,
-           let dispatchSymbol = {
-               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
-               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
-                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-               }
-           }(),
-           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
-           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
-           dispatchSignature.typeParameterSymbols.isEmpty,
-           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
-           !dispatchSignature.isSuspend,
-           finalArguments.first == receiver.loweredID
-        {
-            instructions.append(.call(
-                symbol: dispatchSymbol,
-                callee: dispatchInfo.name,
-                arguments: finalArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+        if tryEmitEnumEntryDispatchCall(
+            defaultMask: normalized.defaultMask,
+            isSuperCall: isSuperCall,
+            chosenCallee: chosenCallee,
+            receiver: receiver,
+            result: result,
+            sema: sema,
+            interner: interner,
+            arguments: finalArguments,
+            instructions: &instructions
+        ) {
             return
         }
         // Enum values are raw ordinals while they remain statically enum-typed.
@@ -427,7 +453,7 @@ extension CallLowerer {
         if finalArguments.first == receiver.loweredID,
            let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_equals",
-           let receiverType = sema.bindings.exprTypes[receiver.expr],
+           let receiverType = receiver.type(in: sema),
            let (receiverClassType, receiverClassSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
            receiverClassType.nullability == .nonNull,
            receiverClassSymbol.kind == .enumClass,
@@ -583,9 +609,25 @@ extension CallLowerer {
             sourceArgumentCount: sourceArgExprs.count,
             hasHOFLambdaArg: hasHOFLambdaArg,
             sema: sema,
-            interner: interner
+            interner: interner,
+            receiverTypeOverride: receiver.typeOverride
         )
         let loweredCalleeText = interner.resolve(loweredCallee)
+        if loweredCalleeText == "kk_range_windowed",
+           chosenCallee == nil,
+           (1...2).contains(sourceArgExprs.count),
+           finalArguments.count == sourceArgExprs.count + 1
+        {
+            // The legacy range fallback lowers directly to the C bridge, so
+            // it must materialize Kotlin's default step and partialWindows
+            // values instead of relying on a source function's $default stub.
+            let defaults: [Int64] = sourceArgExprs.count == 1 ? [1, 0] : [0]
+            for value in defaults {
+                let argument = arena.appendExpr(.intLiteral(value), type: sema.types.intType)
+                instructions.append(.constValue(result: argument, value: .intLiteral(value)))
+                finalArguments.append(argument)
+            }
+        }
         if loweredCalleeText == "__kk_double_range_contains",
            sourceArgExprs.count == 1,
            finalArguments.count >= 2,
@@ -659,12 +701,12 @@ extension CallLowerer {
         // internal-function lookup; that would bypass the runtime ABI callee.
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
             memberName: interner.resolve(calleeName),
-            receiverType: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
+            receiverType: receiver.type(in: sema) ?? sema.types.anyType,
             chosenCallee: chosenCallee,
             sema: sema,
             interner: interner
         )
-        let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+        let receiverType = receiver.type(in: sema) ?? sema.types.anyType
         let runtimeProgressionMemberCallee = runtimeBackedULongProgressionMemberCallee(
             memberName: interner.resolve(calleeName),
             receiverType: receiverType,
@@ -699,7 +741,7 @@ extension CallLowerer {
            sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
         {
             let receiverType = sema.types.makeNonNullable(
-                sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+                receiver.type(in: sema) ?? sema.types.anyType
             )
             let floatingRangeCallee: InternedString? = if receiverType == sema.types.floatType {
                 interner.intern("__kk_float_coerceIn_range")
@@ -954,6 +996,7 @@ extension CallLowerer {
         if loweredCalleeText == "kk_channel_send"
             || loweredCalleeText == "kk_channel_receive"
             || loweredCalleeText == "kk_mutex_lock"
+            || loweredCalleeText == "__kk_mutex_lock_owner"
             || loweredCalleeText == "kk_semaphore_acquire"
         {
             let continuationExpr = arena.appendExpr(
@@ -981,7 +1024,7 @@ extension CallLowerer {
         // loweredMemberCalleeName intentionally retains those names so the
         // implementation can be selected through its dynamic itable.
         let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
-            receiverType: sema.bindings.exprTypes[receiver.expr],
+            receiverType: receiver.type(in: sema),
             calleeName: loweredCallee,
             sema: sema,
             interner: interner
@@ -1008,20 +1051,38 @@ extension CallLowerer {
             || chosenCallee.map({
                 isIteratorRuntimeVirtualBridge(
                     $0,
-                    receiverTypeID: sema.bindings.exprTypes[receiver.expr],
+                    receiverTypeID: receiver.type(in: sema),
                     sema: sema,
                     interner: interner
                 )
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
-               receiverExpr: memberExtensionDispatchReceiver == nil ? receiver.expr : nil,
+               receiverExpr: memberExtensionDispatchReceiver == nil && receiver.typeOverride == nil ? receiver.expr : nil,
                loweredReceiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
                result: result, sema: sema, arena: arena, interner: interner
            )
         {
-            instructions.append(inst)
+            // KUU-763: floating-point range boxes carry no itable, so
+            // interface-typed `ClosedFloatingPointRange`/`ClosedRange` member
+            // calls probe the runtime representation before dispatching.
+            if let probeEndLabel = emitFloatingPointRangeMemberProbe(
+                chosenCallee: chosenCallee,
+                receiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
+                sourceReceiverID: receiver.loweredID,
+                arguments: finalArguments,
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                instructions.append(inst)
+                instructions.append(.label(probeEndLabel))
+            } else {
+                instructions.append(inst)
+            }
             return
         }
         var callArguments = finalArguments
@@ -1048,10 +1109,36 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         ) {
+            var bridgeArguments = callArguments
+            // The `*_transform` bridges store the callback's raw return into
+            // `List<R>` verbatim. When the args were already expanded to a
+            // `(fnPtr, closureRaw)` pair, the fnPtr still has to present the
+            // erased-`R` (boxed) ABI — re-split it through the adapter so a
+            // concrete Boolean/Char result does not render as `0`/`1`
+            // (KUU-1434).
+            if bridgeCall.callee == interner.intern("__kk_list_chunked_transform")
+                || bridgeCall.callee == interner.intern("__kk_list_windowed_transform")
+                || bridgeCall.callee == interner.intern("__kk_list_zip_transform")
+                || bridgeCall.callee == interner.intern("__kk_list_zipWithNextTransform"),
+               bridgeArguments.count >= 3,
+               let transformArgExprID = sourceArgExprs.last
+            {
+                let split = splitErasedTransformBridgeArgument(
+                    bridgeArguments[bridgeArguments.count - 2],
+                    existingEnvPtrID: bridgeArguments[bridgeArguments.count - 1],
+                    argExprID: transformArgExprID,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                bridgeArguments[bridgeArguments.count - 2] = split.fnPtrExpr
+                bridgeArguments[bridgeArguments.count - 1] = split.envPtrExpr
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: bridgeCall.callee,
-                arguments: callArguments,
+                arguments: bridgeArguments,
                 result: result,
                 canThrow: bridgeCall.canThrow,
                 thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,

@@ -17,7 +17,6 @@ final class KIRLoweringContext {
         let flagSymbol: SymbolID
     }
 
-    // MARK: - Scope State (saved/restored per function/lambda)
 
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
     var localDeclaredTypesBySymbol: [SymbolID: TypeID] = [:]
@@ -69,7 +68,6 @@ final class KIRLoweringContext {
     private(set) var finallyBlockStack: [(exprID: ExprID, loopDepth: Int)] = []
     var nextLoopLabel: Int32 = 10000
 
-    // MARK: - Module-Level State (accumulated across entire pass)
 
     /// Compiler-selected mode used when a local `by lazy` declaration is
     /// lowered to the runtime-backed delegate representation.
@@ -122,6 +120,10 @@ final class KIRLoweringContext {
     /// live in `SymbolTable` after metadata restoration instead.
     private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
+    /// Tracks object allocation initializers synthesized during module
+    /// lowering so recursive nested-object passes do not emit duplicates.
+    private var objectInitializerSymbols: Set<SymbolID> = []
+
     /// Maps a source-backed enum class to the guarded function that
     /// constructs its entries once (constructor arguments, body property
     /// initializers, `init` blocks, entry-body properties). Entry references
@@ -134,7 +136,6 @@ final class KIRLoweringContext {
     /// of into instance-field storage the ordinal-backed value does not have.
     var enumEntryStorageSlots: [SymbolID: SymbolID] = [:]
 
-    // MARK: - Structured Scope Management
 
     struct ScopeSnapshot {
         let localValuesBySymbol: [SymbolID: KIRExprID]
@@ -423,7 +424,6 @@ final class KIRLoweringContext {
         loopControlStack.append((continueLabel: continueLabel, breakLabel: breakLabel, name: name))
     }
 
-    // MARK: - Finally Block Stack (CODE-001)
 
     func pushFinallyBlock(_ exprID: ExprID) {
         finallyBlockStack.append((exprID: exprID, loopDepth: loopControlStack.count))
@@ -504,7 +504,6 @@ final class KIRLoweringContext {
         return loopControlStack.last?.continueLabel
     }
 
-    // MARK: - Label Allocation
 
     func makeLoopLabel() -> Int32 {
         let label = nextLoopLabel
@@ -512,7 +511,6 @@ final class KIRLoweringContext {
         return label
     }
 
-    // MARK: - Callable Lowering Scope
 
     func beginCallableLoweringScope() {
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
@@ -561,7 +559,6 @@ final class KIRLoweringContext {
         functionDefaultArgumentsBySymbol[symbol]
     }
 
-    // MARK: - Synthetic Symbol Management
 
     func initializeSyntheticLambdaSymbolAllocator(sema: SemaModule, stdlibOnly: Bool = false) {
         _ = sema
@@ -612,7 +609,6 @@ final class KIRLoweringContext {
         return allocated
     }
 
-    // MARK: - Reset
 
     func registerCompanionInitializer(symbol: SymbolID, name: InternedString) {
         companionInitializerFunctions.append((symbol: symbol, name: name))
@@ -645,6 +641,14 @@ final class KIRLoweringContext {
         objectLazyInitBySymbol[objectSymbol]
     }
 
+    func registerObjectInitializer(for objectSymbol: SymbolID) {
+        objectInitializerSymbols.insert(objectSymbol)
+    }
+
+    func hasObjectInitializer(for objectSymbol: SymbolID) -> Bool {
+        objectInitializerSymbols.contains(objectSymbol)
+    }
+
     func registerEnumLazyInit(for enumSymbol: SymbolID, symbol: SymbolID, name: InternedString) {
         enumLazyInitByOwner[enumSymbol] = (symbol, name)
     }
@@ -660,6 +664,7 @@ final class KIRLoweringContext {
         throwableMessageBridgeSymbolsByGetter.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
         objectLazyInitBySymbol.removeAll(keepingCapacity: true)
+        objectInitializerSymbols.removeAll(keepingCapacity: true)
         enumLazyInitByOwner.removeAll(keepingCapacity: true)
         enumEntryStorageSlots.removeAll(keepingCapacity: true)
     }

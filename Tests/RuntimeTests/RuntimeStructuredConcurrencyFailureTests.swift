@@ -156,4 +156,72 @@ struct RuntimeStructuredConcurrencyFailureTests {
         _ = child.completeExceptionally(with: runtimeAllocateCancellationException())
         #expect(parent.isActiveSnapshot())
     }
+
+    @Test(arguments: [false, true])
+    func childCancelledNonCancellationFailureCancelsParentSynchronously(async: Bool) {
+        let parent = RuntimeJobHandle()
+        parent.markStarted()
+        let task = RuntimeAsyncTask()
+        let childJob = async ? task.completionJob : RuntimeJobHandle()
+        childJob.markStarted()
+        let childObject: AnyObject = async ? (task as AnyObject) : childJob
+        let childHandle = runtimeRegisterObject(childObject)
+        parent.registerChild(childHandle)
+
+        let failure = runtimeAllocateIllegalStateException(message: "child failure")
+        #expect(kk_job_child_cancelled(childHandle, failure) == 1)
+        #expect(childJob.cancellationSnapshot())
+        #expect(!parent.isActiveSnapshot())
+        #expect(parent.cancellationCauseSnapshot() == failure)
+    }
+
+    @Test
+    func childCancelledCancellationExceptionLeavesJobAndParentActive() {
+        let parent = RuntimeJobHandle()
+        parent.markStarted()
+        let child = RuntimeJobHandle()
+        child.markStarted()
+        let childHandle = runtimeRegisterObject(child)
+        parent.registerChild(childHandle)
+
+        let cancellation = runtimeAllocateCancellationException(message: "normal cancellation")
+        #expect(kk_job_child_cancelled(childHandle, cancellation) == 1)
+        #expect(child.isActiveSnapshot())
+        #expect(parent.isActiveSnapshot())
+    }
+
+    @Test
+    func coroutineScopeJobCancellationWakesItsBlockContinuation() throws {
+        let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
+        let outerJob = RuntimeJobHandle.current
+        let continuation = kk_coroutine_continuation_new(1410)
+        let state = try #require(runtimeContinuationState(from: continuation))
+        let previousStateJob = state.jobHandle
+        let taskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
+        RuntimeContinuationState.installState(state, forTask: taskKey)
+        RuntimeCoroutineScope.installScope(nil, forTask: taskKey)
+        RuntimeJobHandle.current = nil
+
+        let scopeHandle = kk_coroutine_scope_new()
+        defer {
+            _ = kk_coroutine_scope_wait(scopeHandle)
+            state.jobHandle = previousStateJob
+            RuntimeContinuationState.removeState(forTask: taskKey)
+            RuntimeCoroutineScope.removeScope(forTask: taskKey)
+            RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
+            RuntimeJobHandle.current = outerJob
+            _ = kk_coroutine_state_exit(continuation, 0)
+        }
+
+        let scope = try #require(runtimeCoroutineScope(from: scopeHandle))
+        let scopeJob = try #require(scope.job)
+        let resumed = RuntimeCompletionFlag()
+        state.resumesInline = true
+        state.installResumeContinuation { resumed.set() }
+
+        _ = scopeJob.cancel(cause: runtimeAllocateIllegalStateException(message: "child failure"))
+
+        #expect(scopeJob.continuationState === state)
+        #expect(resumed.isSet)
+    }
 }

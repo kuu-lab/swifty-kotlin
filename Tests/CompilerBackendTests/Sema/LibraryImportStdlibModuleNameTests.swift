@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -64,7 +65,12 @@ struct LibraryImportStdlibModuleNameTests {
             )
 
             let stdlibModuleName = try #require(work.stdlibModuleName)
-            #expect(ctx.interner.resolve(stdlibModuleName) == "KSwiftKStdlib")
+            let manifest = try JSONDecoder().decode(
+                LibraryManifest.self,
+                from: Data(contentsOf: libDir.appendingPathComponent("manifest.json"))
+            )
+            let expectedModuleName = try #require(manifest.moduleName)
+            #expect(stdlibModuleName == ctx.interner.intern(expectedModuleName))
             #expect(
                 !diagnostics.hasError,
                 "Unexpected import errors: \(diagnostics.diagnostics.map(\.message).joined(separator: "\n"))"

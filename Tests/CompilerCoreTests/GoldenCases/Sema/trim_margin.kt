@@ -1,14 +1,12 @@
+// KUU-1597 Sema owner: pin raw multiline String and trimMargin overload resolution; trimmed contents stay in Scripts/diff_cases/trim_margin.kt.
 fun main() {
-    val defaultMargin = """
+    val defaultMargin: String = """
         |alpha
         |beta
         |gamma
     """.trimMargin()
-    println(defaultMargin)
-
-    val customMargin = """
+    val customMargin: String = """
         >left
         >right
     """.trimMargin(">")
-    println(customMargin)
 }

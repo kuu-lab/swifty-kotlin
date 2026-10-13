@@ -1,32 +1,24 @@
-fun printEmpty(label: String, progression: LongProgression) {
-    try {
-        progression.first()
-        println("$label:first-returned")
-    } catch (error: NoSuchElementException) {
-        println("$label:first=${error.message}")
-    }
-    try {
-        progression.last()
-        println("$label:last-returned")
-    } catch (error: NoSuchElementException) {
-        println("$label:last=${error.message}")
-    }
-    println("$label:orNull=${progression.firstOrNull()},${progression.lastOrNull()}")
+// KUU-1597 Sema owner: pin LongProgression properties, first/last, and nullable first/last return types; empty/boundary behavior stays in Scripts/diff_cases/stdlib_kotlin_ranges_LongProgression_n.kt.
+private fun inspect(progression: LongProgression) {
+    val firstProperty: Long = progression.first
+    val lastProperty: Long = progression.last
+    val first: Long = progression.first()
+    val last: Long = progression.last()
+    val firstOrNull: Long? = progression.firstOrNull()
+    val lastOrNull: Long? = progression.lastOrNull()
 }
 
 fun main() {
-    val positive = LongProgression.fromClosedRange(2L, 11L, 3)
-    val negative = 10L downTo -10L step 3
-    val emptyPositive = LongProgression.fromClosedRange(5L, 1L, 1)
-    val emptyNegative = LongProgression.fromClosedRange(1L, 5L, -1)
-    val minValue = LongProgression.fromClosedRange(Long.MIN_VALUE, Long.MIN_VALUE, 1)
-    val maxValue = LongProgression.fromClosedRange(Long.MAX_VALUE, Long.MAX_VALUE, 1)
-
-    println("properties=${positive.first},${positive.last}")
-    println("positive=${positive.first().toString()},${positive.firstOrNull()},${positive.last().toString()},${positive.lastOrNull()}")
-    println("negative=${negative.first().toString()},${negative.firstOrNull()},${negative.last().toString()},${negative.lastOrNull()}")
-    println("min=${minValue.first().toString()},${minValue.firstOrNull()},${minValue.last().toString()},${minValue.lastOrNull()}")
-    println("max=${maxValue.first().toString()},${maxValue.firstOrNull()},${maxValue.last().toString()},${maxValue.lastOrNull()}")
-    printEmpty("positive", emptyPositive)
-    printEmpty("negative", emptyNegative)
+    val positive: LongProgression = LongProgression.fromClosedRange(2L, 11L, 3)
+    val negative: LongProgression = 10L downTo -10L step 3
+    val emptyPositive: LongProgression = LongProgression.fromClosedRange(5L, 1L, 1)
+    val emptyNegative: LongProgression = LongProgression.fromClosedRange(1L, 5L, -1)
+    val minValue: LongProgression = LongProgression.fromClosedRange(Long.MIN_VALUE, Long.MIN_VALUE, 1)
+    val maxValue: LongProgression = LongProgression.fromClosedRange(Long.MAX_VALUE, Long.MAX_VALUE, 1)
+    inspect(positive)
+    inspect(negative)
+    inspect(emptyPositive)
+    inspect(emptyNegative)
+    inspect(minValue)
+    inspect(maxValue)
 }

@@ -1,33 +1,62 @@
 import Foundation
 
 // MPP-001: Validate expect/actual declarations.
-// In Kotlin MPP, an `expect` declaration in common code must be implemented by a
-// corresponding `actual` declaration for the current compilation target.
+// Platform compilations require matching `actual` declarations. Common modules
+// can retain unmatched `expect` declarations for platform modules to implement.
 
 extension DataFlowSemaPhase {
     func validateExpectActualMatching(
-        ast _: ASTModule,
+        ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        commonModuleMode: Bool
     ) {
-        // Only validate source declarations; imported library symbols may contain
-        // expect/actual markers without requiring local counterparts.
+        // Common libraries preserve expect markers so a platform compilation can
+        // pair them with local actual declarations. Other imported declarations
+        // remain outside this validation unless they are marked expect.
         let expects = symbols.allSymbols().filter { sym in
-            sym.flags.contains(.expectDeclaration) && sym.declSite != nil
+            sym.flags.contains(.expectDeclaration)
+                && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
+        guard !expects.isEmpty else { return }
+        let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
+            guard case let .funDecl(function) = decl else { return nil }
+            return function
+        }, by: \.range)
 
         for expectSym in expects {
-            let candidates = symbols.lookupAll(fqName: expectSym.fqName)
+            // Optional expectation applies to the annotation class and its members.
+            var expectationOwner: SymbolID? = expectSym.id
+            var isOptionalExpectation = false
+            while let owner = expectationOwner {
+                if symbols.annotations(for: owner).contains(where: {
+                    KnownCompilerAnnotation.optionalExpectation.matches($0.annotationFQName)
+                }) {
+                    isOptionalExpectation = true
+                    break
+                }
+                expectationOwner = symbols.parentSymbol(for: owner)
+            }
+            let actuals = symbols.lookupAll(fqName: expectSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
                     guard actual.flags.contains(.actualDeclaration) else {
                         return false
                     }
-                    return actual.kind == expectSym.kind
-                        || (expectSym.kind == .annotationClass && actual.kind == .typeAlias)
+                    if expectSym.flags.contains(.importedLibrary),
+                       actual.flags.contains(.importedLibrary)
+                    {
+                        return false
+                    }
+                    return true
                 }
+
+            let candidates = actuals.filter { actual in
+                actual.kind == expectSym.kind
+                    || (expectSym.kind == .annotationClass && actual.kind == .typeAlias)
+            }
                 .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
             let compatibleCandidates = candidates.filter { actual in
@@ -39,7 +68,16 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
-                // Enhanced diagnostic with detailed failure information
+                // Common source-set artifacts intentionally preserve expect
+                // declarations for a platform compilation to match later.
+                if commonModuleMode, actuals.isEmpty {
+                    continue
+                }
+
+                guard !isOptionalExpectation else {
+                    continue
+                }
+
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count
 
@@ -50,7 +88,6 @@ extension DataFlowSemaPhase {
                     diagnosticMessage += " Found \(candidateCount) actual candidates but none were compatible."
                 }
 
-                // Add debug information about candidates
                 if !candidates.isEmpty {
                     let candidateKinds = candidates.map { "\($0.kind)" }.joined(separator: ", ")
                     diagnosticMessage += " Candidate kinds: [\(candidateKinds)]."
@@ -74,7 +111,94 @@ extension DataFlowSemaPhase {
             }
 
             symbols.setExpectActualLink(expect: expectSym.id, actual: actualSym.id)
+            inheritAbstractActualMemberFlags(
+                expectOwner: expectSym,
+                actualOwner: actualSym,
+                functionDeclarationsByRange: functionDeclarationsByRange,
+                symbols: symbols,
+                types: types
+            )
         }
+    }
+
+    private func inheritAbstractActualMemberFlags(
+        expectOwner: SemanticSymbol,
+        actualOwner: SemanticSymbol,
+        functionDeclarationsByRange: [SourceRange: [FunDecl]],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) {
+        guard expectOwner.kind == .class,
+              actualOwner.kind == .class,
+              expectOwner.flags.contains(.abstractType),
+              actualOwner.flags.contains(.abstractType)
+        else {
+            return
+        }
+
+        // Query only source functions of the matched abstract classes. Imported
+        // shells have no AST body to inspect, and querying every symbol's parent
+        // would force the entire lazy metadata library to materialize.
+        let sourceFunctions = symbols.children(ofFQName: expectOwner.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .function && $0.declSite != nil }
+        // Expect/actual classes share an FQ name, so verify the exact owner ID.
+        let expectedFunctions = sourceFunctions.filter {
+            symbols.parentSymbol(for: $0.id) == expectOwner.id
+        }
+        let actualFunctions = sourceFunctions.filter {
+            $0.flags.contains(.actualDeclaration)
+                && symbols.parentSymbol(for: $0.id) == actualOwner.id
+        }
+
+        for expectFunction in expectedFunctions {
+            guard let expectDeclaration = functionDeclaration(
+                for: expectFunction,
+                in: functionDeclarationsByRange
+            ), isBodylessNonRuntimeBridge(expectDeclaration),
+                let expectSignature = symbols.functionSignature(for: expectFunction.id)
+            else {
+                continue
+            }
+
+            for actualFunction in actualFunctions where actualFunction.fqName == expectFunction.fqName {
+                guard let actualDeclaration = functionDeclaration(
+                    for: actualFunction,
+                    in: functionDeclarationsByRange
+                ), isBodylessNonRuntimeBridge(actualDeclaration),
+                    let actualSignature = symbols.functionSignature(for: actualFunction.id),
+                    expectActualFunctionSignaturesMatch(
+                        expectSig: expectSignature,
+                        expectSymbol: expectFunction,
+                        actualSig: actualSignature,
+                        actualSymbol: actualFunction,
+                        symbols: symbols,
+                        types: types
+                    )
+                else {
+                    continue
+                }
+
+                // In an abstract expect class, a bodyless member is an abstract
+                // contract even when the expect source omits the modifier. The
+                // matching actual member inherits that modality in Kotlin MPP.
+                symbols.insertFlags(.abstractType, for: actualFunction.id)
+            }
+        }
+    }
+
+    private func functionDeclaration(
+        for symbol: SemanticSymbol,
+        in declarationsByRange: [SourceRange: [FunDecl]]
+    ) -> FunDecl? {
+        guard let declSite = symbol.declSite else { return nil }
+        return declarationsByRange[declSite]?.first { $0.name == symbol.name }
+    }
+
+    private func isBodylessNonRuntimeBridge(_ function: FunDecl) -> Bool {
+        function.body == .unit
+            && !function.modifiers.contains(.external)
+            && !hasCompilerAnnotation(.ksSymbolName, on: function.annotations)
     }
 
     private func areExpectActualCompatible(
@@ -84,19 +208,16 @@ extension DataFlowSemaPhase {
         types: TypeSystem
     ) -> Bool {
         if expect.kind == .annotationClass, actual.kind == .typeAlias {
-            // Check if the typealias's underlying type points to an annotation class
             guard let resolvedType = symbols.typeAliasUnderlyingType(for: actual.id) else {
                 return false
             }
 
-            // The underlying type should be a class type pointing to an annotation class
             if case let .classType(classType) = types.kind(of: resolvedType) {
                 guard classType.nullability == .nonNull,
                       let underlyingSymbol = symbols.symbol(classType.classSymbol)
                 else {
                     return false
                 }
-                // The underlying symbol should be an annotation class
                 return underlyingSymbol.kind == .annotationClass
             }
             return false
@@ -131,6 +252,13 @@ extension DataFlowSemaPhase {
                 types: types
             )
             return expect.flags.contains(.mutable) == actual.flags.contains(.mutable)
+                && expectActualOptionalTypeMatch(
+                    symbols.extensionPropertyReceiverType(for: expect.id),
+                    symbols.extensionPropertyReceiverType(for: actual.id),
+                    typeParamMapping: typeParamMapping,
+                    symbols: symbols,
+                    types: types
+                )
                 && expectActualTypesMatch(
                     expectType,
                     actualType,
@@ -140,12 +268,10 @@ extension DataFlowSemaPhase {
                 )
 
         case .class, .interface, .object, .enumClass, .annotationClass:
-            // Check type parameter count matches
             let expectTPs = types.nominalTypeParameterSymbols(for: expect.id)
             let actualTPs = types.nominalTypeParameterSymbols(for: actual.id)
             guard expectTPs.count == actualTPs.count else { return false }
             let typeParamMapping = Dictionary(uniqueKeysWithValues: zip(expectTPs, actualTPs))
-            // Check each type parameter's variance and upper bounds match
             let expectVariances = types.nominalTypeParameterVariances(for: expect.id)
             let actualVariances = types.nominalTypeParameterVariances(for: actual.id)
             for (index, (eTP, aTP)) in zip(expectTPs, actualTPs).enumerated() {
@@ -186,7 +312,6 @@ extension DataFlowSemaPhase {
             return expect.flags.contains(.valueType) == actual.flags.contains(.valueType)
 
         case .typeAlias:
-            // Check underlying types match
             let expectTPs = symbols.typeAliasTypeParameters(for: expect.id)
             let actualTPs = symbols.typeAliasTypeParameters(for: actual.id)
             guard expectTPs.count == actualTPs.count else {
@@ -458,7 +583,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem
     ) -> Bool {
         switch (types.kind(of: expectType), types.kind(of: actualType)) {
-        case (.error, .error), (.unit, .unit):
+        case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
             return true
 
         case let (.nothing(expectNullability), .nothing(actualNullability)):

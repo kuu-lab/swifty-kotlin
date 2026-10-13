@@ -410,7 +410,8 @@ extension OverloadResolverTests {
         #expect(resolved.parameterMapping == [0: 0, 1: 1, 2: 1])
     }
 
-    @Test func testResolveCallRejectsPositionalAfterNamedArgForNonVarargParameter() {
+    @Test(arguments: [false, true])
+    func testResolveCallAcceptsOrderedPositionalAfterNamedArgForNonVarargParameter(spread: Bool) {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -446,13 +447,13 @@ extension OverloadResolverTests {
             for: fn
         )
 
-        // f(a = 1, true) — positional after named for non-vararg should still be rejected
+        // Kotlin allows f(a = 1, true) when arguments retain declaration order.
         let call = CallExpr(
             range: makeRange(start: 481, end: 500),
             calleeName: interner.intern("namedThenNonVararg"),
             args: [
                 CallArg(label: interner.intern("a"), type: intType),
-                CallArg(type: boolType),
+                CallArg(isSpread: spread, type: boolType),
             ]
         )
         let resolved = resolver.resolveCall(
@@ -462,8 +463,14 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        #expect(resolved.chosenCallee == nil)
-        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+        if spread {
+            #expect(resolved.chosenCallee == nil)
+            #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+        } else {
+            #expect(resolved.chosenCallee == fn)
+            #expect(resolved.diagnostic == nil)
+            #expect(resolved.parameterMapping == [0: 0, 1: 1])
+        }
     }
 }
 #endif

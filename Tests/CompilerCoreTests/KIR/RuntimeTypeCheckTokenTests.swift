@@ -344,9 +344,8 @@ struct RuntimeTypeCheckTokenTests {
             println(k)
         }
         """
-        // Kept on the on-disk route: `firstExprID` scans the whole AST arena, and
-        // `makeContextFromSource` would register this snippet ahead of the bundled
-        // stdlib, changing which expression the scan reaches first.
+        // Keep the on-disk route, but search only this input so bundled stdlib
+        // class references cannot satisfy the predicate.
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
@@ -362,9 +361,9 @@ struct RuntimeTypeCheckTokenTests {
             let ast = try #require(ctx.ast)
             let interner = ctx.interner
 
-            let classRefExprID = try #require(firstExprID(in: ast) { _, expr in
+            let classRefExprID = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 if case let .callableRef(_, member, _) = expr {
-                    return interner.resolve(member) == "class"
+                    return member == KnownCompilerNames(interner: interner).className
                 }
                 return false
             })
@@ -379,7 +378,10 @@ struct RuntimeTypeCheckTokenTests {
                 return
             }
             let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
-            #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "String"])
+            let stringClass = try #require(sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"), KnownCompilerNames(interner: interner).string,
+            ]))
+            #expect(symbol.id == stringClass)
 
             let encoded = RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: interner)
             let expected = RuntimeTypeCheckToken.encode(base: RuntimeTypeCheckToken.stringBase, nullable: false)

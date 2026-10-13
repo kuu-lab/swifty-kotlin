@@ -87,7 +87,6 @@ extension BuildASTPhase {
         var getter: PropertyAccessorDecl?
         var setter: PropertyAccessorDecl?
 
-        // First, try to find accessors inside a block child (e.g. `val x: T { get() = ... }`).
         if let accessorBlockID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
             guard case let .node(childID) = child,
                   arena.node(childID).kind == .block
@@ -112,7 +111,12 @@ extension BuildASTPhase {
                 setter = siblingResult.setter
                 foundSiblingBlockAccessor = getter != nil || setter != nil
             }
-            if !foundSiblingBlockAccessor {
+            // A block after an initializer or delegate belongs to that expression.
+            // Its object members must not become accessors of the outer property.
+            let hasInitializerOrDelegate = directTokens.contains {
+                $0.kind == .symbol(.assign) || $0.kind == .softKeyword(.by)
+            }
+            if !foundSiblingBlockAccessor, !hasInitializerOrDelegate {
                 for child in arena.children(of: accessorBlockID) {
                     processAccessorChild(
                         child,
@@ -127,7 +131,6 @@ extension BuildASTPhase {
             }
         }
 
-        // Check for propertyAccessor nodes (structured inline accessor syntax).
         // When the parser wraps accessor tokens in .propertyAccessor nodes we
         // can collect them reliably without flat-token scanning.
         // If a propertyAccessor contains a .block child (e.g. `set(v) { ... }`),
@@ -140,7 +143,6 @@ extension BuildASTPhase {
             if case let .node(childID) = child,
                arena.node(childID).kind == .propertyAccessor
             {
-                // Skip explicit backing field nodes (start with `field` soft keyword).
                 let firstToken = collectTokens(from: childID, in: arena).first
                 if let firstToken, case .softKeyword(.field) = firstToken.kind {
                     continue
@@ -203,8 +205,6 @@ extension BuildASTPhase {
         return parseInlineAccessors(from: allTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
     }
 
-    /// Find the index where an inline `get`/`set` accessor keyword starts in
-    /// a flat token list.  Returns `nil` when no accessor keyword is present.
     /// - Parameter bodyIsSiblingBlock: the accessor's `{ ... }` body is a separate
     ///   block node, so the direct tokens legitimately end after the header.
     func inlineAccessorStartIndex(in tokens: [Token], bodyIsSiblingBlock: Bool = false) -> Int? {
@@ -278,7 +278,48 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Keep only an annotation prefix immediately preceding the accessor.
+    private func accessorVisibility(in tokensBeforeAccessor: [Token]) -> Visibility? {
+        let propertyStart = tokensBeforeAccessor.lastIndex { token in
+            token.kind == .keyword(.val) || token.kind == .keyword(.var)
+        }
+        let previousAccessor = tokensBeforeAccessor.lastIndex { token in
+            token.kind == .softKeyword(.get) || token.kind == .softKeyword(.set)
+        }
+        let startIndex = max(propertyStart ?? -1, previousAccessor ?? -1) + 1
+
+        for token in tokensBeforeAccessor.dropFirst(startIndex).reversed() {
+            guard case let .keyword(keyword) = token.kind else { continue }
+            switch keyword {
+            case .public: return .public
+            case .private: return .private
+            case .internal: return .internal
+            case .protected: return .protected
+            default: continue
+            }
+        }
+        return nil
+    }
+
+    private func accessorIsInline(in tokensBeforeAccessor: [Token]) -> Bool {
+        let start = tokensBeforeAccessor.lastIndex {
+            $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
+                || $0.kind == .softKeyword(.get) || $0.kind == .softKeyword(.set)
+        }.map { $0 + 1 } ?? 0
+        var depth = BracketDepth()
+        for index in start ..< tokensBeforeAccessor.count {
+            let token = tokensBeforeAccessor[index]
+            let isNameToken = index > start
+                && (tokensBeforeAccessor[index - 1].kind == .symbol(.at)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.dot)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.colon)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.arrow)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.assign))
+            if depth.isAtTopLevel, token.kind == .keyword(.inline), !isNameToken { return true }
+            depth.track(token.kind)
+        }
+        return false
+    }
+
     /// Earlier property annotations and annotations inside an initializer are
     /// not accessor annotations.
     private func accessorAnnotations(from tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
@@ -297,9 +338,6 @@ extension BuildASTPhase {
         return []
     }
 
-    /// Parse inline `get()/set()` accessor declarations from a flat token
-    /// stream.  For `val x: T get() = expr`, the tokens after the type
-    /// annotation contain `get ( ) = expr` without a wrapping block node.
     private func parseInlineAccessors(
         from allTokens: [Token],
         nodeRange: SourceRange,
@@ -310,15 +348,9 @@ extension BuildASTPhase {
         var setter: PropertyAccessorDecl?
         var remaining = allTokens[...]
 
-        while let startIdx = remaining.firstIndex(where: { token in
-            switch token.kind {
-            case .softKeyword(.get), .softKeyword(.set):
-                true
-            default:
-                false
-            }
-        }) {
-            let annotations = accessorAnnotations(from: Array(remaining[..<startIdx]), interner: interner)
+        while let startIdx = topLevelAccessorKeywordIndex(in: remaining) {
+            let tokensBeforeAccessor = Array(remaining[..<startIdx])
+            let annotations = accessorAnnotations(from: tokensBeforeAccessor, interner: interner)
             let token = remaining[startIdx]
             let kind: PropertyAccessorKind
             switch token.kind {
@@ -329,15 +361,28 @@ extension BuildASTPhase {
                 continue
             }
 
-            // Require `(` immediately after the keyword.
-            guard startIdx + 1 < remaining.endIndex,
-                  remaining[startIdx + 1].kind == .symbol(.lParen)
-            else {
+            // A default setter may omit its parameter list: `private set`.
+            // Preserve it as an accessor so downstream checks can observe its
+            // explicit visibility even though it has no custom body.
+            let hasParameterList = startIdx + 1 < remaining.endIndex
+                && remaining[startIdx + 1].kind == .symbol(.lParen)
+            let explicitAccessorVisibility = accessorVisibility(in: tokensBeforeAccessor)
+            if kind == .setter, !hasParameterList, let explicitAccessorVisibility {
+                let accessor = PropertyAccessorDecl(
+                    range: nodeRange,
+                    kind: .setter,
+                    annotations: annotations,
+                    visibility: explicitAccessorVisibility
+                )
+                if setter == nil { setter = accessor }
+                remaining = remaining[(startIdx + 1)...]
+                continue
+            }
+            guard hasParameterList else {
                 remaining = remaining[(startIdx + 1)...]
                 continue
             }
 
-            // Find matching `)` after `(`.
             var closeParenIdx = startIdx + 2
             var depth = 1
             while closeParenIdx < remaining.endIndex {
@@ -361,8 +406,6 @@ extension BuildASTPhase {
                 parameterName = nil
             }
 
-            // Determine accessor body: either `= expr` or `{ block }`, with
-            // an optional explicit return type between `)` and the body.
             var afterParen = closeParenIdx + 1
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.colon)
@@ -389,14 +432,25 @@ extension BuildASTPhase {
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.assign)
             {
-                // Find extent of body expression: up to the next get/set keyword or end.
+                // A `get`/`set` soft keyword only opens the next accessor when it
+                // starts an accessor header: at top level, followed by `(`, and
+                // not preceded by a navigation operator. Member-call tokens like
+                // `this.get()` or a `get(` nested inside call arguments or a
+                // lambda are part of the body expression, not a boundary.
                 let exprStart = afterParen + 1
                 var exprEnd = remaining.endIndex
+                var bodyDepth = BracketDepth()
                 for i in exprStart ..< remaining.endIndex {
-                    switch remaining[i].kind {
+                    let token = remaining[i]
+                    switch token.kind {
                     case .softKeyword(.get), .softKeyword(.set):
-                        // Check if it's followed by `(` to confirm it's an accessor keyword.
-                        if i + 1 < remaining.endIndex,
+                        let precededByNavigation = i > exprStart
+                            && (remaining[i - 1].kind == .symbol(.dot)
+                                || remaining[i - 1].kind == .symbol(.questionDot)
+                                || remaining[i - 1].kind == .symbol(.doubleColon))
+                        if bodyDepth.isAtTopLevel,
+                           !precededByNavigation,
+                           i + 1 < remaining.endIndex,
                            remaining[i + 1].kind == .symbol(.lParen)
                         {
                             exprEnd = i
@@ -405,6 +459,7 @@ extension BuildASTPhase {
                         break
                     }
                     if exprEnd != remaining.endIndex { break }
+                    bodyDepth.track(token.kind)
                 }
                 let exprTokens = Array(remaining[exprStart ..< exprEnd])
                 if !exprTokens.isEmpty {
@@ -426,7 +481,6 @@ extension BuildASTPhase {
             } else if afterParen < remaining.endIndex,
                       remaining[afterParen].kind == .symbol(.lBrace)
             {
-                // Block body: `set(v) { ... }` or `get() { ... }`
                 var depth = 1
                 var braceEnd = afterParen + 1
                 while braceEnd < remaining.endIndex, depth > 0 {
@@ -458,6 +512,8 @@ extension BuildASTPhase {
                 range: nodeRange,
                 kind: kind,
                 annotations: annotations,
+                visibility: accessorVisibility(in: tokensBeforeAccessor),
+                isInline: accessorIsInline(in: tokensBeforeAccessor),
                 parameterName: parameterName,
                 body: body
             )
@@ -470,6 +526,27 @@ extension BuildASTPhase {
         }
 
         return (getter, setter)
+    }
+
+    private func topLevelAccessorKeywordIndex(in tokens: ArraySlice<Token>) -> Int? {
+        var depth = BracketDepth()
+        for index in tokens.indices {
+            let token = tokens[index]
+            if depth.isBracketBraceParenTopLevel,
+               token.kind == .softKeyword(.get) || token.kind == .softKeyword(.set) {
+                if index > tokens.startIndex {
+                    switch tokens[index - 1].kind {
+                    case .symbol(.dot), .symbol(.questionDot):
+                        continue
+                    default:
+                        break
+                    }
+                }
+                return index
+            }
+            depth.track(token.kind)
+        }
+        return nil
     }
 
     private func processPropertyAccessorWithBlock(
@@ -510,6 +587,8 @@ extension BuildASTPhase {
             range: arena.node(accessorNodeID).range,
             kind: kind,
             annotations: annotations,
+            visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
+            isInline: accessorIsInline(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
             body: body
         )
@@ -565,6 +644,8 @@ extension BuildASTPhase {
             range: arena.node(statementID).range,
             kind: kind,
             annotations: annotations,
+            visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
+            isInline: accessorIsInline(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
             body: body
         )
@@ -594,9 +675,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Splits a property node's direct children into one segment per inline
-    /// accessor (`get(...)` / `set(...)` not preceded by `.`), pairing each
-    /// header with the sibling block(s) that follow it before the next one.
     private func siblingBlockAccessors(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -662,15 +740,18 @@ extension BuildASTPhase {
             }
             guard case let .softKeyword(keyword) = headerTokens[0].kind else { continue }
             let kind: PropertyAccessorKind = keyword == .get ? .getter : .setter
+            let prefixTokens = items[..<start].compactMap { item -> Token? in
+                if case let .token(token) = item { return token }
+                return nil
+            }
             let accessor = PropertyAccessorDecl(
                 range: arena.node(nodeID).range,
                 kind: kind,
                 annotations: accessorAnnotations(
-                    from: items[..<start].compactMap { item in
-                        if case let .token(token) = item { return token }
-                        return nil
-                    }, interner: interner
+                    from: prefixTokens, interner: interner
                 ),
+                visibility: accessorVisibility(in: prefixTokens),
+                isInline: accessorIsInline(in: prefixTokens),
                 parameterName: kind == .setter
                     ? setterParameterName(from: headerTokens, interner: interner)
                     : nil,
@@ -743,18 +824,12 @@ extension BuildASTPhase {
         return .unit
     }
 
-    // MARK: - Explicit Backing Field (Kotlin 2.0)
-
-    /// Extracts an explicit backing field declaration from a property node.
-    /// Looks for a `.propertyAccessor` child whose tokens start with the
-    /// `field` soft keyword, followed by `= expr` or `: Type = expr`.
     func declarationExplicitBackingField(
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExplicitBackingField? {
-        // Search for a propertyAccessor child that starts with `field`.
         for child in arena.children(of: nodeID) {
             guard case let .node(childID) = child,
                   arena.node(childID).kind == .propertyAccessor
@@ -766,7 +841,6 @@ extension BuildASTPhase {
             return parseExplicitBackingFieldTokens(tokens, interner: interner, astArena: astArena)
         }
 
-        // Also check inside a block child (e.g. `val x: T { field = ... get() = ... }`).
         if let blockID = arena.children(of: nodeID).compactMap({ child -> NodeID? in
             guard case let .node(childID) = child,
                   arena.node(childID).kind == .block
@@ -789,21 +863,17 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Parse `field = expr` or `field : Type = expr` from a token sequence.
     private func parseExplicitBackingFieldTokens(
         _ tokens: [Token],
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExplicitBackingField? {
-        // tokens[0] is `field`
         guard tokens.count >= 2 else { return nil }
         var index = 1
 
-        // Check for optional type annotation: `field: Type = expr`
         var fieldType: TypeRefID?
         if tokens[index].kind == .symbol(.colon) {
             index += 1
-            // Collect type tokens until `=`
             var typeTokens: [Token] = []
             var depth = BracketDepth()
             while index < tokens.count {
@@ -820,13 +890,11 @@ extension BuildASTPhase {
             }
         }
 
-        // Expect `=`
         guard index < tokens.count, tokens[index].kind == .symbol(.assign) else {
             return nil
         }
         index += 1
 
-        // Parse initializer expression
         let exprTokens = tokens[index...].filter { $0.kind != .symbol(.semicolon) }
         guard !exprTokens.isEmpty else { return nil }
         let parser = ExpressionParser(

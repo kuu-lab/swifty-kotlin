@@ -17,8 +17,6 @@ extension ExprTypeChecker {
         locals.memberFlow = state.members
     }
 
-    // MARK: - Binary Expression Inference
-
     // swiftlint:disable:next cyclomatic_complexity
     func inferBinaryExpr(
         _ id: ExprID,
@@ -52,7 +50,7 @@ extension ExprTypeChecker {
                 range: ast.arena.exprRange(lhsID) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             let lhsBranch = ctx.dataFlow.branchOnCondition(
                 lhsID,
@@ -77,7 +75,7 @@ extension ExprTypeChecker {
                 range: ast.arena.exprRange(rhsID) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -121,10 +119,65 @@ extension ExprTypeChecker {
             lhsID, ctx: ctx, locals: &locals,
             expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
         )
-        // Elvis can narrow an integer literal on the right side to the overall
-        // expected type, e.g. `val b: Byte = parsed ?: 0`.
-        let rhsExpectedType: TypeID? = if op == .elvis { expectedType } else { nil }
-        let rhs = earlyElvisRhs ?? driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+        // Elvis uses an enclosing expected type for its RHS, but the LHS's
+        // non-null type is only a contextual hint when no enclosing type exists.
+        // Apply that hint to lambda inputs (so implicit `it` can be inferred)
+        // and integer literals (which adopt the expected primitive type). Other
+        // expressions must keep their natural result type: constraining e.g.
+        // `run { ... }` to the LHS type rejects valid `Boolean? ?: Unit` code.
+        let nonNullLhs = sema.types.makeNonNullable(lhs)
+        let rhsIsIntegerLiteral: Bool = {
+            guard let rhsExpr = ast.arena.expr(rhsID) else { return false }
+            switch rhsExpr {
+            case .intLiteral, .uintLiteral:
+                return true
+            case let .unaryExpr(op, operandID, _)
+                where op == .unaryPlus || op == .unaryMinus:
+                guard let operandExpr = ast.arena.expr(operandID) else { return false }
+                switch operandExpr {
+                case .intLiteral, .uintLiteral:
+                    return true
+                default:
+                    return false
+                }
+            default:
+                return false
+            }
+        }()
+        let rhsExpectedType: TypeID? = if op == .elvis {
+            if let expectedType {
+                expectedType
+            } else if nonNullLhs != sema.types.errorType,
+                      nonNullLhs != sema.types.nothingType,
+                      rhsIsIntegerLiteral
+            {
+                nonNullLhs
+            } else {
+                nil
+            }
+        } else {
+            nil
+        }
+        let rhs: TypeID
+        if let earlyElvisRhs {
+            rhs = earlyElvisRhs
+        } else if op == .elvis,
+                  expectedType == nil,
+                  case let .lambdaLiteral(params, body, _, _) = ast.arena.expr(rhsID),
+                  case .functionType = sema.types.kind(of: nonNullLhs)
+        {
+            rhs = inferLambdaLiteralExpr(
+                rhsID,
+                params: params,
+                body: body,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: nonNullLhs,
+                expectedTypeIsHintOnly: true
+            )
+        } else {
+            rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+        }
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely.
@@ -134,9 +187,18 @@ extension ExprTypeChecker {
             if identityEqualityHasValueClassOperand(lhsType, rhsType, sema: sema) {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "Identity equality for arguments of types '\(lhsName)' and '\(rhsName)' is prohibited.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            if identityEqualityHasDistinctSingletonTypes(lhsType, rhsType, sema: sema) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated singleton types.",
                     range: range
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -152,7 +214,7 @@ extension ExprTypeChecker {
                sema: sema
            )
         {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "Operator '\(op == .equal ? "==" : "!=")' cannot be applied to unrelated types.",
                 range: range
@@ -274,7 +336,7 @@ extension ExprTypeChecker {
         if !lhsIsPrimitive, !lhsIsAny, !rhsIsAny, operatorCandidates.isEmpty, lhs != sema.types.errorType, rhs != sema.types.errorType {
             switch op {
             case .add, .subtract, .multiply, .divide, .modulo:
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                     range: range
@@ -305,7 +367,7 @@ extension ExprTypeChecker {
                 ),
                 expectedType: operatorExpectedType,
                 implicitReceiverType: lhs,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if isSeqLhs, resolved.chosenCallee == nil {
                 sema.bindings.bindExprType(id, type: lhs)
@@ -324,7 +386,7 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                 }
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
@@ -341,7 +403,7 @@ extension ExprTypeChecker {
                     return fallbackType
                 }
                 if lhs != sema.types.errorType, rhs != sema.types.errorType {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                         range: range
@@ -412,7 +474,7 @@ extension ExprTypeChecker {
                 } == true
         )
         if hasInvalidTextAddition || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                 range: range
@@ -457,7 +519,7 @@ extension ExprTypeChecker {
         }()
 
         if !allowsMixedSignedness, (lhsIsSigned && rhsIsUnsigned) || (lhsIsUnsigned && rhsIsSigned) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0043",
                 "Operator '\(interner.resolve(operatorName))' cannot be applied to '(signed, unsigned)' or '(unsigned, signed)' types.",
                 range: range
@@ -525,13 +587,13 @@ extension ExprTypeChecker {
                 left: lhs, right: boolType,
                 range: ast.arena.exprRange(lhsID) ?? range,
                 solver: ConstraintSolver(), sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.emitSubtypeConstraint(
                 left: rhs, right: boolType,
                 range: ast.arena.exprRange(rhsID) ?? range,
                 solver: ConstraintSolver(), sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             type = boolType
         case .elvis:
@@ -835,6 +897,19 @@ extension ExprTypeChecker {
         }
     }
 
+    private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        // Both nullable types can contain the same null value. Widened operands
+        // and type parameters retain their declared types on the caller's path.
+        if sema.types.nullability(of: lhs) == .nullable,
+           sema.types.nullability(of: rhs) == .nullable {
+            return false
+        }
+        guard let left = resolveClassTypeSymbol(lhs, sema: sema)?.symbol,
+              let right = resolveClassTypeSymbol(rhs, sema: sema)?.symbol
+        else { return false }
+        return left.kind == .object && right.kind == .object && left.id != right.id
+    }
+
     // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or
     // String is involved. Ordinary classes may implement cross-type equals.
     // Type-parameter bounds and enum/value-class diagnostics have additional
@@ -911,6 +986,4 @@ extension ExprTypeChecker {
             || typeName == "CoroutineExceptionHandler"
             || typeName == "Job"
     }
-
-    // MARK: - Compound Assignment
 }

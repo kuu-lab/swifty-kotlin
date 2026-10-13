@@ -286,7 +286,7 @@ struct SemaDelegateTypeCheckTests {
                 "Delegate expression should bind in \(testCase.className)"
             )
             let symbol = try #require(sema.symbols.symbol(boundSymbol))
-            #expect(ctx.interner.resolve(symbol.name) == "m")
+            #expect(symbol.name == ctx.interner.intern("m"))
             #expect(
                 symbol.kind == testCase.expectedKind,
                 "Expected \(testCase.className).m to bind as \(testCase.expectedKind), got \(symbol.kind)"
@@ -908,7 +908,7 @@ struct KIRDelegateLoweringTests {
                 if let getter = delegateGetter {
                     let getValueCallCount = getter.body.reduce(into: 0) { count, instruction in
                         guard case let .call(_, callee, _, _, _, _, _, _) = instruction,
-                              interner.resolve(callee) == "getValue" else { return }
+                              callee == KnownCompilerNames(interner: interner).getValue else { return }
                         count += 1
                     }
                     #expect(getValueCallCount > 0, "Expected getter to contain a direct getValue call")

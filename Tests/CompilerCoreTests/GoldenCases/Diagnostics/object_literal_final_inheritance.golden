@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "object_literal_final_inheritance.kt",
+      "range": {
+        "start": { "line": 3, "character": 24 },
+        "end": { "line": 3, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "Cannot inherit from final class 'golden.diagnostics.A'. Mark it as 'open' to allow subclassing.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    },
+    {
+      "file": "object_literal_final_inheritance.kt",
+      "range": {
+        "start": { "line": 8, "character": 0 },
+        "end": { "line": 8, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "Cannot inherit from final class 'golden.diagnostics.FinalBase'. Mark it as 'open' to allow subclassing.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    },
+    {
+      "file": "object_literal_final_inheritance.kt",
+      "range": {
+        "start": { "line": 9, "character": 23 },
+        "end": { "line": 9, "character": 55 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "Cannot inherit from final class 'golden.diagnostics.FinalBase'. Mark it as 'open' to allow subclassing.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    },
+    {
+      "file": "object_literal_final_inheritance.kt",
+      "range": {
+        "start": { "line": 12, "character": 0 },
+        "end": { "line": 12, "character": 29 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DATA-INHERIT",
+      "source": "kswiftk",
+      "message": "Cannot inherit from data class 'golden.diagnostics.DataBase'. Data classes cannot be inherited from.",
+      "codeActions": [{ "title": "Remove inheritance from data class", "kind": "quickfix" }]
+    },
+    {
+      "file": "object_literal_final_inheritance.kt",
+      "range": {
+        "start": { "line": 13, "character": 22 },
+        "end": { "line": 13, "character": 45 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DATA-INHERIT",
+      "source": "kswiftk",
+      "message": "Cannot inherit from data class 'golden.diagnostics.DataBase'. Data classes cannot be inherited from.",
+      "codeActions": [{ "title": "Remove inheritance from data class", "kind": "quickfix" }]
+    },
+    {
+      "file": "object_literal_final_inheritance.kt",
+      "range": {
+        "start": { "line": 29, "character": 4 },
+        "end": { "line": 29, "character": 70 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-FINAL",
+      "source": "kswiftk",
+      "message": "Cannot inherit from final class 'kotlin.DeepRecursiveFunction'. Mark it as 'open' to allow subclassing.",
+      "codeActions": [{ "title": "Remove 'final' modifier from base declaration", "kind": "quickfix" }]
+    }
+  ]
+}

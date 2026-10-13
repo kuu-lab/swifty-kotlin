@@ -228,7 +228,10 @@ extension CoroutineLoweringPass {
                callee == release, args.first.map(allAliases.contains) == true { return false }
             return true
         }
-        let liveOut = computeLiveOutByInstruction(instructions.map(\.element))
+        let liveOut = computeLiveOutByInstruction(
+            instructions.map(\.element),
+            arena: module.arena
+        )
         let outstandingAliases = Set(instructions.enumerated().compactMap { position, indexed -> KIRExprID? in
             guard let root = isFreshFlowCall(indexed.element, freshFunctions: freshFunctions, constants: constants, module: module, ctx: ctx),
                   let family = aliases[root],

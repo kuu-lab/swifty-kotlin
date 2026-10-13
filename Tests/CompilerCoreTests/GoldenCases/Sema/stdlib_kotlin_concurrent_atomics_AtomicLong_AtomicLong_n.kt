@@ -14,6 +14,6 @@ fun atomicLongReceiverMembers(): String {
     val oldIncrement = atomic.fetchAndIncrement()
     val oldDecrement = atomic.fetchAndDecrement()
     val compared = atomic.compareAndExchange(15L, 16L)
-    val current = atomic.value
+    val current = atomic.load()
     return "$loaded:$exchanged:$added:$oldAdded:$oldIncrement:$oldDecrement:$compared:$current:${atomic.toString()}"
 }

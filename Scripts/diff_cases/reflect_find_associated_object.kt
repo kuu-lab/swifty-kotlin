@@ -1,6 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kswiftc resolves kotlin.reflect.findAssociatedObject via the
-// synthetic __kk_kclass_find_associated_object link, which has no Runtime implementation yet,
-// so the kswiftc side cannot link or run this case.
+// CANDIDATE-ONLY: main only prints "ok"; this does not exercise findAssociatedObject lookup semantics.
 import kotlin.reflect.ExperimentalAssociatedObjects
 import kotlin.reflect.KClass
 import kotlin.reflect.findAssociatedObject

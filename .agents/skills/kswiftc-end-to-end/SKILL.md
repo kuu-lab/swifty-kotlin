@@ -66,8 +66,8 @@ misleading.
   its own copy under `.artifacts/diff_kotlinc/` (~1-2 min before any case runs).
 - **`SKIP-DIFF` cases report `SKIP`, not `FAIL`.** `Scripts/diff_kotlinc.sh` skips any
   case whose source carries `// SKIP-DIFF` or `// KSWIFTK_DIFF_IGNORE`; the reason and
-  debt ID belong in that comment and in
-  [`docs/diff-skip-inventory.md`](../../../docs/diff-skip-inventory.md). Use
+  debt ID belong in that comment. The runner discovers skip directives from case
+  files, so no checked-in aggregate count needs manual synchronization. Use
   `--force-run-skipped` to check whether a skip has quietly become stale.
 - **A `FAIL` can mean your case is broken, not the compiler.** When `kotlinc` and
   `kswiftc` both fail to compile with the same exit code, the harness now forces a `FAIL`

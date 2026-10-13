@@ -12,7 +12,7 @@ package kotlinx.coroutines.flow
 // runtime handle (kk_mutable_state_flow_create / kk_mutable_state_flow_emit /
 // kk_mutable_state_flow_try_emit / kk_state_flow_value / kk_flow_state_in) to
 // bundled Kotlin source. MutableStateFlow keeps a single-element replay buffer
-// and exposes a finite snapshot collect rather than a live subscription.
+// and conflates live collector notifications while preserving equality checks.
 
 public interface StateFlow<out T> : SharedFlow<T> {
     public val value: T
@@ -20,6 +20,7 @@ public interface StateFlow<out T> : SharedFlow<T> {
 
 public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedFlow<T> {
     private var _value: T = initialValue
+    private val activeCollectors: MutableList<HotFlowSubscription<T>> = mutableListOf()
     private var subscribers: MutableStateFlow<Int>? = null
 
     override val replayCache: List<T>
@@ -28,7 +29,12 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedF
     override var value: T
         get() = _value
         set(value) {
-            if (_value != value) _value = value
+            if (_value != value) {
+                _value = value
+                for (collector in activeCollectors.toList()) {
+                    collector.emitConflated(value)
+                }
+            }
         }
 
     override val subscriptionCount: StateFlow<Int>
@@ -62,12 +68,26 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedF
     }
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
+        val subscription = HotFlowSubscription<T>()
         val snapshot = value
         val counter = subscriptionCounter()
+        activeCollectors.add(subscription)
         counter.value = counter.value + 1
+        subscription.emitConflated(snapshot)
+        var hasPrevious = false
+        var previous: Any? = null
         try {
-            collector(snapshot)
+            while (true) {
+                val next = subscription.receive()
+                if (!hasPrevious || previous != next) {
+                    hasPrevious = true
+                    previous = next
+                    collector(next)
+                }
+            }
         } finally {
+            activeCollectors.remove(subscription)
+            subscription.clear()
             counter.value = counter.value - 1
         }
     }

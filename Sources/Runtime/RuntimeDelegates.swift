@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - KProperty Stub (PROP-007, STDLIB-REFLECT-062)
-
 /// Minimal KProperty<*> stub carrying property name and return type.
 /// Used as the `property` argument for `provideDelegate`, `getValue`, and `setValue`.
 final class RuntimeKPropertyStub {
@@ -32,7 +30,8 @@ private func runtimeTagCallableRef(
     returnType: Int,
     arity: Int,
     kind: RuntimeCallableRefKind,
-    isSuspend: Bool = false
+    isSuspend: Bool = false,
+    modifierFlags: Int = 0
 ) -> Int {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue[callable] = RuntimeCallableRefMetadata(
@@ -40,7 +39,8 @@ private func runtimeTagCallableRef(
             returnTypeRaw: returnType,
             arity: arity,
             kind: kind,
-            isSuspend: isSuspend
+            isSuspend: isSuspend,
+            modifierFlags: modifierFlags
         )
     }
     runtimeRegisterKCallableItableIfNeeded(
@@ -50,9 +50,16 @@ private func runtimeTagCallableRef(
     return callable
 }
 
+/// `flags` packs KFunction modifier bits: bit0=suspend, bit1=inline,
+/// bit2=operator, bit3=infix, bit4=external. Legacy callers passing a bare
+/// 0/1 suspend flag are compatible with the packed layout (KUU-1357).
 @_cdecl("kk_callable_ref_tag_kfunction")
-public func kk_callable_ref_tag_kfunction(_ callable: Int, _ name: Int, _ returnType: Int, _ arity: Int, _ isSuspend: Int) -> Int {
-    runtimeTagCallableRef(callable, name: name, returnType: returnType, arity: arity, kind: .function, isSuspend: isSuspend != 0)
+public func kk_callable_ref_tag_kfunction(_ callable: Int, _ name: Int, _ returnType: Int, _ arity: Int, _ flags: Int) -> Int {
+    runtimeTagCallableRef(
+        callable, name: name, returnType: returnType, arity: arity, kind: .function,
+        isSuspend: (flags & RuntimeKFunctionFlags.suspend) != 0,
+        modifierFlags: flags & ~RuntimeKFunctionFlags.suspend
+    )
 }
 
 @_cdecl("kk_callable_ref_tag_kproperty")

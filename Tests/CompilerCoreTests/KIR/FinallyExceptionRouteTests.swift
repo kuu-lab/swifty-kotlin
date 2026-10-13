@@ -24,12 +24,8 @@ struct FinallyExceptionRouteTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-        let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool, hasThrownResult: Bool)? in
-            guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instr,
-                  ctx.interner.resolve(callee) == "cleanup"
-            else { return nil }
-            return (index: index, canThrow: canThrow, hasThrownResult: thrownResult != nil)
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCalls = kirCalls(to: cleanup.symbol, in: body)
 
         #expect(
             cleanupCalls.count >= 1,
@@ -129,14 +125,10 @@ struct FinallyExceptionRouteTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-        let innerCalls = body.filter { instr in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instr else { return false }
-            return ctx.interner.resolve(callee) == "inner"
-        }
-        let outerCalls = body.filter { instr in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instr else { return false }
-            return ctx.interner.resolve(callee) == "outer"
-        }
+        let inner = try findKIRFunction(named: "inner", in: module, interner: ctx.interner)
+        let outer = try findKIRFunction(named: "outer", in: module, interner: ctx.interner)
+        let innerCalls = kirCalls(to: inner.symbol, in: body)
+        let outerCalls = kirCalls(to: outer.symbol, in: body)
 
         #expect(
             innerCalls.count >= 1,
@@ -251,12 +243,8 @@ struct FinallyExceptionRouteTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
 
-        let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool)? in
-            guard case let .call(_, callee, _, _, canThrow, _, _, _) = instr,
-                  ctx.interner.resolve(callee) == "cleanup"
-            else { return nil }
-            return (index: index, canThrow: canThrow)
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCalls = kirCalls(to: cleanup.symbol, in: body)
 
         #expect(
             cleanupCalls.count >= 1,

@@ -4,6 +4,49 @@ import Testing
 
 extension BuildKIRRegressionTests {
     @Test
+    func importedCompanionExtensionGetterSuppliesSingletonReceiver() throws {
+        let ctx = makeContextFromSource("""
+        import Factory.Companion.scaled
+        class Factory {
+            companion object {
+                val Long.scaled: Long get() = this * 1000000L
+            }
+        }
+        fun read(): Long = 1L.scaled
+        fun readNullable(value: Long?): Long? = value?.scaled
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let getter = try #require(findAllKIRFunctions(in: module).first {
+            $0.name == KnownCompilerNames(interner: ctx.interner).get
+        })
+        let owner = try #require(sema.symbols.memberExtensionOwnerSymbol(for: getter.symbol))
+        #expect(getter.params.count == 2)
+        for name in ["read", "readNullable"] {
+            let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
+            let call = try #require(body.first {
+                if case let .call(symbol, _, _, _, _, _, _, _) = $0 {
+                    return symbol == getter.symbol
+                }
+                return false
+            })
+            if case let .call(_, _, arguments, _, _, _, _, _) = call {
+                #expect(arguments.count == 2)
+                if let dispatch = arguments.first {
+                    #expect(module.arena.exprType(dispatch) == getter.params[0].type)
+                    #expect(body.contains {
+                        if case let .constValue(result, .symbolRef(symbol)) = $0 {
+                            return result == dispatch && symbol == owner
+                        }
+                        return false
+                    })
+                }
+            }
+        }
+    }
+
+    @Test
     func importedCompanionExtensionPropertyCarriesSingletonReceiver() throws {
         let ctx = makeContextFromSources([
             """
@@ -23,7 +66,7 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
         let getter = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "get"
+            $0.name == KnownCompilerNames(interner: ctx.interner).get
                 && sema.symbols.memberExtensionOwnerSymbol(for: $0.symbol) != nil
         })
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
@@ -56,8 +99,8 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
         let functions = findAllKIRFunctions(in: module)
-        let getter = try #require(functions.first { ctx.interner.resolve($0.name) == "get" })
-        let setter = try #require(functions.first { ctx.interner.resolve($0.name) == "set" })
+        let getter = try #require(functions.first { $0.name == KnownCompilerNames(interner: ctx.interner).get })
+        let setter = try #require(functions.first { $0.name == KnownCompilerNames(interner: ctx.interner).sbSet })
         let owner = try #require(sema.symbols.memberExtensionOwnerSymbol(for: getter.symbol))
         #expect(sema.symbols.memberExtensionOwnerSymbol(for: setter.symbol) == owner)
         #expect(getter.params.count == 2)
@@ -96,10 +139,8 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
         let functions = findAllKIRFunctions(in: module)
-        let getter = try #require(functions.first { ctx.interner.resolve($0.name) == "get" })
-        let lambda = try #require(functions.first {
-            ctx.interner.resolve($0.name).hasPrefix("kk_lambda_")
-        })
+        let getter = try #require(functions.first { $0.name == KnownCompilerNames(interner: ctx.interner).get })
+        let lambda = try #require(findKIRLambdaFunctions(in: ctx).first)
         #expect(lambda.params.count == 1)
         #expect(lambda.body.contains { instruction in
             if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {

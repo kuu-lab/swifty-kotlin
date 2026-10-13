@@ -13,16 +13,18 @@ struct ExtensionMemberAliasLayoutTests {
     /// Mirrors the KUU-545 trigger: an internal external extension declared on
     /// `CharSequence` that is never called, plus a `StringBuilder`-receiver
     /// control for the nominal-class case.
+    private static let interfaceProbeLink = "__kk_kuu545_iface_probe"
+    private static let classProbeLink = "__kk_kuu545_string_probe"
     private static let probeSource = """
     package kotlin.text
 
     import kotlin.internal.KsSymbolName
 
-    @KsSymbolName("__kk_kuu545_iface_probe")
-    internal external fun CharSequence.__kk_kuu545_iface_probe(): Int
+    @KsSymbolName("\(interfaceProbeLink)")
+    internal external fun CharSequence.\(interfaceProbeLink)(): Int
 
-    @KsSymbolName("__kk_kuu545_string_probe")
-    internal external fun StringBuilder.__kk_kuu545_string_probe(): Int
+    @KsSymbolName("\(classProbeLink)")
+    internal external fun StringBuilder.\(classProbeLink)(): Int
     """
 
     private func compileWithBundledProbe() throws -> (sema: SemaModule, interner: StringInterner) {
@@ -64,11 +66,11 @@ struct ExtensionMemberAliasLayoutTests {
         let layout = try #require(sema.symbols.nominalLayout(for: charSequenceSymbol))
 
         // The alias exists under the receiver FQ name for owner+member lookup.
-        let aliasFQ = charSequenceFQ + [interner.intern("__kk_kuu545_iface_probe")]
+        let aliasFQ = charSequenceFQ + [interner.intern(Self.interfaceProbeLink)]
         let aliasSymbol = try #require(sema.symbols.lookupAll(fqName: aliasFQ).first)
         let aliasInfo = try #require(sema.symbols.symbol(aliasSymbol))
         #expect(aliasInfo.flags.contains(.extensionMemberAlias))
-        #expect(sema.symbols.externalLinkName(for: aliasSymbol) == "__kk_kuu545_iface_probe")
+        #expect(sema.symbols.externalLinkName(for: aliasSymbol) == Self.interfaceProbeLink)
 
         // But it owns no vtable slot: CharSequence's method space is exactly
         // get@0/subSequence@1, and the `length` property getter stays at
@@ -103,7 +105,7 @@ struct ExtensionMemberAliasLayoutTests {
         let stringBuilderSymbol = try #require(sema.symbols.lookup(fqName: stringBuilderFQ))
         let layout = try #require(sema.symbols.nominalLayout(for: stringBuilderSymbol))
 
-        let aliasFQ = stringBuilderFQ + [interner.intern("__kk_kuu545_string_probe")]
+        let aliasFQ = stringBuilderFQ + [interner.intern(Self.classProbeLink)]
         let aliasSymbol = try #require(sema.symbols.lookupAll(fqName: aliasFQ).first)
         #expect(sema.symbols.symbol(aliasSymbol)?.flags.contains(.extensionMemberAlias) == true)
         #expect(layout.vtableSlots[aliasSymbol] == nil)

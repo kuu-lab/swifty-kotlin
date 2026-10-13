@@ -96,6 +96,33 @@ public fun Char.titlecaseChar(): Char {
 }
 
 /**
+ * Converts this character to lower case using Unicode mapping rules of the invariant locale.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use lowercaseChar() instead.", ReplaceWith("lowercaseChar()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun Char.toLowerCase(): Char = lowercaseChar()
+
+/**
+ * Converts this character to upper case using Unicode mapping rules of the invariant locale.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use uppercaseChar() instead.", ReplaceWith("uppercaseChar()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun Char.toUpperCase(): Char = uppercaseChar()
+
+/**
+ * Converts this character to title case using Unicode mapping rules of the invariant locale.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use titlecaseChar() instead.", ReplaceWith("titlecaseChar()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun Char.toTitleCase(): Char = titlecaseChar()
+
+/**
  * Returns this character incremented by one UTF-16 code unit.
  */
 public operator fun Char.inc(): Char = __charFromCode(this.code + 1)

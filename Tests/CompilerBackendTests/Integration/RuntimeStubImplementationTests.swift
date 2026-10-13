@@ -41,9 +41,9 @@ struct RuntimeStubImplementationTests {
 
         // ARCH-014: root-empty frame map registration / push / pop are no longer
         // emitted; the symbols must not appear in the IR at all.
-        #expect(!ir.contains("kk_register_frame_map"), "LLVM IR must not reference kk_register_frame_map")
-        #expect(!ir.contains("kk_push_frame"), "LLVM IR must not reference kk_push_frame")
-        #expect(!ir.contains("kk_pop_frame"), "LLVM IR must not reference kk_pop_frame")
+        #expect(!ir.contains(try runtimeABICallee("register_frame_map")), "LLVM IR must not reference kk_register_frame_map")
+        #expect(!ir.contains(try runtimeABICallee("push_frame")), "LLVM IR must not reference kk_push_frame")
+        #expect(!ir.contains(try runtimeABICallee("pop_frame")), "LLVM IR must not reference kk_pop_frame")
     }
 }
 #endif

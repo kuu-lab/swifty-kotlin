@@ -18,6 +18,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return
         }
 
+        rewriteExpectEnumEntryReferences(module: module, sema: sema)
+
         appendReferencedBundledEnumNominalsIfNeeded(
             module: module,
             sema: sema,
@@ -44,18 +46,20 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             guard let nominalSymbol = sema.symbols.symbol(nominalSymbolID) else {
                 continue
             }
-            if nominalSymbol.kind == .enumClass {
+            // Expect enums describe the common API; only the actual enum owns
+            // runtime helpers. Synthesizing both creates ambiguous bare-name
+            // calls from enum boxing and reflection invoke wrappers.
+            if nominalSymbol.kind == .enumClass,
+               !nominalSymbol.flags.contains(.expectDeclaration)
+            {
                 synthesizeEnumHelpers(
                     nominalSymbol: nominalSymbol, intType: intType,
                     module: module, sema: sema,
                     existingFunctionSymbols: existingFunctionSymbols, ctx: ctx
                 )
-                let entries = enumEntrySymbols(owner: nominalSymbol, symbols: sema.symbols)
-                if !entries.isEmpty {
-                    let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
-                    if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
-                        enumStaticInitCallees.append((initName, initSymbol))
-                    }
+                let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
+                if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
+                    enumStaticInitCallees.append((initName, initSymbol))
                 }
             }
             if nominalSymbol.flags.contains(.sealedType) {
@@ -204,6 +208,16 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             ),
             BundledEnumSpec(
                 pathSegments: ["kotlin", "reflect", "KVariance"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            // KUU-1364: nested `KParameter.Kind` — `p.kind` produces a
+            // Kind-typed expression without referencing a member symbol, so
+            // checksExprTypes must treat the type itself as a reference.
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "reflect", "KParameter", "Kind"],
                 requiresSourceBacked: true,
                 ownMemberNames: ["values"],
                 companionMemberNames: ["entries", "valueOf"],
@@ -781,7 +795,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let fieldOffsets = symbols.nominalLayout(for: owner.id)?.fieldOffsets ?? [:]
         return symbols.children(ofFQName: owner.fqName)
             .compactMap { symbols.symbol($0) }
-            .filter { $0.kind == .field }
+            .filter { $0.kind == .field && symbols.parentSymbol(for: $0.id) == owner.id }
             .sorted(by: {
                 // Source-backed entries have precise declaration ranges.
                 let lhsDeclOffset = $0.declSite?.start.offset

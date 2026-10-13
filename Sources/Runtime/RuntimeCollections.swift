@@ -212,6 +212,12 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         runtimeElementKeyHash(tripleBox.thirdValue.legacyRawValue, into: &hasher, depth: depth + 1)
         return
     }
+    if let entry = runtimeMapEntryValues(rawValue: value) {
+        hasher.combine(14)
+        runtimeElementKeyHash(entry.key, into: &hasher, depth: depth + 1)
+        runtimeElementKeyHash(entry.value, into: &hasher, depth: depth + 1)
+        return
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         hasher.combine(9)
         hasher.combine(localeBox.language)
@@ -247,19 +253,6 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     hasher.combine(15)
     hasher.combine(Int(bitPattern: pointer))
-}
-
-/// Extracts elements from an opaque `otherRaw` handle that may be either a
-/// set or a list box.  Used by intersect / union / subtract to avoid
-/// duplicating the same unboxing logic.
-func runtimeUnboxCollectionElements(_ otherRaw: Int) -> [Int] {
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        return otherSet.elements
-    }
-    if let otherList = runtimeListBox(from: otherRaw) {
-        return otherList.elements
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: unexpected runtime handle in runtimeUnboxCollectionElements – neither set nor list")
 }
 
 func runtimeDeduplicatePreservingOrder(_ elements: [Int]) -> [Int] {
@@ -310,7 +303,6 @@ func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
     return (normalizedKeys, normalizedValues)
 }
 
-// MARK: - List Functions (STDLIB-001)
 
 @_cdecl("__kk_list_of")
 public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
@@ -789,7 +781,6 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
     return runtimeMakeStringPointer(str)
 }
 
-// MARK: - List toMap (STDLIB-200)
 
 @inline(__always)
 func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
@@ -840,7 +831,6 @@ public func kk_mutable_collection_add_throwing(
     return kk_box_bool(0)
 }
 
-@_cdecl("__kk_mutable_collection_remove")
 public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> Int {
     kk_mutable_collection_remove_throwing(collectionRaw, elem, nil)
 }
@@ -876,7 +866,6 @@ public func kk_mutable_collection_remove_throwing(
     return kk_box_bool(0)
 }
 
-@_cdecl("__kk_mutable_collection_clear")
 public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
     kk_mutable_collection_clear_throwing(collectionRaw, nil)
 }
@@ -907,7 +896,6 @@ public func kk_mutable_collection_clear_throwing(
     return 0
 }
 
-@_cdecl("__kk_mutable_collection_removeAll")
 public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
     kk_mutable_collection_removeAll_throwing(collectionRaw, elementsRaw, nil)
 }
@@ -936,7 +924,6 @@ public func kk_mutable_collection_removeAll_throwing(
     return kk_box_bool(0)
 }
 
-@_cdecl("__kk_mutable_collection_retainAll")
 public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
     kk_mutable_collection_retainAll_throwing(collectionRaw, elementsRaw, nil)
 }
@@ -1290,7 +1277,6 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     return old.legacyRawValue
 }
 
-// MARK: - MutableList bulk operations (STDLIB-207)
 
 @_cdecl("__kk_mutable_list_addAll")
 public func kk_mutable_list_addAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
@@ -1417,7 +1403,6 @@ public func kk_mutable_list_as_reversed(_ listRaw: Int) -> Int {
     )
 }
 
-// MARK: - asSequence (STDLIB-471)
 
 @_cdecl("kk_list_asSequence")
 public func kk_list_asSequence(_ listRaw: Int) -> Int {
@@ -1445,7 +1430,6 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-// MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)
 
 /// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).
 /// LinkedHashSet copy-constructor storage, also used by `Iterable.toMutableSet()`.

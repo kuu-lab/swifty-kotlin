@@ -51,6 +51,55 @@ func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCS
     return Int(bitPattern: taggedPointer)
 }
 
+/// Cache key for `GCState.identityPrimitiveBoxCache`, or nil when the value
+/// lies outside the JVM-cached range for `domain`. `domain` is the
+/// primitive's `RuntimeTypeTokenEncoding.*Base` so different primitive kinds
+/// never alias one another's entries even when their payloads coincide.
+@inline(__always)
+func runtimePrimitiveIdentityCacheKey(domain: Int64, value: Int, range: Range<Int>) -> Int64? {
+    guard range.contains(value) else {
+        return nil
+    }
+    return (domain << 32) | Int64(UInt32(bitPattern: Int32(truncatingIfNeeded: value)))
+}
+
+/// Allocates a same-type/same-payload copy of the primitive box behind a
+/// tagged handle. Used when a shared identity-cache box would otherwise be
+/// mutated in place (e.g. nominal type tagging for a value class).
+func runtimeClonePrimitiveBox(_ raw: Int) -> AnyObject? {
+    guard let ptr = runtimePrimitiveBoxBasePointer(from: raw) else {
+        return nil
+    }
+    if let box = tryCast(ptr, to: RuntimeIntBox.self) {
+        return RuntimeIntBox(
+            box.value,
+            anyFallbackTag: box.anyFallbackTag,
+            primitiveTypeBase: box.primitiveTypeBase,
+            enumEntryName: box.enumEntryName,
+            enumClassID: box.enumClassID
+        )
+    }
+    if let box = tryCast(ptr, to: RuntimeBoolBox.self) {
+        return RuntimeBoolBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeLongBox.self) {
+        return RuntimeLongBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeULongBox.self) {
+        return RuntimeULongBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeFloatBox.self) {
+        return RuntimeFloatBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeDoubleBox.self) {
+        return RuntimeDoubleBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeCharBox.self) {
+        return RuntimeCharBox(box.value)
+    }
+    return nil
+}
+
 // Coroutine handles (continuation / scope / job / task) are resolved against the
 // liveness registry: generated code and the runtime keep raw handles past the
 // point where the runtime releases the object, and casting a freed pointer either
@@ -60,7 +109,12 @@ func runtimeContinuationState(from continuation: Int) -> RuntimeContinuationStat
 }
 
 func runtimeCoroutineScope(from scopeHandle: Int) -> RuntimeCoroutineScope? {
+    // KUU-1439: `produce`/`channelFlow`/`callbackFlow` bind the ProducerScope
+    // receiver to the raw channel handle, so CoroutineScope member calls on it
+    // (launch/async/cancel/isActive) arrive here carrying a channel. Resolve
+    // the scope facet the producer launcher bound to that channel.
     resolveLiveRuntimeHandle(scopeHandle, as: RuntimeCoroutineScope.self)
+        ?? runtimeProducerScopeForChannelHandle(scopeHandle)
 }
 
 func runtimeAsyncTask(from handle: Int) -> RuntimeAsyncTask? {
@@ -351,8 +405,8 @@ func runtimeComparableOperandsAreCompatible(
     }
 }
 
-func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeThrowableBox(message: message, cause: cause)
+@inline(__always)
+func runtimeRegisterThrowable(_ throwable: RuntimeThrowableBox) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -360,13 +414,12 @@ func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
     return Int(bitPattern: ptr)
 }
 
+func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
+    runtimeRegisterThrowable(RuntimeThrowableBox(message: message, cause: cause))
+}
+
 func runtimeAllocateUninitializedPropertyAccessException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    runtimeRegisterThrowable(RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause))
 }
 
 func runtimeStableNominalTypeID(fqName: String) -> Int64 {
@@ -390,26 +443,16 @@ func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targ
 /// The returned opaque pointer can be stored in `outThrown` and later detected via
 /// `kk_is_cancellation_exception`.
 func runtimeAllocateCancellationException(message: String? = "CancellationException", cause: Int = 0) -> Int {
-    let cancellation = RuntimeCancellationBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(cancellation).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    runtimeRegisterThrowable(RuntimeCancellationBox(message: message, cause: cause))
 }
 
 /// Allocates a `kotlinx.coroutines.TimeoutCancellationException` for an expired
 /// `withTimeout` deadline. The message matches kotlinx.coroutines verbatim so
 /// `e.message` agrees with Kotlin/JVM.
 func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
-    let timeout = RuntimeTimeoutCancellationBox(
+    runtimeRegisterThrowable(RuntimeTimeoutCancellationBox(
         message: "Timed out waiting for \(timeoutMillis) ms"
-    )
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(timeout).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    ))
 }
 
 func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
@@ -418,8 +461,6 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
     let anyObject = unmanaged.takeUnretainedValue()
     return anyObject as? T
 }
-
-// MARK: - UTF-16 Substring Helper (Kotlin-compatible indexing)
 
 /// Extracts a substring from `source` using UTF-16 code unit indices,
 /// approximating Kotlin's `CharSequence.subSequence(startIndex, endIndex)` semantics.
@@ -476,28 +517,6 @@ private let runtimeCharSequenceInterfaceTypeID =
 private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 private typealias RuntimeCharSequenceLength = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
-func runtimeCharSequenceText(from raw: Int) -> String? {
-    guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if let stringBox = object as? RuntimeStringBox {
-        return stringBox.value
-    }
-    if let builderBox = object as? RuntimeStringBuilderBox {
-        return builderBox.stringValue
-    }
-    guard let units = runtimeCharSequenceItableCodeUnits(raw: raw) else {
-        return nil
-    }
-    return String(decoding: units, as: UTF16.self)
-}
 
 /// UTF-16 code units of a String or StringBuilder box without round-tripping
 /// through a materialized String. String boxes serve their lazily cached
@@ -715,6 +734,14 @@ public enum KxMiniRuntime {
     }
 
     public static func launch(workItem: DispatchWorkItem) {
+        if let scheduler = RuntimeCoroutineScope.current?.testSchedulerIfPresent() {
+            let boxedWorkItem = RuntimeWorkItemBox(workItem)
+            scheduler.schedule(after: 0) {
+                boxedWorkItem.performUnlessCancelled()
+            }
+            return
+        }
+
         // When the launching coroutine is running on a `runBlocking`
         // event loop, append to that loop's FIFO queue instead of handing the
         // work item to the concurrent global pool. Two coroutines launched in

@@ -17,6 +17,7 @@ package kotlin.reflect
 public interface KClass<T : Any> : KAnnotatedElement, KClassifier, KDeclarationContainer {
     public val objectInstance: T?
     public val sealedSubclasses: List<KClass<out T>>
+    public val constructors: Collection<KFunction<T>>
 
     public override fun equals(other: Any?): Boolean
     public override fun hashCode(): Int

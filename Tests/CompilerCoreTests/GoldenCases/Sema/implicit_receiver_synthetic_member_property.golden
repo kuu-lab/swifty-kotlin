@@ -1,0 +1,19 @@
+symbol fq=__local_0.l[kind=local;type=kotlin.collections.List<out Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<out Int>
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fimplicit_receiver_synthetic_member_property package=_
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@2:20 int(1) type=Int
+expr e@2:23 int(2) type=Int
+expr e@2:26 int(3) type=Int
+expr e@2:13 call callee=e@2:13#1 args=[_:e@2:20,_:e@2:23,_:e@2:26] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@2:5 localDecl l mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.l[kind=local;type=kotlin.collections.List<out Int>;origin=fixture]
+expr e@3:13 name(l) type=kotlin.collections.List<out Int> ref=__local_0.l[kind=local;type=kotlin.collections.List<out Int>;origin=fixture]
+expr e@3:21 name(lastIndex) type=Int call=kotlin.collections.lastIndex[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=Int;gen=1] targs=[Int]
+expr e@3:19 lambda params=[] body=e@3:21 label=run type=kotlin.collections.List<out Int>.() -> Int
+expr e@3:13#1 memberCall recv=e@3:13 callee=run args=[_:e@3:19] type=Int call=kotlin.run[kind=fun;recv=T0;params=fn{r=T0;p=;ret=T1};ret=T1;gen=2;names=[block]] targs=[kotlin.collections.List<out Int>,Int]
+expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@4:10 name(l) type=kotlin.collections.List<out Int> ref=__local_0.l[kind=local;type=kotlin.collections.List<out Int>;origin=fixture]
+expr e@4:23 name(indices) type=kotlin.ranges.IntRange call=kotlin.collections.indices[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=kotlin.ranges.IntRange;gen=1] targs=[Int]
+expr e@4:15 call callee=e@4:15#1 args=[_:e@4:23] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@4:13 lambda params=[] body=e@4:15 label=with type=kotlin.collections.List<out Int>.() -> Unit
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:10,_:e@4:13] type=Unit call=kotlin.with[kind=fun;params=T0,fn{r=T0;p=;ret=T1};ret=T1;gen=2;names=[receiver,block]] targs=[kotlin.collections.List<out Int>,Unit]

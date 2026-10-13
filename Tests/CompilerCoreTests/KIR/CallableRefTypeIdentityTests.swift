@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite
@@ -128,10 +129,11 @@ struct CallableRefTypeIdentityTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let descriptions = body.compactMap { instruction -> String? in
-            guard case let .call(_, callee, args, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "__kk_function_set_description",
-                  case let .stringLiteral(text) = module.arena.expr(args[1])
+        let descriptionCalls = kirCalls(to: .functionSetDescription, in: body, interner: ctx.interner)
+        #expect(descriptionCalls.allSatisfy { $0.arguments.count == 3 })
+        let descriptions = descriptionCalls.compactMap { call -> String? in
+            guard call.arguments.count == 3,
+                  case let .stringLiteral(text) = module.arena.expr(call.arguments[1])
             else { return nil }
             return ctx.interner.resolve(text)
         }
@@ -167,21 +169,11 @@ struct CallableRefTypeIdentityTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_kcallable_get_name"))
-        let boxedValues = Set(body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee).hasPrefix("kk_function_create_")
-            else { return nil }
-            return result
-        })
+        #expect(!kirCalls(to: .callableName, in: body, interner: ctx.interner).isEmpty)
+        let boxedValues = Set(kirFunctionCreationCalls(in: body, interner: ctx.interner).compactMap(\.result))
         #expect(!boxedValues.isEmpty)
-        #expect(body.contains { instruction in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "__kk_function_copy_description",
-                  arguments.count == 2
-            else { return false }
-            return boxedValues.contains(arguments[1])
+        #expect(kirCalls(to: .functionCopyDescription, in: body, interner: ctx.interner).contains {
+            $0.arguments.count == 2 && boxedValues.contains($0.arguments[1])
         })
     }
 
@@ -440,13 +432,8 @@ struct CallableRefTypeIdentityTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let expectedCallee = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
-        let invoke = try #require(mainBody.first {
-            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
-            return ctx.interner.resolve(callee) == expectedCallee
-        })
-        guard case let .call(_, _, callArguments, _, _, _, _, _) = invoke else { return }
-        #expect(callArguments.count == arity + 1)
+        let invoke = try #require(kirCalls(to: .functionInvoke(arity: arity), in: mainBody, interner: ctx.interner).first)
+        #expect(invoke.arguments.count == arity + 1)
     }
 
     @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
@@ -466,7 +453,7 @@ struct CallableRefTypeIdentityTests {
         let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_callable_ref_tag_kfunction"),
+            !kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
             "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
         )
     }
@@ -497,7 +484,7 @@ struct CallableRefTypeIdentityTests {
         let callees = extractCallees(from: rBody, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_array_set"),
+            !kirCalls(to: .arraySet, in: rBody, interner: ctx.interner).isEmpty,
             "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
         )
     }
@@ -515,15 +502,13 @@ struct CallableRefTypeIdentityTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
-        let allCallees = findAllKIRFunctions(in: module).flatMap { function in
-            return extractCallees(from: function.body, interner: ctx.interner)
-        }
+        let allBodies = findAllKIRFunctions(in: module).flatMap(\.body)
         #expect(
-            allCallees.contains("kk_callable_ref_tag_kproperty"),
-            "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
+            !kirCalls(to: .tagKProperty, in: allBodies, interner: ctx.interner).isEmpty,
+            "Property callable ref should be tagged as KProperty. Callees: \(kirCalls(in: allBodies))"
         )
         #expect(
-            !(allCallees.contains("kk_callable_ref_tag_kfunction")),
+            kirCalls(to: .tagKFunction, in: allBodies, interner: ctx.interner).isEmpty,
             "Property callable ref should NOT be tagged as KFunction."
         )
     }
@@ -543,26 +528,19 @@ struct CallableRefTypeIdentityTests {
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-        let tagCall = mainBody.first { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
-        }
-        guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
-            Issue.record("Expected kk_callable_ref_tag_kfunction call in main body.")
-            return
-        }
+        let tagCall = try #require(kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).first)
+        let arguments = tagCall.arguments
+        let target = try findKIRFunction(named: "add", in: module, interner: ctx.interner)
 
         // arguments[0] = callable value, arguments[1] = name,
         // arguments[2] = return type, arguments[3] = arity,
         // arguments[4] = isSuspend flag.
-        #expect(arguments.count == 5)
+        try #require(arguments.count == 5)
 
         if let nameExpr = module.arena.expr(arguments[1]),
            case let .stringLiteral(nameInterned) = nameExpr
         {
-            #expect(ctx.interner.resolve(nameInterned) == "add")
+            #expect(nameInterned == target.name)
         } else {
             Issue.record("Second argument to tag call should be string literal 'add'.")
         }
@@ -571,7 +549,7 @@ struct CallableRefTypeIdentityTests {
         if let returnTypeExpr = module.arena.expr(arguments[2]),
            case let .stringLiteral(returnTypeInterned) = returnTypeExpr
         {
-            #expect(ctx.interner.resolve(returnTypeInterned) == "Int")
+            #expect(returnTypeInterned == KnownCompilerNames(interner: ctx.interner).int)
         } else {
             Issue.record("Third argument to tag call should be string literal 'Int'.")
         }
@@ -594,15 +572,7 @@ struct CallableRefTypeIdentityTests {
     }
 
     @Test func testKIRKFunctionTagForBoundCallableRef() throws {
-        let source = """
-        class Box {
-            fun plus(x: Int): Int = x
-        }
-        fun main(box: Box): Int {
-            val f = box::plus
-            return f(7)
-        }
-        """
+        let source = KotlinSourceFixtures.boundCallableReferenceReceiverTypeIdentity
 
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
@@ -612,7 +582,7 @@ struct CallableRefTypeIdentityTests {
         let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_callable_ref_tag_kfunction"),
+            !kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
             "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
         )
     }
@@ -632,17 +602,8 @@ struct CallableRefTypeIdentityTests {
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-        let tagCall = mainBody.first { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
-        }
-        guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
-            Issue.record("Expected kk_callable_ref_tag_kfunction call.")
-            return
-        }
-        #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
+        let tagCall = try #require(kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).first)
+        #expect(!tagCall.canThrow, "Callable ref tagging call should be non-throwing.")
     }
 }
 #endif

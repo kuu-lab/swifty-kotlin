@@ -37,6 +37,9 @@ struct ImportedInlineFunctionStoreTests {
         suspend=false
         body:
         beginBlock
+        const result=3 value=null
+        call calleeB64=cHJvYmU= args=[] result=2 canThrow=1 thrownResult=3
+        call calleeB64=cHJvYmU= args=[] result=4 canThrow=1
         returnValue value=1
         """
 
@@ -64,6 +67,14 @@ struct ImportedInlineFunctionStoreTests {
             let arena = KIRArena()
             let resolved = try #require(store.function(for: symbol, arena: arena))
             #expect(!resolved.body.isEmpty)
+            let calls = resolved.body.compactMap { instruction -> KIRExprID?? in
+                guard case let .call(_, _, _, _, _, thrownResult, _, _) = instruction else { return nil }
+                return .some(thrownResult)
+            }
+            try #require(calls.count == 2)
+            #expect(calls[0] != nil)
+            #expect(calls[1] == nil)
+
             // Once resolved, the descriptor is consumed and the body is
             // cached — a second lookup reuses it without re-parsing.
             #expect(store.descriptors.isEmpty)

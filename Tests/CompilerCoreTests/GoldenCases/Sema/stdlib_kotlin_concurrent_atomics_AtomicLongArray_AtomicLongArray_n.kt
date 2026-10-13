@@ -9,16 +9,16 @@ fun atomicLongArrayCompareAndExchange(
     index: Int,
     expectedValue: Long,
     newValue: Long
-): Long = values.compareAndExchange(index, expectedValue, newValue)
+): Long = values.compareAndExchangeAt(index, expectedValue, newValue)
 
 fun atomicLongArrayCompareAndSet(
     values: AtomicLongArray,
     index: Int,
     expectedValue: Long,
     newValue: Long
-): Boolean = values.compareAndSet(index, expectedValue, newValue)
+): Boolean = values.compareAndSetAt(index, expectedValue, newValue)
 
-fun atomicLongArrayLength(values: AtomicLongArray): Int = values.length
+fun atomicLongArrayLength(values: AtomicLongArray): Int = values.size
 
 fun atomicLongArraySize(values: AtomicLongArray): Int = values.size
 

@@ -1,15 +1,42 @@
-
 extension DeclTypeChecker {
     func typeCheckBoundPropertyDecl(
         _ property: PropertyDecl,
-        declID _: DeclID,
+        declID: DeclID,
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        let propertyCtx = ctx.with(currentDeclSymbol: symbol)
+        let tracksInferredProperty = driver.inferredPropertyDeclarations[symbol] != nil
+        let tracksPendingProperty = driver.pendingPropertyTypes.contains(symbol)
+        if tracksPendingProperty {
+            driver.deferredInferredProperties.remove(symbol)
+        }
+        if tracksInferredProperty {
+            guard !driver.precheckedPropertyDecls.contains(declID),
+                  driver.checkingInferredProperties.insert(symbol).inserted
+            else { return }
+        }
+        defer {
+            if tracksPendingProperty, !diagnostics.hasError,
+               !driver.deferredInferredProperties.contains(symbol)
+            {
+                driver.pendingPropertyTypes.remove(symbol)
+            }
+            if tracksInferredProperty {
+                driver.checkingInferredProperties.remove(symbol)
+                if !diagnostics.hasError,
+                   !driver.deferredInferredProperties.contains(symbol),
+                   !diagnostics.diagnostics.contains(where: {
+                       $0.primaryRange.map(property.range.contains) ?? true
+                   })
+                {
+                    driver.precheckedPropertyDecls.insert(declID)
+                }
+            }
+        }
+        let propertyCtx = propertyTypeParameterContext(property, symbol: symbol, ctx: ctx, diagnostics: diagnostics)
         validatePropertyHeaderOptInTypes(
             symbol,
             ctx: propertyCtx
@@ -24,6 +51,41 @@ extension DeclTypeChecker {
         )
     }
 
+    func propertyTypeParameterContext(
+        _ property: PropertyDecl, symbol: SymbolID, ctx: TypeInferenceContext, diagnostics: DiagnosticEngine
+    ) -> TypeInferenceContext {
+        var propertyCtx = ctx.with(currentDeclSymbol: symbol)
+        if !property.typeParams.isEmpty {
+            let propertyScope = FunctionScope(parent: ctx.scope, symbols: ctx.sema.symbols)
+            if let getter = ctx.sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+               let signature = ctx.sema.symbols.functionSignature(for: getter) {
+                for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount) { propertyScope.insert(parameter) }
+                if let receiver = signature.receiverType {
+                    for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+                        where !ctx.sema.types.typeContainsTypeParamThroughUpperBounds(receiver, symbol: parameter) {
+                        diagnostics.error("KSWIFTK-SEMA-0005", "Property type parameter must occur in its receiver type.", range: property.range)
+                    }
+                }
+            } else {
+                diagnostics.error("KSWIFTK-SEMA-0005", "Only extension properties can declare type parameters.", range: property.range)
+            }
+            var names: Set<InternedString> = []
+            for parameter in property.typeParams {
+                if !names.insert(parameter.name).inserted {
+                    diagnostics.error("KSWIFTK-SEMA-0005", "Duplicate property type parameter.", range: property.range)
+                }
+                if parameter.isReified, !property.allAccessorsAreInline {
+                    diagnostics.error("KSWIFTK-SEMA-0020", "Reified property type parameters require inline accessors.", range: property.range)
+                }
+                if parameter.variance != .invariant {
+                    diagnostics.error("KSWIFTK-SEMA-0005", "Variance is not allowed on property type parameters.", range: property.range)
+                }
+            }
+            propertyCtx = propertyCtx.copying(scope: propertyScope)
+        }
+        return propertyCtx
+    }
+
     func typeCheckClassDecl(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
@@ -31,46 +93,16 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        let sema = ctx.sema
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        // Mirror the header pass: a generic class's `this` type carries its own
-        // type parameters as arguments. Member functions get this through their
-        // signature receiver type, but property accessors fall back to the
-        // context's implicit receiver, so a raw type here would make calls like
-        // `f(this)` (where `f` takes `C<T>`) fail to resolve.
-        let classTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
-            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
-        }
-        let classType = sema.types.make(.classType(ClassType(
-            classSymbol: symbol, args: classTypeArgs, nullability: .nonNull
-        )))
-        let classScope = buildClassMemberScope(
-            ownerSymbol: symbol,
-            ownerType: classType,
-            memberFunctions: classDecl.memberFunctions,
-            memberProperties: classDecl.memberProperties,
-            nestedClasses: classDecl.nestedClasses,
+        let (classType, classCtx, primaryCtorLocals) = makeClassTypeCheckContext(
+            classDecl: classDecl,
+            symbol: symbol,
             nestedObjects: allNestedObjects,
             ctx: ctx
         )
-        let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let classCtx = ctx.withoutSuspensionContext()
-            .withOuterReceiver(label: classLabel, type: classType)
-            .copying(
-                scope: classScope,
-                implicitReceiverType: classType,
-                currentDeclSymbol: symbol,
-                enclosingClassSymbol: symbol
-            )
-
-        // Primary constructor parameters without `val`/`var` are only in scope
-        // for property initializers and `init {}` blocks, not for member
-        // functions — so they're threaded through as `locals` rather than
-        // inserted into `classScope`.
-        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
         if let companionDeclID = classDecl.companionObject {
             // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count
@@ -279,26 +311,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        let sema = ctx.sema
-        let objectType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
-        let objectScope = buildClassMemberScope(
-            ownerSymbol: symbol,
-            ownerType: objectType,
-            memberFunctions: objectDecl.memberFunctions,
-            memberProperties: objectDecl.memberProperties,
-            nestedClasses: objectDecl.nestedClasses,
-            nestedObjects: objectDecl.nestedObjects,
-            ctx: ctx
-        )
-        let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let objectCtx = ctx.withoutSuspensionContext()
-            .withOuterReceiver(label: objectLabel, type: objectType)
-            .copying(
-                scope: objectScope,
-                implicitReceiverType: objectType,
-                currentDeclSymbol: symbol,
-                enclosingClassSymbol: symbol
-            )
+        let objectCtx = makeObjectTypeCheckContext(objectDecl: objectDecl, symbol: symbol, ctx: ctx)
 
         validateClassLikeHeaderOptInTypes(
             symbol: symbol,
@@ -358,7 +371,10 @@ extension DeclTypeChecker {
         }
         let candidates = sema.symbols
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
-            .filter { sema.symbols.symbol($0)?.kind == .constructor }
+            .filter {
+                sema.symbols.symbol($0)?.kind == .constructor
+                    && sema.symbols.parentSymbol(for: $0) == superclassSymbol
+            }
         guard !candidates.isEmpty else { return }
         let resolved = inferConstructorDelegationArguments(
             objectDecl.superTypeConstructorArgs,
@@ -500,6 +516,10 @@ extension DeclTypeChecker {
                 diagnostics.truncate(to: diagnosticSnapshot)
 
             case let .propertyDecl(property):
+                guard !driver.precheckedPropertyDecls.contains(declID) else {
+                    continue
+                }
+                let diagnosticSnapshot = diagnostics.count
                 typeCheckBoundPropertyDecl(
                     property,
                     declID: declID,
@@ -509,11 +529,22 @@ extension DeclTypeChecker {
                     solver: solver,
                     diagnostics: diagnostics
                 )
+                if needsAccessorRecheck(property) {
+                    // A getter can still see inferred nested methods' header
+                    // placeholders. Keep its inferred type for other members,
+                    // then diagnose it after those method bodies are checked.
+                    diagnostics.truncate(to: diagnosticSnapshot)
+                }
 
             default:
                 continue
             }
         }
+    }
+
+    private func needsAccessorRecheck(_ property: PropertyDecl) -> Bool {
+        property.getter != nil && property.initializer == nil
+            && property.delegateExpression == nil && property.explicitBackingField == nil
     }
 
     func typeCheckClassLikeMembers(
@@ -563,6 +594,27 @@ extension DeclTypeChecker {
         // them before enclosing functions see the header's `Any?` placeholder.
         for declID in nestedClasses {
             typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
+        }
+
+        // Recheck computed properties before the authoritative function pass.
+        // Their first pass may have used a nested method's placeholder return
+        // type. Initializers and delegates retain their original single check.
+        for declID in memberProperties {
+            guard case let .propertyDecl(property)? = ast.arena.decl(declID),
+                  needsAccessorRecheck(property),
+                  let symbol = sema.bindings.declSymbols[declID]
+            else {
+                continue
+            }
+            typeCheckBoundPropertyDecl(
+                property,
+                declID: declID,
+                symbol: symbol,
+                ctx: ctx.with(currentDeclSymbol: symbol),
+                initialLocals: propertyInitializerLocals,
+                solver: solver,
+                diagnostics: diagnostics
+            )
         }
 
         for declID in memberFunctions {
@@ -650,8 +702,6 @@ extension DeclTypeChecker {
             break
         }
     }
-
-    // MARK: - Class Member Scope Building
 
     func buildClassMemberScope(
         ownerSymbol: SymbolID,

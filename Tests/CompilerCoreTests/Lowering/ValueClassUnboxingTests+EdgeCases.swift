@@ -21,7 +21,7 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let nameSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Name"
+            symbol.kind == .class && symbol.name == interner.intern("Name")
         }))
         #expect(nameSymbol.flags.contains(.valueType), "value class with String payload should have valueType flag")
 
@@ -48,7 +48,7 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let tsSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Timestamp"
+            symbol.kind == .class && symbol.name == interner.intern("Timestamp")
         }))
         #expect(tsSymbol.flags.contains(.valueType), "value class with Long payload should have valueType flag")
 
@@ -75,7 +75,7 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let celsiusSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Celsius"
+            symbol.kind == .class && symbol.name == interner.intern("Celsius")
         }))
         #expect(celsiusSymbol.flags.contains(.valueType), "value class with Double payload should have valueType flag")
 
@@ -133,9 +133,9 @@ extension ValueClassUnboxingTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
             let nameSymbol = try #require(sema.symbols.allSymbols().first { symbol in
-                symbol.kind == .class && interner.resolve(symbol.name) == "Name"
+                symbol.kind == .class && symbol.name == interner.intern("Name")
             })
-            let kkObjectNew = interner.intern("kk_object_new")
+            let kkObjectNew = LoweringTestRuntime.callee("object_new", interner: interner)
 
             var hasNameValueClassAlloc = false
             for function in findAllKIRFunctions(in: module) {
@@ -180,10 +180,10 @@ extension ValueClassUnboxingTests {
         let semaWithout = try #require(ctxWithout.sema)
 
         let symWith = try #require(semaWith.symbols.allSymbols().first(where: {
-            $0.kind == .class && ctxWith.interner.resolve($0.name) == "UserId"
+            $0.kind == .class && $0.name == ctxWith.interner.intern("UserId")
         }))
         let symWithout = try #require(semaWithout.symbols.allSymbols().first(where: {
-            $0.kind == .class && ctxWithout.interner.resolve($0.name) == "UserId"
+            $0.kind == .class && $0.name == ctxWithout.interner.intern("UserId")
         }))
 
         // Both should have the valueType flag — @JvmInline adds no extra flags
@@ -260,7 +260,7 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let tokenSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Token"
+            symbol.kind == .class && symbol.name == interner.intern("Token")
         }))
         // The Token class itself still has the valueType flag regardless of nullable usage
         #expect(tokenSymbol.flags.contains(.valueType), "Token value class should retain valueType flag when used as nullable")
@@ -282,13 +282,13 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
+            symbol.kind == .class && symbol.name == interner.intern("Meter")
         }))
         #expect(meterSymbol.flags.contains(.valueType))
 
         // The member function 'doubled' should exist in the symbol table
         let doubledExists = sema.symbols.allSymbols().contains(where: { symbol in
-            symbol.kind == .function && interner.resolve(symbol.name) == "doubled"
+            symbol.kind == .function && symbol.name == interner.intern("doubled")
         })
         #expect(doubledExists, "Member function 'doubled' should be registered in the symbol table for value class Meter")
     }
@@ -313,7 +313,7 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
+            symbol.kind == .class && symbol.name == interner.intern("Meter")
         }))
         #expect(meterSymbol.flags.contains(.valueType), "value class implementing interface should retain valueType flag")
     }
@@ -336,7 +336,7 @@ extension ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let scoreSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Score"
+            symbol.kind == .class && symbol.name == interner.intern("Score")
         }))
         #expect(scoreSymbol.flags.contains(.valueType), "value class with companion object should retain valueType flag")
     }

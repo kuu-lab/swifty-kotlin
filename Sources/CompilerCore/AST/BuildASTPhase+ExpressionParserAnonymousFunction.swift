@@ -1,7 +1,5 @@
 
 extension BuildASTPhase.ExpressionParser {
-    /// Parses an anonymous function expression: `fun(params): RetType { body }`.
-    ///
     /// Unlike a lambda literal, an unlabeled `return` inside an anonymous
     /// function always returns from the anonymous function itself — never a
     /// non-local return to an enclosing named function — regardless of
@@ -26,8 +24,8 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         let startIndex = index
-        _ = consume() // `fun`
-        skipBalancedParenthesisIfNeeded() // value-parameter list
+        _ = consume()
+        skipBalancedParenthesisIfNeeded()
 
         if matches(.symbol(.colon)) {
             _ = consume()

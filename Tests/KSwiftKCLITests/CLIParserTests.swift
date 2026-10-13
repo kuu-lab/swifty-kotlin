@@ -4,11 +4,17 @@
 import Testing
 
 // .serialized: parsesStdlibFlags() and
-// defaultExecutableParseHonorsProcessDefaultStdlibLibrary() both mutate the
+// defaultEmitModesHonorProcessDefaultStdlibLibrary() both mutate the
 // process-wide CompilerOptions.defaultStdlibLibraryPath; running this
 // suite's tests concurrently races on that global.
 @Suite("CLI.Parser", .serialized)
 struct CLIParserTests {
+    @Test(arguments: ["--test", "-generate-test-runner"])
+    func parsesTestRunnerFlag(flag: String) throws {
+        let options = try CLIParser.parse(args: [flag, "tests.kt"])
+        #expect(options.frontendFlags.contains("generate-test-runner"))
+        #expect(options.emit == .executable)
+    }
     @Test
     func parsesMinimalInput() throws {
         let options = try CLIParser.parse(args: ["input.kt"])
@@ -30,6 +36,7 @@ struct CLIParserTests {
             "-l", "runtime",
             "--target", "x86_64-apple-macos",
             "-Xfrontend", "time-phases",
+            "-Xfrontend", "common-module",
             "-Xir", "trace-lowering",
             "-Xruntime", "trace=true",
             "-g",
@@ -43,7 +50,8 @@ struct CLIParserTests {
         #expect(options.searchPaths == ["include"])
         #expect(options.libraryPaths == ["lib"])
         #expect(options.linkLibraries == ["runtime"])
-        #expect(options.frontendFlags == ["time-phases"])
+        #expect(options.frontendFlags == ["time-phases", "common-module"])
+        #expect(options.isCommonModule)
         #expect(options.irFlags == ["trace-lowering"])
         #expect(options.runtimeFlags == ["trace=true"])
         #expect(options.debugInfo)
@@ -132,15 +140,15 @@ struct CLIParserTests {
         // CompilerOptions.init (CompilerTypes.swift) reads the process-wide
         // CompilerOptions.defaultStdlibLibraryPath whenever
         // shouldUseDefaultStdlib(...) holds, which is exactly the CLI
-        // default for the "--stdlib"/plain-args cases below (emit ==
-        // .executable, no --stdlib-library, includeStdlib == true,
+        // default for the "--stdlib"/plain-args cases below (no
+        // --stdlib-library, includeStdlib == true,
         // allowDefaultStdlibLibrary == true). If another test in this
         // process already published a path there (e.g. via
         // TestStdlibCache.shared.prepare(), as several CompilerCoreTests/
         // CompilerBackendTests helpers do), CLIParser.parse would silently
         // resolve stdlibLibraryPath from that global and flip includeStdlib
         // to false out from under us — see
-        // defaultExecutableParseHonorsProcessDefaultStdlibLibrary below,
+        // defaultEmitModesHonorProcessDefaultStdlibLibrary below,
         // which pins that behavior as an intentional contract. Isolate from
         // that shared state so this test's result depends only on the CLI
         // flags being parsed.
@@ -159,7 +167,7 @@ struct CLIParserTests {
     }
 
     @Test
-    func defaultExecutableParseHonorsProcessDefaultStdlibLibrary() throws {
+    func defaultEmitModesHonorProcessDefaultStdlibLibrary() throws {
         // Pins the main.swift two-phase parse contract: after resolving or
         // building a prebuilt stdlib artifact and publishing its path to
         // CompilerOptions.defaultStdlibLibraryPath, main.swift re-parses the
@@ -171,9 +179,25 @@ struct CLIParserTests {
         defer { CompilerOptions.defaultStdlibLibraryPath = saved }
         CompilerOptions.defaultStdlibLibraryPath = "/tmp/KSwiftKStdlib.kklib"
 
-        let options = try CLIParser.parse(args: ["main.kt"])
-        #expect(options.stdlibLibraryPath == "/tmp/KSwiftKStdlib.kklib")
-        #expect(options.includeStdlib == false)
+        for mode in ["executable", "object", "llvm", "kir", "library"] {
+            let args = ["--emit", mode, "main.kt"]
+            let options = try CLIParser.parse(args: args)
+            #expect(options.stdlibLibraryPath == "/tmp/KSwiftKStdlib.kklib")
+            #expect(!options.includeStdlib)
+
+            let source = try CLIParser.parse(args: ["--stdlib-from-source"] + args)
+            #expect(source.stdlibLibraryPath == nil)
+            #expect(source.includeStdlib)
+            let noStdlib = try CLIParser.parse(args: ["--no-stdlib"] + args)
+            #expect(noStdlib.stdlibLibraryPath == nil)
+            #expect(!noStdlib.includeStdlib)
+            let explicit = try CLIParser.parse(args: ["--stdlib-library", "/tmp/explicit.kklib"] + args)
+            #expect(explicit.stdlibLibraryPath == "/tmp/explicit.kklib")
+            #expect(!explicit.includeStdlib)
+        }
+        let stdlibOnly = try CLIParser.parse(args: ["--stdlib-only"])
+        #expect(stdlibOnly.stdlibLibraryPath == nil)
+        #expect(stdlibOnly.includeStdlib)
     }
 
     @Test

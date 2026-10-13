@@ -1,17 +1,13 @@
-symbol fq=__local_0.s[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
-symbol fq=__local_1.multi[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=__local_0.simple[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=__local_1.multiline[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fraw_string_basic package=_
   decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@2:13 string(hello world) type=String
-expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s[kind=local;type=String;origin=fixture]
-expr e@3:13 name(s) type=String ref=__local_0.s[kind=local;type=String;origin=fixture]
-expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
-expr e@4:17 string(
+expr e@3:26 string(hello world) type=String
+expr e@3:5 localDecl simple mutable=0 type=String init=e@3:26 type=Unit ref=__local_0.simple[kind=local;type=String;origin=fixture]
+expr e@4:29 string(
         line1
         line2
     ) type=String
-expr e@4:17#1 memberCall recv=e@4:17 callee=trimIndent args=[] type=String call=kotlin.text.trimIndent[kind=fun;recv=String;params=;ret=String]
-expr e@4:5 localDecl multi mutable=0 type=_ init=e@4:17#1 type=Unit ref=__local_1.multi[kind=local;type=String;origin=fixture]
-expr e@8:13 name(multi) type=String ref=__local_1.multi[kind=local;type=String;origin=fixture]
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@4:29#1 memberCall recv=e@4:29 callee=trimIndent args=[] type=String call=kotlin.text.trimIndent[kind=fun;recv=String;params=;ret=String]
+expr e@4:5 localDecl multiline mutable=0 type=String init=e@4:29#1 type=Unit ref=__local_1.multiline[kind=local;type=String;origin=fixture]

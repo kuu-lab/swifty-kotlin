@@ -5,23 +5,30 @@ import CompilerCore
 public final class CodegenPhase: CompilerPhase {
     public static let name = "Codegen"
 
-    public init() {}
+    private let session: LLVMBackendSession?
+
+    public init() { session = nil }
+
+    init(session: LLVMBackendSession) { self.session = session }
 
     public func run(_ ctx: CompilationContext) throws {
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }
-        let fileFacadeNamesByFileID = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        let backend = try makeBackend(ctx: ctx)
+        let fileFacadeNamesByFileID = PhaseTimer.measureSubPhase("file facades", timer: ctx.phaseTimer) {
+            CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
+        }
+        let backend = try PhaseTimer.measureSubPhase("backend init", timer: ctx.phaseTimer) {
+            try makeBackend(ctx: ctx)
+        }
         // Shared by the reflection records, inline-KIR artifacts, and library
         // metadata: the map is a pure function of module + interner + symbols.
-        let functionLinkInfo = makeFunctionLinkInfo(
-            module: kir,
-            ctx: ctx,
-            fileFacadeNamesByFileID: fileFacadeNamesByFileID
-        )
-        // REFL-004: Build runtime reflection metadata records from sema state.
-        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
+        let functionLinkInfo = PhaseTimer.measureSubPhase("link info", timer: ctx.phaseTimer) {
+            makeFunctionLinkInfo(module: kir, ctx: ctx, fileFacadeNamesByFileID: fileFacadeNamesByFileID)
+        }
+        let reflectionRecords = PhaseTimer.measureSubPhase("reflection records", timer: ctx.phaseTimer) {
+            buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
+        }
 
         do {
             switch ctx.options.emit {
@@ -169,7 +176,9 @@ public final class CodegenPhase: CompilerPhase {
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
-        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
+        try PhaseTimer.measureSubPhase("inline-KIR artifacts", timer: ctx.phaseTimer) {
+            try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
+        }
 
         let manifestPath = outputDir + "/manifest.json"
         let metadataPath = outputDir + "/metadata.bin"
@@ -203,8 +212,10 @@ public final class CodegenPhase: CompilerPhase {
         manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
         try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
-        let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
-        try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
+        try PhaseTimer.measureSubPhase("library metadata", timer: ctx.phaseTimer) {
+            let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
+            try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
+        }
     }
 
     private func makeBackend(ctx: CompilationContext) throws -> LLVMBackend {
@@ -213,12 +224,12 @@ public final class CodegenPhase: CompilerPhase {
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
             diagnostics: ctx.diagnostics,
-            moduleName: ctx.options.moduleName
+            moduleName: ctx.options.moduleName,
+            phaseTimer: ctx.phaseTimer,
+            session: session ?? LLVMBackendSession()
         )
     }
 
-    /// `kk_fn_` link names for every KIR function declaration, plus the subset
-    /// that is `inline`.
     private struct FunctionLinkInfo {
         var functionLinkNamesBySymbol: [SymbolID: String] = [:]
         var inlineFunctionSymbols: Set<SymbolID> = []
@@ -283,7 +294,7 @@ public final class CodegenPhase: CompilerPhase {
                 )
             } else if ctx.interner.resolve(function.name).hasSuffix("$default"),
                       let linkName = functionLinkNamesBySymbol[function.symbol] {
-                // Reified default stubs also require call-site expansion. Their
+                // Inline default stubs also require call-site expansion. Their
                 // existing metadata link name identifies the serialized body.
                 mangled = linkName
             } else {
@@ -295,11 +306,11 @@ public final class CodegenPhase: CompilerPhase {
             let inlineBody = module.inlineBodiesBeforeFinallyLowering[function.symbol]
                 ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                 ?? function.body
-            let readExpressions = Set(inlineBody.flatMap(inlineReadExpressions))
+            let referencedExpressions = Set(inlineBody.flatMap(inlineReferencedExpressions))
             let bodyLines = inlineBody.filter { instruction in
                 // Expanded lambdas need no address, and their standalone bodies may not be exported.
                 if case let .constValue(result, .symbolRef(_)) = instruction {
-                    return readExpressions.contains(result)
+                    return referencedExpressions.contains(result)
                 }
                 return true
             }.map { instruction in
@@ -326,7 +337,7 @@ public final class CodegenPhase: CompilerPhase {
         }
     }
 
-    private func inlineReadExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
+    private func inlineReferencedExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
         case let .jumpIfEqual(lhs, rhs, _), let .returnIfEqual(lhs, rhs), let .binary(_, lhs, rhs, _):
             [lhs, rhs]
@@ -336,7 +347,10 @@ public final class CodegenPhase: CompilerPhase {
             arguments
         case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
             [receiver] + arguments
-        case let .jumpIfNotNull(value, _), let .copy(value, _), let .storeGlobal(value, _),
+        case let .copy(from, to):
+            // Both operands can reference symbol-backed storage.
+            [from, to]
+        case let .jumpIfNotNull(value, _), let .storeGlobal(value, _),
              let .rethrow(value), let .returnValue(value), let .resumeNonLocalReturn(value):
             [value]
         case let .nonLocalReturn(value, _):
@@ -384,38 +398,32 @@ public final class CodegenPhase: CompilerPhase {
         case let .nullAssert(operand, result):
             return "nullAssert operand=\(operand.rawValue) result=\(result.rawValue)"
         case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
-            let args = arguments.map { String($0.rawValue) }.joined(separator: ",")
-            let symbolValue = symbol.map { String($0.rawValue) } ?? "_"
-            let resultValue = result.map { String($0.rawValue) } ?? "_"
-            let thrownResultValue = thrownResult.map { String($0.rawValue) } ?? "_"
+            let fields = serializeInlineCallFields(
+                symbol: symbol,
+                callee: callee,
+                arguments: arguments,
+                result: result,
+                thrownResult: thrownResult,
+                interner: interner,
+                functionLinkNames: functionLinkNames,
+                symbols: symbols
+            )
             let qualifiedSuperValue = qualifiedSuperType.map { String($0.rawValue) } ?? "_"
-            let calleeName = base64Encode(interner.resolve(callee))
-            let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
-            let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
-            let symbolFQName = symbol.flatMap {
-                inlineSymbolFQName($0, interner: interner, symbols: symbols)
-            }
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
-            return "call symbol=\(symbolValue) calleeB64=\(calleeName) args=[\(args)]"
-                + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
-                + " thrownResult=\(thrownResultValue) isSuperCall=\(isSuperCall ? 1 : 0)"
-                + " qualifiedSuperType=\(qualifiedSuperValue)" + linkField + symbolFQNameField
+            return "call symbol=\(fields.symbolValue) calleeB64=\(fields.calleeName) args=[\(fields.args)]"
+                + " result=\(fields.resultValue) canThrow=\(canThrow ? 1 : 0)"
+                + " thrownResult=\(fields.thrownResultValue) isSuperCall=\(isSuperCall ? 1 : 0)"
+                + " qualifiedSuperType=\(qualifiedSuperValue)" + fields.linkField + fields.symbolFQNameField
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
-            let args = arguments.map { String($0.rawValue) }.joined(separator: ",")
-            let symbolValue = symbol.map { String($0.rawValue) } ?? "_"
-            let resultValue = result.map { String($0.rawValue) } ?? "_"
-            let thrownResultValue = thrownResult.map { String($0.rawValue) } ?? "_"
-            let calleeName = base64Encode(interner.resolve(callee))
-            let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
-            let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
-            let symbolFQName = symbol.flatMap {
-                inlineSymbolFQName($0, interner: interner, symbols: symbols)
-            }
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
+            let fields = serializeInlineCallFields(
+                symbol: symbol,
+                callee: callee,
+                arguments: arguments,
+                result: result,
+                thrownResult: thrownResult,
+                interner: interner,
+                functionLinkNames: functionLinkNames,
+                symbols: symbols
+            )
             let dispatchStr = switch dispatch {
             case let .vtable(slot):
                 "vtable:\(slot)"
@@ -424,27 +432,21 @@ public final class CodegenPhase: CompilerPhase {
             case let .itableDynamic(interfaceTypeID, methodSlot):
                 "itableDynamic:\(interfaceTypeID):\(methodSlot)"
             }
-            return "virtualCall symbol=\(symbolValue) calleeB64=\(calleeName)"
-                + " receiver=\(receiver.rawValue) args=[\(args)]"
-                + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
-                + " thrownResult=\(thrownResultValue) dispatch=\(dispatchStr)"
-                + linkField + symbolFQNameField
+            return "virtualCall symbol=\(fields.symbolValue) calleeB64=\(fields.calleeName)"
+                + " receiver=\(receiver.rawValue) args=[\(fields.args)]"
+                + " result=\(fields.resultValue) canThrow=\(canThrow ? 1 : 0)"
+                + " thrownResult=\(fields.thrownResultValue) dispatch=\(dispatchStr)"
+                + fields.linkField + fields.symbolFQNameField
         case let .jumpIfNotNull(value, target):
             return "jumpIfNotNull value=\(value.rawValue) target=\(target)"
         case let .copy(from, to):
             return "copy from=\(from.rawValue) to=\(to.rawValue)"
         case let .storeGlobal(value, symbol):
-            let symbolFQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols)
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
-            return "storeGlobal value=\(value.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
+            return "storeGlobal value=\(value.rawValue) symbol=\(symbol.rawValue)"
+                + inlineSymbolFQNameField(symbol, interner: interner, symbols: symbols)
         case let .loadGlobal(result, symbol):
-            let symbolFQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols)
-            let symbolFQNameField = symbolFQName.map {
-                " symbolFQNameB64=\(base64Encode($0))"
-            } ?? ""
-            return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
+            return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)"
+                + inlineSymbolFQNameField(symbol, interner: interner, symbols: symbols)
         case let .rethrow(value):
             return "rethrow value=\(value.rawValue)"
         case let .nonLocalReturn(value, target):
@@ -474,6 +476,41 @@ public final class CodegenPhase: CompilerPhase {
         case .endFinallyGuard:
             return "endFinallyGuard"
         }
+    }
+
+    /// Serialized field columns shared by `.call` and `.virtualCall`: both
+    /// record kinds lead with the same symbol/callee/args/result/throw/link
+    /// fields before appending their kind-specific fields.
+    private func serializeInlineCallFields(
+        symbol: SymbolID?,
+        callee: InternedString,
+        arguments: [KIRExprID],
+        result: KIRExprID?,
+        thrownResult: KIRExprID?,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        symbols: SymbolTable?
+    ) -> (args: String, symbolValue: String, resultValue: String, thrownResultValue: String, calleeName: String, linkField: String, symbolFQNameField: String) {
+        let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
+        let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
+        return (
+            args: arguments.map { String($0.rawValue) }.joined(separator: ","),
+            symbolValue: symbol.map { String($0.rawValue) } ?? "_",
+            resultValue: result.map { String($0.rawValue) } ?? "_",
+            thrownResultValue: thrownResult.map { String($0.rawValue) } ?? "_",
+            calleeName: base64Encode(interner.resolve(callee)),
+            linkField: linkField,
+            symbolFQNameField: inlineSymbolFQNameField(symbol, interner: interner, symbols: symbols)
+        )
+    }
+
+    private func inlineSymbolFQNameField(
+        _ symbol: SymbolID?,
+        interner: StringInterner,
+        symbols: SymbolTable?
+    ) -> String {
+        symbol.flatMap { inlineSymbolFQName($0, interner: interner, symbols: symbols) }
+            .map { " symbolFQNameB64=\(base64Encode($0))" } ?? ""
     }
 
     private func inlineReturnTargetLink(
@@ -637,13 +674,6 @@ public final class CodegenPhase: CompilerPhase {
         )
         return encoder.serializeIndexed(records)
     }
-
-    // MARK: - REFL-004: Runtime Reflection Metadata
-
-    /// Builds MetadataRecords for all declared symbols (classes, interfaces,
-    /// objects, enum classes, annotation classes, and functions) from the
-    /// semantic analysis state. These records are embedded as
-    /// runtime-accessible binary metadata in the compiled output.
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,
         functionLinkInfo: FunctionLinkInfo
@@ -659,12 +689,11 @@ public final class CodegenPhase: CompilerPhase {
             interner: ctx.interner,
             functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
             inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
-            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata
+            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata,
+            runtimeReflectionOnly: true
         )
     }
 
-    /// Parses the owner symbol ID embedded in a synthetic top-level object
-    /// initializer name (`__object_init_<objectID>_<initID>`).
     private static func objectInitializerOwnerSymbolID(from name: String) -> Int32? {
         let prefix = "__object_init_"
         guard name.hasPrefix(prefix) else { return nil }
@@ -674,8 +703,6 @@ public final class CodegenPhase: CompilerPhase {
         return Int32(first)
     }
 
-    /// Parses the owner class symbol ID embedded in a synthetic companion
-    /// object initializer name (`__companion_init_<ownerID>_<companionID>_<initID>`).
     private static func companionInitializerOwnerSymbolID(from name: String) -> Int32? {
         let prefix = "__companion_init_"
         guard name.hasPrefix(prefix) else { return nil }
@@ -685,18 +712,12 @@ public final class CodegenPhase: CompilerPhase {
         return Int32(ownerID)
     }
 
-    /// Parses the object/companion symbol ID embedded in a guarded lazy
-    /// initializer (`__object_lazy_init_<objectID>` or
-    /// `__companion_lazy_init_<companionID>`).
     private static func objectLazyInitializerOwnerSymbolID(from name: String) -> Int32? {
         for prefix in ["__object_lazy_init_", "__companion_lazy_init_"] where name.hasPrefix(prefix) {
             return Int32(name.dropFirst(prefix.count))
         }
         return nil
     }
-    /// Returns the owner enum class symbol for a synthetic enum static
-    /// initializer (`__enum_static_init_<ClassName>`) by looking up the
-    /// function's parent FQ name in `sema.symbols`.
     private static func enumStaticInitOwnerSymbolID(
         from name: String,
         symbol: SymbolID,

@@ -374,10 +374,8 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let applySymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "apply"
-                }
-                #expect(applySymbol != nil)
+                let applySymbol = try #require(sema.symbols.lookup(fqName: ["sample1", "apply"].map(interner.intern)))
+                #expect(sema.symbols.symbol(applySymbol)?.kind == .function)
 
             }
 
@@ -402,13 +400,9 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let fieldSymbols = sema.symbols.allSymbols().filter { symbol in
-                    symbol.kind == .field && (
-                        interner.resolve(symbol.name) == "RED" ||
-                            interner.resolve(symbol.name) == "GREEN" ||
-                            interner.resolve(symbol.name) == "BLUE"
-                    )
-                }
+                let fieldSymbols = ["RED", "GREEN", "BLUE"].compactMap { entry in
+                    sema.symbols.lookup(fqName: ["sample3", "Color", entry].map(interner.intern))
+                }.filter { sema.symbols.symbol($0)?.kind == .field }
                 #expect(fieldSymbols.count >= 1, "Expected at least 1 enum entry field")
 
             }
@@ -420,10 +414,8 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let objectSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "Singleton" && symbol.kind == .object
-                }
-                #expect(objectSymbol != nil)
+                let objectSymbol = try #require(sema.symbols.lookup(fqName: ["sample4", "Singleton"].map(interner.intern)))
+                #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
 
             }
 
@@ -434,10 +426,8 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let interfaceSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "Greetable" && symbol.kind == .interface
-                }
-                #expect(interfaceSymbol != nil)
+                let interfaceSymbol = try #require(sema.symbols.lookup(fqName: ["sample5", "Greetable"].map(interner.intern)))
+                #expect(sema.symbols.symbol(interfaceSymbol)?.kind == .interface)
 
             }
 
@@ -448,10 +438,8 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let aliasSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "Name" && symbol.kind == .typeAlias
-                }
-                #expect(aliasSymbol != nil)
+                let aliasSymbol = try #require(sema.symbols.lookup(fqName: ["sample6", "Name"].map(interner.intern)))
+                #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
 
             }
 
@@ -462,15 +450,9 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let shoutSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "shout"
-                }
-                #expect(shoutSymbol != nil)
-                if let sym = shoutSymbol,
-                   let sig = sema.symbols.functionSignature(for: sym.id)
-                {
-                    #expect(sig.receiverType != nil)
-                }
+                let shoutSymbol = try #require(sema.symbols.lookup(fqName: ["sample7", "shout"].map(interner.intern)))
+                let signature = try #require(sema.symbols.functionSignature(for: shoutSymbol))
+                #expect(signature.receiverType != nil)
 
             }
 
@@ -481,16 +463,9 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let typeCheckSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "typeCheck"
-                }
-                #expect(typeCheckSymbol != nil)
-                if let sym = typeCheckSymbol,
-                   let sig = sema.symbols.functionSignature(for: sym.id)
-                {
-                    let reifiedEmpty = sig.reifiedTypeParameterIndices.isEmpty
-                    #expect(!reifiedEmpty)
-                }
+                let typeCheckSymbol = try #require(sema.symbols.lookup(fqName: ["sample8", "typeCheck"].map(interner.intern)))
+                let signature = try #require(sema.symbols.functionSignature(for: typeCheckSymbol))
+                #expect(!signature.reifiedTypeParameterIndices.isEmpty)
 
             }
 
@@ -501,14 +476,10 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let incrementSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "increment"
-                }
-                #expect(incrementSymbol != nil)
-                let countSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "count" && symbol.kind == .property
-                }
-                #expect(countSymbol != nil)
+                let incrementSymbol = try #require(sema.symbols.lookup(fqName: ["sample9", "Counter", "increment"].map(interner.intern)))
+                #expect(sema.symbols.symbol(incrementSymbol)?.kind == .function)
+                let countSymbol = try #require(sema.symbols.lookup(fqName: ["sample9", "Counter", "count"].map(interner.intern)))
+                #expect(sema.symbols.symbol(countSymbol)?.kind == .property)
 
             }
 
@@ -889,10 +860,8 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let greetingSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "greeting"
-                }
-                #expect(greetingSymbol != nil)
+                let greetingSymbol = try #require(sema.symbols.lookup(fqName: ["sample1", "greeting"].map(interner.intern)))
+                #expect(sema.symbols.symbol(greetingSymbol)?.kind == .property)
 
             }
 
@@ -903,15 +872,9 @@ struct DataFlowAndSemaRegressionTests {
 
 
 
-                let nullableSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "nullable"
-                }
-                #expect(nullableSymbol != nil)
-                if let sym = nullableSymbol,
-                   let sig = sema.symbols.functionSignature(for: sym.id)
-                {
-                    #expect(sig.parameterTypes.count == 1)
-                }
+                let nullableSymbol = try #require(sema.symbols.lookup(fqName: ["sample2", "nullable"].map(interner.intern)))
+                let signature = try #require(sema.symbols.functionSignature(for: nullableSymbol))
+                #expect(signature.parameterTypes.count == 1)
 
             }
 

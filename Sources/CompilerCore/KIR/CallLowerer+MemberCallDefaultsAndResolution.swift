@@ -302,7 +302,8 @@ extension CallLowerer {
         sourceArgumentCount: Int? = nil,
         hasHOFLambdaArg: Bool = false,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        receiverTypeOverride: TypeID? = nil
     ) -> InternedString {
         if let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
             chosenCallee: chosenCallee,
@@ -314,7 +315,7 @@ extension CallLowerer {
         }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let receiverType = receiverTypeOverride ?? sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
@@ -510,7 +511,8 @@ extension CallLowerer {
             return fallback
         }
 
-        if isCoroutineHandleReceiverType(receiverType, sema: sema, interner: interner) {
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        if receiverClassifier.isCoroutineHandleReceiverType(receiverType) {
             switch fallbackName {
             case "await":
                 return interner.intern("kk_kxmini_async_await")
@@ -536,7 +538,7 @@ extension CallLowerer {
                 break
             }
         }
-        if isChannelReceiverType(receiverType, sema: sema, interner: interner) {
+        if receiverClassifier.isChannelReceiverType(receiverType) {
             switch fallbackName {
             case "send":
                 return interner.intern("kk_channel_send")
@@ -595,48 +597,6 @@ extension CallLowerer {
             && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
     }
 
-    func resultRuntimeHOFMemberCalleeName(
-        memberName: String,
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> String? {
-        guard isKotlinResultType(receiverType, sema: sema, interner: interner) else {
-            return nil
-        }
-        switch memberName {
-        case "getOrElse":
-            return "kk_result_getOrElse"
-        case "map":
-            return "kk_result_map"
-        case "fold":
-            return "kk_result_fold"
-        case "onSuccess":
-            return "kk_result_onSuccess"
-        case "onFailure":
-            return "kk_result_onFailure"
-        case "recover":
-            return "kk_result_recover"
-        case "recoverCatching":
-            return "kk_result_recoverCatching"
-        default:
-            return nil
-        }
-    }
-
-    func isKotlinResultType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
-            return false
-        }
-        return symbol.fqName.map(interner.resolve) == ["kotlin", "Result"]
-    }
 
     func closedRangeInterfaceRuntimeName(
         memberName: String,
@@ -724,6 +684,15 @@ extension CallLowerer {
                     floatingPointElementType == sema.types.floatType
                         ? "__kk_float_range_isEmpty"
                         : "__kk_double_range_isEmpty"
+                )
+            case "lessThanOrEquals":
+                // KUU-763: tracked floating-point range receivers lower the
+                // IEEE-754 `a <= b` comparison through the typed runtime bridge;
+                // interface-typed receivers use the `_or_null` probe instead.
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_lessThanOrEquals"
+                        : "__kk_double_range_lessThanOrEquals"
                 )
             default:
                 break

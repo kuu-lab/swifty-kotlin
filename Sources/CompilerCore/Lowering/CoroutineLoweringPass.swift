@@ -56,13 +56,13 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("flowOn"),
             ctx.interner.intern("debounce"),
             ctx.interner.intern("sample"),
-            ctx.interner.intern("delayEach"),
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
             ctx.interner.intern("kk_suspend_function_invoke_3"),
             ctx.interner.intern("kk_suspend_function_invoke_4"),
             ctx.interner.intern("kk_suspend_function_invoke_5"),
+            ctx.interner.intern("kk_suspend_function_invoke_6"),
             ctx.interner.intern("kk_flow_create"),
             ctx.interner.intern("kk_channel_flow_create"),
             ctx.interner.intern("kk_callback_flow_create"),
@@ -132,6 +132,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_suspend_function_invoke_3"),
             ctx.interner.intern("kk_suspend_function_invoke_4"),
             ctx.interner.intern("kk_suspend_function_invoke_5"),
+            ctx.interner.intern("kk_suspend_function_invoke_6"),
             ctx.interner.intern("kk_suspend_coroutine"),
             // CORO-004: await / join are real suspend points that consume the
             // caller continuation so the runtime can resume them without blocking.
@@ -208,6 +209,7 @@ final class CoroutineLoweringPass: LoweringPass {
             let loweredSemaSymbol = loweredFunctionSymbol.semaSymbol
             let suspendLoweringPlan = analyzeSuspendLoweringPlan(
                 originalBody: suspendFunction.body,
+                module: module,
                 suspendFunctionSymbols: suspendFunctionSymbols,
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames

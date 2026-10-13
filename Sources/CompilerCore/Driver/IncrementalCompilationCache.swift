@@ -55,7 +55,6 @@ public final class IncrementalCompilationCache {
         self.managedAncestorBase = managedAncestorBase.map(IncrementalCacheTrust.normalize)
     }
 
-    // MARK: - Compiler-managed default location
 
     /// Per-user private cache root for compiler-managed state: the
     /// `<caches>/kswiftk` directory holding the integrity key and the
@@ -125,7 +124,6 @@ public final class IncrementalCompilationCache {
         return FileFingerprint.sha256Hex(Data(material.utf8))
     }
 
-    // MARK: - Loading previous state
 
     private static let supportedManifestVersion = 1
 
@@ -190,7 +188,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    // MARK: - Change detection
 
     public func computeCurrentFingerprints(for paths: [String], sourceManager: SourceManager) {
         currentFingerprints = [:]
@@ -335,26 +332,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    /// Validates and resolves a manifest-derived `relativePath` against the
-    /// cache directory. Returns `nil` if the path is invalid, traverses symlinks,
-    /// or resolves outside the cache.
-    private static func resolvedAndContainedCachePath(
-        relativePath: String,
-        cachePath: String,
-        expectedKind: CachedOutputArtifactKind = .file
-    ) -> String? {
-        guard let rootFD = CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) else {
-            return nil
-        }
-        defer { close(rootFD) }
-        return CacheSecurity.validateContainedArtifactPath(
-            cacheRootFD: rootFD,
-            cachePath: cachePath,
-            relativePath: relativePath,
-            expectedKind: expectedKind
-        )
-    }
-
     public var hasPreviousCache: Bool {
         !previousFingerprints.isEmpty
     }
@@ -391,7 +368,6 @@ public final class IncrementalCompilationCache {
         return state
     }
 
-    // MARK: - Saving state
 
     /// Saves the current fingerprints and the updated dependency graph to disk.
     public func saveState(
@@ -540,12 +516,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    private static func removeItemIfPresent(at path: String, fileManager fm: FileManager) throws {
-        if fm.fileExists(atPath: path) {
-            try fm.removeItem(atPath: path)
-        }
-    }
-
     private static func outputArtifactPath(for options: CompilerOptions) -> String {
         switch options.emit {
         case .kirDump:
@@ -613,29 +583,21 @@ public final class IncrementalCompilationCache {
             runtimeFlags: options.runtimeFlags,
             stdlibOnly: options.stdlibOnly,
             stdlibLibraryPath: options.stdlibLibraryPath,
-            stdlibManifestHash: stdlibManifestHash
+            stdlibManifestHash: stdlibManifestHash,
+            entryPointFQName: options.entryPointFQName
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = (try? encoder.encode(config)) ?? Data()
-        return stableFNV1a64Hex(String(decoding: data, as: UTF8.self))
+        return StableFNV1a64.hex(String(decoding: data, as: UTF8.self))
     }
 
     private static func isOutputAffectingFrontendFlag(_ flag: String) -> Bool {
         flag != "incremental" && flag != "time-phases" && !flag.hasPrefix("jobs=")
     }
 
-    private static func stableFNV1a64Hex(_ value: String) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-        for byte in value.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x100_0000_01B3
-        }
-        return String(format: "%016llx", hash)
-    }
 }
 
-// MARK: - Cache manifest model
 
 struct CacheManifest: Codable {
     let version: Int
@@ -683,6 +645,7 @@ private struct IncrementalBuildConfiguration: Encodable {
     let stdlibOnly: Bool
     let stdlibLibraryPath: String?
     let stdlibManifestHash: String
+    let entryPointFQName: String?
 }
 
 private struct IncrementalTargetTriple: Encodable {
@@ -692,7 +655,6 @@ private struct IncrementalTargetTriple: Encodable {
     let osVersion: String?
 }
 
-// MARK: - Cache security helper
 
 enum CacheSecurity {
     /// Checks whether the file attributes correspond to ownership by the current effective user
@@ -780,35 +742,6 @@ enum CacheSecurity {
         return fd
     }
 
-    /// Reads data from a regular file inside parentFD using O_NOFOLLOW.
-    static func readData(in parentFD: Int32, filename: String) -> Data? {
-        guard !filename.isEmpty, filename != ".", filename != "..", !filename.contains("/") else {
-            return nil
-        }
-        let fd = openat(parentFD, filename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        guard fd >= 0 else { return nil }
-        defer { close(fd) }
-
-        var st = stat()
-        guard fstat(fd, &st) == 0 else { return nil }
-        guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
-        guard isOwnerAndModeSecure(st: st) else { return nil }
-
-        var data = Data()
-        let bufferSize = 8192
-        var buffer = [UInt8](repeating: 0, count: bufferSize)
-        while true {
-            let bytesRead = read(fd, &buffer, bufferSize)
-            if bytesRead < 0 {
-                return nil
-            }
-            if bytesRead == 0 {
-                break
-            }
-            data.append(buffer, count: bytesRead)
-        }
-        return data
-    }
 
     /// Writes data atomically into parentFD using a temporary file and renameat.
     static func writeAtomicFile(in parentFD: Int32, filename: String, data: Data) -> Bool {

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -11,52 +12,9 @@ import Testing
 // __kk_throwable_new_with_cause runtime entry points (and kk_op_cast's
 // ClassCastException) carried no runtime type identity, so kk_op_is's nominal-type
 // fallback treated any non-exact-match as a match.
-private func runExceptionDiscriminationCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    outputPath: String
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: .executable,
-        target: defaultTargetTriple()
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    try CodegenPhase().run(ctx)
-    return ctx
-}
 
 @Suite
 struct CodegenBackendExceptionSiblingTypeDiscriminationTests {
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runExceptionDiscriminationCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCatchClauseDoesNotWronglyMatchUnrelatedSiblingException() throws {

@@ -1,16 +1,4 @@
 
-private func isConstructorVisibilityModifier(_ kind: TokenKind) -> Bool {
-    guard case .keyword(let keyword) = kind else {
-        return false
-    }
-    switch keyword {
-    case .internal, .private, .public, .protected, .external:
-        return true
-    default:
-        return false
-    }
-}
-
 extension BuildASTPhase {
     func declarationEnumEntries(
         from nodeID: NodeID,
@@ -251,9 +239,6 @@ extension BuildASTPhase {
         return aliases
     }
 
-    /// Parses supertype entries for class declarations, including optional
-    /// `by expr` delegation (e.g. `class Foo(impl: Printer) : Printer by impl`).
-    /// Returns `[SuperTypeEntry]`; use `declarationSuperTypes` for interface/object.
     func declarationSuperTypeEntries(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -299,9 +284,9 @@ extension BuildASTPhase {
         }
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
-        // Primary constructors may use the explicit `constructor` keyword with an
-        // optional visibility modifier and/or annotations; skip them before
-        // looking for the supertype colon.
+        // Primary constructors may use the explicit `constructor` keyword with
+        // modifiers such as `actual`, a visibility modifier, and/or annotations.
+        // Walk general modifiers here just as scanPrimaryConstructorHeader does.
         while index < tokens.count {
             let token = tokens[index]
             if token.kind == .symbol(.at) {
@@ -313,7 +298,7 @@ extension BuildASTPhase {
                 }
                 break
             }
-            if isConstructorVisibilityModifier(token.kind) {
+            if modifier(from: token) != nil {
                 index += 1
                 continue
             }
@@ -361,7 +346,6 @@ extension BuildASTPhase {
         return entries
     }
 
-    /// Parses a single supertype chunk, optionally with `by expr` (class delegation).
     private func parseSuperTypeEntry(
         from tokens: [Token],
         interner: StringInterner,
@@ -420,16 +404,11 @@ extension BuildASTPhase {
         return entries.map(\.typeRef)
     }
 
-    /// A supertype reference together with the arguments of its optional
-    /// trailing constructor invocation.
     private struct ParsedSuperType {
         let ref: TypeRefID
         let constructorArgs: [CallArgument]
     }
 
-    /// Parses a supertype type reference plus an optional trailing constructor
-    /// invocation `(args)`, while still allowing function type literals such as
-    /// `() -> V` and receiver function types such as `String.() -> Unit`.
     private func parseSuperTypeTypeRef(
         from tokens: [Token],
         interner: StringInterner,
@@ -453,7 +432,6 @@ extension BuildASTPhase {
             return ParsedSuperType(ref: parsed.ref, constructorArgs: [])
         }
 
-        // A named supertype may be followed by a constructor invocation `(...)`.
         guard tokens[remainingStart].kind == .symbol(.lParen) else {
             return nil
         }
@@ -486,8 +464,6 @@ extension BuildASTPhase {
         return ParsedSuperType(ref: parsed.ref, constructorArgs: args)
     }
 
-    /// Splits the token run between the parentheses of a superclass constructor
-    /// invocation on top-level commas and parses each chunk as a call argument.
     private func parseSuperTypeConstructorArgs(
         _ tokens: [Token],
         interner: StringInterner,
@@ -545,12 +521,25 @@ extension BuildASTPhase {
         var nestedClasses: [DeclID] = []
         var nestedObjects: [DeclID] = []
         var companionObject: DeclID?
+        var pendingMemberAnnotations: [AnnotationNode] = []
 
         for child in arena.children(of: bodyBlockID) {
-            guard case let .node(childID) = child else { continue }
+            guard case let .node(childID) = child else {
+                pendingMemberAnnotations = []
+                continue
+            }
+            if arena.node(childID).kind == .statement {
+                pendingMemberAnnotations = declarationPrefixAnnotations(
+                    from: childID, in: arena, interner: interner
+                ) ?? []
+                continue
+            }
+            let prefixedAnnotations = pendingMemberAnnotations
+            pendingMemberAnnotations = []
             processMemberChild(
                 childID,
                 in: arena, interner: interner, astArena: astArena,
+                prefixedAnnotations: prefixedAnnotations,
                 functions: &functions, properties: &properties,
                 nestedClasses: &nestedClasses, nestedObjects: &nestedObjects,
                 companionObject: &companionObject
@@ -560,11 +549,48 @@ extension BuildASTPhase {
         return (functions, properties, nestedClasses, nestedObjects, companionObject)
     }
 
+    private func declarationPrefixAnnotations(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner
+    ) -> [AnnotationNode]? {
+        let tokens = collectTokens(from: nodeID, in: arena)
+        guard !tokens.isEmpty else {
+            return nil
+        }
+
+        var annotations: [AnnotationNode] = []
+        var sawModifier = false
+        var index = 0
+        while index < tokens.count {
+            if tokens[index].kind == .symbol(.at),
+               let parsed = AnnotationParsingSupport.parseAnnotation(
+                   from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+               )
+            {
+                annotations.append(parsed.annotation)
+                index = parsed.nextIndex
+                continue
+            }
+            guard modifier(from: tokens[index]) != nil else {
+                return nil
+            }
+            sawModifier = true
+            index += 1
+        }
+
+        guard sawModifier, !annotations.isEmpty else {
+            return nil
+        }
+        return annotations
+    }
+
     private func processMemberChild(
         _ childID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena,
+        prefixedAnnotations: [AnnotationNode],
         functions: inout [DeclID],
         properties: inout [DeclID],
         nestedClasses: inout [DeclID],
@@ -574,7 +600,10 @@ extension BuildASTPhase {
         let childNode = arena.node(childID)
         switch childNode.kind {
         case .funDecl:
-            let funDecl = makeFunDecl(from: childID, in: arena, interner: interner, astArena: astArena)
+            let funDecl = makeFunDecl(
+                from: childID, in: arena, interner: interner,
+                astArena: astArena, prefixedAnnotations: prefixedAnnotations
+            )
             functions.append(astArena.appendDecl(.funDecl(funDecl)))
         case .propertyDecl:
             let propDecl = makePropertyDecl(from: childID, in: arena, interner: interner, astArena: astArena)
@@ -598,12 +627,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// Walks the class body block and records the declaration-order sequence
-    /// of property initializers and `init { }` blocks.  The returned array
-    /// contains `.property(i)` / `.initBlock(j)` entries whose indices
-    /// correspond to the positions in `ClassDecl.memberProperties` and
-    /// `ClassDecl.initBlocks` respectively.
-    ///
     /// `ClassDecl.memberProperties` is `constructorProperties + members.properties`
     /// (primary-constructor `val`/`var` params first, then body-declared
     /// properties — see `makeClassDecl`), so `propertyIndex` must start at
@@ -699,9 +722,7 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        // The trailing lambda is included in these tokens so that it
-        // participates in ordinary call parsing, overload resolution, and
-        // type inference. Remove only declaration-level semicolons; semicolons
+        // Remove only declaration-level semicolons; semicolons
         // in the lambda body must remain available to the block parser.
         let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {

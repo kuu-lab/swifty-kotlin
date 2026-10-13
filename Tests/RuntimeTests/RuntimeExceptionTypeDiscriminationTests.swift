@@ -10,16 +10,7 @@ import Testing
 /// known and simply didn't contain the requested type.
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeExceptionTypeDiscriminationTests {
-    // Mirrors RuntimeTypeCheckToken's encoding (CompilerCore/KIR/RuntimeTypeCheckToken.swift);
-    // kept in sync per that type's own doc comment.
-    private static let nominalBase: Int64 = 6
     private static let stringBaseToken = 2
-    private static let payloadShift: Int64 = 9
-
-    private func nominalTypeToken(for fqName: String) -> Int {
-        let typeID = runtimeStableNominalTypeID(fqName: fqName)
-        return Int(Self.nominalBase | (typeID << Self.payloadShift))
-    }
 
     private func throwableBox(from raw: Int) -> RuntimeThrowableBox? {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }

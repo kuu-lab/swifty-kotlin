@@ -447,7 +447,7 @@ struct KotlinContractsEffectModelTests {
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
                 let fnSymbol = sema.symbols.allSymbols().first {
-                    interner.resolve($0.name) == "nonNullResult"
+                    $0.name == interner.intern("nonNullResult")
                 }
                 #expect(fnSymbol != nil, "nonNullResult should be resolved")
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sample2Diagnostics)
@@ -668,8 +668,7 @@ struct KotlinContractsEffectModelTests {
                 )
                 let callsInPlaceAnnotations = sema.symbols.annotations(for: callsInPlaceSymbol)
                 let callsInPlaceHasExperimentalContracts = callsInPlaceAnnotations.contains {
-                    $0.annotationFQName == "ExperimentalContracts"
-                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     callsInPlaceHasExperimentalContracts,
@@ -729,8 +728,7 @@ struct KotlinContractsEffectModelTests {
                 )
                 let returnsAnnotations = sema.symbols.annotations(for: returnsSymbol)
                 let returnsHasExperimentalContracts = returnsAnnotations.contains {
-                    $0.annotationFQName == "ExperimentalContracts"
-                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     returnsHasExperimentalContracts,
@@ -799,8 +797,7 @@ struct KotlinContractsEffectModelTests {
                 )
                 let returnsNotNullAnnotations = sema.symbols.annotations(for: returnsNotNullSymbol)
                 let returnsNotNullHasExperimentalContracts = returnsNotNullAnnotations.contains {
-                    $0.annotationFQName == "ExperimentalContracts"
-                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     returnsNotNullHasExperimentalContracts,
@@ -859,16 +856,14 @@ struct KotlinContractsEffectModelTests {
                 )
                 let holdsInAnnotations = sema.symbols.annotations(for: holdsInSymbol)
                 let holdsInHasExperimentalContracts = holdsInAnnotations.contains {
-                    $0.annotationFQName == "ExperimentalContracts"
-                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     holdsInHasExperimentalContracts,
                     "HoldsIn should carry ExperimentalContracts"
                 )
                 let holdsInHasExperimentalExtended = holdsInAnnotations.contains {
-                    $0.annotationFQName == "ExperimentalExtendedContracts"
-                        || $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
+                    $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
                 }
                 #expect(
                     holdsInHasExperimentalExtended,
@@ -893,8 +888,7 @@ struct KotlinContractsEffectModelTests {
                     "Boolean.holdsIn should be source-backed"
                 )
                 let holdsInFnHasExperimentalExtended = sema.symbols.annotations(for: holdsInFunction).contains {
-                    $0.annotationFQName == "ExperimentalExtendedContracts"
-                        || $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
+                    $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
                 }
                 #expect(
                     holdsInFnHasExperimentalExtended,
@@ -952,7 +946,7 @@ struct KotlinContractsEffectModelTests {
                     else {
                         return false
                     }
-                    return interner.resolve(name) == "assertNotNull"
+                    return name == interner.intern("assertNotNull")
                 }
                 let chosenAssertNotNullCandidates = assertNotNullCalls.compactMap {
                     sema.bindings.callBinding(for: $0)?.chosenCallee

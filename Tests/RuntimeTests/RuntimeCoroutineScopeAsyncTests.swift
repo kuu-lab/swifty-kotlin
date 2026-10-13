@@ -138,7 +138,13 @@ struct RuntimeCoroutineScopeAsyncTests {
         let handle = kk_coroutine_scope_async_with_cont(scope, override, 1, entry, continuation, 1)
         let state = try #require(runtimeContinuationState(from: continuation))
         #expect(state.makeContinuationContext().name == "child")
-        #expect(state.scope === runtimeCoroutineScope(from: scope))
+        // The continuation's scope is a fresh child scope carrying the async
+        // task's Job — nested builders must attach to the task, not the
+        // receiver scope (DeferredCoroutine contract).
+        let task = try #require(runtimeAsyncTask(from: handle))
+        #expect(state.scope !== runtimeCoroutineScope(from: scope))
+        #expect(state.scope?.job === task.completionJob)
+        #expect(state.scope?.context.jobHandleRaw == handle)
         #expect(kk_kxmini_async_await(handle, 0) == 1)
         #expect(kk_coroutine_scope_wait(scope) == runtimeNullSentinelInt)
     }
@@ -219,7 +225,10 @@ struct RuntimeCoroutineScopeAsyncTests {
             #expect(failure == exception)
             #expect(kk_context_get_name(context) != 0)
             #expect(runtimeAsyncTask(from: kk_context_get_job(context)) != nil)
-            #expect(kk_job_is_completed(kk_context_get_job(context)) == 1)
+            // kotlinx invokes the handler after cancellation starts but before
+            // the failing coroutine reaches its terminal state.
+            #expect(kk_job_is_completed(kk_context_get_job(context)) == 0)
+            #expect(kk_job_is_active(kk_context_get_job(context)) == 0)
             #expect(kk_job_is_cancelled(kk_context_get_job(context)) == 1)
             called.signal()
         }
@@ -235,6 +244,8 @@ struct RuntimeCoroutineScopeAsyncTests {
         _ = kk_job_join(job, 0)
         #expect(called.wait(timeout: .now() + 2) == .success)
         #expect(kk_job_is_cancelled(parent) == 0)
+        #expect(kk_job_is_completed(job) == 1)
+        #expect(kk_job_is_active(job) == 0)
         #expect(kk_job_is_cancelled(job) == 1)
         _ = kk_coroutine_scope_wait(scope)
     }

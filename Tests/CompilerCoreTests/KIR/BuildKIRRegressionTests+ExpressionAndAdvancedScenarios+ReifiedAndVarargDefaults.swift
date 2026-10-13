@@ -42,6 +42,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testVarargMultiplePositionalArgsPackedToArrayInKIR() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun sum(vararg items: Int): Int = 0
         fun main() = sum(1, 2, 3)
@@ -51,15 +52,16 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let mainFunction = findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "main"
+            function.name == KnownCompilerNames(interner: ctx.interner).main
         }
         let body = try #require(mainFunction?.body)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg packing, got: \(callNames)")
-        #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for vararg packing, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for vararg packing, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for vararg packing, got: \(callNames)")
     }
 
     @Test func testVarargWithDefaultParamPacksCorrectly() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun greet(prefix: String = "Hi", vararg names: Int): Int = 0
         fun main() = greet("Hello", 1, 2)
@@ -69,14 +71,15 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let mainFunction = findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "main"
+            function.name == KnownCompilerNames(interner: ctx.interner).main
         }
         let body = try #require(mainFunction?.body)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg packing with default arg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for vararg packing with default arg, got: \(callNames)")
     }
 
     @Test func testVarargEmptyProducesEmptyArrayInKIR() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun noArgs(vararg items: Int): Int = 0
         fun main() = noArgs()
@@ -86,11 +89,11 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let mainFunction = findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "main"
+            function.name == KnownCompilerNames(interner: ctx.interner).main
         }
         let body = try #require(mainFunction?.body)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for empty vararg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for empty vararg, got: \(callNames)")
     }
 
     @Test func testDefaultArgGeneratesStubFunctionInKIR() throws {
@@ -131,8 +134,9 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
+        let stubSymbol = try defaultStubSymbol(named: "compute", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "compute$default"
+            function.symbol == stubSymbol
         }
         #expect(stubFunction != nil, "Expected compute$default stub function")
         if let stub = stubFunction {
@@ -152,8 +156,9 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
+        let stubSymbol = try defaultStubSymbol(named: "ordered", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "ordered$default"
+            function.symbol == stubSymbol
         }
         #expect(stubFunction != nil, "Expected ordered$default stub function")
         if let stub = stubFunction {

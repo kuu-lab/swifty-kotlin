@@ -34,8 +34,10 @@ extension BuildKIRRegressionTests {
             )
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
             #expect(callees.contains(item.callee), "\(item.function): \(callees.sorted())")
-            #expect(!callees.contains("kk_\(item.callee)"))
-            #expect(!callees.contains("__kk_\(item.callee)"))
+            try expectSourceBackedCalls(
+                named: ctx.interner.intern(item.callee), in: body, context: ctx, count: 1
+            )
+            try expectResolvedKIRCallTargets(in: body, context: ctx)
         }
     }
 }

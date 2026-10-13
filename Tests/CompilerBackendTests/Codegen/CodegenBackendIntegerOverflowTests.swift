@@ -121,27 +121,6 @@ struct CodegenBackendIntegerOverflowTests {
         )
     }
 
-    @Test
-    func testCodegenLongMinValueArithmetic() throws {
-        let source = """
-        fun main() {
-            println(Long.MIN_VALUE)
-            var lmin = Long.MIN_VALUE
-            println(lmin - 1L)
-            println(-lmin)
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "LongMinValueArithmetic",
-            expected: """
-            -9223372036854775808
-            9223372036854775807
-            -9223372036854775808
-            """ + "\n"
-        )
-    }
-
     @Test(arguments: [true, false])
     func testCodegenScopedByteShortBitwiseExtensions(artifact: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)

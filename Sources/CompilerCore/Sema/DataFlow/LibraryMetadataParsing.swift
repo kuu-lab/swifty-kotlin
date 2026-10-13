@@ -304,7 +304,8 @@ extension DataFlowSemaPhase {
         let fallback = FunctionSignature(
             parameterTypes: Array(repeating: platformAny, count: max(0, record.arity)),
             returnType: platformAny,
-            isSuspend: record.isSuspend
+            isSuspend: record.isSuspend,
+            hasExplicitInlineParameterMetadata: false
         )
         guard let encodedSignature = record.typeSignature else {
             return fallback
@@ -508,6 +509,11 @@ extension DataFlowSemaPhase {
             }
         }
         var valueParameterSymbols: [SymbolID] = []
+        let enumCompanionValueOf = functionType.params.count == 1
+            && isImportedEnumCompanionValueOf(
+                record: record,
+                interner: interner
+            )
         for (index, _) in functionType.params.enumerated() {
             let name: String
             if index < record.valueParameterNames.count && !record.valueParameterNames[index].isEmpty {
@@ -522,10 +528,12 @@ extension DataFlowSemaPhase {
                 name: paramName,
                 fqName: paramFQName,
                 declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .importedLibrary]
+                visibility: enumCompanionValueOf ? .private : .public,
+                flags: enumCompanionValueOf ? [.synthetic] : [.synthetic, .importedLibrary]
             )
-            symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
+            if !enumCompanionValueOf {
+                symbols.setParentSymbol(ownerSymbol, for: paramSymbol)
+            }
             valueParameterSymbols.append(paramSymbol)
         }
         // STDLIB-592: restore `contract { callsInPlace(param, kind) }` effects
@@ -564,11 +572,30 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
+            hasExplicitInlineParameterMetadata: record.valueParameterAllowsNonLocalReturn.count == functionType.params.count,
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
             typeParameterUpperBoundsList: typeParameterUpperBoundsList,
             classTypeParameterCount: classTypeParameterCount
         )
+    }
+
+    /// Preserve the source-backed shape of the synthetic enum companion
+    /// `valueOf(name)` parameter when its helper is reconstructed from a
+    /// precompiled artifact. The parameter is part of the Kotlin signature,
+    /// but is not itself an imported declaration.
+    private func isImportedEnumCompanionValueOf(
+        record: ImportedLibrarySymbolRecord,
+        interner: StringInterner
+    ) -> Bool {
+        guard record.kind == .function,
+              record.arity == 1,
+              record.valueParameterNames == ["name"],
+              record.fqName.count >= 3,
+              record.fqName.suffix(2).map(interner.resolve) == ["Companion", "valueOf"]
+        else { return false }
+        let enumFQName = record.fqName.dropLast(2).map(interner.resolve).joined(separator: ".")
+        return record.typeSignature?.hasSuffix(",L\(enumFQName);>") == true
     }
 
     /// Number of leading type parameters that belong to the owner nominal type
@@ -639,7 +666,7 @@ extension DataFlowSemaPhase {
                 visit(kc.argument)
             case let .intersection(parts):
                 for part in parts { visit(part) }
-            case .nothing, .any, .primitive, .unit, .error, .stringStruct:
+            case .nothing, .any, .primitive, .unit, .nullableUnit, .error, .stringStruct:
                 break
             }
         }
@@ -1242,7 +1269,7 @@ extension DataFlowSemaPhase {
                 types.nullableAnyType
             case let .primitive(primitive, _):
                 types.make(.primitive(primitive, .nullable))
-            case .stringStruct:
+            case .unit, .nullableUnit, .stringStruct:
                 types.makeNullable(type)
             case let .classType(classType):
                 types.make(.classType(ClassType(

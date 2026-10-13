@@ -144,8 +144,8 @@ extension LoweringPassRegressionTests {
                 return from
             }
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
-               (ctx.interner.resolve(callee) == "kk_unbox_int"
-                   || ctx.interner.resolve(callee) == "kk_unbox_int_static"),
+               (callee == ctx.interner.intern(RuntimeCall.unboxInt.name)
+                   || callee == ctx.interner.intern(RuntimeCall.unboxIntStatic.name)),
                arguments == [callerTokenExpr],
                result == callerResultExpr
             {

@@ -10,10 +10,23 @@ struct RuntimeFileIOTests {
 
         let fileRaw = runtimeTestFileHandle(fileURL.path)
         var thrown = 0
-        let textRaw = __kk_file_readText(fileRaw, &thrown)
+        let textRaw = __kk_file_readText(fileRaw, __kk_charset_utf_8(), &thrown)
 
         #expect(thrown == 0)
         #expect(readString(textRaw) == "alpha\nbeta")
+    }
+
+    @Test func testReadTextUsesSpecifiedCharset() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([0x63, 0x61, 0x66, 0xe9]).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let fileRaw = runtimeTestFileHandle(fileURL.path)
+        var thrown = 0
+        let textRaw = __kk_file_readText(fileRaw, __kk_charset_iso_8859_1(), &thrown)
+
+        #expect(thrown == 0)
+        #expect(readString(textRaw) == "café")
     }
 
     @Test func testStringByteInputStreamFlatDefaultCharsetYieldsUtf8Bytes() {
@@ -70,14 +83,6 @@ struct RuntimeFileIOTests {
         thrown = 0
         _ = __kk_bytearray_inputStream_range(array, 0, Int.min, &thrown)
         #expect(thrown != 0)
-    }
-
-    private func makeByteArray(_ bytes: [Int]) -> Int {
-        let array = kk_array_new(bytes.count)
-        for (index, byte) in bytes.enumerated() {
-            _ = kk_array_set(array, index, byte, nil)
-        }
-        return array
     }
 
     private func makeTempFile(contents: String) throws -> URL {

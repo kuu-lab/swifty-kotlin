@@ -35,7 +35,7 @@ extension BuildKIRRegressionTests {
 
         let sema = try #require(ctx.sema)
         let kir = try #require(ctx.kir)
-        let expectedNames = ["block": "IntArray", "expression": "IntArray", "strings": "List", "nullableInts": "List", "ordinary": "IntArray"]
+        let expectedNames = ["block": "IntArray", "expression": "IntArray", "strings": "Array", "nullableInts": "Array", "ordinary": "IntArray"]
         var observedNames: [String: String] = [:]
         for decl in kir.arena.declarations {
             guard case let .function(function) = decl,
@@ -53,6 +53,23 @@ extension BuildKIRRegressionTests {
             }
         }
         #expect(observedNames == expectedNames)
+    }
+
+    @Test
+    func localReferenceVarargCallKeepsArrayRepresentation() throws {
+        let ctx = makeContextFromSource("""
+        fun probe(): Int {
+            fun va(vararg a: String): Array<out String> = a
+            return va("x", "y").size
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Local vararg call must resolve: \(ctx.diagnostics.diagnostics)")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(!callees.contains(runtimeCallee(.arrayToList)), "Local reference varargs must reach the callee as arrays: \(callees)")
     }
 
     @Test

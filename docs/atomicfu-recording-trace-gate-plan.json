@@ -1,0 +1,27 @@
+{
+  "status": "PREPARED_NOT_EXECUTED",
+  "issue": "KUU-1728",
+  "apply_after": "Root confirms Main190 and Atomic prior gates terminal/reaped, source freeze release and actual available capacity",
+  "original_id_status": "121 catalog unresolved; no invented IDs or62 child claims",
+  "namespace": "kswiftk.atomicfu",
+  "source_mode": "actual bundled Kotlin source; allowDefaultStdlibLibrary=false",
+  "library_mode": "fresh source/RuntimeABI/compiler matched TestStdlibCache .kklib, fullfile hashes; no fallback/override",
+  "existing_Native_api_expected": {"identities":150,"public":142,"PublishedApi_internal":8,"unique_rendered":126},
+  "new_focused": {
+    "Core": {"methods":2,"cases":10,"source_library":true},
+    "Backend": {"methods":4,"cases":16,"source_library_O0_O2":true,"separate_user_producer_consumer_cases":4},
+    "Runtime": {"methods":2,"cases":2,"actual_existing_kernel_only":true},
+    "total": {"methods":8,"cases":28}
+  },
+  "suggested_filters": {
+    "Core": "CompilerCoreTests.AtomicfuBundledSourceRegistrationTests",
+    "Backend": "CompilerBackendTests.AtomicfuBundledExecutionTests",
+    "Runtime": "RuntimeTests.RuntimeAtomicfuSynchronizationTests"
+  },
+  "retain_existing": ["all150 actual compiled source/library identities and annotation/visibility/defaults checker","original scalar-array-Trace/lock/parking/backend12cases","original8 Core/4 KIR/11 Runtime case scope and ABI9 as applicable to fresh branch","56 measured official Native rows kept as reference-only unchanged"],
+  "beforelaunch_budgets_require_Root_release": {"fresh_build_seconds":600,"fresh_test_compile_seconds":900,"one_Native_compile_seconds":300,"one_Native_run_seconds":10,"producer_consumer_compile_whole_seconds":650,"focused_body_seconds":5400,"whole_seconds":7200,"SwiftPM_jobs":2,"automatic_retries":0},
+  "outer_observer_requirements": ["single SwiftPM owner in target worktree","exact finalHEAD plus fullsource/scripts/tests/resources/RuntimeABI/compiler before-after hashes","actual fresh test-producer PID/start/exe/SHA before stdlib publication; distinguish .building","allactual stdlibfiles/count/metadata/objects/inlineKIR, no1756 constant","Runtime source-key actual objects/manifest proof","raw stdout/stderr/exit/time/timeout/pidstat and own-child process group kill+reap","firstfailure stops further lanes; incomplete cases stayNOT_RUN/unfinished","prior failures/products/old immutable proof paths retained","no deletion except own completed .o/bin after hashproof and Root disk policy"],
+  "oracle_status": "new extension40 output rows are statically prepared, not measured; official Native no-op remains separate",
+  "GC_claim_limit": "live identity/replacement only; registered-box survival does not prove tracing/reclamation",
+  "deferred": ["actual concurrent compiled-Trace cross-thread stress","scalar payload/root tracing and reclamation","LLVM unbox/direct-storage/inline/array/delegate optimizations","Trace erasure preserving all effects/exceptions","performance","relocated distribution .kklib consumer","other targets and build integrations"]
+}

@@ -478,7 +478,7 @@ struct RegexSemaLoweringTests {
         let body = try findKIRFunctionBody(named: "regexCase0", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("__kk_regex_create_flat"),
+            callees.contains(runtimeABIName(.regexCreateFlat)),
             Comment(rawValue: "KIR must contain kk_regex_create for single-arg constructor; found: \(callees)")
         )
     }
@@ -489,7 +489,7 @@ struct RegexSemaLoweringTests {
         let body = try findKIRFunctionBody(named: "regexCase1", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("__kk_regex_create_with_option_flat"),
+            callees.contains(runtimeABIName(.regexCreateWithOptionFlat)),
             Comment(rawValue: "KIR must contain kk_regex_create_with_option; found: \(callees)")
         )
     }
@@ -500,7 +500,7 @@ struct RegexSemaLoweringTests {
         let body = try findKIRFunctionBody(named: "regexCase2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("__kk_regex_create_with_options_flat"),
+            callees.contains(runtimeABIName(.regexCreateWithOptionsFlat)),
             Comment(rawValue: "KIR must contain kk_regex_create_with_options; found: \(callees)")
         )
     }
@@ -562,7 +562,7 @@ struct RegexSemaLoweringTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase9", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_string_toRegex_flat"), Comment(rawValue: "KIR must contain kk_string_toRegex; found: \(callees)"))
+        #expect(callees.contains(runtimeABIName(.stringToRegexFlat)), Comment(rawValue: "KIR must contain kk_string_toRegex; found: \(callees)"))
     }
 
     // MARK: - 8. KIR lowering: String.toRegex(option) / String.toRegex(options)
@@ -573,7 +573,7 @@ struct RegexSemaLoweringTests {
         let body = try findKIRFunctionBody(named: "regexCase10", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("__kk_string_toRegex_with_option_flat"),
+            callees.contains(runtimeABIName(.stringToRegexWithOptionFlat)),
             Comment(rawValue: "KIR must contain kk_string_toRegex_with_option; found: \(callees)")
         )
     }
@@ -584,7 +584,7 @@ struct RegexSemaLoweringTests {
         let body = try findKIRFunctionBody(named: "regexCase11", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("__kk_string_toRegex_with_options_flat"),
+            callees.contains(runtimeABIName(.stringToRegexWithOptionsFlat)),
             Comment(rawValue: "KIR must contain kk_string_toRegex_with_options; found: \(callees)")
         )
     }
@@ -598,7 +598,7 @@ struct RegexSemaLoweringTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(callees.contains("split"), Comment(rawValue: "KIR must call the source-backed split wrapper; found: \(callees)"))
         #expect(
-            !callees.contains("kk_string_split_regex_flat"),
+            !callees.contains(where: { hasRuntimeABIOperation($0, .stringSplitRegexFlat) }),
             Comment(rawValue: "User KIR should not directly lower split(Regex) to runtime; found: \(callees)")
         )
     }
@@ -608,7 +608,7 @@ struct RegexSemaLoweringTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase13", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_string_contains_regex_flat"), Comment(rawValue: "KIR must contain kk_string_contains_regex; found: \(callees)"))
+        #expect(callees.contains(runtimeABIName(.stringContainsRegexFlat)), Comment(rawValue: "KIR must contain kk_string_contains_regex; found: \(callees)"))
     }
 
     // MARK: - 9. KIR lowering: Regex.fromLiteral (companion)
@@ -618,7 +618,7 @@ struct RegexSemaLoweringTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "regexCase14", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_regex_from_literal_flat"), Comment(rawValue: "KIR must contain kk_regex_from_literal; found: \(callees)"))
+        #expect(callees.contains(runtimeABIName(.regexFromLiteralFlat)), Comment(rawValue: "KIR must contain kk_regex_from_literal; found: \(callees)"))
     }
 
     // MARK: - 10. KIR lowering: group access goes through the raw match-data bridges
@@ -634,7 +634,7 @@ struct RegexSemaLoweringTests {
             Comment(rawValue: "Named group access must dispatch to the Kotlin MatchGroupCollection API; found: \(dispatchedCallees)")
         )
         #expect(
-            !callees.contains("kk_match_group_collection_get"),
+            !callees.contains(where: { hasRemovedRuntimeOperation($0, .matchGroupCollectionGet) }),
             Comment(rawValue: "kk_match_group_collection_get must be gone; found: \(callees)")
         )
     }
@@ -650,7 +650,7 @@ struct RegexSemaLoweringTests {
             Comment(rawValue: "Index-based group access must dispatch to the Kotlin MatchGroupCollection API; found: \(dispatchedCallees)")
         )
         #expect(
-            !callees.contains("kk_match_group_collection_get_at"),
+            !callees.contains(where: { hasRemovedRuntimeOperation($0, .matchGroupCollectionGetAt) }),
             Comment(rawValue: "kk_match_group_collection_get_at must be gone; found: \(callees)")
         )
     }
@@ -669,7 +669,7 @@ struct RegexSemaLoweringTests {
             Comment(rawValue: "componentN must dispatch to the Kotlin MatchResult API; found: \(callees)")
         )
         #expect(
-            !callees.contains("kk_match_result_component1"),
+            !callees.contains(where: { hasRemovedRuntimeOperation($0, .matchResultComponent1) }),
             Comment(rawValue: "kk_match_result_component1 must be gone; found: \(callees)")
         )
     }

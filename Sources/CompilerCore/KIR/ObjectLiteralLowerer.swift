@@ -186,6 +186,8 @@ final class ObjectLiteralLowerer {
         let objectValueType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
         let emittedNominal = ensureObjectLiteralNominalDecl(exprID: exprID, objectSymbol: objectSymbol, arena: arena)
         if emittedNominal {
+            let scopeSnapshot = driver.ctx.saveScope()
+            defer { driver.ctx.restoreScope(scopeSnapshot) }
             lowerObjectLiteralMemberFunctions(
                 objectDecl,
                 ast: ast,
@@ -209,6 +211,21 @@ final class ObjectLiteralLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             )
+            let shared = KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: objectSymbol, shared: shared, compilationCtx: nil
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: objectSymbol, shared: shared, compilationCtx: nil
+            )
+            for declID in forwardingDecls {
+                driver.ctx.appendGeneratedCallableDecl(declID)
+            }
         }
 
         let intType = sema.types.intType
@@ -312,6 +329,24 @@ final class ObjectLiteralLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        // Initialize each delegate once in header order while the enclosing
+        // receiver is still active, before any property or init block can call it.
+        var delegationBody = KIRLoweringEmitContext(instructions)
+        driver.emitClassDelegationInitializers(
+            ownerSymbol: objectSymbol,
+            receiverID: objectValue,
+            superTypeEntries: objectDecl.superTypeEntries,
+            shared: KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            ),
+            body: &delegationBody
+        )
+        instructions = delegationBody.instructions
 
         // KSP-CAP-001: materialize outer locals/parameters and any enclosing
         // receiver captured by this object's member functions into instance fields, while the
@@ -717,8 +752,6 @@ final class ObjectLiteralLowerer {
         )
     }
 
-    // MARK: - REFL-004: KClass Binary Metadata Registration
-
     /// Emits a call to `__kk_kclass_register_metadata` to register compile-time
     /// metadata for a nominal type so that `KClass` instances can query it at runtime.
     private func registerKClassMetadata(
@@ -754,17 +787,12 @@ final class ObjectLiteralLowerer {
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
         instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
-        // Supertype name.
+        // Supertype display names ('|'-joined, KUU-1357).
         let supertypeNameExpr: KIRExprID
-        let supertypes = sema.symbols.directSupertypes(for: objectSymbol)
-        let superClassSymbol = supertypes.first(where: { sid in
-            sema.symbols.symbol(sid)?.kind == .class
-        })
-        if let superClassSymbol,
-           let superSymbol = sema.symbols.symbol(superClassSymbol)
-        {
-            let superFqName = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            let superInterned = interner.intern(superFqName)
+        if let joined = kclassSupertypeDisplayNamesJoined(
+            for: objectSymbol, sema: sema, interner: interner
+        ) {
+            let superInterned = interner.intern(joined)
             supertypeNameExpr = arena.appendExpr(.stringLiteral(superInterned), type: intType)
             instructions.append(.constValue(result: supertypeNameExpr, value: .stringLiteral(superInterned)))
         } else {
@@ -842,11 +870,28 @@ final class ObjectLiteralLowerer {
             symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
+        emitKClassCompanionAndNestedRegistration(
+            classSymbol: objectSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(
             objectSymbol: objectSymbol,
             typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
+        // KUU-1448: keep the transitive nominal-supertype closure registered
+        // as well — `KType.classifier`-synthesized handles for an ancestor
+        // resolve their own `supertypes` through the same registry.
+        var visitedClassSymbols: Set<SymbolID> = [objectSymbol]
+        driver.callLowerer.emitTransitiveSupertypeKClassMetadataRegistrations(
+            for: objectSymbol,
+            visitedClassSymbols: &visitedClassSymbols,
             sema: sema,
             arena: arena,
             interner: interner,

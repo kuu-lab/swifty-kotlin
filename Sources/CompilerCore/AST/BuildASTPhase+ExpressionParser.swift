@@ -14,7 +14,6 @@ extension BuildASTPhase {
             angle == 0 && paren == 0
         }
 
-        /// True when not nested inside an unclosed `(`/`[`/`{` group.
         /// Deliberately excludes `angle`, matching `hasUnclosedStatementDelimiter`
         /// (`BuildASTPhase+BodyParsing.swift`): an unmatched `<`/`>` from a
         /// comparison operator (`x < 0`) is indistinguishable at this token-depth
@@ -48,21 +47,19 @@ extension BuildASTPhase {
         let diagnostics: DiagnosticEngine?
         var index: Int
 
-        /// Maximum recursion/nesting depth allowed while parsing an expression.
+        // Bounded declaration prefixes must not accept recovered expressions
+        // whose operand or control-flow branch was cut off by the slice.
+        private(set) var hasIncompleteExpression = false
+
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
         static let maxRecursionDepth = 64
 
-        /// Current expression-parser recursion depth. Incremented on entry to the
-        /// mutually recursive expression parsing functions and decremented on exit.
         var recursionDepth = 0
 
-        /// Ensures the depth-limit diagnostic is emitted at most once per parse.
         private var depthLimitReported = false
 
-        /// Counter used to name the temporaries introduced by the `x++` / `x--`
-        /// desugaring (see `BuildASTPhase+ExpressionParserIncDec.swift`).
         private var incDecTempCounter = 0
 
         func nextIncDecTempID() -> Int {
@@ -70,7 +67,6 @@ extension BuildASTPhase {
             return incDecTempCounter
         }
 
-        /// Increments the recursion counter and reports whether parsing may continue.
         /// Returns `false` (emitting a diagnostic once) once the maximum depth is
         /// exceeded so callers abort gracefully instead of overflowing the stack.
         /// Callers must pair this with `defer { leaveRecursion() }`.
@@ -116,6 +112,18 @@ extension BuildASTPhase {
 
         func parse() -> ExprID? {
             let expression = parseAssignmentOrExpression()
+            if let expression,
+               let unexpected = current(),
+               let expressionRange = astArena.exprRange(expression),
+               expressionRange.end.offset == unexpected.range.start.offset,
+               isInfixIdentifierToken(unexpected)
+            {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0018",
+                    "Unexpected token after expression.",
+                    range: unexpected.range
+                )
+            }
             if expression == nil, let first = tokens.first {
                 switch first.kind {
                 case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
@@ -139,8 +147,18 @@ extension BuildASTPhase {
 
         func parseExpression(minPrecedence: Int) -> ExprID? {
             defer { leaveRecursion() }
-            guard enterRecursion() else { return nil }
-            guard var lhs = parsePrefixUnary() else { return nil }
+            guard enterRecursion(), let lhs = parsePrefixUnary() else {
+                hasIncompleteExpression = true
+                return nil
+            }
+            return parseInfixOperators(lhs: lhs, minPrecedence: minPrecedence)
+        }
+
+        /// Call-argument lambdas re-enter here after their postfix suffixes so
+        /// that an argument that starts with `{` still parses as a full
+        /// expression (`foo({ 5 }() + { 6 }())`), matching `parseExpression`.
+        func parseInfixOperators(lhs initialLHS: ExprID, minPrecedence: Int) -> ExprID {
+            var lhs = initialLHS
             while true {
                 if let next = tryParseIsCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }
                 if let next = tryParseInCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }
@@ -191,7 +209,7 @@ extension BuildASTPhase {
             guard minPrecedence <= 130 else { return nil }
             _ = consume()
             let isSafe = consumeIf(.symbol(.question)) != nil
-            guard let typeRef = parseTypeReference(token.range) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.asCast(expr: lhs, type: typeRef, isSafe: isSafe, range: range))
         }
@@ -208,7 +226,6 @@ extension BuildASTPhase {
             return astArena.appendExpr(.binary(op: binOp, lhs: lhs, rhs: rhs, range: range))
         }
 
-        /// General infix function call: any identifier in infix position.
         /// Kotlin grammar: infixFunctionCall = rangeExpression (simpleIdentifier rangeExpression)*
         /// All infix functions share the same precedence level as range operators (.downTo / .step)
         private func tryParseInfixCall(lhs: ExprID, minPrecedence: Int) -> ExprID? {
@@ -216,6 +233,8 @@ extension BuildASTPhase {
             guard infixPrecedence >= minPrecedence,
                   let token = current(),
                   isInfixIdentifierToken(token),
+                  let lhsRange = astArena.exprRange(lhs),
+                  lhsRange.end.offset < token.range.start.offset,
                   newlineBeforeInfixContinuesExpression(token),
                   let nextToken = peek(1),
                   canStartExpression(nextToken)
@@ -416,8 +435,7 @@ extension BuildASTPhase {
             }
         }
 
-        /// Whether an infix function name may follow the left operand at this
-        /// position. A leading newline normally ends the expression — at
+        /// A leading newline normally ends the expression — at
         /// statement level `a\nor b` is `a` followed by a new statement that
         /// starts with `or`, matching kotlinc — but inside `(`/`[` (including
         /// call argument lists) newlines are not statement separators, so
@@ -447,13 +465,11 @@ extension BuildASTPhase {
             return parenDepth > 0 || bracketDepth > 0
         }
 
-        /// Returns true if the token is an identifier that can serve as an infix function name.
         /// Excludes identifiers already handled as known BinaryOp (downTo, step) by binaryOperator().
         private func isInfixIdentifierToken(_ token: Token) -> Bool {
             switch token.kind {
             case let .identifier(name):
                 let resolved = interner.resolve(name)
-                // Exclude names already handled by binaryOperator()
                 if resolved == "downTo" || resolved == "step" {
                     return false
                 }
@@ -468,7 +484,6 @@ extension BuildASTPhase {
             }
         }
 
-        /// Returns true if a token can start an expression (used for infix call lookahead).
         private func canStartExpression(_ token: Token) -> Bool {
             switch token.kind {
             case .identifier, .backtickedIdentifier,

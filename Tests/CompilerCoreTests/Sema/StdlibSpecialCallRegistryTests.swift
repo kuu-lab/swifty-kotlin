@@ -33,7 +33,7 @@ struct StdlibSpecialCallRegistryTests {
                 else {
                     return false
                 }
-                return ctx.interner.resolve(calleeName) == "repeat"
+                return calleeName == sema.symbols.symbol(repeatSymbol)?.name
             },
             "Expected top-level repeat call"
         )

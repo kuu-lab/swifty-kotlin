@@ -62,5 +62,57 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "IoFileSystem"
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_fs_open_read",
+            parameters: [
+                RuntimeABIParameter(name: "pathRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "IoFileSystem"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_fs_open_write",
+            parameters: [
+                RuntimeABIParameter(name: "pathRaw", type: .intptr),
+                RuntimeABIParameter(name: "append", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "IoFileSystem"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_fs_read",
+            parameters: [
+                RuntimeABIParameter(name: "descriptor", type: .intptr),
+                RuntimeABIParameter(name: "dstRaw", type: .intptr),
+                RuntimeABIParameter(name: "dstOffset", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "IoFileSystem"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_fs_write",
+            parameters: [
+                RuntimeABIParameter(name: "descriptor", type: .intptr),
+                RuntimeABIParameter(name: "srcRaw", type: .intptr),
+                RuntimeABIParameter(name: "srcOffset", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "IoFileSystem"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_fs_close",
+            parameters: [
+                RuntimeABIParameter(name: "descriptor", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "IoFileSystem"
+        ),
     ]
 }

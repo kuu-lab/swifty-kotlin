@@ -19,56 +19,6 @@ public extension RuntimeABISpec {
             section: "Network"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_http_client_setFollowRedirects",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "enabled", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_setBearerToken",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "tokenRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_addTrustedRedirectOrigin",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "originRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_setMaxResponseBodyBytes",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "limit", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_statusCode",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_body",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_http_response_url",
             parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
             returnType: .intptr,

@@ -151,7 +151,7 @@ enum RuntimeTypeCheckToken {
         case .primitive(.double, _):    category = .double
         case .primitive(.float, _):     category = .float
         case .primitive(.char, _):      category = .char
-        case .unit:                     category = .unit
+        case .unit, .nullableUnit:      category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
         case let .functionType(functionType):
             // KUU-1084: `() -> Unit`, `Int.(String) -> Long`, suspend and

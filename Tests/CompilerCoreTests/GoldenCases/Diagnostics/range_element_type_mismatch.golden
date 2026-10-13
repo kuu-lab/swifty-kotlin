@@ -83,7 +83,7 @@
     {
       "file": "range_element_type_mismatch.kt",
       "range": {
-        "start": { "line": 16, "character": 0 },
+        "start": { "line": 17, "character": 4 },
         "end": { "line": 17, "character": 17 }
       },
       "severity": 1,

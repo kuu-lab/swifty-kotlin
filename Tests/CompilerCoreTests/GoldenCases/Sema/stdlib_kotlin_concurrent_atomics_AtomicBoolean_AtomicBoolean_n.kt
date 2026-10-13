@@ -11,6 +11,6 @@ fun atomicBooleanReceiverMembers(): String {
     val exchanged = atomic.exchange(true)
     val compared = atomic.compareAndExchange(true, false)
     val set = atomic.compareAndSet(false, true)
-    val current = atomic.value
+    val current = atomic.load()
     return "$loaded:$exchanged:$compared:$set:$current:${atomic.toString()}"
 }

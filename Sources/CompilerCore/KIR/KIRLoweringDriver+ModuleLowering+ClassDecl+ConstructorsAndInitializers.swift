@@ -1,6 +1,5 @@
 
 extension KIRLoweringDriver {
-    // MARK: - Constructor lowering
 
     /// Lowers a single constructor (primary or secondary) into KIR declarations.
     func lowerConstructor(
@@ -34,37 +33,13 @@ extension KIRLoweringDriver {
             symbol: receiverSymbol,
             exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: signature.returnType)
         )
-        let varargFlags = callSupportLowerer.normalizeBoolFlags(
-            signature.valueParameterIsVararg,
-            count: signature.parameterTypes.count
-        )
-        for (index, (parameterSymbol, parameterType)) in zip(
-            signature.valueParameterSymbols, signature.parameterTypes
-        ).enumerated() {
-            var storageType = parameterType
-            if varargFlags[index],
-               let arrayType = primitiveVarargArrayType(
-                   elementType: parameterType, sema: sema, interner: shared.interner
-               )
-            {
-                storageType = arrayType
-            } else if varargFlags[index],
-                      let listSymbol = sema.symbols.lookup(fqName: [
-                          shared.interner.intern("kotlin"),
-                          shared.interner.intern("collections"),
-                          shared.interner.intern("List"),
-                      ])
-            {
-                // CallSupportLowerer packs varargs as lists, including
-                // constructor arguments. A String element type must not turn
-                // the packed list handle into a flat String LLVM parameter.
-                storageType = sema.types.make(.classType(ClassType(
-                    classSymbol: listSymbol,
-                    args: [.invariant(parameterType)],
-                    nullability: .nonNull
-                )))
-            }
-            params.append(KIRParameter(symbol: parameterSymbol, type: storageType))
+        for (index, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
+            params.append(KIRParameter(
+                symbol: parameterSymbol,
+                type: constructorParameterStorageType(
+                    at: index, signature: signature, sema: sema, interner: shared.interner
+                )
+            ))
         }
 
         let body = buildConstructorBody(
@@ -80,6 +55,35 @@ extension KIRLoweringDriver {
         )
         ctx.setCurrentFunctionSymbol(nil)
         return decls
+    }
+
+    /// The semantic signature records vararg element types; constructor bodies
+    /// and synthetic reflection wrappers receive one packed array/list instead.
+    func constructorParameterStorageType(
+        at index: Int,
+        signature: FunctionSignature,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let parameterType = signature.parameterTypes[index]
+        guard signature.valueParameterIsVararg.indices.contains(index),
+              signature.valueParameterIsVararg[index]
+        else {
+            return parameterType
+        }
+        if let arrayType = primitiveVarargArrayType(
+            elementType: parameterType, sema: sema, interner: interner
+        ) {
+            return arrayType
+        }
+        guard let listSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
+        ]) else {
+            return parameterType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: listSymbol, args: [.invariant(parameterType)], nullability: .nonNull
+        )))
     }
 
     /// Builds the constructor body instructions for a primary or secondary constructor.
@@ -435,13 +439,33 @@ extension KIRLoweringDriver {
 
             let parameterSymbol = ctorSignature.valueParameterSymbols[index]
             let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
-            let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: propertyType)
+            let storageType = constructorParameterStorageType(
+                at: index, signature: ctorSignature, sema: sema, interner: shared.interner
+            )
+            let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: storageType)
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)))
+            let propertyValue: KIRExprID
+            if ctorSignature.valueParameterIsVararg.indices.contains(index),
+               ctorSignature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: ctorSignature.parameterTypes[index], sema: sema, interner: shared.interner
+               ) == nil {
+                // A reference vararg local uses the existing List ABI, while
+                // its public constructor property has the source Array type.
+                propertyValue = arena.appendTemporary(type: propertyType)
+                body.append(.call(
+                    symbol: nil, callee: shared.interner.intern("__kk_collection_toTypedArray"),
+                    arguments: [parameterExpr], result: propertyValue,
+                    canThrow: false, thrownResult: nil
+                ))
+            } else {
+                propertyValue = parameterExpr
+            }
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-            var arguments = [receiverID, offsetExpr, parameterExpr]
+            var arguments = [receiverID, offsetExpr, propertyValue]
             let callee: InternedString
             let resultType: TypeID
             if isDataClass {
@@ -505,12 +529,23 @@ extension KIRLoweringDriver {
     func emitClassDelegationInitializers(
         ownerSymbol: SymbolID,
         receiverID: KIRExprID,
+        superTypeEntries: [SuperTypeEntry]? = nil,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
         let arena = shared.arena
-        for interfaceSymbol in sema.symbols.delegatedInterfaces(forClass: ownerSymbol) {
+        let delegatedInterfaces = sema.symbols.delegatedInterfaces(forClass: ownerSymbol)
+        let orderedInterfaces = superTypeEntries.map { entries in
+            entries.compactMap { entry in
+                entry.delegateExpression.flatMap { expr in
+                    delegatedInterfaces.first {
+                        sema.symbols.classDelegationExpr(forClass: ownerSymbol, interface: $0) == expr
+                    }
+                }
+            }
+        } ?? delegatedInterfaces
+        for interfaceSymbol in orderedInterfaces {
             guard let delegateExpr = sema.symbols.classDelegationExpr(forClass: ownerSymbol, interface: interfaceSymbol),
                   let fieldSymbol = sema.symbols.classDelegationField(forClass: ownerSymbol, interface: interfaceSymbol)
             else {
@@ -762,7 +797,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Secondary constructor body emission
 
     func emitSecondaryConstructorBody(
         classDecl: ClassDecl,
@@ -852,10 +886,7 @@ extension KIRLoweringDriver {
         }
 
         let delegateValue = lowerExpr(delegateExpr, shared: shared, emit: &body)
-        let delegateExprType = sema.bindings.exprType(for: delegateExpr)
-        let hasProvideDelegate = checkHasProvideDelegate(
-            delegateExprType: delegateExprType, shared: shared
-        )
+        let hasProvideDelegate = sema.symbols.hasProvideDelegate(for: propSymbol)
         let valueToStore: KIRExprID = if hasProvideDelegate, let storageSym = delegateStorageSym {
             emitProvideDelegateCall(
                 delegateValue: delegateValue, storageSym: storageSym,
@@ -1071,6 +1102,100 @@ extension KIRLoweringDriver {
                 canThrow: false,
                 thrownResult: nil
             ))
+
+            let knownNames = KnownCompilerNames(interner: interner)
+            let isAtomicFactory = sema.symbols.parentSymbol(for: ctorSymbol)
+                .flatMap { sema.symbols.symbol($0) }
+                .map(knownNames.isAtomicScalarFactorySymbol) ?? false
+            let canGenerateInvocation = sema.symbols.externalLinkName(for: ctorSymbol) == nil
+                && !isAtomicFactory
+                && !callLowerer.isRuntimeFactoryConstructor(ctorSymbol, sema: sema)
+            let callableSymbol: SymbolID
+            let callableName: InternedString
+            if canGenerateInvocation {
+                // Reuse normal constructor lowering so the bridge allocates the
+                // instance and enters its body with the reflected arguments.
+                callableSymbol = ctx.allocateSyntheticGeneratedSymbol()
+                callableName = interner.intern("__kconstructor_callable_\(ctorSymbol.rawValue)")
+                let callableParams = signature.parameterTypes.enumerated().map { index, _ in
+                    let paramName = interner.intern("arg\(index)")
+                    let paramSymbol = sema.symbols.define(
+                        kind: .valueParameter,
+                        name: paramName,
+                        fqName: [callableName, paramName],
+                        declSite: nil,
+                        visibility: .private,
+                        flags: [.synthetic]
+                    )
+                    return KIRParameter(
+                        symbol: paramSymbol,
+                        type: constructorParameterStorageType(
+                            at: index, signature: signature, sema: sema, interner: interner
+                        )
+                    )
+                }
+                let callableBody: [KIRInstruction] = ctx.withNewScope {
+                    ctx.resetScopeForFunction()
+                    ctx.setCurrentFunctionSymbol(callableSymbol)
+                    var instructions: KIRLoweringEmitContext = [.beginBlock]
+                    let loweredArguments = callableParams.map { param -> KIRExprID in
+                        let argument = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+                        instructions.append(.constValue(result: argument, value: .symbolRef(param.symbol)))
+                        return argument
+                    }
+                    let constructedValue = callLowerer.lowerResolvedCallBody(
+                        .invalid,
+                        args: [],
+                        loweredArgIDs: loweredArguments,
+                        chosen: ctorSymbol,
+                        callBinding: nil,
+                        callableValueCallBinding: nil,
+                        loweredCallable: nil,
+                        loweredCalleeExprID: nil,
+                        sourceCalleeName: ctorNameInterned,
+                        boundType: signature.returnType,
+                        knownNames: knownNames,
+                        ast: shared.ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: [:],
+                        instructions: &instructions.instructions
+                    )
+                    instructions.append(.returnValue(constructedValue))
+                    instructions.append(.endBlock)
+                    return instructions.instructions
+                }
+                ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+                    symbol: callableSymbol,
+                    name: callableName,
+                    params: callableParams,
+                    returnType: signature.returnType,
+                    body: callableBody,
+                    isSuspend: false,
+                    isInline: false
+                ))))
+            } else {
+                callableSymbol = ctorSymbol
+                callableName = ctorNameInterned
+            }
+            lambdaLowerer.registerCallableReflection(
+                value: registrationResult,
+                callableSymbol: callableSymbol,
+                callableName: callableName,
+                targetSymbol: ctorSymbol,
+                parameterTypes: signature.parameterTypes,
+                returnType: signature.returnType,
+                captures: [],
+                receiverCount: 0,
+                packedConstructorVarargs: canGenerateInvocation,
+                includeInvocation: canGenerateInvocation,
+                ast: shared.ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
         }
 
         // STDLIB-REFLECT-ABI-002: Register declared member functions and properties.
@@ -1112,10 +1237,9 @@ extension KIRLoweringDriver {
         return [declID] + ctx.drainGeneratedCallableDecls()
     }
 
-    // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
 
     /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
-    /// declared non-synthetic member of a class, followed by
+    /// declared member and generated data-class component function, followed by
     /// `kk_kclass_register_member` to attach them to the KClass handle.
     /// Called from `synthesizeConstructorReflectionInitializer` so that
     /// `KClass.members` returns real handles rather than count-sized placeholders.
@@ -1131,9 +1255,14 @@ extension KIRLoweringDriver {
         let intType = sema.types.intType
         let childSymbols = sema.symbols.children(ofFQName: ownerInfo.fqName)
         for childID in childSymbols {
-            guard let childSym = sema.symbols.symbol(childID),
-                  !childSym.flags.contains(.synthetic)
-            else { continue }
+            guard let childSym = sema.symbols.symbol(childID) else { continue }
+            let isDataClassComponent = isSyntheticDataClassComponent(
+                childSym,
+                owner: ownerInfo,
+                sema: sema,
+                interner: interner
+            )
+            guard !childSym.flags.contains(.synthetic) || isDataClassComponent else { continue }
             switch childSym.kind {
             case .function:
                 guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
@@ -1150,9 +1279,17 @@ extension KIRLoweringDriver {
                 let retTypeInterned = interner.intern(returnTypeName)
                 let retTypeExpr = arena.appendExpr(.stringLiteral(retTypeInterned), type: intType)
                 body.append(.constValue(result: retTypeExpr, value: .stringLiteral(retTypeInterned)))
-                let isSuspendInt = Int64(signature.isSuspend ? 1 : 0)
-                let isSuspendExpr = arena.appendExpr(.intLiteral(isSuspendInt), type: intType)
-                body.append(.constValue(result: isSuspendExpr, value: .intLiteral(isSuspendInt)))
+                // KUU-1357: packed modifier flags — bit0=suspend, bit1=inline,
+                // bit2=operator, bit3=infix, bit4=external. Matches
+                // `RuntimeKFunctionFlags` in the runtime.
+                var functionFlags: Int64 = 0
+                if signature.isSuspend { functionFlags |= 1 << 0 }
+                if childSym.flags.contains(.inlineFunction) { functionFlags |= 1 << 1 }
+                if childSym.flags.contains(.operatorFunction) { functionFlags |= 1 << 2 }
+                if childSym.flags.contains(.infixFunction) { functionFlags |= 1 << 3 }
+                if sema.symbols.externalLinkName(for: childID) != nil { functionFlags |= 1 << 4 }
+                let isSuspendExpr = arena.appendExpr(.intLiteral(functionFlags), type: intType)
+                body.append(.constValue(result: isSuspendExpr, value: .intLiteral(functionFlags)))
                 let fnPtrExpr = arena.appendExpr(.symbolRef(childID), type: intType)
                 body.append(.constValue(result: fnPtrExpr, value: .symbolRef(childID)))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
@@ -1213,5 +1350,30 @@ extension KIRLoweringDriver {
                 break
             }
         }
+    }
+
+    private func isSyntheticDataClassComponent(
+        _ symbol: SemanticSymbol,
+        owner: SemanticSymbol,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard owner.flags.contains(.dataType),
+              symbol.kind == .function,
+              symbol.flags.contains(.synthetic),
+              let signature = sema.symbols.functionSignature(for: symbol.id),
+              signature.parameterTypes.isEmpty
+        else {
+            return false
+        }
+
+        let name = interner.resolve(symbol.name)
+        guard name.hasPrefix("component"),
+              let index = Int(name.dropFirst("component".count)),
+              index > 0
+        else {
+            return false
+        }
+        return true
     }
 }

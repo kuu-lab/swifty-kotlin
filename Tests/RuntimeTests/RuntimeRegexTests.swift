@@ -12,14 +12,6 @@ struct RuntimeRegexTests {
         }
     }
 
-    private func runtimeString(_ raw: Int) -> String {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let box = tryCast(ptr, to: RuntimeStringBox.self) else {
-            return ""
-        }
-        return box.value
-    }
-
     private func runtimeListStrings(_ raw: Int) -> [String] {
         runtimeListElements(raw).map(runtimeString)
     }

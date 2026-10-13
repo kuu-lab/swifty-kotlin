@@ -1146,6 +1146,57 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
+    /// Parses lambda ExprIDs from names like `kk_lambda_42`.
+    private func lambdaExprID(from name: InternedString, interner: StringInterner) -> Int32? {
+        let rawName = interner.resolve(name)
+        let prefix = "kk_lambda_"
+        guard rawName.hasPrefix(prefix) else {
+            return nil
+        }
+        return Int32(rawName.dropFirst(prefix.count))
+    }
+
+    /// Number of leading capture parameters in the suspend function's param
+    /// list — the launcherArgs index of the receiver slot for unmarked
+    /// suspend values lowered captures-first (`[cap0..capN, receiver]`).
+    ///
+    /// When the receiver is an explicit param it sits right after the captures,
+    /// so this index is its position. CoroutineScope-receiver lambdas
+    /// (`launch {}`, `async {}`, `runTest {}` blocks) drop the receiver from
+    /// their params entirely — `this` binds via `contState.scope` — so the slot
+    /// lands one past the last param, where the thunk never reads it; either
+    /// way the captures stay intact. Returning the last param index instead
+    /// (`params.count - 1`) made the runtime-written scope overwrite the final
+    /// capture for those lambdas (KUU-1400).
+    ///
+    /// Returns nil when the function cannot be resolved; non-lambda suspend
+    /// functions have no synthetic capture params and report 0 (their receiver,
+    /// if any, is the first param).
+    func leadingCaptureParamCount(
+        for suspendSymbol: SymbolID,
+        using rewrite: SuspendRewriteContext
+    ) -> Int? {
+        guard let function = rewrite.module.arena.function(for: suspendSymbol) else {
+            return nil
+        }
+        guard let exprID = lambdaExprID(from: function.name, interner: rewrite.ctx.interner) else {
+            return 0
+        }
+        // Capture params come from the -2_000_000 band
+        // (`LambdaLowerer.syntheticLambdaCaptureParamSymbol`); the value-param
+        // band boundary for this lambda sits at -1_500_000 - exprID * 256.
+        let boundary = Int64(-1_500_000) - Int64(exprID) * 256
+        var count = 0
+        for param in function.params {
+            if Int64(param.symbol.rawValue) < boundary {
+                count += 1
+            } else {
+                break
+            }
+        }
+        return count
+    }
+
     /// KSP-1573: rewrite `__kk_produce_launch(channel, block)` — the runtime
     /// bridge the bundled produce/actor bodies emit — into the launcher
     /// continuation convention. The channel arrives as call.arguments[0]
@@ -1322,12 +1373,8 @@ extension CoroutineLoweringPass {
         // arrive null" behaviour documented for boxed suspend values.
         let receiverFirst = rewrite.module.arena.receiverFirstLauncherLambdaSymbols
             .contains(suspendSymbol)
-        let suspendParamCount = rewrite.module.arena.function(for: suspendSymbol)?.params.count
-            ?? (captures.count + 1)
-        let scopeSlot = receiverFirst ? 0 : suspendParamCount - 1
-        guard scopeSlot >= 0 else {
-            return nil
-        }
+        let scopeSlot = receiverFirst ? 0
+            : (leadingCaptureParamCount(for: suspendSymbol, using: rewrite) ?? captures.count)
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),

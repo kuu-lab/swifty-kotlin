@@ -43,12 +43,5 @@ struct RuntimeCollectionChunkedTests {
         }
         return kk_list_of(arrayRaw, elements.count)
     }
-
-    private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-            return nil
-        }
-        return tryCast(ptr, to: RuntimeThrowableBox.self)
-    }
 }
 #endif

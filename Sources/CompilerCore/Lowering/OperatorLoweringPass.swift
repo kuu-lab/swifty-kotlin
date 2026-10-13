@@ -138,6 +138,35 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return
         }
 
+        // `P == null` / `P != null` where the non-literal side is statically
+        // non-null is a tautology the JVM answers without a runtime check
+        // (e.g. a `Long?` local smart-cast to `Long` after `v = Long.MIN_VALUE`,
+        // or a plain `x != null` on a non-null primitive). Folding is required
+        // for correctness, not just an optimization: unboxing the operand
+        // yields raw bits that can equal the null sentinel (Long.MIN_VALUE,
+        // -0.0), which a raw kk_op_eq/ne would then misread as `null`.
+        // Nullable/platform operands are excluded — those may genuinely hold
+        // null and take the sentinel-safe path below.
+        if op == .equal || op == .notEqual {
+            func isNullLiteral(_ exprID: KIRExprID) -> Bool {
+                arena.expr(exprID) == .null
+            }
+            func isNonNullPrimitiveLike(_ exprID: KIRExprID) -> Bool {
+                guard let types, let typeID = arena.exprType(exprID) else { return false }
+                let kind = resolveValueClassKind(types.kind(of: typeID), types: types, symbols: symbols)
+                if case .primitive(_, .nonNull) = kind { return true }
+                return false
+            }
+            let lhsIsNull = isNullLiteral(lhs)
+            let rhsIsNull = isNullLiteral(rhs)
+            if lhsIsNull != rhsIsNull,
+               isNonNullPrimitiveLike(lhsIsNull ? rhs : lhs)
+            {
+                newBody.append(.constValue(result: result, value: .boolLiteral(op == .notEqual)))
+                return
+            }
+        }
+
         // A nullable `Long?`/`ULong?`/`Double?`/`Float?` operand in `==`/`!=`
         // needs a null check that does not guess from the raw bits: those are
         // the only primitives whose full raw (unboxed, never-boxed) value

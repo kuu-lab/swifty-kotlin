@@ -50,9 +50,8 @@ extension BuildKIRRegressionTests {
             return sema.symbols.extensionPropertyGetterAccessor(for: property)
         }
         #expect(getters.count == 2)
-        let lambdas = findAllKIRFunctions(in: module).filter { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-                && function.body.contains { instruction in
+        let lambdas = try findKIRLambdaFunctions(in: ctx).filter { function in
+            function.body.contains { instruction in
                     guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
                     return getters.contains(symbol)
                 }

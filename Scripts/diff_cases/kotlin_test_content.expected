@@ -1,0 +1,67 @@
+Array-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[a, null]>, actual <[a]>.
+Array-element. Array elements differ at index 0. Expected element <a>, actual element <b>.
+Expected <[a, null]>, actual <[b, null]>.
+Array-null. Expected non-null Array <[a, null]>, actual <null>.
+ByteArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+ByteArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+ByteArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+ShortArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+ShortArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+ShortArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+IntArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+IntArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+IntArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+LongArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+LongArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+LongArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+BooleanArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[true, false]>, actual <[true]>.
+BooleanArray-element. Array elements differ at index 0. Expected element <true>, actual element <false>.
+Expected <[true, false]>, actual <[false, false]>.
+BooleanArray-null. Expected non-null Array <[true, false]>, actual <null>.
+CharArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[a, b]>, actual <[a]>.
+CharArray-element. Array elements differ at index 0. Expected element <a>, actual element <c>.
+Expected <[a, b]>, actual <[c, b]>.
+CharArray-null. Expected non-null Array <[a, b]>, actual <null>.
+FloatArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1.0, 2.0]>, actual <[1.0]>.
+FloatArray-element. Array elements differ at index 0. Expected element <1.0>, actual element <3.0>.
+Expected <[1.0, 2.0]>, actual <[3.0, 2.0]>.
+FloatArray-null. Expected non-null Array <[1.0, 2.0]>, actual <null>.
+DoubleArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1.0, 2.0]>, actual <[1.0]>.
+DoubleArray-element. Array elements differ at index 0. Expected element <1.0>, actual element <3.0>.
+Expected <[1.0, 2.0]>, actual <[3.0, 2.0]>.
+DoubleArray-null. Expected non-null Array <[1.0, 2.0]>, actual <null>.
+UByteArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+UByteArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+UByteArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+UShortArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+UShortArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+UShortArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+UIntArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+UIntArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+UIntArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+ULongArray-size. Array sizes differ. Expected size is 2, actual size is 1.
+Expected <[1, 2]>, actual <[1]>.
+ULongArray-element. Array elements differ at index 0. Expected element <1>, actual element <3>.
+Expected <[1, 2]>, actual <[3, 2]>.
+ULongArray-null. Expected non-null Array <[1, 2]>, actual <null>.
+float-zero:true
+double-zero:true

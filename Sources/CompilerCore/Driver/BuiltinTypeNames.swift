@@ -80,7 +80,7 @@ struct BuiltinTypeNames {
         if name == any {
             return nullability == .nullable ? types.nullableAnyType : types.anyType
         }
-        if name == unit { return types.unitType }
+        if name == unit { return types.withNullability(nullability, for: types.unitType) }
         if name == nothing { return nullability == .nullable ? types.nullableNothingType : types.nothingType }
         if name == annotation {
             if let symbol = types.annotationInterfaceSymbol {

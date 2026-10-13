@@ -1,0 +1,88 @@
+name: kotlinx-io upstream reference
+
+on:
+  pull_request:
+    paths:
+      - Scripts/kotlinx_io_upstream/**
+      - .github/workflows/kotlinx-io-reference.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    name: Upstream reference (${{ matrix.kind }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: jvm
+            runner: ubuntu-latest
+          - kind: native
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Test classification and identity guards
+        run: python3 -m unittest discover -s Scripts/kotlinx_io_upstream/tests -v
+      - name: Install locked reference SDK, dependencies and unchanged upstream sources
+        env:
+          KIO_REFERENCE_KIND: ${{ matrix.kind }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          kio_target=$(python3 - <<'PY'
+          import os, platform
+          if os.environ['KIO_REFERENCE_KIND'] == 'jvm':
+              print('jvm')
+          else:
+              assert platform.system() == 'Darwin'
+              print({'arm64': 'macos_arm64', 'x86_64': 'macos_x64'}[platform.machine()])
+          PY
+          )
+          python3 Scripts/kotlinx_io_upstream/prepare_reference.py \
+            --target "$kio_target" --output "$RUNNER_TEMP/kio-reference-install" \
+            2>&1 | tee "$RUNNER_TEMP/kio-reference-prepare.log"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          paths = json.loads((Path(os.environ['RUNNER_TEMP']) / 'kio-reference-install/paths.json').read_text())
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              for key, value in paths.items():
+                  output.write('KIO_' + key.upper() + '=' + str(value) + '\n')
+          PY
+      - name: Execute original JVM assertions and all concrete factories
+        if: matrix.kind == 'jvm'
+        shell: bash
+        run: |
+          python3 Scripts/kotlinx_io_upstream/run_jvm_reference.py \
+            --upstream "$KIO_UPSTREAM" --kotlin-home "$KIO_INSTALLATION" \
+            --java "$JAVA_HOME/bin/java" --dependencies "$KIO_DEPENDENCIES" \
+            --output "$RUNNER_TEMP/kio-reference-results"
+      - name: Execute original Native common and Apple assertions
+        if: matrix.kind == 'native'
+        shell: bash
+        run: |
+          python3 Scripts/kotlinx_io_upstream/run_native_reference.py \
+            --target "$KIO_TARGET" --upstream "$KIO_UPSTREAM" \
+            --kotlin-home "$KIO_INSTALLATION" --compiler-archive "$KIO_COMPILER_ARCHIVE" \
+            --java "$JAVA_HOME/bin/java" --konan-data "$RUNNER_TEMP/kio-konan-data" \
+            --dependencies "$KIO_DEPENDENCIES" --output "$RUNNER_TEMP/kio-reference-results"
+      - name: Preserve raw results, discovery, commands, SDK hashes and failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: kotlinx-io-reference-${{ matrix.kind }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kio-reference-results/
+            ${{ runner.temp }}/kio-reference-install/paths.json
+            ${{ runner.temp }}/kio-reference-install/install-plan.json
+            ${{ runner.temp }}/kio-reference-install/prepare-git-*
+            ${{ runner.temp }}/kio-reference-prepare.log
+          if-no-files-found: warn

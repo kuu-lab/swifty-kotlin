@@ -8,7 +8,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedLocalFunctionCtx = Result<CompilationContext, any Error> {
+    private static let _sharedLocalFunctionCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -150,7 +150,7 @@ extension BuildKIRRegressionTests {
                 return localSuspendBridge(value)
             }
 
-            fun main14(): Any? = runBlocking(outerSuspendHost)
+            suspend fun main14(): Int = outerSuspendHost(1)
             """,
             """
             package sample15
@@ -174,7 +174,7 @@ extension BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedLocalFunctionErrorCtx = Result<CompilationContext, any Error> {
+    private static let _sharedLocalFunctionErrorCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample9
@@ -329,16 +329,18 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let allFunctions = findAllKIRFunctions(in: module)
 
+        let localSymbol = try sourceSymbol(named: "localSuspendBridge", in: ctx)
+        let outerSymbol = try sourceSymbol(named: "outerSuspendHost", in: ctx)
         let localSuspendFunction = try #require(allFunctions.first(where: { function in
-            ctx.interner.resolve(function.name) == "localSuspendBridge"
+            function.symbol == localSymbol
         }))
         #expect(localSuspendFunction.isSuspend, "Expected local suspend function KIR node to preserve isSuspend flag.")
 
         let outerSuspendFunction = try #require(allFunctions.first(where: { function in
-            ctx.interner.resolve(function.name) == "outerSuspendHost"
+            function.symbol == outerSymbol
         }))
-        let outerCallees = extractCallees(from: outerSuspendFunction.body, interner: ctx.interner)
-        #expect(outerCallees.contains("localSuspendBridge"), "Expected outer suspend function to call the local suspend function before lowering.")
+        #expect(callsSymbol(localSymbol, in: outerSuspendFunction.body),
+                "Expected outer suspend function to call the local suspend function before lowering.")
     }
 
     @Test

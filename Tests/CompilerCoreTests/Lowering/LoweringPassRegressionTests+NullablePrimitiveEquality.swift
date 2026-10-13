@@ -23,8 +23,8 @@ extension LoweringPassRegressionTests {
         fun sentinelSafeAccess(c: Counter?): Long? = c?.\(member)
         """
         let callees = try loweredCallees(for: source, function: "sentinelSafeAccess", includeStdlib: false)
-        #expect(callees.contains("kk_box_long_nonnull_static"), "Safe access must box its non-null Long before merging with null: \(callees)")
-        #expect(callees.contains("kk_unbox_long_static"), "Nullable value-class receiver must be unboxed on the non-null branch: \(callees)")
+        #expect(callees.contains(RuntimeCall.boxLongNonnullStatic.name), "Safe access must box its non-null Long before merging with null: \(callees)")
+        #expect(callees.contains(RuntimeCall.unboxLongStatic.name), "Nullable value-class receiver must be unboxed on the non-null branch: \(callees)")
     }
 
     @Test
@@ -34,8 +34,8 @@ extension LoweringPassRegressionTests {
         fun sentinelNullableReturn(c: Counter): Counter? = c
         """
         let callees = try loweredCallees(for: source, function: "sentinelNullableReturn", includeStdlib: false)
-        #expect(callees.contains("kk_box_long_nonnull_static"))
-        #expect(callees.contains("kk_tag_value_class_box"))
+        #expect(callees.contains(RuntimeCall.boxLongNonnullStatic.name))
+        #expect(callees.contains(RuntimeCall.tagValueClassBox.name))
     }
 
     @Test(arguments: ["c == expected", "expected == c", "c != expected", "expected != c"])
@@ -45,10 +45,10 @@ extension LoweringPassRegressionTests {
         fun sentinelEquality(c: Counter?, expected: Counter): Boolean = \(comparison)
         """
         let callees = try loweredCallees(for: source, function: "sentinelEquality", includeStdlib: false)
-        let expected = comparison.contains("!=") ? "kk_nullable_primitive_ne" : "kk_nullable_primitive_eq"
+        let expected = comparison.contains("!=") ? RuntimeCall.nullablePrimitiveNe.name : RuntimeCall.nullablePrimitiveEq.name
         #expect(callees.contains(expected), "Value-class equality must preserve non-null sentinel payloads: \(callees)")
-        #expect(!callees.contains("kk_structural_eq"))
-        #expect(!callees.contains("kk_structural_ne"))
+        #expect(!callees.contains(RuntimeCall.structuralEq.name))
+        #expect(!callees.contains(RuntimeCall.structuralNe.name))
     }
 
     private func loweredCallees(for source: String, function functionName: String, includeStdlib: Bool = true) throws -> [String] {
@@ -78,8 +78,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNullableBooleanEqualsFalse")
-        #expect(callees.contains("kk_structural_eq"), "Boolean? == false should use kk_structural_eq, got: \(callees)")
-        #expect(!callees.contains("kk_op_eq"), "Boolean? == false must not fall back to raw kk_op_eq, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.structuralEq.name), "Boolean? == false should use kk_structural_eq, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.opEq.name), "Boolean? == false must not fall back to raw kk_op_eq, got: \(callees)")
     }
 
     @Test
@@ -90,8 +90,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNullableBooleanNotEqualsFalse")
-        #expect(callees.contains("kk_structural_ne"), "Boolean? != false should use kk_structural_ne, got: \(callees)")
-        #expect(!callees.contains("kk_op_ne"), "Boolean? != false must not fall back to raw kk_op_ne, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.structuralNe.name), "Boolean? != false should use kk_structural_ne, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.opNe.name), "Boolean? != false must not fall back to raw kk_op_ne, got: \(callees)")
     }
 
     @Test
@@ -102,8 +102,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNullableIntEqualsZero")
-        #expect(callees.contains("kk_structural_eq"), "Int? == 0 should use kk_structural_eq, got: \(callees)")
-        #expect(!callees.contains("kk_op_eq"), "Int? == 0 must not fall back to raw kk_op_eq, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.structuralEq.name), "Int? == 0 should use kk_structural_eq, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.opEq.name), "Int? == 0 must not fall back to raw kk_op_eq, got: \(callees)")
     }
 
     @Test
@@ -114,8 +114,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNonNullBooleanEqualsFalse")
-        #expect(callees.contains("kk_op_eq"), "Non-null Boolean == false should keep the cheaper kk_op_eq path, got: \(callees)")
-        #expect(!callees.contains("kk_structural_eq"), "Non-null Boolean == false should not need structural equality, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.opEq.name), "Non-null Boolean == false should keep the cheaper kk_op_eq path, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.structuralEq.name), "Non-null Boolean == false should not need structural equality, got: \(callees)")
     }
 
     @Test
@@ -126,8 +126,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNonNullIntNotEqualsZero")
-        #expect(callees.contains("kk_op_ne"), "Non-null Int != 0 should keep the cheaper kk_op_ne path, got: \(callees)")
-        #expect(!callees.contains("kk_structural_ne"), "Non-null Int != 0 should not need structural equality, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.opNe.name), "Non-null Int != 0 should keep the cheaper kk_op_ne path, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.structuralNe.name), "Non-null Int != 0 should not need structural equality, got: \(callees)")
     }
 
     // Long?/ULong?/Double?/Float? are the only primitives whose full raw
@@ -146,9 +146,9 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNullableLongEqualsZero")
-        #expect(callees.contains("kk_nullable_primitive_eq"), "Long? == 0L should use kk_nullable_primitive_eq, got: \(callees)")
-        #expect(!callees.contains("kk_structural_eq"), "Long? == 0L must not use the sentinel-ambiguous kk_structural_eq, got: \(callees)")
-        #expect(!callees.contains("kk_op_eq"), "Long? == 0L must not fall back to raw kk_op_eq, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.nullablePrimitiveEq.name), "Long? == 0L should use kk_nullable_primitive_eq, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.structuralEq.name), "Long? == 0L must not use the sentinel-ambiguous kk_structural_eq, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.opEq.name), "Long? == 0L must not fall back to raw kk_op_eq, got: \(callees)")
     }
 
     @Test
@@ -159,8 +159,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNullableDoubleNotEqualsZero")
-        #expect(callees.contains("kk_nullable_primitive_ne"), "Double? != 0.0 should use kk_nullable_primitive_ne, got: \(callees)")
-        #expect(!callees.contains("kk_op_dne"), "Double? != 0.0 must not fall back to the fixed-IEEE kk_op_dne, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.nullablePrimitiveNe.name), "Double? != 0.0 should use kk_nullable_primitive_ne, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.opDne.name), "Double? != 0.0 must not fall back to the fixed-IEEE kk_op_dne, got: \(callees)")
     }
 
     @Test
@@ -171,7 +171,7 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNullableFloatEqualsZero")
-        #expect(callees.contains("kk_nullable_primitive_eq"), "Float? == 0.0f should use kk_nullable_primitive_eq, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.nullablePrimitiveEq.name), "Float? == 0.0f should use kk_nullable_primitive_eq, got: \(callees)")
     }
 
     @Test
@@ -182,8 +182,8 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkNonNullDoubleNotEqualsZero")
-        #expect(callees.contains("kk_op_dne"), "Non-null Double != 0.0 should keep the IEEE-754 kk_op_dne path, got: \(callees)")
-        #expect(!callees.contains("kk_nullable_primitive_ne"), "Non-null Double != 0.0 should not need null-aware equality, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.opDne.name), "Non-null Double != 0.0 should keep the IEEE-754 kk_op_dne path, got: \(callees)")
+        #expect(!callees.contains(RuntimeCall.nullablePrimitiveNe.name), "Non-null Double != 0.0 should not need null-aware equality, got: \(callees)")
     }
 
     @Test
@@ -194,7 +194,7 @@ extension LoweringPassRegressionTests {
         }
         """
         let callees = try loweredCallees(for: source, function: "checkTwoNullableLongs")
-        #expect(callees.contains("kk_nullable_primitive_eq"), "Long? == Long? should use kk_nullable_primitive_eq, got: \(callees)")
+        #expect(callees.contains(RuntimeCall.nullablePrimitiveEq.name), "Long? == Long? should use kk_nullable_primitive_eq, got: \(callees)")
     }
 }
 #endif

@@ -37,7 +37,7 @@ struct ImplicitPrimitiveConversionTests {
                 let name = ctx.interner.resolve(function.name)
                 let reads = function.body.compactMap { instruction -> [KIRExprID]? in
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "kk_char_code"
+                          callee == LoweringTestRuntime.callee("char_code", interner: ctx.interner)
                     else { return nil }
                     return arguments
                 }
@@ -52,7 +52,7 @@ struct ImplicitPrimitiveConversionTests {
                 let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
                 #expect(!body.contains {
                     if case let .call(_, callee, _, _, _, _, _, _) = $0 {
-                        return ctx.interner.resolve(callee) == "kk_char_code"
+                        return callee == LoweringTestRuntime.callee("char_code", interner: ctx.interner)
                     }
                     return false
                 }, "\(name) must preserve the shadowing declaration")
@@ -90,13 +90,13 @@ struct ImplicitPrimitiveConversionTests {
                     guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
                     return ctx.interner.resolve(callee)
                 }
-                #expect(calls.filter { $0 == "kk_int_to_ushort" }.count == 1, "\(name): \(calls)")
+                #expect(calls.filter { $0 == LoweringTestRuntime.name("int_to_ushort") }.count == 1, "\(name): \(calls)")
                 #expect(!calls.contains("toUShort"), "\(name) must not emit an unresolved conversion")
                 if name.hasSuffix("Safe") {
                     let guardIndex = try #require(body.firstIndex { if case .jumpIfNotNull = $0 { return true }; return false })
                     let callIndex = try #require(body.firstIndex {
                         if case let .call(_, callee, _, _, _, _, _, _) = $0 {
-                            return ctx.interner.resolve(callee) == "kk_int_to_ushort"
+                            return callee == LoweringTestRuntime.callee("int_to_ushort", interner: ctx.interner)
                         }
                         return false
                     })
@@ -122,12 +122,12 @@ struct ImplicitPrimitiveConversionTests {
         let expectedLinks: [(function: String, link: String?)] = [
             ("byteInt", nil),
             ("byteShort", nil),
-            ("byteUnsigned", "kk_int_to_uint"),
-            ("byteFloat", "kk_int_to_float"),
+            ("byteUnsigned", LoweringTestRuntime.name("int_to_uint")),
+            ("byteFloat", LoweringTestRuntime.name("int_to_float")),
             ("shortInt", nil),
-            ("shortByte", "kk_int_to_byte"),
-            ("shortDouble", "kk_int_to_double_bits"),
-            ("shortUByte", "kk_int_to_ubyte"),
+            ("shortByte", LoweringTestRuntime.name("int_to_byte")),
+            ("shortDouble", LoweringTestRuntime.name("int_to_double_bits")),
+            ("shortUByte", LoweringTestRuntime.name("int_to_ubyte")),
         ]
 
         try withTemporaryFile(contents: source) { path in
@@ -142,7 +142,7 @@ struct ImplicitPrimitiveConversionTests {
                     guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
                     return ctx.interner.resolve(callee)
                 }
-                #expect(!links.contains("kk_primitive_identity"), "\(entry.function) must never call a missing ABI symbol")
+                #expect(!LoweringTestRuntime.operations(in: links).contains("primitive_identity"), "\(entry.function) must never call a missing ABI symbol")
                 if let expected = entry.link {
                     #expect(links.contains(expected), "\(entry.function) must use \(expected); got \(links)")
                 } else {

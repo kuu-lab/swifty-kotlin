@@ -1,5 +1,6 @@
 #if canImport(Testing)
 import Foundation
+import RuntimeABI
 import Testing
 
 /// Guards BUG-135: Swift Testing suites share one process and run
@@ -15,16 +16,11 @@ import Testing
 /// reset runtime state before/after each test.
 @Suite
 struct RuntimeSwiftTestingIsolationLintTests {
-    private static let forbiddenCalls = [
-        "kk_runtime_force_reset",
-        "kk_runtime_reset_gc",
-        "kk_runtime_reset_metadata",
-        "kk_runtime_reset_flow",
-        "kk_runtime_reset_thread_local",
-        "kk_runtime_reset_delegate",
-        "__kk_system_gc",
-        "kk_gc_collect",
-        "kk_gc_schedule",
+    private static let forbiddenABIOperations = [
+        "_runtime_force_reset",
+        "_system_gc",
+        "_gc_collect",
+        "_gc_schedule",
     ]
 
     // Split so this file's own source never matches the marker.
@@ -32,6 +28,20 @@ struct RuntimeSwiftTestingIsolationLintTests {
 
     @Test
     func testSwiftTestingSuitesDoNotResetGlobalRuntimeState() throws {
+        let forbiddenCalls = try Self.forbiddenABIOperations.map { operation in
+            let specs = RuntimeABISpec.allFunctions.filter { $0.name.hasSuffix(operation) }
+            try #require(specs.count == 1, "Expected one runtime ABI declaration for \(operation)")
+            return specs[0].name
+        }
+        let forceReset = try #require(forbiddenCalls.first { $0.hasSuffix("_runtime_force_reset") })
+        // Internal reset helpers are not ABI exports; derive their common prefix
+        // from the public reset entry point instead of pinning each helper name.
+        let resetPrefix = String(forceReset.dropLast("force_reset".count)) + "reset_"
+        let alternatives = forbiddenCalls.map(NSRegularExpression.escapedPattern(for:))
+            + [NSRegularExpression.escapedPattern(for: resetPrefix) + #"\w+"#]
+        let callPattern = try NSRegularExpression(
+            pattern: #"\b("# + alternatives.joined(separator: "|") + #")\s*\("#
+        )
         let thisFile = URL(fileURLWithPath: #filePath)
         let testsRoot = thisFile.deletingLastPathComponent().deletingLastPathComponent()
         var violations: [String] = []
@@ -54,10 +64,10 @@ struct RuntimeSwiftTestingIsolationLintTests {
                 for (index, rawLine) in source.components(separatedBy: "\n").enumerated() {
                     let line = rawLine.trimmingCharacters(in: .whitespaces)
                     if line.hasPrefix("//") { continue }
-                    for call in Self.forbiddenCalls {
-                        guard let range = line.range(of: call) else { continue }
-                        let rest = line[range.upperBound...].drop { $0 == " " }
-                        guard rest.first == "(" else { continue }
+                    let lineRange = NSRange(line.startIndex..<line.endIndex, in: line)
+                    for match in callPattern.matches(in: line, range: lineRange) {
+                        let range = try #require(Range(match.range(at: 1), in: line))
+                        let call = String(line[range])
                         violations.append("\(target)/\(file.lastPathComponent):\(index + 1): \(call)()")
                     }
                 }

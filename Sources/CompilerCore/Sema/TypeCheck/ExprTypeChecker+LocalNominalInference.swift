@@ -130,7 +130,7 @@ extension ExprTypeChecker {
         let outerReceiverPropertySymbols = Set(
             sema.symbols.allSymbols().compactMap { symbol -> SymbolID? in
                 guard symbol.kind == .property,
-                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
+                      let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
                       sema.symbols.symbol(ownerSymbol)?.kind == .class,
                       !symbol.flags.contains(.mutable)
@@ -145,6 +145,7 @@ extension ExprTypeChecker {
         let captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+            .union(ctx.implicitReceiverStack.map(\.symbol))
 
         let classFQName = fqNamePrefix + [classDecl.name]
         let classSymbol = sema.symbols.define(
@@ -168,7 +169,7 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             if case let .classType(classType) = sema.types.kind(of: resolved) {
                 directSuperSymbols.append(classType.classSymbol)
@@ -182,7 +183,7 @@ extension ExprTypeChecker {
             let classNames = concreteClassSupers.compactMap { sema.symbols.symbol($0)?.fqName.last }
                 .map { interner.resolve($0) }
                 .joined(separator: ", ")
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0170",
                 "Local class '\(interner.resolve(classDecl.name))' cannot inherit from more than one class. Found: \(classNames).",
                 range: classDecl.range
@@ -230,7 +231,7 @@ extension ExprTypeChecker {
                         sema: sema,
                         interner: interner,
                         scope: ctx.scope,
-                        diagnostics: ctx.semaCtx.diagnostics,
+                        diagnostics: ctx.sema.diagnostics,
                         inferenceContext: ctx,
                         usageRange: header.range
                     )
@@ -285,7 +286,7 @@ extension ExprTypeChecker {
                 ownerFQName: classFQName, ownerType: classType,
                 phase: .beforeMemberHeaders, symbols: sema.symbols, types: sema.types,
                 scope: classScope, interner: interner,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         let memberFunctionSymbolsByDecl = collectObjectLiteralMemberFunctions(
@@ -302,7 +303,7 @@ extension ExprTypeChecker {
                 ownerFQName: classFQName, ownerType: classType,
                 phase: .afterMemberHeaders, symbols: sema.symbols, types: sema.types,
                 scope: classScope, interner: interner,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         for ctorSymbol in constructorSymbols {
@@ -338,14 +339,14 @@ extension ExprTypeChecker {
             classDecl,
             ctx: classCtx,
             solver: driver.solver,
-            diagnostics: ctx.semaCtx.diagnostics,
+            diagnostics: ctx.sema.diagnostics,
             baseLocals: outerLocalsSnapshot
         )
         driver.declChecker.typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
             solver: driver.solver,
-            diagnostics: ctx.semaCtx.diagnostics,
+            diagnostics: ctx.sema.diagnostics,
             ownerSymbol: classSymbol,
             hasPrimaryConstructor: hasPrimaryConstructor,
             baseLocals: outerLocalsSnapshot
@@ -390,7 +391,7 @@ extension ExprTypeChecker {
                 symbol: functionSymbol,
                 ctx: classCtx.with(currentDeclSymbol: functionSymbol),
                 solver: driver.solver,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 baseLocals: outerLocalsSnapshot
             )
             defaultExprRoots.append(contentsOf: functionDecl.valueParams.compactMap(\.defaultValue))
@@ -420,6 +421,7 @@ extension ExprTypeChecker {
             ownerSymbol: classSymbol,
             outerLocalsSnapshot: outerLocalsSnapshot,
             outerReceiverTypes: ctx.outerReceiverTypes,
+            receiverStack: ctx.implicitReceiverStack,
             sema: sema
         )
 

@@ -1,3 +1,23 @@
+/// External object-property getters use the singleton as a dispatch receiver,
+/// just like an explicitly qualified member read. Package properties have no
+/// receiver. Keep bare reads and generated global initializers on the same ABI.
+func externalGlobalPropertyGetterArguments<C: RangeReplaceableCollection>(
+    for property: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    into instructions: inout C
+) -> [KIRExprID] where C.Element == KIRInstruction {
+    guard let owner = sema.symbols.parentSymbol(for: property),
+          sema.symbols.symbol(owner)?.kind == .object
+    else { return [] }
+    let ownerType = sema.types.make(.classType(ClassType(
+        classSymbol: owner, args: [], nullability: .nonNull
+    )))
+    let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+    instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+    return [receiver]
+}
+
 @discardableResult
 func emitNonThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,
@@ -70,11 +90,13 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
 /// variable cell, or backing-field global) must leave the slot
 /// box-or-sentinel: a raw `Long`/`ULong`/`Double`/`Float` scalar whose bits
 /// collide with `runtimeNullSentinelInt` would read as `null` to every null
-/// check (KUU-854). Emitting a `.copy` through a `slotType`-typed temporary
-/// lets ABILoweringPass pick the always-boxing `kk_box_*_nonnull` callee for
-/// a non-null source while passing existing box/sentinel content through
-/// verbatim. Returns `value` unchanged when `slotType` is not a nullable
-/// primitive whose scalar can collide with the sentinel.
+/// check (KUU-854), and `===` on `P?` operands is JVM reference equality on
+/// the boxed value, which requires every nullable primitive slot — not just
+/// sentinel-colliding ones — to hold the box (KUU-1385). Emitting a `.copy`
+/// through a `slotType`-typed temporary lets ABILoweringPass pick the
+/// always-boxing `kk_box_*` callee for a non-null source while passing
+/// existing box/sentinel content through verbatim. Returns `value` unchanged
+/// when `slotType` is not a nullable primitive.
 func normalizedValueForNullablePrimitiveSlot<C: RangeReplaceableCollection>(
     _ value: KIRExprID,
     slotType: TypeID,
@@ -82,8 +104,8 @@ func normalizedValueForNullablePrimitiveSlot<C: RangeReplaceableCollection>(
     arena: KIRArena,
     into instructions: inout C
 ) -> KIRExprID where C.Element == KIRInstruction {
-    guard case let .primitive(primitive, .nullable) = types.kind(of: slotType),
-          primitive.rawValueCollidesWithNullSentinel
+    guard case let .primitive(_, nullability) = types.kind(of: slotType),
+          nullability != .nonNull
     else {
         return value
     }
@@ -295,7 +317,14 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     // plain (untagged) box for these — same as before this function grew
     // enum awareness — rather than emitting a call to a helper that will
     // never exist.
-    if sym.kind == .enumClass, !sym.flags.contains(.synthetic) {
+    let enumHasOrdinalNameHelper = sym.kind == .enumClass
+        && (!sym.flags.contains(.synthetic) || {
+            let probeName = NameMangler.enumOrdinalToNameHelperName(for: sym, interner: interner)
+            return symbols.lookupAll(fqName: sym.fqName + [probeName]).contains { id in
+                symbols.symbol(id).map { $0.kind == .function } ?? false
+            }
+        }())
+    if enumHasOrdinalNameHelper {
         emitEnumOrdinalBoxCall(
             ordinal: value,
             classSymbol: classType.classSymbol,
@@ -363,10 +392,21 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let classSym = symbols.symbol(classSymbol),
-          classSym.kind == .enumClass,
-          !classSym.flags.contains(.synthetic)
+          classSym.kind == .enumClass
     else {
-        preconditionFailure("emitEnumOrdinalBoxCall requires a non-synthetic, source-backed enum class symbol")
+        preconditionFailure("emitEnumOrdinalBoxCall requires an enum class symbol")
+    }
+    if classSym.flags.contains(.synthetic) {
+        // Header-only synthetic enums never get a `$enumOrdinalToName$`
+        // helper; `.kklib`-imported enums are synthetic-flagged but carry
+        // theirs in the artifact, so only those with a resolvable helper
+        // may proceed (KUU-1364).
+        let probeName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+        let helperExists = symbols.lookupAll(fqName: classSym.fqName + [probeName]).contains { id in
+            symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        precondition(helperExists,
+                     "emitEnumOrdinalBoxCall requires a non-synthetic enum class symbol or an imported enum with a serialized helper")
     }
 
     // BUG-A: an Any-erased rendering of the box (println on a boxed

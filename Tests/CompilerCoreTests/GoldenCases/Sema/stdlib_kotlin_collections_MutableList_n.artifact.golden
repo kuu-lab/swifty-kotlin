@@ -16,7 +16,7 @@ symbol fq=__local_14.shuffledSeeded[kind=local;type=Unit;origin=fixture] kind=lo
 symbol fq=__local_15.nullableMutable[kind=local;type=kotlin.collections.MutableList<Int>?;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<Int>?
 symbol fq=__local_16.safeFirst[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
 symbol fq=__local_17.safeRemoveAll[kind=local;type=Boolean?;origin=fixture] kind=local vis=private flags=_ type=Boolean?
-symbol fq=__local_18.safeReverse[kind=local;type=Unit;origin=fixture] kind=local vis=private flags=_ type=Unit
+symbol fq=__local_18.safeReverse[kind=local;type=Unit?;origin=fixture] kind=local vis=private flags=_ type=Unit?
 symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_collections_MutableList_n package=golden.sema
   decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
@@ -91,8 +91,8 @@ expr e@22:52 lambda params=[] body=e@22:54#1 label=removeAll type=(Int) -> Boole
 expr e@22:25#1 safeMemberCall recv=e@22:25 callee=removeAll args=[_:e@22:52] type=Boolean? call=kotlin.collections.removeAll[kind=fun;recv=kotlin.collections.MutableList<T0>;params=fn{p=T0;ret=Boolean};ret=Boolean;gen=1;nonlocal=[0];names=[predicate]] targs=[Int]
 expr e@22:5 localDecl safeRemoveAll mutable=0 type=_ init=e@22:25#1 type=Unit ref=__local_17.safeRemoveAll[kind=local;type=Boolean?;origin=fixture]
 expr e@23:23 name(nullableMutable) type=kotlin.collections.MutableList<Int>? ref=__local_15.nullableMutable[kind=local;type=kotlin.collections.MutableList<Int>?;origin=fixture]
-expr e@23:23#1 safeMemberCall recv=e@23:23 callee=reverse args=[] type=Unit call=kotlin.collections.reverse[kind=fun;recv=kotlin.collections.MutableList<T0>;params=;ret=Unit;gen=1] targs=[Int]
-expr e@23:5 localDecl safeReverse mutable=0 type=_ init=e@23:23#1 type=Unit ref=__local_18.safeReverse[kind=local;type=Unit;origin=fixture]
+expr e@23:23#1 safeMemberCall recv=e@23:23 callee=reverse args=[] type=Unit? call=kotlin.collections.reverse[kind=fun;recv=kotlin.collections.MutableList<T0>;params=;ret=Unit;gen=1] targs=[Int]
+expr e@23:5 localDecl safeReverse mutable=0 type=_ init=e@23:23#1 type=Unit ref=__local_18.safeReverse[kind=local;type=Unit?;origin=fixture]
 expr e@24:13 name(mutableReversed) type=kotlin.collections.MutableList<Int> ref=__local_1.mutableReversed[kind=local;type=kotlin.collections.MutableList<Int>;origin=fixture]
 expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@25:13 name(readOnlyReversed) type=kotlin.collections.List<Int> ref=__local_3.readOnlyReversed[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
@@ -123,7 +123,7 @@ expr e@37:13 name(safeFirst) type=Int? ref=__local_16.safeFirst[kind=local;type=
 expr e@37:5 call callee=e@37:5#1 args=[_:e@37:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@38:13 name(safeRemoveAll) type=Boolean? ref=__local_17.safeRemoveAll[kind=local;type=Boolean?;origin=fixture]
 expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@39:13 name(safeReverse) type=Unit ref=__local_18.safeReverse[kind=local;type=Unit;origin=fixture]
+expr e@39:13 name(safeReverse) type=Unit? ref=__local_18.safeReverse[kind=local;type=Unit?;origin=fixture]
 expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 section stdlib-targets
 target fq=kotlin.collections.MutableList[kind=iface;gen=1] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0] supertypes=[kotlin.collections.List<out kotlin.collections.MutableList.E>,kotlin.collections.MutableCollection<kotlin.collections.MutableList.E>,kotlin.collections.MutableIterable<kotlin.collections.MutableList.E>]

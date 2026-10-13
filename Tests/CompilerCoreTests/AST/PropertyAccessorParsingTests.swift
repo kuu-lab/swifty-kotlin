@@ -7,6 +7,90 @@ import Testing
 /// the next accessor is wrapped in a `.propertyAccessor` child.
 @Suite
 struct PropertyAccessorParsingTests {
+    @Test(arguments: ["=", "by lazy"])
+    func initializerObjectAccessorsStayOnTheObject(_ initializer: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion \(initializer) {
+            val nested = object {
+                var context: Int get() = 42
+                    set(value) {}
+            }
+            nested
+        }
+        """, includeStdlib: false)
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.getter == nil)
+        #expect(property.setter == nil)
+        let objects = ast.arena.exprs.compactMap { expression -> ObjectDecl? in
+            guard case let .objectLiteral(_, declID?, _) = expression,
+                  case let .objectDecl(object)? = ast.arena.decl(declID) else { return nil }
+            return object
+        }
+        let object = try #require(objects.first)
+        let member = try #require(object.memberProperties.first.flatMap { ast.arena.decl($0) })
+        guard case let .propertyDecl(nested) = member else {
+            Issue.record("Expected the object's context property")
+            return
+        }
+        #expect(nested.getter != nil)
+        #expect(nested.setter != nil)
+    }
+
+    @Test
+    func objectInitializerDoesNotSupplyTheOuterGetter() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion = object {
+            val context: Int get() = 42
+        }
+        """, includeStdlib: false)
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.initializer != nil)
+        #expect(property.getter == nil)
+        #expect(property.setter == nil)
+    }
+
+    @Test
+    func objectInitializerPreservesAnExplicitOuterGetter() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion = object {
+            val context: Int get() = 42
+        }
+            get() = field
+        """, includeStdlib: false)
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.initializer != nil)
+        guard case let .expr(body, _) = property.getter?.body,
+              case let .nameRef(name, _) = ast.arena.expr(body) else {
+            Issue.record("The outer property's explicit getter must be retained")
+            return
+        }
+        #expect(ctx.interner.resolve(name) == "field")
+        #expect(property.setter == nil)
+    }
+
+    @Test(arguments: ["(Int) -> Int", "String.(Int) -> Int"])
+    func inlineExpressionGetterRetainsFunctionTypeBeforeLambda(_ type: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Holder {
+            val callback: \(type) get() = { it }
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "callback", ofClass: "Holder", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .functionType(_, receiver, parameters, _, _, _) = typeRef else {
+            Issue.record("Expected a function property annotation, got \(typeRef)")
+            return
+        }
+        #expect(parameters.count == 1)
+        #expect((receiver != nil) == type.hasPrefix("String"))
+        #expect(property.initializer == nil)
+        guard case let .expr(expression, _) = property.getter?.body,
+              case .lambdaLiteral = ast.arena.expr(expression) else {
+            Issue.record("The getter must return a lambda expression")
+            return
+        }
+    }
+
     @Test
     func semicolonSeparatedGetterAndSetterAreBothParsed() throws {
         let (ast, ctx) = try buildASTModule(from: """
@@ -41,6 +125,23 @@ struct PropertyAccessorParsingTests {
     }
 
     @Test
+    func explicitEmptySetterRetainsAnEmptyBlockBody() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class C {
+            var value: Int
+                get() = 42
+                set(value) {}
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "value", ofClass: "C", in: ast, interner: ctx.interner))
+        guard case let .block(statements, _) = property.setter?.body else {
+            Issue.record("An explicit empty setter body must remain a block rather than `.unit`")
+            return
+        }
+        #expect(statements.isEmpty)
+    }
+
+    @Test
     func sameLineBlockGetterAndSetterKeepTypeAndBodies() throws {
         let (ast, ctx) = try buildASTModule(from: """
         class C {
@@ -55,7 +156,7 @@ struct PropertyAccessorParsingTests {
             Issue.record("Expected a plain named type, got \(typeRef)")
             return
         }
-        #expect(path.map { ctx.interner.resolve($0) } == ["Int"])
+        #expect(path == [KnownCompilerNames(interner: ctx.interner).int])
         #expect(args.isEmpty)
         #expect(!nullable)
         guard case let .block(getterStatements, _) = property.getter?.body,
@@ -79,7 +180,7 @@ struct PropertyAccessorParsingTests {
         let property = try #require(memberProperty(named: "q", ofClass: "C", in: ast, interner: ctx.interner))
         #expect(property.getter != nil)
         #expect(property.setter != nil)
-        #expect(property.setter?.parameterName.map { ctx.interner.resolve($0) } == "v")
+        #expect(property.setter?.parameterName == ctx.interner.intern("v"))
     }
 
     @Test
@@ -95,6 +196,79 @@ struct PropertyAccessorParsingTests {
             return
         }
         #expect(ast.arena.expr(exprID) != nil)
+    }
+
+    @Test
+    func expressionGetterKeepsMemberGetCall() throws {
+        // KUU-1363: `this.get()` inside an expression-bodied getter is a member
+        // call, not a second accessor header. The body-extent scan must not
+        // truncate the body at `get(` when the soft keyword follows `.`/`?.`/`::`.
+        let (ast, ctx) = try buildASTModule(from: """
+        class Box(val v: String) {
+            fun get(): String = v
+            val direct: String get() = this.get()
+        }
+        val Box.ext: String get() = this.get()
+        val Box.nested: String get() = this.v.get(0).toString()
+        """, includeStdlib: false)
+
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        for (property, label) in [
+            (try #require(memberProperty(named: "direct", ofClass: "Box", in: ast, interner: ctx.interner)), "direct"),
+            (try #require(topLevelProperty(named: "ext", in: ast, interner: ctx.interner)), "ext"),
+        ] {
+            guard case let .expr(exprID, _) = property.getter?.body,
+                  case let .memberCall(receiverID, callee, _, args, _) = ast.arena.expr(exprID),
+                  case .thisRef = ast.arena.expr(receiverID)
+            else {
+                Issue.record("\(label) getter body must be the full this.get() member call")
+                continue
+            }
+            #expect(callee == knownNames.get)
+            #expect(args.isEmpty)
+        }
+
+        // A `get` call nested inside the body is not an accessor boundary either.
+        let nested = try #require(topLevelProperty(named: "nested", in: ast, interner: ctx.interner))
+        guard case let .expr(nestedID, _) = nested.getter?.body,
+              case let .memberCall(_, nestedCallee, _, _, _) = ast.arena.expr(nestedID)
+        else {
+            Issue.record("nested getter body must keep the outermost member call")
+            return
+        }
+        #expect(nestedCallee == knownNames.toString)
+    }
+
+    @Test
+    func expressionGetterStillSplitsAtFollowingAccessorHeader() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class C {
+            var backing = 0
+            var p: Int get() = backing + 1; set(v) { backing = v }
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "p", ofClass: "C", in: ast, interner: ctx.interner))
+        #expect(property.setter != nil)
+        #expect(property.setter?.parameterName == ctx.interner.intern("v"))
+    }
+
+    @Test
+    func expressionSetterKeepsMemberSetCall() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Sink { fun set(v: Int) {} }
+        class C {
+            val sink = Sink()
+            var p: Int set(v) = sink.set(v)
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "p", ofClass: "C", in: ast, interner: ctx.interner))
+        guard case let .expr(exprID, _) = property.setter?.body,
+              case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID)
+        else {
+            Issue.record("Setter body must keep the sink.set(v) member call")
+            return
+        }
+        #expect(callee == KnownCompilerNames(interner: ctx.interner).sbSet)
     }
 
     @Test(arguments: ["\n", " ", "; "])
@@ -116,8 +290,8 @@ struct PropertyAccessorParsingTests {
             Issue.record("Expected a safe let call followed by an Elvis run call")
             return
         }
-        #expect(ctx.interner.resolve(member) == "let")
-        #expect(ctx.interner.resolve(runName) == "run")
+        #expect(member == ctx.interner.intern("let"))
+        #expect(runName == KnownCompilerNames(interner: ctx.interner).run)
         #expect(letArgs.count == 1)
         #expect(runArgs.count == 1)
         let letArg = try #require(letArgs.first)

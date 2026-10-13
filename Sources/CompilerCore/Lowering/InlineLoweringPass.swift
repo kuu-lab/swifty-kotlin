@@ -164,7 +164,7 @@ final class InlineLoweringPass: LoweringPass {
             budget.ancestry = ancestry
 
             let resolvedArguments = arguments.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
-            retryInvoke = ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"].contains(ctx.interner.resolve(callee))
+            retryInvoke = ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(ctx.interner.resolve(callee))
             if retryInvoke,
                let callableExpr = resolvedArguments.first,
                let lambdaFunction = resolveLambdaFunction(
@@ -182,7 +182,7 @@ final class InlineLoweringPass: LoweringPass {
                 }
                 let captureArgs = lambdaCaptureArguments(
                     for: callableExpr, symbol: lambdaFunction.symbol,
-                    aliases: aliases, arena: module.arena
+                    aliases: aliases, arena: module.arena, ctx: ctx, into: &loweredBody
                 )
                 guard budget.permitsAdditional(
                     captureArgs.count + resolvedArguments.count,

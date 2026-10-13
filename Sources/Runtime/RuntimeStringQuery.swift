@@ -63,7 +63,6 @@ public func kk_char_sequence_length(_ raw: Int) -> Int {
 // lastOrNull/singleOrNull functions that used to live here were superseded
 // and unreachable from any CompilerCore call site; removed.
 
-@_cdecl("kk_string_getOrNull")
 public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard index >= 0, index < codeUnits.count else {
@@ -176,10 +175,10 @@ public func kk_charsequence_ifEmpty(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
+    guard let length = runtimeCharSequenceUTF16Length(from: sequenceRaw) else {
         return 0
     }
-    guard codeUnits.isEmpty else {
+    guard length == 0 else {
         return sequenceRaw
     }
     return runtimeInvokeCharSequenceDefaultValue(
@@ -190,7 +189,6 @@ public func kk_charsequence_ifEmpty(
     )
 }
 
-@_cdecl("kk_string_get")
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)

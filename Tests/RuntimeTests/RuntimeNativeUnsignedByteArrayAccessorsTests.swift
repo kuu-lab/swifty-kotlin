@@ -4,13 +4,6 @@ import Testing
 
 @Suite
 struct RuntimeNativeUnsignedByteArrayAccessorsTests {
-    private func makeByteArray(_ bytes: [Int]) -> Int {
-        let array = kk_array_new(bytes.count)
-        for (index, byte) in bytes.enumerated() {
-            _ = kk_array_set(array, index, byte, nil)
-        }
-        return array
-    }
 
     @Test
     func testUnsignedByteArrayLoadsUseLittleEndianLayout() {

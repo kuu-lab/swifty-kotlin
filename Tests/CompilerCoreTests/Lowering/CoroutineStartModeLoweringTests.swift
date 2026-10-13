@@ -3,8 +3,8 @@
 import Foundation
 import Testing
 
-/// `launch(start = CoroutineStart.X)` must select the runtime launcher
-/// that actually implements X.
+/// Source-backed `launch(start = CoroutineStart.X)` must pass X to the launch
+/// bridge, preserving eager, lazy, atomic and undispatched start modes.
 ///
 /// Lowering used to route *any* `CoroutineStart`-typed first argument to the
 /// lazy launcher and never read the value, so `DEFAULT`, `ATOMIC` and
@@ -12,15 +12,9 @@ import Testing
 /// joined it.
 @Suite
 struct CoroutineStartModeLoweringTests {
-    /// Every `kk_kxmini_launch*` callee the lowered module reaches for a
-    /// `launch(start = CoroutineStart.<startMode>)` call.
-    ///
-    /// The whole module is scanned rather than just `main`: the launch is
-    /// rewritten inside the lambda-derived suspend function the compiler
-    /// synthesises for the `runBlocking` body, not in `main` itself. These
-    /// names are unique to the launch lowering, so nothing in the bundled
-    /// stdlib compiled alongside the input can contribute a false hit.
-    private func launcherCallees(startMode: String) throws -> Set<String> {
+    /// Scan the whole module: the builder lives in the lowered runBlocking
+    /// lambda, and its receiver requires the continuation-aware scope bridge.
+    private func launcherStartModes(startMode: String) throws -> [Int64] {
         let source = """
         import kotlinx.coroutines.*
 
@@ -44,49 +38,23 @@ struct CoroutineStartModeLoweringTests {
         )
 
         let module = try #require(ctx.kir)
-        var callees: Set<String> = []
-        for function in findAllKIRFunctions(in: module) {
-            for callee in extractCallees(from: function.body, interner: ctx.interner)
-                where callee.hasPrefix("kk_kxmini_launch")
-            {
-                callees.insert(callee)
-            }
-        }
-        return callees
+        return try LoweringTestRuntime.coroutineStartModes(
+            for: "coroutine_scope_launch_context_with_cont", legacyOperationPrefix: "kxmini_launch",
+            in: module, interner: ctx.interner
+        )
     }
 
-    /// The three launcher modes, in raw and continuation-aware forms. `DEFAULT` and `ATOMIC`
-    /// share one: they differ only in whether a cancellation arriving before
-    /// the first suspension can still stop the body, which this runtime does
-    /// not model separately.
-    private static let allLaunchers: Set<String> = [
-        "kk_kxmini_launch",
-        "kk_kxmini_launch_with_cont",
-        "kk_kxmini_launch_lazy",
-        "kk_kxmini_launch_lazy_with_cont",
-        "kk_kxmini_launch_undispatched",
-        "kk_kxmini_launch_undispatched_with_cont",
-    ]
-
     @Test(arguments: [
-        ("DEFAULT", "kk_kxmini_launch"),
-        ("ATOMIC", "kk_kxmini_launch"),
-        ("LAZY", "kk_kxmini_launch_lazy"),
-        ("UNDISPATCHED", "kk_kxmini_launch_undispatched"),
+        ("DEFAULT", Int64(0)),
+        ("ATOMIC", Int64(2)),
+        ("LAZY", Int64(1)),
+        ("UNDISPATCHED", Int64(3)),
     ])
-    func testStartModeSelectsItsRuntimeLauncher(startMode: String, expected: String) throws {
-        let callees = try launcherCallees(startMode: startMode)
-        let expectedLaunchers: Set<String> = [expected, expected + "_with_cont"]
-
+    func testStartModeSelectsItsRuntimeLauncher(startMode: String, expected: Int64) throws {
+        let modes = try launcherStartModes(startMode: startMode)
         #expect(
-            !callees.isDisjoint(with: expectedLaunchers),
-            "CoroutineStart.\(startMode) should lower to \(expected), got: \(callees.sorted())"
-        )
-
-        let wrong = callees.intersection(Self.allLaunchers.subtracting(expectedLaunchers))
-        #expect(
-            wrong.isEmpty,
-            "CoroutineStart.\(startMode) also selected \(wrong.sorted())"
+            modes == [expected],
+            "CoroutineStart.\(startMode) must reach exactly one launch builder with start \(expected); got: \(modes)"
         )
     }
 }

@@ -2,6 +2,15 @@
 
 /// `RuntimeABISpec.systemFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let dynamicIteratorSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_dynamic_iterator",
+        parameters: [
+            RuntimeABIParameter(name: "value", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "System"
+    )
+
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "__kk_system_exitProcess",
@@ -187,13 +196,6 @@ public extension RuntimeABISpec {
             section: "System",
             isThrowing: false,
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
+        dynamicIteratorSpec,
     ]
 }

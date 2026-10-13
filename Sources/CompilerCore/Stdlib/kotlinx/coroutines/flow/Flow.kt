@@ -8,6 +8,7 @@
 package kotlinx.coroutines.flow
 
 import kotlin.internal.KsSymbolName
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.ensureActive
 
 public interface Flow<out T>
@@ -149,25 +150,31 @@ public suspend fun <T> Flow<T>.reduce(operation: suspend (T, T) -> T): T {
     return result as T
 }
 
-// Eager like the operators at the bottom of this file: calling the suspend
-// transform from inside a nested collect callback miscompiles, so the inner
-// flows are collected at suspend-function top level instead.
-public suspend fun <T, R> Flow<T>.flatMapConcat(transform: suspend (T) -> Flow<R>): Flow<R> {
-    val kept = mutableListOf<R>()
-    for (value in this.toList()) {
-        for (inner in transform(value).toList()) {
-            kept.add(inner)
+public fun <T, R> Flow<T>.flatMapConcat(transform: suspend (T) -> Flow<R>): Flow<R> {
+    val source = this
+    return flow {
+        source.collect { value ->
+            val inner = transform(value)
+            inner.collect { emit(it) }
         }
     }
-    return kept.asFlow()
 }
 
-public suspend fun <T, R> Flow<T>.flatMapMerge(transform: suspend (T) -> Flow<R>): Flow<R> =
-    flatMapConcat(transform)
+public fun <T, R> Flow<T>.flatMapMerge(
+    concurrency: Int,
+    transform: suspend (T) -> Flow<R>
+): Flow<R> {
+    require(concurrency > 0) { "Expected positive concurrency level, but had $concurrency" }
+    return flatMapConcat(transform)
+}
+
+public fun <T, R> Flow<T>.flatMapMerge(
+    transform: suspend (T) -> Flow<R>
+): Flow<R> = flatMapMerge(DEFAULT_CONCURRENCY, transform)
 
 // Synchronous cold flows collect each inner flow to completion before the
 // next outer value arrives, so flatMapLatest reduces to flatMapConcat here.
-public suspend fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> =
+public fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> =
     flatMapConcat(transform)
 
 public fun <T, R, V> Flow<T>.zip(
@@ -213,6 +220,7 @@ public fun <T> merge(vararg flows: Flow<T>): Flow<T> = flow {
     }
 }
 
+@FlowPreview
 public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
     val source = this
     return flow { source.collect { value -> emit(value) } }
@@ -233,6 +241,11 @@ public fun <T> Flow<T>.buffer(capacity: Int = -2): Flow<T> {
 public fun <T> Flow<T>.conflate(): Flow<T> = this
 
 public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
+
+// KSwiftK compatibility surface: `flowWith` was removed from kotlinx-coroutines
+// (~1.4.x; absent in 1.10.2). In the sequential cold-flow model the context it
+// would introduce is inert, so it reduces to the same pass-through as flowOn.
+public fun <T> Flow<T>.flowWith(flowContext: kotlin.coroutines.CoroutineContext): Flow<T> = this
 
 // `cancellable` is the exception to the pass-throughs above: it composes the
 // retained collect/emit core with `ensureActive`, so a collector running in a

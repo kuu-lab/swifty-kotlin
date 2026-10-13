@@ -3,31 +3,13 @@
 import Foundation
 import Testing
 
-/// `async(start = CoroutineStart.X)` must select the runtime launcher that
-/// actually implements X.
-///
-/// The overload did not exist: only a single-argument `async(block:)` was
-/// registered, so the call failed to type-check (KSWIFTK-SEMA-0002), and the
-/// two-argument start-mode rewrite was gated on the callee being `launch`.
-///
-/// The launch-side counterpart lives in `CoroutineStartModeLoweringTests`.
-/// `async` needs its own launcher family rather than sharing launch's: its
-/// handles are `Deferred`s carrying the block's result, where launch's are
-/// `Job`s.
+/// Source-backed `async(start = CoroutineStart.X)` must pass X to the async
+/// bridge, whose Deferred handle carries the block's result.
 @Suite
 struct AsyncStartModeLoweringTests {
-    /// Every `kk_kxmini_async*` callee the lowered module reaches for an
-    /// `async(start = CoroutineStart.<startMode>)` call.
-    ///
-    /// The whole module is scanned rather than just `main`: the async call is
-    /// rewritten inside the lambda-derived suspend function the compiler
-    /// synthesises for the `runBlocking` body, not in `main` itself. These
-    /// names are unique to the async lowering, so nothing in the bundled stdlib
-    /// compiled alongside the input can contribute a false hit.
-    ///
-    /// `kk_kxmini_async_await` is filtered out: it is emitted by `await()`
-    /// rather than chosen by the start mode, so it appears for every mode.
-    private func launcherCallees(startMode: String) throws -> Set<String> {
+    /// Scan the whole module: the builder lives in the lowered runBlocking
+    /// lambda, and its receiver requires the continuation-aware scope bridge.
+    private func launcherStartModes(startMode: String) throws -> [Int64] {
         let source = """
         import kotlinx.coroutines.*
 
@@ -52,58 +34,36 @@ struct AsyncStartModeLoweringTests {
         )
 
         let module = try #require(ctx.kir)
-        var callees: Set<String> = []
-        for function in findAllKIRFunctions(in: module) {
-            for callee in extractCallees(from: function.body, interner: ctx.interner)
-                where callee.hasPrefix("kk_kxmini_async") && callee != "kk_kxmini_async_await"
-            {
-                callees.insert(callee)
-            }
-        }
-        return callees
-    }
-
-    /// ATOMIC must not share DEFAULT's cancellable initial dispatch.
-    private static let allLaunchers: Set<String> = [
-        "kk_kxmini_async",
-        "kk_kxmini_async_atomic",
-        "kk_kxmini_async_lazy",
-        "kk_kxmini_async_undispatched",
-    ]
-
-    @Test(arguments: [
-        ("DEFAULT", "kk_kxmini_async"),
-        ("ATOMIC", "kk_kxmini_async_atomic"),
-        ("LAZY", "kk_kxmini_async_lazy"),
-        ("UNDISPATCHED", "kk_kxmini_async_undispatched"),
-    ])
-    func testStartModeSelectsItsRuntimeLauncher(startMode: String, expected: String) throws {
-        let callees = try launcherCallees(startMode: startMode)
-
-        let expectedVariants: Set<String> = [expected, expected + "_with_cont"]
-        #expect(
-            !callees.intersection(expectedVariants).isEmpty,
-            "CoroutineStart.\(startMode) should lower to \(expected), got: \(callees.sorted())"
-        )
-
-        let allVariants = Self.allLaunchers.union(Self.allLaunchers.map { $0 + "_with_cont" })
-        let wrong = callees.intersection(allVariants.subtracting(expectedVariants))
-        #expect(
-            wrong.isEmpty,
-            "CoroutineStart.\(startMode) also selected \(wrong.sorted())"
+        return try LoweringTestRuntime.coroutineStartModes(
+            for: "coroutine_scope_async_with_cont",
+            legacyOperationPrefix: "kxmini_async", allowedLegacyOperations: ["kxmini_async_await"],
+            in: module, interner: ctx.interner
         )
     }
 
-    /// The capture-bearing shape routes through the launcher thunk, which needs
-    /// the `_with_cont` sibling of each start mode's entry point. A block that
-    /// closes over an outer variable used to be the only way to reach these.
     @Test(arguments: [
-        ("DEFAULT", "kk_kxmini_async_with_cont"),
-        ("ATOMIC", "kk_kxmini_async_atomic_with_cont"),
-        ("LAZY", "kk_kxmini_async_lazy_with_cont"),
-        ("UNDISPATCHED", "kk_kxmini_async_undispatched_with_cont"),
+        ("DEFAULT", Int64(0)),
+        ("ATOMIC", Int64(2)),
+        ("LAZY", Int64(1)),
+        ("UNDISPATCHED", Int64(3)),
     ])
-    func testCapturingBlockSelectsWithContVariant(startMode: String, expected: String) throws {
+    func testStartModeSelectsItsRuntimeLauncher(startMode: String, expected: Int64) throws {
+        let modes = try launcherStartModes(startMode: startMode)
+        #expect(
+            modes == [expected],
+            "CoroutineStart.\(startMode) must reach exactly one async builder with start \(expected); got: \(modes)"
+        )
+    }
+
+    /// The capture-bearing shape must preserve the mode on the same
+    /// continuation-aware bridge as the receiver-only shape.
+    @Test(arguments: [
+        ("DEFAULT", Int64(0)),
+        ("ATOMIC", Int64(2)),
+        ("LAZY", Int64(1)),
+        ("UNDISPATCHED", Int64(3)),
+    ])
+    func testCapturingBlockSelectsWithContVariant(startMode: String, expected: Int64) throws {
         let source = """
         import kotlinx.coroutines.*
 
@@ -129,21 +89,14 @@ struct AsyncStartModeLoweringTests {
         )
 
         let module = try #require(ctx.kir)
-        var callees: Set<String> = []
-        for function in findAllKIRFunctions(in: module) {
-            for callee in extractCallees(from: function.body, interner: ctx.interner)
-                where callee.hasPrefix("kk_kxmini_async") && callee != "kk_kxmini_async_await"
-            {
-                callees.insert(callee)
-            }
-        }
-
+        let modes = try LoweringTestRuntime.coroutineStartModes(
+            for: "coroutine_scope_async_with_cont",
+            legacyOperationPrefix: "kxmini_async", allowedLegacyOperations: ["kxmini_async_await"],
+            in: module, interner: ctx.interner
+        )
         #expect(
-            callees.contains(expected),
-            """
-            Capturing CoroutineStart.\(startMode) should lower to \(expected), \
-            got: \(callees.sorted())
-            """
+            modes == [expected],
+            "Capturing CoroutineStart.\(startMode) must preserve start \(expected); got: \(modes)"
         )
     }
 }

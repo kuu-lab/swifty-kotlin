@@ -3,25 +3,6 @@
 /// `@ExperimentalAtomicApi` annotation and the `MemoryOrder` enum —
 /// extracted from the Atomic residual registration surface.
 extension DataFlowSemaPhase {
-    func registerSyntheticAtomicAnnotation(
-        named name: String,
-        in packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let annotationName = interner.intern(name)
-        let fqName = packageFQName + [annotationName]
-        guard symbols.lookup(fqName: fqName) == nil else { return }
-
-        _ = symbols.define(
-            kind: .annotationClass,
-            name: annotationName,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-    }
 
     func ensureAtomicMemoryOrderEnum(
         in pkg: [InternedString],

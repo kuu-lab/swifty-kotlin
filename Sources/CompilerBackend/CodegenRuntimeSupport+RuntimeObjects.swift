@@ -86,51 +86,61 @@ extension CodegenRuntimeSupport {
         target: TargetTriple,
         configuration: RuntimeBuildConfiguration = .release
     ) throws -> [String] {
-        let cacheKey = try runtimeBuildCacheKey(target: target, configuration: configuration)
-        return try runtimeObjectCache.getOrLoad(cacheKey: cacheKey) {
-            try withRuntimeBuildLock(cacheKey: cacheKey) {
-                // A non-empty scratch directory is NOT proof of a complete
-                // runtime build: a killed kswiftc can leave its child
-                // `swift build` orphaned and still writing objects, and an
-                // interrupted build leaves a partial set behind. Linking a
-                // partial set fails later with undefined `kk_*` symbols, so a
-                // scratch cache hit requires the manifest written only after
-                // a build completed under this lock.
-                let manifestURL = try runtimeObjectsManifestURL(target: target, configuration: configuration)
+        try runtimeLinkInputs(target: target, configuration: configuration).objects
+    }
+
+    /// Resolve and verify the package once, then carry its fingerprint and layout
+    /// through discovery/build instead of re-enumerating sources for each path.
+    static func runtimeLinkInputs(
+        target: TargetTriple,
+        configuration: RuntimeBuildConfiguration = .release
+    ) throws -> (objects: [String], linkerCacheDirectory: URL) {
+        let packageRoot = try runtimePackageRootURL()
+        let cacheKey = try runtimeBuildCacheKey(target: target, configuration: configuration, packageRoot: packageRoot)
+        let scratchRoot = packageRoot.appendingPathComponent(".runtime-build", isDirectory: true)
+        let buildRoot = scratchRoot.appendingPathComponent(cacheKey, isDirectory: true)
+        let buildDirectory = buildRoot
+            .appendingPathComponent(runtimeBuildCacheDirectoryComponent(target: target), isDirectory: true)
+            .appendingPathComponent(configuration.rawValue, isDirectory: true)
+            .appendingPathComponent("Runtime.build", isDirectory: true)
+        let objects = try runtimeObjectCache.getOrLoad(cacheKey: cacheKey) {
+            try withRuntimeBuildLock(cacheKey: cacheKey, scratchRoot: scratchRoot) {
+                // Only a manifest written after a completed, locked build proves
+                // that the scratch directory contains the full runtime object set.
+                let manifestURL = buildRoot.appendingPathComponent("objects-\(configuration.rawValue).manifest")
                 let discovered = manifestValidatedRuntimeObjectPaths(manifestURL: manifestURL)
-                if !discovered.isEmpty {
-                    return discovered
-                }
+                if !discovered.isEmpty { return discovered }
 
-                try buildRuntimeObjects(target: target, configuration: configuration)
-
-                let built = try discoverScratchRuntimeObjectPaths(target: target, configuration: configuration)
+                try buildRuntimeObjects(
+                    packageRoot: packageRoot,
+                    arguments: swiftBuildArguments(target: target, configuration: configuration, scratchDirectory: buildRoot)
+                )
+                let built = discoverRuntimeObjectPaths(
+                    inScratchBuildDirectory: buildDirectory, scratchRootDirectory: buildRoot
+                )
                 if !built.isEmpty {
                     try writeRuntimeObjectsManifest(built, to: manifestURL)
                     return built
                 }
 
-                let fallback = try discoverPackageBuildRuntimeObjectPaths(target: target, configuration: configuration)
+                let fallback = discoverPackageBuildRuntimeObjectPaths(
+                    target: target, configuration: configuration, packageRoot: packageRoot
+                )
                 guard !fallback.isEmpty else {
-                    throw CodegenRuntimeSupportError.runtimeObjectsUnavailable(
-                        try runtimeBuildDirectory(target: target, configuration: configuration).path
-                    )
+                    throw CodegenRuntimeSupportError.runtimeObjectsUnavailable(buildDirectory.path)
                 }
                 return fallback
             }
         }
+        return (objects, scratchRoot.appendingPathComponent("link-plans", isDirectory: true))
     }
 
-    private static func buildRuntimeObjects(
-        target: TargetTriple,
-        configuration: RuntimeBuildConfiguration
-    ) throws {
+    private static func buildRuntimeObjects(packageRoot: URL, arguments: [String]) throws {
         let swiftPath = CommandRunner.resolveExecutable("swift", fallback: "/usr/bin/swift")
-        let packageRoot = try runtimePackageRootURL()
         do {
             _ = try CommandRunner.run(
                 executable: swiftPath,
-                arguments: try swiftBuildArguments(target: target, configuration: configuration),
+                arguments: arguments,
                 currentDirectoryPath: packageRoot.path,
                 phaseTimer: nil,
                 subPhaseName: "Link/swift-runtime-build",
@@ -174,24 +184,6 @@ extension CodegenRuntimeSupport {
         case let .timedOut(reason):
             return "\(reason) Set KSWIFTK_RUNTIME_BUILD_TIMEOUT (seconds) to allow more time."
         }
-    }
-
-    private static func discoverScratchRuntimeObjectPaths(
-        target: TargetTriple,
-        configuration: RuntimeBuildConfiguration
-    ) throws -> [String] {
-        try discoverRuntimeObjectPaths(
-            inScratchBuildDirectory: runtimeBuildDirectory(target: target, configuration: configuration),
-            scratchRootDirectory: runtimeBuildRootDirectory(target: target, configuration: configuration)
-        )
-    }
-
-    private static func runtimeObjectsManifestURL(
-        target: TargetTriple,
-        configuration: RuntimeBuildConfiguration
-    ) throws -> URL {
-        try runtimeBuildRootDirectory(target: target, configuration: configuration)
-            .appendingPathComponent("objects-\(configuration.rawValue).manifest")
     }
 
     // Exposed for testing, like discoverRuntimeObjectPaths below.
@@ -244,9 +236,10 @@ extension CodegenRuntimeSupport {
 
     private static func discoverPackageBuildRuntimeObjectPaths(
         target: TargetTriple,
-        configuration: RuntimeBuildConfiguration
-    ) throws -> [String] {
-        let packageBuildRoot = try runtimePackageRootURL()
+        configuration: RuntimeBuildConfiguration,
+        packageRoot: URL
+    ) -> [String] {
+        let packageBuildRoot = packageRoot
             .appendingPathComponent(".build", isDirectory: true)
         let targetBuildRoot = packageBuildRoot
             .appendingPathComponent(runtimeBuildCacheDirectoryComponent(target: target), isDirectory: true)
@@ -405,6 +398,17 @@ extension CodegenRuntimeSupport {
         target: TargetTriple,
         configuration: RuntimeBuildConfiguration
     ) throws -> [String] {
+        try swiftBuildArguments(
+            target: target, configuration: configuration,
+            scratchDirectory: runtimeBuildScratchDirectory(target: target, configuration: configuration)
+        )
+    }
+
+    private static func swiftBuildArguments(
+        target: TargetTriple,
+        configuration: RuntimeBuildConfiguration,
+        scratchDirectory: URL
+    ) -> [String] {
         // Never pass --disable-sandbox: the SwiftPM sandbox is a second layer
         // of containment behind the verified package root and keeps any
         // unexpected build-time tool from running unconstrained (KUU-788).
@@ -413,7 +417,7 @@ extension CodegenRuntimeSupport {
             "-c", configuration.rawValue,
             "--target", "Runtime",
             "--disable-code-coverage",
-            "--scratch-path", try runtimeBuildScratchDirectory(target: target, configuration: configuration).path,
+            "--scratch-path", scratchDirectory.path,
         ]
         if target != TargetTriple.hostDefault() {
             arguments.append(contentsOf: ["--triple", targetTripleString(target)])
@@ -425,8 +429,8 @@ extension CodegenRuntimeSupport {
         try runtimePackageRootURL().appendingPathComponent(".runtime-build", isDirectory: true)
     }
 
-    private static func withRuntimeBuildLock<T>(cacheKey: String, body: () throws -> T) throws -> T {
-        let lockDirectory = try runtimeScratchRootDirectory().appendingPathComponent("locks", isDirectory: true)
+    private static func withRuntimeBuildLock<T>(cacheKey: String, scratchRoot: URL, body: () throws -> T) throws -> T {
+        let lockDirectory = scratchRoot.appendingPathComponent("locks", isDirectory: true)
         try FileManager.default.createDirectory(at: lockDirectory, withIntermediateDirectories: true)
 
         let lockURL = lockDirectory.appendingPathComponent("\(cacheKey).lock")
@@ -526,7 +530,9 @@ extension CodegenRuntimeSupport {
         guard _NSGetExecutablePath(&buffer, &length) == 0 else {
             return nil
         }
-        return URL(fileURLWithPath: String(cString: buffer))
+        return buffer.withUnsafeBufferPointer {
+            URL(fileURLWithPath: String(cString: $0.baseAddress!))
+        }
 #elseif os(Linux)
         return URL(fileURLWithPath: "/proc/self/exe").resolvingSymlinksInPath()
 #else
@@ -539,8 +545,8 @@ extension CodegenRuntimeSupport {
     // can be tampered with by an unrelated local user: every checked path
     // must be owned by the current user or root and must not be writable by
     // others. Group-write stays allowed — shared checkouts are a normal dev
-    // layout and ownership still bounds who can modify the tree. Returns the
-    // rejection reason, or nil when the root is trusted. Exposed for testing.
+    // layout and ownership still bounds who can modify the tree. Exposed for
+    // testing.
     static func runtimePackageRootRejection(_ root: URL) -> String? {
         let fileManager = FileManager.default
         if let reason = untrustedPathRejection(root.path, fileManager: fileManager) {
@@ -561,7 +567,7 @@ extension CodegenRuntimeSupport {
             return "Package.swift is not the KSwiftK package manifest"
         }
 
-        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics"] {
+        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics", "Sources/CSQLite"] {
             let directoryURL = root.appendingPathComponent(component, isDirectory: true)
             var directoryFlag: ObjCBool = false
             guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &directoryFlag),
@@ -635,11 +641,19 @@ extension CodegenRuntimeSupport {
         target: TargetTriple,
         configuration: RuntimeBuildConfiguration
     ) throws -> String {
-        "runtime-nocov-v3-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint())"
+        try runtimeBuildCacheKey(target: target, configuration: configuration, packageRoot: runtimePackageRootURL())
     }
 
-    private static func runtimeSourceFingerprint() throws -> String {
-        let runtimeSourcesURL = try runtimePackageRootURL()
+    private static func runtimeBuildCacheKey(
+        target: TargetTriple,
+        configuration: RuntimeBuildConfiguration,
+        packageRoot: URL
+    ) throws -> String {
+        "runtime-nocov-v3-\(configuration.rawValue)-\(targetTripleString(target))-\(try runtimeSourceFingerprint(packageRoot: packageRoot))"
+    }
+
+    private static func runtimeSourceFingerprint(packageRoot: URL) throws -> String {
+        let runtimeSourcesURL = packageRoot
             .appendingPathComponent("Sources", isDirectory: true)
             .appendingPathComponent("Runtime", isDirectory: true)
         guard let enumerator = FileManager.default.enumerator(

@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native APIs are platform-specific and have no JVM analogue.
+// CANDIDATE-ONLY: kotlin.native APIs are platform-specific and have no JVM analogue.
 @file:Suppress("DEPRECATION_ERROR")
 @file:OptIn(ExperimentalUnsignedTypes::class, kotlinx.cinterop.ExperimentalForeignApi::class)
 

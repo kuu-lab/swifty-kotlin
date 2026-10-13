@@ -150,6 +150,20 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
     return result
 }
 
+// KUU-1361: JVM `sortedSetOf`/`sortedMapOf` — the concrete instances are
+// TreeSet/TreeMap; the declared return types match upstream.
+public fun <T> sortedSetOf(vararg elements: T): java.util.TreeSet<T> {
+    val result = java.util.TreeSet<T>()
+    for (element in elements) result.add(element)
+    return result
+}
+
+public fun <T> sortedSetOf(comparator: Comparator<in T>, vararg elements: T): java.util.TreeSet<T> {
+    val result = java.util.TreeSet<T>(comparator)
+    for (element in elements) result.add(element)
+    return result
+}
+
 // --- Map factories -----------------------------------------------------------
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
@@ -175,6 +189,18 @@ public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
         result[pair.first] = pair.second
     }
     return __kk_map_freeze(result)
+}
+
+public fun <K, V> sortedMapOf(vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>()
+    for (pair in pairs) result.put(pair.first, pair.second)
+    return result
+}
+
+public fun <K, V> sortedMapOf(comparator: Comparator<in K>, vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>(comparator)
+    for (pair in pairs) result.put(pair.first, pair.second)
+    return result
 }
 
 @PublishedApi

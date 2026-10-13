@@ -1,5 +1,12 @@
 import Foundation
 
+func runFrontendSyntaxPhases(_ context: CompilationContext) throws {
+    try LoadSourcesPhase().run(context)
+    try LexPhase().run(context)
+    try ParsePhase().run(context)
+    try BuildASTPhase().run(context)
+}
+
 /// Controls how a frontend-only run responds to diagnostics from intermediate
 /// phases.
 public enum FrontendContinuationPolicy: Sendable {

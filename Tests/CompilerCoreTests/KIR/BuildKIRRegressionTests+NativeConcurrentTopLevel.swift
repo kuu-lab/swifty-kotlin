@@ -67,15 +67,15 @@ extension BuildKIRRegressionTests {
         }
 
         let bridgeExpectations: [String: Set<String>] = [
-            "attachObjectGraphInternal": ["__kk_native_concurrent_attach_object_graph"],
-            "consumeFuture": ["__kk_native_concurrent_consume_future"],
-            "detachObjectGraphInternal": ["__kk_native_concurrent_detach_object_graph"],
-            "executeImpl": ["__kk_native_concurrent_execute_impl"],
-            "waitForMultipleFutures": ["__kk_native_concurrent_wait_for_multiple_futures"],
-            "waitWorkerTermination": ["__kk_native_concurrent_wait_worker_termination"],
+            "attachObjectGraphInternal": [runtimeCallee(.nativeConcurrentAttachObjectGraph)],
+            "consumeFuture": [runtimeCallee(.nativeConcurrentConsumeFuture)],
+            "detachObjectGraphInternal": [runtimeCallee(.nativeConcurrentDetachObjectGraph)],
+            "executeImpl": [runtimeCallee(.nativeConcurrentExecuteImpl)],
+            "waitForMultipleFutures": [runtimeCallee(.nativeConcurrentWaitForMultipleFutures)],
+            "waitWorkerTermination": [runtimeCallee(.nativeConcurrentWaitWorkerTermination)],
             "withWorker": [
-                "__kk_native_concurrent_start_worker",
-                "__kk_native_concurrent_terminate_worker",
+                runtimeCallee(.nativeConcurrentStartWorker),
+                runtimeCallee(.nativeConcurrentTerminateWorker),
             ],
         ]
         let package = ["kotlin", "native", "concurrent"]

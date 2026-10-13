@@ -37,6 +37,7 @@ final class LLVMCAPIBindings {
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
     typealias LLVMSetDataLayoutFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
     typealias LLVMSetLinkageFn = @convention(c) (LLVMValueRef?, UInt32) -> Void
+    typealias LLVMSetThreadLocalFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
     typealias LLVMInt8TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
     typealias LLVMInt64TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
     typealias LLVMStructTypeInContextFn = @convention(c) (
@@ -68,7 +69,6 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildSDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildUDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildURemFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
-    // Bitwise/shift builder function types (P5-103)
     typealias LLVMBuildAndFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildOrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildXorFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -116,15 +116,10 @@ final class LLVMCAPIBindings {
         UInt32,
         LLVMBool
     ) -> LLVMValueRef?
-    // LLVMConstStringInContext(Context, Str, Length, DontNullTerminate) -> [N x i8] constant
     typealias LLVMConstStringInContextFn = @convention(c) (LLVMContextRef?, UnsafePointer<CChar>?, UInt32, LLVMBool) -> LLVMValueRef?
-    // LLVMArrayType(ElementType, ElementCount) -> [N x ElementType]
     typealias LLVMArrayTypeFn = @convention(c) (LLVMTypeRef?, UInt32) -> LLVMTypeRef?
-    // LLVMSetGlobalConstant(GlobalVar, IsConstant)
     typealias LLVMSetGlobalConstantFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
-    // LLVMSetUnnamedAddr(Global, HasUnnamedAddr)
     typealias LLVMSetUnnamedAddrFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
-    // LLVMBuildInBoundsGEP2(Builder, Ty, Pointer, Indices, NumIndices, Name) -> GEP value
     typealias LLVMBuildInBoundsGEP2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafeMutablePointer<LLVMValueRef?>?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMGetDefaultTargetTripleFn = @convention(c) () -> UnsafeMutablePointer<CChar>?
     typealias LLVMGetTargetFromTripleFn = @convention(c) (
@@ -214,9 +209,6 @@ final class LLVMCAPIBindings {
         UnsafePointer<CChar>?, Int,
         UInt64, UInt32, UInt32
     ) -> LLVMMetadataRef?
-    /// LLVMDIBuilderCreateParameterVariable(
-    ///   Builder, Scope, Name, NameLen, ArgNo, File, LineNo, Ty,
-    ///   AlwaysPreserve, Flags)
     typealias LLVMDIBuilderCreateParameterVariableFn = @convention(c) (
         LLVMDIBuilderRef?,
         LLVMMetadataRef?,
@@ -227,9 +219,6 @@ final class LLVMCAPIBindings {
         LLVMMetadataRef?,
         Int32, UInt32
     ) -> LLVMMetadataRef?
-    /// LLVMDIBuilderCreateAutoVariable(
-    ///   Builder, Scope, Name, NameLen, File, LineNo, Ty,
-    ///   AlwaysPreserve, Flags, AlignInBits)
     typealias LLVMDIBuilderCreateAutoVariableFn = @convention(c) (
         LLVMDIBuilderRef?,
         LLVMMetadataRef?,
@@ -267,6 +256,7 @@ final class LLVMCAPIBindings {
     let setTargetFn: LLVMSetTargetFn
     let setDataLayoutFn: LLVMSetDataLayoutFn
     let setLinkageFn: LLVMSetLinkageFn
+    let setThreadLocalFn: LLVMSetThreadLocalFn
     let int8TypeInContextFn: LLVMInt8TypeInContextFn
     let int64TypeFn: LLVMInt64TypeInContextFn
     let structTypeInContextFn: LLVMStructTypeInContextFn?
@@ -291,7 +281,6 @@ final class LLVMCAPIBindings {
     let buildSDivFn: LLVMBuildSDivFn
     let buildUDivFn: LLVMBuildUDivFn
     let buildURemFn: LLVMBuildURemFn
-    // Bitwise/shift builder stored properties (P5-103)
     let buildAndFn: LLVMBuildAndFn?
     let buildOrFn: LLVMBuildOrFn?
     let buildXorFn: LLVMBuildXorFn?
@@ -379,6 +368,7 @@ final class LLVMCAPIBindings {
         setTargetFn: @escaping LLVMSetTargetFn,
         setDataLayoutFn: @escaping LLVMSetDataLayoutFn,
         setLinkageFn: @escaping LLVMSetLinkageFn,
+        setThreadLocalFn: @escaping LLVMSetThreadLocalFn,
         int8TypeInContextFn: @escaping LLVMInt8TypeInContextFn,
         int64TypeFn: @escaping LLVMInt64TypeInContextFn,
         structTypeInContextFn: LLVMStructTypeInContextFn? = nil,
@@ -403,7 +393,6 @@ final class LLVMCAPIBindings {
         buildSDivFn: @escaping LLVMBuildSDivFn,
         buildUDivFn: @escaping LLVMBuildUDivFn,
         buildURemFn: @escaping LLVMBuildURemFn,
-        // Bitwise/shift builder init params (P5-103)
         buildAndFn: LLVMBuildAndFn?,
         buildOrFn: LLVMBuildOrFn?,
         buildXorFn: LLVMBuildXorFn?,
@@ -491,6 +480,7 @@ final class LLVMCAPIBindings {
         self.setTargetFn = setTargetFn
         self.setDataLayoutFn = setDataLayoutFn
         self.setLinkageFn = setLinkageFn
+        self.setThreadLocalFn = setThreadLocalFn
         self.int8TypeInContextFn = int8TypeInContextFn
         self.int64TypeFn = int64TypeFn
         self.structTypeInContextFn = structTypeInContextFn
@@ -515,7 +505,6 @@ final class LLVMCAPIBindings {
         self.buildSDivFn = buildSDivFn
         self.buildUDivFn = buildUDivFn
         self.buildURemFn = buildURemFn
-        // Bitwise/shift builder assignments (P5-103)
         self.buildAndFn = buildAndFn
         self.buildOrFn = buildOrFn
         self.buildXorFn = buildXorFn

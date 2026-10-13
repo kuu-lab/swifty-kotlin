@@ -2,14 +2,146 @@
 
 /// `RuntimeABISpec.coroutineFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let coroutineSuspendedSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_coroutine_suspended",
+        parameters: [],
+        returnType: .opaquePointer,
+        section: "Coroutine",
+        isThrowing: false,
+    )
+
+    static let createCoroutineUninterceptedSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_create_coroutine_unintercepted",
+        parameters: [
+            RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+            RuntimeABIParameter(name: "completionContinuation", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine",
+        isThrowing: false
+    )
+
+    static let startCoroutineUninterceptedOrReturnSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_start_coroutine_unintercepted_or_return",
+        parameters: [
+            RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+            RuntimeABIParameter(name: "continuation", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let testScopeCurrentTimeSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_test_scope_current_time",
+        parameters: [
+            RuntimeABIParameter(name: "scopeHandle", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine",
+        isThrowing: false
+    )
+
+    static let testSchedulerCurrentTimeSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_test_scheduler_current_time",
+        parameters: [
+            RuntimeABIParameter(name: "schedulerHandle", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine",
+        isThrowing: false
+    )
+
+    static let testSchedulerAdvanceTimeBySpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_test_scheduler_advance_time_by",
+        parameters: [
+            RuntimeABIParameter(name: "schedulerHandle", type: .intptr),
+            RuntimeABIParameter(name: "delayTimeMillis", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine",
+        isThrowing: false
+    )
+
+    static let bridgeMutexCreateSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_mutex_create",
+        parameters: [],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let mutexLockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_mutex_lock",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "continuation", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let mutexUnlockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_mutex_unlock",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let bridgeMutexTryLockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_mutex_tryLock",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let bridgeMutexIsLockedSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_mutex_isLocked",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let bridgeMutexHoldsLockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_mutex_holdsLock",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "owner", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let bridgeLockWithLockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_lock_withLock",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let semaphoreReleaseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_semaphore_release",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
     static let coroutineFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_suspended",
-            parameters: [],
-            returnType: .opaquePointer,
-            section: "Coroutine",
-            isThrowing: false,
-        ),
+        coroutineSuspendedSpec,
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_continuation_new",
             parameters: [
@@ -58,26 +190,8 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_create_coroutine_unintercepted",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "completionContinuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_start_coroutine_unintercepted_or_return",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        createCoroutineUninterceptedSpec,
+        startCoroutineUninterceptedOrReturnSpec,
         // Link-time markers for the source-backed receiver-less intrinsics. The
         // coroutine lowering pass rewrites calls to them into the entry-point ABI
         // above for known symbols; create markers also accept boxed suspend values.
@@ -467,24 +581,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // CoroutineExceptionHandler (STDLIB-CORO-072)
-        RuntimeABIFunctionSpec(
-            name: "kk_exception_handler_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kxmini_launch_with_exception_handler",
-            parameters: [
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "functionID", type: .intptr),
-                RuntimeABIParameter(name: "handlerRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
         // Flow (P5-88)
         RuntimeABIFunctionSpec(
             name: "kk_flow_create",
@@ -668,49 +764,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_flow_count",
-            parameters: [
-                RuntimeABIParameter(name: "flowHandle", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_flow_fold",
-            parameters: [
-                RuntimeABIParameter(name: "flowHandle", type: .intptr),
-                RuntimeABIParameter(name: "initial", type: .intptr),
-                RuntimeABIParameter(name: "operationFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_flow_reduce",
-            parameters: [
-                RuntimeABIParameter(name: "flowHandle", type: .intptr),
-                RuntimeABIParameter(name: "operationFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
         // Dispatchers / withContext (P5-133)
-        RuntimeABIFunctionSpec(
-            name: "kk_dispatcher_default",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_dispatcher_io",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_dispatcher_main",
             parameters: [],
@@ -772,22 +826,37 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-1395: ContinuationInterceptor/CoroutineDispatcher key singletons —
+        // the runBlocking event-loop element lookup anchors on these.
+        RuntimeABIFunctionSpec(
+            name: "kk_continuation_interceptor_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_dispatcher_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        // KUU-1405 follow-up: the CoroutineExceptionHandler.Key singleton
+        // getter was registered in Sema but missing its ABI entry.
+        RuntimeABIFunctionSpec(
+            name: "kk_exception_handler_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_create",
             parameters: [
                 RuntimeABIParameter(name: "handlerFnPtr", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_exception_handler_invoke",
-            parameters: [
-                RuntimeABIParameter(name: "handlerRaw", type: .intptr),
-                RuntimeABIParameter(name: "contextRaw", type: .intptr),
-                RuntimeABIParameter(name: "exceptionRaw", type: .intptr),
-            ],
-            returnType: .void,
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
@@ -916,22 +985,6 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_context_get_name",
-            parameters: [
-                RuntimeABIParameter(name: "contextRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_context_release",
-            parameters: [
-                RuntimeABIParameter(name: "contextRaw", type: .intptr),
-            ],
-            returnType: .void,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_with_context_full",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -959,16 +1012,19 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-1404: send on a closed/cancelled channel reports its terminal
+        // status through outThrown (ClosedSendChannelException /
+        // CancellationException) instead of silently succeeding.
         RuntimeABIFunctionSpec(
             name: "kk_channel_send",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
+            section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_select_try_receive",
@@ -999,13 +1055,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_select_receive_value",
-            parameters: [RuntimeABIParameter(name: "token", type: .intptr)],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_channel_try_send",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
@@ -1015,12 +1064,16 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // KUU-1404: receive on a drained-closed/cancelled channel reports its
+        // terminal status through outThrown (ClosedReceiveChannelException /
+        // CancellationException) instead of returning a default payload.
         RuntimeABIFunctionSpec(
             name: "kk_channel_receive",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "outValue", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1034,6 +1087,17 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             // KSP-678: bridged from bundled Kotlin (Channels.kt) as a plain
             // Int-returning residual; it does not use the outThrown ABI path.
+            isThrowing: false
+        ),
+        // KUU-1404: Channel.cancel() residual bridge; plain Int (0/1) flag
+        // like kk_channel_close.
+        RuntimeABIFunctionSpec(
+            name: "kk_channel_cancel",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
@@ -1255,16 +1319,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_register_child",
-            parameters: [
-                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
-                RuntimeABIParameter(name: "childHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
         // CoroutineScope(context) / Job() / SupervisorJob() / NonCancellable / ensureActive
         // (STDLIB-CORO-090)
         RuntimeABIFunctionSpec(
@@ -1318,15 +1372,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // `TestScope.currentTime` — the scope scheduler's virtual clock.
-        RuntimeABIFunctionSpec(
-            name: "kk_test_scope_current_time",
-            parameters: [
-                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
+        testScopeCurrentTimeSpec,
         RuntimeABIFunctionSpec(
             name: "kk_test_scheduler_new",
             parameters: [],
@@ -1334,25 +1380,8 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_scheduler_current_time",
-            parameters: [
-                RuntimeABIParameter(name: "schedulerHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_scheduler_advance_time_by",
-            parameters: [
-                RuntimeABIParameter(name: "schedulerHandle", type: .intptr),
-                RuntimeABIParameter(name: "delayTimeMillis", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
+        testSchedulerCurrentTimeSpec,
+        testSchedulerAdvanceTimeBySpec,
         RuntimeABIFunctionSpec(
             name: "kk_test_scheduler_advance_until_idle",
             parameters: [
@@ -1540,14 +1569,6 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_is_cancelled",
-            parameters: [
-                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
         // Cancellation (CORO-002)
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_check_cancellation",
@@ -1660,15 +1681,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_job_is_failed",
-            parameters: [
-                RuntimeABIParameter(name: "jobHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_job_get_cancellation_exception",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
@@ -1708,6 +1720,104 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // KUU-1386: Job-family members surfaced for real kotlinx `is`/`as`
+        // parity — attachChild/childCancelled/parentCancelled bridges and the
+        // ChildHandle box accessors.
+        RuntimeABIFunctionSpec(
+            name: "kk_job_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_key_get",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_job_attach_to_parent",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "parentHandle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_get_child_cancellation_cause",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_parent_cancelled",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "parentHandle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_child_cancelled",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "cause", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_job_attach_child",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "childHandle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_child_handle_parent",
+            parameters: [
+                RuntimeABIParameter(name: "handleRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_child_handle_dispose",
+            parameters: [
+                RuntimeABIParameter(name: "handleRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_child_handle_child_cancelled",
+            parameters: [
+                RuntimeABIParameter(name: "handleRaw", type: .intptr),
+                RuntimeABIParameter(name: "cause", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_job_dispose_handle",
             parameters: [
@@ -1728,14 +1838,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_coroutine_cancel",
-            parameters: [
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .void,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_coroutine_cancel_current",
             parameters: [
                 RuntimeABIParameter(name: "message", type: .intptr),
@@ -1745,61 +1847,42 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         // Mutex / Semaphore (sync primitives)
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutex_create",
-            parameters: [],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        bridgeMutexCreateSpec,
 
+        mutexLockSpec,
+        mutexUnlockSpec,
+        // KUU-1356: owner-token overloads of Mutex.lock/unlock. The lock
+        // bridge takes the caller continuation like kk_mutex_lock plus a
+        // trailing outThrown slot so same-owner re-acquisition throws
+        // IllegalStateException instead of deadlocking.
         RuntimeABIFunctionSpec(
-            name: "kk_mutex_lock",
+            name: "__kk_mutex_lock_owner",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_mutex_unlock",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_mutex_tryLock",
+            name: "__kk_mutex_unlock_owner",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutex_isLocked",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        bridgeMutexTryLockSpec,
+        bridgeMutexIsLockedSpec,
+        bridgeMutexHoldsLockSpec,
         // KSP-677: Lock.withLock is Kotlin source delegating to this demoted
         // __kk_lock_withLock bridge; the action is passed via the general
         // closure-taking ABI (function pointer + closure environment + outThrown).
-        RuntimeABIFunctionSpec(
-            name: "__kk_lock_withLock",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "actionFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        bridgeLockWithLockSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_semaphore_create",
             parameters: [
@@ -1817,15 +1900,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_semaphore_release",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        semaphoreReleaseSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_semaphore_tryAcquire",
             parameters: [

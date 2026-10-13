@@ -34,6 +34,34 @@ final class RuntimeEventLoop: @unchecked Sendable {
     /// that `Array.removeFirst()` would cost on a busy queue.
     private var nextIndex = 0
 
+    /// KUU-1395: the `ContinuationInterceptor` element a loop-bound
+    /// coroutine's `coroutineContext` reports — the runtime analogue of
+    /// kotlinx's `BlockingEventLoop`. Minted lazily so every read of the
+    /// context resolves to the same element object.
+    private var cachedElementRaw = 0
+
+    /// The runBlocking event-loop context element, as a registered object.
+    ///
+    /// It is a `RuntimeDispatcher` so `element is CoroutineDispatcher`,
+    /// `element is ContinuationInterceptor`, and the `key`/`get`/`fold`/
+    /// `minusKey` element members bridge like the named dispatchers do. Its
+    /// tag is 0: the loop is the scheduling mechanism itself, so nothing may
+    /// resolve the element to a dispatch queue — `resolveToCoroutineContext`
+    /// maps it to a handle-only context, and interception through it is a
+    /// no-op (`kk_context_get_dispatcher` returns 0).
+    func elementHandle() -> Int {
+        condition.lock()
+        defer { condition.unlock() }
+        if cachedElementRaw == 0 {
+            cachedElementRaw = runtimeRegisterObject(RuntimeDispatcher(
+                queue: DispatchQueue(label: "kk.runblocking.eventloop"),
+                tag: 0,
+                displayName: "BlockingEventLoop"
+            ))
+        }
+        return cachedElementRaw
+    }
+
     private static let pthreadKey: pthread_key_t = makePthreadKey()
 
     /// The event loop the current thread is draining, if any.
@@ -76,6 +104,25 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.lock()
         condition.broadcast()
         condition.unlock()
+    }
+
+    /// Run work that is already queued without waiting for new work.
+    ///
+    /// `TestCoroutineScheduler` uses this after releasing virtual-time
+    /// continuations so child coroutines make progress before the scheduler
+    /// reports itself idle. This is also safe when called re-entrantly from a
+    /// coroutine that is already running on this loop.
+    func runReadyTasks() {
+        let saved = RuntimeEventLoop.current
+        RuntimeEventLoop.current = self
+        defer { RuntimeEventLoop.current = saved }
+        while true {
+            condition.lock()
+            let work = popLocked()
+            condition.unlock()
+            guard let work else { return }
+            work()
+        }
     }
 
     /// Pop the head of the queue. Caller must hold `condition`.

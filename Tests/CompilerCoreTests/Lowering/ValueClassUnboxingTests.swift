@@ -19,7 +19,7 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
+            symbol.kind == .class && symbol.name == interner.intern("Meter")
         }))
         #expect(meterSymbol.flags.contains(.valueType), "value class should have valueType flag")
     }
@@ -36,7 +36,7 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
+            symbol.kind == .class && symbol.name == interner.intern("Meter")
         }))
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: meterSymbol.id)
         #expect(underlyingType != nil, "value class should have an underlying type recorded")
@@ -64,7 +64,7 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let userIdSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "UserId"
+            symbol.kind == .class && symbol.name == interner.intern("UserId")
         }))
         #expect(userIdSymbol.flags.contains(.valueType), "@JvmInline value class should have valueType flag")
 
@@ -84,7 +84,7 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
 
         let legacyCountSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class && interner.resolve(symbol.name) == "LegacyCount"
+            symbol.kind == .class && symbol.name == interner.intern("LegacyCount")
         }))
         #expect(legacyCountSymbol.flags.contains(.valueType), "inline class should have valueType flag")
         #expect(!legacyCountSymbol.flags.contains(.inlineFunction), "inline class should not be marked as inline function")
@@ -164,7 +164,7 @@ struct ValueClassUnboxingTests {
 
         let module = try #require(ctx.kir)
         let interner = ctx.interner
-        let kk_array_get_inbounds = interner.intern("kk_array_get_inbounds")
+        let kk_array_get_inbounds = LoweringTestRuntime.callee("array_get_inbounds", interner: interner)
 
         // After unboxing, there should be no kk_array_get_inbounds calls
         // on value class receivers.
@@ -189,7 +189,7 @@ struct ValueClassUnboxingTests {
 
         #expect(
             !hasArrayGetOnValueClass,
-            "kk_array_get_inbounds on value class should be rewritten to copy"
+            "The inbounds array read on a value class should be rewritten to copy"
         )
     }
 
@@ -210,7 +210,7 @@ struct ValueClassUnboxingTests {
 
         let module = try #require(ctx.kir)
         let interner = ctx.interner
-        let kk_object_new = interner.intern("kk_object_new")
+        let kk_object_new = LoweringTestRuntime.callee("object_new", interner: interner)
 
         // Scan for kk_object_new calls whose result has a value class type
         var hasValueClassAlloc = false
@@ -231,7 +231,7 @@ struct ValueClassUnboxingTests {
 
         #expect(
             !hasValueClassAlloc,
-            "kk_object_new for value class should be eliminated by unboxing"
+            "The object allocation for a value class should be eliminated by unboxing"
         )
     }
 
@@ -251,7 +251,7 @@ struct ValueClassUnboxingTests {
 
         let module = try #require(ctx.kir)
         let interner = ctx.interner
-        let kk_object_new = interner.intern("kk_object_new")
+        let kk_object_new = LoweringTestRuntime.callee("object_new", interner: interner)
 
         // Regular classes should still have kk_object_new calls.
         var hasObjectNew = false

@@ -1,5 +1,7 @@
 package kotlin
 
+import kotlin.text.__charFromCode
+
 public abstract class Number() {
     public abstract fun toDouble(): Double
     public abstract fun toFloat(): Float
@@ -12,7 +14,7 @@ public abstract class Number() {
         ReplaceWith("this.toInt().toChar()")
     )
     @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.3")
-    public open fun toChar(): Char = toInt().toChar()
+    public open fun toChar(): Char = __charFromCode(toInt())
 
     public abstract fun toShort(): Short
     public abstract fun toByte(): Byte

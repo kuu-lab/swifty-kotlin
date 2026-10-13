@@ -99,8 +99,6 @@ extension DataFlowSemaPhase {
 
     }
 
-    // MARK: - WeakReference<T>
-
     private func registerWeakReferenceStub(
         packageFQName: [InternedString],
         experimentalNativeApiSymbol: SymbolID?,
@@ -143,20 +141,12 @@ extension DataFlowSemaPhase {
 
         // Set up the single type-parameter T (inline, as the NativeInterop
         // helper is private).
-        let parameterInternedName = interner.intern("T")
-        let typeParameterFQName = classFQName + [parameterInternedName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParameterFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: parameterInternedName,
-                fqName: typeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: classFQName,
+            symbols: symbols,
+            interner: interner
+        )
         symbols.setParentSymbol(classSymbol, for: typeParamSymbol)
 
         let tType = types.make(.typeParam(TypeParamType(
@@ -188,8 +178,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - createCleaner
 
     private func registerCreateCleanerStub(
         packageFQName: [InternedString],
@@ -283,8 +271,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - RootSetStatistics class
-
     private func registerRootSetStatisticsStub(
         packageFQName: [InternedString],
         nativeRuntimeApiSymbol: SymbolID?,
@@ -307,8 +293,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
     }
-
-    // MARK: - SweepStatistics class
 
     private func registerSweepStatisticsStub(
         packageFQName: [InternedString],
@@ -333,8 +317,6 @@ extension DataFlowSemaPhase {
         )
 
     }
-
-    // MARK: - GCInfo class
 
     private func registerGCInfoStub(
         packageFQName: [InternedString],

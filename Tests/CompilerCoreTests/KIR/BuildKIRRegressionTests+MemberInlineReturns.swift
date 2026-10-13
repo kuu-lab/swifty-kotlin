@@ -30,12 +30,7 @@ extension BuildKIRRegressionTests {
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "\(errors.map(\.message))")
         let module = try #require(context.kir)
-        let lambdas = module.arena.declarations.compactMap { declaration -> KIRFunction? in
-            guard case let .function(function) = declaration,
-                  context.interner.resolve(function.name).hasPrefix("kk_lambda")
-            else { return nil }
-            return function
-        }
+        let lambdas = try findKIRLambdaFunctions(in: context)
         let nonLocalLambdas = lambdas.filter { function in
             function.body.contains { instruction in
                 if case .nonLocalReturn = instruction { return true }
@@ -49,10 +44,9 @@ extension BuildKIRRegressionTests {
         let nonLocalSymbols = Set(nonLocalLambdas.map(\.symbol))
         // Crossinline arguments may need adapters, but non-local returns
         // must remain in their inline-only lambdas.
-        #expect(!module.arena.declarations.contains { declaration in
-            guard case let .function(function) = declaration,
-                  context.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
-            else { return false }
+        let lambdaSymbols = Set(lambdas.map(\.symbol))
+        #expect(!findAllKIRFunctions(in: module).contains { function in
+            guard !lambdaSymbols.contains(function.symbol) else { return false }
             return function.body.contains { instruction in
                 guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
                 return nonLocalSymbols.contains(symbol)

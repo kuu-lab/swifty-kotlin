@@ -28,7 +28,7 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let testBody = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: testBody, interner: ctx.interner)
-        #expect(callNames.contains("kk_function_create_1"))
+        #expect(callNames.contains(runtimeCallee(.functionCreate1)))
 
         // The materialized function value (the kk_function_create_1 result)
         // must be the argument handed to the member-extension callee -- not a
@@ -38,13 +38,13 @@ extension BuildKIRRegressionTests {
         for instruction in testBody {
             switch instruction {
             case let .call(_, callee, _, result, _, _, _, _)
-                where ctx.interner.resolve(callee) == "kk_function_create_1":
+                where callee == ctx.interner.intern(runtimeCallee(.functionCreate1)):
                 createResult = result
             case let .call(_, callee, arguments, _, _, _, _, _)
-                where ctx.interner.resolve(callee) == "onThing":
+                where callee == ctx.interner.intern("onThing"):
                 memberCallArguments = arguments
             case let .virtualCall(_, callee, _, arguments, _, _, _, _)
-                where ctx.interner.resolve(callee) == "onThing":
+                where callee == ctx.interner.intern("onThing"):
                 memberCallArguments = arguments
             default:
                 continue

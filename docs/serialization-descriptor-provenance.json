@@ -1,0 +1,14 @@
+{
+  "version": "1.10.0",
+  "commit": "370c4e3780066b82f746cf38e4733cbe62c94f74",
+  "sources": [
+    {
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptor.kt",
+      "git_blob": "207989e9187c6a5e46c505c7669c4a3755860ec3",
+      "upstream_sha256": "1144b9c45ba60acb0355c32f385fec6fe209788982d10dd9a748beb406f00001",
+      "local_path": "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptor.kt",
+      "local_sha256": "dd0e594884d121bb88545df4a18a8389acf3c28d8f31acbd406914c94d891f94",
+      "adaptation": "Remove builtins/encoding imports used only in documentation; retain the complete interface and iterable extension implementations."
+    }
+  ]
+}

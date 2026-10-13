@@ -14,8 +14,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         case catchHandler = 6
         case retry = 7
         case retryWhen = 8
-        case onErrorReturn = 9
-        case onErrorResume = 10
         case transform = 11
     }
 
@@ -31,8 +29,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("catch"),
             ctx.interner.intern("retry"),
             ctx.interner.intern("retryWhen"),
-            ctx.interner.intern("onErrorReturn"),
-            ctx.interner.intern("onErrorResume"),
             ctx.interner.intern("collect"),
             ctx.interner.intern("toList"),
             ctx.interner.intern("first"),
@@ -54,8 +50,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         let catchName = interner.intern("catch")
         let retryName = interner.intern("retry")
         let retryWhenName = interner.intern("retryWhen")
-        let onErrorReturnName = interner.intern("onErrorReturn")
-        let onErrorResumeName = interner.intern("onErrorResume")
         let collectName = interner.intern("collect")
         let toListName = interner.intern("toList")
         let firstName = interner.intern("first")
@@ -261,8 +255,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                    if callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 1,
                        let flowExpr = activeFlowExpr,
                        flowExprIDs.contains(flowExpr.rawValue)
@@ -274,10 +267,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.retry.rawValue
                         case retryWhenName:
                             RuntimeFlowTag.retryWhen.rawValue
-                        case onErrorReturnName:
-                            RuntimeFlowTag.onErrorReturn.rawValue
-                        case onErrorResumeName:
-                            RuntimeFlowTag.onErrorResume.rawValue
                         default:
                             RuntimeFlowTag.map.rawValue
                         }
@@ -329,8 +318,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
                     if callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName ||
-                        callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                        callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 2 ||
                         ((callee == mapName || callee == filterName || callee == catchName ||
                             callee == retryWhenName || callee == transformName) && arguments.count == 3),
@@ -349,10 +337,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.retry.rawValue
                         case retryWhenName:
                             RuntimeFlowTag.retryWhen.rawValue
-                        case onErrorReturnName:
-                            RuntimeFlowTag.onErrorReturn.rawValue
-                        case onErrorResumeName:
-                            RuntimeFlowTag.onErrorResume.rawValue
                         default:
                             RuntimeFlowTag.take.rawValue
                         }
@@ -457,8 +441,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             || tag == RuntimeFlowTag.catchHandler.rawValue
                             || tag == RuntimeFlowTag.retry.rawValue
                             || tag == RuntimeFlowTag.retryWhen.rawValue
-                            || tag == RuntimeFlowTag.onErrorReturn.rawValue
-                            || tag == RuntimeFlowTag.onErrorResume.rawValue
                         {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
@@ -526,8 +508,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
                     if callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName ||
-                        callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                        callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 1,
                        flowExprIDs.contains(receiver.rawValue)
                     {
@@ -544,10 +525,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.retry.rawValue
                         case retryWhenName:
                             RuntimeFlowTag.retryWhen.rawValue
-                        case onErrorReturnName:
-                            RuntimeFlowTag.onErrorReturn.rawValue
-                        case onErrorResumeName:
-                            RuntimeFlowTag.onErrorResume.rawValue
                         default:
                             RuntimeFlowTag.take.rawValue
                         }
@@ -649,8 +626,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             || tag == RuntimeFlowTag.catchHandler.rawValue
                             || tag == RuntimeFlowTag.retry.rawValue
                             || tag == RuntimeFlowTag.retryWhen.rawValue
-                            || tag == RuntimeFlowTag.onErrorReturn.rawValue
-                            || tag == RuntimeFlowTag.onErrorResume.rawValue
                         {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result

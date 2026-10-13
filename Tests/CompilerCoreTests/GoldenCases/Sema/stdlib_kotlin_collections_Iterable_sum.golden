@@ -70,30 +70,30 @@ expr e@12:61 name(values) type=kotlin.collections.Iterable<String> ref=sumOfDoub
 expr e@12:76 name(it) type=String ref=s-0
 expr e@12:76#1 memberCall recv=e@12:76 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@12:76#2 memberCall recv=e@12:76#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=;ret=Double]
-expr e@12:74 lambda params=[] body=e@12:76#2 label=sumOf type=(String) -> Any?
+expr e@12:74 lambda params=[] body=e@12:76#2 label=sumOf type=(String) -> Double
 expr e@12:61#1 memberCall recv=e@12:61 callee=sumOf args=[_:e@12:74] type=Double call=kotlin.collections.sumOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Double};ret=Double;gen=1;names=[selector]] targs=[String]
 expr e@13:55 name(values) type=kotlin.collections.Iterable<String> ref=sumOfInt.$7.values[kind=vparam;origin=fixture]
 expr e@13:70 name(it) type=String ref=s-1
 expr e@13:70#1 memberCall recv=e@13:70 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@13:68 lambda params=[] body=e@13:70#1 label=sumOf type=(String) -> Any?
+expr e@13:68 lambda params=[] body=e@13:70#1 label=sumOf type=(String) -> Int
 expr e@13:55#1 memberCall recv=e@13:55 callee=sumOf args=[_:e@13:68] type=Int call=kotlin.collections.sumOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Int};ret=Int;gen=1;names=[selector]] targs=[String]
 expr e@14:57 name(values) type=kotlin.collections.Iterable<String> ref=sumOfLong.$8.values[kind=vparam;origin=fixture]
 expr e@14:72 name(it) type=String ref=s-2
 expr e@14:72#1 memberCall recv=e@14:72 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@14:72#2 memberCall recv=e@14:72#1 callee=toLong args=[] type=Long
-expr e@14:70 lambda params=[] body=e@14:72#2 label=sumOf type=(String) -> Any?
+expr e@14:70 lambda params=[] body=e@14:72#2 label=sumOf type=(String) -> Long
 expr e@14:57#1 memberCall recv=e@14:57 callee=sumOf args=[_:e@14:70] type=Long call=kotlin.collections.sumOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=Long};ret=Long;gen=1;names=[selector]] targs=[String]
 expr e@15:57 name(values) type=kotlin.collections.Iterable<String> ref=sumOfUInt.$9.values[kind=vparam;origin=fixture]
 expr e@15:72 name(it) type=String ref=s-3
 expr e@15:72#1 memberCall recv=e@15:72 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@15:72#2 memberCall recv=e@15:72#1 callee=toUInt args=[] type=UInt
-expr e@15:70 lambda params=[] body=e@15:72#2 label=sumOf type=(String) -> Any?
+expr e@15:70 lambda params=[] body=e@15:72#2 label=sumOf type=(String) -> UInt
 expr e@15:57#1 memberCall recv=e@15:57 callee=sumOf args=[_:e@15:70] type=UInt call=kotlin.collections.sumOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=UInt};ret=UInt;gen=1;names=[selector]] targs=[String]
 expr e@16:59 name(values) type=kotlin.collections.Iterable<String> ref=sumOfULong.$10.values[kind=vparam;origin=fixture]
 expr e@16:74 name(it) type=String ref=s-4
 expr e@16:74#1 memberCall recv=e@16:74 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@16:74#2 memberCall recv=e@16:74#1 callee=toULong args=[] type=ULong
-expr e@16:72 lambda params=[] body=e@16:74#2 label=sumOf type=(String) -> Any?
+expr e@16:72 lambda params=[] body=e@16:74#2 label=sumOf type=(String) -> ULong
 expr e@16:59#1 memberCall recv=e@16:59 callee=sumOf args=[_:e@16:72] type=ULong call=kotlin.collections.sumOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=ULong};ret=ULong;gen=1;names=[selector]] targs=[String]
 expr e@18:26 call callee=e@18:26#1 args=[] type=kotlin.collections.List<out Nothing> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Nothing]
 expr e@18:19 call callee=e@18:19#1 args=[_:e@18:26] type=Int call=intSum[kind=fun;params=kotlin.collections.Iterable<Int>;ret=Int;names=[values];origin=fixture]

@@ -23,6 +23,7 @@ extension DataFlowSemaPhase {
         includeDecrementAndGetAlias: Bool = false,
         includeAddAndGetAlias: Bool = false,
         includeCompareAndSet: Bool = true,
+        includeValueProperty: Bool = true,
         compareAndSetLinkName: String? = nil,
         symbols: SymbolTable,
         interner: StringInterner,
@@ -50,13 +51,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerAtomicValueProperty(
-            ownerSymbol: symbol,
-            valueType: valueType,
-            getterLinkName: "\(prefix)_load",
-            symbols: symbols,
-            interner: interner
-        )
+        if includeValueProperty {
+            registerAtomicValueProperty(
+                ownerSymbol: symbol,
+                valueType: valueType,
+                getterLinkName: "\(prefix)_load",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         registerAtomicCoreMethods(
             ownerSymbol: symbol,
@@ -106,7 +109,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        // fetchAndAdd(delta: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndAdd", externalLinkName: "\(prefix)_fetchAndAdd",
@@ -125,7 +127,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // addAndFetch(delta: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "addAndFetch", externalLinkName: "\(prefix)_addAndFetch",
@@ -144,7 +145,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // fetchAndIncrement() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndIncrement", externalLinkName: "\(prefix)_fetchAndIncrement",
@@ -163,7 +163,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // fetchAndDecrement() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndDecrement", externalLinkName: "\(prefix)_fetchAndDecrement",
@@ -182,7 +181,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // incrementAndFetch() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "incrementAndFetch", externalLinkName: "\(prefix)_incrementAndFetch",
@@ -201,7 +199,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // decrementAndFetch() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "decrementAndFetch", externalLinkName: "\(prefix)_decrementAndFetch",
@@ -233,7 +230,8 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         constructorLinkName: String,
         externalLinkPrefix: String,
-        includeGetAndSetAlias: Bool = false
+        includeGetAndSetAlias: Bool = false,
+        includeValueProperty: Bool = true
     ) {
         let atomicRefSymbol = ensureClassSymbol(
             named: "AtomicReference",
@@ -245,20 +243,12 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(ownerPackageSymbol, for: atomicRefSymbol)
         }
 
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = ownerPackage + [interner.intern("AtomicReference"), typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: ownerPackage + [interner.intern("AtomicReference")],
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull
@@ -283,13 +273,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerAtomicValueProperty(
-            ownerSymbol: atomicRefSymbol,
-            valueType: typeParamType,
-            getterLinkName: "\(externalLinkPrefix)_load",
-            symbols: symbols,
-            interner: interner
-        )
+        if includeValueProperty {
+            registerAtomicValueProperty(
+                ownerSymbol: atomicRefSymbol,
+                valueType: typeParamType,
+                getterLinkName: "\(externalLinkPrefix)_load",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         registerAtomicCoreMethods(
             ownerSymbol: atomicRefSymbol,

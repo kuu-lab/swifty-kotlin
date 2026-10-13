@@ -63,7 +63,7 @@ extension LoweringPassRegressionTests {
             // __kk_list_size — only possible when the component type was correctly
             // inferred as List<Int> rather than the raw type parameter.
             #expect(
-                allCallees.contains("__kk_list_size"),
+                allCallees.contains(RuntimeCall.listSize.name),
                 "Expected __kk_list_size for evens.size / odds.size; callees: \(allCallees)"
             )
         }

@@ -10,6 +10,19 @@ public struct CallBinding {
     }
 }
 
+/// The value read before invoking an object's operator member through a property.
+public struct InvokeOperatorPropertyBinding {
+    public let property: SymbolID
+    public let propertyType: TypeID
+    public let resultType: TypeID
+
+    public init(property: SymbolID, propertyType: TypeID, resultType: TypeID) {
+        self.property = property
+        self.propertyType = propertyType
+        self.resultType = resultType
+    }
+}
+
 public enum CallableTarget: Equatable {
     case symbol(SymbolID)
     case localValue(SymbolID)
@@ -66,7 +79,6 @@ public struct IndexedCompoundAssignElementOperatorBinding {
 
     public let call: CallBinding
     public let kind: Kind
-    /// The `get()` result type the operator is applied to.
     public let elementType: TypeID
     public let resultType: TypeID
 
@@ -100,14 +112,12 @@ public struct LoopIterationBinding {
     }
 }
 
-/// Identifies the kind of builder DSL function (STDLIB-002).
 public enum BuilderDSLKind: Equatable {
     case buildList
     case buildSet
     case buildMap
 }
 
-/// Identifies the kind of scope function (STDLIB-004).
 public enum ScopeFunctionKind: Equatable {
     case scopeContext
     /// Closeable.use { } (STDLIB-520): like `let`, but wraps in try-finally calling close().
@@ -119,10 +129,12 @@ public enum ScopeFunctionKind: Equatable {
     /// CValue<T>.useContents { } (STDLIB-CINTEROP-FN-041): temporarily exposes
     /// the contained native value as the lambda receiver.
     case scopeUseContents
+    /// kotlinx.cinterop.memScoped { } (KUU-1375): creates a MemScope arena,
+    /// invokes the block with it as the implicit receiver, and runs
+    /// kk_arena_clear in a finally path (deferred blocks + frees).
+    case scopeMemScoped
 }
 
-
-/// Identifies special stdlib calls that need dedicated lowering.
 public enum StdlibSpecialCallKind: Equatable {
     /// Compiler-only contract DSL; its lambda is recorded by Sema and must
     /// not be emitted into KIR.
@@ -161,9 +173,7 @@ public enum StdlibSpecialCallKind: Equatable {
 /// or a property, so that KIR lowering can emit the correct KFunction /
 /// KProperty type identity metadata (REFL-003).
 public enum CallableRefKind: Equatable {
-    /// `::functionName` — produces a KFunction reference.
     case functionRef
-    /// `::propertyName` — produces a KProperty reference.
     case propertyRef
 }
 

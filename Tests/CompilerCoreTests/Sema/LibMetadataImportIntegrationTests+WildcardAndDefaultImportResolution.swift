@@ -42,11 +42,11 @@ extension LibMetadataImportIntegrationTests {
             let sema = try #require(ctx.sema)
 
             // Verify the symbol is present
-            let computeSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "compute" &&
-                    symbol.kind == .function &&
-                    symbol.flags.contains(.synthetic)
-            }
+            let computeSymbol = sema.symbols.lookupAll(fqName: ["sc", "util", "compute"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in
+                    symbol.kind == .function && symbol.flags.contains(.synthetic)
+                }
             #expect(computeSymbol != nil, "Wildcard import should make library function 'compute' available")
 
             // Verify no SEMA/TYPE diagnostics (proves the symbol resolved in scope)
@@ -93,11 +93,11 @@ extension LibMetadataImportIntegrationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let isBlankSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "isBlank" &&
-                    symbol.kind == .function &&
-                    symbol.flags.contains(.synthetic)
-            }
+            let isBlankSymbol = sema.symbols.lookupAll(fqName: ["kotlin", "text", "isBlank"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in
+                    symbol.kind == .function && symbol.flags.contains(.synthetic)
+                }
             #expect(isBlankSymbol != nil, "Default import should make library function 'isBlank' from kotlin.text available")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
@@ -146,17 +146,16 @@ extension LibMetadataImportIntegrationTests {
             let sema = try #require(ctx.sema)
 
             // Verify synthetic package was created
-            let packageSymbol = sema.symbols.allSymbols().first { symbol in
-                symbol.kind == .package &&
-                    symbol.fqName.map { ctx.interner.resolve($0) } == ["np", "api"]
-            }
+            let packageSymbol = sema.symbols.lookupAll(fqName: ["np", "api"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .package }
             #expect(packageSymbol != nil, "Synthetic package 'np.api' should be created even without explicit package record")
 
-            let doWorkSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "doWork" &&
-                    symbol.kind == .function &&
-                    symbol.flags.contains(.synthetic)
-            }
+            let doWorkSymbol = sema.symbols.lookupAll(fqName: ["np", "api", "doWork"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in
+                    symbol.kind == .function && symbol.flags.contains(.synthetic)
+                }
             #expect(doWorkSymbol != nil, "Wildcard import should resolve function from synthesized package")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
@@ -229,12 +228,12 @@ extension LibMetadataImportIntegrationTests {
 
             let sema = try #require(ctx.sema)
 
-            let funcA = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "funcA" && symbol.flags.contains(.synthetic)
-            }
-            let funcB = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "funcB" && symbol.flags.contains(.synthetic)
-            }
+            let funcA = sema.symbols.lookupAll(fqName: ["lib", "a", "funcA"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.flags.contains(.synthetic) }
+            let funcB = sema.symbols.lookupAll(fqName: ["lib", "b", "funcB"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.flags.contains(.synthetic) }
             #expect(funcA != nil, "funcA from lib.a should be resolved via wildcard import")
             #expect(funcB != nil, "funcB from lib.b should be resolved via wildcard import")
 
@@ -285,17 +284,16 @@ extension LibMetadataImportIntegrationTests {
             let sema = try #require(ctx.sema)
 
             // Verify the package symbol was created despite the class 'cx.util' existing
-            let packageSymbol = sema.symbols.allSymbols().first { symbol in
-                symbol.kind == .package &&
-                    symbol.fqName.map { ctx.interner.resolve($0) } == ["cx", "util"]
-            }
+            let packageSymbol = sema.symbols.lookupAll(fqName: ["cx", "util"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .package }
             #expect(packageSymbol != nil, "Package 'cx.util' should be created even when class 'cx.util' exists")
 
-            let processSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "process" &&
-                    symbol.kind == .function &&
-                    symbol.flags.contains(.synthetic)
-            }
+            let processSymbol = sema.symbols.lookupAll(fqName: ["cx", "util", "process"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in
+                    symbol.kind == .function && symbol.flags.contains(.synthetic)
+                }
             #expect(processSymbol != nil, "Wildcard import should resolve 'process' even when non-package symbol coexists at package path")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
@@ -348,12 +346,12 @@ extension LibMetadataImportIntegrationTests {
 
             let sema = try #require(ctx.sema)
 
-            let listOfSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "listOf" && symbol.flags.contains(.synthetic)
-            }
-            let trimSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "trim" && symbol.flags.contains(.synthetic)
-            }
+            let listOfSymbol = sema.symbols.lookupAll(fqName: ["kotlin", "collections", "listOf"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.flags.contains(.synthetic) }
+            let trimSymbol = sema.symbols.lookupAll(fqName: ["kotlin", "text", "trim"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.flags.contains(.synthetic) }
             #expect(listOfSymbol != nil, "Default import should resolve 'listOf' from kotlin.collections")
             #expect(trimSymbol != nil, "Default import should resolve 'trim' from kotlin.text")
 

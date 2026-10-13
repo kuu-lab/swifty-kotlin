@@ -75,6 +75,8 @@ extension CallLowerer {
         func makeNullabilityExpr(for type: TypeID) -> KIRExprID {
             let isNullable: Int64 = {
                 switch sema.types.kind(of: type) {
+                case .nullableUnit:
+                    return 1
                 case let .primitive(_, nullability):
                     return nullability == .nullable ? 1 : 0
                 case let .classType(ct):
@@ -223,8 +225,6 @@ extension CallLowerer {
         return result
     }
 
-    // MARK: - REFL-005: KClass Metadata Registration for Constructor Calls
-
     /// Emits a `__kk_kclass_register_metadata` call so that `KClass` reflection
     /// queries (`.members`, `.constructors`, etc.) return correct data.
     /// This mirrors `ObjectLiteralLowerer.registerKClassMetadata` but is used
@@ -260,15 +260,10 @@ extension CallLowerer {
         instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
         let supertypeNameExpr: KIRExprID
-        let supertypes = sema.symbols.directSupertypes(for: objectSymbol)
-        let superClassSymbol = supertypes.first(where: { sid in
-            sema.symbols.symbol(sid)?.kind == .class
-        })
-        if let superClassSymbol,
-           let superSymbol = sema.symbols.symbol(superClassSymbol)
-        {
-            let superFqName = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            let superInterned = interner.intern(superFqName)
+        if let joined = kclassSupertypeDisplayNamesJoined(
+            for: objectSymbol, sema: sema, interner: interner
+        ) {
+            let superInterned = interner.intern(joined)
             supertypeNameExpr = arena.appendExpr(.stringLiteral(superInterned), type: intType)
             instructions.append(.constValue(result: supertypeNameExpr, value: .stringLiteral(superInterned)))
         } else {
@@ -340,11 +335,29 @@ extension CallLowerer {
             symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
+        emitKClassCompanionAndNestedRegistration(
+            classSymbol: objectSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(
             objectSymbol: objectSymbol,
             typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
+        // KUU-1448: construction also makes this class reachable through
+        // `KType.classifier`/`__kk_kclass_of` handles, so its ancestors need
+        // metadata too. Seeded with `objectSymbol` so a sealed ancestor's
+        // subclass walk cannot re-emit this registration.
+        var visitedClassSymbols: Set<SymbolID> = [objectSymbol]
+        emitTransitiveSupertypeKClassMetadataRegistrations(
+            for: objectSymbol,
+            visitedClassSymbols: &visitedClassSymbols,
             sema: sema,
             arena: arena,
             interner: interner,

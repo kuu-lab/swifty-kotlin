@@ -14,7 +14,7 @@ struct NothingTypeFlowTests {
             """
             package sample0
 
-                    class E
+                    class E : RuntimeException()
 
                     fun f(flag: Boolean): Int {
                         var x = 0
@@ -32,7 +32,7 @@ struct NothingTypeFlowTests {
             """
             package sample1
 
-                    class E
+                    class E : RuntimeException()
 
                     fun ifCase(flag: Boolean): Int {
                         val x: Int = if (flag) 1 else throw E()
@@ -65,7 +65,7 @@ struct NothingTypeFlowTests {
             """
             package sample3
 
-                    class E
+                    class E : RuntimeException()
 
                     fun f(): Int {
                         throw E()
@@ -84,8 +84,6 @@ struct NothingTypeFlowTests {
             let ast = try #require(ctx.ast)
 
             let sema = try #require(ctx.sema)
-
-            let interner = ctx.interner
 
             // === testControlFlowTerminalsBindNothingType ===
 
@@ -174,11 +172,11 @@ struct NothingTypeFlowTests {
 
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
-                let nullNameRef = try #require(firstExprID(in: ast, path: sample2Path, ctx: ctx) { _, expr in
-                    guard case let .nameRef(name, _) = expr else { return false }
-                    return interner.resolve(name) == "null"
+                let nullExprID = try #require(firstExprID(in: ast, path: sample2Path, ctx: ctx) { _, expr in
+                    guard case .nullLiteral = expr else { return false }
+                    return true
                 })
-                #expect(sema.bindings.exprType(for: nullNameRef) == sema.types.nullableNothingType)
+                #expect(sema.bindings.exprType(for: nullExprID) == sema.types.nullableNothingType)
 
                 let nullableInt = sema.types.makeNullable(sema.types.intType)
                 #expect(

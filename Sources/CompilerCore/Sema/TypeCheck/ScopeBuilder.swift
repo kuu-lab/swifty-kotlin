@@ -28,7 +28,7 @@ struct TypeCheckScopeBuilder {
 
         for file in ast.sortedFiles {
             let wildcardImportScope = ImportScope(parent: defaultImportScope, symbols: sema.symbols)
-            let explicitImportScope = ImportScope(parent: wildcardImportScope, symbols: sema.symbols)
+            let explicitImportScope = ExplicitImportScope(parent: wildcardImportScope, symbols: sema.symbols)
             populateImportScopes(
                 for: file,
                 sema: sema,
@@ -183,6 +183,10 @@ struct TypeCheckScopeBuilder {
             symbols: sema.symbols, sourceManager: sourceManager,
             invisibleAccessFiles: suppressesInvisibleAccess ? [file.fileID.rawValue] : []
         )
+        // Bundled stdlib source contains platform-specific imports (for
+        // example, Java interop types) that are intentionally absent from the
+        // compiler's symbol graph. Import validation is for user source only.
+        let validatesImports = sourceManager?.origin(of: file.fileID)?.isBundledStdlib != true
         func isAccessibleWildcardSymbol(_ id: SymbolID) -> Bool {
             guard let symbol = sema.symbols.symbol(id) else { return false }
             return visibility.isAccessible(symbol, fromFile: file.fileID, enclosingClass: nil)
@@ -247,6 +251,13 @@ struct TypeCheckScopeBuilder {
                 : resolveExplicitImport(importDecl.path, sema: sema)
             if resolved.isEmpty {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
+                if packageSymbols.isEmpty, !importDecl.isWildcard, validatesImports {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "Unresolved import path.",
+                        range: importDecl.range
+                    )
+                }
                 if !packageSymbols.isEmpty {
                     for packageSymbol in packageSymbols {
                         if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
@@ -257,6 +268,47 @@ struct TypeCheckScopeBuilder {
                     }
                 }
                 continue
+            }
+
+            if importDecl.isWildcard, validatesImports,
+               let importedObject = resolved.first(where: { sema.symbols.symbol($0)?.kind == .object }),
+               let object = sema.symbols.symbol(importedObject)
+            {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0027",
+                    "Cannot import on demand from object '\(interner.resolve(object.name))'.",
+                    range: importDecl.range
+                )
+                continue
+            }
+
+            if importDecl.isWildcard {
+                let enumOwners = resolved.filter { sema.symbols.symbol($0)?.kind == .enumClass }
+                if !enumOwners.isEmpty {
+                    // Enum star imports introduce entries at wildcard priority,
+                    // not the enum type or its instance/companion members.
+                    for enumOwner in enumOwners {
+                        var owner: SymbolID? = enumOwner
+                        var isAccessibleOwner = true
+                        while let current = owner {
+                            if !isAccessibleWildcardSymbol(current) {
+                                isAccessibleOwner = false
+                                break
+                            }
+                            owner = sema.symbols.parentSymbol(for: current)
+                        }
+                        guard isAccessibleOwner,
+                              let enumSymbol = sema.symbols.symbol(enumOwner)
+                        else { continue }
+                        for entry in sema.symbols.children(ofFQName: enumSymbol.fqName) {
+                            guard sema.symbols.symbol(entry)?.kind == .field,
+                                  isAccessibleWildcardSymbol(entry)
+                            else { continue }
+                            wildcardImportScope.insert(entry)
+                        }
+                    }
+                    continue
+                }
             }
 
             let hasPackageImport = resolved.contains { symbolID in
@@ -330,7 +382,7 @@ struct TypeCheckScopeBuilder {
             // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get)
             // out of the library package mapping. Source-backed operator extensions
             // remain so they are visible to other bundled source in the same package.
-            if isSyntheticOperatorExtensionToExclude(symbol.id, sema: sema, interner: interner) {
+            if isSyntheticOperatorExtensionToExclude(symbol.id, sema: sema) {
                 continue
             }
             mapping[candidatePackage, default: []].append(symbol.id)
@@ -345,16 +397,15 @@ struct TypeCheckScopeBuilder {
     /// fallback paths.
     private func isSyntheticOperatorExtensionToExclude(
         _ symbolID: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID),
               symbol.kind == .function,
-              let signature = sema.symbols.functionSignature(for: symbolID),
-              signature.receiverType != nil,
               symbol.flags.contains(.operatorFunction),
               symbol.flags.contains(.synthetic),
-              !sema.symbols.isSourceBackedSymbol(symbolID)
+              !sema.symbols.isSourceBackedSymbol(symbolID),
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              signature.receiverType != nil
         else {
             return false
         }
@@ -375,7 +426,7 @@ struct TypeCheckScopeBuilder {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema, interner: interner) {
+        if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema) {
             return true
         }
 

@@ -4,7 +4,7 @@ symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=functi
 file fstdlib_kotlin_IntArray_n_n package=golden.sema
   decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@4:26 int(3) type=Int
-expr e@4:17 call callee=e@4:17#1 args=[_:e@4:26] type=kotlin.IntArray
+expr e@4:17 call callee=e@4:17#1 args=[_:e@4:26] type=kotlin.IntArray call=kotlin.IntArray[kind=fun;params=Int;ret=kotlin.IntArray;names=[size]]
 expr e@4:5 localDecl sized mutable=0 type=_ init=e@4:17 type=Unit ref=__local_0.sized[kind=local;type=kotlin.IntArray;origin=fixture]
 expr e@5:13 name(sized) type=kotlin.IntArray ref=__local_0.sized[kind=local;type=kotlin.IntArray;origin=fixture]
 expr e@5:13#1 memberCall recv=e@5:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.IntArray;params=;ret=Int]

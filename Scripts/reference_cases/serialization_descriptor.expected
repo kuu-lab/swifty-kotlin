@@ -1,0 +1,15 @@
+Envelope|CLASS|2|false|false|1
+root
+first|0|First|STRING|false|false|false|1
+second|1|Second|INT|true|true|true|0
+field
+unknown:-3
+first:first
+independent:first
+rest:second:false
+index:2
+[first, second]
+index:2
+[First, Second]
+empty:false:false
+leaf:0

@@ -44,11 +44,6 @@ extension CallSupportLowerer {
         )
     }
 
-    func normalizeBoolFlags(_ flags: [Bool], count: Int) -> [Bool] {
-        if flags.count == count { return flags }
-        if flags.count > count { return Array(flags.prefix(count)) }
-        return flags + Array(repeating: false, count: count - flags.count)
-    }
 
     func syntheticReceiverParameterSymbol(functionSymbol: SymbolID) -> SymbolID {
         SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)

@@ -73,7 +73,7 @@ struct IntersectionTypeFlowTests {
                 // regardless of how many other `x`-named declarations the stdlib has.
                 let xRef = try #require(firstExprID(in: ast, path: sample0Path, ctx: ctx) { exprID, expr in
                     guard case let .nameRef(name, _) = expr,
-                          interner.resolve(name) == "x",
+                          name == interner.intern("x"),
                           let range = ast.arena.exprRange(exprID)
                     else { return false }
                     return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
@@ -112,11 +112,11 @@ struct IntersectionTypeFlowTests {
 
                 let directCall = try #require(firstExprID(in: ast, path: sample1Path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "id"
+                    return callee == interner.intern("id")
                 })
                 let safeCall = try #require(firstExprID(in: ast, path: sample1Path, ctx: ctx) { _, expr in
                     guard case let .safeMemberCall(_, callee, _, _, _) = expr else { return false }
-                    return interner.resolve(callee) == "id"
+                    return callee == interner.intern("id")
                 })
 
                 #expect(sema.bindings.exprType(for: directCall) == sema.types.intType)

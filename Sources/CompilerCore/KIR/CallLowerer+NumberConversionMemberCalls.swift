@@ -1,8 +1,9 @@
 
 /// Lowering for `Number.toDouble()`/`toFloat()`/`toLong()`/`toInt()`/`toShort()`/
-/// `toByte()` when the receiver's static type is the abstract `kotlin.Number`
-/// class itself (a `Number`-typed local/parameter, or an erased `T : Number`
-/// type parameter) rather than a concrete primitive (KSP-1540).
+/// `toByte()`/`toChar()` when the receiver's static type is the abstract
+/// `kotlin.Number` class itself (a `Number`-typed local/parameter, or an
+/// erased `T : Number` type parameter) rather than a concrete primitive
+/// (KSP-1540, KUU-1372 for `toChar`).
 ///
 /// None of the built-in primitive types (Int/Long/Double/Float/Short/Byte)
 /// register as a genuine overriding *class* in the symbol table — they

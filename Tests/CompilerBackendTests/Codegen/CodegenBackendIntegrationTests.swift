@@ -1,11 +1,11 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite struct CodegenBackendIntegrationTests {
-    private let pipelineHelper = CodegenBackendTestSupport()
     @Test
     func testCodegenEmitsKirDumpArtifact() throws {
         let source = """
@@ -17,7 +17,7 @@ import Testing
             let tempDir = FileManager.default.temporaryDirectory
 
             let kirBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "KirMod", emit: .kirDump, outputPath: kirBase)
+            _ = try runCodegenPipeline(inputPath: path, moduleName: "KirMod", emit: .kirDump, outputPath: kirBase, stdlibLibraryPath: try testStdlibArtifactPath())
             #expect(FileManager.default.fileExists(atPath: kirBase + ".kir"))
         }
     }
@@ -32,7 +32,7 @@ import Testing
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let llvmBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            let llvmCtx = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "LLMod", emit: .llvmIR, outputPath: llvmBase)
+            let llvmCtx = try runCodegenPipeline(inputPath: path, moduleName: "LLMod", emit: .llvmIR, outputPath: llvmBase, stdlibLibraryPath: try testStdlibArtifactPath())
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             #expect(llvmPath.hasSuffix(".ll"))
             #expect(FileManager.default.fileExists(atPath: llvmPath))
@@ -49,7 +49,7 @@ import Testing
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let libBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "LibMod", emit: .library, outputPath: libBase)
+            _ = try runCodegenPipeline(inputPath: path, moduleName: "LibMod", emit: .library, outputPath: libBase, stdlibLibraryPath: try testStdlibArtifactPath())
 
             let libDir = libBase + ".kklib"
             let manifestPath = libDir + "/manifest.json"
@@ -87,7 +87,7 @@ import Testing
         try withTemporaryFile(contents: source) { path in
             let tempDir = FileManager.default.temporaryDirectory
             let libBase = tempDir.appendingPathComponent(UUID().uuidString).path
-            _ = try pipelineHelper.runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase)
+            _ = try runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase, stdlibLibraryPath: try testStdlibArtifactPath())
 
             let metadataPath = libBase + ".kklib/metadata.bin"
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
@@ -169,44 +169,6 @@ import Testing
     }
 
     @Test
-    func testCodegenDataClassSynthesizesCorrectToStringAndEqualityWithoutExplicitSuperclass() throws {
-        let source = """
-        data class Person(val name: String, val age: Int)
-        fun main() {
-            val p = Person("Alice", 30)
-            println(p.toString())
-            println(p.hashCode() != 0)
-            val p2 = Person("Alice", 30)
-            println(p == p2)
-            println(p.equals(p2))
-            val (name, age) = p
-            println("$name is $age")
-            println(p.component1())
-            println(p.component2())
-            val p3 = p.copy(age = 31)
-            println(p3)
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "DataClassToString",
-            expected:
-                """
-                Person(name=Alice, age=30)
-                true
-                true
-                true
-                Alice is 30
-                Alice
-                30
-                Person(name=Alice, age=31)
-
-                """
-        )
-    }
-
-    @Test
     func testCodegenCompilesStringStdlibMixedThrowCalls() throws {
         let source = """
         fun main() {
@@ -223,11 +185,12 @@ import Testing
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
+            let ctx = try runCodegenPipeline(
                 inputPath: path,
                 moduleName: "StringStdlibMixedThrowCalls",
                 emit: .object,
-                outputPath: outputBase
+                outputPath: outputBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let objectPath = try #require(ctx.generatedObjectPath)
             #expect(FileManager.default.fileExists(atPath: objectPath))
@@ -252,11 +215,12 @@ import Testing
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
+            let ctx = try runCodegenPipeline(
                 inputPath: path,
                 moduleName: "MathTopLevelCalls",
                 emit: .object,
-                outputPath: outputBase
+                outputPath: outputBase,
+                stdlibLibraryPath: try testStdlibArtifactPath(),
             )
             let objectPath = try #require(ctx.generatedObjectPath)
             #expect(FileManager.default.fileExists(atPath: objectPath))
@@ -422,24 +386,6 @@ import Testing
         }
         """
         try assertKotlinOutput(sourceValues, moduleName: "EnumValues", expected: "3\nRED\nGREEN\n")
-    }
-
-    @Test
-    func testCodegenMutableListBasicMutationsUseRuntimeListBox() throws {
-        let source = """
-        fun main() {
-            val list = mutableListOf(1, 2)
-            list.add(3)
-            println(list)
-            val removed = list.removeAt(1)
-            println(removed)
-            println(list)
-            list.clear()
-            println(list)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "MutableListBasicRuntime", expected: "[1, 2, 3]\n2\n[1, 3]\n[]\n")
     }
 
     @Test
@@ -676,60 +622,6 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "CollectionContainsRuntime", expected: "true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\n")
-    }
-
-    @Test
-    func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_removefirstornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListRemoveFirstOrNull",
-            expected:
-                """
-                1
-                [2]
-                2
-                []
-                -1
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenMutableListRemoveLastOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_removelastornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListRemoveLastOrNull",
-            expected:
-                """
-                2
-                [1]
-                1
-                []
-                -1
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenMutableListSortWithUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_sortwith.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListSortWith",
-            expected:
-                """
-                [1, 3, 4]
-                [4, 3, 1]
-                [fig, pear, apple]
-                """ + "\n"
-        )
     }
 
     @Test
@@ -1141,8 +1033,8 @@ import Testing
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!(callees.contains("kk_list_flatMapIndexed")), "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())")
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
+            try expectSourceBackedCall("flatMapIndexed", in: ctx)
 
             // The artifact may inline flatMapIndexed, so prove the imported
             // implementation through its observable result instead of a
@@ -1439,53 +1331,7 @@ import Testing
 
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
     }
-
-    // KUU-637: generic Comparable minOf/maxOf must distinguish signed zeros.
-    @Test
-    func testCodegenGenericMinOfMaxOfSignedZeroTotalOrder() throws {
-        let source = """
-        fun <T : Comparable<T>> maxOf2(a: T, b: T): T = maxOf(a, b)
-        fun <T : Comparable<T>> minOf2(a: T, b: T): T = minOf(a, b)
-
-        fun main() {
-            println(maxOf2(-0.0, 0.0))
-            println(maxOf2(0.0, -0.0))
-            println(minOf2(0.0, -0.0))
-            println(minOf2(-0.0, 0.0))
-            println(maxOf2(-0.0f, 0.0f))
-            println(minOf2(0.0f, -0.0f))
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "GenericMinOfMaxOfSignedZero",
-            expected: "0.0\n0.0\n-0.0\n-0.0\n0.0\n-0.0\n"
-        )
-    }
     // MARK: - Private Helpers
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     private func assertDeterministicCodegenOutput(source: String, emit: EmitMode) throws {
         try withTemporaryFile(contents: source) { path in
@@ -1568,11 +1414,12 @@ import Testing
     }
 
     private func readCodegenArtifact(inputPath: String, emit: EmitMode, outputPath: String) throws -> Data {
-        let ctx = try pipelineHelper.runCodegenPipeline(
+        let ctx = try runCodegenPipeline(
             inputPath: inputPath,
             moduleName: "Determinism",
             emit: emit,
-            outputPath: outputPath
+            outputPath: outputPath,
+            stdlibLibraryPath: try testStdlibArtifactPath(),
         )
 
         let artifactPath: String

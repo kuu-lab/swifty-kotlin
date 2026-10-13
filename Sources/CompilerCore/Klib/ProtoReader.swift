@@ -51,8 +51,6 @@ package struct ProtoFields {
         try self.init(bytes[...])
     }
 
-    // MARK: - Presence and raw access
-
     package func has(_ field: Int) -> Bool {
         values[field]?.isEmpty == false
     }
@@ -83,7 +81,7 @@ package struct ProtoFields {
         }
     }
 
-    // MARK: - Scalar accessors (proto2: last value wins)
+    // proto2 scalar semantics: last value wins.
 
     /// `int64`/`uint64`; negative `int32`/`int64` values arrive sign-extended.
     package func int64(_ field: Int) -> Int64? {
@@ -123,7 +121,13 @@ package struct ProtoFields {
         }
     }
 
-    // MARK: - Repeated scalar accessors (packed or unpacked)
+    /// A message holding only `field`'s wire values, re-tagged as
+    /// `newField` — used to decode a renumbered oneof member.
+    package func retagged(_ field: Int, as newField: Int) -> ProtoFields {
+        var copy = ProtoFields()
+        copy.values[newField] = values[field]
+        return copy
+    }
 
     package func int32List(_ field: Int) throws -> [Int32] {
         try varintList(field).map { Int32(truncatingIfNeeded: $0) }
@@ -133,9 +137,6 @@ package struct ProtoFields {
         try varintList(field).map { Int64(bitPattern: $0) }
     }
 
-    package func uint64List(_ field: Int) throws -> [UInt64] {
-        try varintList(field)
-    }
 
     /// Collects `field` accepting both unpacked varints and packed
     /// length-delimited runs (proto2 allows a mix on the wire).

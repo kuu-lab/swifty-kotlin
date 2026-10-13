@@ -2,6 +2,17 @@
 struct MemberCallReceiver {
     let expr: ExprID
     let loweredID: KIRExprID
+    let typeOverride: TypeID?
+
+    init(expr: ExprID, loweredID: KIRExprID, typeOverride: TypeID? = nil) {
+        self.expr = expr
+        self.loweredID = loweredID
+        self.typeOverride = typeOverride
+    }
+
+    func type(in sema: SemaModule) -> TypeID? {
+        typeOverride ?? sema.bindings.exprType(for: expr)
+    }
 }
 
 /// Tag scheme shared by every `kk_any_to_string`/`kk_any_hashCode`/`kk_any_equals`
@@ -14,9 +25,10 @@ struct MemberCallReceiver {
 /// reinterpretation, or even "null" for values whose bit pattern equals
 /// Int.min). UInt/UByte/UShort are zero-extended into this container, so their
 /// dedicated tags let `kk_any_hashCode` reinterpret the low 32/8/16 bits as
-/// Kotlin's signed backing value. `kk_any_to_string` and `kk_any_equals` treat
-/// tags 8 through 11 like tag 1, preserving their existing rendering and
-/// comparison behavior. This is a free function
+/// Kotlin's signed backing value. UIntArray views may retain sign-extended
+/// IntArray words, so `kk_any_to_string` also interprets tag 9 as a 32-bit
+/// unsigned value. `kk_any_equals` keeps the existing comparison behavior.
+/// This is a free function
 /// (not a `CallLowerer` method) so every lowering pass that stringifies an
 /// arbitrary Any-typed value can share the exact same tag computation instead
 /// of drifting out of sync.
@@ -104,10 +116,23 @@ func resolveEnumOrdinalToNameCallee(
     guard case let .classType(classType) = sema.types.kind(of: type),
           classType.nullability == .nonNull,
           let symbol = sema.symbols.symbol(classType.classSymbol),
-          symbol.kind == .enumClass,
-          !symbol.flags.contains(.synthetic)
+          symbol.kind == .enumClass
     else {
         return nil
+    }
+    // `.synthetic` header-only enum classes (Platform.OsFamily, RegexOption,
+    // …) never get a `$enumOrdinalToName` helper, so a bare-name call would
+    // not resolve. Enums imported from a `.kklib` are `.synthetic`-flagged
+    // too, but their helper is serialized with the artifact — keep those
+    // when the helper symbol is actually present (KUU-1364: `p.kind`).
+    if symbol.flags.contains(.synthetic) {
+        let probeName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+        let helperExists = sema.symbols.lookupAll(fqName: symbol.fqName + [probeName]).contains { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        guard helperExists else {
+            return nil
+        }
     }
     // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
     // the default bare-name rendering, so string interpolation on an
@@ -270,10 +295,12 @@ extension CallLowerer {
     // unresolvedCollectionMemberNames because those names also exist on
     // collections). These names are Flow-specific, so a Flow receiver with an
     // unresolved chosenCallee still needs its receiver argument inserted here.
+    // KUU-1351: `onErrorReturn`/`onErrorResume`/`delayEach` are not
+    // kotlinx-coroutines Flow operators and stay unresolved.
     static let unresolvedFlowMemberNames: Set<String> = [
-        "buffer", "conflate", "collectLatest", "debounce", "sample", "delayEach", "flowOn",
+        "buffer", "conflate", "collectLatest", "debounce", "sample", "flowOn",
         "transform", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-        "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume", "single",
+        "catch", "retry", "retryWhen", "single",
     ]
 
     enum PrimitiveCompareABIKind: Int32 {
@@ -326,6 +353,7 @@ extension CallLowerer {
         case int = 3
         case short = 4
         case byte = 5
+        case char = 6
     }
 
     func numberConversionTargetKind(for calleeName: InternedString, interner: StringInterner) -> NumberConversionTargetKind? {
@@ -336,6 +364,11 @@ extension CallLowerer {
         case "toInt": return .int
         case "toShort": return .short
         case "toByte": return .byte
+        // KUU-1372: Number.toChar() is the one `open` (non-abstract)
+        // conversion member — it was omitted here originally, so its call fell
+        // through to a real vtable dispatch that crashed on primitive boxes
+        // (KSWIFTK-RUNTIME-0001).
+        case "toChar": return .char
         default: return nil
         }
     }
@@ -529,30 +562,6 @@ extension CallLowerer {
         return converted
     }
 
-    func isCoroutineHandleReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isCoroutineHandleSymbol(symbol)
-    }
-
-    func isChannelReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isChannelSymbol(symbol)
-    }
-
     func isFlowReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -600,7 +609,7 @@ extension CallLowerer {
         "any", "none", "all",
         "fold", "foldIndexed", "foldRight", "foldRightIndexed",
         "reduce", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceIndexed", "reduceIndexedOrNull",
-        "scan", "scanIndexed", "scanReduce", "runningFold", "runningFoldIndexed",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
         "runningReduce", "runningReduceIndexed",
         "groupBy", "groupByTo", "groupingBy", "sortedBy", "find", "findLast", "associateBy", "associateByTo", "associateWith", "associateWithTo", "associate", "associateTo", "zip", "zipWithNext", "unzip",
         "eachCount", "eachCountTo", "aggregate", "aggregateTo",

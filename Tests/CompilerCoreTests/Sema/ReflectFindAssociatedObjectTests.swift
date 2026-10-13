@@ -127,7 +127,7 @@ struct ReflectFindAssociatedObjectTests {
 
         #expect(symbol.kind == .function)
         #expect(symbol.flags.contains(.synthetic))
-        #expect(sema.symbols.externalLinkName(for: symbolID) == "__kk_kclass_find_associated_object")
+        #expect(sema.symbols.externalLinkName(for: symbolID) == runtimeABIName(.kclassFindAssociatedObject))
     }
 }
 #endif

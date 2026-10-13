@@ -2,6 +2,17 @@
 
 /// `RuntimeABISpec.operatorFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let opIsSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_op_is",
+        parameters: [
+            RuntimeABIParameter(name: "value", type: .intptr),
+            RuntimeABIParameter(name: "typeToken", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "TypeCheck",
+        isThrowing: false
+    )
+
 
     static let operatorFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -409,6 +420,38 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
+        // KUU-1357: KClass.companionObject / nested class registration
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_companion_object",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_companion",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "companionToken", type: .intptr),
+                RuntimeABIParameter(name: "companionNameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_nested_class",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "nestedToken", type: .intptr),
+                RuntimeABIParameter(name: "nestedNameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
         // STDLIB-REFLECT-064: KClass.primaryConstructor
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_primary_constructor",
@@ -496,6 +539,18 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
+        // KUU-1377: KClassifier.createType / starProjectedType
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktype_create",
+            parameters: [
+                RuntimeABIParameter(name: "classifierRaw", type: .intptr),
+                RuntimeABIParameter(name: "argsRaw", type: .intptr),
+                RuntimeABIParameter(name: "isNullable", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_ktypeprojection_create",
             parameters: [
@@ -554,16 +609,7 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_is",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "typeToken", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
+        opIsSpec,
         RuntimeABIFunctionSpec(
             name: "kk_op_cast",
             parameters: [

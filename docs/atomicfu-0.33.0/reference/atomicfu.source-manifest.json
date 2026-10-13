@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "upstream_commit": "fc175fc575419ca9eae0d3c14cefe9c5cd7ca351",
+  "source_jar_sha256": "c42fc0a74388a147e40ab03b2c084c8e84f7a3620f58b19bb3b72ff417396a25",
+  "sources": [
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt",
+      "git_blob_sha1": "721d86023038690cb7feffda049188ce1d2d9979",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt",
+      "git_blob_sha1": "d27c84e83bb05240beb3049e5eea97c268ab9a09",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt",
+      "git_blob_sha1": "7105ca2e6fa124364460a12ab2ad6fa30c1b2476",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt",
+      "git_blob_sha1": "99969bfa0c250fff7f8aca7105fc27a8cba98a00",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt",
+      "git_blob_sha1": "ae0ea685437c061c98ccfd2d6fade06b22258199",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt",
+      "git_blob_sha1": "8de86a013b951a93838d206cbcaf63ba27180b2e",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt",
+      "git_blob_sha1": "d52c9593e8b6264e143a53e4f26200da9c8ecc13",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt",
+      "git_blob_sha1": "acb538d055f2283bb0cdbcc821168b309011e267",
+      "local_path": null,
+      "evidence_status": "unavailable-js-wasm-exclusion"
+    },
+    {
+      "path": "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt",
+      "git_blob_sha1": "61c33a9fdc20515562661fe063f6bf34ded1e038",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt",
+      "git_blob_sha1": "9d8dcbf2e7a2e4774cadb7024c717b260f4f8511",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt",
+      "git_blob_sha1": "d1fb1e6c42649f4e05b6ad8a340052f6cbb14640",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt",
+      "git_blob_sha1": "2cfa72ce247c6a2bd89560a1c70918d029c1e313",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt",
+      "git_blob_sha1": "cd50f621c1057f7edf6595a37bb185da99b01868",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt",
+      "evidence_status": "pinned"
+    },
+    {
+      "path": "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/MangledJsNames.kt",
+      "git_blob_sha1": "8c37d016e4dc075d35f9f9910b354b18976ad0f3",
+      "local_path": "docs/atomicfu-0.33.0/reference/sources/commonMain/kotlin/kotlinx/atomicfu/MangledJsNames.kt",
+      "evidence_status": "pinned"
+    }
+  ]
+}

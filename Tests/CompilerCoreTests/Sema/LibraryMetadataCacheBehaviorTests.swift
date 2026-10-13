@@ -61,9 +61,9 @@ struct LibraryMetadataCacheBehaviorTests {
             #expect(cache.metadataCacheCount == 1, "Metadata should be cached after first load")
             #expect(cache.signatureCacheCount > 0, "Signatures should be cached after first load")
 
-            let addSymbol = symbols1.allSymbols().first { symbol in
-                sharedInterner.resolve(symbol.name) == "add" && symbol.kind == .function
-            }
+            let addSymbol = symbols1.lookupAll(fqName: ["cachetest", "add"].map(sharedInterner.intern))
+                .compactMap { symbols1.symbol($0) }
+                .first { symbol in symbol.kind == .function }
             #expect(addSymbol != nil, "Function 'add' should be imported")
         }
 
@@ -102,9 +102,9 @@ struct LibraryMetadataCacheBehaviorTests {
             #expect(cache.metadataCacheCount == metadataCountAfterFirst, "Metadata cache should be reused on second load")
             #expect(cache.signatureCacheCount == signatureCountAfterFirst, "Signature cache should have the same number of entries after second load")
 
-            let addSymbol = symbols2.allSymbols().first { symbol in
-                sharedInterner.resolve(symbol.name) == "add" && symbol.kind == .function
-            }
+            let addSymbol = symbols2.lookupAll(fqName: ["cachetest", "add"].map(sharedInterner.intern))
+                .compactMap { symbols2.symbol($0) }
+                .first { symbol in symbol.kind == .function }
             #expect(addSymbol != nil, "Function 'add' should be imported from cache")
         }
     }

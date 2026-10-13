@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -65,10 +66,11 @@ struct CodegenBackendSequenceForEachTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "process", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
             #expect(containsKotlinCallee("forEach", in: callees))
             #expect(containsKotlinCallee("forEachIndexed", in: callees))
-            #expect(!callees.contains("kk_sequence_forEach"))
-            #expect(!callees.contains("kk_sequence_forEachIndexed"))
+            try expectSourceBackedCall("forEach", in: ctx)
+            try expectSourceBackedCall("forEachIndexed", in: ctx)
         }
     }
 }

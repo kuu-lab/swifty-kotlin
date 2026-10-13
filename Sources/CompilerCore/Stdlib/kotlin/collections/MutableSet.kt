@@ -9,6 +9,10 @@
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
+import kotlin.js.ExperimentalJsCollectionsApi
+import kotlin.js.ExperimentalJsExport
+import kotlin.js.collections.JsSet
+import kotlin.js.collections.createJsSetViewFrom
 
 @KsSymbolName("__kk_mutable_set_add")
 private external fun <E> __kkMutableSetAdd(set: MutableSet<E>, element: E): Boolean
@@ -83,4 +87,10 @@ public interface MutableSet<E> : Set<E>, MutableCollection<E>, MutableIterable<E
 
     public override fun retainAll(elements: Collection<out E>): Boolean =
         __kkMutableSetRetainAll(this, elements)
+
+    /** Returns a typed view that keeps this set as its shared backing state. */
+    @ExperimentalJsExport
+    @ExperimentalJsCollectionsApi
+    @SinceKotlin("2.0")
+    public fun asJsSetView(): JsSet<E> = createJsSetViewFrom(this)
 }

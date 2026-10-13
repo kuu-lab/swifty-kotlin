@@ -10,7 +10,7 @@ struct UnbracedIfAssignmentTests {
         })
         let function = try #require(file.topLevelDecls.compactMap { declaration -> FunDecl? in
             guard case let .funDecl(function) = ast.arena.decl(declaration),
-                  context.interner.resolve(function.name) == "choose"
+                  function.name == context.interner.intern("choose")
             else { return nil }
             return function
         }.first)

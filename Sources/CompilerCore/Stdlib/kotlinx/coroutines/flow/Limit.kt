@@ -9,8 +9,11 @@ package kotlinx.coroutines.flow
 
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
+import kotlin.time.TimeSource
 import kotlin.time.inWholeMilliseconds
 import kotlin.time.toDuration
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.TimeoutCancellationException
 
 public fun <T> Flow<T>.drop(count: Int): Flow<T> {
     require(count >= 0) { "Drop count should be non-negative, but had $count" }
@@ -29,6 +32,7 @@ public fun <T> Flow<T>.drop(count: Int): Flow<T> {
 
 // KSP-1581: no ticker in the sequential cold-flow model; sample emits only
 // the last upstream value on completion, including a null value.
+@FlowPreview
 @Suppress("UNCHECKED_CAST")
 public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> {
     require(periodMillis > 0L) { "Sample period should be positive" }
@@ -44,8 +48,30 @@ public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> {
     }
 }
 
+@FlowPreview
+@OptIn(FlowPreview::class)
 public fun <T> Flow<T>.sample(period: Duration): Flow<T> {
     require(period > 0L.toDuration(DurationUnit.MILLISECONDS)) { "Sample period should be positive" }
     val millis = period.inWholeMilliseconds
     return sample(if (millis > 0L) millis else 1L)
+}
+
+// Sequential cold-flow approximation of upstream `timeout` (operators/Delay.kt):
+// the timeout window covers the gap between the end of one downstream emit and
+// the arrival of the next upstream value — downstream delay does not count.
+public fun <T> Flow<T>.timeout(timeout: Duration): Flow<T> {
+    val source = this
+    return flow {
+        if (timeout <= Duration.ZERO) {
+            throw TimeoutCancellationException("Timed out immediately")
+        }
+        var windowStart = TimeSource.Monotonic.markNow()
+        source.collect { value ->
+            if (windowStart.elapsedNow() > timeout) {
+                throw TimeoutCancellationException("Timed out waiting for $timeout")
+            }
+            emit(value)
+            windowStart = TimeSource.Monotonic.markNow()
+        }
+    }
 }

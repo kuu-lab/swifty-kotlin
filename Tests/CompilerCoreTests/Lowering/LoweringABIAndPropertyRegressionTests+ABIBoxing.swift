@@ -69,11 +69,9 @@ extension LoweringABIAndPropertyRegressionTests {
                         return false
                     })
                     #expect(unboxIndex < targetCallIndex)
-                    let expectedUnbox = try #require(BoxingCalleeTable(interner: interner).unboxCallee(
-                        for: types.kind(of: primitiveType), requireNonNull: true, preferStaticPrimitive: true
-                    ))
+                    let expectedUnbox = try loweringBoxingABI(.unbox, for: primitive, nonNull: true, staticPrimitive: true)
                     guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[unboxIndex] else { continue }
-                    #expect(callee == expectedUnbox)
+                    #expect(callee == interner.intern(expectedUnbox.name))
                 } else {
                     #expect(arguments[0] == receiver, "Raw, generic and nullable receivers must retain their representation")
                     #expect(targetCallIndex == 0)
@@ -136,8 +134,13 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIBoxInt", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static call for Int -> Any? boxing, got: \(callees)")
+        let abi = try loweringBoxingABI(.box, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [argExpr])
+        let boxed = try #require(conversion.result)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        #expect(targetCall.arguments == [boxed])
+        #expect(boxed != argExpr)
     }
 
     @Test
@@ -194,8 +197,13 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIBoxBool", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_bool_static"), "Expected kk_box_bool_static call for Bool -> Any? boxing, got: \(callees)")
+        let abi = try loweringBoxingABI(.box, for: .boolean, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [argExpr])
+        let boxed = try #require(conversion.result)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        #expect(targetCall.arguments == [boxed])
+        #expect(boxed != argExpr)
     }
 
     @Test
@@ -252,8 +260,13 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIBoxNullableInt", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static call for Int -> Int? boxing, got: \(callees)")
+        let abi = try loweringBoxingABI(.box, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [argExpr])
+        let boxed = try #require(conversion.result)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        #expect(targetCall.arguments == [boxed])
+        #expect(boxed != argExpr)
     }
 
     @Test
@@ -310,8 +323,13 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIUnboxAny", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static call for Any? -> Int unboxing, got: \(callees)")
+        let abi = try loweringBoxingABI(.unbox, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        let boxed = try #require(targetCall.result)
+        #expect(conversion.arguments == [boxed])
+        #expect(conversion.result == resultExpr)
+        #expect(boxed != resultExpr)
     }
 
     @Test
@@ -368,8 +386,13 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIUnboxNullableInt", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static call for Int? -> Int unboxing, got: \(callees)")
+        let abi = try loweringBoxingABI(.unbox, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        let boxed = try #require(targetCall.result)
+        #expect(conversion.arguments == [boxed])
+        #expect(conversion.result == resultExpr)
+        #expect(boxed != resultExpr)
     }
 
     @Test
@@ -403,8 +426,11 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIBoxReturn", sema: sema)
 
         let lowered = try findKIRFunction(named: "returnBoxed", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static before returnValue for Any? return type, got: \(callees)")
+        let abi = try loweringBoxingABI(.box, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [valueExpr])
+        let boxed = try #require(conversion.result)
+        #expect(lowered.body.contains(.returnValue(boxed)))
     }
 
     @Test
@@ -440,8 +466,10 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABICopyBox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyBoxed", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static for copy Int -> Any?, got: \(callees)")
+        let abi = try loweringBoxingABI(.box, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [fromExpr])
+        #expect(conversion.result == toExpr)
         // Verify that the copy instruction was replaced (no copy should remain)
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }
@@ -483,8 +511,10 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABICopyUnbox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyUnboxed", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_unbox_int_static"), "Expected kk_unbox_int_static for copy Any? -> Int, got: \(callees)")
+        let abi = try loweringBoxingABI(.unbox, for: .int, nonNull: true, staticPrimitive: true)
+        let conversion = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(conversion.arguments == [fromExpr])
+        #expect(conversion.result == toExpr)
         // Verify that the copy instruction was replaced
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -41,28 +42,6 @@ private func runCodegenPipelineWithStdlibArtifact(
         try CodegenPhase().run(ctx)
     }
     return ctx
-}
-
-private func assertKotlinOutput(
-    _ source: String,
-    moduleName: String,
-    expected: String
-) throws {
-    try withTemporaryFile(contents: source) { path in
-        let outputBase = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let ctx = try runCodegenPipelineWithStdlibArtifact(
-            inputPath: path,
-            moduleName: moduleName,
-            emit: .executable,
-            outputPath: outputBase
-        )
-        try LinkPhase().run(ctx)
-        let result = try CommandRunner.run(executable: outputBase, arguments: [])
-        let normalizedStdout = result.stdout
-            .replacingOccurrences(of: "\r\n", with: "\n")
-        #expect(normalizedStdout == expected)
-    }
 }
 
 @Suite
@@ -117,7 +96,7 @@ struct CodegenBackendSequenceMapIndexedNotNullTests {
             // The imported sequence factory and retired-bridge absence remain
             // concrete artifact-backed routing checks.
             #expect(containsKotlinCallee("sequenceOf", in: callees))
-            #expect(!callees.contains("kk_sequence_mapIndexedNotNull"), "Sequence.mapIndexedNotNull should no longer route through the retired native bridge, got: \(callees)")
+            #expect(!callees.contains(try runtimeABICallee("sequence_mapIndexedNotNull")), "Sequence.mapIndexedNotNull should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

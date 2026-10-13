@@ -697,6 +697,35 @@ struct DiagnosticEngineTests {
     }
 
     @Test
+    func testDeprecationSuppressionNamesMatchSeverity() {
+        let engine = DiagnosticEngine()
+        let file = FileID(rawValue: 6)
+        let range = makeRange(file: file, start: 0, end: 100)
+        engine.addSuppression(code: "DEPRECATION", range: range)
+
+        engine.warning("KSWIFTK-SEMA-DEPRECATED", "w", range: range)
+        #expect(engine.diagnostics.isEmpty)
+
+        engine.error("KSWIFTK-SEMA-DEPRECATED", "e", range: range)
+        #expect(engine.diagnostics.count == 1)
+        #expect(engine.hasError)
+    }
+
+    @Test
+    func testDeprecationErrorSuppressionNameMatchesErrorSeverity() {
+        let engine = DiagnosticEngine()
+        let file = FileID(rawValue: 6)
+        let range = makeRange(file: file, start: 0, end: 100)
+        engine.addSuppression(code: "DEPRECATION_ERROR", range: range)
+
+        engine.warning("KSWIFTK-SEMA-DEPRECATED", "w", range: range)
+        #expect(engine.diagnostics.count == 1)
+
+        engine.error("KSWIFTK-SEMA-DEPRECATED", "e", range: range)
+        #expect(engine.diagnostics.count == 1)
+    }
+
+    @Test
     func testTruncationNoticeEscalatesToErrorWhenErrorDropped() {
         let engine = DiagnosticEngine(maxDiagnosticsPerFile: 2)
         let file = FileID(rawValue: 3)

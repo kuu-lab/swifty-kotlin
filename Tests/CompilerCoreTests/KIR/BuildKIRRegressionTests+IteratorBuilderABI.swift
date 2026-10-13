@@ -26,7 +26,7 @@ extension BuildKIRRegressionTests {
         let argumentCounts = findAllKIRFunctions(in: module).flatMap { function -> [Int] in
             function.body.compactMap { instruction -> Int? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "__kk_iterator_builder_build"
+                      callee == ctx.interner.intern(runtimeCallee(.iteratorBuilderBuild))
                 else { return nil }
                 return arguments.count
             }

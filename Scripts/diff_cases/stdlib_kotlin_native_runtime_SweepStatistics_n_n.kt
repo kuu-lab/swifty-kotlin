@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// CANDIDATE-ONLY: kotlin.native.runtime APIs are unavailable in JVM kotlinc; run against the bundled stdlib.
 import kotlin.native.runtime.NativeRuntimeApi
 import kotlin.native.runtime.SweepStatistics
 

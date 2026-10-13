@@ -1,5 +1,29 @@
 
 extension LocalDeclTypeChecker {
+    /// `kotlin.concurrent.atomics`' array classes have no `operator get`/`set`
+    /// on the real (JVM/common) API surface; index access must not fall
+    /// through to the built-in array path (KUU-1365). The legacy
+    /// `kotlin.concurrent` arrays keep their bundled `get`/`set` extensions
+    /// and never reach this check.
+    func isCanonicalAtomicArrayReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        let atomicsPrefix: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("concurrent"),
+            interner.intern("atomics"),
+        ]
+        guard symbol.fqName.starts(with: atomicsPrefix) else { return false }
+        return symbol.name == interner.intern("AtomicIntArray")
+            || symbol.name == interner.intern("AtomicLongArray")
+            || symbol.name == interner.intern("AtomicArray")
+    }
+
     /// When the sole shape-matching get()/set() candidate expects a non-Int
     /// integer primitive (Long, UInt, ULong, Byte, Short) at `parameterIndex`
     /// and `indexExpr` is a bare integer literal, Kotlin contextualizes the
@@ -141,6 +165,30 @@ extension LocalDeclTypeChecker {
             indexTypes.append(valueType)
         }
 
+        // The canonical array member accepts exactly one Int. Other index
+        // shapes may have a user-defined operator extension, which remains
+        // available when that member is inapplicable.
+        if let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+           receiverSymbol.fqName == [interner.intern("kotlin"), receiverSymbol.name],
+           KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name),
+           indexTypes.count != 1 || !sema.types.isSubtype(indexTypes[0], intType)
+        {
+            getCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(getName)).visible.filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType,
+                      driver.helpers.declaresExtensionReceiver(candidate, sema: sema, interner: interner)
+                else { return false }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: sema.types.makeNonNullable(receiverType),
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+        }
+
         if !getCandidates.isEmpty {
             // Resolve via operator fun get
             let callArgs = indexTypes.map { CallArg(type: $0) }
@@ -153,7 +201,7 @@ extension LocalDeclTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee,
                let signature = sema.symbols.functionSignature(for: chosen)
@@ -207,7 +255,7 @@ extension LocalDeclTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: receiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = resolved.chosenCallee,
                    let signature = sema.symbols.functionSignature(for: chosen)
@@ -240,11 +288,20 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         if sema.types.isSubtype(receiverType, sema.types.stringType) {
             sema.bindings.bindExprType(id, type: sema.types.charType)
             return sema.types.charType
+        }
+        guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'get'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         let elementType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
@@ -279,8 +336,11 @@ extension LocalDeclTypeChecker {
         )
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-            let scopedCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(setName)).visible
-            setCandidates = scopedCandidates.filter { candidate in
+            // An unrelated nearer extension must not hide an applicable set
+            // from an outer scope (e.g. the default-imported MutableMap.set).
+            // Stop at the first scope with receiver-compatible operators so
+            // applicable user extensions retain their normal priority.
+            let scopedCandidates = ctx.scope.lookup(setName, matching: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
@@ -289,12 +349,19 @@ extension LocalDeclTypeChecker {
                 else {
                     return false
                 }
+                // Preserve cachedScopeLookup's expect/actual filtering.
+                if symbol.flags.contains(.expectDeclaration),
+                   sema.symbols.actualSymbol(for: candidate) != nil
+                {
+                    return false
+                }
                 return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
                     callSiteReceiver: nonNullReceiver,
                     declaredReceiver: declaredReceiver,
                     sema: sema
                 )
-            }
+            })
+            setCandidates = ctx.filterByVisibility(scopedCandidates).visible
         }
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
@@ -428,7 +495,7 @@ extension LocalDeclTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 // Record the resolved call so KIR lowering can dispatch correctly
@@ -453,13 +520,22 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'set'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         driver.emitSubtypeConstraint(
             left: indexTypes[0],
             right: intType,
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         let elementExpectedType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
@@ -471,7 +547,7 @@ extension LocalDeclTypeChecker {
                 range: ast.arena.exprRange(valueExpr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)

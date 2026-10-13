@@ -8,6 +8,7 @@ extension CallTypeChecker {
         _ id: ExprID,
         calleeName: InternedString?,
         args: [CallArgument],
+        range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
@@ -20,7 +21,7 @@ extension CallTypeChecker {
         }
 
         let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-        var matches: [(symbol: SymbolID, returnType: TypeID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int])] = []
+        var matches: [(symbol: SymbolID, returnType: TypeID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int], boundDiagnostic: Diagnostic?)] = []
 
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
@@ -41,7 +42,7 @@ extension CallTypeChecker {
             }
             guard let parameterMapping = ctx.resolver.buildParameterMapping(
                 signature: signature,
-                callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
+                callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, isTrailingLambda: $0.isTrailingLambda, type: ctx.sema.types.anyType) },
                 symbols: ctx.sema.symbols,
                 typeSystem: ctx.sema.types,
                 isCallableArgument: { index in
@@ -101,13 +102,24 @@ extension CallTypeChecker {
                 }
                 return substitution[typeVar]
             }
-            matches.append((candidate, substitutedReturnType, substitutedTypeArguments, parameterMapping))
+            let boundDiagnostic = ctx.resolver.checkTypeParameterBounds(
+                signature: signature,
+                substitution: substitution,
+                typeVarBySymbol: ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),
+                range: range,
+                ctx: ctx.sema
+            )
+            matches.append((candidate, substitutedReturnType, substitutedTypeArguments, parameterMapping, boundDiagnostic))
         }
 
         guard matches.count == 1 else {
             return nil
         }
         let match = matches[0]
+        if let diagnostic = match.boundDiagnostic {
+            ctx.sema.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+        }
         ctx.sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -175,18 +187,6 @@ extension CallTypeChecker {
         return params.isEmpty
     }
 
-    /// Validates that the expression is a lambda literal with at most `maxParams` explicit parameters.
-    /// Unlike `isValidBuilderLambdaArgument` (which requires zero params for builder DSL blocks),
-    /// this variant is used for lambdas like `DeepRecursiveFunction`'s block which accepts an
-    /// explicit parameter (e.g. `{ n -> callRecursive(n - 1) }`).
-    func isValidLambdaArgument(_ argumentExprID: ExprID, ast: ASTModule, maxParams: Int) -> Bool {
-        guard let argumentExpr = ast.arena.expr(argumentExprID),
-              case let .lambdaLiteral(params, _, _, _) = argumentExpr
-        else {
-            return false
-        }
-        return params.count <= maxParams
-    }
 
     func builderDSLReceiverType(
         kind: BuilderDSLKind,
@@ -535,7 +535,7 @@ extension CallTypeChecker {
             args: args,
             parameterMapping: ctx.resolver.buildParameterMapping(
                 signature: signature,
-                callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
+                callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, isTrailingLambda: $0.isTrailingLambda, type: ctx.sema.types.anyType) },
                 symbols: ctx.sema.symbols,
                 typeSystem: ctx.sema.types,
                 isCallableArgument: { index in
@@ -592,7 +592,7 @@ extension CallTypeChecker {
         var substitution: [TypeVarID: TypeID] = [:]
         var constraints: [VariableConstraint] = []
 
-        if let expectedType, ctx.useProperTypeInferenceConstraintsProcessing || ctx.useNewInference {
+        if let expectedType {
             constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                 subtype: signature.returnType,
                 supertype: expectedType,
@@ -610,11 +610,37 @@ extension CallTypeChecker {
         }
 
         if !constraints.isEmpty {
+            // Contextual upper bounds must also respect declared bounds, e.g.
+            // List<T> <: List<Any> with T : Number can choose Number, not Any.
+            var contextualVariables = Set(ctx.resolver.usedTypeVariables(from: constraints))
+            var visitedBounds: Set<SymbolID> = []
+            for _ in signature.typeParameterSymbols {
+                for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                    guard let variable = typeVarBySymbol[symbol], contextualVariables.contains(variable),
+                          visitedBounds.insert(symbol).inserted else { continue }
+                    let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                        ? signature.typeParameterUpperBoundsList[index] : []
+                    let symbolBounds = sema.symbols.typeParameterUpperBounds(for: symbol)
+                    for bound in signatureBounds + symbolBounds.filter({ !signatureBounds.contains($0) }) {
+                        let boundConstraints = ctx.resolver.decomposeSubtypeConstraint(
+                            subtype: sema.types.make(.typeParam(TypeParamType(symbol: symbol, nullability: .nonNull))),
+                            supertype: bound,
+                            typeVarBySymbol: typeVarBySymbol,
+                            typeSystem: sema.types,
+                            blameRange: nil
+                        )
+                        constraints.append(contentsOf: boundConstraints)
+                        contextualVariables.formUnion(ctx.resolver.usedTypeVariables(from: boundConstraints))
+                    }
+                }
+            }
             let solver = ConstraintSolver()
             let vars = ctx.resolver.usedTypeVariables(from: constraints)
             let result = solver.solve(vars: vars, constraints: constraints, typeSystem: sema.types)
             if result.isSuccess {
-                for (typeVar, typeID) in result.substitution where typeID != sema.types.errorType {
+                for (typeVar, typeID) in result.substitution
+                    where typeID != sema.types.errorType && substitution[typeVar] == nil
+                {
                     substitution[typeVar] = typeID
                 }
             }
@@ -631,6 +657,13 @@ extension CallTypeChecker {
             case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])),
             let receiverType = functionType.receiver
         else {
+            return substitution
+        }
+
+        // Fully contextualized receivers need no out-of-scope mutation preview.
+        guard typeVarBySymbol.contains(where: { symbol, variable in
+            substitution[variable] == nil && sema.types.typeContainsTypeParam(receiverType, symbol: symbol)
+        }) else {
             return substitution
         }
 
@@ -770,7 +803,10 @@ extension CallTypeChecker {
             return
         }
         guard case let .typeParam(typeParam) = driver.sema.types.kind(of: innerType),
-              let typeVar = typeVarBySymbol[typeParam.symbol]
+              let typeVar = typeVarBySymbol[typeParam.symbol],
+              // A syntax scan can miss scoped mutations or collect another
+              // receiver's calls. It must not replace explicit or contextual types.
+              substitution[typeVar] == nil
         else {
             return
         }
@@ -893,114 +929,54 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns `Map<K, V>` for `buildMap` where K, V are extracted from `MutableMap<K, V>` receiver type.
-    func builderDSLBuildMapReturnType(
+    /// Returns the read-only collection type matching the builder's `Mutable*` receiver type:
+    /// `List<E>` for `buildList`, `Set<E>` for `buildSet`, `Map<K, V>` for `buildMap`.
+    func builderDSLBuildReturnType(
+        kind: BuilderDSLKind,
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        let mutableMapFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableMap"),
-        ]
-        let mapFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Map"),
-        ]
-        guard let mutableMapSymbol = sema.symbols.lookup(fqName: mutableMapFQName),
-              let mapSymbol = sema.symbols.lookup(fqName: mapFQName)
+        let knownNames = KnownCompilerNames(interner: interner)
+        let mutableFQName: [InternedString]
+        let readOnlyFQName: [InternedString]
+        switch kind {
+        case .buildList:
+            mutableFQName = knownNames.kotlinCollectionsMutableListFQName
+            readOnlyFQName = knownNames.kotlinCollectionsListFQName
+        case .buildSet:
+            mutableFQName = knownNames.kotlinCollectionsMutableSetFQName
+            readOnlyFQName = knownNames.kotlinCollectionsSetFQName
+        case .buildMap:
+            mutableFQName = knownNames.kotlinCollectionsMutableMapFQName
+            readOnlyFQName = knownNames.kotlinCollectionsMapFQName
+        }
+        guard let mutableSymbol = sema.symbols.lookup(fqName: mutableFQName),
+              let readOnlySymbol = sema.symbols.lookup(fqName: readOnlyFQName)
         else {
             return sema.types.anyType
         }
-        let (keyType, valueType): (TypeID, TypeID) = if case let .classType(ct) = sema.types.kind(of: receiverType),
-                                                        ct.classSymbol == mutableMapSymbol,
-                                                        ct.args.count >= 2,
-                                                        case let .invariant(k) = ct.args[0],
-                                                        case let .invariant(v) = ct.args[1]
+        let argCount = kind == .buildMap ? 2 : 1
+        let elementTypes: [TypeID] = if case let .classType(ct) = sema.types.kind(of: receiverType),
+                                        ct.classSymbol == mutableSymbol,
+                                        ct.args.count >= argCount,
+                                        ct.args.prefix(argCount).allSatisfy({ arg in
+                                            if case .invariant = arg { return true }
+                                            return false
+                                        })
         {
-            (k, v)
+            ct.args.prefix(argCount).map { arg in
+                switch arg {
+                case let .invariant(type): type
+                default: sema.types.anyType
+                }
+            }
         } else {
-            (sema.types.anyType, sema.types.anyType)
+            Array(repeating: sema.types.anyType, count: argCount)
         }
         return sema.types.make(.classType(ClassType(
-            classSymbol: mapSymbol,
-            args: [.out(keyType), .out(valueType)],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Returns `Set<E>` for `buildSet` where E is extracted from `MutableSet<E>` receiver type.
-    func builderDSLBuildSetReturnType(
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let mutableSetFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableSet"),
-        ]
-        let setFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Set"),
-        ]
-        guard let mutableSetSymbol = sema.symbols.lookup(fqName: mutableSetFQName),
-              let setSymbol = sema.symbols.lookup(fqName: setFQName)
-        else {
-            return sema.types.anyType
-        }
-        let elementType: TypeID = if case let .classType(ct) = sema.types.kind(of: receiverType),
-                                     ct.classSymbol == mutableSetSymbol,
-                                     let firstArg = ct.args.first,
-                                     case let .invariant(elemType) = firstArg
-        {
-            elemType
-        } else {
-            sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: setSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    /// Returns `List<E>` for `buildList` where E is extracted from `MutableList<E>` receiver type.
-    func builderDSLBuildListReturnType(
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        let mutableListFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("MutableList"),
-        ]
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let mutableListSymbol = sema.symbols.lookup(fqName: mutableListFQName),
-              let listSymbol = sema.symbols.lookup(fqName: listFQName)
-        else {
-            return sema.types.anyType
-        }
-        let elementType: TypeID = if case let .classType(ct) = sema.types.kind(of: receiverType),
-                                     ct.classSymbol == mutableListSymbol,
-                                     let firstArg = ct.args.first,
-                                     case let .invariant(elemType) = firstArg
-        {
-            elemType
-        } else {
-            sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(elementType)],
+            classSymbol: readOnlySymbol,
+            args: elementTypes.map { .out($0) },
             nullability: .nonNull
         )))
     }
@@ -1534,7 +1510,7 @@ extension CallTypeChecker {
         // send args already carry real types in the binding table, so consult
         // it first (same pattern as the sequence-builder yield scan above).
         var previewLocals = locals
-        let diagnosticEngine = ctx.semaCtx.diagnostics
+        let diagnosticEngine = ctx.sema.diagnostics
         let argumentTypes = sendArgumentExprs.compactMap { entry -> TypeID? in
             if let cached = sema.bindings.exprType(for: entry.expr),
                cached != sema.types.errorType
@@ -1728,7 +1704,7 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             var previewLocals = locals
-            let diagnosticEngine = ctx.semaCtx.diagnostics
+            let diagnosticEngine = ctx.sema.diagnostics
             let snapshot = diagnosticEngine.count
             _ = driver.inferExpr(
                 lambdaExprID,

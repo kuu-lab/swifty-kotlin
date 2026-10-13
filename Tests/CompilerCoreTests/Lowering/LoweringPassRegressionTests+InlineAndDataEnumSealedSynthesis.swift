@@ -28,7 +28,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: inlineArg, value: .symbolRef(inlineParamSym)),
                 .constValue(result: inlineOne, value: .intLiteral(1)),
-                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(CompilerCall.opAdd.name), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
                 .returnValue(inlineSum),
             ],
             isSuspend: false,
@@ -58,7 +58,7 @@ extension LoweringPassRegressionTests {
 
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("plusOne"))
-        #expect(calleeNames.contains("kk_op_add"))
+        #expect(calleeNames.contains(CompilerCall.opAdd.name))
 
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
@@ -71,7 +71,7 @@ extension LoweringPassRegressionTests {
 
         let addResult = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { return nil }
-            return interner.resolve(callee) == "kk_op_add" ? result : nil
+            return callee == interner.intern(CompilerCall.opAdd.name) ? result : nil
         }.first
         let addResultExpr = try #require(addResult, "expected kk_op_add call")
         let hasCopyToResult = loweredCaller.body.contains { instruction in
@@ -295,9 +295,9 @@ extension LoweringPassRegressionTests {
 
         // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
-        #expect(valueOfCallees.contains("__kk_string_equals_flat"), "valueOf should call __kk_string_equals_flat")
-        #expect(valueOfCallees.contains("__kk_string_concat_flat"), "valueOf should call __kk_string_concat_flat to build 'ClassName.value' for error message")
-        #expect(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
+        #expect(valueOfCallees.contains(RuntimeCall.stringEqualsFlat.name), "valueOf should call __kk_string_equals_flat")
+        #expect(valueOfCallees.contains(RuntimeCall.stringConcatFlat.name), "valueOf should call __kk_string_concat_flat to build 'ClassName.value' for error message")
+        #expect(valueOfCallees.contains(RuntimeCall.enumValueOfThrow.name), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
         // Verify valueOf body contains the fully qualified class name prefix string "demo.Color."
         let valueOfStringConsts = valueOfFn.body.compactMap { inst -> InternedString? in
@@ -480,15 +480,15 @@ extension LoweringPassRegressionTests {
             }
             #expect(arrayHashCalls.count == 2)
             #expect(arrayHashCalls.allSatisfy { $0.count == 1 })
-            #expect(!callees.contains("kk_any_hashCode"))
+            #expect(!callees.contains(RuntimeCall.anyHashCode.name))
         } else {
-            #expect(callees.filter { $0 == "kk_any_hashCode" }.count == 2)
+            #expect(callees.filter { $0 == RuntimeCall.anyHashCode.name }.count == 2)
             #expect(!callees.contains("contentHashCode"))
         }
 
         // With 2 properties, should use 31 * result + hash pattern
-        #expect(callees.contains("kk_op_mul"), "hashCode with 2+ properties should call kk_op_mul")
-        #expect(callees.contains("kk_op_add"), "hashCode with 2+ properties should call kk_op_add")
+        #expect(callees.contains(CompilerCall.opMul.name), "hashCode with 2+ properties should call kk_op_mul")
+        #expect(callees.contains(CompilerCall.opAdd.name), "hashCode with 2+ properties should call kk_op_add")
 
         // Verify the constant 31 is used in the body
         let intConsts = hashCodeFn.body.compactMap { inst -> Int64? in
@@ -572,8 +572,8 @@ extension LoweringPassRegressionTests {
 
         // Should NOT use mul/add since there's nothing to combine
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
-        #expect(!callees.contains("kk_op_mul"), "hashCode with no properties should not call kk_op_mul")
-        #expect(!callees.contains("kk_op_add"), "hashCode with no properties should not call kk_op_add")
+        #expect(!callees.contains(CompilerCall.opMul.name), "hashCode with no properties should not call kk_op_mul")
+        #expect(!callees.contains(CompilerCall.opAdd.name), "hashCode with no properties should not call kk_op_add")
     }
 
     @Test
@@ -688,10 +688,10 @@ extension LoweringPassRegressionTests {
 
         // Single property: field is read via kk_array_get_inbounds, then
         // result = kk_any_hashCode(fieldValue, tag), no mul/add needed
-        #expect(callees.contains("kk_array_get_inbounds"), "hashCode should read the field before hashing it")
-        #expect(callees.contains("kk_any_hashCode"), "hashCode should call kk_any_hashCode")
-        #expect(!callees.contains("kk_op_mul"), "hashCode with single property should not call kk_op_mul")
-        #expect(!callees.contains("kk_op_add"), "hashCode with single property should not call kk_op_add")
+        #expect(callees.contains(RuntimeCall.arrayGetInbounds.name), "hashCode should read the field before hashing it")
+        #expect(callees.contains(RuntimeCall.anyHashCode.name), "hashCode should call kk_any_hashCode")
+        #expect(!callees.contains(CompilerCall.opMul.name), "hashCode with single property should not call kk_op_mul")
+        #expect(!callees.contains(CompilerCall.opAdd.name), "hashCode with single property should not call kk_op_add")
     }
 
     // MARK: - DATA-004: Data class toString/equals for multi-property classes
@@ -876,10 +876,10 @@ extension LoweringPassRegressionTests {
         // Verify toString body uses StringBuilder + kk_any_to_string
         let toStringFn = try findKIRFunction(named: "toString", in: module, interner: interner)
         let toStringCallees = extractCallees(from: toStringFn.body, interner: interner)
-        #expect(toStringCallees.contains("__kk_string_builder_new_from_string_flat"), "toString should create a StringBuilder from the class prefix")
-        #expect(toStringCallees.contains("__kk_string_builder_append_obj"), "toString should append labels and values via StringBuilder")
-        #expect(toStringCallees.contains("__kk_string_builder_toString"), "toString should convert the StringBuilder back to String")
-        #expect(toStringCallees.contains("kk_any_to_string"), "toString should use kk_any_to_string")
+        #expect(toStringCallees.contains(RuntimeCall.stringBuilderNewFromStringFlat.name), "toString should create a StringBuilder from the class prefix")
+        #expect(toStringCallees.contains(RuntimeCall.stringBuilderAppendObj.name), "toString should append labels and values via StringBuilder")
+        #expect(toStringCallees.contains(RuntimeCall.stringBuilderToString.name), "toString should convert the StringBuilder back to String")
+        #expect(toStringCallees.contains(RuntimeCall.anyToString.name), "toString should use kk_any_to_string")
         #expect(!toStringCallees.contains("x$get"), "toString should read constructor-backed fields directly")
         #expect(!toStringCallees.contains("y$get"), "toString should read constructor-backed fields directly")
         #expect(!toStringCallees.contains("z$get"), "toString should ignore non-constructor properties")
@@ -895,9 +895,9 @@ extension LoweringPassRegressionTests {
 
         let equalsFn = try findKIRFunction(named: "equals", in: module, interner: interner)
         let equalsCallees = extractCallees(from: equalsFn.body, interner: interner)
-        #expect(equalsCallees.contains("kk_op_is"), "equals should type-check other before reading properties")
-        #expect(equalsCallees.contains("kk_op_safe_cast"), "equals should materialize a narrowed other receiver before getter calls")
-        #expect(equalsCallees.contains("kk_op_eq"), "equals should use kk_op_eq for comparison")
+        #expect(equalsCallees.contains(RuntimeCall.opIs.name), "equals should type-check other before reading properties")
+        #expect(equalsCallees.contains(RuntimeCall.opSafeCast.name), "equals should materialize a narrowed other receiver before getter calls")
+        #expect(equalsCallees.contains(RuntimeCall.opEq.name), "equals should use kk_op_eq for comparison")
         #expect(!equalsCallees.contains("x$get"), "equals should compare constructor-backed fields directly")
         #expect(!equalsCallees.contains("y$get"), "equals should compare constructor-backed fields directly")
         #expect(!equalsCallees.contains("z$get"), "equals should ignore non-constructor properties")

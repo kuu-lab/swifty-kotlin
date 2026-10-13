@@ -1,4 +1,3 @@
-
 struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
     private var bindings: [InternedString: Value]
@@ -40,10 +39,21 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
 final class TypeCheckDriver {
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Properties whose types were inferred in a safe module pre-pass so earlier
+    /// files can use them without running the property checker a second time.
+    var precheckedPropertyDecls: Set<DeclID> = []
+    /// Top-level expression bodies whose header return type is still a placeholder.
+    var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
+    var checkingInferredReturnFunctions: Set<SymbolID> = []
+    var checkedInferredReturnFunctions: Set<SymbolID> = []
+    var inferredPropertyDeclarations: [SymbolID: (declaration: DeclID, property: PropertyDecl, context: TypeInferenceContext)] = [:]
+    var checkingInferredProperties: Set<SymbolID> = []
+    var pendingPropertyTypes: Set<SymbolID> = []
+    var deferredInferredReturnFunctions: Set<SymbolID> = []
+    var deferredInferredProperties: Set<SymbolID> = []
 
     let ast: ASTModule
     let sema: SemaModule
-    let semaCtx: SemaModule
     let sourceManager: SourceManager?
     let solver: ConstraintSolver
     let resolver: OverloadResolver
@@ -75,7 +85,6 @@ final class TypeCheckDriver {
     init(
         ast: ASTModule,
         sema: SemaModule,
-        semaCtx: SemaModule,
         sourceManager: SourceManager? = nil,
         solver: ConstraintSolver,
         resolver: OverloadResolver,
@@ -90,7 +99,6 @@ final class TypeCheckDriver {
     ) {
         self.ast = ast
         self.sema = sema
-        self.semaCtx = semaCtx
         self.sourceManager = sourceManager
         self.solver = solver
         self.resolver = resolver
@@ -104,8 +112,6 @@ final class TypeCheckDriver {
         self.globalOptInMarkerNames = globalOptInMarkerNames
     }
 
-    // MARK: - Main Recursive Dispatch Entry Point
-
     func inferExpr(
         _ id: ExprID,
         ctx: TypeInferenceContext,
@@ -117,6 +123,10 @@ final class TypeCheckDriver {
             return subjectType
         }
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        notePendingDeclarationDependency(at: id)
+        if let callee = sema.bindings.callBinding(for: id)?.chosenCallee {
+            diagnoseRecursiveInferredReturnType(for: callee)
+        }
         if !suspendingCallNames(for: id).isEmpty {
             callSuspensionContexts[id] = ctx.suspensionContext
         }
@@ -144,8 +154,6 @@ final class TypeCheckDriver {
         )
     }
 
-    // MARK: - Module-Level Type Checking
-
     func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile]) {
         let invisibleAccessFiles = Set(files.compactMap { file -> Int32? in
             file.annotations.contains { annotation in
@@ -164,12 +172,12 @@ final class TypeCheckDriver {
             invisibleAccessFiles: invisibleAccessFiles
         )
 
-        for file in files {
+        func inferenceContext(for file: ASTFile) -> TypeInferenceContext? {
             guard let fileScope = fileScopes[file.fileID.rawValue] else {
-                continue
+                return nil
             }
-            let inferCtx = TypeInferenceContext(
-                ast: ast, sema: sema, semaCtx: semaCtx,
+            return TypeInferenceContext(
+                ast: ast, sema: sema,
                 resolver: resolver, dataFlow: dataFlow,
                 interner: interner, scope: fileScope,
                 implicitReceiverType: nil,
@@ -189,26 +197,178 @@ final class TypeCheckDriver {
                 useProperTypeInferenceConstraintsProcessing: useProperTypeInferenceConstraintsProcessing,
                 globalOptInMarkerNames: globalOptInMarkerNames
             )
+        }
+
+        func hasHeaderResolvedConstructorInitializer(_ property: PropertyDecl, in file: ASTFile) -> Bool {
+            guard property.type == nil,
+                  let initializer = property.initializer,
+                  let initializerExpr = ast.arena.expr(initializer),
+                  case let .call(calleeID, _, _, _) = initializerExpr,
+                  let calleeExpr = ast.arena.expr(calleeID),
+                  case let .nameRef(name, _) = calleeExpr,
+                  let symbolID = sema.symbols.lookup(fqName: file.packageFQName + [name]),
+                  let symbol = sema.symbols.symbol(symbolID)
+            else {
+                return false
+            }
+            return symbol.kind == .class || symbol.kind == .enumClass
+        }
+
+        // Active declarations are file roots, so include their member trees.
+        // Otherwise an early function can cache a member property's placeholder.
+        var pendingDeclarations = Array(ast.activeDeclarationIDs)
+        var visitedDeclarations: Set<DeclID> = []
+        while let declaration = pendingDeclarations.popLast() {
+            guard visitedDeclarations.insert(declaration).inserted,
+                  let node = ast.arena.decl(declaration)
+            else { continue }
+            switch node {
+            case let .propertyDecl(property):
+                if property.type == nil, let symbol = sema.bindings.declSymbols[declaration] {
+                    pendingPropertyTypes.insert(symbol)
+                }
+            case let .classDecl(classDecl):
+                pendingDeclarations += classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects
+                pendingDeclarations += classDecl.enumEntries.flatMap(\.memberProperties)
+                if let companion = classDecl.companionObject { pendingDeclarations.append(companion) }
+            case let .interfaceDecl(interfaceDecl):
+                pendingDeclarations += interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                if let companion = interfaceDecl.companionObject { pendingDeclarations.append(companion) }
+            case let .objectDecl(objectDecl):
+                pendingDeclarations += objectDecl.memberProperties + objectDecl.nestedClasses + objectDecl.nestedObjects
+            case let .enumEntryDecl(entry):
+                pendingDeclarations += entry.memberProperties
+            default:
+                break
+            }
+        }
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declaration in file.topLevelDecls {
+                guard let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                let declarationCtx = inferCtx.with(currentDeclSymbol: symbol)
+                switch ast.arena.decl(declaration) {
+                case let .propertyDecl(property)
+                    where property.type == nil && property.receiverType == nil:
+                    inferredPropertyDeclarations[symbol] = (declaration, property, declarationCtx)
+                default:
+                    break
+                }
+            }
+        }
+
+        // Explicit contracts are declaration metadata. Earlier callers must
+        // see them before a later function body happens to be type checked.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declaration in file.topLevelDecls {
+                guard case let .funDecl(function)? = ast.arena.decl(declaration),
+                      let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                if function.returnType == nil, case .expr = function.body {
+                    inferredReturnFunctions[symbol] = (function, inferCtx.with(currentDeclSymbol: symbol))
+                }
+                declChecker.precollectContractEffects(function: function, symbol: symbol, ctx: inferCtx)
+            }
+        }
+
+        // A direct constructor call has a type fixed by its collected header.
+        // Infer those properties before earlier files can observe the
+        // nullable-Any placeholder; pure inferred expressions are resolved in
+        // dependency order below.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declID in file.topLevelDecls {
+                guard let decl = ast.arena.decl(declID),
+                      case let .propertyDecl(property) = decl,
+                      hasHeaderResolvedConstructorInitializer(property, in: file),
+                      let symbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                declChecker.typeCheckBoundPropertyDecl(
+                    property,
+                    declID: declID,
+                    symbol: symbol,
+                    ctx: inferCtx.with(currentDeclSymbol: symbol),
+                    solver: solver,
+                    diagnostics: diagnostics
+                )
+                precheckedPropertyDecls.insert(declID)
+            }
+        }
+
+        // Revisit property initializers until their inferred property
+        // dependencies have types. Calls are eligible only when every
+        // candidate has a concrete declared return type. Include companion and
+        // nested object properties before any caller can observe their header
+        // placeholders. Unresolved references, inferred-return calls and cycles
+        // stay on the source-order pass.
+        var previousPrecheckedCount: Int
+        repeat {
+            previousPrecheckedCount = precheckedPropertyDecls.count
+            for file in files {
+                guard let inferCtx = inferenceContext(for: file) else { continue }
+                for declID in file.topLevelDecls {
+                    guard !precheckedPropertyDecls.contains(declID),
+                          let decl = ast.arena.decl(declID),
+                          let symbol = sema.bindings.declSymbols[declID]
+                    else {
+                        continue
+                    }
+                    switch decl {
+                    case let .propertyDecl(property):
+                        guard declChecker.canSafelyPrecheckInferredProperty(property, in: inferCtx) else {
+                            continue
+                        }
+                        declChecker.typeCheckBoundPropertyDecl(
+                            property,
+                            declID: declID,
+                            symbol: symbol,
+                            ctx: inferCtx.with(currentDeclSymbol: symbol),
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
+                        precheckedPropertyDecls.insert(declID)
+                    case let .classDecl(classDecl):
+                        declChecker.precheckIndependentClassMemberProperties(
+                            classDecl,
+                            symbol: symbol,
+                            ctx: inferCtx,
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
+                    case let .objectDecl(objectDecl):
+                        declChecker.precheckIndependentObjectMemberProperties(
+                            objectDecl,
+                            symbol: symbol,
+                            ctx: inferCtx,
+                            solver: solver,
+                            diagnostics: diagnostics
+                        )
+                    default:
+                        continue
+                    }
+                }
+            }
+        } while precheckedPropertyDecls.count > previousPrecheckedCount
+
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       let declSymbol = sema.bindings.declSymbols[declID]
                 else {
                     continue
                 }
+                if precheckedPropertyDecls.contains(declID) {
+                    continue
+                }
                 switch decl {
                 case let .funDecl(function):
                     declChecker.typeCheckFunctionDecl(
                         function,
-                        symbol: declSymbol,
-                        ctx: inferCtx.with(currentDeclSymbol: declSymbol),
-                        solver: solver,
-                        diagnostics: diagnostics
-                    )
-
-                case let .propertyDecl(property):
-                    declChecker.typeCheckBoundPropertyDecl(
-                        property,
-                        declID: declID,
                         symbol: declSymbol,
                         ctx: inferCtx.with(currentDeclSymbol: declSymbol),
                         solver: solver,
@@ -233,6 +393,16 @@ final class TypeCheckDriver {
                         diagnostics: diagnostics
                     )
 
+                case let .propertyDecl(property):
+                    declChecker.typeCheckBoundPropertyDecl(
+                        property,
+                        declID: declID,
+                        symbol: declSymbol,
+                        ctx: inferCtx.with(currentDeclSymbol: declSymbol),
+                        solver: solver,
+                        diagnostics: diagnostics
+                    )
+
                 case let .objectDecl(objectDecl):
                     declChecker.typeCheckObjectDecl(
                         objectDecl,
@@ -248,8 +418,6 @@ final class TypeCheckDriver {
             }
         }
     }
-
-    // MARK: - Shared Utilities
 
     func emitSubtypeConstraint(
         left: TypeID,

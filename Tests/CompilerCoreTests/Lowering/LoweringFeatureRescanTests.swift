@@ -34,8 +34,8 @@ struct LoweringFeatureRescanTests {
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
-            let mul = ctx.interner.intern("kk_op_mul")
-            let narrow = ctx.interner.intern("kk_int_narrow")
+            let mul = ctx.interner.intern(LoweringTestRuntime.intrinsic("op_mul"))
+            let narrow = ctx.interner.intern(LoweringTestRuntime.intrinsic("int_narrow"))
             var sawSynthesizedMul = false
             var sawNarrowing = false
             for decl in module.arena.declarations {
@@ -64,7 +64,7 @@ struct LoweringFeatureRescanTests {
         module.scanFeatures()
         #expect(module.usedCallees.isEmpty)
 
-        let callee = interner.intern("kk_op_add")
+        let callee = interner.intern(LoweringTestRuntime.intrinsic("op_add"))
         let result = arena.appendExpr(.temporary(0), type: TypeSystem().unitType)
         arena.transformFunctions { fn in
             var updated = fn

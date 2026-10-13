@@ -40,7 +40,7 @@ extension BuildKIRRegressionTests {
             a.total += 1
         }
         """)
-        #expect(result.callees.contains("kk_array_get_inbounds"), "default getter half must read the backing field, got: \(result.callees)")
+        #expect(result.callees.contains(runtimeCallee(.arrayGetInbounds)), "default getter half must read the backing field, got: \(result.callees)")
         #expect(result.callees.contains("set"), "custom setter half must call the setter accessor, got: \(result.callees)")
         #expect(!result.callees.contains("get"), "no getter accessor exists for a default getter, got: \(result.callees)")
     }
@@ -57,7 +57,7 @@ extension BuildKIRRegressionTests {
         }
         """)
         #expect(result.callees.contains("get"), "custom getter half must call the getter accessor, got: \(result.callees)")
-        #expect(result.callees.contains("kk_array_set"), "default setter half must write the backing field, got: \(result.callees)")
+        #expect(result.callees.contains(runtimeCallee(.arraySet)), "default setter half must write the backing field, got: \(result.callees)")
         #expect(!result.callees.contains("set"), "no setter accessor exists for a default setter, got: \(result.callees)")
     }
 
@@ -89,7 +89,7 @@ extension BuildKIRRegressionTests {
         """)
         let symbols = try #require(result.ctx.sema?.symbols)
         let setters = Set(symbols.allSymbols().compactMap { symbol -> SymbolID? in
-            guard symbol.kind == .property, result.ctx.interner.resolve(symbol.name) == "tag" else { return nil }
+            guard symbol.kind == .property, symbol.name == result.ctx.interner.intern("tag") else { return nil }
             return symbols.extensionPropertySetterAccessor(for: symbol.id)
         })
         #expect(!setters.isEmpty)
@@ -131,7 +131,7 @@ extension BuildKIRRegressionTests {
         let sema = try #require(result.ctx.sema)
         let property = try #require(sema.symbols.allSymbols().first { symbol in
             symbol.kind == .property
-                && result.ctx.interner.resolve(symbol.name) == "tag"
+                && symbol.name == result.ctx.interner.intern("tag")
                 && sema.symbols.extensionPropertyReceiverType(for: symbol.id) == sema.types.stringType
         })
         let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: property.id))

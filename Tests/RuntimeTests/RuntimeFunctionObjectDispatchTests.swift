@@ -29,6 +29,10 @@ private let callable5: KKClosureFunctionEntryPoint5 = { receiver, a, b, c, d, e,
     thrown?.pointee = 0
     return kk_box_int(callablePayload(receiver) + kk_unbox_int(a) + kk_unbox_int(b) + kk_unbox_int(c) + kk_unbox_int(d) + kk_unbox_int(e))
 }
+private let callable6: KKClosureFunctionEntryPoint6 = { receiver, a, b, c, d, e, f, thrown in
+    thrown?.pointee = 0
+    return kk_box_int(callablePayload(receiver) + kk_unbox_int(a) + kk_unbox_int(b) + kk_unbox_int(c) + kk_unbox_int(d) + kk_unbox_int(e) + kk_unbox_int(f))
+}
 private let callableIdentity: KKClosureFunctionEntryPoint1 = { _, value, thrown in
     thrown?.pointee = 0
     return value
@@ -51,6 +55,7 @@ private func makeCallable(_ arity: Int, fnPtr: Int? = nil, payload: Int = 10) ->
         unsafeBitCast(callable0, to: Int.self), unsafeBitCast(callable1, to: Int.self),
         unsafeBitCast(callable2, to: Int.self), unsafeBitCast(callable3, to: Int.self),
         unsafeBitCast(callable4, to: Int.self), unsafeBitCast(callable5, to: Int.self),
+        unsafeBitCast(callable6, to: Int.self),
     ]
     let object = kk_object_new(1, 0)
     var thrown = 0
@@ -68,7 +73,8 @@ private func invoke(_ arity: Int, _ function: Int, _ thrown: UnsafeMutablePointe
     case 2: return kk_function_invoke_2(function, kk_box_int(1), kk_box_int(2), thrown)
     case 3: return kk_function_invoke_3(function, kk_box_int(1), kk_box_int(2), kk_box_int(3), thrown)
     case 4: return kk_function_invoke_4(function, kk_box_int(1), kk_box_int(2), kk_box_int(3), kk_box_int(4), thrown)
-    default: return kk_function_invoke_5(function, kk_box_int(1), kk_box_int(2), kk_box_int(3), kk_box_int(4), kk_box_int(5), thrown)
+    case 5: return kk_function_invoke_5(function, kk_box_int(1), kk_box_int(2), kk_box_int(3), kk_box_int(4), kk_box_int(5), thrown)
+    default: return kk_function_invoke_6(function, kk_box_int(1), kk_box_int(2), kk_box_int(3), kk_box_int(4), kk_box_int(5), kk_box_int(6), thrown)
     }
 }
 
@@ -79,13 +85,14 @@ private func wrap(_ arity: Int, _ function: Int, _ thrown: UnsafeMutablePointer<
     case 2: return kk_function_create_2(function, 0, thrown)
     case 3: return kk_function_create_3(function, 0, thrown)
     case 4: return kk_function_create_4(function, 0, thrown)
-    default: return kk_function_create_5(function, 0, thrown)
+    case 5: return kk_function_create_5(function, 0, thrown)
+    default: return kk_function_create_6(function, 0, thrown)
     }
 }
 
 @Suite(.runtimeIsolation(.all))
 struct RuntimeFunctionObjectDispatchTests {
-    @Test(arguments: 0...5)
+    @Test(arguments: 0...6)
     func dispatchesObjectAndKeepsBoxingIdempotent(arity: Int) {
         let object = makeCallable(arity)
         var thrown = 0

@@ -88,11 +88,6 @@ public fun AtomicInt.toString(): String =
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public val AtomicInt.value: Int
-    get() = __kkAtomicIntLoad()
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
 public operator fun AtomicInt.plusAssign(delta: Int): Unit {
     addAndFetch(delta)
 }

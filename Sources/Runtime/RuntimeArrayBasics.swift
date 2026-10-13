@@ -4,7 +4,6 @@
 //
 // Split out from `RuntimeCollections.swift`.
 
-// MARK: - Array Functions (STDLIB-001)
 
 /// Element interpretation of a primitive array, resolved from the nominal
 /// type IDs the compiler tags onto every array handle (`kk_array_tag_type`).
@@ -62,10 +61,17 @@ public func kk_empty_array() -> Int {
     return kk_array_new(0)
 }
 
+/// `arrayOfNulls(size)` backs this bridge. Like `kk_array_new_checked`, a
+/// negative size must raise `NegativeArraySizeException` instead of silently
+/// clamping to an empty array (KUU-1382).
 @_cdecl("kk_array_of_nulls")
-public func kk_array_of_nulls(_ length: Int) -> Int {
+public func kk_array_of_nulls(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard length >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        return 0
+    }
     let box = RuntimeArrayBox(length: length)
-    box.elements = Array(repeating: runtimeNullSentinelInt, count: max(0, length))
+    box.elements = Array(repeating: runtimeNullSentinelInt, count: length)
     return registerRuntimeObject(box)
 }
 
@@ -88,7 +94,6 @@ public func kk_array_is_empty(_ arrayRaw: Int) -> Int {
     return kk_box_bool(array.count == 0 ? 1 : 0)
 }
 
-// MARK: - Pair Functions (FUNC-002)
 
 /// Nominal type IDs of `kotlin.Pair`/`kotlin.Triple`, tagged onto every box
 /// these constructors hand back to Kotlin.
@@ -158,7 +163,6 @@ public func component2(_ pairRaw: Int) -> Int {
     kk_pair_second(pairRaw)
 }
 
-// MARK: - Triple Functions (STDLIB-120)
 
 @_cdecl("__kk_triple_new")
 public func kk_triple_new(_ first: Int, _ second: Int, _ third: Int) -> Int {
@@ -198,7 +202,6 @@ public func kk_triple_third(_ tripleRaw: Int) -> Int {
     return tripleBox.third
 }
 
-// MARK: - Array conversion functions (STDLIB-087)
 
 /// Elements of a spread (`*x`) source. A `vararg` parameter is materialized as
 /// a list handle inside its declaring function, so forwarding it with `*parts`
@@ -229,7 +232,6 @@ public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
 }
 
-// MARK: - Primitive array to List conversions
 
 /// IntArray.toList(): List<Int>
 @_cdecl("__kk_intArray_toList")
@@ -508,7 +510,6 @@ public func kk_uLongArray_asList(_ arrayRaw: Int) -> Int {
     kk_uarray_asList(arrayRaw, functionName: "__kk_uLongArray_asList")
 }
 
-// MARK: - Unsigned primitive array to signed primitive array views
 //
 // Width-matched signed and unsigned views share mutable storage while each
 // handle retains its own nominal array type. Element bit patterns are unchanged.
@@ -549,7 +550,6 @@ public func kk_uLongArray_asLongArray(_ arrayRaw: Int) -> Int {
     )
 }
 
-// MARK: - Primitive array size property
 
 /// IntArray.size: Int
 @_cdecl("__kk_intArray_size")

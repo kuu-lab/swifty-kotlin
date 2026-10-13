@@ -1,0 +1,302 @@
+symbol fq=__local_0.randomOrNull[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_1.checkedOrNull[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_2.randomOrNullSeeded[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_3.checkedOrNullSeeded[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_4.intArray[kind=local;type=kotlin.IntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.IntArray
+symbol fq=__local_5.a1[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_6.a2[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_7.a3[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_8.a4[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_9.longArray[kind=local;type=kotlin.LongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.LongArray
+symbol fq=__local_10.b1[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_11.b2[kind=local;type=Long;origin=fixture] kind=local vis=private flags=_ type=Long
+symbol fq=__local_12.b3[kind=local;type=Long?;origin=fixture] kind=local vis=private flags=_ type=Long?
+symbol fq=__local_13.b4[kind=local;type=Long?;origin=fixture] kind=local vis=private flags=_ type=Long?
+symbol fq=__local_14.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ByteArray
+symbol fq=__local_15.c1[kind=local;type=Byte;origin=fixture] kind=local vis=private flags=_ type=Byte
+symbol fq=__local_16.c2[kind=local;type=Byte;origin=fixture] kind=local vis=private flags=_ type=Byte
+symbol fq=__local_17.c3[kind=local;type=Byte?;origin=fixture] kind=local vis=private flags=_ type=Byte?
+symbol fq=__local_18.c4[kind=local;type=Byte?;origin=fixture] kind=local vis=private flags=_ type=Byte?
+symbol fq=__local_19.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ShortArray
+symbol fq=__local_20.d1[kind=local;type=Short;origin=fixture] kind=local vis=private flags=_ type=Short
+symbol fq=__local_21.d2[kind=local;type=Short;origin=fixture] kind=local vis=private flags=_ type=Short
+symbol fq=__local_22.d3[kind=local;type=Short?;origin=fixture] kind=local vis=private flags=_ type=Short?
+symbol fq=__local_23.d4[kind=local;type=Short?;origin=fixture] kind=local vis=private flags=_ type=Short?
+symbol fq=__local_24.charArray[kind=local;type=kotlin.CharArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.CharArray
+symbol fq=__local_25.e1[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_26.e2[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_27.e3[kind=local;type=Char?;origin=fixture] kind=local vis=private flags=_ type=Char?
+symbol fq=__local_28.e4[kind=local;type=Char?;origin=fixture] kind=local vis=private flags=_ type=Char?
+symbol fq=__local_29.booleanArray[kind=local;type=kotlin.BooleanArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.BooleanArray
+symbol fq=__local_30.f1[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_31.f2[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_32.f3[kind=local;type=Boolean?;origin=fixture] kind=local vis=private flags=_ type=Boolean?
+symbol fq=__local_33.f4[kind=local;type=Boolean?;origin=fixture] kind=local vis=private flags=_ type=Boolean?
+symbol fq=__local_34.floatArray[kind=local;type=kotlin.FloatArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.FloatArray
+symbol fq=__local_35.g1[kind=local;type=Float;origin=fixture] kind=local vis=private flags=_ type=Float
+symbol fq=__local_36.g2[kind=local;type=Float;origin=fixture] kind=local vis=private flags=_ type=Float
+symbol fq=__local_37.g3[kind=local;type=Float?;origin=fixture] kind=local vis=private flags=_ type=Float?
+symbol fq=__local_38.g4[kind=local;type=Float?;origin=fixture] kind=local vis=private flags=_ type=Float?
+symbol fq=__local_39.doubleArray[kind=local;type=kotlin.DoubleArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.DoubleArray
+symbol fq=__local_40.h1[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_41.h2[kind=local;type=Double;origin=fixture] kind=local vis=private flags=_ type=Double
+symbol fq=__local_42.h3[kind=local;type=Double?;origin=fixture] kind=local vis=private flags=_ type=Double?
+symbol fq=__local_43.h4[kind=local;type=Double?;origin=fixture] kind=local vis=private flags=_ type=Double?
+symbol fq=__local_44.uIntArray[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_45.i1[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_46.i2[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_47.i3[kind=local;type=UInt?;origin=fixture] kind=local vis=private flags=_ type=UInt?
+symbol fq=__local_48.i4[kind=local;type=UInt?;origin=fixture] kind=local vis=private flags=_ type=UInt?
+symbol fq=__local_49.uLongArray[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=__local_50.j1[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_51.j2[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_52.j3[kind=local;type=ULong?;origin=fixture] kind=local vis=private flags=_ type=ULong?
+symbol fq=__local_53.j4[kind=local;type=ULong?;origin=fixture] kind=local vis=private flags=_ type=ULong?
+symbol fq=__local_54.uByteArray[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_55.k1[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_56.k2[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_57.k3[kind=local;type=UByte?;origin=fixture] kind=local vis=private flags=_ type=UByte?
+symbol fq=__local_58.k4[kind=local;type=UByte?;origin=fixture] kind=local vis=private flags=_ type=UByte?
+symbol fq=__local_59.uShortArray[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_60.l1[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=__local_61.l2[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=__local_62.l3[kind=local;type=UShort?;origin=fixture] kind=local vis=private flags=_ type=UShort?
+symbol fq=__local_63.l4[kind=local;type=UShort?;origin=fixture] kind=local vis=private flags=_ type=UShort?
+symbol fq=golden.sema.arrayRandom.$0.seeded[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.arrayRandom.$0.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.arrayRandom[kind=fun;params=kotlin.Array<Int>,kotlin.random.Random;ret=Unit;names=[values,seeded];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<Int>,kotlin.random.Random] ret=Unit
+symbol fq=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.primitiveArrayRandom[kind=fun;params=kotlin.random.Random;ret=Unit;names=[seeded];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.random.Random] ret=Unit
+symbol fq=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.unsignedArrayRandom[kind=fun;params=kotlin.random.Random;ret=Unit;names=[seeded];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.random.Random] ret=Unit
+file farray_random_overloads package=golden.sema
+  decl golden.sema.arrayRandom[kind=fun;params=kotlin.Array<Int>,kotlin.random.Random;ret=Unit;names=[values,seeded];origin=fixture] fun arrayRandom sym=golden.sema.arrayRandom[kind=fun;params=kotlin.Array<Int>,kotlin.random.Random;ret=Unit;names=[values,seeded];origin=fixture]
+  decl golden.sema.primitiveArrayRandom[kind=fun;params=kotlin.random.Random;ret=Unit;names=[seeded];origin=fixture] fun primitiveArrayRandom sym=golden.sema.primitiveArrayRandom[kind=fun;params=kotlin.random.Random;ret=Unit;names=[seeded];origin=fixture]
+  decl golden.sema.unsignedArrayRandom[kind=fun;params=kotlin.random.Random;ret=Unit;names=[seeded];origin=fixture] fun unsignedArrayRandom sym=golden.sema.unsignedArrayRandom[kind=fun;params=kotlin.random.Random;ret=Unit;names=[seeded];origin=fixture]
+expr e@8:24 name(values) type=kotlin.Array<Int> ref=golden.sema.arrayRandom.$0.values[kind=vparam;origin=fixture]
+expr e@8:24#1 memberCall recv=e@8:24 callee=randomOrNull args=[] type=Int? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.Array<out T0>;params=;ret=T0?;gen=1] targs=[Int]
+expr e@8:5 localDecl randomOrNull mutable=0 type=_ init=e@8:24#1 type=Unit ref=__local_0.randomOrNull[kind=local;type=Int?;origin=fixture]
+expr e@9:31 name(randomOrNull) type=Int? ref=__local_0.randomOrNull[kind=local;type=Int?;origin=fixture]
+expr e@9:5 localDecl checkedOrNull mutable=0 type=Int? init=e@9:31 type=Unit ref=__local_1.checkedOrNull[kind=local;type=Int?;origin=fixture]
+expr e@10:30 name(values) type=kotlin.Array<Int> ref=golden.sema.arrayRandom.$0.values[kind=vparam;origin=fixture]
+expr e@10:50 name(seeded) type=kotlin.random.Random ref=golden.sema.arrayRandom.$0.seeded[kind=vparam;origin=fixture]
+expr e@10:30#1 memberCall recv=e@10:30 callee=randomOrNull args=[_:e@10:50] type=Int? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.Array<out T0>;params=kotlin.random.Random;ret=T0?;gen=1;names=[random]] targs=[Int]
+expr e@10:5 localDecl randomOrNullSeeded mutable=0 type=_ init=e@10:30#1 type=Unit ref=__local_2.randomOrNullSeeded[kind=local;type=Int?;origin=fixture]
+expr e@11:37 name(randomOrNullSeeded) type=Int? ref=__local_2.randomOrNullSeeded[kind=local;type=Int?;origin=fixture]
+expr e@11:5 localDecl checkedOrNullSeeded mutable=0 type=Int? init=e@11:37 type=Unit ref=__local_3.checkedOrNullSeeded[kind=local;type=Int?;origin=fixture]
+expr e@15:31 int(1) type=Int
+expr e@15:34 int(2) type=Int
+expr e@15:20 call callee=e@15:20#1 args=[_:e@15:31,_:e@15:34] type=kotlin.IntArray call=kotlin.intArrayOf[kind=fun;params=*Int;ret=kotlin.IntArray;vararg=[1];names=[elements]]
+expr e@15:5 localDecl intArray mutable=0 type=_ init=e@15:20 type=Unit ref=__local_4.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@16:19 name(intArray) type=kotlin.IntArray ref=__local_4.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@16:19#1 memberCall recv=e@16:19 callee=random args=[] type=Int call=kotlin.collections.random[kind=fun;recv=kotlin.IntArray;params=;ret=Int]
+expr e@16:5 localDecl a1 mutable=0 type=Int init=e@16:19#1 type=Unit ref=__local_5.a1[kind=local;type=Int;origin=fixture]
+expr e@17:19 name(intArray) type=kotlin.IntArray ref=__local_4.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@17:35 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@17:19#1 memberCall recv=e@17:19 callee=random args=[_:e@17:35] type=Int call=kotlin.collections.random[kind=fun;recv=kotlin.IntArray;params=kotlin.random.Random;ret=Int;names=[random]]
+expr e@17:5 localDecl a2 mutable=0 type=Int init=e@17:19#1 type=Unit ref=__local_6.a2[kind=local;type=Int;origin=fixture]
+expr e@18:20 name(intArray) type=kotlin.IntArray ref=__local_4.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@18:20#1 memberCall recv=e@18:20 callee=randomOrNull args=[] type=Int? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.IntArray;params=;ret=Int?]
+expr e@18:5 localDecl a3 mutable=0 type=Int? init=e@18:20#1 type=Unit ref=__local_7.a3[kind=local;type=Int?;origin=fixture]
+expr e@19:20 name(intArray) type=kotlin.IntArray ref=__local_4.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@19:42 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@19:20#1 memberCall recv=e@19:20 callee=randomOrNull args=[_:e@19:42] type=Int? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.IntArray;params=kotlin.random.Random;ret=Int?;names=[random]]
+expr e@19:5 localDecl a4 mutable=0 type=Int? init=e@19:20#1 type=Unit ref=__local_8.a4[kind=local;type=Int?;origin=fixture]
+expr e@20:33 long(1) type=Long
+expr e@20:37 long(2) type=Long
+expr e@20:21 call callee=e@20:21#1 args=[_:e@20:33,_:e@20:37] type=kotlin.LongArray call=kotlin.longArrayOf[kind=fun;params=*Long;ret=kotlin.LongArray;vararg=[1];names=[elements]]
+expr e@20:5 localDecl longArray mutable=0 type=_ init=e@20:21 type=Unit ref=__local_9.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@21:20 name(longArray) type=kotlin.LongArray ref=__local_9.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@21:20#1 memberCall recv=e@21:20 callee=random args=[] type=Long call=kotlin.collections.random[kind=fun;recv=kotlin.LongArray;params=;ret=Long]
+expr e@21:5 localDecl b1 mutable=0 type=Long init=e@21:20#1 type=Unit ref=__local_10.b1[kind=local;type=Long;origin=fixture]
+expr e@22:20 name(longArray) type=kotlin.LongArray ref=__local_9.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@22:37 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@22:20#1 memberCall recv=e@22:20 callee=random args=[_:e@22:37] type=Long call=kotlin.collections.random[kind=fun;recv=kotlin.LongArray;params=kotlin.random.Random;ret=Long;names=[random]]
+expr e@22:5 localDecl b2 mutable=0 type=Long init=e@22:20#1 type=Unit ref=__local_11.b2[kind=local;type=Long;origin=fixture]
+expr e@23:21 name(longArray) type=kotlin.LongArray ref=__local_9.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@23:21#1 memberCall recv=e@23:21 callee=randomOrNull args=[] type=Long? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.LongArray;params=;ret=Long?]
+expr e@23:5 localDecl b3 mutable=0 type=Long? init=e@23:21#1 type=Unit ref=__local_12.b3[kind=local;type=Long?;origin=fixture]
+expr e@24:21 name(longArray) type=kotlin.LongArray ref=__local_9.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@24:44 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@24:21#1 memberCall recv=e@24:21 callee=randomOrNull args=[_:e@24:44] type=Long? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.LongArray;params=kotlin.random.Random;ret=Long?;names=[random]]
+expr e@24:5 localDecl b4 mutable=0 type=Long? init=e@24:21#1 type=Unit ref=__local_13.b4[kind=local;type=Long?;origin=fixture]
+expr e@25:33 int(1) type=Byte
+expr e@25:36 int(2) type=Byte
+expr e@25:21 call callee=e@25:21#1 args=[_:e@25:33,_:e@25:36] type=kotlin.ByteArray call=kotlin.byteArrayOf[kind=fun;params=*Byte;ret=kotlin.ByteArray;vararg=[1];names=[elements]]
+expr e@25:5 localDecl byteArray mutable=0 type=_ init=e@25:21 type=Unit ref=__local_14.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@26:20 name(byteArray) type=kotlin.ByteArray ref=__local_14.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@26:20#1 memberCall recv=e@26:20 callee=random args=[] type=Byte call=kotlin.collections.random[kind=fun;recv=kotlin.ByteArray;params=;ret=Byte]
+expr e@26:5 localDecl c1 mutable=0 type=Byte init=e@26:20#1 type=Unit ref=__local_15.c1[kind=local;type=Byte;origin=fixture]
+expr e@27:20 name(byteArray) type=kotlin.ByteArray ref=__local_14.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@27:37 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@27:20#1 memberCall recv=e@27:20 callee=random args=[_:e@27:37] type=Byte call=kotlin.collections.random[kind=fun;recv=kotlin.ByteArray;params=kotlin.random.Random;ret=Byte;names=[random]]
+expr e@27:5 localDecl c2 mutable=0 type=Byte init=e@27:20#1 type=Unit ref=__local_16.c2[kind=local;type=Byte;origin=fixture]
+expr e@28:21 name(byteArray) type=kotlin.ByteArray ref=__local_14.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@28:21#1 memberCall recv=e@28:21 callee=randomOrNull args=[] type=Byte? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.ByteArray;params=;ret=Byte?]
+expr e@28:5 localDecl c3 mutable=0 type=Byte? init=e@28:21#1 type=Unit ref=__local_17.c3[kind=local;type=Byte?;origin=fixture]
+expr e@29:21 name(byteArray) type=kotlin.ByteArray ref=__local_14.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@29:44 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@29:21#1 memberCall recv=e@29:21 callee=randomOrNull args=[_:e@29:44] type=Byte? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.ByteArray;params=kotlin.random.Random;ret=Byte?;names=[random]]
+expr e@29:5 localDecl c4 mutable=0 type=Byte? init=e@29:21#1 type=Unit ref=__local_18.c4[kind=local;type=Byte?;origin=fixture]
+expr e@30:35 int(1) type=Short
+expr e@30:38 int(2) type=Short
+expr e@30:22 call callee=e@30:22#1 args=[_:e@30:35,_:e@30:38] type=kotlin.ShortArray call=kotlin.shortArrayOf[kind=fun;params=*Short;ret=kotlin.ShortArray;vararg=[1];names=[elements]]
+expr e@30:5 localDecl shortArray mutable=0 type=_ init=e@30:22 type=Unit ref=__local_19.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@31:21 name(shortArray) type=kotlin.ShortArray ref=__local_19.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@31:21#1 memberCall recv=e@31:21 callee=random args=[] type=Short call=kotlin.collections.random[kind=fun;recv=kotlin.ShortArray;params=;ret=Short]
+expr e@31:5 localDecl d1 mutable=0 type=Short init=e@31:21#1 type=Unit ref=__local_20.d1[kind=local;type=Short;origin=fixture]
+expr e@32:21 name(shortArray) type=kotlin.ShortArray ref=__local_19.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@32:39 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@32:21#1 memberCall recv=e@32:21 callee=random args=[_:e@32:39] type=Short call=kotlin.collections.random[kind=fun;recv=kotlin.ShortArray;params=kotlin.random.Random;ret=Short;names=[random]]
+expr e@32:5 localDecl d2 mutable=0 type=Short init=e@32:21#1 type=Unit ref=__local_21.d2[kind=local;type=Short;origin=fixture]
+expr e@33:22 name(shortArray) type=kotlin.ShortArray ref=__local_19.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@33:22#1 memberCall recv=e@33:22 callee=randomOrNull args=[] type=Short? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.ShortArray;params=;ret=Short?]
+expr e@33:5 localDecl d3 mutable=0 type=Short? init=e@33:22#1 type=Unit ref=__local_22.d3[kind=local;type=Short?;origin=fixture]
+expr e@34:22 name(shortArray) type=kotlin.ShortArray ref=__local_19.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@34:46 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@34:22#1 memberCall recv=e@34:22 callee=randomOrNull args=[_:e@34:46] type=Short? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.ShortArray;params=kotlin.random.Random;ret=Short?;names=[random]]
+expr e@34:5 localDecl d4 mutable=0 type=Short? init=e@34:22#1 type=Unit ref=__local_23.d4[kind=local;type=Short?;origin=fixture]
+expr e@35:33 char(97) type=Char
+expr e@35:38 char(98) type=Char
+expr e@35:21 call callee=e@35:21#1 args=[_:e@35:33,_:e@35:38] type=kotlin.CharArray call=kotlin.charArrayOf[kind=fun;params=*Char;ret=kotlin.CharArray;vararg=[1];names=[elements]]
+expr e@35:5 localDecl charArray mutable=0 type=_ init=e@35:21 type=Unit ref=__local_24.charArray[kind=local;type=kotlin.CharArray;origin=fixture]
+expr e@36:20 name(charArray) type=kotlin.CharArray ref=__local_24.charArray[kind=local;type=kotlin.CharArray;origin=fixture]
+expr e@36:20#1 memberCall recv=e@36:20 callee=random args=[] type=Char call=kotlin.collections.random[kind=fun;recv=kotlin.CharArray;params=;ret=Char]
+expr e@36:5 localDecl e1 mutable=0 type=Char init=e@36:20#1 type=Unit ref=__local_25.e1[kind=local;type=Char;origin=fixture]
+expr e@37:20 name(charArray) type=kotlin.CharArray ref=__local_24.charArray[kind=local;type=kotlin.CharArray;origin=fixture]
+expr e@37:37 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@37:20#1 memberCall recv=e@37:20 callee=random args=[_:e@37:37] type=Char call=kotlin.collections.random[kind=fun;recv=kotlin.CharArray;params=kotlin.random.Random;ret=Char;names=[random]]
+expr e@37:5 localDecl e2 mutable=0 type=Char init=e@37:20#1 type=Unit ref=__local_26.e2[kind=local;type=Char;origin=fixture]
+expr e@38:21 name(charArray) type=kotlin.CharArray ref=__local_24.charArray[kind=local;type=kotlin.CharArray;origin=fixture]
+expr e@38:21#1 memberCall recv=e@38:21 callee=randomOrNull args=[] type=Char? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.CharArray;params=;ret=Char?]
+expr e@38:5 localDecl e3 mutable=0 type=Char? init=e@38:21#1 type=Unit ref=__local_27.e3[kind=local;type=Char?;origin=fixture]
+expr e@39:21 name(charArray) type=kotlin.CharArray ref=__local_24.charArray[kind=local;type=kotlin.CharArray;origin=fixture]
+expr e@39:44 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@39:21#1 memberCall recv=e@39:21 callee=randomOrNull args=[_:e@39:44] type=Char? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.CharArray;params=kotlin.random.Random;ret=Char?;names=[random]]
+expr e@39:5 localDecl e4 mutable=0 type=Char? init=e@39:21#1 type=Unit ref=__local_28.e4[kind=local;type=Char?;origin=fixture]
+expr e@40:39 bool(true) type=Boolean
+expr e@40:45 bool(false) type=Boolean
+expr e@40:24 call callee=e@40:24#1 args=[_:e@40:39,_:e@40:45] type=kotlin.BooleanArray call=kotlin.booleanArrayOf[kind=fun;params=*Boolean;ret=kotlin.BooleanArray;vararg=[1];names=[elements]]
+expr e@40:5 localDecl booleanArray mutable=0 type=_ init=e@40:24 type=Unit ref=__local_29.booleanArray[kind=local;type=kotlin.BooleanArray;origin=fixture]
+expr e@41:23 name(booleanArray) type=kotlin.BooleanArray ref=__local_29.booleanArray[kind=local;type=kotlin.BooleanArray;origin=fixture]
+expr e@41:23#1 memberCall recv=e@41:23 callee=random args=[] type=Boolean call=kotlin.collections.random[kind=fun;recv=kotlin.BooleanArray;params=;ret=Boolean]
+expr e@41:5 localDecl f1 mutable=0 type=Boolean init=e@41:23#1 type=Unit ref=__local_30.f1[kind=local;type=Boolean;origin=fixture]
+expr e@42:23 name(booleanArray) type=kotlin.BooleanArray ref=__local_29.booleanArray[kind=local;type=kotlin.BooleanArray;origin=fixture]
+expr e@42:43 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@42:23#1 memberCall recv=e@42:23 callee=random args=[_:e@42:43] type=Boolean call=kotlin.collections.random[kind=fun;recv=kotlin.BooleanArray;params=kotlin.random.Random;ret=Boolean;names=[random]]
+expr e@42:5 localDecl f2 mutable=0 type=Boolean init=e@42:23#1 type=Unit ref=__local_31.f2[kind=local;type=Boolean;origin=fixture]
+expr e@43:24 name(booleanArray) type=kotlin.BooleanArray ref=__local_29.booleanArray[kind=local;type=kotlin.BooleanArray;origin=fixture]
+expr e@43:24#1 memberCall recv=e@43:24 callee=randomOrNull args=[] type=Boolean? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.BooleanArray;params=;ret=Boolean?]
+expr e@43:5 localDecl f3 mutable=0 type=Boolean? init=e@43:24#1 type=Unit ref=__local_32.f3[kind=local;type=Boolean?;origin=fixture]
+expr e@44:24 name(booleanArray) type=kotlin.BooleanArray ref=__local_29.booleanArray[kind=local;type=kotlin.BooleanArray;origin=fixture]
+expr e@44:50 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@44:24#1 memberCall recv=e@44:24 callee=randomOrNull args=[_:e@44:50] type=Boolean? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.BooleanArray;params=kotlin.random.Random;ret=Boolean?;names=[random]]
+expr e@44:5 localDecl f4 mutable=0 type=Boolean? init=e@44:24#1 type=Unit ref=__local_33.f4[kind=local;type=Boolean?;origin=fixture]
+expr e@45:35 float(1.0) type=Float
+expr e@45:41 float(2.0) type=Float
+expr e@45:22 call callee=e@45:22#1 args=[_:e@45:35,_:e@45:41] type=kotlin.FloatArray call=kotlin.floatArrayOf[kind=fun;params=*Float;ret=kotlin.FloatArray;vararg=[1];names=[elements]]
+expr e@45:5 localDecl floatArray mutable=0 type=_ init=e@45:22 type=Unit ref=__local_34.floatArray[kind=local;type=kotlin.FloatArray;origin=fixture]
+expr e@46:21 name(floatArray) type=kotlin.FloatArray ref=__local_34.floatArray[kind=local;type=kotlin.FloatArray;origin=fixture]
+expr e@46:21#1 memberCall recv=e@46:21 callee=random args=[] type=Float call=kotlin.collections.random[kind=fun;recv=kotlin.FloatArray;params=;ret=Float]
+expr e@46:5 localDecl g1 mutable=0 type=Float init=e@46:21#1 type=Unit ref=__local_35.g1[kind=local;type=Float;origin=fixture]
+expr e@47:21 name(floatArray) type=kotlin.FloatArray ref=__local_34.floatArray[kind=local;type=kotlin.FloatArray;origin=fixture]
+expr e@47:39 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@47:21#1 memberCall recv=e@47:21 callee=random args=[_:e@47:39] type=Float call=kotlin.collections.random[kind=fun;recv=kotlin.FloatArray;params=kotlin.random.Random;ret=Float;names=[random]]
+expr e@47:5 localDecl g2 mutable=0 type=Float init=e@47:21#1 type=Unit ref=__local_36.g2[kind=local;type=Float;origin=fixture]
+expr e@48:22 name(floatArray) type=kotlin.FloatArray ref=__local_34.floatArray[kind=local;type=kotlin.FloatArray;origin=fixture]
+expr e@48:22#1 memberCall recv=e@48:22 callee=randomOrNull args=[] type=Float? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.FloatArray;params=;ret=Float?]
+expr e@48:5 localDecl g3 mutable=0 type=Float? init=e@48:22#1 type=Unit ref=__local_37.g3[kind=local;type=Float?;origin=fixture]
+expr e@49:22 name(floatArray) type=kotlin.FloatArray ref=__local_34.floatArray[kind=local;type=kotlin.FloatArray;origin=fixture]
+expr e@49:46 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@49:22#1 memberCall recv=e@49:22 callee=randomOrNull args=[_:e@49:46] type=Float? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.FloatArray;params=kotlin.random.Random;ret=Float?;names=[random]]
+expr e@49:5 localDecl g4 mutable=0 type=Float? init=e@49:22#1 type=Unit ref=__local_38.g4[kind=local;type=Float?;origin=fixture]
+expr e@50:37 double(1.0) type=Double
+expr e@50:42 double(2.0) type=Double
+expr e@50:23 call callee=e@50:23#1 args=[_:e@50:37,_:e@50:42] type=kotlin.DoubleArray call=kotlin.doubleArrayOf[kind=fun;params=*Double;ret=kotlin.DoubleArray;vararg=[1];names=[elements]]
+expr e@50:5 localDecl doubleArray mutable=0 type=_ init=e@50:23 type=Unit ref=__local_39.doubleArray[kind=local;type=kotlin.DoubleArray;origin=fixture]
+expr e@51:22 name(doubleArray) type=kotlin.DoubleArray ref=__local_39.doubleArray[kind=local;type=kotlin.DoubleArray;origin=fixture]
+expr e@51:22#1 memberCall recv=e@51:22 callee=random args=[] type=Double call=kotlin.collections.random[kind=fun;recv=kotlin.DoubleArray;params=;ret=Double]
+expr e@51:5 localDecl h1 mutable=0 type=Double init=e@51:22#1 type=Unit ref=__local_40.h1[kind=local;type=Double;origin=fixture]
+expr e@52:22 name(doubleArray) type=kotlin.DoubleArray ref=__local_39.doubleArray[kind=local;type=kotlin.DoubleArray;origin=fixture]
+expr e@52:41 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@52:22#1 memberCall recv=e@52:22 callee=random args=[_:e@52:41] type=Double call=kotlin.collections.random[kind=fun;recv=kotlin.DoubleArray;params=kotlin.random.Random;ret=Double;names=[random]]
+expr e@52:5 localDecl h2 mutable=0 type=Double init=e@52:22#1 type=Unit ref=__local_41.h2[kind=local;type=Double;origin=fixture]
+expr e@53:23 name(doubleArray) type=kotlin.DoubleArray ref=__local_39.doubleArray[kind=local;type=kotlin.DoubleArray;origin=fixture]
+expr e@53:23#1 memberCall recv=e@53:23 callee=randomOrNull args=[] type=Double? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.DoubleArray;params=;ret=Double?]
+expr e@53:5 localDecl h3 mutable=0 type=Double? init=e@53:23#1 type=Unit ref=__local_42.h3[kind=local;type=Double?;origin=fixture]
+expr e@54:23 name(doubleArray) type=kotlin.DoubleArray ref=__local_39.doubleArray[kind=local;type=kotlin.DoubleArray;origin=fixture]
+expr e@54:48 name(seeded) type=kotlin.random.Random ref=golden.sema.primitiveArrayRandom.$1.seeded[kind=vparam;origin=fixture]
+expr e@54:23#1 memberCall recv=e@54:23 callee=randomOrNull args=[_:e@54:48] type=Double? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.DoubleArray;params=kotlin.random.Random;ret=Double?;names=[random]]
+expr e@54:5 localDecl h4 mutable=0 type=Double? init=e@54:23#1 type=Unit ref=__local_43.h4[kind=local;type=Double?;origin=fixture]
+expr e@59:33 uint(1) type=UInt
+expr e@59:37 uint(2) type=UInt
+expr e@59:21 call callee=e@59:21#1 args=[_:e@59:33,_:e@59:37] type=kotlin.UIntArray call=kotlin.uintArrayOf[kind=fun;params=*UInt;ret=kotlin.UIntArray;vararg=[1];names=[elements]]
+expr e@59:5 localDecl uIntArray mutable=0 type=_ init=e@59:21 type=Unit ref=__local_44.uIntArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@60:20 name(uIntArray) type=kotlin.UIntArray ref=__local_44.uIntArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@60:20#1 memberCall recv=e@60:20 callee=random args=[] type=UInt call=kotlin.collections.random[kind=fun;recv=kotlin.UIntArray;params=;ret=UInt]
+expr e@60:5 localDecl i1 mutable=0 type=UInt init=e@60:20#1 type=Unit ref=__local_45.i1[kind=local;type=UInt;origin=fixture]
+expr e@61:20 name(uIntArray) type=kotlin.UIntArray ref=__local_44.uIntArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@61:37 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@61:20#1 memberCall recv=e@61:20 callee=random args=[_:e@61:37] type=UInt call=kotlin.collections.random[kind=fun;recv=kotlin.UIntArray;params=kotlin.random.Random;ret=UInt;names=[random]]
+expr e@61:5 localDecl i2 mutable=0 type=UInt init=e@61:20#1 type=Unit ref=__local_46.i2[kind=local;type=UInt;origin=fixture]
+expr e@62:21 name(uIntArray) type=kotlin.UIntArray ref=__local_44.uIntArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@62:21#1 memberCall recv=e@62:21 callee=randomOrNull args=[] type=UInt? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UIntArray;params=;ret=UInt?]
+expr e@62:5 localDecl i3 mutable=0 type=UInt? init=e@62:21#1 type=Unit ref=__local_47.i3[kind=local;type=UInt?;origin=fixture]
+expr e@63:21 name(uIntArray) type=kotlin.UIntArray ref=__local_44.uIntArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@63:44 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@63:21#1 memberCall recv=e@63:21 callee=randomOrNull args=[_:e@63:44] type=UInt? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UIntArray;params=kotlin.random.Random;ret=UInt?;names=[random]]
+expr e@63:5 localDecl i4 mutable=0 type=UInt? init=e@63:21#1 type=Unit ref=__local_48.i4[kind=local;type=UInt?;origin=fixture]
+expr e@64:35 ulong(1) type=ULong
+expr e@64:40 ulong(2) type=ULong
+expr e@64:22 call callee=e@64:22#1 args=[_:e@64:35,_:e@64:40] type=kotlin.ULongArray call=kotlin.ulongArrayOf[kind=fun;params=*ULong;ret=kotlin.ULongArray;vararg=[1];names=[elements]]
+expr e@64:5 localDecl uLongArray mutable=0 type=_ init=e@64:22 type=Unit ref=__local_49.uLongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@65:21 name(uLongArray) type=kotlin.ULongArray ref=__local_49.uLongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@65:21#1 memberCall recv=e@65:21 callee=random args=[] type=ULong call=kotlin.collections.random[kind=fun;recv=kotlin.ULongArray;params=;ret=ULong]
+expr e@65:5 localDecl j1 mutable=0 type=ULong init=e@65:21#1 type=Unit ref=__local_50.j1[kind=local;type=ULong;origin=fixture]
+expr e@66:21 name(uLongArray) type=kotlin.ULongArray ref=__local_49.uLongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@66:39 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@66:21#1 memberCall recv=e@66:21 callee=random args=[_:e@66:39] type=ULong call=kotlin.collections.random[kind=fun;recv=kotlin.ULongArray;params=kotlin.random.Random;ret=ULong;names=[random]]
+expr e@66:5 localDecl j2 mutable=0 type=ULong init=e@66:21#1 type=Unit ref=__local_51.j2[kind=local;type=ULong;origin=fixture]
+expr e@67:22 name(uLongArray) type=kotlin.ULongArray ref=__local_49.uLongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@67:22#1 memberCall recv=e@67:22 callee=randomOrNull args=[] type=ULong? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.ULongArray;params=;ret=ULong?]
+expr e@67:5 localDecl j3 mutable=0 type=ULong? init=e@67:22#1 type=Unit ref=__local_52.j3[kind=local;type=ULong?;origin=fixture]
+expr e@68:22 name(uLongArray) type=kotlin.ULongArray ref=__local_49.uLongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@68:46 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@68:22#1 memberCall recv=e@68:22 callee=randomOrNull args=[_:e@68:46] type=ULong? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.ULongArray;params=kotlin.random.Random;ret=ULong?;names=[random]]
+expr e@68:5 localDecl j4 mutable=0 type=ULong? init=e@68:22#1 type=Unit ref=__local_53.j4[kind=local;type=ULong?;origin=fixture]
+expr e@69:35 uint(1) type=UByte
+expr e@69:39 uint(2) type=UByte
+expr e@69:22 call callee=e@69:22#1 args=[_:e@69:35,_:e@69:39] type=kotlin.UByteArray call=kotlin.ubyteArrayOf[kind=fun;params=*UByte;ret=kotlin.UByteArray;vararg=[1];names=[elements]]
+expr e@69:5 localDecl uByteArray mutable=0 type=_ init=e@69:22 type=Unit ref=__local_54.uByteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@70:21 name(uByteArray) type=kotlin.UByteArray ref=__local_54.uByteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@70:21#1 memberCall recv=e@70:21 callee=random args=[] type=UByte call=kotlin.collections.random[kind=fun;recv=kotlin.UByteArray;params=;ret=UByte]
+expr e@70:5 localDecl k1 mutable=0 type=UByte init=e@70:21#1 type=Unit ref=__local_55.k1[kind=local;type=UByte;origin=fixture]
+expr e@71:21 name(uByteArray) type=kotlin.UByteArray ref=__local_54.uByteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@71:39 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@71:21#1 memberCall recv=e@71:21 callee=random args=[_:e@71:39] type=UByte call=kotlin.collections.random[kind=fun;recv=kotlin.UByteArray;params=kotlin.random.Random;ret=UByte;names=[random]]
+expr e@71:5 localDecl k2 mutable=0 type=UByte init=e@71:21#1 type=Unit ref=__local_56.k2[kind=local;type=UByte;origin=fixture]
+expr e@72:22 name(uByteArray) type=kotlin.UByteArray ref=__local_54.uByteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@72:22#1 memberCall recv=e@72:22 callee=randomOrNull args=[] type=UByte? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UByteArray;params=;ret=UByte?]
+expr e@72:5 localDecl k3 mutable=0 type=UByte? init=e@72:22#1 type=Unit ref=__local_57.k3[kind=local;type=UByte?;origin=fixture]
+expr e@73:22 name(uByteArray) type=kotlin.UByteArray ref=__local_54.uByteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@73:46 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@73:22#1 memberCall recv=e@73:22 callee=randomOrNull args=[_:e@73:46] type=UByte? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UByteArray;params=kotlin.random.Random;ret=UByte?;names=[random]]
+expr e@73:5 localDecl k4 mutable=0 type=UByte? init=e@73:22#1 type=Unit ref=__local_58.k4[kind=local;type=UByte?;origin=fixture]
+expr e@74:37 uint(1) type=UShort
+expr e@74:41 uint(2) type=UShort
+expr e@74:23 call callee=e@74:23#1 args=[_:e@74:37,_:e@74:41] type=kotlin.UShortArray call=kotlin.ushortArrayOf[kind=fun;params=*UShort;ret=kotlin.UShortArray;vararg=[1];names=[elements]]
+expr e@74:5 localDecl uShortArray mutable=0 type=_ init=e@74:23 type=Unit ref=__local_59.uShortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@75:22 name(uShortArray) type=kotlin.UShortArray ref=__local_59.uShortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@75:22#1 memberCall recv=e@75:22 callee=random args=[] type=UShort call=kotlin.collections.random[kind=fun;recv=kotlin.UShortArray;params=;ret=UShort]
+expr e@75:5 localDecl l1 mutable=0 type=UShort init=e@75:22#1 type=Unit ref=__local_60.l1[kind=local;type=UShort;origin=fixture]
+expr e@76:22 name(uShortArray) type=kotlin.UShortArray ref=__local_59.uShortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@76:41 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@76:22#1 memberCall recv=e@76:22 callee=random args=[_:e@76:41] type=UShort call=kotlin.collections.random[kind=fun;recv=kotlin.UShortArray;params=kotlin.random.Random;ret=UShort;names=[random]]
+expr e@76:5 localDecl l2 mutable=0 type=UShort init=e@76:22#1 type=Unit ref=__local_61.l2[kind=local;type=UShort;origin=fixture]
+expr e@77:23 name(uShortArray) type=kotlin.UShortArray ref=__local_59.uShortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@77:23#1 memberCall recv=e@77:23 callee=randomOrNull args=[] type=UShort? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UShortArray;params=;ret=UShort?]
+expr e@77:5 localDecl l3 mutable=0 type=UShort? init=e@77:23#1 type=Unit ref=__local_62.l3[kind=local;type=UShort?;origin=fixture]
+expr e@78:23 name(uShortArray) type=kotlin.UShortArray ref=__local_59.uShortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@78:48 name(seeded) type=kotlin.random.Random ref=golden.sema.unsignedArrayRandom.$2.seeded[kind=vparam;origin=fixture]
+expr e@78:23#1 memberCall recv=e@78:23 callee=randomOrNull args=[_:e@78:48] type=UShort? call=kotlin.collections.randomOrNull[kind=fun;recv=kotlin.UShortArray;params=kotlin.random.Random;ret=UShort?;names=[random]]
+expr e@78:5 localDecl l4 mutable=0 type=UShort? init=e@78:23#1 type=Unit ref=__local_63.l4[kind=local;type=UShort?;origin=fixture]

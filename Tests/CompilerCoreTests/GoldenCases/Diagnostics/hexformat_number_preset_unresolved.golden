@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "hexformat_number_preset_unresolved.kt",
+      "range": {
+        "start": { "line": 15, "character": 28 },
+        "end": { "line": 15, "character": 44 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'Number'.",
+      "codeActions": []
+    },
+    {
+      "file": "hexformat_number_preset_unresolved.kt",
+      "range": {
+        "start": { "line": 16, "character": 28 },
+        "end": { "line": 16, "character": 44 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'Number'.",
+      "codeActions": []
+    }
+  ]
+}

@@ -37,7 +37,7 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains("toString"),
                     "the interpolated class value must call its own toString() override; callees: \(callees)")
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "the class value must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -66,7 +66,7 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains("toString"),
                     "the `+`-concatenated class value must call its own toString() override; callees: \(callees)")
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "the class value must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -139,7 +139,7 @@ extension LoweringPassRegressionTests {
                     "an open-class receiver must dispatch toString() virtually; virtualCallees: \(virtualCallees)")
             #expect(!callees.contains("toString"),
                     "toString() must not also be emitted as a direct call; callees: \(callees)")
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "the class value must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -172,7 +172,7 @@ extension LoweringPassRegressionTests {
 
             #expect(virtualCallees.contains("toString"),
                     "an inherited open-class toString() must use virtual dispatch; virtualCallees: \(virtualCallees)")
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "an inherited class value must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -207,7 +207,7 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains("toString"),
                     "the interpolated data class value must call its synthesized toString(); callees: \(callees)")
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "the data class value must not reach the generic Any conversion; callees: \(callees)")
         }
     }

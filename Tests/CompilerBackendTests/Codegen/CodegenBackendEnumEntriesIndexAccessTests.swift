@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -17,38 +18,6 @@ import Testing
 /// `kk_array_get` and is pinned here too.
 @Suite
 struct CodegenBackendEnumEntriesIndexAccessTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let options = CompilerOptions(
-                moduleName: moduleName,
-                inputs: [path],
-                outputPath: outputBase,
-                emit: .executable,
-                target: defaultTargetTriple()
-            )
-            let ctx = CompilationContext(
-                options: options,
-                sourceManager: SourceManager(),
-                diagnostics: DiagnosticEngine(),
-                interner: StringInterner()
-            )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            try CodegenPhase().run(ctx)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCodegenEnumEntriesIndexAccessMinimalRepro() throws {

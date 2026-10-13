@@ -20,12 +20,39 @@ extension InlineLoweringPass {
         for callableExpr: KIRExprID,
         symbol: SymbolID,
         aliases: [KIRExprID: KIRExprID],
-        arena: KIRArena
+        arena: KIRArena,
+        ctx: KIRContext,
+        into body: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         let callable = InlineExprAliasing.resolveAlias(of: callableExpr, aliases: aliases)
         let captures = lambdaCaptureArgsByExpr[callable]
             ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
-        return captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+        let resolved = captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+        guard resolved.count >= 2,
+              arena.callableValueInfo(for: callable)?.hasClosureParam == true,
+              let types = ctx.sema?.types else { return resolved }
+        // A runtime HOF lambda receives one packed environment parameter,
+        // although its callable metadata lists the individual captured values.
+        // Splicing those values as separate parameters would bind the final
+        // capture (often a String message) as the environment object.
+        let count = arena.appendExpr(.intLiteral(Int64(resolved.count + 2)), type: types.intType)
+        let classID = arena.appendExpr(.intLiteral(0), type: types.intType)
+        body.append(.constValue(result: count, value: .intLiteral(Int64(resolved.count + 2))))
+        body.append(.constValue(result: classID, value: .intLiteral(0)))
+        let environment = arena.appendTemporary(type: types.anyType)
+        body.append(.call(
+            symbol: nil, callee: ctx.interner.intern("kk_object_new"), arguments: [count, classID],
+            result: environment, canThrow: false, thrownResult: nil
+        ))
+        for (index, capture) in resolved.enumerated() {
+            let offset = arena.appendExpr(.intLiteral(Int64(index + 2)), type: types.intType)
+            body.append(.constValue(result: offset, value: .intLiteral(Int64(index + 2))))
+            body.append(.call(
+                symbol: nil, callee: ctx.interner.intern("kk_array_set"), arguments: [environment, offset, capture],
+                result: nil, canThrow: false, thrownResult: nil
+            ))
+        }
+        return [environment]
     }
 
     func recordClonedLambdaCaptures(
@@ -125,6 +152,15 @@ extension InlineLoweringPass {
                       fn.isSuspend
                 else {
                     continue
+                }
+                // The factory call's second argument carries the captured
+                // environment handed to the adapter's leading closure
+                // parameter. Without it the spliced adapter body leaves that
+                // parameter's `symbolRef` dangling in the caller (it reads
+                // back as 0 at runtime), so bind it explicitly for
+                // `lambdaCaptureArguments`.
+                if arguments.count > 1 {
+                    lambdaCaptureArgsByExpr[argExpr] = [arguments[1]]
                 }
                 return fn
             }
@@ -331,7 +367,7 @@ extension InlineLoweringPass {
                     outputCount: lowered.instructions.count, arena: module.arena
                 ) else { return nil }
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"].contains(ctx.interner.resolve(callee)),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let nestedLambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -343,7 +379,7 @@ extension InlineLoweringPass {
                 {
                     let captureArgs = lambdaCaptureArguments(
                         for: callableExpr, symbol: nestedLambdaFunction.symbol,
-                        aliases: localExprMap, arena: module.arena
+                        aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
                     )
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
                     if let lambdaExpansion = expandLambdaBody(
@@ -361,6 +397,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            labels: &labels,
                             callAncestries: &callAncestries,
                             into: &lowered
                         )
@@ -531,6 +568,7 @@ extension InlineLoweringPass {
         _ lambdaExpansion: InlineExpansion,
         callThrownResult: KIRExprID?,
         localExprMap: [KIRExprID: KIRExprID],
+        labels: inout InlineLabelAllocator,
         callAncestries: inout [Int: [SymbolID]],
         into lowered: inout KIRLoweringEmitContext
     ) {
@@ -540,13 +578,27 @@ extension InlineLoweringPass {
         if let routedSlot {
             lowered.append(.constValue(result: routedSlot, value: .null))
         }
-        let outputStart = lowered.instructions.count
-        lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(
+        // Stop at the first uncaught throw. Continuing through the expanded
+        // lambda can overwrite the slot before the original invoke's catch
+        // dispatch observes it (for example recover inside runCatching).
+        let dispatchLabel = routedSlot == nil ? nil : labels.allocateScratchLabel()
+        let routed = InlineThrowRerouting.rerouteUnprotectedThrows(
             in: lambdaExpansion.instructions,
-            thrownSlot: routedSlot
-        ))
-        for (offset, path) in lambdaExpansion.callAncestries {
-            callAncestries[outputStart + offset] = path
+            callerThrownResult: routedSlot,
+            labels: &labels,
+            dispatchLabel: dispatchLabel
+        )
+        let paths = lambdaExpansion.callPaths
+        var callIndex = 0
+        for instruction in routed.instructions {
+            if case .call = instruction {
+                callAncestries[lowered.instructions.count] = paths[callIndex]
+                callIndex += 1
+            }
+            lowered.append(instruction)
+        }
+        if let label = routed.throwDispatchLabel {
+            lowered.append(.label(label))
         }
     }
 }

@@ -42,7 +42,15 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        var requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
+           let owner = ctx.sema.symbols.parentSymbol(for: symbolID) {
+            var markers = Set(requirements.map(\.markerSymbol))
+            for requirement in requiredOptInRequirements(for: owner, ctx: ctx)
+                where markers.insert(requirement.markerSymbol).inserted {
+                requirements.append(requirement)
+            }
+        }
         guard !requirements.isEmpty else {
             return
         }
@@ -137,7 +145,7 @@ extension TypeCheckHelpers {
         }
 
         switch ctx.sema.types.kind(of: type) {
-        case .unit, .any, .stringStruct, .primitive, .typeParam, .nothing, .error:
+        case .unit, .nullableUnit, .any, .stringStruct, .primitive, .typeParam, .nothing, .error:
             return
 
         case let .classType(classType):
@@ -237,6 +245,9 @@ extension TypeCheckHelpers {
         var requirements: [OptInRequirement] = []
         var seenMarkers: Set<SymbolID> = []
 
+        // A marker annotation on an API propagates to its callers. Kotlin/JS
+        // @JsExport and @JsStatic consume their marker at the annotation site,
+        // so their annotated declarations do not require opt-in at call sites.
         for annotation in annotations {
             guard let annotationSymbol = resolveAnnotationClassSymbol(
                 named: annotation.annotationFQName,
@@ -250,6 +261,13 @@ extension TypeCheckHelpers {
                seenMarkers.insert(requirement.markerSymbol).inserted
             {
                 requirements.append(requirement)
+            }
+
+            let annotationFQName = ctx.sema.symbols.symbol(annotationSymbol)?.fqName
+                .map(ctx.interner.resolve)
+                .joined(separator: ".")
+            if annotationFQName == "kotlin.js.JsExport" || annotationFQName == "kotlin.js.JsStatic" {
+                continue
             }
 
             for metaAnnotation in ctx.sema.symbols.annotations(for: annotationSymbol) {
@@ -320,8 +338,9 @@ extension TypeCheckHelpers {
         }
 
         let supertypeName = renderSymbolName(supertype, ctx: ctx)
+        let messageSuffix = requirement.message.isEmpty ? "" : " \(requirement.message)"
         let message = "Subclassing '\(supertypeName)' requires opt-in to '\(requirement.markerName)'. " +
-            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'."
+            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'." + messageSuffix
         switch requirement.level {
         case .warning:
             diagnostics.warning("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)
@@ -343,8 +362,16 @@ extension TypeCheckHelpers {
         return copy
     }
 
+    func localFunctionOptInContext(_ ctx: TypeInferenceContext) -> TypeInferenceContext {
+        var copy = ctx
+        // A local extension changes currentDeclSymbol for receiver resolution,
+        // but its body still inherits the enclosing declaration's opt-ins.
+        copy.inheritedOptInMarkers = activeOptInMarkers(in: ctx)
+        return copy
+    }
+
     private func activeOptInMarkers(in ctx: TypeInferenceContext) -> Set<SymbolID> {
-        var markers = ctx.accessorOptInMarkers
+        var markers = ctx.accessorOptInMarkers.union(ctx.inheritedOptInMarkers)
         let file = currentFile(in: ctx)
 
         for markerName in ctx.globalOptInMarkerNames {
@@ -477,7 +504,7 @@ extension TypeCheckHelpers {
             }
         }
 
-        let message = normalizeOptInStringLiteral(namedArgs["message"] ?? positionalArgs.first ?? "")
+        let message = normalizeAnnotationStringLiteral(namedArgs["message"] ?? positionalArgs.first ?? "")
         let levelCandidate = namedArgs["level"] ?? positionalArgs.first(where: { parseOptInLevel($0) != nil })
         return (
             message: message,
@@ -490,7 +517,7 @@ extension TypeCheckHelpers {
             return nil
         }
         raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        raw = normalizeOptInStringLiteral(raw)
+        raw = normalizeAnnotationStringLiteral(raw)
         let normalized = raw.replacingOccurrences(of: " ", with: "")
         let levelName = normalized.split(separator: ".").last.map(String.init)?.uppercased() ?? normalized.uppercased()
         return switch levelName {
@@ -509,7 +536,7 @@ extension TypeCheckHelpers {
         let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
-            let value = optInArgumentValue(argument)
+            let value = SemaAnnotationArgument.value(argument)
             let nsValue = value as NSString
             let matches = regex.matches(
                 in: value,
@@ -540,7 +567,7 @@ extension TypeCheckHelpers {
     }
 
     private func normalizeOptInMarkerName(_ raw: String) -> String? {
-        let trimmed = optInArgumentValue(raw)
+        let trimmed = SemaAnnotationArgument.value(raw)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]()"))
         guard !trimmed.isEmpty else {
@@ -556,14 +583,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    private func optInArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return String(trimmed[trimmed.index(after: equalIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private func splitOptInNamedArgument(_ argument: String) -> (String, String)? {
         guard let equalIndex = argument.firstIndex(of: "=") else {
             return nil
@@ -574,21 +593,6 @@ extension TypeCheckHelpers {
             return nil
         }
         return (name, value)
-    }
-
-    private func normalizeOptInStringLiteral(_ raw: String) -> String {
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Annotation arguments are rebuilt from raw tokens. Determine whether
-        // the value is a string literal (regular or raw, with optional
-        // multi-dollar prefix) and extract its content. Raw strings must not
-        // be escape-decoded; regular strings are decoded like any other
-        // Kotlin string literal.
-        if let extraction = extractKotlinStringLiteralContent(value) {
-            return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
-        }
-
-        return decodeKotlinStringEscapes(value)
     }
 
 

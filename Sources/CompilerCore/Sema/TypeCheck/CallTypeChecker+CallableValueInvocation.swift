@@ -174,7 +174,7 @@ extension CallTypeChecker {
         guard !args.contains(where: { $0.label != nil || $0.isSpread }),
               functionType.params.count + receiverArgOffset == argTypes.count
         else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for call.",
                 range: range
@@ -184,7 +184,8 @@ extension CallTypeChecker {
         }
         var parameterMapping: [Int: Int] = [:]
         func contextualizedArgumentType(at index: Int, parameterType: TypeID) -> TypeID {
-            guard integerLiteralFitsParameter(args[index].expr, parameterType: parameterType, ctx: ctx) else {
+            guard isLambdaOrCallableRefArg(args[index].expr, ast: ast)
+                || integerLiteralFitsParameter(args[index].expr, parameterType: parameterType, ctx: ctx) else {
                 return argTypes[index]
             }
             return driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: parameterType)
@@ -196,7 +197,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         for paramIndex in functionType.params.indices {
@@ -210,7 +211,7 @@ extension CallTypeChecker {
                 range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         if let expectedType {
@@ -220,8 +221,27 @@ extension CallTypeChecker {
                 range: range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
+        }
+        // A bare receiver-function call in an escaping lambda reads an outer
+        // `this` even when its body contains no ordinary member reference.
+        // Record that value so capture analysis retains it and KIR supplies it.
+        if receiverArgOffset == 0, let requiredReceiver = functionType.receiver,
+           case .call = ast.arena.expr(id) {
+            let localThis = locals[ctx.interner.intern("this")].flatMap { local in
+                sema.types.isSubtype(local.type, requiredReceiver) ? local.symbol : nil
+            }
+            let receiverSymbol = localThis
+                ?? ctx.implicitReceiverStack.reversed().first(where: {
+                    sema.types.isSubtype($0.type, requiredReceiver)
+                })?.symbol
+                ?? ctx.outerReceiverTypes.reversed().first(where: {
+                    sema.types.isSubtype($0.type, requiredReceiver)
+                })?.symbol
+            if let receiverSymbol {
+                sema.bindings.markImplicitExtensionReceiver(id, symbol: receiverSymbol)
+            }
         }
         sema.bindings.bindCallableValueCall(
             id,
@@ -272,9 +292,31 @@ extension CallTypeChecker {
         }
         guard let candidateType,
               case let .functionType(candidateFunction) = sema.types.kind(of: candidateType),
-              candidateFunction.receiver != nil
+              let declaredReceiver = candidateFunction.receiver,
+              sema.types.isSubtype(request.safeCall ? sema.types.makeNonNullable(receiverType) : receiverType, declaredReceiver),
+              candidateFunction.params.count == request.args.count,
+              !request.args.contains(where: { $0.label != nil || $0.isSpread })
         else {
             return nil
+        }
+        for (index, argument) in request.args.enumerated() {
+            let parameter = candidateFunction.params[index]
+            if case let .lambdaLiteral(parameters, _, _, _) = ctx.ast.arena.expr(argument.expr) {
+                if case let .functionType(function) = sema.types.kind(of: sema.types.makeNonNullable(parameter)) {
+                    if parameters.isEmpty ? function.params.count > 1 : function.params.count != parameters.count {
+                        return nil
+                    }
+                } else if !parameters.isEmpty {
+                    return nil
+                }
+            }
+            if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) { continue }
+            if let argumentType = sema.bindings.exprType(for: argument.expr),
+               ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef != true,
+               !sema.types.isSubtype(argumentType, parameter)
+            {
+                return nil
+            }
         }
 
         let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
@@ -285,7 +327,7 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
         }
         guard functionType.nullability == .nonNull, request.explicitTypeArgs.isEmpty else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "Cannot invoke nullable or type-argument-qualified function value '\(ctx.interner.resolve(name))'.",
                 range: request.range

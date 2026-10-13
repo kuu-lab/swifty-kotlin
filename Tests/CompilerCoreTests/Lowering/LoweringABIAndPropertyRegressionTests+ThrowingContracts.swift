@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import RuntimeABI
 import Testing
 
 extension LoweringABIAndPropertyRegressionTests {
@@ -23,12 +24,13 @@ extension LoweringABIAndPropertyRegressionTests {
             try runToLowering(context)
             let module = try #require(context.kir)
             let sema = try #require(context.sema)
-            let expected: [String: Bool] = [
-                "kk_duration_parse": true,
-                "kk_duration_parseOrNull": false,
-                "kk_duration_parseIsoString": true,
-                "kk_duration_parseIsoStringOrNull": false,
+            let expectations: [(RuntimeABIFunctionSpec, Bool)] = [
+                (try loweringRuntimeABI("duration_parse"), true),
+                (try loweringRuntimeABI("duration_parseOrNull"), false),
+                (try loweringRuntimeABI("duration_parseIsoString"), true),
+                (try loweringRuntimeABI("duration_parseIsoStringOrNull"), false),
             ]
+            let expected = Dictionary(uniqueKeysWithValues: expectations.map { ($0.0.name, $0.1) })
             var observed: [String: [(callee: String, argumentCount: Int, canThrow: Bool)]] = [:]
             var durationCallees: Set<String> = []
 
@@ -43,9 +45,10 @@ extension LoweringABIAndPropertyRegressionTests {
                     {
                         durationCallees.insert(calleeName)
                     }
+                    // Source bridge names add a private prefix to the canonical
+                    // ABI name when a call no longer retains its source symbol.
                     let linkName = symbol.flatMap { sema.symbols.externalLinkName(for: $0) } ??
-                        (calleeName.hasPrefix("__kk_duration_") ?
-                            "kk_" + String(calleeName.dropFirst("__kk_".count)) : nil)
+                        expectations.first { callee == context.interner.intern("__" + $0.0.name) }?.0.name
                     guard let linkName, expected[linkName] != nil else { continue }
                     observed[linkName, default: []].append((
                         callee: calleeName,
@@ -55,14 +58,18 @@ extension LoweringABIAndPropertyRegressionTests {
                 }
             }
 
-            for (linkName, expectedThrowing) in expected {
+            for (abi, expectedThrowing) in expectations {
+                let linkName = abi.name
+                #expect(abi.isThrowing == expectedThrowing)
+                let argumentCount = abi.parameters.filter { $0.name != "outThrown" }.count
+                #expect(argumentCount == 1)
                 let calls = observed[linkName] ?? []
                 #expect(
                     !calls.isEmpty,
                     "Expected a source-backed call to \(linkName); duration-related callees: \(durationCallees.sorted())"
                 )
                 #expect(
-                    calls.allSatisfy { $0.argumentCount == 1 },
+                    calls.allSatisfy { $0.argumentCount == argumentCount },
                     "Source-backed \(linkName) must pass exactly its String argument"
                 )
                 // An unprotected throwing call propagates through the enclosing

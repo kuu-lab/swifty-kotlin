@@ -56,8 +56,6 @@ struct CollectionLiteralLookupTables {
         })
     }
 
-    // MARK: - List lookup names (see CollectionLiteralLoweringPass+LookupTables+List.swift)
-
     var listOfName: InternedString { listLookup.listOfName }
     var mutableListOfName: InternedString { listLookup.mutableListOfName }
     var arrayListOfName: InternedString { listLookup.arrayListOfName }
@@ -136,8 +134,6 @@ struct CollectionLiteralLookupTables {
     var listFactoryNames: Set<InternedString> { listLookup.listFactoryNames }
     var mutableListConstructorNames: Set<InternedString> { listLookup.mutableListConstructorNames }
 
-    // MARK: - Set lookup names (see CollectionLiteralLoweringPass+LookupTables+Set.swift)
-
     var setOfName: InternedString { setLookup.setOfName }
     var setOfNotNullName: InternedString { setLookup.setOfNotNullName }
     var mutableSetOfName: InternedString { setLookup.mutableSetOfName }
@@ -146,6 +142,11 @@ struct CollectionLiteralLookupTables {
     var emptySetName: InternedString { setLookup.emptySetName }
     var hashSetName: InternedString { setLookup.hashSetName }
     var linkedHashSetName: InternedString { setLookup.linkedHashSetName }
+    var treeSetName: InternedString { setLookup.treeSetName }
+    var sortedSetOfName: InternedString { setLookup.sortedSetOfName }
+    var kkTreeSetNewName: InternedString { setLookup.kkTreeSetNewName }
+    var kkTreeSetNewCollectionName: InternedString { setLookup.kkTreeSetNewCollectionName }
+    var kkTreeSetNewSortedSetName: InternedString { setLookup.kkTreeSetNewSortedSetName }
     var kkEmptySetName: InternedString { setLookup.kkEmptySetName }
     var kkSetOfName: InternedString { setLookup.kkSetOfName }
     var kkSetOfNotNullName: InternedString { setLookup.kkSetOfNotNullName }
@@ -162,8 +163,6 @@ struct CollectionLiteralLookupTables {
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
 
-    // MARK: - Map lookup names (see CollectionLiteralLoweringPass+LookupTables+Map.swift)
-
     var mapOfName: InternedString { mapLookup.mapOfName }
     var mutableMapOfName: InternedString { mapLookup.mutableMapOfName }
     var hashMapOfName: InternedString { mapLookup.hashMapOfName }
@@ -171,6 +170,11 @@ struct CollectionLiteralLookupTables {
     var emptyMapName: InternedString { mapLookup.emptyMapName }
     var hashMapName: InternedString { mapLookup.hashMapName }
     var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
+    var treeMapName: InternedString { mapLookup.treeMapName }
+    var sortedMapOfName: InternedString { mapLookup.sortedMapOfName }
+    var kkTreeMapNewName: InternedString { mapLookup.kkTreeMapNewName }
+    var kkTreeMapNewMapName: InternedString { mapLookup.kkTreeMapNewMapName }
+    var kkTreeMapNewSortedMapName: InternedString { mapLookup.kkTreeMapNewSortedMapName }
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
     var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
@@ -185,8 +189,6 @@ struct CollectionLiteralLookupTables {
     var kkMutableMapPutAllName: InternedString { mapLookup.kkMutableMapPutAllName }
     var mapFactoryNames: Set<InternedString> { mapLookup.mapFactoryNames }
     var mutableMapConstructorNames: Set<InternedString> { mapLookup.mutableMapConstructorNames }
-
-    // MARK: - Sequence lookup names (see CollectionLiteralLoweringPass+LookupTables+Sequence.swift)
 
     var kkSequenceMapName: InternedString { sequenceLookup.kkSequenceMapName }
     var kkSequenceFilterName: InternedString { sequenceLookup.kkSequenceFilterName }
@@ -245,8 +247,6 @@ struct CollectionLiteralLookupTables {
     var yieldName: InternedString { sequenceLookup.yieldName }
     var yieldAllName: InternedString { sequenceLookup.yieldAllName }
 
-    // MARK: - Array lookup names (see CollectionLiteralLoweringPass+LookupTables+Array.swift)
-
     var arrayOfName: InternedString { arrayLookup.arrayOfName }
     var emptyArrayName: InternedString { arrayLookup.emptyArrayName }
     var intArrayOfName: InternedString { arrayLookup.intArrayOfName }
@@ -269,8 +269,6 @@ struct CollectionLiteralLookupTables {
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
     var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
     var arrayOfFactoryNames: Set<InternedString> { arrayLookup.arrayOfFactoryNames }
-
-    // MARK: - Range lookup names (see CollectionLiteralLoweringPass+LookupTables+Range.swift)
 
     var kkRangeIteratorName: InternedString { rangeLookup.kkRangeIteratorName }
     var kkRangeHasNextName: InternedString { rangeLookup.kkRangeHasNextName }
@@ -324,20 +322,11 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
 
-    // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
-
     var kkStringSplitName: InternedString { stringLookup.kkStringSplitName }
     var stringProducingCallees: Set<InternedString> { stringLookup.stringProducingCallees }
 
-    // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
-
-
-    // MARK: - FileIO lookup names (see CollectionLiteralLoweringPass+LookupTables+FileIO.swift)
-
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
     var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
-
-    // MARK: - Common lookup names (see CollectionLiteralLoweringPass+LookupTables+Common.swift)
 
     var sumName: InternedString { commonLookup.sumName }
     var sizeName: InternedString { commonLookup.sizeName }

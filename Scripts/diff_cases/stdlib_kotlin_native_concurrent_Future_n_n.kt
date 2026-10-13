@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.concurrent APIs are only available on Kotlin/Native targets.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_concurrent_Future_n_n.expected.stdout
 @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 
 import kotlin.native.concurrent.Future

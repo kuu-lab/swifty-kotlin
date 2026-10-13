@@ -1,0 +1,12 @@
+false
+false
+1 Alice 9.5
+2 Bob 7.0
+3 Carol 8.25
+true
+true
+Alice,Carol
+1
+10.0
+caught SQLException
+true

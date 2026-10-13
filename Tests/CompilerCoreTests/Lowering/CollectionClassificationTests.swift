@@ -86,7 +86,7 @@ struct CollectionClassificationTests {
             var state = State()
             CollectionLiteralLoweringSupport().collectInitialCollectionExprIDs(
                 function: function, lookup: CollectionLiteralLookupTables(interner: interner),
-                arena: arena, sema: sema, state: &state
+                arena: arena, sema: sema, interner: interner, state: &state
             )
             return state
         }
@@ -239,10 +239,10 @@ struct CollectionClassificationTests {
         let state = fixture.scan(fixture.function([
             .constValue(result: char, value: .charLiteral(97)),
             .constValue(result: ulong, value: .ulongLiteral(1)),
-            fixture.call("kk_op_rangeTo", arguments: [char, char], result: charRange),
-            fixture.call("kk_op_rangeTo", arguments: [ulong, ulong], result: ulongRange),
+            fixture.call(LoweringTestRuntime.name("op_rangeTo"), arguments: [char, char], result: charRange),
+            fixture.call(LoweringTestRuntime.name("op_rangeTo"), arguments: [ulong, ulong], result: ulongRange),
             .copy(from: charRange, to: charAlias), .copy(from: ulongRange, to: ulongAlias),
-            fixture.call("__kk_op_step", arguments: [ulongAlias, ulong], result: stepped),
+            fixture.call(LoweringTestRuntime.name("op_step"), arguments: [ulongAlias, ulong], result: stepped),
         ]))
 
         #expect(state.rangeExprIDs == Set([charRange, ulongRange, charAlias, ulongAlias, stepped].map(\.rawValue)))
@@ -260,12 +260,12 @@ struct CollectionClassificationTests {
         let result = fixture.arena.appendTemporary(type: fixture.sema.types.intType)
         let thrown = fixture.arena.appendTemporary(type: fixture.sema.types.anyType)
         let function = fixture.function([
-            fixture.call("kk_list_iterator", arguments: [collection], result: listIterator),
+            fixture.call(LoweringTestRuntime.name("list_iterator"), arguments: [collection], result: listIterator),
             .copy(from: listIterator, to: storage),
             fixture.call("userIteratorFactory", result: replacement),
             .copy(from: replacement, to: storage),
             .call(
-                symbol: nil, callee: fixture.interner.intern("kk_iterator_next"),
+                symbol: nil, callee: LoweringTestRuntime.callee("iterator_next", interner: fixture.interner),
                 arguments: [storage], result: result, canThrow: true, thrownResult: thrown
             ),
         ])
@@ -289,7 +289,7 @@ struct CollectionClassificationTests {
             Issue.record("The iterator operation is no longer a call")
             return
         }
-        #expect(fixture.interner.resolve(callee) == "kk_iterator_next")
+        #expect(callee == LoweringTestRuntime.callee("iterator_next", interner: fixture.interner))
         #expect(arguments == [storage] && returned == result)
         #expect(canThrow && thrownResult == thrown)
     }

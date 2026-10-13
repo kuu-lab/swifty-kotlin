@@ -41,7 +41,7 @@ struct UnsignedIndexedAssignmentTests {
         let sema = try #require(ctx.sema)
         let callee = try #require(sema.bindings.callBinding(for: assignment)?.chosenCallee)
         let symbol = try #require(sema.symbols.symbol(callee))
-        #expect(ctx.interner.resolve(symbol.name) == "set")
+        #expect(symbol.name == KnownCompilerNames(interner: ctx.interner).sbSet)
         #expect(!symbol.flags.contains(.synthetic))
     }
 

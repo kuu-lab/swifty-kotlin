@@ -48,7 +48,9 @@ public final class DiagnosticEngine: @unchecked Sendable {
     private var _emittedDiagnostics: Set<Diagnostic> = []
     /// Diagnostic codes suppressed at specific source ranges via `@Suppress` annotations.
     /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
-    private var suppressions: [String: [SourceRange]] = [:]
+    /// `severity` is nil for names that suppress at any severity; some names
+    /// (DEPRECATION vs DEPRECATION_ERROR) only suppress one severity like kotlinc.
+    private var suppressions: [String: [(range: SourceRange, severity: DiagnosticSeverity?)]] = [:]
     private let maxDiagnosticsPerFile: Int
     /// Stored diagnostics per file bucket, excluding truncation notices.
     private var _diagnosticCountByFile: [FileID: Int] = [:]
@@ -68,22 +70,27 @@ public final class DiagnosticEngine: @unchecked Sendable {
 
     /// Register a @Suppress annotation: suppress the given diagnostic code for any
     /// diagnostic whose primary range overlaps or is contained within `range`.
+    /// When the suppression name is severity-constrained (DEPRECATION /
+    /// DEPRECATION_ERROR), only diagnostics of that severity are suppressed.
     public func addSuppression(code: String, range: SourceRange) {
         let expandedCodes = DiagnosticRegistry.suppressionCodes(for: code)
         guard !expandedCodes.isEmpty else {
             return
         }
+        let severity = DiagnosticRegistry.suppressionSeverityConstraint(for: code)
         lock.lock()
         defer { lock.unlock() }
         for expanded in expandedCodes {
-            suppressions[expanded, default: []].append(range)
+            suppressions[expanded, default: []].append((range: range, severity: severity))
         }
     }
 
-    public func isSuppressed(code: String, range: SourceRange) -> Bool {
+    public func isSuppressed(code: String, range: SourceRange, severity: DiagnosticSeverity? = nil) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return suppressions[code]?.contains { $0.contains(range) } == true
+        return suppressions[code]?.contains {
+            $0.range.contains(range) && ($0.severity == nil || $0.severity == severity)
+        } == true
     }
 
     /// Marks the current diagnostic count for `rollback(to:)`.
@@ -97,19 +104,18 @@ public final class DiagnosticEngine: @unchecked Sendable {
     /// that re-infer an expression and keep the original diagnostic when the
     /// retry fails.
     public func rollback(to checkpoint: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        if _diagnostics.count > checkpoint {
-            _diagnostics.removeSubrange(checkpoint...)
-        }
+        truncate(to: checkpoint)
     }
 
     public func emit(_ diagnostic: Diagnostic) {
         lock.lock()
         defer { lock.unlock() }
         // Check if this diagnostic is suppressed by a @Suppress annotation.
-        if let ranges = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
-            for suppressRange in ranges where suppressRange.contains(diagRange) {
+        if let entries = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
+            for entry in entries
+            where entry.range.contains(diagRange)
+                && (entry.severity == nil || entry.severity == diagnostic.severity)
+            {
                 return // Suppressed — do not emit.
             }
         }
@@ -250,6 +256,35 @@ public final class DiagnosticEngine: @unchecked Sendable {
         }
         _emittedDiagnostics.subtract(_diagnostics[count...])
         _diagnostics.removeSubrange(count...)
+    }
+
+    /// Removes error diagnostics whose primary range lies inside `range`,
+    /// wherever they appear in the emission order. TypeCheck re-inference
+    /// retries use this after a nested expression that failed its first pass
+    /// (e.g. `KSWIFTK-SEMA-INFER` on `D(t, 1)` inside `W1(D(t, 1), 0)`)
+    /// succeeds under an expected type: the failed pass's diagnostics inside
+    /// that expression's range are stale and must not surface. Keeps
+    /// `_emittedDiagnostics` and the per-file counts consistent, unlike a
+    /// bare `rollback(to:)` which only truncates the array tail.
+    public func removeErrorDiagnostics(containedIn range: SourceRange) {
+        lock.lock()
+        defer { lock.unlock() }
+        _diagnostics.removeAll { diagnostic in
+            guard diagnostic.severity == .error,
+                  let primaryRange = diagnostic.primaryRange,
+                  range.contains(primaryRange)
+            else {
+                return false
+            }
+            let bucket = fileBucket(for: diagnostic)
+            if _truncationNoticeByFile[bucket] == diagnostic {
+                _truncationNoticeByFile.removeValue(forKey: bucket)
+            } else {
+                _diagnosticCountByFile[bucket, default: 0] -= 1
+            }
+            _emittedDiagnostics.remove(diagnostic)
+            return true
+        }
     }
 
     /// Sort the diagnostics array in-place by source location for deterministic
@@ -434,8 +469,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
             3
         }
     }
-
-    // MARK: - JSON diagnostic output (LSP-compatible)
 
     /// LSP severity codes: 1 = Error, 2 = Warning, 3 = Information, 4 = Hint.
     private func lspSeverity(for severity: DiagnosticSeverity) -> Int {

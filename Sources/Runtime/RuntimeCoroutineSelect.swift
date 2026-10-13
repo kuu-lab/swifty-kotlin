@@ -36,7 +36,6 @@ public func __kk_select_try_receive(_ handle: Int) -> Int {
     __kk_channel_try_receive(handle)
 }
 
-@_cdecl("__kk_select_receive_value")
 public func __kk_select_receive_value(_ token: Int) -> Int {
     __kk_channel_result_value_or_null(token)
 }

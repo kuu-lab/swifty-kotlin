@@ -1,17 +1,19 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 func runCodegenPipeline(
     inputPath: String,
     moduleName: String,
-    emit: EmitMode,
+    emit: EmitMode = .executable,
     outputPath: String,
     irFlags: [String] = [],
     optLevel: OptimizationLevel = .O0,
-    allowDefaultStdlibLibrary: Bool = true
+    allowDefaultStdlibLibrary: Bool = true,
+    stdlibLibraryPath: String? = nil
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
@@ -21,6 +23,7 @@ func runCodegenPipeline(
         target: defaultTargetTriple(),
         optLevel: optLevel,
         irFlags: irFlags,
+        stdlibLibraryPath: stdlibLibraryPath,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     let ctx = CompilationContext(

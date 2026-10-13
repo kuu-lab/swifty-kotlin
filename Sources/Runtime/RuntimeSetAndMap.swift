@@ -1,9 +1,24 @@
-
 // Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
 //
 // Split out from `RuntimeCollections.swift`.
 
-// MARK: - Set Functions (STDLIB-001)
+/// HashMap's inherited source bodies operate on this native storage handle.
+/// Keeping it separate from the Kotlin receiver lets interface bridges dispatch
+/// to user overrides without re-entering those bridges from the base body.
+@_cdecl("__kk_hash_map_storage")
+public func kk_hash_map_storage(_ mapRaw: Int) -> Int {
+    guard let objectBox = runtimeHashMapObject(from: mapRaw) else {
+        return mapRaw
+    }
+    if objectBox.backingMapRaw != 0 {
+        return objectBox.backingMapRaw
+    }
+    let backing = objectBox.backingMapBox ?? RuntimeMapBox(keys: [], values: [])
+    objectBox.backingMapBox = backing
+    let storageRaw = registerRuntimeObject(backing, typeID: hashMapRuntimeTypeID)
+    objectBox.backingMapRaw = storageRaw
+    return storageRaw
+}
 
 @_cdecl("__kk_set_of")
 public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
@@ -231,7 +246,6 @@ public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int
     return 1
 }
 
-// MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
 public func kk_mutable_set_add(
@@ -384,7 +398,6 @@ public func kk_mutable_set_retainAll(
     return set.count != originalCount ? 1 : 0
 }
 
-// MARK: - Map Functions (STDLIB-001)
 
 private func runtimeMapOf(
     keysArrayRaw: Int,
@@ -784,14 +797,22 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_keys")
 public func kk_map_keys(_ mapRaw: Int) -> Int {
-    guard runtimeMapBox(from: mapRaw) != nil else {
+    guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMapKeys(mapRaw)
             ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
     // MutableMap.keys is a mutable, write-through view (mirrors .entries
     // above): removing through it removes the key from the map, and later
     // map mutations are visible through this same set handle.
-    return registerRuntimeObject(RuntimeSetBox(mapKeysOf: mapRaw))
+    let view = RuntimeSetBox(mapKeysOf: mapRaw)
+    if map.sorted {
+        // KUU-1361: java.util.TreeMap.keySet() is a NavigableSet — the view
+        // already iterates in key order, so enabling sorted state makes the
+        // navigable members correct too.
+        view.enableSorted(comparatorRaw: map.comparatorRaw, invertCompare: map.invertCompare)
+        return registerRuntimeObject(view, typeID: navigableSetRuntimeTypeID)
+    }
+    return registerRuntimeObject(view)
 }
 
 @_cdecl("__kk_map_values")

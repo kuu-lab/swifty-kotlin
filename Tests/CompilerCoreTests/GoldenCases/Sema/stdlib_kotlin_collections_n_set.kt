@@ -1,3 +1,4 @@
+// KUU-1597 Sema owner: pin setOf/setOfNotNull generic inference, nullability, and spread overloads; collection contents stay in Scripts/diff_cases/stdlib_kotlin_collections_n_set.kt.
 fun main() {
     val singleton: Set<Int> = setOf(1)
     val nullableSingleton: Set<String?> = setOf(null as String?)
@@ -7,12 +8,4 @@ fun main() {
     val mixed: Set<String> = setOfNotNull("a", null, "b", "a")
     val source: Array<String?> = arrayOf("x", null, "y", "x")
     val spread: Set<String> = setOfNotNull(*source)
-
-    println(singleton.contains(1))
-    println(nullableSingleton.contains(null))
-    println(nonNullSingleton)
-    println(empty.isEmpty())
-    println(allNull.isEmpty())
-    println(mixed)
-    println(spread)
 }

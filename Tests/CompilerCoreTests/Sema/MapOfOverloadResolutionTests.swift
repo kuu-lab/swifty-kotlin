@@ -28,7 +28,7 @@ struct MapOfOverloadResolutionTests {
                   ctx.sourceManager.origin(of: range.start.file) == .user,
                   case let .call(callee, _, args, _) = ast.arena.expr(exprID),
                   case let .nameRef(name, _) = ast.arena.expr(callee),
-                  ctx.interner.resolve(name) == "mapOf"
+                  name == ctx.interner.intern(WellKnownCollectionFactory.mapOf.simpleName)
             else {
                 return nil
             }

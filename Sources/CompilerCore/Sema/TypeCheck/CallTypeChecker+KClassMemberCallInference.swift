@@ -356,6 +356,16 @@ extension CallTypeChecker {
             result = makeSyntheticListType(
                 symbols: sema.symbols, types: sema.types, interner: interner, elementType: element
             )
+        case "constructors":
+            guard let function = sema.symbols.lookup(fqName: ["kotlin", "reflect", "KFunction"].map(interner.intern)),
+                  let collection = sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map(interner.intern))
+            else { return nil }
+            let element = sema.types.make(.classType(ClassType(
+                classSymbol: function, args: [.invariant(argument)], nullability: .nonNull
+            )))
+            result = sema.types.make(.classType(ClassType(
+                classSymbol: collection, args: [.invariant(element)], nullability: .nonNull
+            )))
         default:
             return nil
         }

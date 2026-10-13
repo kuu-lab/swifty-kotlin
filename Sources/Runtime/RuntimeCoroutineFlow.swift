@@ -10,7 +10,6 @@ import Foundation
 // Split out from `RuntimeCoroutine.swift` to keep each runtime source
 // scoped to a single coroutine concern.
 
-// MARK: - Flow Runtime (STDLIB-088: Cold/Lazy Stream Semantics)
 
 /// CORO-003: pthread key for the flow collect stack (replaces threadDictionary).
 private let runtimeFlowCollectStackPthreadKey: pthread_key_t = makePthreadKey()
@@ -33,8 +32,9 @@ private enum RuntimeFlowTag: Int {
     case catchHandler = 6
     case retry = 7
     case retryWhen = 8
-    case onErrorReturn = 9
-    case onErrorResume = 10
+    // KUU-1351: tags 9/10 (onErrorReturn/onErrorResume) and 19 (delayEach) are
+    // retired — they backed Flow operators that do not exist in
+    // kotlinx-coroutines, and the compiler no longer emits them.
     case transform = 11
     case takeWhile = 12
     case dropWhile = 13
@@ -43,7 +43,6 @@ private enum RuntimeFlowTag: Int {
     case flowOn = 16
     case debounce = 17
     case sample = 18
-    case delayEach = 19
     case onCompletion = 20
 }
 
@@ -110,8 +109,6 @@ private enum RuntimeFlowErrorHandlerKind {
     case catchHandler(Int)
     case retry(Int)
     case retryWhen(Int)
-    case onErrorReturn(Int)
-    case onErrorResume(Int)
 }
 
 private struct RuntimeFlowStage {
@@ -325,7 +322,7 @@ private func runtimeFlowSortEvents(_ events: [RuntimeFlowEvent]) -> [RuntimeFlow
 
 private func runtimeFlowIsStreamLevelOp(_ kind: RuntimeFlowTag) -> Bool {
     switch kind {
-    case .conflate, .flowOn, .debounce, .sample, .delayEach, .buffer:
+    case .conflate, .flowOn, .debounce, .sample, .buffer:
         return true
     default:
         return false
@@ -406,59 +403,6 @@ private func runtimeFlowApplyStreamOps(
             currentEvents = runtimeFlowApplyDebounce(currentEvents, intervalMs: runtimeFlowMaybeUnbox(op.argument))
         case .sample:
             currentEvents = runtimeFlowApplySample(currentEvents, intervalMs: runtimeFlowMaybeUnbox(op.argument))
-        case .delayEach:
-            let intervalMs = max(0, runtimeFlowMaybeUnbox(op.argument))
-            let intervalNs = UInt64(intervalMs) * 1_000_000
-            var delayed: [RuntimeFlowEvent] = []
-            delayed.reserveCapacity(currentEvents.count)
-
-            // 遅延がある場合は実際に待機する
-            if intervalMs > 0 {
-                let group = DispatchGroup()
-
-                // ThreadSafeなコンテナを使用
-                class DelayedEventsContainer: @unchecked Sendable {
-                    private var events: [RuntimeFlowEvent] = []
-                    private let lock = NSLock()
-
-                    func append(_ event: RuntimeFlowEvent) {
-                        lock.lock()
-                        events.append(event)
-                        lock.unlock()
-                    }
-
-                    func getAll() -> [RuntimeFlowEvent] {
-                        lock.lock()
-                        let result = events
-                        lock.unlock()
-                        return result
-                    }
-                }
-
-                let container = DelayedEventsContainer()
-
-                // 並列実行で各イベントの遅延を計算
-                for (index, event) in currentEvents.enumerated() {
-                    group.enter()
-                    DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(intervalMs * index)) {
-                        let delayedEvent = RuntimeFlowEvent(
-                            value: event.value,
-                            timestamp: event.timestamp + intervalNs * UInt64(index + 1)
-                        )
-                        container.append(delayedEvent)
-                        group.leave()
-                    }
-                }
-                group.wait()
-
-                // 並列実行が完了したら、結果をメインのdelayedにコピー
-                delayed = container.getAll()
-            } else {  // 遅延がない場合はタイムスタンプのみ操作
-                for event in currentEvents {
-                    delayed.append(RuntimeFlowEvent(value: event.value, timestamp: event.timestamp + intervalNs))
-                }
-            }
-            currentEvents = delayed
         case .buffer, .flowOn, .emit:
             continue
         default:
@@ -507,10 +451,6 @@ private func runtimeFlowErrorHandler(for op: RuntimeFlowOp) -> RuntimeFlowErrorH
         return .retry(op.argument)
     case .retryWhen:
         return .retryWhen(op.argument)
-    case .onErrorReturn:
-        return .onErrorReturn(op.argument)
-    case .onErrorResume:
-        return .onErrorResume(op.argument)
     default:
         return nil
     }
@@ -685,14 +625,14 @@ private func runtimeFlowApplyOpsLazy(
                 return .filtered
             }
 
-        case .catchHandler, .retry, .retryWhen, .onErrorReturn, .onErrorResume:
+        case .catchHandler, .retry, .retryWhen:
             continue
 
         case .onCompletion:
             // onCompletion is a completion-only handler; pass elements through unchanged.
             continue
 
-        case .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
+        case .buffer, .conflate, .flowOn, .debounce, .sample:
             continue
         }
     }
@@ -915,20 +855,6 @@ private func runtimeFlowApplyErrorHandler(
             values: current.values,
             failure: runtimeFlowInvokeCatchHandler(handlerFnPtr, failure: initialFailure)
         )
-
-    case .onErrorReturn(let fallbackValue):
-        var values = current.values
-        values.append(runtimeFlowMaybeUnbox(fallbackValue))
-        return RuntimeFlowExecutionResult(values: values, failure: nil)
-
-    case .onErrorResume(let fallbackFlowHandle):
-        var values = current.values
-        guard let fallbackFlow = runtimeFlowHandle(from: fallbackFlowHandle) else {
-            return current
-        }
-        let resumed = runtimeFlowEvaluate(flow: fallbackFlow)
-        values.append(contentsOf: resumed.values)
-        return RuntimeFlowExecutionResult(values: values, failure: resumed.failure)
 
     case .retry(let retryCountRaw):
         let retryCount = max(0, runtimeFlowMaybeUnbox(retryCountRaw))
@@ -1506,16 +1432,7 @@ public func kk_channel_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: I
 /// the distinct entry point preserves the public ABI surface.
 @_cdecl("kk_callback_flow_create")
 public func kk_callback_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: Int) -> Int {
-    return runtimeRegisterFlowHandle(
-        RuntimeFlowHandle(
-            source: .channelProducer(
-                RuntimeChannelProducer(
-                    emitterFnPtr: emitterFnPtr,
-                    templateContinuation: emitterContinuation
-                )
-            )
-        )
-    )
+    kk_channel_flow_create(emitterFnPtr, emitterContinuation)
 }
 
 /// Return the flow-stop sentinel pointer. This is a unique object pointer that
@@ -1574,7 +1491,6 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
 }
 
 // (a) RF-DEAD-002: Internal compatibility helpers for the bundled Flow source.
-@_cdecl("__kk_flow_emit_with_timestamp")
 public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag: Int, _ timestamp: UInt64) -> Int {
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
@@ -1662,8 +1578,6 @@ public func __kk_flow_release(_ flowHandle: Int) -> Int {
     return 0
 }
 
-// MARK: - Flow Terminal Operators (STDLIB-088)
-
 /// Prepare take counters for the given op chain.
 private func runtimeFlowInitTakeCounters(_ ops: [RuntimeFlowOp]) -> [Int: Int] {
     var takeCounters: [Int: Int] = [:]
@@ -1716,7 +1630,6 @@ public func __kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutab
 }
 
 /// Count the number of elements emitted after applying the operator chain.
-@_cdecl("__kk_flow_count")
 public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
@@ -1728,7 +1641,6 @@ public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
 
 /// Fold: accumulate values with an initial value and an operation.
 /// operation ABI: (closureRaw, accumulator, value, outThrown) -> newAccumulator
-@_cdecl("__kk_flow_fold")
 public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return initial
@@ -1758,7 +1670,6 @@ public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: 
 
 /// Reduce: like fold but uses the first element as the initial accumulator.
 /// operation ABI: (closureRaw, accumulator, value, outThrown) -> newAccumulator
-@_cdecl("__kk_flow_reduce")
 public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
@@ -1799,9 +1710,6 @@ public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -
 // (Stdlib/kotlinx/coroutines/flow/StateFlow.kt), so the runtime handle and
 // kk_mutable_state_flow_* / kk_state_flow_value / kk_flow_state_in C bridges
 // have been removed.
-
-// MARK: - Advanced Flow Operators (STDLIB-FLOW-176)
-
 
 private func runtimeFlowEvaluateFlatMapConcat(
     sourceHandle: Int,
@@ -1970,8 +1878,6 @@ private func runtimeFlowEvaluateCombine(
     }
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
 }
-
-// MARK: @_cdecl exports
 
 /// Create a flow that represents flatMapConcat applied to an existing flow.
 /// mapperFnPtr: (closureRaw, value, outThrown) -> innerFlowHandle

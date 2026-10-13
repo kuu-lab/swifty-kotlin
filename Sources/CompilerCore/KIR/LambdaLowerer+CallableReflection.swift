@@ -10,7 +10,9 @@ extension LambdaLowerer {
         returnType: TypeID,
         captures: [KIRExprID],
         receiverCount: Int,
+        packedConstructorVarargs: Bool = false,
         setterSymbol: SymbolID? = nil,
+        includeInvocation: Bool = true,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -42,13 +44,24 @@ extension LambdaLowerer {
                     : parameterSymbol.flatMap { sema.symbols.symbol($0) }.map { interner.resolve($0.name) }
                 let optional = valueIndex >= 0 && valueIndex < (signature?.valueParameterHasDefaultValues.count ?? 0)
                     && signature?.valueParameterHasDefaultValues[valueIndex] == true
+                // RuntimeKParameterFlags: bit0 = isOptional, bit1 = isVararg.
+                let vararg = valueIndex >= 0 && valueIndex < (signature?.valueParameterIsVararg.count ?? 0)
+                    && signature?.valueParameterIsVararg[valueIndex] == true
+                let parameterFlags = (optional ? 1 : 0) | (vararg ? 2 : 0)
+                let parameterKind = index < receiverCount
+                    ? callableReceiverParameterKind(targetSymbol: targetSymbol, signature: signature, sema: sema)
+                    : 2 // VALUE
+                let reflectedType = callableReflectionParameterType(type, isVararg: vararg, sema: sema, interner: interner)
+                let reflectedTypeName = vararg
+                    ? callableReflectionTypeName(of: reflectedType, sema: sema, interner: interner)
+                    : sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
                 let args = [integer(index), name.map(string) ?? {
                     let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
                     instructions.append(.constValue(result: null, value: .null))
                     return null
-                }(), string(sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)),
-                integer(optional ? 1 : 0), integer(index < receiverCount ? 0 : 2),
-                integer(Int(RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner))),
+                }(), string(reflectedTypeName),
+                integer(parameterFlags), integer(parameterKind),
+                integer(Int(RuntimeTypeCheckToken.encode(type: reflectedType, sema: sema, interner: interner))),
                 integer(Int((targetSymbol ?? callableSymbol).rawValue) * 2 + (isSetter ? 1 : 0) + 1)]
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
@@ -64,13 +77,19 @@ extension LambdaLowerer {
                               interner: interner, arena: arena, requireNonNull: true, into: &instructions)
         }
         let environment = list(boxedCaptures)
-        let invoker = callableReflectionInvoker(
-            callableSymbol: callableSymbol, callableName: callableName, targetSymbol: targetSymbol,
-            parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
-            sema: sema, arena: arena, interner: interner
-        )
-        if let reference = arena.expr(invoker) {
-            instructions.append(.constValue(result: invoker, value: reference))
+        let invoker: KIRExprID
+        if includeInvocation {
+            invoker = callableReflectionInvoker(
+                callableSymbol: callableSymbol, callableName: callableName, targetSymbol: targetSymbol,
+                parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
+                packedConstructorVarargs: packedConstructorVarargs,
+                sema: sema, arena: arena, interner: interner
+            )
+            if let reference = arena.expr(invoker) {
+                instructions.append(.constValue(result: invoker, value: reference))
+            }
+        } else {
+            invoker = integer(0)
         }
         let parameterList = parameters(parameterTypes)
         var typeParameterValues: [KIRExprID] = []
@@ -138,6 +157,36 @@ extension LambdaLowerer {
         }
     }
 
+    /// Internal `RuntimeKParameterBox.kind` for a leading receiver slot:
+    /// 0 = INSTANCE (dispatch receiver), 1 = EXTENSION_RECEIVER,
+    /// 3 = CONTEXT. `FunctionSignature.receiverType` conflates explicit
+    /// extension receivers with the owning-class dispatch receiver, so
+    /// the declared owner is recovered from the target's FQ name:
+    /// top-level extensions keep the package owner (KSP-INF-011
+    /// reparenting only changes parentSymbol), while member functions
+    /// resolve to a nominal owner. Member-extension callables cannot be
+    /// referenced in Kotlin, so a single receiver slot suffices.
+    private func callableReceiverParameterKind(
+        targetSymbol: SymbolID?,
+        signature: FunctionSignature?,
+        sema: SemaModule
+    ) -> Int {
+        guard let targetSymbol, let info = sema.symbols.symbol(targetSymbol) else { return 0 }
+        if let receiverType = signature?.receiverType,
+           signature?.contextReceiverTypes.contains(receiverType) == true {
+            return 3
+        }
+        if sema.symbols.extensionPropertyReceiverType(for: targetSymbol) != nil {
+            return 1
+        }
+        if let ownerSymbol = sema.symbols.lookup(fqName: Array(info.fqName.dropLast())),
+           let owner = sema.symbols.symbol(ownerSymbol),
+           [.class, .interface, .object, .enumClass, .annotationClass].contains(owner.kind) {
+            return 0
+        }
+        return 1
+    }
+
     private func runtimeCallableAnnotations(
         for symbol: SymbolID, ast: ASTModule, sema: SemaModule, interner: StringInterner
     ) -> [MetadataAnnotationRecord] {
@@ -172,6 +221,7 @@ extension LambdaLowerer {
     private func callableReflectionInvoker(
         callableSymbol: SymbolID, callableName: InternedString, targetSymbol: SymbolID?,
         parameterTypes: [TypeID], captureTypes: [TypeID], returnType: TypeID,
+        packedConstructorVarargs: Bool = false,
         sema: SemaModule, arena: KIRArena, interner: StringInterner
     ) -> KIRExprID {
         let name = interner.intern("kk_reflect_invoke_\(callableSymbol.rawValue)_\(arena.declarations.count)")
@@ -189,20 +239,73 @@ extension LambdaLowerer {
             body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
             return expr
         }
-        func unpack(_ list: KIRExprID, types: [TypeID]) -> [KIRExprID] {
+        let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+        func unpack(
+            _ list: KIRExprID, types: [TypeID], constructorParameters: Bool = false
+        ) -> [KIRExprID] {
             types.enumerated().map { index, type in
                 let offset = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
                 body.append(.constValue(result: offset, value: .intLiteral(Int64(index))))
                 let raw = arena.appendTemporary(type: sema.types.anyType)
                 body.append(.call(symbol: nil, callee: interner.intern("__kk_list_get"), arguments: [list, offset],
                                   result: raw, canThrow: true, thrownResult: nil))
+                if constructorParameters, let signature,
+                   signature.valueParameterIsVararg.indices.contains(index),
+                   signature.valueParameterIsVararg[index] {
+                    let storageType = driver.constructorParameterStorageType(
+                        at: index, signature: signature, sema: sema, interner: interner
+                    )
+                    let packed = arena.appendTemporary(type: storageType)
+                    if primitiveVarargArrayType(elementType: type, sema: sema, interner: interner) != nil {
+                        // Reflection receives the whole primitive array, not a
+                        // boxed scalar of the signature's element type.
+                        body.append(.copy(from: raw, to: packed))
+                    } else {
+                        // Kotlin reflection accepts Array<out T>; the existing
+                        // source constructor ABI consumes a packed List<T>.
+                        body.append(.call(
+                            symbol: nil, callee: interner.intern("__kk_array_toList"),
+                            arguments: [raw], result: packed, canThrow: false, thrownResult: nil
+                        ))
+                    }
+                    return packed
+                }
                 return normalizeHOFPrimitiveParameter(raw, type: type, sema: sema, arena: arena,
                                                        interner: interner, instructions: &body)
             }
         }
-        let arguments = unpack(refs[0], types: captureTypes) + unpack(refs[1], types: parameterTypes)
+        let receiverCount = parameterTypes.count - (signature?.parameterTypes.count ?? parameterTypes.count)
+        let invocationTypes = parameterTypes.enumerated().map { index, type in
+            let valueIndex = index - receiverCount
+            let isVararg = valueIndex >= 0 && valueIndex < (signature?.valueParameterIsVararg.count ?? 0)
+                && signature?.valueParameterIsVararg[valueIndex] == true
+            return callableReflectionParameterType(type, isVararg: isVararg, sema: sema, interner: interner)
+        }
+        let valueArgumentTypes = packedConstructorVarargs ? parameterTypes : invocationTypes
+        var valueArguments = unpack(
+            refs[1], types: valueArgumentTypes, constructorParameters: packedConstructorVarargs
+        )
+        if let targetSymbol,
+           sema.symbols.symbol(targetSymbol)?.kind != .constructor,
+           sema.symbols.symbol(targetSymbol)?.flags.contains(.localFunction) != true,
+           sema.symbols.externalLinkName(for: targetSymbol).map({ $0.hasPrefix("kk_fn_") }) ?? true {
+            for index in valueArguments.indices {
+                let valueIndex = index - receiverCount
+                guard valueIndex >= 0, valueIndex < (signature?.valueParameterIsVararg.count ?? 0),
+                      signature?.valueParameterIsVararg[valueIndex] == true,
+                      let elementType = signature?.parameterTypes[valueIndex],
+                      primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner) == nil
+                else { continue }
+                // Reflection supplies an Array, while source reference-vararg
+                // bodies use the same List representation as ordinary calls.
+                valueArguments[index] = driver.callSupportLowerer.emitArrayToList(
+                    valueArguments[index], arena: arena, interner: interner,
+                    anyType: sema.types.anyType, instructions: &body
+                )
+            }
+        }
+        let arguments = unpack(refs[0], types: captureTypes) + valueArguments
         let result = arena.appendTemporary(type: returnType)
-        let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
         if let targetSymbol, signature?.valueParameterHasDefaultValues.contains(true) == true,
            sema.symbols.symbol(targetSymbol)?.kind == .constructor,
            let wrapper = driver.ctx.pendingGeneratedCallableDeclIDs.compactMap({ declID -> KIRFunction? in
@@ -265,5 +368,96 @@ extension LambdaLowerer {
             body: body, isSuspend: false, isInline: false
         ))))
         return arena.appendExpr(.symbolRef(symbol), type: sema.types.anyType)
+    }
+}
+
+func callableReflectionParameterType(
+    _ elementType: TypeID,
+    isVararg: Bool,
+    sema: SemaModule,
+    interner: StringInterner
+) -> TypeID {
+    guard isVararg else { return elementType }
+    if let primitiveArray = primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner) {
+        return primitiveArray
+    }
+    guard let arraySymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")]) else {
+        return elementType
+    }
+    return sema.types.make(.classType(ClassType(classSymbol: arraySymbol, args: [.out(elementType)])))
+}
+
+/// Renders callable parameter metadata with the fully-qualified type notation used by KType.
+private func callableReflectionTypeName(
+    of type: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> String {
+    func nullabilitySuffix(_ nullability: Nullability) -> String {
+        nullability == .nullable ? "?" : ""
+    }
+
+    func typeArgumentName(_ argument: TypeArg) -> String {
+        switch argument {
+        case let .invariant(type):
+            callableReflectionTypeName(of: type, sema: sema, interner: interner)
+        case let .out(type):
+            "out \(callableReflectionTypeName(of: type, sema: sema, interner: interner))"
+        case let .in(type):
+            "in \(callableReflectionTypeName(of: type, sema: sema, interner: interner))"
+        case .star:
+            "*"
+        }
+    }
+
+    switch sema.types.kind(of: type) {
+    case .error:
+        return "<error>"
+    case .unit:
+        return "kotlin.Unit"
+    case .nullableUnit:
+        return "kotlin.Unit?"
+    case let .nothing(nullability):
+        return "kotlin.Nothing\(nullabilitySuffix(nullability))"
+    case let .any(nullability):
+        return "kotlin.Any\(nullabilitySuffix(nullability))"
+    case let .stringStruct(nullability):
+        return "kotlin.String\(nullabilitySuffix(nullability))"
+    case let .primitive(primitive, nullability):
+        return "kotlin.\(primitive.kotlinName)\(nullabilitySuffix(nullability))"
+    case let .classType(classType):
+        let className = sema.symbols.symbol(classType.classSymbol)
+            .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
+            .flatMap { $0.isEmpty ? nil : $0 }
+            ?? sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
+        let arguments = classType.args.isEmpty
+            ? ""
+            : "<" + classType.args.map(typeArgumentName).joined(separator: ", ") + ">"
+        return "\(className)\(arguments)\(nullabilitySuffix(classType.nullability))"
+    case let .typeParam(typeParameter):
+        let name = sema.symbols.symbol(typeParameter.symbol).map { interner.resolve($0.name) } ?? "T"
+        return "\(name)\(nullabilitySuffix(typeParameter.nullability))"
+    case let .functionType(functionType):
+        let contextPrefix = functionType.contextReceivers.isEmpty
+            ? ""
+            : "context(" + functionType.contextReceivers
+                .map { callableReflectionTypeName(of: $0, sema: sema, interner: interner) }
+                .joined(separator: ", ") + ") "
+        let receiverPrefix = functionType.receiver
+            .map { "\(callableReflectionTypeName(of: $0, sema: sema, interner: interner))." } ?? ""
+        let suspendPrefix = functionType.isSuspend ? "suspend " : ""
+        let parameters = functionType.params
+            .map { callableReflectionTypeName(of: $0, sema: sema, interner: interner) }
+            .joined(separator: ", ")
+        let returnType = callableReflectionTypeName(of: functionType.returnType, sema: sema, interner: interner)
+        let functionName = "\(contextPrefix)\(suspendPrefix)\(receiverPrefix)(\(parameters)) -> \(returnType)"
+        return functionType.nullability == .nullable ? "(\(functionName))?" : functionName
+    case let .intersection(types):
+        return types
+            .map { callableReflectionTypeName(of: $0, sema: sema, interner: interner) }
+            .joined(separator: " & ")
+    case let .kClassType(kClassType):
+        let argument = callableReflectionTypeName(of: kClassType.argument, sema: sema, interner: interner)
+        return "kotlin.reflect.KClass<\(argument)>\(nullabilitySuffix(kClassType.nullability))"
     }
 }

@@ -21,7 +21,7 @@ extension ExprTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindExprType(id, type: resolved)
                 return resolved
@@ -129,7 +129,7 @@ extension ExprTypeChecker {
         let outerReceiverPropertySymbols = Set(
             sema.symbols.allSymbols().compactMap { symbol -> SymbolID? in
                 guard symbol.kind == .property,
-                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
+                      let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
                       sema.symbols.symbol(ownerSymbol)?.kind == .class
                 else {
@@ -149,6 +149,7 @@ extension ExprTypeChecker {
         var captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+            .union(ctx.implicitReceiverStack.map(\.symbol))
         // An unqualified call to an enclosing class member still needs that
         // receiver after the object literal's own receiver becomes active.
         // Capture the enclosing receiver symbol as a value just like a local.
@@ -188,7 +189,7 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             if case let .classType(classType) = sema.types.kind(of: resolved),
                !directSuperSymbols.contains(classType.classSymbol)
@@ -212,7 +213,7 @@ extension ExprTypeChecker {
             let classNames = concreteClassSupers.compactMap { sema.symbols.symbol($0)?.fqName.last }
                 .map { interner.resolve($0) }
                 .joined(separator: ", ")
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0170",
                 "Object literal '\(interner.resolve(objectDecl.name))' cannot inherit from more than one class. Found: \(classNames).",
                 range: objectDecl.range
@@ -223,6 +224,51 @@ extension ExprTypeChecker {
         for (superSymbol, args) in directSuperTypeArgs {
             sema.symbols.setSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
             sema.types.setNominalSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
+        }
+
+        let inheritance = DataFlowSemaPhase()
+        inheritance.validateSupertypesAreOpen(
+            directSupertypes: directSuperSymbols,
+            declRange: objectDecl.range,
+            symbols: sema.symbols,
+            diagnostics: ctx.sema.diagnostics,
+            interner: interner
+        )
+
+        // Delegate expressions run in the enclosing scope, before the anonymous
+        // object's receiver and members become available.
+        for entry in objectDecl.superTypeEntries {
+            guard let delegateExpr = entry.delegateExpression else { continue }
+            let interfaceType = driver.helpers.resolveTypeRef(
+                entry.typeRef,
+                ast: ast,
+                sema: sema,
+                interner: interner,
+                scope: ctx.scope,
+                diagnostics: ctx.sema.diagnostics
+            )
+            let field = inheritance.registerClassDelegation(
+                delegateExpression: delegateExpr,
+                interfaceType: interfaceType,
+                classSymbol: objectSymbol,
+                range: objectDecl.range,
+                symbols: sema.symbols,
+                types: sema.types,
+                diagnostics: ctx.sema.diagnostics,
+                interner: interner
+            )
+            let expectedType = field.flatMap { sema.symbols.propertyType(for: $0) }
+            let delegateType = driver.inferExpr(delegateExpr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            if let expectedType {
+                driver.emitSubtypeConstraint(
+                    left: delegateType,
+                    right: expectedType,
+                    range: ast.arena.exprRange(delegateExpr),
+                    solver: driver.solver,
+                    sema: sema,
+                    diagnostics: ctx.sema.diagnostics
+                )
+            }
         }
 
         // KSP-CAP-018: the superclass constructor call's arguments
@@ -265,6 +311,22 @@ extension ExprTypeChecker {
             objectScope: objectScope,
             ctx: ctx
         )
+        inheritance.synthesizeDelegationForwardingForClass(
+            range: objectDecl.range,
+            memberFunctions: objectDecl.memberFunctions,
+            memberProperties: objectDecl.memberProperties,
+            classSymbol: objectSymbol,
+            classFQName: objectSymbolFQName,
+            symbols: sema.symbols,
+            bindings: sema.bindings,
+            types: sema.types,
+            interner: interner
+        )
+        for symbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: objectSymbol)
+            + sema.symbols.classDelegationForwardingPropertySymbols(forClass: objectSymbol)
+        {
+            objectScope.insert(symbol)
+        }
         // An unqualified member call (or `this@Outer`) inside the object
         // literal's member bodies can target the enclosing receiver — the
         // innermost `outerReceiverTypes` entry. Its runtime value is the
@@ -345,7 +407,7 @@ extension ExprTypeChecker {
                 symbol: functionSymbol,
                 ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
                 solver: driver.solver,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 baseLocals: outerLocalsSnapshot
             )
             capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
@@ -413,6 +475,7 @@ extension ExprTypeChecker {
             ownerSymbol: objectSymbol,
             outerLocalsSnapshot: outerLocalsSnapshot,
             outerReceiverTypes: ctx.outerReceiverTypes,
+            receiverStack: ctx.implicitReceiverStack,
             sema: sema
         )
 
@@ -488,19 +551,64 @@ extension ExprTypeChecker {
             sema.symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: propertySymbol)
 
-            let declaredType = propertyDecl.type.map {
-                driver.helpers.resolveTypeRef(
-                    $0,
-                    ast: ast,
-                    sema: sema,
-                    interner: interner,
-                    scope: ctx.scope,
-                    diagnostics: ctx.semaCtx.diagnostics,
-                    inferenceContext: ctx,
-                    usageRange: propertyDecl.range
+            let ownerScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)
+            let ownerParameters = sema.types.nominalTypeParameterSymbols(for: ownerSymbol)
+            for parameter in ownerParameters { ownerScope.insert(parameter) }
+            let propertyScope = FunctionScope(parent: ownerScope, symbols: sema.symbols)
+            var parameters: [SymbolID] = []
+            for parameter in propertyDecl.typeParams {
+                let symbol = sema.symbols.define(
+                    kind: .typeParameter, name: parameter.name,
+                    fqName: ownerFQName + [propertyDecl.name, interner.intern("$\(propertySymbol.rawValue)"), parameter.name],
+                    declSite: propertyDecl.range, visibility: .private,
+                    flags: parameter.isReified ? [.reifiedTypeParameter] : []
                 )
-            } ?? sema.types.anyType
+                parameters.append(symbol)
+                propertyScope.insert(symbol)
+            }
+            func resolvePropertyType(_ reference: TypeRefID) -> TypeID {
+                driver.helpers.resolveTypeRef(reference, ast: ast, sema: sema, interner: interner,
+                                              scope: propertyScope, diagnostics: ctx.sema.diagnostics,
+                                              inferenceContext: ctx, usageRange: propertyDecl.range)
+            }
+            for (parameter, symbol) in zip(propertyDecl.typeParams, parameters) {
+                let bounds = parameter.upperBounds.map(resolvePropertyType)
+                if !bounds.isEmpty { sema.symbols.setTypeParameterUpperBounds(bounds, for: symbol) }
+                DataFlowSemaPhase.checkConflictingClassUpperBounds(
+                    typeParamName: parameter.name, bounds: bounds, declSite: propertyDecl.range,
+                    symbols: sema.symbols, types: sema.types, interner: interner,
+                    diagnostics: ctx.sema.diagnostics
+                )
+            }
+            let declaredType = propertyDecl.type.map(resolvePropertyType) ?? sema.types.anyType
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
+            if let receiver = propertyDecl.receiverType.map(resolvePropertyType) {
+                sema.symbols.insertFlags(.memberExtension, for: propertySymbol)
+                sema.symbols.setExtensionPropertyReceiverType(receiver, for: propertySymbol)
+                let allParameters = ownerParameters + parameters
+                let bounds = allParameters.map { sema.symbols.typeParameterUpperBounds(for: $0) }
+                func accessor(_ name: String, parameterTypes: [TypeID], returnType: TypeID) -> SymbolID {
+                    let symbol = sema.symbols.define(
+                        kind: .function, name: interner.intern(name),
+                        fqName: ownerFQName + [propertyDecl.name, interner.intern("$" + name)],
+                        declSite: propertyDecl.range, visibility: .public, flags: [.synthetic]
+                    )
+                    sema.symbols.setParentSymbol(propertySymbol, for: symbol)
+                    sema.symbols.setFunctionSignature(FunctionSignature(
+                        receiverType: receiver, parameterTypes: parameterTypes, returnType: returnType,
+                        typeParameterSymbols: allParameters,
+                        reifiedTypeParameterIndices: Set(propertyDecl.typeParams.indices.filter { propertyDecl.typeParams[$0].isReified }.map { $0 + ownerParameters.count }),
+                        typeParameterUpperBoundsList: bounds,
+                        classTypeParameterCount: ownerParameters.count
+                    ), for: symbol)
+                    return symbol
+                }
+                sema.symbols.setExtensionPropertyGetterAccessor(accessor("get", parameterTypes: [], returnType: declaredType), for: propertySymbol)
+                if propertyDecl.isVar {
+                    sema.symbols.setExtensionPropertySetterAccessor(accessor("set", parameterTypes: [declaredType], returnType: sema.types.unitType), for: propertySymbol)
+                }
+            }
+            if propertyDecl.getter?.body != nil { sema.symbols.setPropertyHasCustomGetter(true, for: propertySymbol) }
 
             // KSP-CAP-018: mirror `MemberHeaderCollection`'s backing-field rule.
             // A property carrying accessors *and* real storage (a setter, or an
@@ -514,7 +622,7 @@ extension ExprTypeChecker {
                 && propertyDecl.initializer == nil
             let needsBackingField = !isGetterOnlyComputed
                 && (propertyDecl.getter != nil || propertyDecl.setter != nil)
-            if needsBackingField, propertyDecl.delegateExpression == nil {
+            if needsBackingField, propertyDecl.delegateExpression == nil, propertyDecl.receiverType == nil {
                 let fieldName = interner.intern("$backing_\(interner.resolve(propertyDecl.name))")
                 let backingFieldSymbol = sema.symbols.define(
                     kind: .backingField,
@@ -581,18 +689,7 @@ extension ExprTypeChecker {
                 continue
             }
 
-            let declaredType = propertyDecl.type.map {
-                driver.helpers.resolveTypeRef(
-                    $0,
-                    ast: ast,
-                    sema: sema,
-                    interner: interner,
-                    scope: memberScope,
-                    diagnostics: ctx.semaCtx.diagnostics,
-                    inferenceContext: memberCtx,
-                    usageRange: propertyDecl.range
-                )
-            }
+            let declaredType = propertyDecl.type == nil ? nil : sema.symbols.propertyType(for: propertySymbol)
 
             var inferredType: TypeID?
             if let initializer = propertyDecl.initializer {
@@ -609,7 +706,7 @@ extension ExprTypeChecker {
                         range: propertyDecl.range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                 }
                 inferredType = type
@@ -624,7 +721,15 @@ extension ExprTypeChecker {
             // `DeclTypeChecker` describes for delegate bodies. Ordering mirrors
             // the named path in `DeclTypeChecker.typeCheckPropertyDecl`: the
             // getter can supply the property's type, the setter needs it final.
-            let accessorCtx = memberCtx.with(currentDeclSymbol: propertySymbol)
+            var accessorCtx = driver.declChecker.propertyTypeParameterContext(
+                propertyDecl, symbol: propertySymbol, ctx: memberCtx, diagnostics: ctx.sema.diagnostics
+            )
+            if let receiver = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) {
+                accessorCtx = accessorCtx.copying(implicitReceiverType: receiver).withOuterReceiver(
+                    label: propertyDecl.name, type: receiver,
+                    symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: propertySymbol)
+                )
+            }
             if let getter = propertyDecl.getter, getter.body != .unit {
                 inferredType = driver.declChecker.typeCheckGetter(
                     getter,
@@ -632,7 +737,7 @@ extension ExprTypeChecker {
                     inferredPropertyType: declaredType ?? inferredType,
                     accessorCtx: accessorCtx,
                     solver: driver.solver,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     baseLocals: accessorBaseLocals
                 )
             }
@@ -652,7 +757,7 @@ extension ExprTypeChecker {
                     inferredPropertyType: declaredType ?? inferredType,
                     ctx: memberCtx,
                     locals: &initializerLocals,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     delegateBody: propertyDecl.delegateBody,
                     delegateBodyParams: propertyDecl.delegateBodyParams
                 )
@@ -664,7 +769,7 @@ extension ExprTypeChecker {
             } else if let inferredType {
                 finalType = inferredType
             } else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0101",
                     "Property '\(interner.resolve(propertyDecl.name))' in object literal must have a type annotation or initializer.",
                     range: propertyDecl.range
@@ -681,7 +786,7 @@ extension ExprTypeChecker {
                     finalPropertyType: finalType,
                     accessorCtx: accessorCtx,
                     solver: driver.solver,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     baseLocals: accessorBaseLocals
                 )
             }
@@ -691,10 +796,11 @@ extension ExprTypeChecker {
     /// Unions the captured-outer-symbol sets of a local nominal's accessor
     /// bodies (always lowered as standalone KIR functions) and any caller-
     /// supplied roots: `extraBodies` covers `init {}` blocks and
-    /// `extraExprRoots` covers superclass constructor arguments and property
-    /// initializers — all of which lower inside `<init>` for a local class,
-    /// unlike an object literal where they run inline in the enclosing
-    /// function. `includePropertyInitializers` handles the latter.
+    /// `extraExprRoots` covers superclass constructor arguments.
+    /// `includePropertyInitializers` also collects ordinary property
+    /// initializers and delegated-property expressions; all of these lower
+    /// inside `<init>` for a local class, unlike an object literal where they
+    /// run inline in the enclosing function.
     func collectLocalNominalCaptureSymbols(
         memberProperties: [DeclID],
         includePropertyInitializers: Bool,
@@ -723,13 +829,19 @@ extension ExprTypeChecker {
                     skipNestedClosures: false
                 ))
             }
-            if includePropertyInitializers, let initializer = propertyDecl.initializer {
-                capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
-                    in: initializer,
-                    ast: ast,
-                    sema: sema,
-                    outerSymbols: captureOuterSymbols
-                ))
+            if includePropertyInitializers {
+                let initializerRoots = [
+                    propertyDecl.initializer,
+                    propertyDecl.delegateExpression,
+                ].compactMap { $0 }
+                for initializer in initializerRoots {
+                    capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                        in: initializer,
+                        ast: ast,
+                        sema: sema,
+                        outerSymbols: captureOuterSymbols
+                    ))
+                }
             }
         }
         for body in extraBodies {
@@ -761,6 +873,7 @@ extension ExprTypeChecker {
         ownerSymbol: SymbolID,
         outerLocalsSnapshot: LocalBindings,
         outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)],
+        receiverStack: [(type: TypeID, symbol: SymbolID)] = [],
         sema: SemaModule
     ) {
         guard !capturedSymbols.isEmpty else {
@@ -774,6 +887,9 @@ extension ExprTypeChecker {
             if let symbol = outerReceiver.symbol {
                 typesBySymbol[symbol] = outerReceiver.type
             }
+        }
+        for receiver in receiverStack {
+            typesBySymbol[receiver.symbol] = receiver.type
         }
         for capturedSymbol in capturedSymbols {
             if let type = typesBySymbol[capturedSymbol]
@@ -842,6 +958,13 @@ extension ExprTypeChecker {
             fieldOffsets[storageSymbol] = nextFieldOffset
             nextFieldOffset += 1
         }
+        let delegationFields = sema.symbols.delegatedInterfaces(forClass: ownerSymbol).compactMap {
+            sema.symbols.classDelegationField(forClass: ownerSymbol, interface: $0)
+        }
+        for fieldSymbol in delegationFields where fieldOffsets[fieldSymbol] == nil {
+            fieldOffsets[fieldSymbol] = nextFieldOffset
+            nextFieldOffset += 1
+        }
         // KSP-CAP-001: give each captured outer local/parameter its own
         // instance field so member functions (lowered as independent KIR
         // functions, unlike inlined property initializers) can read the
@@ -856,7 +979,8 @@ extension ExprTypeChecker {
         }
 
         let inheritedFieldCount = inheritedLayout?.instanceFieldCount ?? 0
-        let instanceFieldCount = inheritedFieldCount + propertySymbolsByDecl.count + capturedSymbols.count
+        let instanceFieldCount = inheritedFieldCount + propertySymbolsByDecl.count
+            + delegationFields.count + capturedSymbols.count
         let inheritedInstanceSizeWords = inheritedLayout?.instanceSizeWords ?? 0
         let instanceSizeWords = max(objectHeaderWords + instanceFieldCount, inheritedInstanceSizeWords)
         let inheritedVtableSlots = inheritedLayout?.vtableSlots ?? [:]
@@ -878,7 +1002,9 @@ extension ExprTypeChecker {
         // call through a base-typed reference finds no slot and is lowered as
         // a direct call to the base implementation.
         var nextVtableSlot = max(inheritedVtableSize ?? 0, (inheritedVtableSlots.values.max() ?? -1) + 1)
-        for memberSymbolID in memberFunctionSymbolsByDecl.values.sorted(by: { $0.rawValue < $1.rawValue }) {
+        let memberFunctionSymbols = Array(memberFunctionSymbolsByDecl.values)
+            + sema.symbols.classDelegationForwardingMethodSymbols(forClass: ownerSymbol)
+        for memberSymbolID in memberFunctionSymbols.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let method = sema.symbols.symbol(memberSymbolID) else { continue }
             if method.flags.contains(.overrideMember),
                let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]
@@ -947,7 +1073,7 @@ extension ExprTypeChecker {
             guard let missingSymbol = sema.symbols.symbol(missingMember) else {
                 continue
             }
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-ABSTRACT",
                 "\(subjectDescription) must override abstract member "
                     + "'\(interner.resolve(missingSymbol.name))'.",
@@ -1000,7 +1126,7 @@ extension ExprTypeChecker {
                 name: functionDecl.name,
                 fqName: memberFQNamePrefix + [functionDecl.name],
                 declSite: functionDecl.range,
-                visibility: objectLiteralVisibility(from: functionDecl.modifiers),
+                visibility: Visibility(modifiers: functionDecl.modifiers),
                 flags: objectLiteralFunctionFlags(
                     from: functionDecl,
                     objectSymbol: objectSymbol,
@@ -1023,7 +1149,7 @@ extension ExprTypeChecker {
                         sema: sema,
                         interner: interner,
                         scope: objectScope,
-                        diagnostics: ctx.semaCtx.diagnostics,
+                        diagnostics: ctx.sema.diagnostics,
                         inferenceContext: ctx,
                         usageRange: functionDecl.range
                     )
@@ -1053,7 +1179,7 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner,
                     scope: objectScope,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     inferenceContext: ctx
                 )
             } else {
@@ -1090,13 +1216,6 @@ extension ExprTypeChecker {
         return result
     }
 
-    private func objectLiteralVisibility(from modifiers: Modifiers) -> Visibility {
-        if modifiers.contains(.private) { return .private }
-        if modifiers.contains(.internal) { return .internal }
-        if modifiers.contains(.protected) { return .protected }
-        return .public
-    }
-
     private func objectLiteralFunctionFlags(
         from functionDecl: FunDecl,
         objectSymbol: SymbolID,
@@ -1122,8 +1241,7 @@ extension ExprTypeChecker {
                name: functionDecl.name,
                parameterCount: functionDecl.valueParams.count,
                ownerSymbol: objectSymbol,
-               sema: sema,
-               interner: interner
+               sema: sema
            )
         {
             flags.insert(.operatorFunction)
@@ -1135,8 +1253,7 @@ extension ExprTypeChecker {
         name: InternedString,
         parameterCount: Int,
         ownerSymbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> Bool {
         var stack = sema.symbols.directSupertypes(for: ownerSymbol)
         var visited: Set<SymbolID> = []

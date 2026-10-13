@@ -97,6 +97,17 @@ public fun <T> Array<T>.lastIndexOf(element: T): Int {
     return -1
 }
 
+// KUU-1889: keep the standard covariant receiver and stop at the first match.
+public inline fun <T> Array<out T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
 // KSP-433: predicate-based search / quantifier HOFs are source-backed.
 // Exception messages match kotlinc's Array wording
 // ("Array is empty." / "Array contains no element matching the predicate.").
@@ -229,4 +240,44 @@ public fun <T> Array<T>.count(predicate: (T) -> Boolean): Int {
         i++
     }
     return count
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UByteArray.contains(element: UByte): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UShortArray.contains(element: UShort): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UIntArray.contains(element: UInt): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
+
+@ExperimentalUnsignedTypes
+public operator fun ULongArray.contains(element: ULong): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
 }

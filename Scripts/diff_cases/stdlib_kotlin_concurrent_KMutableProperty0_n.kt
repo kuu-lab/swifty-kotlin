@@ -1,5 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.concurrent KMutableProperty0 field APIs are
-// Kotlin/Native-only and are unavailable in the JVM kotlinc reference environment.
+// CANDIDATE-ONLY: kotlin.concurrent KMutableProperty0 field APIs are Kotlin/Native-only and have no JVM reference.
 // KSP-1084: source-backed receiverless mutable property field operations.
 // The upstream declarations are Kotlin/Native-only; the local implementation
 // preserves their sequential get/set and arithmetic behavior.

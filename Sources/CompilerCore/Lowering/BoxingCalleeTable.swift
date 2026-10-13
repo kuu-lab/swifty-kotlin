@@ -235,7 +235,7 @@ struct BoxingCalleeTable {
         requireNonNull: Bool,
         preferStaticPrimitive: Bool = false
     ) -> InternedString? {
-        if case .unit = kind {
+        if kind == .unit || kind == .nullableUnit {
             return unitCallee
         }
         if requireNonNull, Self.isNonNullableStringStruct(kind) {
@@ -311,7 +311,7 @@ struct BoxingCalleeTable {
         return nullability == .nonNull
     }
 
-    private static func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
+    static func isNonNullableStringStruct(_ kind: TypeKind) -> Bool {
         guard case let .stringStruct(nullability) = kind else {
             return false
         }

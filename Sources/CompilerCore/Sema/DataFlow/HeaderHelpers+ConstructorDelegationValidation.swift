@@ -35,6 +35,21 @@ extension DataFlowSemaPhase {
                         )
                     }
                 }
+                // KUU-1407: with no primary constructor, `this(...)`
+                // delegations can only target other secondary constructors,
+                // so an all-`this` graph necessarily contains a cycle.
+                if !classDecl.hasPrimaryConstructorSyntax,
+                   !classDecl.secondaryConstructors.isEmpty,
+                   classDecl.secondaryConstructors.allSatisfy({ $0.delegationCall?.kind == .this })
+                {
+                    for secondaryCtor in classDecl.secondaryConstructors {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0412",
+                            "there's a cycle in the delegation calls chain.",
+                            range: secondaryCtor.delegationCall?.range ?? secondaryCtor.range
+                        )
+                    }
+                }
             }
         }
     }

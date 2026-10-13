@@ -1,0 +1,93 @@
+{
+  "status": "PREPARED_ONLY_NO_TYPECHECK_EXECUTION_NO_NATIVE_FINAL_COMPLETION",
+  "base_atomic_head": "c4a8be190047f9bfdfbc8bc233556e8ae9095b37",
+  "new_declared_tests": {
+    "Runtime_methods": 7,
+    "Runtime_cases": 7,
+    "Backend_methods": 2,
+    "Backend_cases": 8,
+    "total_methods": 9,
+    "total_cases": 15
+  },
+  "Backend_axes": {
+    "stdlib": [
+      "source",
+      "actual_compiled_kklib"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "prepared_output_rows": {
+      "gc-boundary": 6,
+      "gc-consumer": 2
+    }
+  },
+  "required_before_run": [
+    "Root capacity and source freeze release",
+    "fresh-context independent review",
+    "Swift typecheck/fresh build; preserve any compile failure without execution credit"
+  ],
+  "finite_outer_gate": {
+    "jobs": 2,
+    "build_seconds": 600,
+    "compile_seconds": 900,
+    "shared_body_seconds": 5400,
+    "whole_seconds": 7200,
+    "native_run_seconds": 10,
+    "automatic_retries": 0,
+    "reap": "processgroup/subreaper actual PID/start and live0/ownedZ0 before reset/release",
+    "failure_retention": "first failing source/executable/.o/producer/dependency hashes/raw outputs preserved; decoded Swift helper stream limit honest; outer observer raw stdout/stderr retained"
+  },
+  "baseline_direct_cell_repro": "kk_alloc TypeInfo live; register AtomicRef payload; collect; real heapcount expectation1; current unrooted baseline fails by source consequence, actual not measured",
+  "Runtime_scope": "^RuntimeTests\\.RuntimeAtomicManagedPayloadTests(/|$)",
+  "Backend_scope": "^CompilerBackendTests\\.AtomicfuBundledExecutionTests/(managedPayloadCompatibilityControls|managedPayloadProducerConsumerCompatibility)(/|$)",
+  "retained_regressions": [
+    "original Atomicfu Runtime synchronization methods and ABI9",
+    "original source/library compiled150 binder assertions",
+    "primitive/null/string/enum CAS matching and arrays",
+    "ordinary object explicit-release/pin/StableRef/borrowed ownership",
+    "RuntimeGCTests frame/global/coroutine/typeinfo/callable roots"
+  ],
+  "actual_run_counts": {
+    "SwiftPM": 0,
+    "candidate": 0,
+    "Native": 0,
+    "JVM": 0,
+    "Kotlin": 0
+  },
+  "next_unfixed_proof_stages": [
+    "real root through ordinary box/array/fields + TLS no alternate root",
+    "live source/imported local/capture/global roots and mutator handshake before opt-in sweep",
+    "rooted shared kernels survive originating TLS exit; last actual owner reclaimed",
+    "ARC releases outside GC lock, typed tracing, acquire strong handle before unlock",
+    "bounded whole-owner/kernel heap/registry/weak-reference reclamation loops"
+  ],
+  "new_Runtime_ABI_private": 0,
+  "new_Runtime_ABI_public": 0,
+  "Native150_changed": false,
+  "Native_final_GC_claim": false,
+  "Runtime_mutation_exclusion_control": {
+    "method": "referenceCellMutationsWaitForCollectorSnapshotCriticalSection",
+    "cases": 1,
+    "actual_real_methods": {
+      "AtomicRefBox": [
+        "store",
+        "exchange",
+        "compareAndExchange"
+      ],
+      "AtomicRefArrayBox": [
+        "store",
+        "exchange",
+        "compareAndSet",
+        "compareAndExchange"
+      ]
+    },
+    "handle_resolution": "Acquire strong real boxes before collector lock; worker uses direct methods, no handle-resolution lock masking.",
+    "held_observation_milliseconds": 100,
+    "ready_and_post_unlock_seconds": 3,
+    "failed_drain": "Record failed expectation and hold isolation scope with failure-only group.wait until actual worker drains. Required finite outer processgroup watchdog terminates/reaps a genuine hang; never reset while worker remains active.",
+    "scheduler_limit": "A descheduled worker after ready can hide missing exclusion; no portable mathematical fairness proof or product hook is claimed.",
+    "unexecuted": true
+  }
+}

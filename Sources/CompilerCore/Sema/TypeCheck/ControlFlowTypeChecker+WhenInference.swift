@@ -20,7 +20,7 @@ extension ControlFlowTypeChecker {
             let declaredType = ast.arena.whenSubjectTypeRef(for: id).map {
                 driver.helpers.resolveTypeRef(
                     $0, ast: ast, sema: sema, interner: interner,
-                    scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics,
+                    scope: ctx.scope, diagnostics: ctx.sema.diagnostics,
                     inferenceContext: ctx, usageRange: range
                 )
             }
@@ -34,7 +34,7 @@ extension ControlFlowTypeChecker {
                 driver.emitSubtypeConstraint(
                     left: initializerType, right: declaredType,
                     range: ast.arena.exprRange(subjectID), solver: ConstraintSolver(),
-                    sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                    sema: sema, diagnostics: ctx.sema.diagnostics
                 )
             }
             let subjectType = declaredType ?? initializerType
@@ -141,7 +141,7 @@ extension ControlFlowTypeChecker {
                     }
                     switch conditionSymbol.kind {
                     case .field:
-                        if let ownerID = driver.helpers.enumOwnerSymbol(for: conditionSymbol, symbols: sema.symbols),
+                        if let ownerID = sema.symbols.enumOwnerSymbol(for: conditionSymbol),
                            ownerID == subjectNominalSymbol
                         {
                             covered.insert(conditionSymbol.name)
@@ -254,13 +254,13 @@ extension ControlFlowTypeChecker {
                     // and across branches for diagnostic purposes.
                     if let key = whenConditionKey(for: cond, ast: ast, sema: sema, interner: interner) {
                         if !branchConditionKeys.insert(key).inserted {
-                            ctx.semaCtx.diagnostics.warning(
+                            ctx.sema.diagnostics.warning(
                                 "KSWIFTK-SEMA-0072",
                                 "Duplicate condition in when branch.",
                                 range: ast.arena.exprRange(cond)
                             )
                         } else if branch.guard_ == nil, !allSeenConditionKeys.insert(key).inserted {
-                            ctx.semaCtx.diagnostics.warning(
+                            ctx.sema.diagnostics.warning(
                                 "KSWIFTK-SEMA-0073",
                                 "Condition already covered by a previous when branch.",
                                 range: ast.arena.exprRange(cond)
@@ -362,7 +362,7 @@ extension ControlFlowTypeChecker {
                 if let guardExpr = branch.guard_ {
                     let guardType = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
                     if guardType != boolType, guardType != sema.types.errorType {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0074",
                             "When branch guard condition must be a Boolean expression.",
                             range: ast.arena.exprRange(guardExpr)
@@ -441,13 +441,13 @@ extension ControlFlowTypeChecker {
                 {
                     let missingNames = missingBranches.map { interner.resolve($0) }.sorted()
                     let missingList = missingNames.joined(separator: ", ")
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0071",
                         "Non-exhaustive when expression on sealed type. Missing branches: \(missingList).",
                         range: range
                     )
                 } else {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0004",
                         "Non-exhaustive when expression.",
                         range: range
@@ -484,7 +484,11 @@ extension ControlFlowTypeChecker {
             mergeNullableBranchAssignments(
                 completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
             )
-            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
+            let contextualizedTypes = contextualizeLongBranchLiterals(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                types: branchTypes, ctx: ctx
+            )
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -507,7 +511,7 @@ extension ControlFlowTypeChecker {
                 for cond in branch.conditions {
                     let condType = driver.inferExpr(cond, ctx: condCtx, locals: &branchLocals)
                     if condType != boolType, condType != sema.types.errorType {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0032",
                             "Subject-less when branch condition must be a Boolean expression.",
                             range: branch.range
@@ -549,7 +553,7 @@ extension ControlFlowTypeChecker {
                 if let guardExpr = branch.guard_ {
                     let guardType = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
                     if guardType != boolType, guardType != sema.types.errorType {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0074",
                             "When branch guard condition must be a Boolean expression.",
                             range: ast.arena.exprRange(guardExpr)
@@ -583,7 +587,7 @@ extension ControlFlowTypeChecker {
             // A subject-less `when` used as a statement (its value discarded) does not
             // require exhaustiveness in Kotlin - only `when` used as an expression does.
             if !isExhaustive, !isStatementContext {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0004",
                     "Non-exhaustive when expression.",
                     range: range
@@ -619,11 +623,13 @@ extension ControlFlowTypeChecker {
             mergeNullableBranchAssignments(
                 completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
             )
-            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
+            let contextualizedTypes = contextualizeLongBranchLiterals(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                types: branchTypes, ctx: ctx
+            )
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         }
     }
-
-    // MARK: - Destructuring Declarations
 }

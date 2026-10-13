@@ -168,6 +168,45 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCodegenStringFirstLastPredicatesInTemplate() throws {
+        let source = """
+        class Solver {
+            private fun calibrationValue(row: String): Int = "${row.first { it.isDigit() }}${row.last { it.isDigit() }}".toInt()
+
+            private fun calibrationWithLocals(row: String): Int {
+                val first = row.first { it.isDigit() }
+                val last = row.last { it.isDigit() }
+                return "$first$last".toInt()
+            }
+
+            fun run(): Int = calibrationValue("a1b2")
+            fun runWithLocals(): Int = calibrationWithLocals("a1b2")
+            fun solvePart1(): Int = listOf("1abc2", "pqr3stu8vwx", "a1b2c3d4e5f", "treb7uchet").sumOf { calibrationValue(it) }
+            fun solvePart2(): Int = listOf("219", "823", "123", "214", "49872", "18234", "76").sumOf { calibrationValue(it) }
+        }
+
+        fun main() {
+            println(Solver().run())
+            println(Solver().runWithLocals())
+            println(Solver().solvePart1())
+            println(Solver().solvePart2())
+        }
+        """
+        let expected = "12\n12\n142\n281\n"
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            for allowDefaultStdlibLibrary in [true, false] {
+                try assertKotlinOutput(
+                    source,
+                    moduleName: "StringHOFFirstLastInTemplate",
+                    expected: expected,
+                    optLevel: optLevel,
+                    allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+                )
+            }
+        }
+    }
+
     // TEST-TEXT-018: firstOrNull / lastOrNull / singleOrNull — null on empty and multi-element
     @Test
     func testCodegenStringNullableAccessors() throws {

@@ -43,7 +43,7 @@
     {
       "file": "abstract_property_errors.kt",
       "range": {
-        "start": { "line": 20, "character": 4 },
+        "start": { "line": 21, "character": 8 },
         "end": { "line": 21, "character": 23 }
       },
       "severity": 1,

@@ -13,6 +13,11 @@ import kotlin.internal.KsSymbolName
 internal external fun __isNativeDispatcher(element: CoroutineContext.Element): Boolean
 
 public interface ContinuationInterceptor : CoroutineContext.Element {
+    // KUU-1395: `ContinuationInterceptor`/`ContinuationInterceptor.Key`
+    // evaluates to a runtime key singleton (same pattern as `Job.Key`), so
+    // `ctx[ContinuationInterceptor]`/`ctx.minusKey(ContinuationInterceptor)`
+    // resolve the context's dispatcher element — a runBlocking event loop.
+    @KsSymbolName("kk_continuation_interceptor_key")
     public companion object Key : CoroutineContext.Key<ContinuationInterceptor>
 
     public fun <T> interceptContinuation(continuation: Continuation<T>): Continuation<T>

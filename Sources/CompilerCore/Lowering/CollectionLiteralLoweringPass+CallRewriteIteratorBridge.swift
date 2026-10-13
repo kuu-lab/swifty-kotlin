@@ -49,33 +49,14 @@ extension CollectionLiteralConstructionLoweringPass {
 
         // --- Rewrite arrayOf → kk_array_of ---
         if isStdlibArrayFactoryCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
-            let count = arguments.count
-            let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
-            loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-            let arrayExpr = module.arena.appendTemporary(type: nil
+            let (arrayExpr, _) = appendRuntimeArrayStorage(
+                arguments: arguments,
+                boxPrimitiveElements: false,
+                module: module,
+                ctx: ctx,
+                lookup: lookup,
+                loweredBody: &loweredBody
             )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkArrayNewName,
-                arguments: [countExpr],
-                result: arrayExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            for (i, arg) in arguments.enumerated() {
-                let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
-                loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                let setResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkArraySetName,
-                    arguments: [arrayExpr, idxExpr, arg],
-                    result: setResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            }
             let taggedArray = tagArrayValueIfNeeded(
                 arrayExpr,
                 type: result.flatMap { module.arena.exprType($0) },

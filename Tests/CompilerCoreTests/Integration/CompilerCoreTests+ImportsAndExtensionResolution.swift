@@ -241,7 +241,7 @@ extension CompilerCoreTests {
         if case let .named(path, _, nullable) = receiverType {
             #expect(!(nullable))
             #expect(path.count == 1)
-            #expect(ctx.interner.resolve(path[0]) == "String")
+            #expect(path == [KnownCompilerNames(interner: ctx.interner).string])
         } else {
             Issue.record("Expected named receiver type")
         }
@@ -269,7 +269,7 @@ extension CompilerCoreTests {
         if case let .named(path, _, nullable) = receiverType {
             #expect(nullable)
             #expect(path.count == 1)
-            #expect(ctx.interner.resolve(path[0]) == "String")
+            #expect(path == [KnownCompilerNames(interner: ctx.interner).string])
         } else {
             Issue.record("Expected named receiver type")
         }
@@ -294,7 +294,7 @@ extension CompilerCoreTests {
 
         #expect(classDecl.typeParams.count == 3)
         #expect(classDecl.typeParams.map(\.variance) == [.out, .in, .invariant])
-        #expect(classDecl.typeParams.map { ctx.interner.resolve($0.name) } == ["T", "U", "V"])
+        #expect(classDecl.typeParams.map(\.name) == ["T", "U", "V"].map(ctx.interner.intern))
     }
 
 
@@ -355,9 +355,8 @@ extension CompilerCoreTests {
         try runSema(ctx)
 
         let sema = try #require(ctx.sema)
-        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
-        })?.id)
+        let useSymbol = try #require(sema.symbols.lookup(fqName: ["app", "use"].map(ctx.interner.intern)))
+        #expect(sema.symbols.symbol(useSymbol)?.kind == .function)
         let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
         #expect(useSignature.returnType != sema.types.errorType)
 
@@ -440,9 +439,8 @@ extension CompilerCoreTests {
         try runSema(ctx)
 
         let sema = try #require(ctx.sema)
-        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
-        })?.id)
+        let useSymbol = try #require(sema.symbols.lookup(fqName: ["app", "use"].map(ctx.interner.intern)))
+        #expect(sema.symbols.symbol(useSymbol)?.kind == .function)
         let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
         #expect(useSignature.returnType != sema.types.errorType)
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)

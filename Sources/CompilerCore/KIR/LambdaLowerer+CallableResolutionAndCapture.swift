@@ -257,7 +257,7 @@ extension LambdaLowerer {
     ///   that entry's own synthesized subclass rather than `.enumClass`
     ///   itself — but this could not be verified either: referencing an
     ///   entry with a body at all (`EnumClass.ENTRY`) hits a separate,
-    ///   pre-existing, unrelated bug (see docs/diff-skip-inventory.md's
+    ///   pre-existing, unrelated bug (see the
     ///   `enum_edge_cases.kt` entry).
     /// - `.interface` is excluded because interface-owned properties have no
     ///   storage of their own (always dispatched through whichever class
@@ -483,7 +483,7 @@ extension LambdaLowerer {
             return check(lhs) || check(rhs)
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
-        case let .localFunDecl(_, receiverType, _, _, body, _, _):
+        case let .localFunDecl(_, receiverType, _, _, body, _, _, _):
             // Nested extensions supply their own implicit receiver. Their lexical
             // value captures are handled by collectBoundIdentifierSymbols.
             if excludingLocalExtensionBodies, receiverType != nil {
@@ -507,6 +507,9 @@ extension LambdaLowerer {
                 return false
             }
             if objectDecl.superTypeConstructorArgs.contains(where: { check($0.expr) }) {
+                return true
+            }
+            if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: check) {
                 return true
             }
             // KSP-CAP-018: see the accessor-body note in

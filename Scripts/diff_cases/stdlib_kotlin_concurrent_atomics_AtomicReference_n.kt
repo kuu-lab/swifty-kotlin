@@ -1,11 +1,6 @@
-// SKIP-DIFF (DEBT-DIFF-001): fetchAndUpdate / update / updateAndFetch on
-// kotlin.concurrent.atomics.AtomicReference are Native-only in Kotlin; the
-// JVM kotlinc reference cannot resolve them. Compilation and runtime
-// behaviour are covered by the Sema golden and the bundled stdlib.
-
 @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
 
-import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.*
 
 class RefBox(val s: String)
 

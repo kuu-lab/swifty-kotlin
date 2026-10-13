@@ -16,6 +16,9 @@ internal external fun __kkMutexCreate(): Mutex
 @KsSymbolName("__kk_mutex_isLocked")
 internal external fun __kkMutexIsLocked(mutex: Mutex): Boolean
 
+@KsSymbolName("__kk_mutex_holdsLock")
+internal external fun __kkMutexHoldsLock(mutex: Mutex, owner: Any): Boolean
+
 @KsSymbolName("__kk_mutex_tryLock")
 internal external fun __kkMutexTryLock(mutex: Mutex): Boolean
 
@@ -23,6 +26,8 @@ public fun Mutex(): Mutex = __kkMutexCreate()
 
 public val Mutex.isLocked: Boolean
     get() = __kkMutexIsLocked(this)
+
+public fun Mutex.holdsLock(owner: Any): Boolean = __kkMutexHoldsLock(this, owner)
 
 public fun Mutex.tryLock(): Boolean = __kkMutexTryLock(this)
 

@@ -403,9 +403,9 @@ extension LibMetadataSerializationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let shapeSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "Shape" && symbol.kind == .class
-            }
+            let shapeSymbol = sema.symbols.lookupAll(fqName: ["ext", "Shape"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .class }
             #expect(shapeSymbol != nil)
             #expect(shapeSymbol?.flags.contains(.sealedType) ?? false)
             #expect(!(shapeSymbol?.flags.contains(.dataType) ?? true))

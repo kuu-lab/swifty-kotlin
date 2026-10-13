@@ -8,9 +8,10 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
+// KUU-1597 Sema owner: pin numeric Duration companion extension overloads and convert signature; value parity stays in Scripts/diff_cases/stdlib_kotlin_time_Duration_Companion_Companion_n.kt.
 @OptIn(kotlin.time.ExperimentalTime::class)
 fun main() {
-    val values = listOf(
+    val values: List<Duration> = listOf(
         1.nanoseconds, 1L.nanoseconds, 1.5.nanoseconds,
         1.microseconds, 1L.microseconds, 1.5.microseconds,
         1.milliseconds, 1L.milliseconds, 1.5.milliseconds,
@@ -19,7 +20,5 @@ fun main() {
         1.hours, 1L.hours, 1.5.hours,
         1.days, 1L.days, 1.5.days,
     )
-
-    println(values.size)
-    println(Duration.Companion.convert(1.5, DurationUnit.SECONDS, DurationUnit.MILLISECONDS))
+    val converted: Double = Duration.Companion.convert(1.5, DurationUnit.SECONDS, DurationUnit.MILLISECONDS)
 }

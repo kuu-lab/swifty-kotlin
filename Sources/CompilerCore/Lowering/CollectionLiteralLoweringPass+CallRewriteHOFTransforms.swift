@@ -112,21 +112,17 @@ extension CollectionLiteralLoweringSupport {
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             valueClosureRawID = zeroExpr
         }
-        let hofResult = module.arena.appendTemporary(type: nil
-        )
-        loweredBody.append(.call(
-            symbol: nil,
+        appendCallWithTrackedResult(
             callee: lookup.kkListAssociateByTransformName,
             arguments: [receiverID, keyLambdaID, keyClosureRawID, valueLambdaID, valueClosureRawID],
-            result: hofResult,
+            result: result,
             canThrow: canThrow,
-            thrownResult: thrownResult
-        ))
-        if let result {
-            state.mapExprIDs.insert(result.rawValue)
-            state.mapExprIDs.insert(hofResult.rawValue)
-            loweredBody.append(.copy(from: hofResult, to: result))
-        }
+            thrownResult: thrownResult,
+            trackedAs: .map,
+            module: module,
+            state: &state,
+            loweredBody: &loweredBody
+        )
         return true
     }
 
@@ -149,21 +145,17 @@ extension CollectionLiteralLoweringSupport {
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             valueClosureRawID = zeroExpr
         }
-        let hofResult = module.arena.appendTemporary(type: nil
-        )
-        loweredBody.append(.call(
-            symbol: nil,
+        appendCallWithTrackedResult(
             callee: lookup.kkListGroupByTransformName,
             arguments: [receiverID, keyLambdaID, keyClosureRawID, valueLambdaID, valueClosureRawID],
-            result: hofResult,
+            result: result,
             canThrow: canThrow,
-            thrownResult: thrownResult
-        ))
-        if let result {
-            state.mapExprIDs.insert(result.rawValue)
-            state.mapExprIDs.insert(hofResult.rawValue)
-            loweredBody.append(.copy(from: hofResult, to: result))
-        }
+            thrownResult: thrownResult,
+            trackedAs: .map,
+            module: module,
+            state: &state,
+            loweredBody: &loweredBody
+        )
         return true
     }
 

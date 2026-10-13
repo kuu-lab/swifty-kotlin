@@ -4,9 +4,6 @@ import Testing
 
 @Suite
 struct RuntimeBigDecimalTests {
-    private func stringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
 
     private func runtimeString(_ text: String) -> Int {
         Array(text.utf8).withUnsafeBufferPointer { buffer in

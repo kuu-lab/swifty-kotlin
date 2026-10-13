@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// Regression coverage for four default-argument / vararg lowering bugs whose
@@ -22,7 +23,7 @@ extension BuildKIRRegressionTests {
 
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_array_toList"), "Expected the empty vararg to be listified, got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.arrayToList)), "Expected the empty vararg to be listified, got: \(callees)")
     }
 
     /// A function-typed parameter's default lambda must be wrapped into a
@@ -38,11 +39,12 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
+        let original = try findKIRFunction(named: "trailing", in: module, interner: ctx.interner)
         let stub = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "trailing$default"
+            $0.symbol == SyntheticSymbolScheme.defaultStubSymbol(for: original.symbol)
         })
         let callees = extractCallees(from: stub.body, interner: ctx.interner)
-        #expect(callees.contains("kk_function_create_1"), "Got: \(callees)")
+        #expect(callees.contains(runtimeCallee(.functionCreate1)), "Got: \(callees)")
     }
 
     /// Call sites of a local function with omitted arguments call
@@ -60,18 +62,19 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
+        let original = try findKIRFunction(named: "addBase", in: module, interner: ctx.interner)
         let stub = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "addBase$default"
+            $0.symbol == SyntheticSymbolScheme.defaultStubSymbol(for: original.symbol)
         })
         // capture(base) + x + extra + default mask
         #expect(stub.params.count == 4, "Got: \(stub.params.count)")
-        let original = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "addBase"
-        })
         #expect(original.params.count == 3, "Got: \(original.params.count)")
 
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
-        #expect(extractCallees(from: body, interner: ctx.interner).contains("addBase$default"))
+        #expect(body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == stub.symbol
+        })
     }
 
     /// `this(...)` used to lower the delegation args positionally into a plain
@@ -88,9 +91,13 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
-        let delegatesThroughStub = findAllKIRFunctions(in: module).contains { function in
-            ctx.interner.resolve(function.name) == "Ctor"
-                && extractCallees(from: function.body, interner: ctx.interner).contains("Ctor$default")
+        let constructors = findAllKIRFunctions(in: module).filter { $0.name == ctx.interner.intern("Ctor") }
+        let stubs = Set(constructors.map { SyntheticSymbolScheme.defaultStubSymbol(for: $0.symbol) })
+        let delegatesThroughStub = constructors.contains { function in
+            function.body.contains { instruction in
+                guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
+                return stubs.contains(symbol)
+            }
         }
         #expect(delegatesThroughStub, "Expected the secondary constructor to call Ctor$default")
     }
@@ -105,9 +112,12 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
-        let delegatesThroughStub = findAllKIRFunctions(in: module).contains { function in
-            ctx.interner.resolve(function.name) == "Derived"
-                && extractCallees(from: function.body, interner: ctx.interner).contains("Base$default")
+        let base = try findKIRFunction(named: "Base", in: module, interner: ctx.interner)
+        let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: base.symbol)
+        let derived = try findKIRFunction(named: "Derived", in: module, interner: ctx.interner)
+        let delegatesThroughStub = derived.body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == stubSymbol
         }
         #expect(delegatesThroughStub, "Expected Derived's super call to use Base$default")
     }
@@ -118,26 +128,21 @@ extension BuildKIRRegressionTests {
         "class Writer { constructor(value: Unit = kotlin.run { args = Args(null) }) {} }; Writer()",
     ])
     func localClassDefaultStubRestoresCapturedCell(_ declaration: String) throws {
-        let source = """
-        class Args(val x: String?)
-        fun probe() {
-            var args = Args("hello")
-            \(declaration)
-            println(args.x)
-        }
-        """
+        let source = KotlinSourceFixtures.localNamedNominalTypingSource(declaration: declaration)
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        let stub = try #require(findAllKIRFunctions(in: module).first {
-            let name = ctx.interner.resolve($0.name)
-            return name == "write$default" || name == "Writer$default"
-        })
+        let functions = findAllKIRFunctions(in: module)
+        let originals = functions.filter {
+            $0.name == ctx.interner.intern("write") || $0.name == ctx.interner.intern("Writer")
+        }
+        let stubSymbols = Set(originals.map { SyntheticSymbolScheme.defaultStubSymbol(for: $0.symbol) })
+        let stub = try #require(functions.first { stubSymbols.contains($0.symbol) })
         #expect(stub.params.count == 3, "Expected receiver, value, and mask parameters")
         let loads = stub.body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+                  callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds))
             else {
                 return nil
             }

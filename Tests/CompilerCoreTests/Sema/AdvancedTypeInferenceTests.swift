@@ -156,7 +156,7 @@ struct AdvancedTypeInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "gather"
+                return name == ctx.interner.intern("gather")
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
             #expect(binding.substitutedTypeArguments == [sema.types.intType])

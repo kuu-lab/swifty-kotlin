@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// KSP-1481: calls through `Clock` must remain interface dispatch after the
@@ -34,7 +35,8 @@ struct ClockNowKIRRegressionTests {
                 }
                 return (callee, dispatch)
             }
-            let clockCall = try #require(virtualCalls.first { ctx.interner.resolve($0.0) == "kk_clock_now" })
+            let clockCallee = ctx.interner.intern(try runtimeABICallee("clock_now"))
+            let clockCall = try #require(virtualCalls.first { $0.0 == clockCallee })
             guard case let .itableDynamic(_, methodSlot) = clockCall.1 else {
                 Issue.record("Expected Clock.now to use dynamic itable dispatch, got \(clockCall.1)")
                 return

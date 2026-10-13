@@ -221,7 +221,7 @@ struct ConstantCollector {
             guard let interner, canFoldMemberCall?(exprID) != false else { return nil }
             return literalConstantMemberCall(receiver: receiver, callee: callee, args: args, ast: ast, interner: interner)
         case let .stringTemplate(parts, _):
-            return literalConstantStringTemplate(parts, ast: ast)
+            return literalConstantStringTemplate(parts)
         default:
             return nil
         }
@@ -426,11 +426,233 @@ struct ConstantCollector {
 
     /// A string template with no interpolated parts (e.g. produced by macro
     /// expansion of a plain string literal) folds to its literal text.
-    private func literalConstantStringTemplate(_ parts: [StringTemplatePart], ast: ASTModule) -> KIRExprKind? {
+    private func literalConstantStringTemplate(_ parts: [StringTemplatePart]) -> KIRExprKind? {
         guard parts.count == 1, case let .literal(text) = parts[0] else {
             return nil
         }
         return .stringLiteral(text)
+    }
+
+    /// Kotlin/JVM text of a compile-time constant operand inside a String `+`
+    /// concatenation. Kotlin folds a `+` whose result is String only when
+    /// every operand is a compile-time constant — literals, constant
+    /// expressions, and `const val` reads, but never a plain `val`/`var`
+    /// even with a literal initializer — so the caller must supply const
+    /// resolution through `resolvedConstant` and nothing else. A `nil`
+    /// result means the whole concatenation is not constant and must go
+    /// through `__kk_string_concat_flat` at runtime (KUU-1385).
+    func constantStringConcatOperandText(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        if case .nullLiteral = ast.arena.expr(exprID) {
+            return "null"
+        }
+        if let constant = literalConstantExpr(exprID, ast: ast, interner: interner) {
+            return stringConcatOperandText(of: constant, interner: interner)
+        }
+        switch ast.arena.expr(exprID) {
+        case .binary(.add, let lhs, let rhs, _)?:
+            // Mixed-type concat (`"a" + 5`): literalConstantBinaryExpr only
+            // folds same-type pairs, so descend and fold each operand. A
+            // nested `+` bound to a user-declared operator returning String
+            // (e.g. `Int.plus(String)`) is not concat text — folding it would
+            // drop the resolved call, so the subtree is not a constant.
+            guard Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+                  let lhsText = constantStringConcatOperandText(lhs, ast: ast, sema: sema, interner: interner),
+                  let rhsText = constantStringConcatOperandText(rhs, ast: ast, sema: sema, interner: interner)
+            else {
+                return nil
+            }
+            return lhsText + rhsText
+        case .stringTemplate(let parts, _)?:
+            // JVM folds a template whose interpolated expressions are all
+            // compile-time constants (`"a" + "${5}"` == "a5").
+            var text = ""
+            for part in parts {
+                switch part {
+                case let .literal(literalText):
+                    text += interner.resolve(literalText)
+                case let .expression(partExpr):
+                    guard let partText = constantStringConcatOperandText(partExpr, ast: ast, sema: sema, interner: interner)
+                    else {
+                        return nil
+                    }
+                    text += partText
+                }
+            }
+            return text
+        default:
+            return nil
+        }
+    }
+
+    /// Whether a `+` expression models Kotlin's built-in string
+    /// concatenation for constant-folding purposes: true only when Sema left
+    /// it unbound (the lenient built-in concat path) or bound it to the
+    /// stdlib `String.plus` member or the `kotlin.text.String?.plus` facade.
+    /// A user-declared operator that merely returns String keeps its resolved
+    /// call. Shared by `ConstantCollector` and `CallLowerer`.
+    static func isBuiltinStringPlusCallee(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee)
+        else {
+            return true
+        }
+        let kotlinName = interner.intern("kotlin")
+        let plusName = interner.intern("plus")
+        return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
+            || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
+    }
+
+    /// `Any?.toString()` text of a folded constant for string concatenation:
+    /// the same formatting Kotlin applies when a constant `+` operand is not
+    /// itself a String.
+    private func stringConcatOperandText(
+        of constant: KIRExprKind,
+        interner: StringInterner
+    ) -> String? {
+        switch constant {
+        case let .stringLiteral(value):
+            return interner.resolve(value)
+        case let .intLiteral(value), let .longLiteral(value):
+            return String(value)
+        case let .uintLiteral(value), let .ulongLiteral(value):
+            return String(value)
+        case let .charLiteral(value):
+            guard let scalar = Unicode.Scalar(value) else { return nil }
+            return String(Character(scalar))
+        case let .boolLiteral(value):
+            return value ? "true" : "false"
+        case let .doubleLiteral(value):
+            return kotlinFloatingPointConcatText(value)
+        case let .floatLiteral(value):
+            return kotlinFloatingPointConcatText(Float(value))
+        default:
+            return nil
+        }
+    }
+
+    /// Java `Double.toString`/`Float.toString`-compatible rendering for
+    /// compile-time folding. Mirrors `runtimeFormatFloatingPoint` in the
+    /// runtime: Kotlin emits scientific notation for magnitudes >= 1e7 or
+    /// < 1e-3, always with a decimal point in the mantissa.
+    private func kotlinFloatingPointConcatText(_ value: Double) -> String {
+        if value.isNaN { return "NaN" }
+        if value == .infinity { return "Infinity" }
+        if value == -.infinity { return "-Infinity" }
+        if value == 0.0 && value.sign == .minus { return "-0.0" }
+        // Swift's Ryu emits 5e-324 for the minimum subnormal; Java emits
+        // 4.9E-324. Both round-trip to the same bits; match Java's text.
+        if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
+        if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
+        let magnitude = abs(value)
+        return finishFloatingPointConcatText(
+            rendered: String(describing: value),
+            useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
+        )
+    }
+
+    private func kotlinFloatingPointConcatText(_ value: Float) -> String {
+        if value.isNaN { return "NaN" }
+        if value == .infinity { return "Infinity" }
+        if value == -.infinity { return "-Infinity" }
+        if value == 0.0 && value.sign == .minus { return "-0.0" }
+        if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
+        if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
+        let magnitude = abs(value)
+        return finishFloatingPointConcatText(
+            rendered: String(describing: value),
+            useScientific: magnitude != 0 && (magnitude >= 1e7 || magnitude < 1e-3)
+        )
+    }
+
+    private func finishFloatingPointConcatText(rendered: String, useScientific: Bool) -> String {
+        if rendered.contains("e") || rendered.contains("E") {
+            return normalizeScientificConcatText(rendered)
+        }
+        if useScientific {
+            return scientificConcatText(fromFixed: rendered)
+        }
+        return rendered
+    }
+
+    private func normalizeScientificConcatText(_ rendered: String) -> String {
+        guard let exponentIndex = rendered.firstIndex(of: "E") ?? rendered.firstIndex(of: "e") else {
+            return rendered
+        }
+        let mantissa = normalizeScientificConcatMantissa(String(rendered[..<exponentIndex]))
+        var exponent = String(rendered[rendered.index(after: exponentIndex)...])
+        if exponent.hasPrefix("+") {
+            exponent.removeFirst()
+        }
+        while exponent.count > 1, exponent.first == "0" {
+            exponent.removeFirst()
+        }
+        if exponent.hasPrefix("-0"), exponent.count > 2 {
+            exponent.remove(at: exponent.index(after: exponent.startIndex))
+        }
+        return "\(mantissa)E\(exponent)"
+    }
+
+    private func normalizeScientificConcatMantissa(_ mantissa: String) -> String {
+        guard let dotIndex = mantissa.firstIndex(of: ".") else {
+            return mantissa + ".0"
+        }
+        let integerPart = String(mantissa[..<dotIndex])
+        var fractionalPart = String(mantissa[mantissa.index(after: dotIndex)...])
+        while fractionalPart.last == "0" {
+            fractionalPart.removeLast()
+        }
+        if fractionalPart.isEmpty {
+            fractionalPart = "0"
+        }
+        return "\(integerPart).\(fractionalPart)"
+    }
+
+    private func scientificConcatText(fromFixed rendered: String) -> String {
+        var body = rendered
+        var sign = ""
+        if body.hasPrefix("-") {
+            sign = "-"
+            body.removeFirst()
+        } else if body.hasPrefix("+") {
+            body.removeFirst()
+        }
+
+        let components = body.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        let integerPart = String(components.first ?? "")
+        let fractionalPart = components.count > 1 ? String(components[1]) : ""
+
+        let trimmedInteger = integerPart.drop(while: { $0 == "0" })
+        let exponent: Int
+        let significantDigits: String
+
+        if !trimmedInteger.isEmpty {
+            exponent = trimmedInteger.count - 1
+            significantDigits = String(trimmedInteger) + fractionalPart
+        } else if let firstNonZeroFraction = fractionalPart.firstIndex(where: { $0 != "0" }) {
+            exponent = -fractionalPart.distance(from: fractionalPart.startIndex, to: firstNonZeroFraction) - 1
+            significantDigits = String(fractionalPart[firstNonZeroFraction...])
+        } else {
+            return sign + "0.0E0"
+        }
+
+        let firstDigit = String(significantDigits.prefix(1))
+        var mantissaFraction = String(significantDigits.dropFirst())
+        while mantissaFraction.last == "0" {
+            mantissaFraction.removeLast()
+        }
+        if mantissaFraction.isEmpty {
+            mantissaFraction = "0"
+        }
+        return "\(sign)\(firstDigit).\(mantissaFraction)E\(exponent)"
     }
 
     /// Handle unary prefix expressions applied to literal operands, e.g. `-100` or `+42`.

@@ -16,15 +16,15 @@ struct ArrayDequeCollectionConformanceTests {
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
             let module = try #require(ctx.kir)
             for (name, factory) in [
-                ("empty", "__kk_arraydeque_new"),
-                ("capacity", "__kk_arraydeque_new_with_capacity"),
-                ("copy", "__kk_arraydeque_new_from_collection"),
+                ("empty", runtimeABIName(.arrayDequeNew)),
+                ("capacity", runtimeABIName(.arrayDequeNewWithCapacity)),
+                ("copy", runtimeABIName(.arrayDequeNewFromCollection)),
             ] {
                 let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
                 let calls = extractCallees(from: body, interner: ctx.interner)
                 #expect(calls.contains(factory))
-                #expect(calls.contains("kk_object_register_vtable_method"))
-                #expect(!calls.contains("kk_object_new"))
+                #expect(calls.contains(runtimeABIName(.objectRegisterVtableMethod)))
+                #expect(!calls.contains(runtimeABIName(.objectNew)))
             }
         }
     }
@@ -66,7 +66,7 @@ struct ArrayDequeCollectionConformanceTests {
             #expect(sema.types.nominalTypeParameterVariances(for: deque) == [.invariant])
             let info = try #require(sema.symbols.symbol(deque))
             #expect(!info.flags.contains(.synthetic))
-            for (member, link) in [("iterator", "kk_list_iterator"), ("subList", "kk_list_subList")] {
+            for (member, link) in [("iterator", runtimeABIName(.listIterator)), ("subList", runtimeABIName(.listSubList))] {
                 let symbol = try #require(sema.symbols.lookup(fqName: collections + [ctx.interner.intern("ArrayDeque"), ctx.interner.intern(member)]))
                 #expect(sema.symbols.externalLinkName(for: symbol) == link)
             }

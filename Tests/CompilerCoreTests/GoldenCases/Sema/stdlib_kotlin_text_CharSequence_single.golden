@@ -108,28 +108,28 @@ expr e@38:12#1 memberCall recv=e@38:12 callee=single args=[] type=Char call=kotl
 expr e@38:5 return value=e@38:12#1 type=Nothing
 expr e@42:5 name(source) type=kotlin.CharSequence ref=golden.sema.directNonLocal.$4.source[kind=vparam;origin=fixture]
 expr e@42:34 char(33) type=Char
-expr e@42:27 return value=e@42:34 type=Nothing
+expr e@42:27 return value=e@42:34 type=Nothing ref=golden.sema.directNonLocal[kind=fun;params=kotlin.CharSequence;ret=Char;names=[source];origin=fixture]
 expr e@42:25 lambda params=[] body=e@42:27 label=singleOrNull type=(Char) -> Boolean
 expr e@42:5#1 memberCall recv=e@42:5 callee=singleOrNull args=[_:e@42:25] type=Char? call=kotlin.text.singleOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Char?;names=[predicate]]
 expr e@43:12 char(63) type=Char
 expr e@43:5 return value=e@43:12 type=Nothing
 expr e@47:5 name(source) type=kotlin.CharSequence? ref=golden.sema.safeNonLocal.$6.source[kind=vparam;origin=fixture]
 expr e@47:35 char(33) type=Char
-expr e@47:28 return value=e@47:35 type=Nothing
+expr e@47:28 return value=e@47:35 type=Nothing ref=golden.sema.safeNonLocal[kind=fun;params=kotlin.CharSequence?;ret=Char;names=[source];origin=fixture]
 expr e@47:26 lambda params=[] body=e@47:28 label=singleOrNull type=(Char) -> Boolean
 expr e@47:5#1 safeMemberCall recv=e@47:5 callee=singleOrNull args=[_:e@47:26] type=Char? call=kotlin.text.singleOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Char?;names=[predicate]]
 expr e@48:12 char(63) type=Char
 expr e@48:5 return value=e@48:12 type=Nothing
 expr e@52:5 name(source) type=kotlin.CharSequence ref=golden.sema.capturedNonLocal.$3.source[kind=vparam;origin=fixture]
 expr e@52:34 name(captured) type=Char ref=golden.sema.capturedNonLocal.$3.captured[kind=vparam;origin=fixture]
-expr e@52:27 return value=e@52:34 type=Nothing
+expr e@52:27 return value=e@52:34 type=Nothing ref=golden.sema.capturedNonLocal[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,captured];origin=fixture]
 expr e@52:25 lambda params=[] body=e@52:27 label=singleOrNull type=(Char) -> Boolean
 expr e@52:5#1 memberCall recv=e@52:5 callee=singleOrNull args=[_:e@52:25] type=Char? call=kotlin.text.singleOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Char?;names=[predicate]]
 expr e@53:12 char(63) type=Char
 expr e@53:5 return value=e@53:12 type=Nothing
 expr e@57:5 name(source) type=kotlin.CharSequence? ref=golden.sema.nullableNonLocal.$5.source[kind=vparam;origin=fixture]
 expr e@57:35 name(captured) type=Char ref=golden.sema.nullableNonLocal.$5.captured[kind=vparam;origin=fixture]
-expr e@57:28 return value=e@57:35 type=Nothing
+expr e@57:28 return value=e@57:35 type=Nothing ref=golden.sema.nullableNonLocal[kind=fun;params=kotlin.CharSequence?,Char;ret=Char;names=[source,captured];origin=fixture]
 expr e@57:26 lambda params=[] body=e@57:28 label=singleOrNull type=(Char) -> Boolean
 expr e@57:5#1 safeMemberCall recv=e@57:5 callee=singleOrNull args=[_:e@57:26] type=Char? call=kotlin.text.singleOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Boolean};ret=Char?;names=[predicate]]
 expr e@58:12 char(63) type=Char

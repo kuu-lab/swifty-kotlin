@@ -24,8 +24,6 @@ final class KIRLoweringDriver {
         self.ctx = ctx
     }
 
-    // MARK: - Main Recursive Dispatch Entry Point
-
     func lowerExpr(
         _ exprID: ExprID,
         ast: ASTModule,

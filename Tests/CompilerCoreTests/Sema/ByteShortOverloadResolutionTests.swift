@@ -133,13 +133,13 @@ struct ByteShortOverloadResolutionTests {
 
             let toByteCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "toByte"
+                return callee == ctx.interner.intern("toByte")
             }, "Expected 1.toByte() call")
             #expect(sema.bindings.exprType(for: toByteCall) == sema.types.byteType, "1.toByte() should have type Byte")
 
             let toShortCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "toShort"
+                return callee == ctx.interner.intern("toShort")
             }, "Expected 1.toShort() call")
             #expect(sema.bindings.exprType(for: toShortCall) == sema.types.shortType, "1.toShort() should have type Short")
         }

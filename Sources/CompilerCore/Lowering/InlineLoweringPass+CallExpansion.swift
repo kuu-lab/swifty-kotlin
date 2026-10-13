@@ -273,10 +273,10 @@ extension InlineLoweringPass {
                     let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                     let captureArgs = lambdaCaptureArguments(
                         for: argExpr, symbol: lambdaFunction.symbol,
-                        aliases: localExprMap, arena: module.arena
+                        aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
                     )
                     let valueArgs: [KIRExprID]
-                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"]
+                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"]
                         .contains(calleeStr)
                     {
                         valueArgs = Array(resolvedArgs.dropFirst())
@@ -306,6 +306,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            labels: &labels,
                             callAncestries: &callAncestries,
                             into: &lowered
                         )
@@ -345,7 +346,7 @@ extension InlineLoweringPass {
                 // local alias map, inline its body here as well so returned
                 // function values preserve their captures.
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5"].contains(calleeStr),
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(calleeStr),
                    let callableExpr = resolvedArgs.first,
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: callableExpr,
@@ -357,7 +358,7 @@ extension InlineLoweringPass {
                 {
                     let captureArgs = lambdaCaptureArguments(
                         for: callableExpr, symbol: lambdaFunction.symbol,
-                        aliases: localExprMap, arena: module.arena
+                        aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
                     )
                     let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + Array(resolvedArgs.dropFirst()),
@@ -382,6 +383,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            labels: &labels,
                             callAncestries: &callAncestries,
                             into: &lowered
                         )

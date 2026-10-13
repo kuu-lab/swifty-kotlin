@@ -28,7 +28,7 @@ extension LoweringPassRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "firstOr", in: module, interner: ctx.interner)
 
-            #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_op_elvis"),
+            #expect(!extractCallees(from: body, interner: ctx.interner).contains(RuntimeCall.opElvis.name),
                     "?: must not evaluate both operands through the strict runtime helper")
             #expect(body.contains(where: { if case .jumpIfNotNull = $0 { true } else { false } }),
                     "?: must guard its fallback with a non-null branch; body: \(body)")

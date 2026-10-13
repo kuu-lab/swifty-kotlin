@@ -16,31 +16,31 @@ extension LoweringABIAndPropertyRegressionTests {
         // .long/.ulong/.double resolve to the "_nonnull" callee variant here
         // because the source TypeKind's nullability is provably `.nonNull`:
         // see BoxingCalleeTable's nonNullOnlyBoxCalleeOverridesByPrimitive.
-        let primitives: [(TypeKind, KIRExprKind, String)] = [
-            (.primitive(.byte, .nonNull), .intLiteral(-1), "kk_box_byte_static"),
-            (.primitive(.short, .nonNull), .intLiteral(240), "kk_box_short_static"),
-            (.primitive(.int, .nonNull), .intLiteral(1), "kk_box_int_static"),
-            (.primitive(.byte, .nonNull), .intLiteral(1), "kk_box_byte_static"),
-            (.primitive(.short, .nonNull), .intLiteral(1), "kk_box_short_static"),
-            (.primitive(.uint, .nonNull), .uintLiteral(1), "kk_box_uint_static"),
-            (.primitive(.ubyte, .nonNull), .uintLiteral(1), "kk_box_ubyte_static"),
-            (.primitive(.ushort, .nonNull), .uintLiteral(1), "kk_box_ushort_static"),
-            (.primitive(.boolean, .nonNull), .boolLiteral(true), "kk_box_bool_static"),
-            (.primitive(.long, .nonNull), .longLiteral(1), "kk_box_long_nonnull_static"),
-            (.primitive(.ulong, .nonNull), .ulongLiteral(1), "kk_box_ulong_nonnull_static"),
-            (.primitive(.float, .nonNull), .floatLiteral(1), "kk_box_float_static"),
-            (.primitive(.double, .nonNull), .doubleLiteral(1), "kk_box_double_nonnull_static"),
-            (.primitive(.char, .nonNull), .charLiteral(65), "kk_box_char_static"),
+        let primitives: [(PrimitiveType, KIRExprKind)] = [
+            (.byte, .intLiteral(-1)),
+            (.short, .intLiteral(240)),
+            (.int, .intLiteral(1)),
+            (.byte, .intLiteral(1)),
+            (.short, .intLiteral(1)),
+            (.uint, .uintLiteral(1)),
+            (.ubyte, .uintLiteral(1)),
+            (.ushort, .uintLiteral(1)),
+            (.boolean, .boolLiteral(true)),
+            (.long, .longLiteral(1)),
+            (.ulong, .ulongLiteral(1)),
+            (.float, .floatLiteral(1)),
+            (.double, .doubleLiteral(1)),
+            (.char, .charLiteral(65)),
         ]
 
-        for (index, (kind, exprKind, expectedCallee)) in primitives.enumerated() {
+        for (index, (primitive, exprKind)) in primitives.enumerated() {
             let testArena = KIRArena()
-            let primType = types.make(kind)
+            let primType = types.make(.primitive(primitive, .nonNull))
 
             let callerSym = SymbolID(rawValue: Int32(4000 + index * 10))
             let targetSym = SymbolID(rawValue: Int32(4001 + index * 10))
             let targetParamSym = SymbolID(rawValue: Int32(4002 + index * 10))
-            let targetName = interner.intern("accept_\(expectedCallee)")
+            let targetName = interner.intern("accept_\(primitive.rawValue)")
 
             symbols.setFunctionSignature(
                 FunctionSignature(parameterTypes: [anyNullableType], returnType: types.unitType, valueParameterSymbols: [targetParamSym]),
@@ -80,8 +80,13 @@ extension LoweringABIAndPropertyRegressionTests {
             try runLowering(module: module, interner: interner, moduleName: "ABIBoxAll_\(index)", sema: sema)
 
             let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-            let callees = extractCallees(from: lowered.body, interner: interner)
-            #expect(callees.contains(expectedCallee), "Expected \(expectedCallee) for \(kind) -> Any? boxing, got: \(callees)")
+            let abi = try loweringBoxingABI(.box, for: primitive, nonNull: true, staticPrimitive: true)
+            let boxing = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+            #expect(boxing.arguments == [argExpr])
+            let boxed = try #require(boxing.result)
+            let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+            #expect(targetCall.arguments == [boxed])
+            #expect(boxed != argExpr)
         }
     }
 
@@ -118,8 +123,10 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABICopyNullableBox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyNullableBox", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("kk_box_int_static"), "Expected kk_box_int_static for copy Int -> Int?, got: \(callees)")
+        let abi = try loweringBoxingABI(.box, for: .int, nonNull: true, staticPrimitive: true)
+        let boxing = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        #expect(boxing.arguments == [fromExpr])
+        #expect(boxing.result == toExpr)
     }
 
     @Test
@@ -144,22 +151,26 @@ extension LoweringABIAndPropertyRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "checksum", in: module, interner: ctx.interner)
+            let narrowCallee = try loweringCompilerCallee("int_narrow", interner: ctx.interner)
+            let unboxCallee = ctx.interner.intern(try loweringBoxingABI(.unbox, for: .int, staticPrimitive: true).name)
             let narrowedResults = Set(body.compactMap { instruction -> KIRExprID? in
                 guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "kk_int_narrow" else { return nil }
+                      callee == narrowCallee else { return nil }
                 return result
             })
             #expect(narrowedResults.count >= 2)
             for instruction in body {
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "kk_unbox_int_static" else { continue }
+                      callee == unboxCallee else { continue }
                 // A raw integer can coincide with a live box address on Linux.
                 #expect(arguments.allSatisfy { !narrowedResults.contains($0) },
                         "Narrowed arithmetic results must remain raw when assigned to Int locals")
             }
 
             let nullableBody = try findKIRFunctionBody(named: "nullableResult", in: module, interner: ctx.interner)
-            #expect(extractCallees(from: nullableBody, interner: ctx.interner).contains("kk_box_int_static"),
+            let boxingABI = try loweringBoxingABI(.box, for: .int, nonNull: true, staticPrimitive: true)
+            let boxingCalls = try requireLoweringRuntimeCalls(boxingABI, in: nullableBody, interner: ctx.interner)
+            #expect(boxingCalls.allSatisfy { $0.result != nil },
                     "Assignments to nullable Int locals must still box their arithmetic result")
         }
     }

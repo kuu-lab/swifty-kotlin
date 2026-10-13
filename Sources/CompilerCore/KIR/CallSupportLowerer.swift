@@ -195,29 +195,40 @@ final class CallSupportLowerer {
                 driver.ctx.setLocalDeclaredType(receiverType, for: owner)
             }
         }
-        let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: paramCount)
+        let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
+        let isLocalFunction = sema.symbols.symbol(originalSymbol)?.flags.contains(.localFunction) == true
         var effectiveParameterTypes: [TypeID] = []
         effectiveParameterTypes.reserveCapacity(paramCount)
         for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
             let effectiveType: TypeID
             if index < isVararg.count, isVararg[index] {
-                // Default stubs receive the already-packed vararg collection,
-                // just like the original function's call boundary. Keeping the
-                // erased collection type here prevents a String/Char element
-                // type from being flattened into the aggregate ABI.
-                let listFQName: [InternedString] = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    interner.intern("List"),
-                ]
-                if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
-                    effectiveType = sema.types.make(.classType(ClassType(
-                        classSymbol: listSymbol,
-                        args: [.invariant(paramType)],
-                        nullability: .nonNull
-                    )))
+                if isLocalFunction {
+                    effectiveType = primitiveVarargArrayType(
+                        elementType: paramType,
+                        sema: sema,
+                        interner: interner
+                    ) ?? referenceVarargArrayType(
+                        elementType: paramType,
+                        sema: sema,
+                        interner: interner
+                    ) ?? paramType
                 } else {
-                    effectiveType = paramType
+                    // Non-local default stubs receive the List-shaped vararg
+                    // representation used by their original function bodies.
+                    let listFQName: [InternedString] = [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("List"),
+                    ]
+                    if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
+                        effectiveType = sema.types.make(.classType(ClassType(
+                            classSymbol: listSymbol,
+                            args: [.invariant(paramType)],
+                            nullability: .nonNull
+                        )))
+                    } else {
+                        effectiveType = paramType
+                    }
                 }
             } else {
                 effectiveType = paramType
@@ -447,7 +458,11 @@ final class CallSupportLowerer {
             returnType: signature.returnType,
             body: body,
             isSuspend: signature.isSuspend,
-            isInline: !signature.reifiedTypeParameterIndices.isEmpty
+            // Inline callbacks retain their captures for call-site expansion.
+            // The default stub must also expand instead of forwarding a raw
+            // lambda symbol through an ordinary function-value boundary.
+            isInline: sema.symbols.symbol(originalSymbol)?.flags.contains(.inlineFunction) == true
+                || !signature.reifiedTypeParameterIndices.isEmpty
         )))
 
         driver.ctx.restoreScope(scopeSnapshot)
@@ -545,10 +560,10 @@ final class CallSupportLowerer {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
-        let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
+        let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: parameterCount)
         // Named vararg arguments contain arrays and use the same packing path
         // as explicit spread arguments. Ordinary named parameters remain scalar.
-        var spreadFlags = normalizeBoolFlags(spreadFlags, count: providedArguments.count)
+        var spreadFlags = OverloadResolver.normalizeFlags(spreadFlags, count: providedArguments.count)
         for (argIndex, paramIndex) in callBinding.parameterMapping
             where argumentLabels.indices.contains(argIndex)
             && argumentLabels[argIndex] != nil
@@ -557,7 +572,7 @@ final class CallSupportLowerer {
         {
             spreadFlags[argIndex] = true
         }
-        let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
+        let hasDefaultValues = OverloadResolver.normalizeFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
         let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
             chosenCallee,
             sema: sema,
@@ -566,6 +581,7 @@ final class CallSupportLowerer {
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
             || externalLinkName == "__kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
+            || sema.symbols.symbol(chosenCallee)?.flags.contains(.localFunction) == true
         if isStdlibCollectionFactory(chosenCallee, sema: sema) {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
@@ -740,6 +756,15 @@ final class CallSupportLowerer {
                         sema: sema,
                         interner: interner
                     )
+                    let localReferenceVarargArrayType = primitiveArrayType == nil
+                        && sema.symbols.symbol(chosenCallee)?.flags.contains(.localFunction) == true
+                        ? referenceVarargArrayType(
+                            elementType: signature.parameterTypes[paramIndex],
+                            sema: sema,
+                            interner: interner
+                        )
+                        : nil
+                    let packedArrayType = primitiveArrayType ?? localReferenceVarargArrayType
                     if (externalLinkName == nil || externalLinkName?.hasPrefix("kk_fn_") == true),
                        case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[paramIndex]))
                     {
@@ -774,7 +799,8 @@ final class CallSupportLowerer {
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs && primitiveArrayType == nil,
                         boxPrimitiveElements: !preserveArrayVarargs && primitiveArrayType == nil,
-                        resultType: primitiveArrayType,
+                        resultType: packedArrayType,
+                        forceSpreadPacking: localReferenceVarargArrayType != nil,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -813,11 +839,19 @@ final class CallSupportLowerer {
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
-                    resultType: primitiveArrayType,
+                    resultType: primitiveArrayType ?? (
+                        sema.symbols.symbol(chosenCallee)?.flags.contains(.localFunction) == true
+                            ? referenceVarargArrayType(
+                                elementType: signature.parameterTypes[paramIndex],
+                                sema: sema,
+                                interner: interner
+                            )
+                            : nil
+                    ),
                     instructions: &instructions
                 )
-                // Primitive varargs keep raw array storage, just like the
-                // non-empty path. Only reference varargs use the List bridge.
+                // Empty primitive and local reference varargs keep their array
+                // representation. Other reference varargs use the List bridge.
                 normalized.append(preserveArrayVarargs || primitiveArrayType != nil
                     ? emptyArray
                     : emitArrayToList(
@@ -971,6 +1005,7 @@ final class CallSupportLowerer {
         listifyResult: Bool = true,
         boxPrimitiveElements: Bool = true,
         resultType: TypeID? = nil,
+        forceSpreadPacking: Bool = false,
         arena: KIRArena,
         interner: StringInterner,
         intType: TypeID,
@@ -995,7 +1030,7 @@ final class CallSupportLowerer {
             return typed
         }
 
-        if argIndices.count == 1, allSpread {
+        if argIndices.count == 1, allSpread, !forceSpreadPacking {
             let spreadValue = providedArguments[argIndices[0]]
             if listifyResult {
                 return emitArrayToList(
@@ -1164,7 +1199,7 @@ final class CallSupportLowerer {
         )
     }
 
-    private func emitArrayToList(
+    func emitArrayToList(
         _ arrayID: KIRExprID,
         arena: KIRArena,
         interner: StringInterner,

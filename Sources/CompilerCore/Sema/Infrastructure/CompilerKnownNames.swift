@@ -33,6 +33,7 @@ package enum KnownCompilerAnnotation {
     case contextFunctionTypeParams
     case unsafeVariance
     case ksSymbolName
+    case nativeThreadLocal
 
     var simpleName: String {
         switch self {
@@ -100,6 +101,8 @@ package enum KnownCompilerAnnotation {
             "UnsafeVariance"
         case .ksSymbolName:
             "KsSymbolName"
+        case .nativeThreadLocal:
+            "ThreadLocal"
         }
     }
 
@@ -169,6 +172,8 @@ package enum KnownCompilerAnnotation {
             "kotlin.UnsafeVariance"
         case .ksSymbolName:
             "kotlin.internal.KsSymbolName"
+        case .nativeThreadLocal:
+            "kotlin.native.concurrent.ThreadLocal"
         }
     }
 
@@ -320,14 +325,20 @@ package struct KnownCompilerNames {
     let compareByDescending: InternedString
     let compareValuesBy: InternedString
     let delay: InternedString
-    let atomicArrayOf: InternedString
     let atomicIntArray: InternedString
     let atomicLongArray: InternedString
     let collections: InternedString
+    let enumValues: InternedString
+    let enumValueOf: InternedString
+    let enumEntries: InternedString
+    let enumEntriesIntrinsic: InternedString
+    /// FQ names of the four enum intrinsics; used to recognize file-local
+    /// import-alias spellings (`import kotlin.enumValueOf as evo`) that must
+    /// stay on the intrinsic path in `enumStdlibSpecialCallKind`.
+    let enumIntrinsicFQNames: Set<[InternedString]>
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
-    // StringBuilder member names
     let append: InternedString
     let appendLine: InternedString
     let appendRange: InternedString
@@ -460,7 +471,6 @@ package struct KnownCompilerNames {
     let runningReduceIndexed: InternedString
     let scan: InternedString
     let scanIndexed: InternedString
-    let scanReduce: InternedString
     let shuffled: InternedString
     let single: InternedString
     let singleOrNull: InternedString
@@ -559,6 +569,10 @@ package struct KnownCompilerNames {
     let mutableListOnlyMembers: Set<InternedString>
     let mutableCollectionMembers: Set<InternedString>
     let mapOnlyMembers: Set<InternedString>
+    /// Names that resolve on a `Map` (or `MutableMap`) receiver. Map is not
+    /// an Iterable in Kotlin, so Iterable/Collection-only members must not be
+    /// admitted for a Map receiver.
+    let mapMembers: Set<InternedString>
     let collectionReturningMembers: Set<InternedString>
     let intReturningMembers: Set<InternedString>
     let boolReturningMembers: Set<InternedString>
@@ -591,6 +605,12 @@ package struct KnownCompilerNames {
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinCollectionsIterableFQName: [InternedString]
+    let javaUtilSortedSetFQName: [InternedString]
+    let javaUtilNavigableSetFQName: [InternedString]
+    let javaUtilTreeSetFQName: [InternedString]
+    let javaUtilSortedMapFQName: [InternedString]
+    let javaUtilNavigableMapFQName: [InternedString]
+    let javaUtilTreeMapFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
@@ -608,6 +628,12 @@ package struct KnownCompilerNames {
     /// Bundled Kotlin-source Array copy entry points (KSP-1515).
     let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
+    /// `MutableMap` plus its concrete stdlib/`java.util` subtype FQ names,
+    /// shared by `isMutableMapSymbol` and `isMapLikeSymbol`.
+    let mutableMapLikeFQNames: Set<[InternedString]>
+    /// `MutableSet` plus its concrete stdlib/`java.util` subtype FQ names,
+    /// shared by `isMutableSetSymbol` and `isSetLikeSymbol`.
+    let mutableSetLikeFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
         self = interner.cachedCompilerNames {
@@ -730,14 +756,16 @@ package struct KnownCompilerNames {
         compareByDescending = interner.intern("compareByDescending")
         compareValuesBy = interner.intern("compareValuesBy")
         delay = interner.intern("delay")
-        atomicArrayOf = interner.intern("atomicArrayOf")
         atomicIntArray = interner.intern("AtomicIntArray")
         atomicLongArray = interner.intern("AtomicLongArray")
         collections = interner.intern("collections")
+        enumValues = interner.intern("enumValues")
+        enumValueOf = interner.intern("enumValueOf")
+        enumEntries = interner.intern("enumEntries")
+        enumEntriesIntrinsic = interner.intern("enumEntriesIntrinsic")
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
-        // StringBuilder member names
         append = interner.intern("append")
         appendLine = interner.intern("appendLine")
         appendRange = interner.intern("appendRange")
@@ -823,6 +851,12 @@ package struct KnownCompilerNames {
         let javaAtomicIntegerName = interner.intern("AtomicInteger")
         let java = interner.intern("java")
         let util = interner.intern("util")
+        javaUtilSortedSetFQName = [java, util, interner.intern("SortedSet")]
+        javaUtilNavigableSetFQName = [java, util, interner.intern("NavigableSet")]
+        javaUtilTreeSetFQName = [java, util, interner.intern("TreeSet")]
+        javaUtilSortedMapFQName = [java, util, interner.intern("SortedMap")]
+        javaUtilNavigableMapFQName = [java, util, interner.intern("NavigableMap")]
+        javaUtilTreeMapFQName = [java, util, interner.intern("TreeMap")]
         let javaConcurrent = interner.intern("concurrent")
         let javaAtomic = interner.intern("atomic")
         atomicScalarFactoryFQNames = [
@@ -841,6 +875,28 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicLongArrayName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicArrayName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
+        ]
+
+        // KUU-556: LinkedHashMap is a real HashMap subclass (its own symbol),
+        // not a MutableMap typealias resolving straight through to MutableMap.
+        // KUU-1361: the sorted java.util types are MutableMap/MutableSet
+        // subtypes backed by a sorted RuntimeMapBox/RuntimeSetBox; calls
+        // through any static receiver type must reach the __kk bridges.
+        mutableMapLikeFQNames = [
+            kotlinCollectionsMutableMapFQName,
+            kotlinCollectionsHashMapFQName,
+            kotlinCollectionsLinkedHashMapFQName,
+            javaUtilSortedMapFQName,
+            javaUtilNavigableMapFQName,
+            javaUtilTreeMapFQName,
+        ]
+        mutableSetLikeFQNames = [
+            kotlinCollectionsMutableSetFQName,
+            kotlinCollectionsHashSetFQName,
+            kotlinCollectionsLinkedHashSetFQName,
+            javaUtilSortedSetFQName,
+            javaUtilNavigableSetFQName,
+            javaUtilTreeSetFQName,
         ]
 
 
@@ -949,7 +1005,6 @@ package struct KnownCompilerNames {
         runningReduceIndexed = interner.intern("runningReduceIndexed")
         scan = interner.intern("scan")
         scanIndexed = interner.intern("scanIndexed")
-        scanReduce = interner.intern("scanReduce")
         shuffled = interner.intern("shuffled")
         single = interner.intern("single")
         singleOrNull = interner.intern("singleOrNull")
@@ -1001,6 +1056,9 @@ package struct KnownCompilerNames {
         sequenceScope = interner.intern("SequenceScope")
         closedFloatingPointRange = interner.intern("ClosedFloatingPointRange")
         self.kotlin = kotlin
+        enumIntrinsicFQNames = Set(WellKnownEnumIntrinsic.allCases.map {
+            $0.fqNameParts.map(interner.intern)
+        })
         sequences = interner.intern("sequences")
         initName = interner.intern("<init>")
         invoke = interner.intern("invoke")
@@ -1041,13 +1099,30 @@ package struct KnownCompilerNames {
         kotlinRangesClosedFloatingPointRangeFQName = [kotlin, kotlinRanges, closedFloatingPointRange]
         kotlinTimeInstantFQName = [kotlin, kotlinTime, interner.intern("Instant")]
 
-        collectionMembers = Set(["size", "isEmpty", "contains", "containsAll", "first", "last", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "iterator", "filter", "filterNotNull", "filterIsInstanceTo", "filterNotNullTo", "fold", "foldRight", "foldIndexed", "foldRightIndexed", "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "sortedBy", "find", "zip", "unzip", "withIndex", "min", "maxOrNull", "minOrNull", "asSequence", "asIterable", "toList", "toCollection", "toTypedArray", "toCharArray", "toBooleanArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray", "take", "drop", "reversed", "asReversed", "sorted", "shuffled", "distinct", "distinctBy", "flatten", "chunked", "windowed", "firstNotNullOf", "firstNotNullOfOrNull", "sortedDescending", "sortedByDescending", "sortedWith", "partition", "filterIsInstance", "firstOrNull", "lastOrNull", "singleOrNull", "joinToString", "elementAt", "single", "toMutableList", "sum", "average", "minusElement"].map { interner.intern($0) })
+        collectionMembers = Set(["size", "isEmpty", "contains", "containsAll", "first", "last", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "iterator", "filter", "filterNotNull", "filterIsInstanceTo", "filterNotNullTo", "fold", "foldRight", "foldIndexed", "foldRightIndexed", "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "sortedBy", "find", "zip", "unzip", "withIndex", "min", "maxOrNull", "minOrNull", "asSequence", "asIterable", "toList", "toCollection", "toTypedArray", "toCharArray", "toBooleanArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray", "take", "drop", "reversed", "asReversed", "sorted", "shuffled", "distinct", "distinctBy", "flatten", "chunked", "windowed", "firstNotNullOf", "firstNotNullOfOrNull", "sortedDescending", "sortedByDescending", "sortedWith", "partition", "filterIsInstance", "firstOrNull", "lastOrNull", "singleOrNull", "joinToString", "elementAt", "single", "toMutableList", "sum", "average", "minusElement"].map { interner.intern($0) })
         listOnlyMembers = Set(["get", "subList", "slice", "getOrNull", "elementAtOrNull", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
         collectionSpecificMembers = Set(["firstOrNull", "lastOrNull", "singleOrNull"].map { interner.intern($0) })
         mutableListOnlyMembers = Set(["sort", "sortBy", "sortByDescending"].map { interner.intern($0) })
         mutableCollectionMembers = Set(["add", "addAll", "remove", "removeAll", "retainAll", "clear"].map { interner.intern($0) })
         mapOnlyMembers = Set(["containsKey", "containsValue", "getValue", "getOrDefault", "plus"].map { interner.intern($0) })
-        collectionReturningMembers = Set(["asSequence", "asIterable", "filterNotNull", "requireNoNulls", "filter", "filterIsInstanceTo", "reduceTo", "zip", "toList", "toTypedArray", "take", "drop", "reversed", "asReversed", "sorted", "distinct", "distinctBy", "flatten", "chunked", "windowed", "withIndex", "shuffled", "sortedDescending", "sortedByDescending", "sortedWith", "filterIsInstance", "toCollection", "subList", "slice", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "toMutableList", "minusElement"].map { interner.intern($0) })
+        // KUU-1362: names that may be admitted on a `Map`/`MutableMap` receiver
+        // by the legacy collection-member fallback. This is `collectionMembers`
+        // intersected with the real Map surface (Map is not an Iterable in
+        // Kotlin, so Iterable-only names like filterNotNull/fold/first must be
+        // declined and rejected as SEMA-0024), plus the Map names admitted by
+        // dedicated branches above so the arity check accepts them too.
+        // Everything else — including source-backed Map members like toMap or
+        // forEach — stays on regular overload resolution, which binds the
+        // bundled declarations and their exact result types.
+        mapMembers = Set([
+            "size", "isEmpty", "contains", "count", "iterator", "filter",
+            "firstNotNullOf", "firstNotNullOfOrNull",
+            "asSequence", "asIterable", "toList",
+            "plus", "minus", "getOrElse",
+            "containsKey", "containsValue", "getValue", "getOrDefault",
+            "getOrPut", "putAll",
+        ].map { interner.intern($0) })
+        collectionReturningMembers = Set(["asSequence", "asIterable", "filterNotNull", "requireNoNulls", "filter", "filterIsInstanceTo", "reduceTo", "zip", "toList", "toTypedArray", "take", "drop", "reversed", "asReversed", "sorted", "distinct", "distinctBy", "flatten", "chunked", "windowed", "withIndex", "shuffled", "sortedDescending", "sortedByDescending", "sortedWith", "filterIsInstance", "toCollection", "subList", "slice", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "toMutableList", "minusElement"].map { interner.intern($0) })
         intReturningMembers = Set(["size", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
         boolReturningMembers = Set(["isEmpty", "contains", "containsAll", "containsKey", "containsValue", "add", "addAll", "remove", "removeAll", "retainAll"].map { interner.intern($0) })
         destinationCollectionReturningMembers = Set(["filterIsInstanceTo", "filterNotNullTo", "reduceTo", "toCollection"].map { interner.intern($0) })
@@ -1157,22 +1232,17 @@ package struct KnownCompilerNames {
     /// classes, unsigned variants included. For-loop lowering routes these
     /// classes through their bundled `iterator()` operators.
     func isRangeLikeClassName(_ name: InternedString) -> Bool {
-        name == intRange || name == longRange || name == charRange
+        isSignedRangeLikeClassName(name)
             || name == uintRange || name == ulongRange
-            || name == intProgression || name == longProgression
-            || name == charProgression || name == uintProgression
-            || name == ulongProgression
+            || name == uintProgression || name == ulongProgression
     }
 
-    /// The signed subset of `isRangeLikeClassName` (Int/Long/Char only).
     func isSignedRangeLikeClassName(_ name: InternedString) -> Bool {
         name == intRange || name == longRange || name == charRange
             || name == intProgression || name == longProgression
             || name == charProgression
     }
 
-    /// True when `symbol` is a built-in `kotlin.ranges` Range / Progression
-    /// class (unsigned variants included).
     func isRangeLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.fqName.starts(with: kotlinRangesPackageFQName)
             && (symbol.fqName.last.map { isRangeLikeClassName($0) } ?? false)
@@ -1194,23 +1264,6 @@ package struct KnownCompilerNames {
             || name == uintArray
     }
 
-    /// Returns true if the name is a primitive array constructor type name
-    /// (e.g. Array, IntArray, LongArray, etc.).
-    func isPrimitiveArrayConstructorTypeName(_ name: InternedString) -> Bool {
-        name == array
-            || name == intArray
-            || name == longArray
-            || name == shortArray
-            || name == byteArray
-            || name == ubyteArray
-            || name == ushortArray
-            || name == ulongArray
-            || name == doubleArray
-            || name == floatArray
-            || name == booleanArray
-            || name == charArray
-            || name == uintArray
-    }
 
     /// The set of stdlib collection factory function names used for marking
     /// collection literal expressions. Shared across call type-checking sites
@@ -1255,35 +1308,25 @@ package struct KnownCompilerNames {
     }
 
     func isMapLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == map || symbol.name == mutableMap
+        symbol.name == map
             || symbolMatches(symbol, fqName: kotlinCollectionsMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
-            // KUU-556: LinkedHashMap is now a real HashMap subclass (its own
-            // symbol), not a MutableMap typealias resolving straight through
-            // to the mutableMap check above.
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
+            || isMutableMapSymbol(symbol)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableMap
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
+        (symbol.fqName.isEmpty && symbol.name == mutableMap)
+            || mutableMapLikeFQNames.contains(symbol.fqName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
+        (symbol.fqName.isEmpty
+            && (symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet))
+            || mutableSetLikeFQNames.contains(symbol.fqName)
     }
 
     func isSetLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         if symbolMatches(symbol, fqName: kotlinCollectionsSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
+            || mutableSetLikeFQNames.contains(symbol.fqName)
         {
             return true
         }

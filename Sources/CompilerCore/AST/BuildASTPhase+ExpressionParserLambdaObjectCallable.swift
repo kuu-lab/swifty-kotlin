@@ -22,18 +22,20 @@ extension BuildASTPhase.ExpressionParser {
             let paramTokens = Array(bodyTokens[..<arrowIndex])
             let lambdaBodySlice = bodyTokens[(arrowIndex + 1)...]
 
-            // Detect lambda destructuring: { (a, b) -> body }
-            if let names = extractDestructuringNames(from: paramTokens) {
-                let range = SourceRange(start: start ?? openBrace.range.start, end: end)
-                return buildDestructuringLambda(
-                    names: names, bodySlice: lambdaBodySlice,
-                    fallbackStart: openBrace.range.end, range: range, label: label
-                )
-            }
-
-            let parsedParams = parseLambdaParams(from: paramTokens)
-            let bodyExpr = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
+            let bodyStart = astArena.exprs.count
+            let parsedBody = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
+            // Include callable references and names inside string templates so
+            // generated parameters cannot shadow a user binding or lookup.
+            var bodyNames = Set(lambdaBodySlice.compactMap { tokenText($0) })
+            bodyNames.formUnion(astArena.exprs.dropFirst(bodyStart).compactMap { expr -> InternedString? in
+                switch expr {
+                case let .nameRef(name, _), let .callableRef(_, name, _): name
+                default: nil
+                }
+            })
+            let parsedParams = parseLambdaParams(from: paramTokens, avoidingNames: bodyNames)
             let range = SourceRange(start: start ?? openBrace.range.start, end: end)
+            let bodyExpr = wrapLambdaDestructuring(params: parsedParams, body: parsedBody, range: range)
             let lambdaID = astArena.appendExpr(.lambdaLiteral(
                 params: parsedParams.map(\.name), body: bodyExpr, label: label, range: range
             ))
@@ -43,8 +45,6 @@ extension BuildASTPhase.ExpressionParser {
             return lambdaID
         }
 
-        // No-arrow lambda: `{ body }`.
-        //
         // In expression position Kotlin treats bare braces as lambda literals,
         // including zero-argument lambdas like `{ 42 }`. Both trailing-lambda
         // call sites and plain expression contexts accept the same syntax.
@@ -58,6 +58,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         var superTypes: [TypeRefID] = []
+        var superTypeEntries: [SuperTypeEntry] = []
         // Only the (at most one) class supertype can carry a constructor
         // call `(args)` — interfaces are listed bare. Kept as a single list
         // rather than per-supertype since that is all `ObjectDecl` needs.
@@ -71,14 +72,51 @@ extension BuildASTPhase.ExpressionParser {
                     break
                 }
                 superTypes.append(superType)
+                var constructorArgs: [CallArgument] = []
                 if matches(.symbol(.lParen)) {
                     _ = consume()
-                    let args = parseCallArguments()
+                    constructorArgs = parseCallArguments()
                     _ = consumeIf(.symbol(.rParen))
-                    if !args.isEmpty {
-                        superTypeConstructorArgs = args
+                    if !constructorArgs.isEmpty {
+                        superTypeConstructorArgs = constructorArgs
                     }
                 }
+                var delegateExpression: ExprID?
+                if consumeIf(.softKeyword(.by)) != nil {
+                    // The object's body is not a trailing lambda argument to
+                    // the delegate call. Parse the header expression separately,
+                    // retaining commas inside calls and generic argument lists.
+                    let delegateStart = index
+                    var depth = BuildASTPhase.BracketDepth()
+                    while let token = current() {
+                        if depth.isAtTopLevel,
+                           [.symbol(.lBrace), .symbol(.comma), .symbol(.semicolon),
+                            .symbol(.rParen), .symbol(.rBrace)].contains(token.kind)
+                        {
+                            break
+                        }
+                        // Parenthesized expressions may contain comparisons;
+                        // those angle tokens are not header type arguments.
+                        if depth.isBracketBraceParenTopLevel
+                            || (token.kind != .symbol(.lessThan) && token.kind != .symbol(.greaterThan))
+                        {
+                            depth.track(token.kind)
+                        }
+                        _ = consume()
+                    }
+                    let parser = BuildASTPhase.ExpressionParser(
+                        tokens: tokens[delegateStart ..< index],
+                        interner: interner,
+                        astArena: astArena,
+                        diagnostics: diagnostics
+                    )
+                    delegateExpression = parser.parse()
+                }
+                superTypeEntries.append(SuperTypeEntry(
+                    typeRef: superType,
+                    delegateExpression: delegateExpression,
+                    constructorArgs: constructorArgs
+                ))
                 if consumeIf(.symbol(.comma)) != nil {
                     continue
                 }
@@ -96,6 +134,7 @@ extension BuildASTPhase.ExpressionParser {
         let range = SourceRange(start: objectToken.range.start, end: end)
         let declID = parseObjectLiteralDecl(
             superTypes: superTypes,
+            superTypeEntries: superTypeEntries,
             superTypeConstructorArgs: superTypeConstructorArgs,
             bodyTokens: bodyTokens,
             range: range
@@ -129,10 +168,6 @@ extension BuildASTPhase.ExpressionParser {
         return reference
     }
 
-    /// Consumes tokens up to and including a closing brace matching a
-    /// just-consumed opening `{` (depth starts at 1). Returns the tokens
-    /// strictly between the braces, the end location reached, and whether
-    /// the depth actually returned to 0 before the token stream ran out.
     /// On imbalance, `bodyTokens` holds everything scanned and `end` is the
     /// last token's end (or `fallbackEnd` if nothing was consumed) — the
     /// caller decides whether that's acceptable.
@@ -162,9 +197,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     /// Kotlin parses a control-structure body `{ params -> ... }` as a function
-    /// literal rather than a block. Looks ahead (without consuming) at the brace
-    /// group starting at the current `{` and reports whether it opens with a
-    /// lambda parameter list followed by `->`.
+    /// literal rather than a block.
     func braceGroupStartsLambdaLiteral() -> Bool {
         guard matches(.symbol(.lBrace)) else {
             return false
@@ -194,37 +227,45 @@ extension BuildASTPhase.ExpressionParser {
 
     private func lambdaArrowIndex(in tokens: [Token]) -> Int? {
         var depth = BuildASTPhase.BracketDepth()
-        var candidate: Int?
+        var candidates: [Int] = []
         for (idx, token) in tokens.enumerated() {
             if token.kind == .symbol(.arrow), depth.isAtTopLevel {
-                candidate = idx
+                candidates.append(idx)
             }
             depth.track(token.kind)
         }
-        guard let candidate else {
-            return nil
+        // A parameter with a function type (`f: (Int) -> Int`) places an
+        // extra top-level `->` inside the parameter list, while an `as`/`is`
+        // function-type operand in the body (`s as (Int) -> Int`) places one
+        // after it. The lambda arrow is the last `->` whose prefix is a
+        // well-formed parameter list — matching kotlinc, which parses the
+        // parameter list (types included) and then expects `->`.
+        for candidate in candidates.reversed() {
+            if isWellFormedLambdaParameterList(tokens[..<candidate]) {
+                return candidate
+            }
         }
-        guard isPotentialLambdaParameterList(tokens[..<candidate]) else {
-            return nil
-        }
-        return candidate
+        return nil
     }
 
     struct LambdaParam {
         let name: InternedString
         let typeRef: TypeRefID?
+        let destructuringNames: [InternedString?]?
     }
 
-    private func parseLambdaParams(from tokens: [Token]) -> [LambdaParam] {
-        let normalized = stripEnclosingParentheses(from: tokens)
-        guard !normalized.isEmpty else {
+    private func parseLambdaParams(
+        from tokens: [Token],
+        avoidingNames: Set<InternedString>
+    ) -> [LambdaParam] {
+        guard !tokens.isEmpty else {
             return []
         }
 
         var segments: [[Token]] = []
         var currentSegment: [Token] = []
         var depth = BuildASTPhase.BracketDepth()
-        for token in normalized {
+        for token in tokens {
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
                 if !currentSegment.isEmpty {
                     segments.append(currentSegment)
@@ -240,7 +281,24 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         var params: [LambdaParam] = []
-        for segment in segments {
+        var usedNames = avoidingNames.union(tokens.compactMap { tokenText($0) })
+        for (index, segment) in segments.enumerated() {
+            if segment.first?.kind == .symbol(.lParen),
+               let closeIndex = segment.firstIndex(where: { $0.kind == .symbol(.rParen) }),
+               let names = extractDestructuringNames(from: Array(segment[...closeIndex]))
+            {
+                var parameterName = interner.intern("__destructured_\(index)")
+                while usedNames.contains(parameterName) {
+                    parameterName = interner.intern(interner.resolve(parameterName) + "_")
+                }
+                usedNames.insert(parameterName)
+                params.append(LambdaParam(
+                    name: parameterName,
+                    typeRef: parseLambdaParamTypeAnnotation(in: segment, after: closeIndex),
+                    destructuringNames: names
+                ))
+                continue
+            }
             guard let nameIndex = segment.firstIndex(where: { token in
                 switch token.kind {
                 case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
@@ -248,18 +306,18 @@ extension BuildASTPhase.ExpressionParser {
                 default:
                     false
                 }
-            }), let name = lambdaParameterName(from: segment[nameIndex]) else {
+            }), let name = tokenText( segment[nameIndex]) else {
                 continue
             }
             params.append(LambdaParam(
                 name: name,
-                typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex)
+                typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex),
+                destructuringNames: nil
             ))
         }
         return params
     }
 
-    /// Parses the `: Type` annotation of a lambda parameter segment, if present.
     private func parseLambdaParamTypeAnnotation(in segment: [Token], after nameIndex: Int) -> TypeRefID? {
         let colonIndex = nameIndex + 1
         guard colonIndex < segment.count, segment[colonIndex].kind == .symbol(.colon) else {
@@ -302,8 +360,6 @@ extension BuildASTPhase.ExpressionParser {
         return Array(tokens.dropFirst().dropLast())
     }
 
-    /// Checks whether paramTokens form a `(name, name, ...)` destructuring pattern.
-    /// Returns the extracted names (nil for underscore), or nil when not destructuring.
     private func extractDestructuringNames(from paramTokens: [Token]) -> [InternedString?]? {
         let innerTokens = stripEnclosingParentheses(from: paramTokens)
         guard innerTokens.count != paramTokens.count else { return nil }
@@ -321,7 +377,7 @@ extension BuildASTPhase.ExpressionParser {
                 idx += 1
                 continue
             case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-                guard let name = lambdaParameterName(from: token) else {
+                guard let name = tokenText( token) else {
                     idx += 1
                     continue
                 }
@@ -351,60 +407,129 @@ extension BuildASTPhase.ExpressionParser {
         return idx
     }
 
-    private func buildDestructuringLambda(
-        names: [InternedString?],
-        bodySlice: ArraySlice<Token>,
-        fallbackStart: SourceLocation,
-        range: SourceRange,
-        label: InternedString?
+    private func wrapLambdaDestructuring(
+        params: [LambdaParam],
+        body: ExprID,
+        range: SourceRange
     ) -> ExprID {
-        let parsedBody = parseLambdaBody(bodySlice: bodySlice, fallbackStart: fallbackStart)
-        let syntheticParam = interner.intern("__destructured_0")
-        let nameRefExpr = astArena.appendExpr(.nameRef(syntheticParam, range))
-        let destructuringExpr = astArena.appendExpr(.destructuringDecl(
-            names: names, isMutable: false, initializer: nameRefExpr, range: range
-        ))
-        let wrappedBody = astArena.appendExpr(.blockExpr(
-            statements: [destructuringExpr], trailingExpr: parsedBody, range: range
-        ))
-        return astArena.appendExpr(.lambdaLiteral(
-            params: [syntheticParam], body: wrappedBody, label: label, range: range
+        // Keep one parameter per argument; component declarations use the
+        // expected type of their own parameter, including in mixed lists.
+        let declarations = params.compactMap { param -> ExprID? in
+            guard let names = param.destructuringNames else { return nil }
+            let initializer = astArena.appendExpr(.nameRef(param.name, range))
+            return astArena.appendExpr(.destructuringDecl(
+                names: names, isMutable: false, initializer: initializer, range: range
+            ))
+        }
+        guard !declarations.isEmpty else { return body }
+        return astArena.appendExpr(.blockExpr(
+            statements: declarations, trailingExpr: body, range: range
         ))
     }
 
-    private func isPotentialLambdaParameterList(_ tokens: ArraySlice<Token>) -> Bool {
+    /// Whether `tokens` (everything before a top-level `->` inside `{ ... }`)
+    /// form a well-formed lambda parameter list: either empty (`{ -> body }`),
+    /// a single destructuring group `(a, b)`, or a comma-separated list of
+    /// `[annotations] name [: Type]` segments whose type parses completely
+    /// (function types included). A body expression like `s as (Int) -> Int`
+    /// leaves an `->` in the brace group; the strict check keeps it from being
+    /// mistaken for `s as (Int)` parameters — `{ s as () -> Int }` is a lambda
+    /// whose body casts `s`, and `if (c) { s as () -> Int }` is a plain block.
+    private func isWellFormedLambdaParameterList(_ tokens: ArraySlice<Token>) -> Bool {
+        if tokens.isEmpty { return true }
+        let params = Array(tokens)
+        if extractDestructuringNames(from: params) != nil { return true }
         var depth = BuildASTPhase.BracketDepth()
-        for token in tokens {
-            if depth.isAtTopLevel {
-                switch token.kind {
-                case .keyword(.val), .keyword(.var), .keyword(.fun), .keyword(.return),
-                     .keyword(.if), .keyword(.when), .keyword(.for), .keyword(.while),
-                     .keyword(.do), .keyword(.try), .keyword(.throw),
-                     .keyword(.class), .keyword(.object), .keyword(.interface):
+        var segmentStart = params.startIndex
+        for idx in params.indices {
+            if params[idx].kind == .symbol(.comma), depth.isAtTopLevel {
+                guard isWellFormedLambdaParamSegment(params[segmentStart ..< idx]) else {
                     return false
-                case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
-                     .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign),
-                     .symbol(.semicolon):
-                    return false
+                }
+                segmentStart = idx + 1
+            }
+            depth.track(params[idx].kind)
+        }
+        return isWellFormedLambdaParamSegment(params[segmentStart...])
+    }
+
+    private func isWellFormedLambdaParamSegment(_ segment: ArraySlice<Token>) -> Bool {
+        var idx = segment.startIndex
+        while idx < segment.endIndex, segment[idx].kind == .symbol(.at),
+              let annotation = AnnotationParsingSupport.parseAnnotation(
+                  from: Array(segment), start: idx - segment.startIndex,
+                  interner: interner, allowUseSiteTarget: true
+              )
+        {
+            idx = segment.startIndex + annotation.nextIndex
+        }
+        guard idx < segment.endIndex else { return false }
+        if segment[idx].kind == .symbol(.lParen) {
+            // Destructuring parameter `(a, b)` — kotlinc allows it mixed with
+            // regular parameters — optionally followed by `: Type`.
+            var parenDepth = 0
+            var closeIndex: Int?
+            for i in idx..<segment.endIndex {
+                switch segment[i].kind {
+                case .symbol(.lParen):
+                    parenDepth += 1
+                case .symbol(.rParen):
+                    parenDepth -= 1
+                    if parenDepth == 0 { closeIndex = i }
                 default:
                     break
                 }
+                if closeIndex != nil { break }
             }
-            depth.track(token.kind)
+            guard let closeIndex,
+                  isDestructuringEntries(segment[(idx + 1)..<closeIndex])
+            else {
+                return false
+            }
+            idx = closeIndex + 1
+        } else {
+            guard tokenText( segment[idx]) != nil else {
+                return false
+            }
+            idx += 1
         }
-        return true
+        if idx == segment.endIndex { return true }
+        guard segment[idx].kind == .symbol(.colon) else { return false }
+        let typeTokens = segment[(idx + 1)...]
+        guard !typeTokens.isEmpty else { return false }
+        var options = TypeRefParserCore.Options.expressionInline
+        options.allowFunctionType = true
+        guard let parsed = TypeRefParserCore.parseTypeRefPrefix(
+            typeTokens,
+            interner: interner,
+            astArena: astArena,
+            options: options,
+            diagnostics: nil,
+            recursionDepth: recursionDepth
+        ) else {
+            return false
+        }
+        return parsed.consumed == typeTokens.count
     }
 
-    private func lambdaParameterName(from token: Token) -> InternedString? {
-        switch token.kind {
-        case let .identifier(name), let .backtickedIdentifier(name):
-            name
-        case let .keyword(keyword):
-            interner.intern(keyword.rawValue)
-        case let .softKeyword(keyword):
-            interner.intern(keyword.rawValue)
-        default:
-            nil
+    private func isDestructuringEntries(_ inner: ArraySlice<Token>) -> Bool {
+        var expectName = true
+        var sawComma = false
+        for token in inner {
+            if expectName {
+                guard tokenText( token) != nil else {
+                    return false
+                }
+                expectName = false
+            } else {
+                guard token.kind == .symbol(.comma) else {
+                    return false
+                }
+                expectName = true
+                sawComma = true
+            }
         }
+        return sawComma && !expectName
     }
+
 }

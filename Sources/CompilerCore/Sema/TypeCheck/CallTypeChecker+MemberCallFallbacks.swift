@@ -1,5 +1,116 @@
 
 extension CallTypeChecker {
+    private enum CommonMemberCallFallback {
+        case collection
+        case regex
+        case kFunction
+        case string
+        case file
+        case array
+        case range
+    }
+
+    func tryCommonMemberCallFallbacks(
+        _ request: MemberCallInferenceRequest,
+        isClassNameReceiver: Bool,
+        collectionFallbackFirst: Bool,
+        admitNominalIterableReceiver: Bool,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let fallbackOrder: [CommonMemberCallFallback] = collectionFallbackFirst
+            ? [.collection, .regex, .kFunction, .string, .file, .array, .range]
+            : [.regex, .kFunction, .string, .file, .collection, .array, .range]
+
+        for fallback in fallbackOrder {
+            let fallbackType: TypeID?
+            switch fallback {
+            case .collection:
+                fallbackType = tryCollectionMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    expectedType: request.expectedType,
+                    admitNominalIterableReceiver: admitNominalIterableReceiver,
+                    locals: &locals
+                )
+            case .regex:
+                fallbackType = tryRegexMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    locals: &locals
+                )
+            case .kFunction:
+                fallbackType = tryKFunctionMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    locals: &locals
+                )
+            case .string:
+                fallbackType = tryStringMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    locals: &locals
+                )
+            case .file:
+                fallbackType = tryFileMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    locals: &locals
+                )
+            case .array:
+                fallbackType = tryArrayMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    locals: &locals
+                )
+            case .range:
+                fallbackType = tryRangeMemberFallback(
+                    request.id,
+                    calleeName: request.calleeName,
+                    isClassNameReceiver: isClassNameReceiver,
+                    safeCall: request.safeCall,
+                    receiverID: request.receiverID,
+                    args: request.args,
+                    ctx: request.ctx,
+                    locals: &locals
+                )
+            }
+            if let fallbackType {
+                return fallbackType
+            }
+        }
+        return nil
+    }
+
     func tryRegexMemberFallback(
         _ id: ExprID,
         calleeName: InternedString,

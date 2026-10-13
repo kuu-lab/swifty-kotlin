@@ -106,6 +106,12 @@ extension DataFlowSemaPhase {
                 let parameterIndex = index - (hasReceiver ? 1 : 0)
                 if parameterIndex >= 0 && parameterIndex < signature.parameterTypes.count {
                     paramType = signature.parameterTypes[parameterIndex]
+                } else if index >= signatureParameterCount,
+                          index < signatureParameterCount + signature.reifiedTypeParameterIndices.count {
+                    // Reified tokens follow the declared arguments in KIR.
+                    // They are raw runtime words; treating the hidden token as
+                    // Any makes imported HOF expansion box it and breaks is/T::class.
+                    paramType = types.intType
                 } else {
                     paramType = types.anyType
                 }
@@ -493,13 +499,25 @@ extension DataFlowSemaPhase {
             } else {
                 nil
             }
+            let thrownResult: KIRExprID? = if let raw = pairs["thrownResult"], raw != "_" {
+                Int32(raw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
             let canThrowRaw = pairs["canThrow"] ?? "0"
             let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
             let isSuperCall = isSuperCallRaw == "1" || isSuperCallRaw == "true"
             var callSymbol: SymbolID? = nil
             var resolvedCalleeName = calleeName
-            if let linkEncoded = pairs["linkB64"],
+            if let rawSymbol = pairs["symbol"].flatMap(Int32.init),
+               let parameterSymbol = parameterSymbolMapping[rawSymbol]
+            {
+                // Calls to function-valued parameters must share the local
+                // identity used by their symbolRef constants. Producer FQ
+                // names resolve to metadata symbols, not these body locals.
+                callSymbol = parameterSymbol
+            } else if let linkEncoded = pairs["linkB64"],
                let linkName = decodeBase64String(linkEncoded),
                !linkName.isEmpty
             {
@@ -524,7 +542,7 @@ extension DataFlowSemaPhase {
                 arguments: args,
                 result: result,
                 canThrow: canThrow,
-                thrownResult: nil,
+                thrownResult: thrownResult,
                 isSuperCall: isSuperCall
             )
         case "virtualCall":

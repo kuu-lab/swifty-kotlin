@@ -30,21 +30,20 @@ enum InlineThrowRerouting {
     /// - Finally guard: instructions between `.beginFinallyGuard` and the
     ///   matching `.endFinallyGuard` already have their throws claimed by the
     ///   guard's own dispatch and pass through untouched.
-    /// - `throwDispatchLabel`: the single caller-namespace label every rerouted
-    ///   throw jumps to. Allocated eagerly whenever `callerThrownResult` is
-    ///   non-nil so numbering does not depend on the expansion's contents; the
-    ///   call site emits it right after the spliced expansion. Distinct from
-    ///   the non-local-return exit label -- both come from the same
-    ///   `InlineLabelAllocator` caller cursor and never alias.
+    /// - `throwDispatchLabel`: every rerouted throw jumps to this label,
+    ///   emitted immediately after the expansion. By default it comes from
+    ///   the caller cursor. An expansion still being assembled can supply a
+    ///   scratch `dispatchLabel`, which must pass through final relocation.
     static func rerouteUnprotectedThrows(
         in instructions: [KIRInstruction],
         callerThrownResult: KIRExprID?,
-        labels: inout InlineLabelAllocator
+        labels: inout InlineLabelAllocator,
+        dispatchLabel: Int32? = nil
     ) -> (instructions: [KIRInstruction], throwDispatchLabel: Int32?) {
         guard let callerThrownResult else {
             return (instructions, nil)
         }
-        let throwLabel = labels.allocateCallerLabel()
+        let throwLabel = dispatchLabel ?? labels.allocateCallerLabel()
         return (
             rewriteUnprotectedThrows(
                 in: instructions,

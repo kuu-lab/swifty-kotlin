@@ -12,7 +12,7 @@ import Testing
 @Suite
 struct KClassBooleanIntrospectionTests {
 
-    private func calleesForMain(_ source: String) throws -> Set<String> {
+    private func callsForMain(_ source: String) throws -> (CompilationContext, [KIRCallSite]) {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         #expect(
@@ -21,52 +21,55 @@ struct KClassBooleanIntrospectionTests {
         )
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        return Set(extractCallees(from: body, interner: ctx.interner))
+        return (ctx, kirCalls(in: body))
     }
 
     @Test func testClassLiteralIsDataEmitsRuntimeCallAndMetadata() throws {
-        let callees = try calleesForMain("""
+        let (ctx, calls) = try callsForMain("""
         data class Point(val x: Int)
         fun main() {
             println(Point::class.isData)
         }
         """)
-        #expect(
-            callees.contains("isData"),
-            "Point::class.isData should resolve to the Kotlin isData getter, got: \(callees)"
-        )
+        let getter = try kClassExtensionGetter(named: "isData", in: ctx)
+        let getterCall = try #require(calls.first { $0.symbol == getter })
+        let creation = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) })
+        let classValue = try #require(creation.result)
+        let typeToken = try #require(creation.arguments.first)
         // The flag bits are read from the metadata registry, so the literal-class
         // query must also register the metadata (keyed by the same type token).
-        #expect(
-            callees.contains("__kk_kclass_register_metadata"),
-            "Point::class.isData should register metadata so the flag resolves, got: \(callees)"
-        )
+        let metadata = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassMetadata.name(in: ctx.interner) })
+        #expect(metadata.arguments.first == typeToken)
+        #expect(getterCall.arguments.first == classValue)
+        #expect(metadata.index < getterCall.index)
     }
 
     @Test func testClassLiteralIsSealedEmitsRuntimeCall() throws {
-        let callees = try calleesForMain("""
+        let (ctx, calls) = try callsForMain("""
         sealed class Shape
         fun main() {
             println(Shape::class.isSealed)
         }
         """)
+        let getter = try kClassExtensionGetter(named: "isSealed", in: ctx)
         #expect(
-            callees.contains("isSealed"),
-            "Shape::class.isSealed should resolve to the Kotlin isSealed getter, got: \(callees)"
+            calls.contains { $0.symbol == getter },
+            "Shape::class.isSealed should resolve to the Kotlin isSealed getter, got: \(calls)"
         )
     }
 
     @Test func testClassLiteralIsValueEmitsRuntimeCall() throws {
-        let callees = try calleesForMain("""
+        let (ctx, calls) = try callsForMain("""
         @JvmInline
         value class Wrapped(val v: Int)
         fun main() {
             println(Wrapped::class.isValue)
         }
         """)
+        let getter = try kClassExtensionGetter(named: "isValue", in: ctx)
         #expect(
-            callees.contains("isValue"),
-            "Wrapped::class.isValue should resolve to the Kotlin isValue getter, got: \(callees)"
+            calls.contains { $0.symbol == getter },
+            "Wrapped::class.isValue should resolve to the Kotlin isValue getter, got: \(calls)"
         )
     }
 
@@ -81,21 +84,22 @@ struct KClassBooleanIntrospectionTests {
             ("fun interface F { fun run() }", "F", "isFun"),
         ]
         for testCase in cases {
-            let callees = try calleesForMain("""
+            let (ctx, calls) = try callsForMain("""
             \(testCase.decl)
             fun main() {
                 println(\(testCase.ref)::class.\(testCase.member))
             }
             """)
+            let getter = try kClassExtensionGetter(named: testCase.member, in: ctx)
             #expect(
-                callees.contains(testCase.member),
-                "\(testCase.ref)::class.\(testCase.member) should resolve to the Kotlin \(testCase.member) getter, got: \(callees)"
+                calls.contains { $0.symbol == getter },
+                "\(testCase.ref)::class.\(testCase.member) should resolve to the Kotlin \(testCase.member) getter, got: \(calls)"
             )
         }
     }
 
     @Test func testVariableReceiverIsDataEmitsRuntimeCall() throws {
-        let callees = try calleesForMain("""
+        let (ctx, calls) = try callsForMain("""
         import kotlin.reflect.KClass
         data class Point(val x: Int)
         fun main() {
@@ -103,17 +107,18 @@ struct KClassBooleanIntrospectionTests {
             println(k.isData)
         }
         """)
+        let getter = try kClassExtensionGetter(named: "isData", in: ctx)
         #expect(
-            callees.contains("isData"),
+            calls.contains { $0.symbol == getter },
             Comment(rawValue: "k.isData on a KClass<Point> variable should resolve to the Kotlin isData getter "
-                + "(not fall through to an undefined _isData symbol), got: \(callees)")
+                + "(not fall through to an undefined _isData symbol), got: \(calls)")
         )
     }
 
     @Test func testVariableReceiverStandaloneClassRefRegistersMetadata() throws {
         // A standalone `T::class` stored in a variable must register metadata so a
         // later `k.isData` resolves the flag even when the class is never built.
-        let callees = try calleesForMain("""
+        let (ctx, calls) = try callsForMain("""
         import kotlin.reflect.KClass
         data class Point(val x: Int)
         fun main() {
@@ -122,8 +127,8 @@ struct KClassBooleanIntrospectionTests {
         }
         """)
         #expect(
-            callees.contains("__kk_kclass_register_metadata"),
-            "Standalone Point::class should register metadata, got: \(callees)"
+            calls.contains { $0.callee == KIRRuntimeFunction.kClassMetadata.name(in: ctx.interner) },
+            "Standalone Point::class should register metadata, got: \(calls)"
         )
     }
 }

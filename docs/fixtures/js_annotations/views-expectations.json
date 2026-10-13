@@ -1,0 +1,341 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "views_map",
+      "source": "views/map.kt",
+      "sourceSha256": "45eae55115023142b577a6005714c06df1d79152056390ca4b364fe66b3cf299",
+      "lanes": [
+        "kotlin-js-reference",
+        "native-compat"
+      ],
+      "provenance": {
+        "capture": "evidence/views-reference-results.json",
+        "pointer": "/cases/views_map"
+      },
+      "nativeContract": {
+        "compile": {
+          "exitCode": 0,
+          "diagnostics": []
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "minimum:2\nreplace:7:4:true\nordered:a,null,c:3\ncopies:7:1:2:0\nclear:0:2\nreuse:1:true:null\nempty:0\ngrown:8:1\n",
+          "stderr": ""
+        }
+      },
+      "reference": {
+        "compile": {
+          "exitCode": 0,
+          "stdout": "",
+          "diagnostics": [],
+          "werror": true
+        },
+        "link": {
+          "exitCode": 0,
+          "flags": [],
+          "requiredArtifacts": [
+            "views_map.mjs"
+          ]
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "minimum:2\nreplace:7:4:true\nordered:a,null,c:3\ncopies:7:1:2:0\nclear:0:2\nreuse:1:true:null\nempty:0\ngrown:8:1\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "id": "views_set",
+      "source": "views/set.kt",
+      "sourceSha256": "410ab1d879c6e10a156e64646f45fb0cf0f01df04339ea0926e7de824dc2c085",
+      "lanes": [
+        "kotlin-js-reference",
+        "native-compat"
+      ],
+      "provenance": {
+        "capture": "evidence/views-reference-results.json",
+        "pointer": "/cases/views_set"
+      },
+      "nativeContract": {
+        "compile": {
+          "exitCode": 0,
+          "diagnostics": []
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "minimum:3\ninitial:x,null,y:true\nchanges:true:false:true:false\nordered:x,null,z\ncopies:x,null,z:x,null,y:0\nclear:0:3\nreuse:again,null\nempty:0\ngrown:8,null\n",
+          "stderr": ""
+        }
+      },
+      "reference": {
+        "compile": {
+          "exitCode": 0,
+          "stdout": "",
+          "diagnostics": [],
+          "werror": true
+        },
+        "link": {
+          "exitCode": 0,
+          "flags": [],
+          "requiredArtifacts": [
+            "views_set.mjs"
+          ]
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "minimum:3\ninitial:x,null,y:true\nchanges:true:false:true:false\nordered:x,null,z\ncopies:x,null,z:x,null,y:0\nclear:0:3\nreuse:again,null\nempty:0\ngrown:8,null\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "id": "views_readonly_array",
+      "source": "views/readonly_array.kt",
+      "sourceSha256": "5bb00ae77c739deb131d9cffd5abe3f371786c8772ede8296e3fde07803928ab",
+      "lanes": [
+        "kotlin-js-reference",
+        "native-compat"
+      ],
+      "provenance": {
+        "capture": "evidence/views-reference-results.json",
+        "pointer": "/cases/views_readonly_array"
+      },
+      "nativeContract": {
+        "compile": {
+          "exitCode": 0,
+          "diagnostics": []
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "minimum:4:1,null,3,4\nchanged:7,null,4,5\ncopies:7,null,4,5:1,null,3,4:0\nclear:0:4\nreuse:null,6\nempty:0\ngrown:later\nimmutable:4,3,2,1\n",
+          "stderr": ""
+        }
+      },
+      "reference": {
+        "compile": {
+          "exitCode": 0,
+          "stdout": "",
+          "diagnostics": [],
+          "werror": true
+        },
+        "link": {
+          "exitCode": 0,
+          "flags": [],
+          "requiredArtifacts": [
+            "views_readonly_array.mjs"
+          ]
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "minimum:4:1,null,3,4\nchanged:7,null,4,5\ncopies:7,null,4,5:1,null,3,4:0\nclear:0:4\nreuse:null,6\nempty:0\ngrown:later\nimmutable:4,3,2,1\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "id": "typed_views",
+      "source": "valid/typed_views.kt",
+      "sourceSha256": "8675e620dbd1fa0f096347ee67e88364c64d9e67e7884f10eaeba6ca9bca5983",
+      "lanes": [
+        "native-compat"
+      ],
+      "provenance": {
+        "capture": "evidence/reference-results.json",
+        "pointer": "/cases/typed_views"
+      },
+      "nativeContract": {
+        "status": "required-by-followup-not-yet-implemented",
+        "compile": {
+          "exitCode": 0,
+          "diagnostics": []
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "map:3:null:0:2\nset:3:true:0:2\narray:7,2,3,4,5:0:1,2,3,4\nempty:0:0:0\n",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "id": "typed_view_properties",
+      "source": "diagnostics/typed_view_properties.kt",
+      "sourceSha256": "cb2ea9a1f651fcf158d2b8ac9358e7f1a62b1a8a96f68a62e3f6adc94cb94f90",
+      "lanes": [
+        "native-compat"
+      ],
+      "provenance": {
+        "capture": "evidence/reference-results.json",
+        "pointer": "/cases/typed_view_properties"
+      },
+      "nativeContract": {
+        "status": "required-by-followup-not-yet-implemented",
+        "compile": {
+          "exitCode": 1,
+          "diagnostics": [
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            },
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            },
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            },
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "views_typed_mutators",
+      "source": "views/typed_mutators.kt",
+      "sourceSha256": "00e90156e8945155ac527cf7be323dea12e9ddef594df9518ccbbaf54ea8e5c9",
+      "lanes": [
+        "native-compat"
+      ],
+      "provenance": {
+        "contract": "../../js-annotations-contract-2.3.10.md",
+        "basis": "No typed set/add members on JsMap, JsSet, or JsReadonlyArray in Kotlin 2.3.10"
+      },
+      "nativeContract": {
+        "compile": {
+          "exitCode": 1,
+          "diagnostics": [
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            },
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            },
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            },
+            {
+              "severity": "error",
+              "kind": "UNRESOLVED_REFERENCE"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "views_variance",
+      "source": "views/variance.kt",
+      "sourceSha256": "bbe093be54a1b0b61642fe19d4b79e9ab85bf4b2734beb2d1143791336dda984",
+      "lanes": [
+        "kotlin-js-reference",
+        "native-compat"
+      ],
+      "provenance": {
+        "capture": "evidence/views-reference-results.json",
+        "pointer": "/cases/views_variance"
+      },
+      "nativeContract": {
+        "compile": {
+          "exitCode": 1,
+          "diagnostics": [
+            {
+              "severity": "error",
+              "kind": "TYPE_CONSTRAINT_FAILURE"
+            },
+            {
+              "severity": "error",
+              "kind": "TYPE_CONSTRAINT_FAILURE"
+            },
+            {
+              "severity": "error",
+              "kind": "TYPE_CONSTRAINT_FAILURE"
+            },
+            {
+              "severity": "error",
+              "kind": "TYPE_CONSTRAINT_FAILURE"
+            }
+          ]
+        }
+      },
+      "reference": {
+        "compile": {
+          "exitCode": 1,
+          "stdout": "",
+          "diagnostics": [
+            {
+              "severity": "error",
+              "name": "RETURN_TYPE_MISMATCH"
+            },
+            {
+              "severity": "error",
+              "name": "RETURN_TYPE_MISMATCH"
+            },
+            {
+              "severity": "error",
+              "name": "RETURN_TYPE_MISMATCH"
+            },
+            {
+              "severity": "error",
+              "name": "RETURN_TYPE_MISMATCH"
+            }
+          ],
+          "werror": true
+        }
+      }
+    },
+    {
+      "id": "views_dynamic",
+      "source": "views/dynamic_views.kt",
+      "sourceSha256": "690b2decf9ec566d2c268c9034b0bd325e57eb20fe3ff774a07f9ff060eed58a",
+      "lanes": [
+        "kotlin-js-reference"
+      ],
+      "provenance": {
+        "capture": "evidence/views-reference-results.json",
+        "pointer": "/cases/views_dynamic"
+      },
+      "reference": {
+        "compile": {
+          "exitCode": 0,
+          "stdout": "",
+          "diagnostics": [],
+          "werror": true
+        },
+        "link": {
+          "exitCode": 0,
+          "flags": [],
+          "requiredArtifacts": [
+            "views_dynamic.mjs"
+          ]
+        },
+        "run": {
+          "exitCode": 0,
+          "stdout": "map-initial:2:null\nmap-chain:true:7\nmap-shared:4:false:2\nmap-delete:true:false:1\nmap-clear:0:0\nmap-reuse:8:1\nset-chain:true:true\nset-shared:2:true:false\nset-delete:true:false:false\nset-clear:0:0\nset-reuse:true:1\narray-shared:4:7:null:5\nreadonly:7\narray-clear:0\narray-reuse:1:6\n",
+          "stderr": ""
+        }
+      }
+    }
+  ],
+  "oracle": {
+    "target": "Kotlin/JS",
+    "kotlinVersion": "2.3.10",
+    "upstreamRevision": "679366a83f99851b42f64795f10ed803ff011c73",
+    "archiveSha256": "c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e",
+    "artifactSha256": {
+      "kotlin-compiler.jar": "205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8",
+      "kotlin-stdlib-js.klib": "03d04d6123d85245c26c612423d9906b820370d95eea6c90a84151f79e3fba95",
+      "kotlin-stdlib-js-sources.jar": "d1c87b3f87e58ad5494c5ed064053f79d96585e2bd627c7250e7c5d43faa68dc"
+    }
+  },
+  "timeoutsSeconds": {
+    "compile": 60,
+    "link": 120,
+    "run": 10
+  }
+}

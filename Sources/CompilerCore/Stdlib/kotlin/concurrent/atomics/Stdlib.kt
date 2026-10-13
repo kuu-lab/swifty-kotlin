@@ -72,7 +72,7 @@ internal external fun <T> __kkAtomicRefArrayNew(size: Int): AtomicArray<T>
 public inline fun <reified T> AtomicArray(size: Int, init: (Int) -> T): AtomicArray<T> {
     val array = __kkAtomicRefArrayNew<T>(size)
     for (index in 0 until size) {
-        array[index] = init(index)
+        array.storeAt(index, init(index))
     }
     return array
 }

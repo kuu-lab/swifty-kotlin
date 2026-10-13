@@ -43,18 +43,18 @@ struct MapHOFLoweringRoutingTests {
     /// The `kk_map_*` names the deleted `mapHOFRuntimeName` switch in
     /// `+CallRewriteHandlers.swift` used to produce. None has a `@_cdecl` in
     /// `Sources/Runtime` any more.
-    static let legacyMapHOFRuntimeCallees: Set<String> = [
-        "kk_map_map", "kk_map_filter", "kk_map_forEach",
-        "kk_map_mapValues", "kk_map_mapKeys",
-        "kk_map_filterKeys", "kk_map_filterValues",
-        "kk_map_flatMap", "kk_map_any", "kk_map_all", "kk_map_none",
-        "kk_map_maxByOrNull", "kk_map_minByOrNull",
+    static let legacyMapHOFRuntimeOperations: Set<String> = [
+        "map_map", "map_filter", "map_forEach",
+        "map_mapValues", "map_mapKeys",
+        "map_filterKeys", "map_filterValues",
+        "map_flatMap", "map_any", "map_all", "map_none",
+        "map_maxByOrNull", "map_minByOrNull",
     ]
 
     /// Every name the removed Map branches used to match, exercised on a
     /// `Map` receiver. `mapValuesTo` / `mapKeysTo` / `filterNot` /
     /// `mapNotNull` were never in the deleted `mapHOFRuntimeName` switch (so
-    /// they have no corresponding `legacyMapHOFRuntimeCallees` entry), but
+    /// they have no corresponding `legacyMapHOFRuntimeOperations` entry), but
     /// they shared the same dead outer gates and are worth pinning too.
     static let expectedSourceCallees: Set<String> = [
         "map", "filter", "filterNot", "mapNotNull", "forEach",
@@ -87,21 +87,6 @@ struct MapHOFLoweringRoutingTests {
         println(m.none { it.value < 0 })
     }
     """
-
-    /// Runs only `CollectionLiteralLoweringPass`, so a failure names that pass
-    /// rather than some later rewrite in `LoweringPhase`.
-    static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
 
     /// `.call` / `.virtualCall` callees across *every* function in the
     /// module, not just `main`: a rewrite that fired inside an injected
@@ -157,7 +142,7 @@ struct MapHOFLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let sema = try #require(ctx.sema)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let calls = Self.mapHOFCalls(in: body, interner: ctx.interner).filter { $0.name == "forEach" }
@@ -175,8 +160,8 @@ struct MapHOFLoweringRoutingTests {
                 arities.append(functionType.params.count)
             }
             #expect(arities == [2, 1, 1, 1, 2, 2])
-            #expect(Set(Self.allCallees(in: module, interner: ctx.interner))
-                .intersection(Self.legacyMapHOFRuntimeCallees).isEmpty)
+            #expect(LoweringTestRuntime.operations(in: Self.allCallees(in: module, interner: ctx.interner))
+                .intersection(Self.legacyMapHOFRuntimeOperations).isEmpty)
         }
     }
 
@@ -212,7 +197,7 @@ struct MapHOFLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let survivors = Set(Self.mapHOFCalls(in: body, interner: ctx.interner).map(\.name))
             let missing = Self.expectedSourceCallees.subtracting(survivors).sorted()
@@ -222,7 +207,7 @@ struct MapHOFLoweringRoutingTests {
             )
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(Self.legacyMapHOFRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyMapHOFRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no legacy kk_map_* HOF rewrite may reach lowered KIR; got \(redirects.sorted())"
@@ -296,7 +281,7 @@ struct MapHOFLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(mainCallees.contains("filterKeys"), "the user filterKeys must stay; callees: \(mainCallees)")
@@ -304,7 +289,7 @@ struct MapHOFLoweringRoutingTests {
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
             #expect(
-                callees.intersection(Self.legacyMapHOFRuntimeCallees).isEmpty,
+                LoweringTestRuntime.operations(in: callees).intersection(Self.legacyMapHOFRuntimeOperations).isEmpty,
                 "a user function may never be rewritten to a runtime bridge; callees: \(callees.sorted())"
             )
         }
@@ -359,7 +344,7 @@ struct MapHOFLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let virtualCallees = Set(findAllKIRFunctions(in: module).flatMap {
                 extractVirtualCallees(from: $0.body, interner: ctx.interner)
             })
@@ -377,7 +362,7 @@ struct MapHOFLoweringRoutingTests {
                 allCallees.isSuperset(of: ["mapValues", "filterKeys"]),
                 "the Map HOF source calls must survive as direct calls; callees: \(allCallees.sorted())"
             )
-            let redirects = allCallees.intersection(Self.legacyMapHOFRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: allCallees).intersection(Self.legacyMapHOFRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no legacy kk_map_* HOF rewrite may reach lowered KIR; got \(redirects.sorted())"

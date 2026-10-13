@@ -27,6 +27,7 @@ struct KnownCompilerNamesCacheTests {
         #expect(interner.snapshotValues().isEmpty)
         let userName = interner.intern("userName")
         let existingList = interner.intern("List")
+        let initialNames = interner.snapshotValues()
 
         let first = KnownCompilerNames(interner: interner)
         let registeredNames = interner.snapshotValues()
@@ -37,8 +38,8 @@ struct KnownCompilerNamesCacheTests {
         #expect(second.list == existingList)
         #expect(first.kotlinCollectionsListFQName == second.kotlinCollectionsListFQName)
         #expect(first.atomicScalarFactoryFQNames == second.atomicScalarFactoryFQNames)
-        #expect(interner.resolve(userName) == "userName")
-        #expect(interner.resolve(laterName) == "laterName")
+        #expect(registeredNames[Int(userName.rawValue)] == initialNames[Int(userName.rawValue)])
+        #expect(Int(laterName.rawValue) == registeredNames.count)
         #expect(interner.snapshotValues() == registeredNames + ["laterName"])
     }
 

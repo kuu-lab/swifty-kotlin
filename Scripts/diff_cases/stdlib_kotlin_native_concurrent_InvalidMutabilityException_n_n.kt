@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.concurrent is a Kotlin/Native-only API unavailable in JVM kotlinc.
+// CANDIDATE-ONLY: kotlin.native.concurrent is unavailable in JVM kotlinc; verify with the candidate runner.
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
 import kotlin.native.concurrent.InvalidMutabilityException

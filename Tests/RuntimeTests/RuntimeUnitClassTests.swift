@@ -66,7 +66,7 @@ struct RuntimeUnitClassTests {
         // The Unit runtime value is the integer 0.
         let unitValue = 0
         let result = kk_op_is(unitValue, unitTypeToken)
-        #expect(result == 1, "kk_op_is should return 1 for the Unit singleton value")
+        #expect(result == 1, "Unit type check must return true for the Unit singleton value")
     }
 
     @Test
@@ -74,7 +74,7 @@ struct RuntimeUnitClassTests {
         // A non-zero value is not Unit.
         let nonUnitValue = 42
         let result = kk_op_is(nonUnitValue, unitTypeToken)
-        #expect(result == 0, "kk_op_is should return 0 for a non-Unit value")
+        #expect(result == 0, "Unit type check must return false for a non-Unit value")
     }
 
     @Test

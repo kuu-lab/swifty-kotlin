@@ -300,9 +300,18 @@ public fun <T> Sequence<T>.toMutableSet(): MutableSet<T> {
 @KsSymbolName("kk_sequence_toHashSet")
 public fun <T> Sequence<T>.toHashSet(): MutableSet<T> = toMutableSet()
 
+// KUU-1361: `kk_sequence_toSortedSet` now produces a sorted runtime box
+// carrying the java.util.TreeSet identity, so the declared return type can
+// match JVM (`SortedSet`).
 @KsSymbolName("kk_sequence_toSortedSet")
-public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> =
-    LinkedHashSet(toMutableList().sorted())
+public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): java.util.SortedSet<T> =
+    java.util.TreeSet(toMutableList())
+
+public fun <T> Sequence<T>.toSortedSet(comparator: Comparator<in T>): java.util.SortedSet<T> {
+    val result = java.util.TreeSet<T>(comparator)
+    for (element in this) result.add(element)
+    return result
+}
 
 public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     val list1 = mutableListOf<T>()
@@ -312,54 +321,6 @@ public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
         list2.add(pair.second)
     }
     return Pair(list1.toList(), list2.toList())
-}
-
-@KsSymbolName("kk_sequence_union")
-public fun <T> Sequence<T>.union(other: Iterable<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.add(element)
-    return result
-}
-
-public fun <T> Sequence<T>.union(other: Sequence<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.add(element)
-    return result
-}
-
-@KsSymbolName("kk_sequence_intersect")
-public fun <T> Sequence<T>.intersect(other: Iterable<T>): Set<T> {
-    val result = mutableSetOf<T>()
-    val otherSet = mutableSetOf<T>()
-    for (element in other) otherSet.add(element)
-    for (element in this) {
-        if (otherSet.contains(element)) result.add(element)
-    }
-    return result
-}
-
-@KsSymbolName("kk_sequence_intersect")
-public fun <T> Sequence<T>.intersect(other: Sequence<T>): Set<T> {
-    val result = mutableSetOf<T>()
-    val otherSet = mutableSetOf<T>()
-    for (element in other) otherSet.add(element)
-    for (element in this) {
-        if (otherSet.contains(element)) result.add(element)
-    }
-    return result
-}
-
-@KsSymbolName("kk_sequence_subtract")
-public fun <T> Sequence<T>.subtract(other: Iterable<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.remove(element)
-    return result
-}
-
-public fun <T> Sequence<T>.subtract(other: Sequence<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.remove(element)
-    return result
 }
 
 @KsSymbolName("kk_sequence_plus_element")
@@ -716,6 +677,18 @@ public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> 
 // sumOf resolves on the selector's concrete return type. The sibling Int and
 // Double sumOf overloads already live in SequenceAggregateHOF.kt
 // (kotlin.collections), and Sequence<Int>.sum() lives there too.
+public fun Sequence<Byte>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Sequence<Short>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
 public fun Sequence<Double>.sum(): Double {
     var sum = 0.0
     for (element in this) sum += element
@@ -787,4 +760,69 @@ public inline fun <T> Sequence<T>.sumOf(selector: (T) -> ULong): ULong {
     var sum = 0uL
     for (element in this) sum += selector(element)
     return sum
+}
+
+// KUU-1413: Sequence numeric averages complete the stdlib family. They
+// mirror the Iterable counterparts in Iterables.kt — Double accumulation and
+// NaN for empty input — while iterating lazily instead of materializing.
+// Sequence<Int>.average() lives in SequenceAggregateHOF.kt
+// (kotlin.collections) alongside the Int sum decl.
+private fun checkSequenceAverageCountOverflow(count: Int): Int {
+    if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    return count
+}
+
+public fun Sequence<Byte>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Short>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Long>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Float>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Double>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
 }

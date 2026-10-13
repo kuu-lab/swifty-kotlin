@@ -18,11 +18,11 @@ struct ConstructorLambdaExpectedTypeTests {
             #expect(!ctx.diagnostics.hasError)
             let sema = try #require(ctx.sema)
             let localClass = try #require(sema.symbols.symbols(ofKind: .class).first {
-                sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) == "Local" } ?? false
+                sema.symbols.symbol($0).map { $0.name == ctx.interner.intern("Local") } ?? false
             })
             let captures = sema.bindings.objectLiteralCaptureSymbols(for: localClass)
             #expect(captures.contains {
-                sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) == "offset" } ?? false
+                sema.symbols.symbol($0).map { $0.name == ctx.interner.intern("offset") } ?? false
             })
         }
     }

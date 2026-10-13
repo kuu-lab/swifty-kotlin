@@ -507,6 +507,14 @@ echo "Target: $TARGET"
 echo "========================================"
 
 while IFS= read -r case_path; do
+  if is_candidate_only_case "$case_path"; then
+    echo "SKIP $case_path (candidate-only; no JVM diagnostic reference)"
+    SKIPPED=$((SKIPPED + 1))
+    if [[ -n "$REPORT_PATH" ]]; then
+      printf '%s\tSKIP\t\t\t\t\t\n' "$case_path" >>"$REPORT_PATH"
+    fi
+    continue
+  fi
   if should_skip_diff_case "$case_path" "$FORCE_RUN_SKIPPED"; then
     echo "SKIP $case_path (// SKIP-DIFF)"
     SKIPPED=$((SKIPPED + 1))

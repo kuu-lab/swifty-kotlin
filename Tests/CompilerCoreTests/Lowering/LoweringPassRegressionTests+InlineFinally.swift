@@ -77,7 +77,7 @@ extension LoweringPassRegressionTests {
             if case let .function(function) = declaration { return function }
             return nil
         }.first {
-            context.interner.resolve($0.name) == "escape"
+            $0.name == context.interner.intern("escape")
         })
         #expect(extractCallees(from: escape.body, interner: context.interner).contains("println"))
         #expect(!escape.body.contains { instruction in

@@ -271,7 +271,7 @@ struct InlineExpansionIndexTests {
             "caller", symbol: 12, interner: interner, types: types,
             body: [call(to: bodyless, callee: "gone", interner: interner)]
         )
-        var index = InlineExpansionIndex(
+        let index = InlineExpansionIndex(
             module: makeModule([bodylessDecl, caller]),
             importedInlineFunctions: ImportedInlineFunctionStore()
         )
@@ -455,7 +455,7 @@ struct InlineExpansionIndexTests {
         let byName = index.inlineFunctionsByName
 
         #expect(!index.isMandatoryExpansionCall(
-            callSymbol: execute.symbol, callee: interner.intern("kk_worker_execute"),
+            callSymbol: execute.symbol, callee: LoweringTestRuntime.callee("worker_execute", interner: interner),
             inlineFunctionsByName: byName,
             interner: interner,
             externalLinkName: { _ in nil }
@@ -471,10 +471,10 @@ struct InlineExpansionIndexTests {
         // An external link name is also an emitted identity: a call using it
         // still names the bodyless symbol and stays mandatory.
         #expect(index.isMandatoryExpansionCall(
-            callSymbol: execute.symbol, callee: interner.intern("kk_execute_link"),
+            callSymbol: execute.symbol, callee: interner.intern("executeFixtureLink"),
             inlineFunctionsByName: byName,
             interner: interner,
-            externalLinkName: { $0 == execute.symbol ? "kk_execute_link" : nil }
+            externalLinkName: { $0 == execute.symbol ? "executeFixtureLink" : nil }
         ))
     }
 

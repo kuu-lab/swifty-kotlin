@@ -64,6 +64,25 @@ func primitiveVarargArrayType(
     )))
 }
 
+/// The local representation of a reference vararg is Kotlin's covariant array.
+func referenceVarargArrayType(
+    elementType: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> TypeID? {
+    guard let arraySymbol = sema.symbols.lookup(fqName: [
+        interner.intern("kotlin"),
+        interner.intern("Array"),
+    ]) else {
+        return nil
+    }
+    return sema.types.make(.classType(ClassType(
+        classSymbol: arraySymbol,
+        args: [.out(elementType)],
+        nullability: .nonNull
+    )))
+}
+
 /// Returns the runtime nominal type ID for an array-shaped Kotlin type.
 ///
 /// Arrays share one runtime storage representation, so lowering must preserve

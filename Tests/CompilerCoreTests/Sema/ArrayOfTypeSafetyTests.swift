@@ -204,6 +204,11 @@ struct ArrayOfTypeSafetyTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
+            let names = KnownCompilerNames(interner: interner)
+            let arrayName = interner.intern("arr")
+            let elementName = interner.intern("x")
+            let ushortArray = try #require(sema.symbols.lookup(fqName: names.kotlinUShortArrayFQName))
+            let ubyteArray = try #require(sema.symbols.lookup(fqName: names.kotlinUByteArrayFQName))
 
             // === testArrayOfIntGetResolvesWithoutError ===
 
@@ -267,7 +272,7 @@ struct ArrayOfTypeSafetyTests {
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
                 let mainBody = try #require(findMainBodyStatements(in: ast, path: samplePath, ctx: ctx, interner: interner))
-                let expectedNames: Set<String> = [
+                let expectedNames = Set([
                     "stringIndex",
                     "stringRangeIndex",
                     "boolIndex",
@@ -275,8 +280,8 @@ struct ArrayOfTypeSafetyTests {
                     "intFromIndex",
                     "uintIndex",
                     "ulongRangeIndex",
-                ]
-                var seenNames: Set<String> = []
+                ].map(interner.intern))
+                var seenNames: Set<InternedString> = []
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
                           case let .localDecl(name, _, _, initializer, _, _) = expr,
@@ -284,14 +289,13 @@ struct ArrayOfTypeSafetyTests {
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
 
-                    let localName = interner.resolve(name)
-                    guard expectedNames.contains(localName) else { continue }
+                    guard expectedNames.contains(name) else { continue }
 
                     #expect(
                         boundType == sema.types.intType,
-                        "Expected \(localName) to be typed as Int."
+                        "Expected \(interner.resolve(name)) to be typed as Int."
                     )
-                    seenNames.insert(localName)
+                    seenNames.insert(name)
                 }
                 #expect(seenNames == expectedNames)
 
@@ -353,14 +357,13 @@ struct ArrayOfTypeSafetyTests {
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
 
-                    if interner.resolve(name) == "arr",
-                       case let .classType(classType) = sema.types.kind(of: boundType),
-                       let symbol = sema.symbols.symbol(classType.classSymbol)
+                    if name == arrayName,
+                       case let .classType(classType) = sema.types.kind(of: boundType)
                     {
-                        foundUShortArray = interner.resolve(symbol.name) == "UShortArray"
+                        foundUShortArray = classType.classSymbol == ushortArray
                     }
 
-                    if interner.resolve(name) == "x" {
+                    if name == elementName {
                         foundUShortGet = boundType == sema.types.ushortType
                     }
                 }
@@ -390,14 +393,13 @@ struct ArrayOfTypeSafetyTests {
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
 
-                    if interner.resolve(name) == "arr",
-                       case let .classType(classType) = sema.types.kind(of: boundType),
-                       let symbol = sema.symbols.symbol(classType.classSymbol)
+                    if name == arrayName,
+                       case let .classType(classType) = sema.types.kind(of: boundType)
                     {
-                        foundUByteArray = interner.resolve(symbol.name) == "UByteArray"
+                        foundUByteArray = classType.classSymbol == ubyteArray
                     }
 
-                    if interner.resolve(name) == "x" {
+                    if name == elementName {
                         foundUByteGet = boundType == sema.types.ubyteType
                     }
                 }
@@ -427,14 +429,13 @@ struct ArrayOfTypeSafetyTests {
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
 
-                    if interner.resolve(name) == "arr",
-                       case let .classType(classType) = sema.types.kind(of: boundType),
-                       let symbol = sema.symbols.symbol(classType.classSymbol)
+                    if name == arrayName,
+                       case let .classType(classType) = sema.types.kind(of: boundType)
                     {
-                        foundUShortArray = interner.resolve(symbol.name) == "UShortArray"
+                        foundUShortArray = classType.classSymbol == ushortArray
                     }
 
-                    if interner.resolve(name) == "x" {
+                    if name == elementName {
                         foundIndexedUShort = boundType == sema.types.ushortType
                     }
                 }
@@ -464,14 +465,13 @@ struct ArrayOfTypeSafetyTests {
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
 
-                    if interner.resolve(name) == "arr",
-                       case let .classType(classType) = sema.types.kind(of: boundType),
-                       let symbol = sema.symbols.symbol(classType.classSymbol)
+                    if name == arrayName,
+                       case let .classType(classType) = sema.types.kind(of: boundType)
                     {
-                        foundUByteArray = interner.resolve(symbol.name) == "UByteArray"
+                        foundUByteArray = classType.classSymbol == ubyteArray
                     }
 
-                    if interner.resolve(name) == "x" {
+                    if name == elementName {
                         foundIndexedUByte = boundType == sema.types.ubyteType
                     }
                 }
@@ -510,7 +510,7 @@ struct ArrayOfTypeSafetyTests {
                 let arrayElementTypes = mainBody.compactMap { exprID -> TypeID? in
                     guard let expr = ast.arena.expr(exprID),
                           case let .localDecl(name, _, _, initializer, _, _) = expr,
-                          interner.resolve(name) == "a",
+                          name == interner.intern("a"),
                           let initializer
                     else { return nil }
                     guard case let .classType(arrayType) = sema.types.kind(of: sema.bindings.exprType(for: initializer) ?? sema.types.errorType),
@@ -523,11 +523,7 @@ struct ArrayOfTypeSafetyTests {
                 }
                 #expect(arrayElementTypes.count == 1)
                 if let elementType = arrayElementTypes.first {
-                    let listSymbol = sema.symbols.lookup(fqName: [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("List"),
-                    ])
+                    let listSymbol = sema.symbols.lookup(fqName: names.kotlinCollectionsListFQName)
                     #expect(
                         listSymbol.map { symbol in
                             guard case let .classType(listType) = sema.types.kind(of: elementType),
@@ -651,12 +647,13 @@ struct ArrayOfTypeSafetyTests {
         ctx: CompilationContext,
         interner: StringInterner
     ) -> [ExprID]? {
+        let names = KnownCompilerNames(interner: interner)
         for file in ast.files {
             guard ctx.sourceManager.path(of: file.fileID) == path else { continue }
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       case let .funDecl(function) = decl,
-                      interner.resolve(function.name) == "main",
+                      function.name == names.main,
                       case let .block(statements, _) = function.body
                 else { continue }
                 return statements

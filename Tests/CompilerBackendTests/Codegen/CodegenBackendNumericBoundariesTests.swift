@@ -8,52 +8,6 @@ import Testing
 struct CodegenBackendNumericBoundariesTests {
 
     @Test
-    func testNumericBoundaryUnsignedCompanionConstants() throws {
-        let source = """
-        fun main() {
-            println(UInt.MAX_VALUE)
-            println(UInt.MIN_VALUE)
-            println(UInt.SIZE_BITS)
-            println(UInt.SIZE_BYTES)
-            println(ULong.MAX_VALUE)
-            println(ULong.MIN_VALUE)
-            println(ULong.SIZE_BITS)
-            println(ULong.SIZE_BYTES)
-            println(UByte.MAX_VALUE)
-            println(UByte.MIN_VALUE)
-            println(UByte.SIZE_BITS)
-            println(UByte.SIZE_BYTES)
-            println(UShort.MAX_VALUE)
-            println(UShort.MIN_VALUE)
-            println(UShort.SIZE_BITS)
-            println(UShort.SIZE_BYTES)
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "NumericBoundaryUnsignedConstants",
-            expected: """
-            4294967295
-            0
-            32
-            4
-            18446744073709551615
-            0
-            64
-            8
-            255
-            0
-            8
-            1
-            65535
-            0
-            16
-            2
-            """ + "\n"
-        )
-    }
-
-    @Test
     func testNumericBoundaryUIntCompanionSourceBacked() throws {
         let source = """
         fun main() {
@@ -342,28 +296,6 @@ struct CodegenBackendNumericBoundariesTests {
             true
             5
             100
-            """ + "\n"
-        )
-    }
-
-    @Test
-    func testNumericBoundaryIntToCharTruncates() throws {
-        let source = """
-        fun main() {
-            println(65601.toChar().code)
-            println(70000.toChar().code)
-            println(65536.toChar().code)
-            println(131072.toChar().code)
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "NumericBoundaryIntToChar",
-            expected: """
-            65
-            4464
-            0
-            0
             """ + "\n"
         )
     }

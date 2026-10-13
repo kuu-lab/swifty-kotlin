@@ -260,6 +260,14 @@ should_skip_diff_case() {
     grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$case_path"
 }
 
+# Candidate-only cases use Scripts/run_candidate_only.sh and have no JVM
+# reference result. Keep them out of the kotlinc-based diff and diagnostics
+# lanes while allowing the candidate-only runner to discover them.
+is_candidate_only_case() {
+    local case_path="$1"
+    grep -Eq '^[[:space:]]*//[[:space:]]*CANDIDATE-ONLY([[:space:]:]|$)' "$case_path"
+}
+
 # Pick a not-yet-existing artifact directory path for a failed diff case:
 # "$1/$2", or "$1/${2}_1", "$1/${2}_2", ... on collision. Does not create the
 # directory; the caller still owns mkdir/mv. $2 should already be sanitized.

@@ -42,6 +42,6 @@ struct KClassSingletonPropertyTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(callees.contains("typeOf"))
-        #expect(!callees.contains("kk_typeof"))
+        #expect(!callees.contains(runtimeABIName(.typeOf)))
     }
 }

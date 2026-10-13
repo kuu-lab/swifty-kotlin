@@ -1,3 +1,5 @@
+private fun byteSum(values: Sequence<Byte>): Int = values.sum()
+private fun shortSum(values: Sequence<Short>): Int = values.sum()
 private fun longSum(values: Sequence<Long>): Long = values.sum()
 private fun floatSum(values: Sequence<Float>): Float = values.sum()
 private fun doubleSum(values: Sequence<Double>): Double = values.sum()
@@ -12,8 +14,17 @@ private fun sumOfLong(values: Sequence<String>): Long = values.sumOf { it.length
 private fun sumOfUInt(values: Sequence<String>): UInt = values.sumOf { it.length.toUInt() }
 private fun sumOfULong(values: Sequence<String>): ULong = values.sumOf { it.length.toULong() }
 
+private fun byteAverage(values: Sequence<Byte>): Double = values.average()
+private fun shortAverage(values: Sequence<Short>): Double = values.average()
+private fun intAverage(values: Sequence<Int>): Double = values.average()
+private fun longAverage(values: Sequence<Long>): Double = values.average()
+private fun floatAverage(values: Sequence<Float>): Double = values.average()
+private fun doubleAverage(values: Sequence<Double>): Double = values.average()
+
 fun main() {
     println(sequenceOf(6, 7).sum())
+    println(byteSum(sequenceOf(1.toByte(), 2.toByte())))
+    println(shortSum(sequenceOf(10.toShort(), 20.toShort())))
     println(longSum(sequenceOf(8L, 9L)))
     println(floatSum(sequenceOf(1.5f, 2.25f)))
     println(doubleSum(sequenceOf(3.5, 4.25)))
@@ -33,6 +44,19 @@ fun main() {
     println(emptySequence<UInt>().sum())
     println(emptySequence<ULong>().sum())
     println(emptySequence<Int>().sumOf { it })
+
+    // KUU-1413: average covers all six numeric element types and returns
+    // Double.NaN for an empty sequence, matching kotlinc.
+    println(byteAverage(sequenceOf(1.toByte(), 4.toByte())))
+    println(shortAverage(sequenceOf(2.toShort(), 4.toShort())))
+    println(intAverage(sequenceOf(1, 2, 3)))
+    println(longAverage(sequenceOf(10L, 20L)))
+    println(floatAverage(sequenceOf(1.5f, 2.25f)))
+    println(doubleAverage(sequenceOf(3.5, 4.25)))
+    println(emptySequence<Int>().average().isNaN())
+    // Double accumulation must not overflow the running Int/Long sum first.
+    println(sequenceOf(Int.MAX_VALUE, Int.MAX_VALUE).average())
+    println(sequenceOf(Long.MAX_VALUE, Long.MAX_VALUE).average())
 
     val longOverflow: Sequence<Long> = sequenceOf(Long.MAX_VALUE, 1L)
     val uintOverflow: Sequence<UInt> = sequenceOf(UInt.MAX_VALUE, 1u)

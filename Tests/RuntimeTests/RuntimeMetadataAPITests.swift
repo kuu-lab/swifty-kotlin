@@ -111,7 +111,7 @@ struct RuntimeMetadataAPITests {
         let classEntry = RuntimeKClassMetadataEntry(
             qualifiedName: "sample.Person",
             simpleName: "Person",
-            supertypeName: nil,
+            supertypeDisplayNames: [],
             isDataClass: true,
             isSealedClass: false,
             isValueClass: false,
@@ -155,7 +155,7 @@ struct RuntimeMetadataAPITests {
         var classEntry = RuntimeKClassMetadataEntry(
             qualifiedName: "sample.Host",
             simpleName: "Host",
-            supertypeName: nil,
+            supertypeDisplayNames: [],
             isDataClass: false,
             isSealedClass: false,
             isValueClass: false,

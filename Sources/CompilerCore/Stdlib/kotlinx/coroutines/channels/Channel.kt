@@ -148,16 +148,6 @@ internal fun Channel<*>.cancelConsumed(cause: Throwable?) {
 
 // ---- Terminal exceptions (upstream: bottom of Channel.kt)
 
-/**
- * Thrown when trying to send to a channel that was closed normally.
- */
-public class ClosedSendChannelException(message: String?) : IllegalStateException(message)
-
-/**
- * Thrown when trying to receive from a channel that was closed normally.
- */
-public class ClosedReceiveChannelException(message: String?) : NoSuchElementException(message)
-
 // KSP-1573: capacity semantics for Channel.
 //
 // `Channel.Factory` capacity constants (RENDEZVOUS / UNLIMITED / CONFLATED /
@@ -171,8 +161,13 @@ public class ClosedReceiveChannelException(message: String?) : NoSuchElementExce
 @KsSymbolName("__kk_channel_create_with_policy")
 private external fun <T> __kkChannelCreateWithPolicy(capacity: Int, onBufferOverflow: Int): Channel<T>
 
-public fun <T> Channel(capacity: Int, onBufferOverflow: BufferOverflow): Channel<T> =
-    __kkChannelCreateWithPolicy(capacity, onBufferOverflow.ordinal)
+public fun <T> Channel(capacity: Int, onBufferOverflow: BufferOverflow): Channel<T> {
+    require(capacity >= -2) { "Invalid channel capacity: $capacity, should be >=0" }
+    require(capacity != -1 /* CONFLATED */ || onBufferOverflow == BufferOverflow.SUSPEND) {
+        "CONFLATED capacity cannot be used with non-default onBufferOverflow"
+    }
+    return __kkChannelCreateWithPolicy(capacity, onBufferOverflow.ordinal)
+}
 
 public val Channel.Factory.RENDEZVOUS: Int
     get() = 0
@@ -186,7 +181,11 @@ public val Channel.Factory.CONFLATED: Int
 public val Channel.Factory.BUFFERED: Int
     get() = -2
 
-public val Channel.Factory.OPTIONAL_CHANNEL: Int
+// Upstream declares OPTIONAL_CHANNEL as `internal` ("only for internal use,
+// cannot be used with Channel(...)"): internal builders normalize it to
+// BUFFERED before allocating a channel (ChannelFlow.produceCapacity), and the
+// public factories reject the raw -3 sentinel with IllegalArgumentException.
+internal val Channel.Factory.OPTIONAL_CHANNEL: Int
     get() = -3
 
 // `invokeOnClose` registers `handler` to run exactly once when the channel

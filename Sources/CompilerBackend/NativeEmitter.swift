@@ -3,7 +3,6 @@ import RuntimeABI
 
 import CompilerCore
 
-/// Counter for deterministic generated names in LLVM IR output.
 final class GeneratedNameCounter {
     private var value: Int32 = 0
 
@@ -19,10 +18,7 @@ final class GeneratedNameCounter {
 }
 
 struct NativeEmitter {
-    /// DWARF constants used across the emitter.
-    /// DW_LANG_C99 – used as the compile-unit language tag.
     static let dwarfLangC99: UInt32 = 11
-    /// DW_ATE_signed – DWARF attribute encoding for signed integers.
     static let dwarfATESigned: UInt32 = 5
 
     /// Legacy void/no-argument runtime call set retained for ABI compatibility.
@@ -34,12 +30,12 @@ struct NativeEmitter {
     static let functionValueInvokeCallees: Set<String> = [
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
-        "kk_function_invoke_5",
+        "kk_function_invoke_5", "kk_function_invoke_6",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
         "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
+        "kk_suspend_function_invoke_6",
     ]
 
-    /// Quick lookup for runtime ABI function specs by symbol name.
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
     }()
@@ -49,8 +45,6 @@ struct NativeEmitter {
         let type: LLVMCAPIBindings.LLVMTypeRef
     }
 
-    /// Lookup key used to resolve internal functions by either their KIR name
-    /// or generated C symbol name plus user parameter count.
     struct FunctionLookupKey: Hashable {
         let name: String
         let parameterCount: Int
@@ -60,9 +54,7 @@ struct NativeEmitter {
         let diBuilder: LLVMCAPIBindings.LLVMDIBuilderRef
         let file: LLVMCAPIBindings.LLVMMetadataRef
         let subprograms: [SymbolID: LLVMCAPIBindings.LLVMMetadataRef]
-        /// Per-file DI file metadata keyed by FileID.
         let diFiles: [FileID: LLVMCAPIBindings.LLVMMetadataRef]
-        /// DI basic type for i64 (used for parameter/variable debug info).
         let int64DIType: LLVMCAPIBindings.LLVMMetadataRef?
     }
 
@@ -78,8 +70,8 @@ struct NativeEmitter {
     let externalFunctionSymbolsByLinkName: [String: SymbolID]
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
-    /// REFL-004: Metadata records to embed as runtime reflection metadata.
     let reflectionMetadataRecords: [MetadataRecord]
+    let phaseTimer: PhaseTimer?
     let reflectionMetadataSymbolPrefix: String?
     /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
     /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
@@ -98,9 +90,11 @@ struct NativeEmitter {
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
+        phaseTimer: PhaseTimer? = nil,
         reflectionMetadataSymbolPrefix: String? = nil,
         linkOnceODRSymbols: Set<SymbolID> = []
     ) {
+        self.phaseTimer = phaseTimer
         self.target = target
         self.optLevel = optLevel
         self.debugInfo = debugInfo
@@ -113,7 +107,7 @@ struct NativeEmitter {
         var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
         var ambiguousLinkNames: Set<String> = []
         for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
-            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+            guard let linkName = symbols?.externalLinkNameIfKnown(for: symbol.id),
                   !linkName.isEmpty,
                   !ambiguousLinkNames.contains(linkName)
             else {
@@ -243,7 +237,7 @@ struct NativeEmitter {
             for declaration in module.arena.declarations {
                 guard case let .function(function) = declaration,
                       rawSymbols.contains(function.symbol),
-                      Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner)
+                      Self.isSyntheticCallbackFunction(function, symbols: symbols)
                 else {
                     continue
                 }
@@ -257,7 +251,7 @@ struct NativeEmitter {
                     continue
                 }
                 let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
-                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner) {
+                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols) {
                     rawSymbols.insert(function.symbol)
                 }
             }
@@ -279,9 +273,6 @@ struct NativeEmitter {
         return rawSymbols
     }
 
-    /// Maps each expression to the expressions whose value it may carry through
-    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`,
-    /// callable-reference metadata tags).
     private static func valueAliasSources(
         in body: [KIRInstruction],
         notNullCallee: InternedString,
@@ -374,8 +365,7 @@ struct NativeEmitter {
 
     private static func isSyntheticCallbackFunction(
         _ function: KIRFunction,
-        symbols: SymbolTable?,
-        interner: StringInterner
+        symbols: SymbolTable?
     ) -> Bool {
         guard let symbols else { return true }
         guard let symbolInfo = symbols.symbol(function.symbol) else { return false }
@@ -434,7 +424,9 @@ struct NativeEmitter {
     }
 
     func emitLLVMIR(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try PhaseTimer.measureSubPhase("IR emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -448,18 +440,26 @@ struct NativeEmitter {
             bindings.setTarget(built.module, triple: triple)
 
             if optLevel != .O0 {
-                let targetMachine = try configuredTargetMachine(for: built.module)
+                let targetMachine = try PhaseTimer.measureSubPhase("target machine", timer: phaseTimer) {
+                    try configuredTargetMachine(for: built.module)
+                }
                 defer { bindings.disposeTargetMachine(targetMachine) }
-                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                if let error = PhaseTimer.measureSubPhase("opt pipeline", timer: phaseTimer, {
+                    bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel)
+                }) {
                     throw LLVMBackendError.nativeEmissionFailed(error)
                 }
             }
 
-            guard let llvmIR = bindings.printModule(built.module) else {
+            guard let llvmIR = PhaseTimer.measureSubPhase("IR print", timer: phaseTimer, {
+                bindings.printModule(built.module)
+            }) else {
                 throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
             }
             do {
-                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                try PhaseTimer.measureSubPhase("IR write", timer: phaseTimer) {
+                    try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                }
             } catch {
                 throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
             }
@@ -467,7 +467,9 @@ struct NativeEmitter {
     }
 
     func emitObject(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try PhaseTimer.measureSubPhase("IR emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -477,14 +479,20 @@ struct NativeEmitter {
         // on Linux. Keep module construction parallel, but serialize only the
         // target-machine section that is not thread-safe.
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            let targetMachine = try configuredTargetMachine(for: built.module)
+            let targetMachine = try PhaseTimer.measureSubPhase("target machine", timer: phaseTimer) {
+                try configuredTargetMachine(for: built.module)
+            }
             defer { bindings.disposeTargetMachine(targetMachine) }
 
-            if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+            if let error = PhaseTimer.measureSubPhase("opt pipeline", timer: phaseTimer, {
+                bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel)
+            }) {
                 throw LLVMBackendError.nativeEmissionFailed(error)
             }
 
-            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
+            if let errorMessage = PhaseTimer.measureSubPhase("object write", timer: phaseTimer, {
+                bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath)
+            }) {
                 throw LLVMBackendError.nativeEmissionFailed(errorMessage)
             }
         }
@@ -514,7 +522,6 @@ struct NativeEmitter {
         return targetMachine
     }
 
-    /// Returns a stable C-compatible LLVM global slot name for the given symbol.
     /// For globals with a known fully-qualified name (e.g. properties and object
     /// singletons) the name is derived from that FQN so that a precompiled
     /// library and its consumers refer to the same storage. Otherwise it falls
@@ -542,9 +549,6 @@ struct NativeEmitter {
         return "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))"
     }
 
-    /// Returns true for imported-library symbols that are expected to be
-    /// backed by a global variable in the linked object (properties, fields,
-    /// backing fields, and source-backed singleton objects).
     private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let sym = symbols?.symbol(symbol),
               sym.flags.contains(.importedLibrary)
@@ -587,7 +591,6 @@ struct NativeEmitter {
         return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
     }
 
-    /// Returns the weak-linkage decision for an imported object global.
     /// A non-package parent is not sufficient to identify a companion object:
     /// regular nested objects must use their own initializer metadata.
     static func shouldUseWeakImportedObjectGlobalReference(
@@ -605,9 +608,7 @@ struct NativeEmitter {
         return symbols.objectInitializerSymbol(for: symbol) == nil
     }
 
-    /// Ensures that any imported-library global referenced by `loadGlobal`,
-    /// `storeGlobal`, or `symbolRef` has an LLVM global declaration in the
-    /// current module. Without this, the backend silently emits zero for
+    /// Without this, the backend silently emits zero for
     /// references to globals defined in a precompiled `.kklib` (e.g.
     /// `Uuid.Companion.NIL`) because those globals are not present in the
     /// current module's KIR global declarations.
@@ -648,6 +649,11 @@ struct NativeEmitter {
                 continue
             }
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+                if symbols?.annotations(for: symbol).contains(where: {
+                    KnownCompilerAnnotation.nativeThreadLocal.matches($0.annotationFQName)
+                }) == true {
+                    bindings.setThreadLocal(llvmGlobal)
+                }
                 if shouldUseWeakImportedGlobalReference(for: symbol) {
                     bindings.setWeakAnyLinkage(llvmGlobal)
                     if let zero = bindings.constInt(int64Type, value: 0) {
@@ -686,16 +692,6 @@ struct NativeEmitter {
         let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
         let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
 
-        func isStringAggregateType(_ type: TypeID?) -> Bool {
-            guard let type,
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: type)
-            else {
-                return false
-            }
-            return typeLowering != nil
-        }
-
         // Create LLVM global variables for each KIR global declaration.
         // Globals that back properties/singletons shared across .kklib modules
         // are named by their stable fully-qualified name so a consumer object
@@ -714,6 +710,9 @@ struct NativeEmitter {
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
                 && symbols?.isKlibDefinedGlobal(global.symbol) != true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+                if global.isThreadLocal {
+                    bindings.setThreadLocal(llvmGlobal)
+                }
                 if isImported {
                     // Imported globals are defined in another object file.
                     if shouldUseWeakImportedGlobalReference(for: global.symbol) {
@@ -780,7 +779,12 @@ struct NativeEmitter {
                 )
             }
             parameterTypes.append(outThrownPointerType)
-            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI && isStringAggregateType(function.returnType)
+            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                && isStringAggregateType(
+                    function.returnType,
+                    typeSystem: typeSystem,
+                    hasStringLowering: typeLowering != nil
+                )
             let returnType = if returnsRawStringRuntimeCallback {
                 int64Type
             } else {
@@ -826,7 +830,11 @@ struct NativeEmitter {
                 do {
                     let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
                     let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
-                        && isStringAggregateType(function.returnType)
+                        && isStringAggregateType(
+                            function.returnType,
+                            typeSystem: typeSystem,
+                            hasStringLowering: typeLowering != nil
+                        )
                     try emitFunctionBody(
                         function: function,
                         llvmFunction: llvmFunction,
@@ -864,21 +872,21 @@ struct NativeEmitter {
             }
         }
 
-        // REFL-004: Emit runtime reflection metadata as global constants.
-        RuntimeReflectionMetadataEmitter.emitGlobals(
-            records: reflectionMetadataRecords,
-            bindings: bindings,
-            module: llvmModule,
-            context: context,
-            int64Type: int64Type,
-            symbolPrefix: reflectionMetadataSymbolPrefix
-        )
+        PhaseTimer.measureSubPhase("IR/reflection globals", timer: phaseTimer) {
+            RuntimeReflectionMetadataEmitter.emitGlobals(
+                records: reflectionMetadataRecords,
+                bindings: bindings,
+                module: llvmModule,
+                context: context,
+                int64Type: int64Type,
+                symbolPrefix: reflectionMetadataSymbolPrefix
+            )
+        }
 
         return (context: context, module: llvmModule)
     }
 
-    /// Creates debug info metadata (DIBuilder, compile unit, file, subprograms)
-    /// BEFORE function bodies are emitted so that debug locations can be set
+    /// Created BEFORE function bodies are emitted so that debug locations can be set
     /// on instructions during emission.
     func createDebugInfoContext(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
@@ -893,7 +901,6 @@ struct NativeEmitter {
             return nil
         }
 
-        // Determine the primary source file from the SourceManager if available.
         let primaryFilename: String
         let primaryDirectory: String
         if let sourceManager, sourceManager.fileCount > 0 {
@@ -1022,7 +1029,6 @@ struct NativeEmitter {
         return subprograms
     }
 
-    /// Finalizes the DIBuilder, adds module flags, and disposes the DIBuilder.
     func finalizeDebugInfo(
         diContext: DebugInfoContext,
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
@@ -1047,9 +1053,6 @@ struct NativeEmitter {
     }
 
     func targetTripleString() -> String {
-        if let osVersion = target.osVersion, !osVersion.isEmpty {
-            return "\(target.arch)-\(target.vendor)-\(target.os)\(osVersion)"
-        }
-        return "\(target.arch)-\(target.vendor)-\(target.os)"
+        CodegenRuntimeSupport.targetTripleString(target)
     }
 }

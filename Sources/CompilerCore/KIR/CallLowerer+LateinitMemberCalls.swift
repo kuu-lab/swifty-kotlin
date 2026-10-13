@@ -10,12 +10,15 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        propertyConstantInitializers _: [SymbolID: KIRExprKind],
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty,
               calleeName == KnownCompilerNames(interner: interner).isInitialized,
-              case .callableRef = ast.arena.expr(receiverExpr),
+              case let .callableRef(boundReceiver, _, _) = ast.arena.expr(receiverExpr),
+              // An unbound `C::p` reference's "receiver" is the class name, not
+              // an instance — SEMA rejects it, but never lower it as one here.
+              !sema.bindings.isUnboundCallableRef(receiverExpr),
               let propertySymbol = sema.bindings.identifierSymbol(for: receiverExpr),
               let propertyInfo = sema.symbols.symbol(propertySymbol),
               propertyInfo.kind == .property,
@@ -30,10 +33,28 @@ extension CallLowerer {
            parentInfo.kind != .package,
            parentInfo.kind != .object
         {
-            guard let receiverExpr = driver.ctx.activeImplicitReceiverExprID(),
-                  let fieldOffset = sema.symbols.nominalLayout(for: parentSymbol)?.fieldOffsets[
-                      sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-                  ]
+            // `c::name` carries its receiver explicitly; a bare `::name`
+            // inside the declaring class reads the implicit `this`.
+            let instanceExpr: KIRExprID
+            if let boundReceiver {
+                instanceExpr = driver.lowerExpr(
+                    boundReceiver,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            } else {
+                guard let implicitReceiver = driver.ctx.activeImplicitReceiverExprID() else {
+                    return nil
+                }
+                instanceExpr = implicitReceiver
+            }
+            guard let fieldOffset = sema.symbols.nominalLayout(for: parentSymbol)?.fieldOffsets[
+                sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            ]
             else {
                 return nil
             }
@@ -44,7 +65,7 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
-                arguments: [receiverExpr, offsetExpr],
+                arguments: [instanceExpr, offsetExpr],
                 result: loaded,
                 canThrow: false,
                 thrownResult: nil

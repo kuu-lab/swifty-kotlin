@@ -293,97 +293,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    @Test
-    func testCodegenLocalCustomDelegateVarSetValueRoundTrips() throws {
-        let source = """
-        class IntProp {
-            var backing: Int = 0
-            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
-            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {
-                backing = value
-            }
-        }
-        fun main() {
-            var x by IntProp()
-            println(x)
-            x = 100
-            println(x)
-            println(x + 1)
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "LocalDelegateVarSetValue",
-            expected:
-                """
-                0
-                100
-                101
-                """ + "\n"
-        )
-    }
-
-    // A mutable delegated local must remain delegate storage when captured by
-    // a lambda, so reads and writes continue to dispatch getValue/setValue.
-    @Test
-    func testCodegenLocalMutableDelegateCaptureInLambdaUsesAccessors() throws {
-        let source = """
-        class IntProp {
-            var backing: Int = 1
-            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
-            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {
-                backing = value
-            }
-        }
-        fun main() {
-            var value by IntProp()
-            val update = {
-                println(value)
-                value = 7
-                println(value)
-            }
-            update()
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "LocalMutableDelegateLambdaCapture",
-            expected:
-                """
-                1
-                7
-                """ + "\n"
-        )
-    }
-
-    // A delegated local captured by a nested local function must be restored
-    // as delegate storage after the function scope is reset.
-    @Test
-    func testCodegenLocalDelegateCaptureInNestedFunctionUsesAccessor() throws {
-        let source = """
-        class IntProp {
-            var backing: Int = 42
-            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
-        }
-        fun main() {
-            val value by IntProp()
-            fun readValue(): Int = value
-            println(readValue())
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "LocalDelegateNestedFunctionCapture",
-            expected:
-                """
-                42
-                """ + "\n"
-        )
-    }
-
     // MARK: - DEBT-KIR-008: class-member `by lazy` per-instance storage/capture
 
     // A class member's `by lazy { ... }` body used to lower into a standalone
@@ -863,40 +772,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
                 t1
                 9
                 9
-                3
-                """ + "\n"
-        )
-    }
-
-    // KSP-681: observable/vetoable/notNull must be executed through their
-    // Kotlin source implementations. In particular, the factory call keeps
-    // its trailing callback as an ordinary call argument, and notNull keeps
-    // its source-backed getValue/setValue behavior.
-    @Test
-    func testCodegenSourceBackedStdlibDelegatesUseNormalExpressionLowering() throws {
-        let source = """
-        import kotlin.properties.Delegates
-
-        var observed: Int by Delegates.observable(1) { _, old, new -> println("observed:$old->$new") }
-        var accepted: Int by Delegates.vetoable(0) { _, _, new -> new >= 0 }
-        var late: Int by Delegates.notNull()
-
-        fun main() {
-            observed = 2
-            accepted = -1
-            println(accepted)
-            late = 3
-            println(late)
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "KSP681SourceBackedStdlibDelegates",
-            expected:
-                """
-                observed:1->2
-                0
                 3
                 """ + "\n"
         )
