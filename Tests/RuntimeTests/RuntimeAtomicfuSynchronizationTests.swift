@@ -232,6 +232,34 @@ struct RuntimeAtomicfuSynchronizationTests {
         runtimeResetAtomicfuParkingCaches()
     }
 
+    @Test func gcResetInvalidatesParkingCacheAndReleasesOwnedForeignLease() throws {
+        let before = atomicfuCacheFactoryCalls.snapshot.count
+        let factory = unsafeBitCast(atomicfuCacheFactory, to: Int.self)
+        var thrown = 0
+        let owner = __kk_atomicfu_current_parking_handle(factory, 0, &thrown)
+        try #require(owner != 0 && thrown == 0)
+        try #require(atomicfuCacheFactoryCalls.snapshot.count == before + 1)
+
+        weak var observation: NSObject?
+        let token: Int
+        do {
+            let resource = NSObject()
+            observation = resource
+            token = runtimeForeignResourceCreate(resource)
+            try #require(runtimeForeignResourceAttach(token, owner: owner))
+        }
+        try #require(observation != nil)
+
+        kk_runtime_reset_gc()
+
+        #expect(runtimeForeignResource(token, as: NSObject.self) == nil)
+        #expect(observation == nil)
+        let replacement = __kk_atomicfu_current_parking_handle(factory, 0, &thrown)
+        #expect(replacement != 0 && thrown == 0)
+        // Allocation may reuse the retired address; factory calls prove refresh.
+        #expect(atomicfuCacheFactoryCalls.snapshot.count == before + 2)
+    }
+
     @Test func parkingCacheRootIsPerThreadAndReleasedOnActualThreadExit() {
         runtimeResetAtomicfuParkingCaches()
         let rootsBefore = runtimeStorage.withGCLock { $0.globalRootSlots }

@@ -183,6 +183,12 @@ final class ExprTypeChecker {
                 sema: sema
             ) {
                 sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+                if sema.types.containsCapturedTypes(propResult.type) {
+                    driver.emitSubtypeConstraint(
+                        left: valueType, right: propResult.type, range: range,
+                        solver: ConstraintSolver(), sema: sema, diagnostics: sema.diagnostics
+                    )
+                }
             } else {
                 // Extension `var` properties (e.g. the bundled
                 // kotlin.native.concurrent.AtomicInt.value) are not members —
@@ -334,11 +340,15 @@ final class ExprTypeChecker {
             let type: TypeID
             switch op {
             case .not:
-                let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
+                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
+                let operandType = sema.types.capturedOperatorReceiverType(
+                    of: inferredOperand
+                )
                 if let overloadedType = inferUnaryOperatorExpr(
                     id,
                     op: op,
                     operandType: operandType,
+                    hasCapturedOperand: sema.types.containsCapturedTypes(inferredOperand),
                     range: range,
                     ctx: ctx,
                     expectedType: expectedType
@@ -371,11 +381,15 @@ final class ExprTypeChecker {
                         expectedType: op == .unaryPlus ? type : nil
                     )
                 } else {
-                    let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: expectedType)
+                    let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: expectedType)
+                    let operandType = sema.types.capturedOperatorReceiverType(
+                        of: inferredOperand
+                    )
                     if let overloadedType = inferUnaryOperatorExpr(
                         id,
                         op: op,
                         operandType: operandType,
+                        hasCapturedOperand: sema.types.containsCapturedTypes(inferredOperand),
                         range: range,
                         ctx: ctx,
                         expectedType: expectedType
@@ -1712,6 +1726,7 @@ final class ExprTypeChecker {
         _ id: ExprID,
         op: UnaryOp,
         operandType: TypeID,
+        hasCapturedOperand: Bool = false,
         range: SourceRange,
         ctx: TypeInferenceContext,
         expectedType: TypeID?
@@ -1763,6 +1778,14 @@ final class ExprTypeChecker {
             return returnType
         }
 
+        if hasCapturedOperand, op == .unaryPlus || op == .unaryMinus,
+           !sema.types.isBuiltinArithmeticOperand(operandType)
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002", "No viable overload found for operator '\(displayOperatorName)'.", range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         if (!lhsIsPrimitive || sema.types.isUnsigned(operandType)),
            operandType != sema.types.anyType,
            operandType != sema.types.nullableAnyType,

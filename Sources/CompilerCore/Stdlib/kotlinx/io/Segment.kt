@@ -3,8 +3,7 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  * Copyright (C) 2014 Square, Inc. Licensed under the Apache License, Version 2.0.
  *
- * Derived from kotlinx-io core/common/src/Segment.kt (tag 0.9.1). `@JvmField`/`@JvmSynthetic`
- * annotations are dropped (this compiler has a single non-JVM target).
+ * Derived from kotlinx-io core/common/src/Segment.kt (tag 0.9.1). JVM field/accessor annotations are retained for Native metadata compatibility.
  */
 package kotlinx.io
 
@@ -68,6 +67,8 @@ public class Segment {
 
     /** The next byte of application data byte to read in this segment. */
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var pos: Int = 0
 
     /**
@@ -77,6 +78,8 @@ public class Segment {
      * byte count of this and next segments.
      */
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var limit: Int = 0
 
     /** True if other segments or byte strings use the same byte array. */
@@ -93,14 +96,19 @@ public class Segment {
     internal var copyTracker: SegmentCopyTracker? = null
 
     /** True if this segment owns the byte array and can append to it, extending `limit`. */
+    @kotlin.jvm.JvmField
     internal var owner: Boolean = false
 
     /** Next segment in a list, or null. */
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var next: Segment? = null
 
     /** Previous segment in the list, or null. */
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var prev: Segment? = null
 
     private constructor() {

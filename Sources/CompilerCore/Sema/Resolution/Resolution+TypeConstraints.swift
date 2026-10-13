@@ -354,7 +354,7 @@ extension OverloadResolver {
     ) -> Bool {
         switch typeSystem.kind(of: type) {
         case let .typeParam(typeParam):
-            return typeVarBySymbol[typeParam.symbol] != nil
+            return typeParam.capture == nil && typeVarBySymbol[typeParam.symbol] != nil
         case let .intersection(parts):
             return parts.contains {
                 containsTypeVariable($0, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
@@ -440,12 +440,14 @@ extension OverloadResolver {
         }
         let supertypeKind = typeSystem.kind(of: supertype)
         if case let .typeParam(typeParam) = supertypeKind,
+           typeParam.capture == nil,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
             // Contextual lambda inputs can still refer to the candidate's
             // own parameters. Keep their relationship in the inference graph
             // rather than treating the left parameter as an opaque Any value.
             if case let .typeParam(subParameter) = typeSystem.kind(of: subtype),
+               subParameter.capture == nil,
                let subVariable = typeVarBySymbol[subParameter.symbol],
                subParameter.nullability == .nonNull,
                typeParam.nullability == .nonNull
@@ -484,6 +486,35 @@ extension OverloadResolver {
                 right: .variable(variable),
                 blameRange: blameRange
             )]
+        }
+
+        // KClass is invariant. A projected receiver determines an existential
+        // T, not its readable upper bound or its writable lower bound alone.
+        if case let .kClassType(receiver) = supertypeKind,
+           case let .typeParam(parameter) = typeSystem.kind(of: receiver.argument),
+           let variable = typeVarBySymbol[parameter.symbol],
+           case let .classType(actual) = typeSystem.kind(of: subtype),
+           actual.classSymbol == typeSystem.kClassInterfaceSymbol,
+           actual.args.count == 1,
+           typeSystem.nullabilitySubtype(actual.nullability, receiver.nullability)
+        {
+            let lower: TypeID
+            let upper: TypeID
+            switch actual.args[0] {
+            case let .in(type):
+                lower = type
+                upper = typeSystem.anyType
+            case let .out(type):
+                lower = typeSystem.nothingType
+                upper = type
+            case .star:
+                lower = typeSystem.nothingType
+                upper = typeSystem.anyType
+            case let .invariant(type):
+                return [VariableConstraint(kind: .equal, left: .variable(variable), right: .type(type), blameRange: blameRange)]
+            }
+            let captured = typeSystem.makeCapturedType(parameter: parameter.symbol, lower: lower, upper: upper)
+            return [VariableConstraint(kind: .equal, left: .variable(variable), right: .type(captured), blameRange: blameRange)]
         }
 
         // Case 1.5: supertype is an intersection. Decompose into all parts:
@@ -574,7 +605,8 @@ extension OverloadResolver {
             let subtypeKind = typeSystem.kind(of: subtype)
             let receiverBounds: [TypeID] = switch subtypeKind {
             case let .typeParam(parameter):
-                typeSystem.symbolTable?.typeParameterUpperBounds(for: parameter.symbol) ?? []
+                parameter.capture.map { [$0.upper] }
+                    ?? typeSystem.symbolTable?.typeParameterUpperBounds(for: parameter.symbol) ?? []
             case let .intersection(parts):
                 parts
             default:
@@ -791,6 +823,7 @@ extension OverloadResolver {
 
         let subtypeKind = typeSystem.kind(of: subtype)
         if case let .typeParam(typeParam) = subtypeKind,
+           typeParam.capture == nil,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
             return [VariableConstraint(

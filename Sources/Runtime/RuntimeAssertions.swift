@@ -272,6 +272,7 @@ final class RuntimeIOExceptionBox: RuntimeThrowableBox {
     override var exceptionHierarchyFQNames: [String] {
         [
             "java.io.IOException",
+            "kotlinx.io.IOException",
             "kotlin.Exception",
             "kotlin.Throwable",
         ]

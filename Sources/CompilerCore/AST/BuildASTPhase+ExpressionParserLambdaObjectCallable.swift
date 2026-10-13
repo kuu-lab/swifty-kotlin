@@ -284,7 +284,7 @@ extension BuildASTPhase.ExpressionParser {
         var usedNames = avoidingNames.union(tokens.compactMap { tokenText($0) })
         for (index, segment) in segments.enumerated() {
             if segment.first?.kind == .symbol(.lParen),
-               let closeIndex = segment.firstIndex(where: { $0.kind == .symbol(.rParen) }),
+               let closeIndex = lambdaDestructuringCloseIndex(in: segment[...]),
                let names = extractDestructuringNames(from: Array(segment[...closeIndex]))
             {
                 var parameterName = interner.intern("__destructured_\(index)")
@@ -362,9 +362,11 @@ extension BuildASTPhase.ExpressionParser {
 
     private func extractDestructuringNames(from paramTokens: [Token]) -> [InternedString?]? {
         let innerTokens = stripEnclosingParentheses(from: paramTokens)
-        guard innerTokens.count != paramTokens.count else { return nil }
+        guard innerTokens.count != paramTokens.count,
+              isDestructuringEntries(innerTokens[...])
+        else { return nil }
         let names = parseDestructuringNames(from: innerTokens)
-        return names.count >= 2 ? names : nil
+        return names.isEmpty ? nil : names
     }
 
     private func parseDestructuringNames(from innerTokens: [Token]) -> [InternedString?] {
@@ -429,7 +431,7 @@ extension BuildASTPhase.ExpressionParser {
 
     /// Whether `tokens` (everything before a top-level `->` inside `{ ... }`)
     /// form a well-formed lambda parameter list: either empty (`{ -> body }`),
-    /// a single destructuring group `(a, b)`, or a comma-separated list of
+    /// a nonempty destructuring group `(a)` or `(a, b)`, or a comma-separated list of
     /// `[annotations] name [: Type]` segments whose type parses completely
     /// (function types included). A body expression like `s as (Int) -> Int`
     /// leaves an `->` in the brace group; the strict check keeps it from being
@@ -465,23 +467,9 @@ extension BuildASTPhase.ExpressionParser {
         }
         guard idx < segment.endIndex else { return false }
         if segment[idx].kind == .symbol(.lParen) {
-            // Destructuring parameter `(a, b)` — kotlinc allows it mixed with
+            // Destructuring parameter `(a)` or `(a, b)` — kotlinc allows it mixed with
             // regular parameters — optionally followed by `: Type`.
-            var parenDepth = 0
-            var closeIndex: Int?
-            for i in idx..<segment.endIndex {
-                switch segment[i].kind {
-                case .symbol(.lParen):
-                    parenDepth += 1
-                case .symbol(.rParen):
-                    parenDepth -= 1
-                    if parenDepth == 0 { closeIndex = i }
-                default:
-                    break
-                }
-                if closeIndex != nil { break }
-            }
-            guard let closeIndex,
+            guard let closeIndex = lambdaDestructuringCloseIndex(in: segment[idx...]),
                   isDestructuringEntries(segment[(idx + 1)..<closeIndex])
             else {
                 return false
@@ -512,24 +500,41 @@ extension BuildASTPhase.ExpressionParser {
         return parsed.consumed == typeTokens.count
     }
 
-    private func isDestructuringEntries(_ inner: ArraySlice<Token>) -> Bool {
-        var expectName = true
-        var sawComma = false
-        for token in inner {
-            if expectName {
-                guard tokenText( token) != nil else {
-                    return false
-                }
-                expectName = false
-            } else {
-                guard token.kind == .symbol(.comma) else {
-                    return false
-                }
-                expectName = true
-                sawComma = true
+    private func lambdaDestructuringCloseIndex(in tokens: ArraySlice<Token>) -> Int? {
+        guard tokens.first?.kind == .symbol(.lParen) else { return nil }
+        var depth = 0
+        for idx in tokens.indices {
+            switch tokens[idx].kind {
+            case .symbol(.lParen): depth += 1
+            case .symbol(.rParen):
+                depth -= 1
+                if depth == 0 { return idx }
+            default: break
             }
         }
-        return sawComma && !expectName
+        return nil
+    }
+
+    private func isDestructuringEntries(_ inner: ArraySlice<Token>) -> Bool {
+        guard !inner.isEmpty else { return false }
+        var depth = BuildASTPhase.BracketDepth()
+        var entryStart = inner.startIndex
+        for idx in inner.indices {
+            if inner[idx].kind == .symbol(.comma), depth.isAtTopLevel {
+                guard isDestructuringEntry(inner[entryStart..<idx]) else { return false }
+                entryStart = idx + 1
+            }
+            depth.track(inner[idx].kind)
+        }
+        // Kotlin permits a trailing comma after the last component.
+        return entryStart == inner.endIndex || isDestructuringEntry(inner[entryStart...])
+    }
+
+    private func isDestructuringEntry(_ entry: ArraySlice<Token>) -> Bool {
+        guard let first = entry.first, tokenText(first) != nil else { return false }
+        // Component annotations use the same name/type grammar as plain
+        // parameters; reject expressions and incompletely parsed types.
+        return isWellFormedLambdaParamSegment(entry)
     }
 
 }
