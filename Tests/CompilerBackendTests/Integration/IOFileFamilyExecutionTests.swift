@@ -70,6 +70,46 @@ struct IOFileFamilyExecutionTests {
                                     stdlib: stdlib, producer: producer, lane: lane, timeout: timeout)
     }
 
+    /// KUU-2032: the exported interface-typed val must capture an allocated,
+    /// registered singleton before consumers dispatch exists/source through it.
+    @Test(arguments: [false, true], [0, 2])
+    func systemFileSystemValueDispatch(library: Bool, optimization: Int) throws {
+        let stdlib = library ? try artifact() : nil
+        defer { stdlib?.expectUnchanged() }
+        let sourceManifest = BundledStdlib.manifestHash()
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        let fixture = repository.appendingPathComponent("Tests/CompilerBackendTests/Fixtures/SystemFileSystemDispatch")
+        let input = root.appendingPathComponent("Consumer.kt")
+        try fm.copyItem(at: fixture.appendingPathComponent("consumer.kt"), to: input)
+        let existing = root.appendingPathComponent("Hello.kt")
+        try "fixture".write(to: existing, atomically: true, encoding: .utf8)
+        try #require(!fm.fileExists(atPath: root.appendingPathComponent("missing.kt").path))
+        let hashes = try io1761InputHashes([input.path, existing.path])
+        let binary = root.appendingPathComponent("candidate")
+        try compile(inputs: [input.path], output: binary.path, stdlib: stdlib, optimization: optimization)
+        let expected = try Data(contentsOf: fixture.appendingPathComponent("expected.stdout"))
+        try executeAndKeepProof(root: root, binary: binary, expected: expected, inputs: [input.path],
+                                inputHashes: hashes, sourceManifest: sourceManifest, stdlib: stdlib,
+                                lane: "KUU2032-" + (library ? "library" : "source") + "-O\(optimization)")
+    }
+
+    @Test
+    func artifactHashesUseRelativePaths() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fm.removeItem(at: root) }
+        try fm.createDirectory(at: root.appendingPathComponent("objects"), withIntermediateDirectories: true)
+        try Data("binary".utf8).write(to: root.appendingPathComponent("candidate"))
+        try Data("object".utf8).write(to: root.appendingPathComponent("objects/input.o"))
+        let hashes = try io1761ArtifactHashes(root)
+        #expect(Set(hashes.keys) == ["candidate", "objects/input.o"])
+        #expect(hashes["candidate"] == FileFingerprint.sha256Hex(Data("binary".utf8)))
+        #expect(hashes["objects/input.o"] == FileFingerprint.sha256Hex(Data("object".utf8)))
+        #expect(try io1761ArtifactHashes(root.resolvingSymlinksInPath()) == hashes)
+    }
+
     @Test(arguments: [false, true], [0, 2])
     func supplementalAPIAndLifecycleContracts(library: Bool, optimization: Int) throws {
         let stdlib = library ? try artifact() : nil
@@ -220,11 +260,14 @@ private func io1761InputHashes(_ paths: [String]) throws -> [String: String] {
 
 private func io1761ArtifactHashes(_ directory: URL) throws -> [String: String] {
     let canonical = directory.resolvingSymlinksInPath().standardizedFileURL
-    let enumerator = try #require(FileManager.default.enumerator(at: canonical, includingPropertiesForKeys: [.isRegularFileKey]))
+    // Enumerate relative names so /var and /private/var URL spellings cannot
+    // change the prefix length used for receipt keys.
+    let enumerator = try #require(FileManager.default.enumerator(atPath: canonical.path))
     var hashes: [String: String] = [:]
-    for case let file as URL in enumerator {
+    for case let name as String in enumerator {
+        let file = canonical.appendingPathComponent(name)
         guard try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { continue }
-        hashes[String(file.path.dropFirst(canonical.path.count + 1))] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
+        hashes[name] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
     }
     return hashes
 }
