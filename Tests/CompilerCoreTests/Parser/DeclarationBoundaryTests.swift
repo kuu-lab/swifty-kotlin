@@ -48,6 +48,24 @@ struct DeclarationBoundaryTests {
         #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .callExpr) == 1)
     }
 
+    @Test(arguments: [
+        "class Derived(val value: Int)\n    : Value by Simple() { val other = 7 }",
+        "class Derived\n    : Value by Simple() { val other = 7 }",
+        "object Derived\n    : Value by Simple() { val other = 7 }",
+        "interface Derived\n    : Value { val other: Int }",
+    ])
+    func supertypeColonContinuesNamedDeclaration(source: String) {
+        let parsed = parse("""
+        interface Value { val number: Int }
+        class Simple : Value { override val number = 42 }
+        \(source)
+        fun after() = 3
+        """)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 3)
+    }
+
     @Test(arguments: ["Simple()", "(Simple())", "create()"])
     func classDelegationContinuesAfterNewline(expression: String) {
         let parsed = parse("""

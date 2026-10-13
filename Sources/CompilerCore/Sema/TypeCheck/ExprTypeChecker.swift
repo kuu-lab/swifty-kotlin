@@ -183,6 +183,19 @@ final class ExprTypeChecker {
                 sema: sema
             ) {
                 sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+                driver.helpers.checkDeprecation(
+                    for: propResult.symbol,
+                    sema: sema,
+                    interner: interner,
+                    range: range,
+                    diagnostics: ctx.sema.diagnostics
+                )
+                driver.helpers.checkOptIn(
+                    for: propResult.symbol,
+                    ctx: ctx,
+                    range: range,
+                    diagnostics: ctx.sema.diagnostics
+                )
                 if sema.types.containsCapturedTypes(propResult.type) {
                     driver.emitSubtypeConstraint(
                         left: valueType, right: propResult.type, range: range,

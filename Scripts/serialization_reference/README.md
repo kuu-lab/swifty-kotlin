@@ -5,7 +5,8 @@ references for KUU-1724. Full API compatibility remains unfinished.
 
 KUU-1745 adds the bounded primitive descriptor factory implementation, and
 KUU-1746 adds the `SerialDescriptor.nullable` / `nonNullOriginal` wrappers,
-KUU-1747 adds the rename wrapper, and KUU-1748 adds the list/map/set factories. The
+KUU-1747 adds the rename wrapper, KUU-1748 adds the list/map/set factories, and
+KUU-1751 adds the descriptor-argument class builder APIs. The
 immutable dump inventory remains reproducible with `implementation: unmapped`;
 `implementations.json` is a separate overlay linking JVM/KLIB declaration IDs to
 bundled source, fixtures, and the source/cache/separate-library O0/O2 test suite.
@@ -113,3 +114,18 @@ non-negative element index、負数の例外、equality/表示と live child has
 source/cache と producer-generated descriptor の別 `.kklib` consumer を O0/O2 で確認し、
 experimental marker と internal boundary を検証します。reified overload、serializer、
 class builder と format module はこの3 overload の実装に含まれません。
+
+`KUU-1751` は stable `buildClassSerialDescriptor` と internal opt-in が必要な
+`buildSerialDescriptor`、`ClassSerialDescriptorBuilder` の descriptor 引数の
+`element` と public properties を実装します。constructor は internal、`annotations`
+は experimental、互換 `isNullable` は experimental / ERROR deprecated のままです。
+`--case class-descriptor` は published JVM 1.10.0 の blank/kind/duplicate 検証、
+element bounds と UNKNOWN_NAME、builder の snapshot と annotation list の参照保持、
+type parameters、equality、lazy hash の名前→kind 読み出し順序と overflow/キャッシュ、
+live child 表示を検査します。source/cache と producer-created descriptor の別
+`.kklib` consumer を O0/O2 で確認し、公開 marker と internal boundary を検査します。
+同じ pinned `SerialDescriptors.kt` / `PluginGeneratedSerialDescriptor.kt` の source と
+Native `Platform.kt` の `getChecked` を基に、helper をこの小さな実装に展開しています。
+JVM/KLIB の24 dump records は overlay に対応し、3つの JVM synthetic default entry
+は source default-argument behavior の対応です。JVM binary ABI の互換は実装しません。
+reified `element<T>`、serializer/plugin と残りの formats は未対応のままです。

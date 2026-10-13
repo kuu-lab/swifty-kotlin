@@ -545,6 +545,594 @@
           "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
         }
       ]
+    },
+    {
+      "declaration_id": "acf65b9dca3703bcdac621bd599e9fb533db353abf012c35d30c468aee9c4fd4",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false,
+      "source_constructor_visibility": "internal"
+    },
+    {
+      "declaration_id": "62963d0fa0b82222f644adb2d8368544eddb07ce94f97bfc5c16b22499d07b17",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "ee8c5848a0cf296f18491df55ebe723015c75cd1e042f37496904e0c00ce2d53",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false,
+      "abi_scope": "source default-argument behavior; JVM synthetic entry-point binary ABI is not implemented"
+    },
+    {
+      "declaration_id": "96d07d07d1042dbd065c49ab70a292806043b8005986b298d40f98c2508a5b28",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "d5bab21b22326b0f76c81e242a0632d1de6675950f315acd2857305d0913a60e",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "5b81579b841aae4980d6a57a40fc373cc04b4d3281b2b03a16e0c0accbaeab05",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi",
+        "@Deprecated(level = DeprecationLevel.ERROR)"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "5667966d82014be61dbb584bd349a98e62db6d4a02d2b28512b98bb67386ef00",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "d43e382f28543a97bb0a95d50499e676a748d66392fbda882d41d80d3106b723",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi",
+        "@Deprecated(level = DeprecationLevel.ERROR)"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "e021c77676372fec1b121d864c36ad902f9f4083e9b3cf0646ab5fabaa18ca4e",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "94d92df7bc0d197fc15f9423240b5678cd674ea7ae0ee5f2186cad1f9f0fc1b9",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false,
+      "abi_scope": "source default-argument behavior; JVM synthetic entry-point binary ABI is not implemented"
+    },
+    {
+      "declaration_id": "55a353bd251b2da046528a1f6a019c146183c585e28871d0d073eaeb075f9f28",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@InternalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "07d721c49b3befde39bc66126f9d84f0a8150d1e7528ffdb7b40547ee5d4494b",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@InternalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "abi_scope": "source default-argument behavior; JVM synthetic entry-point binary ABI is not implemented"
+    },
+    {
+      "declaration_id": "f13b29ffde98d10e7025ddf03e1f36a94bf45a71b6aa960a0d10f0d1edc539a2",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false,
+      "source_constructor_visibility": "internal"
+    },
+    {
+      "declaration_id": "3e822d413eb10b3d7f5f4d84054c77ee9bd62a090ff841feb21196f6248ced4a",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "2c7b912493bae4cd099b8b5a1385c1f74b082ae2e55ea2f5d9dc5fcfd94b8dc5",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "3ab9d8ea647f07139c7360c600dccf6f6d9f0e108a6d1fa36100f8886ffca939",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "4cd99f412fb6a01e4b19b49a051ed776e5fb9bb2633c7e761e926472465860e9",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "89c796732a3d5a71fddbf20e1175495403d438de7c28876894307d4f9a0ff122",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "63e1a7fb4b8426d9d5a4f331102335dc4e95371d93a9bf4e95c8e4388129bf7d",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi",
+        "@Deprecated(level = DeprecationLevel.ERROR)"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "253a4a77abdb5158811882f7515288ef6a321033b4a9caa32c0c3aa73de36e3b",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi",
+        "@Deprecated(level = DeprecationLevel.ERROR)"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "14e2aa8f2570a7e97bd272e55276f3e3da01f58022b01b38b13e684ca3d218dc",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi",
+        "@Deprecated(level = DeprecationLevel.ERROR)"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "1240ced23238da5ed88b6258a05a8db96dde9e219f8c539b533516ce56468fdb",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "5961cb487cd5d69a8536a989c823419607cdf5655eff6c7c014be18effa0a4c2",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "346b3f57f08de7607a4e07886996094f9d142f23d214148a88628762e9723288",
+      "ticket": "KUU-1751",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_class_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_class_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationClassDescriptorTests.swift",
+      "test_suite": "SerializationClassDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@InternalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
     }
   ]
 }
