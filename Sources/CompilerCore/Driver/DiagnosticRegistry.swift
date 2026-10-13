@@ -423,6 +423,12 @@ enum DiagnosticRegistry {
             codeActions: [DiagnosticCodeAction(title: "Change visibility to 'public'")]
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0430",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Worker.execute requires a non-capturing job."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0042",
             pass: "SEMA",
             defaultSeverity: .error,

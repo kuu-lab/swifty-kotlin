@@ -86,6 +86,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
 
         validateTailrecFunctions(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+        validateWorkerExecuteJobs(ast: ast, sema: sema, ctx: ctx)
 
         let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
         validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
