@@ -55,7 +55,6 @@ public final class IncrementalCompilationCache {
         self.managedAncestorBase = managedAncestorBase.map(IncrementalCacheTrust.normalize)
     }
 
-    // MARK: - Compiler-managed default location
 
     /// Per-user private cache root for compiler-managed state: the
     /// `<caches>/kswiftk` directory holding the integrity key and the
@@ -125,7 +124,6 @@ public final class IncrementalCompilationCache {
         return FileFingerprint.sha256Hex(Data(material.utf8))
     }
 
-    // MARK: - Loading previous state
 
     private static let supportedManifestVersion = 1
 
@@ -190,7 +188,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    // MARK: - Change detection
 
     public func computeCurrentFingerprints(for paths: [String], sourceManager: SourceManager) {
         currentFingerprints = [:]
@@ -371,7 +368,6 @@ public final class IncrementalCompilationCache {
         return state
     }
 
-    // MARK: - Saving state
 
     /// Saves the current fingerprints and the updated dependency graph to disk.
     public func saveState(
@@ -597,12 +593,12 @@ public final class IncrementalCompilationCache {
     }
 
     private static func isOutputAffectingFrontendFlag(_ flag: String) -> Bool {
-        flag != "incremental" && flag != "time-phases" && !flag.hasPrefix("jobs=")
+        flag != "incremental" && flag != "no-incremental"
+            && flag != "time-phases" && !flag.hasPrefix("jobs=")
     }
 
 }
 
-// MARK: - Cache manifest model
 
 struct CacheManifest: Codable {
     let version: Int
@@ -660,7 +656,6 @@ private struct IncrementalTargetTriple: Encodable {
     let osVersion: String?
 }
 
-// MARK: - Cache security helper
 
 enum CacheSecurity {
     /// Checks whether the file attributes correspond to ownership by the current effective user

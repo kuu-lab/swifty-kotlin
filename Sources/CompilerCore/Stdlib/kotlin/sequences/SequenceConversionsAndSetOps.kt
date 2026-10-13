@@ -323,54 +323,6 @@ public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     return Pair(list1.toList(), list2.toList())
 }
 
-@KsSymbolName("kk_sequence_union")
-public fun <T> Sequence<T>.union(other: Iterable<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.add(element)
-    return result
-}
-
-public fun <T> Sequence<T>.union(other: Sequence<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.add(element)
-    return result
-}
-
-@KsSymbolName("kk_sequence_intersect")
-public fun <T> Sequence<T>.intersect(other: Iterable<T>): Set<T> {
-    val result = mutableSetOf<T>()
-    val otherSet = mutableSetOf<T>()
-    for (element in other) otherSet.add(element)
-    for (element in this) {
-        if (otherSet.contains(element)) result.add(element)
-    }
-    return result
-}
-
-@KsSymbolName("kk_sequence_intersect")
-public fun <T> Sequence<T>.intersect(other: Sequence<T>): Set<T> {
-    val result = mutableSetOf<T>()
-    val otherSet = mutableSetOf<T>()
-    for (element in other) otherSet.add(element)
-    for (element in this) {
-        if (otherSet.contains(element)) result.add(element)
-    }
-    return result
-}
-
-@KsSymbolName("kk_sequence_subtract")
-public fun <T> Sequence<T>.subtract(other: Iterable<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.remove(element)
-    return result
-}
-
-public fun <T> Sequence<T>.subtract(other: Sequence<T>): Set<T> {
-    val result = toMutableSet()
-    for (element in other) result.remove(element)
-    return result
-}
-
 @KsSymbolName("kk_sequence_plus_element")
 public operator fun <T> Sequence<T>.plus(element: T): Sequence<T> {
     val source = this

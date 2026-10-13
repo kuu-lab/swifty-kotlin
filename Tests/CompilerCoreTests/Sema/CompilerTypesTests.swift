@@ -79,46 +79,34 @@ struct CompilerTypesTests {
         #expect(host.osVersion == nil)
     }
 
-    @Test func testDefaultStdlibArtifactIsExecutableOnlyAndOptOutIsExplicit() {
-        let common = TargetTriple.hostDefault()
-
-        #expect(
+    @Test(arguments: ["executable", "object", "llvmIR", "kirDump", "library"])
+    func testDefaultStdlibArtifactPolicy(emitMode: String) throws {
+        let emit = try #require(EmitMode(rawValue: emitMode))
+        func applies(allow: Bool = true, include: Bool = true,
+                     only: Bool = false, path: String? = nil) -> Bool {
             CompilerOptions.shouldUseDefaultStdlib(
-                allowDefaultStdlibLibrary: true,
-                includeStdlib: true,
-                stdlibOnly: false,
-                stdlibLibraryPath: nil,
-                emit: .executable
+                allowDefaultStdlibLibrary: allow,
+                includeStdlib: include,
+                stdlibOnly: only,
+                stdlibLibraryPath: path,
+                emit: emit
             )
-        )
-        #expect(
-            !CompilerOptions.shouldUseDefaultStdlib(
-                allowDefaultStdlibLibrary: true,
-                includeStdlib: true,
-                stdlibOnly: false,
-                stdlibLibraryPath: nil,
-                emit: .kirDump
-            )
-        )
-        #expect(
-            !CompilerOptions.shouldUseDefaultStdlib(
-                allowDefaultStdlibLibrary: false,
-                includeStdlib: true,
-                stdlibOnly: false,
-                stdlibLibraryPath: nil,
-                emit: .executable
-            )
-        )
+        }
+        #expect(applies())
+        #expect(!applies(allow: false))
+        #expect(!applies(include: false))
+        #expect(!applies(only: true))
+        #expect(!applies(path: "/tmp/explicit.kklib"))
 
         let sourceOptions = CompilerOptions(
             moduleName: "SourceFallback",
             inputs: ["main.kt"],
             outputPath: "out",
-            emit: .executable,
-            target: common,
+            emit: emit,
+            target: .hostDefault(),
             allowDefaultStdlibLibrary: false
         )
-        #expect(sourceOptions.allowDefaultStdlibLibrary == false)
+        #expect(!sourceOptions.allowDefaultStdlibLibrary)
         #expect(sourceOptions.stdlibLibraryPath == nil)
         #expect(sourceOptions.includeStdlib)
     }

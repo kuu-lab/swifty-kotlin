@@ -162,14 +162,12 @@ extension CallTypeChecker {
         var provisionalContext = ctx
         provisionalContext.builderInference = session
         var provisionalLocals = locals
-        let checkpoint = ctx.semaCtx.diagnostics.checkpoint()
+        let checkpoint = ctx.sema.diagnostics.checkpoint()
         _ = driver.inferExpr(
             args[lambdaIndex].expr, ctx: provisionalContext,
             locals: &provisionalLocals, expectedType: provisionalLambdaType
         )
-        // Reset the diagnostic deduplication state as well as the speculative
-        // output, so a final pass can report the same invalid argument again.
-        ctx.semaCtx.diagnostics.truncate(to: checkpoint)
+        ctx.sema.diagnostics.rollback(to: checkpoint)
 
         let solution = ConstraintSolver().solve(
             vars: ctx.resolver.usedTypeVariables(from: session.constraints),
@@ -190,7 +188,7 @@ extension CallTypeChecker {
             if hasGenericCollectionReceiverLambda(signature: signature, sema: sema, interner: ctx.interner) {
                 return nil
             }
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
 
@@ -214,15 +212,15 @@ extension CallTypeChecker {
             expectedType: expectedType, implicitReceiverType: receiverType ?? ctx.implicitReceiverType, ctx: sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
         guard let chosen = resolved.chosenCallee else { return nil }
         driver.helpers.checkDeprecation(
-            for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.semaCtx.diagnostics
+            for: chosen, sema: sema, interner: ctx.interner, range: range, diagnostics: ctx.sema.diagnostics
         )
-        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics)
+        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
         markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)

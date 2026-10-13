@@ -535,16 +535,15 @@ extension DataFlowSemaPhase {
             }
         }
         if newKind == .property {
-            if newIsExtensionProperty, let symbols {
-                return nonPackageExisting.contains { sym in
-                    if isCallableLike(sym.kind) { return false }
-                    if sym.kind == .property {
-                        return !sym.flags.contains(.synthetic) && !symbols.hasExtensionPropertyReceiver(sym.id)
-                    }
-                    return true
+            return nonPackageExisting.contains { existing in
+                if isCallableLike(existing.kind) { return false }
+                guard existing.kind == .property else { return true }
+                if newIsExtensionProperty {
+                    return false
                 }
+                return !existing.flags.contains(.synthetic)
+                    && !(symbols?.hasExtensionPropertyReceiver(existing.id) ?? false)
             }
-            return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
             return nonPackageExisting.contains {
@@ -667,7 +666,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers synthetic `toString(): String` for data types so member resolution finds it.
     func collectSyntheticToString(
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],
@@ -727,7 +725,6 @@ extension DataFlowSemaPhase {
         scope.insert(funcSymbol)
     }
 
-    /// Registers synthetic `equals(other: Any?): Boolean` for data types.
     func collectSyntheticEquals(
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],
@@ -797,7 +794,6 @@ extension DataFlowSemaPhase {
         scope.insert(funcSymbol)
     }
 
-    /// Registers synthetic `hashCode(): Int` for data class so member resolution finds it.
     func collectSyntheticHashCode(
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],
@@ -857,6 +853,29 @@ extension DataFlowSemaPhase {
         scope.insert(funcSymbol)
     }
 
+    private func dataClassPrimaryConstructorParameterTypes(
+        classDecl: ClassDecl,
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> [TypeID]? {
+        let constructorFQName = ownerFQName + [interner.intern("<init>")]
+        guard let constructor = symbols.lookupAll(fqName: constructorFQName).first(where: { id in
+            guard let symbol = symbols.symbol(id) else { return false }
+            return symbol.kind == .constructor
+                && symbols.parentSymbol(for: id) == ownerSymbol
+                && symbol.declSite == classDecl.range
+        }), let signature = symbols.functionSignature(for: constructor),
+            signature.parameterTypes.count == classDecl.primaryConstructorParams.count
+        else {
+            return nil
+        }
+        // Reuse the constructor's binding, including block-local classifiers
+        // that cannot be reconstructed from the class FQName and file imports.
+        return signature.parameterTypes
+    }
+
     /// DATA-002 / STDLIB-090: Registers synthetic `componentN()` functions for each
     /// primary constructor parameter of a data class.
     /// `component1()` returns the first constructor property, `component2()` the second, etc.
@@ -873,11 +892,15 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         localTypeParameters: [InternedString: SymbolID] = [:]
     ) {
+        let file = ast.file(for: classDecl.range.start.file)
+        let parameterTypes = dataClassPrimaryConstructorParameterTypes(
+            classDecl: classDecl, ownerSymbol: ownerSymbol, ownerFQName: ownerFQName,
+            symbols: symbols, interner: interner
+        )
         for (index, param) in classDecl.primaryConstructorParams.enumerated() {
             let componentName = interner.intern("component\(index + 1)")
             let componentFQName = ownerFQName + [componentName]
 
-            // Skip if a user-declared componentN already exists
             let hasUserDeclared = symbols.lookupAll(fqName: componentFQName).contains { id in
                 guard let sym = symbols.symbol(id),
                       sym.kind == .function,
@@ -887,13 +910,16 @@ extension DataFlowSemaPhase {
             }
             guard !hasUserDeclared else { continue }
 
-            let returnType = resolveTypeRef(
+            let returnType = parameterTypes?[index] ?? resolveTypeRef(
                 param.type,
                 ast: ast,
                 symbols: symbols,
                 types: types,
                 interner: interner,
                 localTypeParameters: localTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: file?.packageFQName,
+                imports: file?.imports ?? [],
                 diagnostics: diagnostics,
                 usageRange: classDecl.range
             ) ?? types.anyType
@@ -965,6 +991,13 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: copySymbol)
 
         let localNamespaceFQName = copyFQName + [interner.intern("$\(copySymbol.rawValue)")]
+        // Synthetic signatures use the same lexical and import scope as the
+        // primary constructor, rather than global short-name lookup.
+        let file = ast.file(for: classDecl.range.start.file)
+        let parameterTypes = dataClassPrimaryConstructorParameterTypes(
+            classDecl: classDecl, ownerSymbol: ownerSymbol, ownerFQName: ownerFQName,
+            symbols: symbols, interner: interner
+        )
         let copyParams = collectValueParameters(
             classDecl.primaryConstructorParams,
             localNamespaceFQName: localNamespaceFQName,
@@ -974,7 +1007,11 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             localTypeParameters: localTypeParameters,
+            relativeOwnerFQName: ownerFQName,
+            currentPackageFQName: file?.packageFQName,
+            imports: file?.imports ?? [],
             diagnostics: diagnostics,
+            resolvedParameterTypes: parameterTypes,
             fallbackType: types.anyType
         )
         let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
@@ -1076,9 +1113,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Collects value parameters into parallel arrays of types, symbols, default-value flags,
-    /// vararg flags, and non-local-return permissions. Shared by constructor and function
-    /// header collection.
     func collectValueParameters(
         _ valueParams: [ValueParamDecl],
         localNamespaceFQName: [InternedString],
@@ -1093,6 +1127,7 @@ extension DataFlowSemaPhase {
         currentPackageFQName: [InternedString]? = nil,
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
+        resolvedParameterTypes: [TypeID]? = nil,
         fallbackType: TypeID
     ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool], paramAllowsNonLocalReturn: [Bool]) {
         var paramTypes: [TypeID] = []
@@ -1100,7 +1135,7 @@ extension DataFlowSemaPhase {
         var paramHasDefaultValues: [Bool] = []
         var paramIsVararg: [Bool] = []
         var paramAllowsNonLocalReturn: [Bool] = []
-        for valueParam in valueParams {
+        for (index, valueParam) in valueParams.enumerated() {
             let paramFQName = localNamespaceFQName + [valueParam.name]
             let paramSymbol = symbols.define(
                 kind: .valueParameter,
@@ -1110,7 +1145,8 @@ extension DataFlowSemaPhase {
                 visibility: .private,
                 flags: []
             )
-            let resolvedType = resolveTypeRef(
+            let preResolvedType = resolvedParameterTypes.flatMap { index < $0.count ? $0[index] : nil }
+            let resolvedType = preResolvedType ?? resolveTypeRef(
                 valueParam.type,
                 ast: ast,
                 symbols: symbols,
@@ -1133,8 +1169,6 @@ extension DataFlowSemaPhase {
         return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg, paramAllowsNonLocalReturn)
     }
 
-    /// Collects type parameters from a function declaration, defining symbols and resolving
-    /// upper bounds.  Returns the parallel arrays and maps needed by callers.
     func collectFunctionTypeParameters(
         _ typeParams: [TypeParamDecl],
         localNamespaceFQName: [InternedString],
@@ -1166,9 +1200,20 @@ extension DataFlowSemaPhase {
                 flags: typeParamFlags
             )
             typeParameterSymbols.append(typeParamSymbol)
-            symbols.setAnnotations(typeParam.annotations.map {
-                MetadataAnnotationRecord(annotationFQName: $0.name, arguments: $0.arguments, useSiteTarget: $0.useSiteTarget)
-            }, for: typeParamSymbol)
+            // Preserve the resolved annotation identity for inference and metadata.
+            // All source nominal headers are predeclared before function headers.
+            let annotationFileID = declSite?.start.file
+            registerAnnotations(
+                typeParam.annotations,
+                symbol: typeParamSymbol,
+                declRange: declSite,
+                sourceFileID: annotationFileID,
+                sourceFile: annotationFileID.flatMap { ast.file(for: $0) },
+                sourceManager: nil,
+                interner: interner,
+                symbols: symbols,
+                diagnostics: diagnostics
+            )
             localTypeParameters[typeParam.name] = typeParamSymbol
             if typeParam.isReified {
                 reifiedIndices.insert(index)
@@ -1590,7 +1635,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Look up or define a synthetic interface symbol in the given package.
     func ensureInterfaceSymbol(
         named name: String,
         in pkg: [InternedString],

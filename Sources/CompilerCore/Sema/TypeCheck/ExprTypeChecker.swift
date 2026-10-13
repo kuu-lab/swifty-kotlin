@@ -6,8 +6,6 @@ final class ExprTypeChecker {
         self.driver = driver
     }
 
-    // MARK: - Main Dispatch (from +ExprInference.swift)
-
     // swiftlint:disable:next cyclomatic_complexity
     func inferExpr(
         _ id: ExprID,
@@ -120,13 +118,13 @@ final class ExprTypeChecker {
 
         case let .breakExpr(label, range):
             if ctx.loopDepth == 0 {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0018",
                     "'break' is only allowed inside loop bodies.",
                     range: range
                 )
             } else if let label, !ctx.loopLabelStack.contains(label) {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0097",
                     "'break' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
                     range: range
@@ -137,13 +135,13 @@ final class ExprTypeChecker {
 
         case let .continueExpr(label, range):
             if ctx.loopDepth == 0 {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0019",
                     "'continue' is only allowed inside loop bodies.",
                     range: range
                 )
             } else if let label, !ctx.loopLabelStack.contains(label) {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0098",
                     "'continue' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
                     range: range
@@ -169,7 +167,6 @@ final class ExprTypeChecker {
             return driver.localDeclChecker.inferLocalAssignExpr(id, name: name, value: value, range: range, ctx: ctx, locals: &locals)
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
-            // Type-check the receiver and value, bind as unit-typed expression.
             let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
             let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
                 receiverExpr, currentType: inferredReceiverType, ast: ast, sema: sema
@@ -190,13 +187,13 @@ final class ExprTypeChecker {
                     sema: sema,
                     interner: interner,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 driver.helpers.checkOptIn(
                     for: propResult.symbol,
                     ctx: ctx,
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             } else {
                 // Extension `var` properties (e.g. the bundled
@@ -242,14 +239,14 @@ final class ExprTypeChecker {
             if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
             } else if label == nil, ctx.lambdaDepth > 0 {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
                     "'return' does not reference an enclosing function.",
                     range: range
                 )
             } else if let label, !ctx.hasLambdaLabel(label) {
                 let labelName = interner.resolve(label)
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
                     ctx.hasNonFunctionLambdaLabel(label)
                         ? "Target label '\(labelName)' does not denote a function."
@@ -300,7 +297,7 @@ final class ExprTypeChecker {
                         range: range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics,
+                        diagnostics: ctx.sema.diagnostics,
                         secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
                         suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                     )
@@ -315,7 +312,7 @@ final class ExprTypeChecker {
                         range: range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics,
+                        diagnostics: ctx.sema.diagnostics,
                         secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
                         suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                     )
@@ -334,11 +331,11 @@ final class ExprTypeChecker {
             return inferBinaryExpr(id, op: op, lhsID: lhsID, rhsID: rhsID, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .call(calleeID, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics, usageRange: range)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: ctx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
 
         case let .memberCall(receiverID, calleeName, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics, usageRange: range)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             return driver.callChecker.inferMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: ctx, locals: &locals,
@@ -364,7 +361,7 @@ final class ExprTypeChecker {
                     left: operandType, right: boolType,
                     range: ast.arena.exprRange(operandID) ?? range,
                     solver: ConstraintSolver(), sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 type = boolType
             case .unaryPlus, .unaryMinus:
@@ -405,14 +402,13 @@ final class ExprTypeChecker {
 
         case let .isCheck(exprID, typeRefID, negated, range):
             let subjectType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            // Resolve the target type and validate it (P5-101)
             let targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
                 usageRange: range
             )
@@ -422,7 +418,7 @@ final class ExprTypeChecker {
                    sema.types.makeNonNullable(targetType)
                )
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-ERASED-TYPE",
                     "Cannot check for instance of erased type '\(sema.types.renderType(targetType))': function parameter and return types are not available at runtime.",
                     range: range
@@ -432,13 +428,12 @@ final class ExprTypeChecker {
                let typeParameterSymbol = sema.symbols.symbol(typeParam.symbol),
                !typeParameterSymbol.flags.contains(.reifiedTypeParameter)
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0084",
                     "Cannot check for instance of non-reified type parameter '\(interner.resolve(typeParameterSymbol.name))'.",
                     range: range
                 )
             }
-            // Emit erasure warning for generic type checks with non-star type arguments
             if let typeRef = ast.arena.typeRef(typeRefID),
                case let .named(_, argRefs, _) = typeRef, !argRefs.isEmpty
             {
@@ -447,7 +442,7 @@ final class ExprTypeChecker {
                     return true
                 }
                 if hasNonStarArg {
-                    ctx.semaCtx.diagnostics.warning(
+                    ctx.sema.diagnostics.warning(
                         "KSWIFTK-SEMA-ERASED-TYPE",
                         "Cannot check for instance of erased type: type arguments are not available at runtime. Use star-projection, e.g. 'is List<*>'.",
                         range: range
@@ -472,7 +467,7 @@ final class ExprTypeChecker {
                    ),
                    isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema)
                 {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0415",
                         "check for instance is always 'false'.",
                         range: range
@@ -493,7 +488,7 @@ final class ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
                 usageRange: range
             )
@@ -538,7 +533,7 @@ final class ExprTypeChecker {
                 }
                 if hasNonStarArg {
                     let operatorText = isSafe ? "as?" : "as"
-                    ctx.semaCtx.diagnostics.warning(
+                    ctx.sema.diagnostics.warning(
                         "KSWIFTK-SEMA-UNCHECKED-CAST",
                         "Unchecked cast '\(operatorText)' to generic type erases type arguments at runtime.",
                         range: range
@@ -584,7 +579,7 @@ final class ExprTypeChecker {
             return type
 
         case let .safeMemberCall(receiverID, calleeName, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics, usageRange: range)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: ctx, locals: &locals,
@@ -610,7 +605,7 @@ final class ExprTypeChecker {
                let throwableType = driver.helpers.throwableType(sema: sema, interner: ctx.interner),
                !sema.types.isSubtype(operandType, throwableType)
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0414",
                     "type mismatch: inferred type is '\(sema.types.renderType(operandType))', but 'Throwable' was expected.",
                     range: range
@@ -630,23 +625,27 @@ final class ExprTypeChecker {
 
         case let .blockExpr(statements, trailingExpr, _):
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
+            // Local classifiers must stay in their lexical block, just like
+            // blockLocals. A do-while body uses the loop's shared scope so its
+            // declarations remain visible to the condition.
+            let blockCtx = ctx.exportBlockLocalsForExpr == id ? ctx : ctx.copying(
+                scope: BlockScope(parent: ctx.scope, symbols: sema.symbols)
+            )
             var blockLocals = locals
             var reachedNothing = false
             for stmt in statements {
                 if reachedNothing {
-                    // Emit unreachable code diagnostic for statements after Nothing-typed expression
                     if let stmtRange = ast.arena.exprRange(stmt) {
-                        ctx.semaCtx.diagnostics.warning(
+                        ctx.sema.diagnostics.warning(
                             "KSWIFTK-SEMA-0096",
                             "Unreachable code.",
                             range: stmtRange
                         )
                     }
-                    // Still type-check for completeness but skip further unreachable warnings
-                    _ = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
+                    _ = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                     continue
                 }
-                let stmtType = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
+                let stmtType = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                 if stmtType == sema.types.nothingType {
                     reachedNothing = true
                 }
@@ -655,17 +654,17 @@ final class ExprTypeChecker {
             if reachedNothing {
                 if let trailingExpr {
                     if let trailingRange = ast.arena.exprRange(trailingExpr) {
-                        ctx.semaCtx.diagnostics.warning(
+                        ctx.sema.diagnostics.warning(
                             "KSWIFTK-SEMA-0096",
                             "Unreachable code.",
                             range: trailingRange
                         )
                     }
-                    _ = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                    _ = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 }
                 resultType = sema.types.nothingType
             } else if let trailingExpr {
-                resultType = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+                resultType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             } else {
                 resultType = sema.types.unitType
             }
@@ -686,8 +685,8 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
 
-        case let .localFunDecl(name, receiverTypeRef, valueParams, returnTypeRef, body, isSuspend, range):
-            return driver.localDeclChecker.inferLocalFunDeclExpr(id, name: name, receiverTypeRef: receiverTypeRef, valueParams: valueParams, returnTypeRef: returnTypeRef, body: body, isSuspend: isSuspend, range: range, ctx: ctx, locals: &locals)
+        case let .localFunDecl(name, receiverTypeRef, valueParams, returnTypeRef, body, isSuspend, range, typeParams):
+            return driver.localDeclChecker.inferLocalFunDeclExpr(id, name: name, typeParams: typeParams, receiverTypeRef: receiverTypeRef, valueParams: valueParams, returnTypeRef: returnTypeRef, body: body, isSuspend: isSuspend, range: range, ctx: ctx, locals: &locals)
 
         case let .localNominalDecl(declID, range):
             return inferLocalNominalDeclExpr(id, declID: declID, range: range, ctx: ctx, locals: &locals)
@@ -771,7 +770,7 @@ final class ExprTypeChecker {
                 call: CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)]),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             ).viableCandidates.isEmpty {
                 return extensions
             }
@@ -784,7 +783,7 @@ final class ExprTypeChecker {
                 call: CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)]),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             ).viableCandidates.isEmpty
         }
 
@@ -811,12 +810,12 @@ final class ExprTypeChecker {
             )
             let memberResult = ctx.resolver.resolveCall(
                 candidates: members, call: call, expectedType: nil,
-                implicitReceiverType: sourceReceiver, ctx: ctx.semaCtx
+                implicitReceiverType: sourceReceiver, ctx: ctx.sema
             )
             let extensions = containsExtensionCandidates(receiverType: sourceReceiver)
             let resolved = memberResult.chosenCallee != nil ? memberResult : ctx.resolver.resolveCall(
                 candidates: extensions, call: call, expectedType: nil,
-                implicitReceiverType: sourceReceiver, ctx: ctx.semaCtx
+                implicitReceiverType: sourceReceiver, ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 sema.bindings.bindCall(exprID, binding: CallBinding(
@@ -826,7 +825,7 @@ final class ExprTypeChecker {
                     parameterMapping: resolved.parameterMapping
                 ))
             } else if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
             }
             return
         }
@@ -872,7 +871,7 @@ final class ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = memberCall.chosenCallee {
                     sema.bindings.bindCall(
@@ -917,7 +916,7 @@ final class ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = resolved.chosenCallee {
                     sema.bindings.bindCall(
@@ -970,14 +969,14 @@ final class ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 ).viableCandidates.isEmpty
                 if !hasBundledRangeCandidate,
                    !hasApplicableRangeMember,
                    !hasApplicableContainsExtension(receiverType: rangeSourceReceiverType),
                    let diagnostic = resolved.diagnostic
                 {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                     return
                 }
             }
@@ -1023,7 +1022,7 @@ final class ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = memberCall.chosenCallee {
                     sema.bindings.bindCall(
@@ -1068,7 +1067,7 @@ final class ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = resolved.chosenCallee {
                     sema.bindings.bindCall(
@@ -1084,7 +1083,7 @@ final class ExprTypeChecker {
                     return
                 }
                 let hasBundledRangeCandidate = driver.callChecker
-                    .hasUIntRangeSourceBackedContainsCandidate(
+                    .hasIntRangeSourceBackedContainsCandidate(
                         receiverType: rangeSourceReceiverType,
                         argumentType: sema.types.makeNonNullable(elementType),
                         sema: sema,
@@ -1121,14 +1120,14 @@ final class ExprTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 ).viableCandidates.isEmpty
                 if !hasBundledRangeCandidate,
                    !hasApplicableRangeMember,
                    !hasApplicableContainsExtension(receiverType: rangeSourceReceiverType),
                    let diagnostic = resolved.diagnostic
                 {
-                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    ctx.sema.diagnostics.emit(diagnostic)
                     return
                 }
             }
@@ -1211,7 +1210,7 @@ final class ExprTypeChecker {
                         ),
                         expectedType: nil,
                         implicitReceiverType: rangeSourceReceiverType,
-                        ctx: ctx.semaCtx
+                        ctx: ctx.sema
                     )
                     if let chosen = resolved.chosenCallee {
                         sema.bindings.bindCall(
@@ -1466,14 +1465,14 @@ final class ExprTypeChecker {
             call: call,
             expectedType: nil,
             implicitReceiverType: nonNullContainerType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         ).viableCandidates.isEmpty
         let resolved = ctx.resolver.resolveCall(
             candidates: hasViableMember ? retainedMembers : candidates,
             call: call,
             expectedType: nil,
             implicitReceiverType: nonNullContainerType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
 
         guard let chosen = resolved.chosenCallee else {
@@ -1487,7 +1486,7 @@ final class ExprTypeChecker {
                 return
             }
             if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
             }
             return
         }
@@ -1747,15 +1746,15 @@ final class ExprTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: operandType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let diagnostic = resolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
             guard let chosen = resolved.chosenCallee else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for operator '\(displayOperatorName)'.",
                     range: range
@@ -1778,7 +1777,7 @@ final class ExprTypeChecker {
            operandType != sema.types.nullableAnyType,
            operandType != sema.types.errorType
         {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(displayOperatorName)'.",
                 range: range

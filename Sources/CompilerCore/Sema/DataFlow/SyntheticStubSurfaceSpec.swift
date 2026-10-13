@@ -148,24 +148,6 @@ struct SyntheticConstructorStubSpec: Sendable {
     }
 }
 
-struct SyntheticPropertyStubSpec: Sendable {
-    let name: String
-    let propertyType: SyntheticStubTypeRef
-    let externalLinkName: String?
-    let flags: SymbolFlags
-
-    init(
-        name: String,
-        propertyType: SyntheticStubTypeRef,
-        externalLinkName: String? = nil,
-        flags: SymbolFlags = [.synthetic]
-    ) {
-        self.name = name
-        self.propertyType = propertyType
-        self.externalLinkName = externalLinkName
-        self.flags = flags
-    }
-}
 
 struct SyntheticStubRegistrationContext {
     let ownerFQName: [InternedString]
@@ -249,40 +231,23 @@ extension DataFlowSemaPhase {
             return nil
         }
 
-        var parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] = []
-        parameters.reserveCapacity(spec.parameters.count)
-        for parameter in spec.parameters {
-            guard let parameterType = resolveSyntheticStubType(
-                parameter.type,
-                context: context,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            ) else {
-                return nil
-            }
-            parameters.append((
-                name: parameter.name,
-                type: parameterType,
-                hasDefault: parameter.hasDefault,
-                isVararg: parameter.isVararg
-            ))
-        }
-
-        let typeParameterSymbols = spec.typeParameterNames.compactMap {
-            context.typeParameterSymbolsByName[$0]
-        }
-        guard typeParameterSymbols.count == spec.typeParameterNames.count else {
-            return nil
-        }
-        let upperBounds = resolveSyntheticStubTypeParameterUpperBounds(
-            spec.typeParameterUpperBounds,
+        guard let parameters = resolveSyntheticStubParameters(
+            spec.parameters,
             context: context,
             symbols: symbols,
             types: types,
             interner: interner
-        )
-        guard upperBounds != nil || spec.typeParameterUpperBounds.isEmpty else {
+        ) else {
+            return nil
+        }
+        guard let (typeParameterSymbols, upperBounds) = resolveSyntheticStubTypeParameters(
+            names: spec.typeParameterNames,
+            upperBoundRefs: spec.typeParameterUpperBounds,
+            context: context,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) else {
             return nil
         }
 
@@ -319,21 +284,13 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
         }
 
-        var valueParameterSymbols: [SymbolID] = []
-        valueParameterSymbols.reserveCapacity(parameters.count)
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: constructorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
+        let valueParameterSymbols = defineSyntheticStubValueParameters(
+            parameters,
+            ownerSymbol: constructorSymbol,
+            ownerFQName: constructorFQName,
+            symbols: symbols,
+            interner: interner
+        )
 
         symbols.setFunctionSignature(
             FunctionSignature(
@@ -343,7 +300,7 @@ extension DataFlowSemaPhase {
                 valueParameterHasDefaultValues: parameters.map(\.hasDefault),
                 valueParameterIsVararg: parameters.map(\.isVararg),
                 typeParameterSymbols: typeParameterSymbols,
-                typeParameterUpperBoundsList: upperBounds ?? [],
+                typeParameterUpperBoundsList: upperBounds,
                 classTypeParameterCount: spec.classTypeParameterCount
             ),
             for: constructorSymbol
@@ -385,40 +342,23 @@ extension DataFlowSemaPhase {
             return nil
         }
 
-        var parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] = []
-        parameters.reserveCapacity(spec.parameters.count)
-        for parameter in spec.parameters {
-            guard let parameterType = resolveSyntheticStubType(
-                parameter.type,
-                context: context,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            ) else {
-                return nil
-            }
-            parameters.append((
-                name: parameter.name,
-                type: parameterType,
-                hasDefault: parameter.hasDefault,
-                isVararg: parameter.isVararg
-            ))
-        }
-
-        let typeParameterSymbols = spec.typeParameterNames.compactMap {
-            context.typeParameterSymbolsByName[$0]
-        }
-        guard typeParameterSymbols.count == spec.typeParameterNames.count else {
-            return nil
-        }
-        let upperBounds = resolveSyntheticStubTypeParameterUpperBounds(
-            spec.typeParameterUpperBounds,
+        guard let parameters = resolveSyntheticStubParameters(
+            spec.parameters,
             context: context,
             symbols: symbols,
             types: types,
             interner: interner
-        )
-        guard upperBounds != nil || spec.typeParameterUpperBounds.isEmpty else {
+        ) else {
+            return nil
+        }
+        guard let (typeParameterSymbols, upperBounds) = resolveSyntheticStubTypeParameters(
+            names: spec.typeParameterNames,
+            upperBoundRefs: spec.typeParameterUpperBounds,
+            context: context,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) else {
             return nil
         }
 
@@ -434,7 +374,7 @@ extension DataFlowSemaPhase {
                 flags: spec.flags,
                 canThrow: spec.canThrow,
                 typeParameterSymbols: typeParameterSymbols,
-                typeParameterUpperBoundsList: upperBounds ?? [],
+                typeParameterUpperBoundsList: upperBounds,
                 classTypeParameterCount: spec.classTypeParameterCount,
                 matchReturnType: true,
                 bundledIndex: context.bundledIndex,
@@ -452,7 +392,7 @@ extension DataFlowSemaPhase {
             parameters: parameters,
             returnType: returnType,
             typeParameterSymbols: typeParameterSymbols,
-            typeParameterUpperBoundsList: upperBounds ?? [],
+            typeParameterUpperBoundsList: upperBounds,
             symbols: symbols,
             interner: interner
         )
@@ -518,21 +458,13 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
         }
 
-        var valueParameterSymbols: [SymbolID] = []
-        valueParameterSymbols.reserveCapacity(parameters.count)
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
+        let valueParameterSymbols = defineSyntheticStubValueParameters(
+            parameters,
+            ownerSymbol: functionSymbol,
+            ownerFQName: functionFQName,
+            symbols: symbols,
+            interner: interner
+        )
 
         symbols.setFunctionSignature(
             FunctionSignature(
@@ -552,53 +484,6 @@ extension DataFlowSemaPhase {
         return functionSymbol
     }
 
-    @discardableResult
-    private func registerSyntheticPropertyStub(
-        _ spec: SyntheticPropertyStubSpec,
-        context: SyntheticStubRegistrationContext,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> SymbolID? {
-        guard let propertyType = resolveSyntheticStubType(
-            spec.propertyType,
-            context: context,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        ) else {
-            return nil
-        }
-
-        let name = interner.intern(spec.name)
-        let fqName = context.ownerFQName + [name]
-        if let existing = symbols.lookupAll(fqName: fqName).first(where: {
-            symbols.symbol($0)?.kind == .property
-        }) {
-            symbols.setPropertyType(propertyType, for: existing)
-            if let externalLinkName = spec.externalLinkName {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-            }
-            return existing
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: spec.flags
-        )
-        if let parentSymbol = context.parentSymbol, parentSymbol != .invalid {
-            symbols.setParentSymbol(parentSymbol, for: propertySymbol)
-        }
-        symbols.setPropertyType(propertyType, for: propertySymbol)
-        if let externalLinkName = spec.externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        }
-        return propertySymbol
-    }
 
     private func resolveSyntheticStubType(
         _ ref: SyntheticStubTypeRef,
@@ -781,5 +666,86 @@ extension DataFlowSemaPhase {
             resolvedBounds.append(resolved)
         }
         return resolvedBounds
+    }
+
+    private func resolveSyntheticStubParameters(
+        _ specParameters: [SyntheticStubParameterSpec],
+        context: SyntheticStubRegistrationContext,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)]? {
+        var parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] = []
+        parameters.reserveCapacity(specParameters.count)
+        for parameter in specParameters {
+            guard let parameterType = resolveSyntheticStubType(
+                parameter.type,
+                context: context,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) else {
+                return nil
+            }
+            parameters.append((
+                name: parameter.name,
+                type: parameterType,
+                hasDefault: parameter.hasDefault,
+                isVararg: parameter.isVararg
+            ))
+        }
+        return parameters
+    }
+
+    private func resolveSyntheticStubTypeParameters(
+        names: [String],
+        upperBoundRefs: [[SyntheticStubTypeRef]],
+        context: SyntheticStubRegistrationContext,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> (typeParameterSymbols: [SymbolID], upperBounds: [[TypeID]])? {
+        let typeParameterSymbols = names.compactMap {
+            context.typeParameterSymbolsByName[$0]
+        }
+        guard typeParameterSymbols.count == names.count else {
+            return nil
+        }
+        let upperBounds = resolveSyntheticStubTypeParameterUpperBounds(
+            upperBoundRefs,
+            context: context,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        guard upperBounds != nil || upperBoundRefs.isEmpty else {
+            return nil
+        }
+        return (typeParameterSymbols, upperBounds ?? [])
+    }
+
+    private func defineSyntheticStubValueParameters(
+        _ parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        var valueParameterSymbols: [SymbolID] = []
+        valueParameterSymbols.reserveCapacity(parameters.count)
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: ownerFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(ownerSymbol, for: parameterSymbol)
+            valueParameterSymbols.append(parameterSymbol)
+        }
+        return valueParameterSymbols
     }
 }

@@ -21,7 +21,7 @@ extension ExprTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 sema.bindings.bindExprType(id, type: resolved)
                 return resolved
@@ -129,7 +129,7 @@ extension ExprTypeChecker {
         let outerReceiverPropertySymbols = Set(
             sema.symbols.allSymbols().compactMap { symbol -> SymbolID? in
                 guard symbol.kind == .property,
-                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol.id),
+                      let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: symbol.id),
                       outerReceiverOwners.contains(ownerSymbol),
                       sema.symbols.symbol(ownerSymbol)?.kind == .class
                 else {
@@ -199,7 +199,7 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             if case let .classType(classType) = sema.types.kind(of: resolved),
                !directSuperSymbols.contains(classType.classSymbol)
@@ -223,7 +223,7 @@ extension ExprTypeChecker {
             let classNames = concreteClassSupers.compactMap { sema.symbols.symbol($0)?.fqName.last }
                 .map { interner.resolve($0) }
                 .joined(separator: ", ")
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0170",
                 "Object literal '\(interner.resolve(objectDecl.name))' cannot inherit from more than one class. Found: \(classNames).",
                 range: objectDecl.range
@@ -241,7 +241,7 @@ extension ExprTypeChecker {
             directSupertypes: directSuperSymbols,
             declRange: objectDecl.range,
             symbols: sema.symbols,
-            diagnostics: ctx.semaCtx.diagnostics,
+            diagnostics: ctx.sema.diagnostics,
             interner: interner
         )
 
@@ -255,7 +255,7 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             let field = inheritance.registerClassDelegation(
                 delegateExpression: delegateExpr,
@@ -264,7 +264,7 @@ extension ExprTypeChecker {
                 range: objectDecl.range,
                 symbols: sema.symbols,
                 types: sema.types,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 interner: interner
             )
             let expectedType = field.flatMap { sema.symbols.propertyType(for: $0) }
@@ -276,7 +276,7 @@ extension ExprTypeChecker {
                     range: ast.arena.exprRange(delegateExpr),
                     solver: driver.solver,
                     sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
         }
@@ -417,7 +417,7 @@ extension ExprTypeChecker {
                 symbol: functionSymbol,
                 ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
                 solver: driver.solver,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 baseLocals: outerLocalsSnapshot
             )
             capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
@@ -578,7 +578,7 @@ extension ExprTypeChecker {
             }
             func resolvePropertyType(_ reference: TypeRefID) -> TypeID {
                 driver.helpers.resolveTypeRef(reference, ast: ast, sema: sema, interner: interner,
-                                              scope: propertyScope, diagnostics: ctx.semaCtx.diagnostics,
+                                              scope: propertyScope, diagnostics: ctx.sema.diagnostics,
                                               inferenceContext: ctx, usageRange: propertyDecl.range)
             }
             for (parameter, symbol) in zip(propertyDecl.typeParams, parameters) {
@@ -587,7 +587,7 @@ extension ExprTypeChecker {
                 DataFlowSemaPhase.checkConflictingClassUpperBounds(
                     typeParamName: parameter.name, bounds: bounds, declSite: propertyDecl.range,
                     symbols: sema.symbols, types: sema.types, interner: interner,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             let declaredType = propertyDecl.type.map(resolvePropertyType) ?? sema.types.anyType
@@ -720,7 +720,7 @@ extension ExprTypeChecker {
                         range: propertyDecl.range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.semaCtx.diagnostics
+                        diagnostics: ctx.sema.diagnostics
                     )
                 }
                 inferredType = type
@@ -736,7 +736,7 @@ extension ExprTypeChecker {
             // the named path in `DeclTypeChecker.typeCheckPropertyDecl`: the
             // getter can supply the property's type, the setter needs it final.
             var accessorCtx = driver.declChecker.propertyTypeParameterContext(
-                propertyDecl, symbol: propertySymbol, ctx: memberCtx, diagnostics: ctx.semaCtx.diagnostics
+                propertyDecl, symbol: propertySymbol, ctx: memberCtx, diagnostics: ctx.sema.diagnostics
             )
             if let receiver = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) {
                 accessorCtx = accessorCtx.copying(implicitReceiverType: receiver).withOuterReceiver(
@@ -751,7 +751,7 @@ extension ExprTypeChecker {
                     inferredPropertyType: declaredType ?? inferredType,
                     accessorCtx: accessorCtx,
                     solver: driver.solver,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     baseLocals: accessorBaseLocals
                 )
             }
@@ -771,7 +771,7 @@ extension ExprTypeChecker {
                     inferredPropertyType: declaredType ?? inferredType,
                     ctx: memberCtx,
                     locals: &initializerLocals,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     delegateBody: propertyDecl.delegateBody,
                     delegateBodyParams: propertyDecl.delegateBodyParams
                 )
@@ -783,7 +783,7 @@ extension ExprTypeChecker {
             } else if let inferredType {
                 finalType = inferredType
             } else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0101",
                     "Property '\(interner.resolve(propertyDecl.name))' in object literal must have a type annotation or initializer.",
                     range: propertyDecl.range
@@ -800,7 +800,7 @@ extension ExprTypeChecker {
                     finalPropertyType: finalType,
                     accessorCtx: accessorCtx,
                     solver: driver.solver,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     baseLocals: accessorBaseLocals
                 )
             }
@@ -1024,7 +1024,7 @@ extension ExprTypeChecker {
                let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]
             {
                 let parameterTypes = sema.symbols.functionSignature(for: method.id)?.parameterTypes ?? []
-                if let matchedSlot = resolveOverriddenVtableSlot(parameterTypes: parameterTypes, candidates: candidates, types: sema.types) {
+                if let matchedSlot = resolveOverriddenVtableSlot(method: method, parameterTypes: parameterTypes, candidates: candidates, symbols: sema.symbols, types: sema.types) {
                     vtableSlots[method.id] = matchedSlot
                     continue
                 }
@@ -1087,7 +1087,7 @@ extension ExprTypeChecker {
             guard let missingSymbol = sema.symbols.symbol(missingMember) else {
                 continue
             }
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-ABSTRACT",
                 "\(subjectDescription) must override abstract member "
                     + "'\(interner.resolve(missingSymbol.name))'.",
@@ -1163,7 +1163,7 @@ extension ExprTypeChecker {
                         sema: sema,
                         interner: interner,
                         scope: objectScope,
-                        diagnostics: ctx.semaCtx.diagnostics,
+                        diagnostics: ctx.sema.diagnostics,
                         inferenceContext: ctx,
                         usageRange: functionDecl.range
                     )
@@ -1193,7 +1193,7 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner,
                     scope: objectScope,
-                    diagnostics: ctx.semaCtx.diagnostics,
+                    diagnostics: ctx.sema.diagnostics,
                     inferenceContext: ctx
                 )
             } else {
@@ -1255,8 +1255,7 @@ extension ExprTypeChecker {
                name: functionDecl.name,
                parameterCount: functionDecl.valueParams.count,
                ownerSymbol: objectSymbol,
-               sema: sema,
-               interner: interner
+               sema: sema
            )
         {
             flags.insert(.operatorFunction)
@@ -1268,8 +1267,7 @@ extension ExprTypeChecker {
         name: InternedString,
         parameterCount: Int,
         ownerSymbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
+        sema: SemaModule
     ) -> Bool {
         var stack = sema.symbols.directSupertypes(for: ownerSymbol)
         var visited: Set<SymbolID> = []

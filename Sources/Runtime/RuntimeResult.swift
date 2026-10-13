@@ -1,5 +1,3 @@
-// MARK: - Result Runtime Types
-
 final class RuntimeResultBox {
     let isSuccess: Bool
     let value: Int      // success value or 0
@@ -14,6 +12,19 @@ final class RuntimeResultBox {
 
 private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
     resolveRuntimeHandle(raw, as: RuntimeResultBox.self)
+}
+
+/// `resultBoxFromRaw` variant for the throwing entry points below: sets the
+/// "Result is null" throwable through `outThrown` and returns nil instead.
+private func resultBoxFromRawOrThrow(
+    _ resultRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> RuntimeResultBox? {
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
+        return nil
+    }
+    return box
 }
 
 func runtimeResultSuccess(_ value: Int) -> Int {
@@ -92,10 +103,7 @@ func runtimeResultGetOrThrow(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if box.isSuccess {
         return box.value
     }
@@ -135,10 +143,7 @@ func runtimeResultGetOrElse(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if box.isSuccess {
         return box.value
     }
@@ -152,10 +157,7 @@ func runtimeResultMap(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if !box.isSuccess {
         return runtimeResultFailure(box.exception)
     }
@@ -177,10 +179,7 @@ func runtimeResultFold(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if box.isSuccess {
         return runtimeResultInvoke1(
             fnPtr: successFnPtr,
@@ -204,10 +203,7 @@ func runtimeResultOnSuccess(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if box.isSuccess {
         var thrown = 0
         _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
@@ -226,10 +222,7 @@ func runtimeResultOnFailure(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if !box.isSuccess {
         var thrown = 0
         _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
@@ -248,10 +241,7 @@ func runtimeResultRecover(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if box.isSuccess {
         return runtimeResultSuccess(box.value)
     }
@@ -271,10 +261,7 @@ func runtimeResultRecoverCatching(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Result is null")
-        return 0
-    }
+    guard let box = resultBoxFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
     if box.isSuccess {
         return runtimeResultSuccess(box.value)
     }
@@ -290,8 +277,6 @@ func runtimeResultRecoverCatching(
     }
     return runtimeResultSuccess(recovered)
 }
-
-// MARK: - Bundled Result.kt Runtime Bridges
 
 @_cdecl("kk_runtime_result_success")
 public func kk_runtime_result_success(_ value: Int) -> Int {
