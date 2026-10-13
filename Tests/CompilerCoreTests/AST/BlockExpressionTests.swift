@@ -249,7 +249,7 @@ struct BlockExpressionTests {
     }
 
     private func localDeclName(_ exprID: ExprID, in ast: ASTModule, interner: StringInterner) -> String? {
-        guard case let .localDecl(name, _, _, _, _, _) = ast.arena.expr(exprID) else {
+        guard case let .localDecl(name, _, _, _, _, _, _) = ast.arena.expr(exprID) else {
             return nil
         }
         return interner.resolve(name)

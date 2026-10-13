@@ -76,7 +76,8 @@ public class ULongArray private constructor() {
 //   * `arrayOf` packs its varargs into a runtime array via `kk_array_of`
 //     (the packed-array + count normalization happens in CallSupportLowerer,
 //     keyed on the `kk_array_of` link name);
-//   * `emptyArray` returns the shared empty array via `kk_empty_array`;
+//   * `emptyArray` allocates a fresh array and tags its component at the typed
+//     call site; `kk_empty_array` remains the untyped runtime fallback;
 //   * `arrayOfNulls` allocates a null-filled array via `kk_array_of_nulls`.
 @KsSymbolName("kk_array_of")
 public external fun <T> arrayOf(vararg elements: T): Array<T>

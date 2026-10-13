@@ -29,19 +29,19 @@ private external fun String.__kkStringConcat(other: String): String
 @KsSymbolName("__kk_string_plus")
 private external fun __kkStringPlus(receiver: String?, other: Any?): String
 
-public fun String.format(vararg args: Any?): String = __kkStringFormat(args)
+public fun String.format(vararg args: Any?): String = __kkStringFormat(args.asList())
 
 public fun String.format(locale: java.util.Locale?, vararg args: Any?): String =
-    __kkStringFormatLocaleCompanion(locale, this, args)
+    __kkStringFormatLocaleCompanion(locale, this, args.asList())
 
 public fun String.Companion.format(format: String, vararg args: Any?): String =
-    __kkStringFormatCompanion(format, args)
+    __kkStringFormatCompanion(format, args.asList())
 
 public fun String.Companion.format(
     locale: java.util.Locale?,
     format: String,
     vararg args: Any?
-): String = __kkStringFormatLocaleCompanion(locale, format, args)
+): String = __kkStringFormatLocaleCompanion(locale, format, args.asList())
 
 public val String.Companion.CASE_INSENSITIVE_ORDER: Comparator<String>
     get() = __kkStringCaseInsensitiveOrder()

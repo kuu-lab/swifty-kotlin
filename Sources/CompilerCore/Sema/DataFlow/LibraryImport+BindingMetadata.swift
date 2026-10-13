@@ -261,7 +261,19 @@ extension DataFlowSemaPhase {
                         importedInlineFunctions.register(
                             ImportedInlineFunctionStore.Descriptor(
                                 path: path, signature: symbols.functionSignature(for: stubSymbol),
-                                name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default")
+                                name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default"),
+                                // Stub signature already contains explicit
+                                // hidden Int words/mask; only physical value
+                                // storage needs replacement, after its leading
+                                // member-extension parameters. The receiver
+                                // remains the signature's separate first slot.
+                                packedValueParameterTypes: importedInlinePackedValueTypes(
+                                    signature, binding: binding, symbol: symbol,
+                                    symbols: symbols, types: types, interner: interner
+                                ).map { packed in
+                                    stubLeadingParameters + packed
+                                        + Array(repeating: intType, count: reifiedCount) + [intType]
+                                }
                             ), for: stubSymbol
                         )
                     }
@@ -286,6 +298,8 @@ extension DataFlowSemaPhase {
                 binding,
                 symbol: symbol,
                 signature: signature,
+                symbols: symbols,
+                types: types,
                 diagnostics: diagnostics,
                 interner: interner,
                 importedInlineFunctions: importedInlineFunctions
@@ -315,6 +329,11 @@ extension DataFlowSemaPhase {
            let constValue = MetadataConstValueCoder.decode(constValueLiteral, interner: { interner.intern($0) })
         {
             symbols.setConstValueExprKind(constValue, for: symbol)
+            // Both metadata encoders reserve property const literals for
+            // declarations that carry the const contract.
+            if record.kind == .property, !record.isMutable {
+                symbols.insertFlags(.constValue, for: symbol)
+            }
         }
 
         // Restore extension property accessor(s). Extension properties are
@@ -472,7 +491,7 @@ extension DataFlowSemaPhase {
                 name: getName,
                 fqName: getterFQName,
                 declSite: nil,
-                visibility: .public,
+                visibility: record.visibility,
                 flags: [.synthetic, .importedLibrary]
             )
             symbols.setParentSymbol(symbol, for: getterSymbol)
@@ -657,6 +676,46 @@ extension DataFlowSemaPhase {
             } else if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
                 symbols.setParentSymbol(packageOwner.id, for: binding.symbol)
             }
+        }
+
+        if record.kind == .class, record.isInnerClass {
+            // The enclosing-instance link is private ABI storage, not a public
+            // property/extra value parameter. Its producer slot must not be guessed.
+            let outerName = interner.intern("$outer")
+            let outerFQName = record.fqName + [outerName]
+            let entries = record.fieldOffsets.filter { $0.fqName == outerFQName }
+            guard let owner = symbols.parentSymbol(for: binding.symbol),
+                  let outerOwner = symbols.symbol(owner),
+                  outerOwner.kind == .class || outerOwner.kind == .enumClass,
+                  entries.count == 1,
+                  let entry = entries.first,
+                  entry.offset >= 2,
+                  let size = record.declaredInstanceSizeWords,
+                  entry.offset < size
+            else {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0024",
+                    "Inner class '\(renderFQName(record.fqName, interner: interner))' has invalid enclosing-instance storage metadata",
+                    range: nil
+                )
+                return
+            }
+            symbols.ensureLazyImportedMetadataLoaded(for: owner)
+            let field = symbols.define(
+                kind: .field, name: outerName, fqName: outerFQName, declSite: nil,
+                visibility: .private, flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(binding.symbol, for: field)
+            if let module = symbols.moduleFQN(for: binding.symbol) {
+                symbols.setModuleFQN(module, for: field)
+            }
+            let arguments: [TypeArg] = types.nominalTypeParameterSymbols(for: owner).map {
+                .invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            symbols.setPropertyType(types.make(.classType(ClassType(
+                classSymbol: owner, args: arguments, nullability: .nonNull
+            ))), for: field)
+            symbols.setOuterInstanceFieldSymbol(field, for: binding.symbol)
         }
 
         let hasLayoutHint =

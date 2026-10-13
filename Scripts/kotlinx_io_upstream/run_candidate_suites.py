@@ -84,6 +84,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--suite", action="append")
     parser.add_argument("--native-catalog", choices=["linux", "macos"],
                         help="use the audited factory/lifecycle driver; without --suite selects the full target catalog")
+    parser.add_argument("--source-closure-index", type=Path,
+                        help="explicit audited source closure for selected Native suites; never full catalog coverage")
+    parser.add_argument("--isolated-filesystem", action="store_true",
+                        help="run in an owned empty working directory with owned TMPDIR (file suites)")
+    parser.add_argument("--support-source", type=Path, action="append", default=[],
+                        help="explicit additional test support; hashes are pinned and originals remain unchanged")
     parser.add_argument("--output", type=Path, required=True)
     stdlib = parser.add_mutually_exclusive_group(required=True)
     stdlib.add_argument("--stdlib-library", type=Path)
@@ -131,16 +137,27 @@ def main(argv: list[str] | None = None) -> int:
             verify_file(args.upstream / record["path"], record)
         verify_file(catalog_path, {"sha256": lock["native_execution_catalog_sha256"]})
         catalog = json.loads(catalog_path.read_text())
+        if args.source_closure_index and not args.native_catalog:
+            raise ValueError("scoped source closure requires the Native catalog lifecycle driver")
+        closure = json.loads(args.source_closure_index.read_text()) if args.source_closure_index else None
         if args.native_catalog:
             ports = prepare_catalog(args.upstream, catalog, lock, args.suite, args.output,
-                                    args.native_catalog, json.loads(declaration_path.read_text()))
-            summary["kind"] = "candidate-assertion-native-catalog"
+                                    args.native_catalog, json.loads(declaration_path.read_text()), source_closure=closure)
+            summary["kind"] = "candidate-assertion-native-scoped-catalog" if closure else "candidate-assertion-native-catalog"
         else:
             ports = prepare_suites(args.upstream, catalog, lock, args.suite, args.output)
         driver = args.output / "CombinedDriver.kt"
         source_paths = [path for port in ports for path in port.get("source_ports", [port.get("port_path")])]
         if len(set(source_paths)) != len(source_paths):
             raise ValueError("each original source must compile only once")
+
+        support_sources = [path.resolve() for path in args.support_source]
+        if len(set(support_sources)) != len(support_sources):
+            raise ValueError("test support sources must be unique")
+        if any(not path.is_file() or path.suffix != ".kt" for path in support_sources):
+            raise ValueError("each test support source must be an existing Kotlin file")
+        if set(support_sources) & {Path(path).resolve() for path in source_paths}:
+            raise ValueError("test support must not replace an original source")
 
         def inputs() -> dict:
             return {
@@ -156,6 +173,8 @@ def main(argv: list[str] | None = None) -> int:
                 "direct_runner_sha256": sha256(HERE / "run_candidate_subset.py"),
                 "helper_sha256": sha256(HERE / "run_jvm_reference.py"),
                 "driver_sha256": sha256(driver),
+                "support_source_sha256": {str(path): sha256(path) for path in support_sources},
+                "source_closure_index_sha256": sha256(args.source_closure_index) if args.source_closure_index else None,
                 "port_sha256": {path: sha256(Path(path)) for path in source_paths},
                 "catalog_preparer_sha256": sha256(HERE / "prepare_candidate_catalog.py") if args.native_catalog else None,
                 "declaration_index_sha256": sha256(declaration_path) if args.native_catalog else None,
@@ -168,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
         base += ["--stdlib-from-source"] if args.stdlib_from_source else ["--stdlib-library", str(args.stdlib_library.resolve())]
         environment = {"KSWIFTK_PACKAGE_ROOT": str(root)}
         binary = args.output / "candidate"
-        sources = source_paths
+        sources = source_paths + [str(path) for path in support_sources]
         results = [{"execution_id": identifier, "status": "NOT_RUN"}
                    for port in ports for identifier in port["execution_ids"]]
         library = None
@@ -189,7 +208,16 @@ def main(argv: list[str] | None = None) -> int:
             summary["compile_exitcode"] = code
         if code == 0:
             summary["executable_sha256"] = sha256(binary)
-            code = execute([str(binary)], args.output, "run", args.run_timeout)
+            if args.isolated_filesystem:
+                work = args.output / "execution"
+                work.mkdir()
+                temporary = work / "tmp"
+                temporary.mkdir()
+                code = execute([str(binary)], args.output, "run", args.run_timeout,
+                               {"TMPDIR": str(temporary.resolve())}, working_directory=work)
+                summary["filesystem_isolation"] = {"cwd": str(work), "TMPDIR": str(temporary)}
+            else:
+                code = execute([str(binary)], args.output, "run", args.run_timeout)
             summary["run_exitcode"] = code
             results = parse_suite_results((args.output / "run.stdout").read_text(), ports)
             if sha256(binary) != summary["executable_sha256"]:
