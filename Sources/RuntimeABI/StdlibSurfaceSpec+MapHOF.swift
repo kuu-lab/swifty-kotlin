@@ -1,5 +1,3 @@
-// MARK: - Map higher-order function surface
-//
 // Split from `StdlibSurfaceSpec.swift` so that parallel branches adding
 // `kotlin.collections.Map` member entries do not collide on the same
 // central array. New `map(...)` entries go here.

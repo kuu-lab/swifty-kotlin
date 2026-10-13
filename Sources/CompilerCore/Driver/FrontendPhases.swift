@@ -341,7 +341,6 @@ public final class BuildASTPhase: CompilerPhase {
         }
     }
 
-    // MARK: - Sequential path
 
     private func runSequential(_ ctx: CompilationContext) {
         let arena = makeArena(ctx)
@@ -373,7 +372,6 @@ public final class BuildASTPhase: CompilerPhase {
         )
     }
 
-    // MARK: - Parallel path
 
     private func runParallel(_ ctx: CompilationContext, jobs: Int) throws {
         let arena = makeArena(ctx) // thread-safe with locks
@@ -431,7 +429,6 @@ public final class BuildASTPhase: CompilerPhase {
         return ASTArena()
     }
 
-    // MARK: - Per-file AST building (shared between sequential and parallel)
 
     func buildFileAST(
         fileID: FileID,
@@ -466,30 +463,13 @@ public final class BuildASTPhase: CompilerPhase {
                 packageFQName = extractQualifiedPath(from: nodeID, in: cst, interner: interner, isPackageHeader: true)
 
             case .importHeader:
-                let path = extractQualifiedPath(from: nodeID, in: cst, interner: interner, isPackageHeader: false)
-                let alias = extractImportAlias(from: nodeID, in: cst, interner: interner)
-                let isWildcard = collectTokens(from: nodeID, in: cst).contains { token in
-                    if case .symbol(.star) = token.kind {
-                        return true
-                    }
-                    return false
-                }
-                imports.append(ImportDecl(range: node.range, path: path, alias: alias, isWildcard: isWildcard))
+                imports.append(makeImportDecl(from: nodeID, in: cst, interner: interner))
 
             case .importList:
                 for importChild in cst.children(of: nodeID) {
                     guard case let .node(importNodeID) = importChild else { continue }
-                    let importNode = cst.node(importNodeID)
-                    guard importNode.kind == .importHeader else { continue }
-                    let path = extractQualifiedPath(from: importNodeID, in: cst, interner: interner, isPackageHeader: false)
-                    let alias = extractImportAlias(from: importNodeID, in: cst, interner: interner)
-                    let isWildcard = collectTokens(from: importNodeID, in: cst).contains { token in
-                        if case .symbol(.star) = token.kind {
-                            return true
-                        }
-                        return false
-                    }
-                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias, isWildcard: isWildcard))
+                    guard cst.node(importNodeID).kind == .importHeader else { continue }
+                    imports.append(makeImportDecl(from: importNodeID, in: cst, interner: interner))
                 }
 
             case .classDecl:
@@ -578,6 +558,13 @@ public final class BuildASTPhase: CompilerPhase {
         fileDecls.append(declID)
     }
 
+    private func makeImportDecl(from nodeID: NodeID, in cst: SyntaxArena, interner: StringInterner) -> ImportDecl {
+        let path = extractQualifiedPath(from: nodeID, in: cst, interner: interner, isPackageHeader: false)
+        let alias = extractImportAlias(from: nodeID, in: cst, interner: interner)
+        let isWildcard = collectTokens(from: nodeID, in: cst).contains { $0.kind == .symbol(.star) }
+        return ImportDecl(range: cst.node(nodeID).range, path: path, alias: alias, isWildcard: isWildcard)
+    }
+
     private func mergePerFileASTResults(_ results: [PerFileASTResult]) -> (
         declarations: [DeclID],
         packageByFile: [Int32: [InternedString]],
@@ -622,7 +609,6 @@ public final class BuildASTPhase: CompilerPhase {
         )
     }
 
-    // MARK: - Finalization (shared between sequential and parallel)
 
     private func finalizeAST(
         ctx: CompilationContext,

@@ -3,7 +3,6 @@
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
-    // MARK: - KProperty member access lowering (PROP-007)
 
     private func isKCallableReceiverType(
         _ receiverType: TypeID,
@@ -119,8 +118,6 @@ extension CallLowerer {
         return true
     }
 
-    // MARK: - KFunction member access lowering (STDLIB-REFLECT-063)
-
     private func isKFunctionReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -195,8 +192,6 @@ extension CallLowerer {
         )
         return result
     }
-
-    // MARK: - KParameter member access lowering (STDLIB-REFLECT-TYPE-013)
 
     private func isKParameterReceiverType(
         _ receiverType: TypeID,

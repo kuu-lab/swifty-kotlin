@@ -1,7 +1,5 @@
 // Shared materialized higher-order-function helpers for collection and sequence runtime paths.
 
-let kEmptyCollectionCannotReduce = "Empty collection can't be reduced."
-
 @inline(__always)
 func runtimeApplyMapElement(
     _ element: Int,

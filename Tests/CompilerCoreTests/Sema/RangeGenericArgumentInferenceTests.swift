@@ -82,6 +82,70 @@ struct RangeGenericArgumentInferenceTests {
         }
     }
 
+    @Test func conditionalRangesUseNestedSealedConstructorParameterType() throws {
+        let ctx = makeContextFromSource("""
+        class Solver {
+            private sealed class Rule(val target: String) {
+                companion object {
+                    fun of(test: Char, amount: Int): Rule = RangeCheck('x',
+                        if (test == '<') (1..<amount) else (amount + 1..4000),
+                        if (test == '<') (amount..4000) else (1..amount), "A")
+
+                    fun literal(): Rule = RangeCheck('x', 1..9, 10..4000, "A")
+                }
+
+                class RangeCheck(
+                    val category: Char,
+                    val range: IntRange,
+                    val antiRange: IntRange,
+                    target: String
+                ) : Rule(target)
+            }
+
+            fun less(): String = Rule.of('<', 10).target
+            fun greater(): String = Rule.of('>', 10).target
+            fun literal(): String = Rule.literal().target
+        }
+        """)
+
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        func isUserExpr(_ id: ExprID) -> Bool {
+            guard let range = ast.arena.exprRange(id) else { return false }
+            return ctx.sourceManager.origin(of: range.start.file) == .user
+        }
+        let conditionalExpressions = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard isUserExpr(id), case .ifExpr = ast.arena.expr(id) else { return nil }
+            return id
+        }
+        #expect(conditionalExpressions.count == 2)
+        #expect(conditionalExpressions.allSatisfy { sema.bindings.isRangeExpr($0) })
+
+        let constructorCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard isUserExpr(id), case let .call(calleeID, _, _, _) = ast.arena.expr(id),
+                  case let .nameRef(name, _) = ast.arena.expr(calleeID),
+                  name == ctx.interner.intern("RangeCheck")
+            else {
+                return nil
+            }
+            return id
+        }
+        #expect(constructorCalls.count == 2)
+        for call in constructorCalls {
+            guard let binding = sema.bindings.callBinding(for: call) else {
+                Issue.record("RangeCheck constructor call should resolve")
+                continue
+            }
+            #expect(sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor)
+        }
+    }
+
     @Test(arguments: [
         "fun <R> accept(range: R) where R : ClosedRange<Long>, R : Iterable<Long> {}\nfun test() { accept(1..3) }",
         "fun accept(value: Int) {}\nfun test() { accept(1..3) }",

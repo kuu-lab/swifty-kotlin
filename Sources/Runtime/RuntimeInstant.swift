@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - kotlin.time.Instant Runtime (STDLIB-TIME-083/086)
 //
 // Implements the runtime entry points for kotlin.time.Instant and
 // kotlin.time.Clock.  Instant is stored as a (epochSeconds: Int64,
@@ -10,7 +9,6 @@ import Foundation
 // are safe to call from any thread and the box objects are immutable once
 // created.
 
-// MARK: - Box
 
 /// Immutable box holding a kotlin.time.Instant value.
 /// Instant is stored as (epochSeconds: Int64, nanoOfSecond: Int32) internally,
@@ -51,7 +49,6 @@ final class RuntimeTimeSourceClockBox {
     }
 }
 
-// MARK: - Helpers
 
 private func runtimeInstantBox(from raw: Int) -> RuntimeInstantBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -184,7 +181,6 @@ private func runtimeInstantFromTimeSourceClock(_ clock: RuntimeTimeSourceClockBo
 private let runtimeDistantPastExclusiveEpochSeconds: Int64 = -3_217_862_419_200
 private let runtimeDistantFutureEpochSeconds: Int64 = 3_093_527_980_800
 
-// MARK: - Instant construction
 
 /// Returns the current wall-clock time as a kotlin.time.Instant.
 /// Thread-safe: Date() reads a system clock and is reentrant.
@@ -232,7 +228,6 @@ public func kk_instant_from_epoch_millis(_ millis: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
-// MARK: - Instant properties
 
 /// Returns the epochSeconds component of an Instant as Long.
 ///
@@ -278,7 +273,6 @@ public func kk_instant_is_distant_future(_ instantRaw: Int) -> Int {
     return box.epochSeconds >= runtimeDistantFutureEpochSeconds ? 1 : 0
 }
 
-// MARK: - Instant arithmetic
 
 /// Returns a new Instant shifted forward by the given Duration.
 ///
@@ -316,7 +310,6 @@ public func kk_instant_minus_duration(_ instantRaw: Int, _ durationRaw: Int) -> 
     return registerRuntimeObject(result)
 }
 
-// MARK: - Instant comparison
 // Returns: negative if a < b, 0 if a == b, positive if a > b
 
 /// Compares two Instants, returning negative / zero / positive.
@@ -338,7 +331,6 @@ public func kk_instant_compare(_ aRaw: Int, _ bRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - Duration between two Instants
 
 /// Returns the Duration from this Instant until the other Instant.
 ///

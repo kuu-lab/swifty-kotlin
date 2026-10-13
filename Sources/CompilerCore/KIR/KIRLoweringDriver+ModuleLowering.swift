@@ -234,9 +234,12 @@ extension KIRLoweringDriver {
         }
 
         switch compilationCtx.options.emit {
-        case .kirDump, .library:
+        case .kirDump:
             return true
-        case .executable, .object, .llvmIR:
+        case .executable, .object, .llvmIR, .library:
+            // Source-backed library calls need the same bundled definitions as
+            // executables. Without bodies or imported link names, codegen falls
+            // back to bare declaration names that no consumer can resolve.
             return false
         }
     }
@@ -252,7 +255,6 @@ extension KIRLoweringDriver {
         return result
     }
 
-    // MARK: - Per-file top-level declaration lowering
 
     private func lowerTopLevelDecls(
         file: ASTFile,
@@ -275,6 +277,12 @@ extension KIRLoweringDriver {
 
             switch decl {
             case let .classDecl(classDecl):
+                // The actual enum owns the runtime slots and reflection wrappers.
+                if sema.symbols.symbol(symbol)?.kind == .enumClass,
+                   sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
+                {
+                    continue
+                }
                 declIDs.append(contentsOf: lowerTopLevelClassDecl(
                     classDecl,
                     symbol: symbol,
@@ -322,7 +330,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Interface declaration
 
     private func lowerTopLevelInterfaceDecl(
         _ interfaceDecl: InterfaceDecl,
@@ -359,7 +366,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Object declaration
 
     private func lowerTopLevelObjectDecl(
         _ objectDecl: ObjectDecl,
@@ -410,7 +416,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Companion initializer calls
 
     private func emitSyntheticTopLevelExternalPropertyInitializers(
         arena: KIRArena,
@@ -428,20 +433,20 @@ extension KIRLoweringDriver {
         where symbolInfo.kind == .property || symbolInfo.kind == .field || symbolInfo.kind == .backingField
         {
             let symbol = symbolInfo.id
-            guard !existingGlobals.contains(symbol),
-                  sema.symbols.backingFieldSymbol(for: symbol) == nil,
-                  sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
-                  let propertyType = sema.symbols.propertyType(for: symbol),
-                  let externalLinkName = sema.symbols.externalLinkName(for: symbol),
-                  !externalLinkName.isEmpty
-            else {
-                continue
-            }
-
-            let parentKind = sema.symbols.parentSymbol(for: symbol).flatMap {
+            // Most imported properties have accessor links, not external
+            // global initializers. Reject them before querying semantic types.
+            guard let externalLinkName = sema.symbols.externalLinkNameIfKnown(for: symbol),
+                  !externalLinkName.isEmpty,
+                  !existingGlobals.contains(symbol)
+            else { continue }
+            let parentKind = sema.symbols.parentSymbolIfKnown(for: symbol).flatMap {
                 sema.symbols.symbol($0)?.kind
             }
-            if parentKind != nil && parentKind != .package && parentKind != .object {
+            guard parentKind == nil || parentKind == .package || parentKind == .object,
+                  sema.symbols.backingFieldSymbol(for: symbol) == nil,
+                  sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+                  let propertyType = sema.symbols.propertyType(for: symbol)
+            else {
                 continue
             }
 
@@ -455,11 +460,14 @@ extension KIRLoweringDriver {
                 type: propertyType
             )
 
+            let getterArguments = externalGlobalPropertyGetterArguments(
+                for: symbol, sema: sema, arena: arena, into: &allTopLevelInitInstructions
+            )
             allTopLevelInitInstructions.append(
                 .call(
                     symbol: nil,
                     callee: interner.intern(externalLinkName),
-                    arguments: [],
+                    arguments: getterArguments,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -503,6 +511,10 @@ extension KIRLoweringDriver {
                 appendInitializer(symbol.id)
                 continue
             }
+            // Initializer side effects must run even for unused declarations.
+            // Complete indexes let us skip owners with no initializer links;
+            // older artifacts still decode their owners to discover the links.
+            guard sema.symbols.mayHaveImportedInitializers(for: symbol.id) else { continue }
             switch symbol.kind {
             case .object:
                 appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))

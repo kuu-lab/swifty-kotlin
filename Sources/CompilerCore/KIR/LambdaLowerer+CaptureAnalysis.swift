@@ -148,6 +148,14 @@ extension LambdaLowerer {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
         }
+        // Named local calls may bind only the call, leaving the callee name
+        // without an identifier binding. Their environments are still captures.
+        if let symbol = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+           sema.symbols.symbol(symbol)?.flags.contains(.localFunction) == true,
+           seen.insert(symbol).inserted
+        {
+            referenced.append(symbol)
+        }
         if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
            seen.insert(receiverSymbol).inserted
         {
@@ -509,7 +517,7 @@ extension LambdaLowerer {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -813,7 +821,7 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }

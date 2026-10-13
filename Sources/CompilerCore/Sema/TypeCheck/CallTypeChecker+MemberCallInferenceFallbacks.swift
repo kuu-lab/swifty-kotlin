@@ -138,10 +138,10 @@ extension CallTypeChecker {
             ),
             expectedType: expectedType,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -256,7 +256,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -402,7 +402,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 let returnType = bindCallAndResolveReturnType(
@@ -766,9 +766,7 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion constants (STDLIB-153)
-    //
-    // Double (KSP-833) and Float (KSP-847) constants are now source-backed
+    // STDLIB-153: Double (KSP-833) and Float (KSP-847) constants are now source-backed
     // (see Stdlib/kotlin/Double/Companion/Companion.kt and
     // Stdlib/kotlin/Float/Companion/Companion.kt), so this fallback is
     // reserved for compiler-primitive numeric types that have not yet been
@@ -1264,7 +1262,7 @@ extension CallTypeChecker {
                 for: chosen,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
 
@@ -1273,31 +1271,4 @@ extension CallTypeChecker {
         return nullableAnyType
     }
 
-    /// STDLIB-REFLECT-065: `KClass<*>.findAnnotation<T>()`. This is a reified
-    /// intrinsic with no value parameters — the annotation class to search for
-    /// is only available via `explicitTypeArgs`, so it must be recorded here
-    /// (there is no real `chosenCallee` to hang it off of via `CallBinding`,
-    /// since — like `findAssociatedObject` above — the call is dispatched
-    /// directly to a runtime intrinsic rather than a real function body).
-    func bindKClassFindAnnotationCall(
-        _ id: ExprID,
-        args: [CallArgument],
-        explicitTypeArgs: [TypeID],
-        ctx: TypeInferenceContext,
-        locals: inout LocalBindings
-    ) -> TypeID {
-        let sema = ctx.sema
-
-        for arg in args {
-            _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
-        }
-
-        if let searchType = explicitTypeArgs.first {
-            sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
-        }
-
-        let nullableAnyType = sema.types.makeNullable(sema.types.anyType)
-        sema.bindings.bindExprType(id, type: nullableAnyType)
-        return nullableAnyType
-    }
 }

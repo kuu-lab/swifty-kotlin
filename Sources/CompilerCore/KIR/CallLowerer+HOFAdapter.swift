@@ -196,7 +196,10 @@ extension CallLowerer {
         expectedReturnType: TypeID,
         sema: SemaModule
     ) -> TypeID? {
-        guard isNonNullValueRepresentationType(concreteReturnType, sema: sema) else {
+        // Unit also needs a value across an erased return boundary. Keeping
+        // the adapter void would discard the lambda's boxed Unit singleton.
+        guard sema.types.kind(of: concreteReturnType) == .unit
+            || isNonNullValueRepresentationType(concreteReturnType, sema: sema) else {
             return nil
         }
         if isErasedRepresentationType(expectedReturnType, sema: sema) {

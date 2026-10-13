@@ -8,6 +8,46 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
+    func topLevelFunctionSeparatorsDoNotMakeFileAScript(separator: String) {
+        let source = """
+        fun interface Action { fun run(n: Int): Int }
+        fun make(): (Int) -> Int = { it }\(separator)fun test(): Int = 1;
+        """
+        let parsed = parse(source)
+        let root = parsed.arena.node(parsed.root)
+        let kinds = parsed.arena.children(of: parsed.root).compactMap { child -> SyntaxKind? in
+            guard case let .node(nodeID) = child else { return nil }
+            return parsed.arena.node(nodeID).kind
+        }
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(root.kind == .kotlinFile)
+        #expect(kinds == [.interfaceDecl, .funDecl, .funDecl])
+        #expect(root.range.end.offset == source.utf8.count)
+        #expect(parsed.arena.tokens.count { $0.kind == .symbol(.semicolon) }
+            == source.filter { $0 == ";" }.count)
+    }
+
+    @Test(arguments: ["fun before() {}", "fun before(): () -> Int = { 1 }", "class Before {}"])
+    func semicolonAfterBracedDeclarationDoesNotMakeFileAScript(declaration: String) {
+        let parsed = parse("\(declaration); fun after() = 2;")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .statement) == 0)
+    }
+
+    @Test(arguments: ["; ", ";\n; ", ";\n"])
+    func realStatementAfterFunctionSeparatorStillMakesScript(separator: String) {
+        let parsed = parse("fun make(): () -> Int = { 1 }\(separator)make()")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .script)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .callExpr) == 1)
+    }
+
     @Test(arguments: ["Simple()", "(Simple())", "create()"])
     func classDelegationContinuesAfterNewline(expression: String) {
         let parsed = parse("""
@@ -96,6 +136,13 @@ struct DeclarationBoundaryTests {
 
     private func nodeCount(in arena: SyntaxArena, kind: SyntaxKind) -> Int {
         arena.nodes.count { $0.kind == kind }
+    }
+
+    private func rootChildCount(in arena: SyntaxArena, root: NodeID, kind: SyntaxKind) -> Int {
+        arena.children(of: root).count { child in
+            guard case let .node(nodeID) = child else { return false }
+            return arena.node(nodeID).kind == kind
+        }
     }
 
     private func nodeCount(_ source: String, kind: SyntaxKind) -> Int {
@@ -491,6 +538,27 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func contextParameterAndLocalMemberCallsAreNotParsedAsDeclarationPrefixes() {
+        let parsed = parse("""
+        class Box { fun put() {} }
+        interface Handler { fun write(context: Box) }
+        class Writer : Handler {
+            override fun write(context: Box) {
+                context.put()
+            }
+        }
+        val context = Box()
+        context.put()
+        context(Box) fun withContextReceiver() {}
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty, "\(parsed.diagnostics.diagnostics)")
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 4)
+        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .interfaceDecl) == 1)
+    }
+
+    @Test
     func longModifierPrefixLookaheadIsBoundedAndRecovers() {
         let modifiers = Array(repeating: "suspend", count: 4_200).joined(separator: "\n")
         let source = "val answer = 42\n\(modifiers)\nnotADeclaration"
@@ -519,6 +587,70 @@ struct DeclarationBoundaryTests {
 
         #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
         #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
+    }
+
+    @Test(arguments: [4_095, 4_096, 12_300])
+    func modifierPrefixBudgetBoundaryRecoversWithoutRepeatedDiagnostics(count: Int) {
+        let modifiers = Array(repeating: "suspend", count: count).joined(separator: "\n")
+        let source = "val answer = 42\n\(modifiers)\nfun next() {}"
+        let parsed = parse(source)
+        let exceedsBudget = count >= 4_096
+
+        // Recovery also reports the skipped modifier tokens once.
+        let expectedCodes = exceedsBudget ? ["KSWIFTK-PARSE-0007", "KSWIFTK-PARSE-0006"] : []
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == expectedCodes)
+        #expect(parsed.arena.node(parsed.root).kind == (exceedsBudget ? .script : .kotlinFile))
+        #expect(parsed.arena.node(parsed.root).range.end.offset == source.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test(arguments: [
+        "suspend fun next() {}",
+        "private @Deprecated(\"old\") inline fun next() {}",
+        "value @JvmInline class Next",
+        "context(x: Int) suspend fun next() {}",
+    ])
+    func ordinaryDeclarationPrefixesRemainDeclarations(source: String) {
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(parsed.arena.children(of: parsed.root).count == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) + nodeCount(in: parsed.arena, kind: .classDecl) == 1)
+    }
+
+    @Test(arguments: [
+        ("suspend { 42 }", false),
+        ("value.hashCode()", false),
+        ("data = 1", false),
+        ("context.put()", true),
+        ("context = Box()", true),
+        ("context(Box) { 42 }", true),
+    ])
+    func ordinaryPrefixExpressionsPreserveFollowingDeclaration(expression: String, isCall: Bool) throws {
+        let parsed = parse("\(expression)\nfun next() {}")
+        let firstChild = try #require(parsed.arena.children(of: parsed.root).first)
+        guard case let .node(firstID) = firstChild else {
+            Issue.record("Expected an expression or statement node")
+            return
+        }
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(firstID).kind == (isCall ? .callExpr : .statement))
+        #expect(parsed.arena.node(firstID).range.end.offset == expression.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func bundledStdlibDeclarationPrefixesRemainWithinBudget() {
+        let sources = BundledStdlib.bundledStdlibSources()
+        #expect(!sources.isEmpty)
+        for source in sources {
+            let parsed = parse(String(decoding: source.contents, as: UTF8.self))
+            #expect(parsed.diagnostics.diagnostics.isEmpty, "\(source.path): \(parsed.diagnostics.diagnostics)")
+            #expect(parsed.arena.node(parsed.root).kind == .kotlinFile, "\(source.path)")
+        }
     }
 }
 #endif

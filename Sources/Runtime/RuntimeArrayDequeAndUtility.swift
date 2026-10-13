@@ -4,7 +4,6 @@
 //
 // Split out from `RuntimeCollections.swift`.
 
-// MARK: - ArrayDeque ring-buffer bridges (KSP-625)
 //
 // `first` / `last` / `isEmpty` / `toString` and the emptiness checks that guard
 // `removeFirst` / `removeLast` now live in
@@ -94,7 +93,6 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
     return deque.count
 }
 
-// MARK: - Array utility functions (STDLIB-089)
 
 func runtimeFloatingPointArrayToString(
     _ raw: Int,

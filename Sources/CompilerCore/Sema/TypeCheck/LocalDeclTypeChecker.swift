@@ -29,7 +29,7 @@ final class LocalDeclTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
                 usageRange: range
             )
@@ -66,7 +66,7 @@ final class LocalDeclTypeChecker {
                 inferredPropertyType: declaredType,
                 ctx: ctx,
                 locals: &locals,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             ) ?? declaredType ?? sema.types.nullableAnyType
         } else {
             var initializerType: TypeID?
@@ -127,7 +127,7 @@ final class LocalDeclTypeChecker {
                         driver.emitSubtypeConstraint(
                             left: initializerType, right: declaredType,
                             range: range, solver: ConstraintSolver(),
-                            sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                            sema: sema, diagnostics: ctx.sema.diagnostics
                         )
                     }
                 }
@@ -235,7 +235,7 @@ final class LocalDeclTypeChecker {
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: declaredType)
             ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
             if !local.isMutable, local.isInitialized {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
@@ -247,7 +247,7 @@ final class LocalDeclTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 // A stable nullable local assigned a non-null value remains
                 // non-null until its next assignment, including captured
@@ -294,7 +294,7 @@ final class LocalDeclTypeChecker {
                     for: property,
                     name: interner.resolve(name),
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
             }
@@ -305,7 +305,7 @@ final class LocalDeclTypeChecker {
                !propSymbol.flags.contains(.mutable),
                !ctx.allowsValPropertyInitialization
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
@@ -317,7 +317,7 @@ final class LocalDeclTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.unitType)
@@ -344,7 +344,7 @@ final class LocalDeclTypeChecker {
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
             ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             if !propSymbol.flags.contains(.mutable), !ctx.allowsValPropertyInitialization {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
@@ -356,7 +356,7 @@ final class LocalDeclTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.unitType)
@@ -368,19 +368,19 @@ final class LocalDeclTypeChecker {
         // diagnostics inside it are still reported.
         _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
         if !dslBlockedIDs.isEmpty {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-DSLMARKER",
                 "'@DslMarker' implicit access to '\(interner.resolve(name))' from outer receiver is restricted. Use explicit receiver.",
                 range: range
             )
         } else if name == KnownCompilerNames(interner: interner).field {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-FIELD",
                 "'field' can only be used inside a property getter or setter body.",
                 range: range
             )
         } else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0013",
                 "Unresolved local variable '\(interner.resolve(name))'.",
                 range: range

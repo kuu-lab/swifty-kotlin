@@ -64,6 +64,110 @@ struct TestStdlibCacheContentAddressingTests {
     }
 
     @Test
+    func runningTestProductHasACompilerFingerprint() throws {
+        let image = try #require(TestStdlibCache.currentCompilerImageURL())
+        let name = image.lastPathComponent
+        // swiftbuild's KSwiftKPackageTests is a virtual aggregate that launches
+        // the per-target image; native builds link a real aggregate executable.
+        if let product = ProcessInfo.processInfo.environment["SWIFT_TEST_PRODUCT"],
+           !product.isEmpty, product != "KSwiftKPackageTests" {
+            #expect(name.hasPrefix(product))
+        } else {
+            #expect(name.hasPrefix("CompilerBackendTests") || name.hasPrefix("KSwiftKPackageTests"))
+        }
+        let fingerprint = try #require(TestStdlibCache.currentCompilerFingerprint())
+        #expect(fingerprint.contains(image.path))
+        _ = try TestStdlibCache.contentKey(manifestHash: "unchanged-kotlin", compilerFingerprint: fingerprint)
+    }
+
+    @Test(arguments: [
+        "debug/KSwiftKPackageTests.xctest/Contents/MacOS/KSwiftKPackageTests",
+        "arm64-apple-macosx/debug/KSwiftKPackageTests.xctest/Contents/MacOS/KSwiftKPackageTests",
+        "out/Products/Debug/CompilerBackendTests.xctest/Contents/MacOS/CompilerBackendTests",
+        "out/Products/Debug/CompilerCoreTests.xctest/Contents/MacOS/CompilerCoreTests",
+        "x86_64-unknown-linux-gnu/debug/KSwiftKPackageTests.xctest",
+        "aarch64-unknown-linux-gnu/debug/CompilerBackendTests-test-runner",
+    ])
+    func compilerRebuildChangesKeyAndPreservesPreviousArtifact(imagePath: String) throws {
+        try withTempBuildDirectory { buildDir in
+            let fm = FileManager.default
+            let image = buildDir.appendingPathComponent(imagePath)
+            try fm.createDirectory(at: image.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("compiler-before".utf8).write(to: image)
+            try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_700_000_000)], ofItemAtPath: image.path)
+
+            let before = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+            let beforeKey = try TestStdlibCache.contentKey(manifestHash: "unchanged-kotlin", compilerFingerprint: before)
+            var buildCount = 0
+            let beforeArtifact = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: beforeKey) {
+                buildCount += 1
+                return try fakeBuild(outputBase: $0, marker: "before")
+            }
+            let reader = try FileHandle(forReadingFrom: URL(fileURLWithPath: beforeArtifact + "/marker.txt"))
+            defer { try? reader.close() }
+
+            // Model a Swift-only rebuild with unchanged bundled Kotlin sources
+            // and the same binary size, but a later link time.
+            try Data("compiler-after!".utf8).write(to: image)
+            try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_700_000_001)], ofItemAtPath: image.path)
+            let after = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
+            let afterKey = try TestStdlibCache.contentKey(manifestHash: "unchanged-kotlin", compilerFingerprint: after)
+            #expect(beforeKey != afterKey)
+            let afterArtifact = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: afterKey) {
+                buildCount += 1
+                return try fakeBuild(outputBase: $0, marker: "after")
+            }
+            let reusedArtifact = try TestStdlibCache.resolveOrBuildArtifact(buildDirectory: buildDir, contentKey: afterKey) {
+                buildCount += 1
+                return try fakeBuild(outputBase: $0, marker: "unexpected-rebuild")
+            }
+
+            #expect(buildCount == 2)
+            #expect(beforeArtifact != afterArtifact)
+            #expect(afterArtifact == reusedArtifact)
+            #expect(try String(contentsOfFile: beforeArtifact + "/marker.txt", encoding: .utf8) == "before")
+            #expect(try String(contentsOfFile: afterArtifact + "/marker.txt", encoding: .utf8) == "after")
+            #expect(String(decoding: try reader.readToEnd() ?? Data(), as: UTF8.self) == "before")
+        }
+    }
+
+    @Test
+    func missingLoadedImageCannotReuseAnUnknownKey() throws {
+        try withTempBuildDirectory { buildDir in
+            // An old aggregate product must not substitute for an unidentified
+            // loaded per-target image, even when that old binary still exists.
+            let staleImage = buildDir.appendingPathComponent("debug/KSwiftKPackageTests.xctest")
+            try FileManager.default.createDirectory(at: staleImage.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("stale-aggregate".utf8).write(to: staleImage)
+            #expect(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: nil) == nil)
+            let missingImage = buildDir.appendingPathComponent("out/Products/Debug/missing")
+            let fingerprint = TestStdlibCache.currentCompilerFingerprint(compilerImageURL: missingImage)
+            #expect(fingerprint == nil)
+            // Preserve the exact legacy key from KUU-1957's unknown-fingerprint
+            // reproducer. An existing artifact at that key is never reusable
+            // when the loaded compiler identity is unavailable.
+            let legacyPath = try TestStdlibCache.resolveOrBuildArtifact(
+                buildDirectory: buildDir, contentKey: "aa49fee9d5845dca"
+            ) { try fakeBuild(outputBase: $0, marker: "legacy-unknown") }
+            var builderRan = false
+            #expect(throws: (any Error).self) {
+                try TestStdlibCache.resolveOrBuildArtifact(
+                    buildDirectory: buildDir,
+                    contentKey: TestStdlibCache.contentKey(manifestHash: "2c03971e8e2e5468", compilerFingerprint: fingerprint)
+                ) {
+                    builderRan = true
+                    return try fakeBuild(outputBase: $0, marker: "unexpected")
+                }
+            }
+            #expect(!builderRan)
+            #expect(try String(contentsOfFile: legacyPath + "/marker.txt", encoding: .utf8) == "legacy-unknown")
+            #expect(throws: (any Error).self) {
+                try TestStdlibCache.contentKey(manifestHash: "unchanged-kotlin", compilerFingerprint: "")
+            }
+        }
+    }
+
+    @Test
     func secondResolveForTheSameKeyReusesWithoutRebuilding() throws {
         try withTempBuildDirectory { buildDir in
             var buildCount = 0
