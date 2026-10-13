@@ -174,6 +174,14 @@ enum RuntimeTypeCheckToken {
             // against the value class name can match that tag directly —
             // the same way a plain nominal class/interface check does.
             category = .nominal(classType.classSymbol)
+        case .kClassType:
+            // Concrete KClass<T> and nominal KClass<*> targets share the
+            // erased reflection interface identity, not T's type token.
+            if let symbol = sema.types.kClassInterfaceSymbol {
+                category = .nominal(symbol)
+            } else {
+                category = .unknown
+            }
         default:                        category = .unknown
         }
         return RuntimeTypeDescriptor(category: category, nullable: nullable)

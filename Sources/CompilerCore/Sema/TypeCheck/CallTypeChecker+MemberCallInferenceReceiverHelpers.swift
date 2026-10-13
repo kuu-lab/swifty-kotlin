@@ -529,16 +529,9 @@ extension CallTypeChecker {
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
            case let .classType(actualClass) = sema.types.kind(of: actual),
            actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
-           actualClass.args.count == 1
+           actualClass.args.count == 1,
+           case let .out(argument) = actualClass.args[0]
         {
-            // Star and in projections retain the nominal KClass representation.
-            // Keep generic extensions in the candidate set; the resolver checks
-            // whether their captured argument can be read or consumed.
-            let argument: TypeID
-            switch actualClass.args[0] {
-            case let .invariant(type), let .out(type): argument = type
-            case .star, .in: argument = sema.types.anyType
-            }
             return typeArgumentLikeMatch(actual: argument, declared: declaredKClass.argument)
         }
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),

@@ -208,18 +208,18 @@ extension DataFlowSemaPhase {
                 if resolved.id == types.kClassInterfaceSymbol
                     || resolved.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
                 {
-                    // Preserve star and contravariant KClass projections in the
-                    // nominal representation. A covariant projection is
-                    // equivalent to the dedicated KClass<T> representation.
+                    // KClass is invariant. Preserve every use-site projection
+                    // in the nominal representation; the dedicated type only
+                    // represents an invariant argument.
                     if let firstArg = resolvedArgs.first {
                         switch firstArg {
-                        case .star, .in:
+                        case .star, .in, .out:
                             return types.make(.classType(ClassType(
                                 classSymbol: resolved.id,
                                 args: resolvedArgs,
                                 nullability: nullability
                             )))
-                        case .invariant, .out:
+                        case .invariant:
                             break
                         }
                     }

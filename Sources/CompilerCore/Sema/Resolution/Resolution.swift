@@ -724,19 +724,34 @@ extension OverloadResolver {
         guard let implicitReceiverType else {
             return nil
         }
-        // Projected KClass receivers use a nominal type, while KClass<T>
-        // extension signatures use the dedicated representation. A read-only
-        // extension can approximate the captured argument by KClass's Any bound.
-        // Do not use that approximation to consume T or fix it explicitly.
+        // Fixed KClass receivers must retain the complete projection relation.
+        // Decomposing their arguments would turn an in/out combination into
+        // equality and discard the declaration's upper bound.
+        let isKClassReceiver: Bool = switch typeSystem.kind(of: receiverType) {
+        case .kClassType: true
+        case let .classType(classType): classType.classSymbol == typeSystem.kClassInterfaceSymbol
+        default: false
+        }
+        if isKClassReceiver,
+           !containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+        {
+            return [VariableConstraint(
+                kind: .subtype, left: .type(implicitReceiverType), right: .type(receiverType),
+                blameRange: range
+            )]
+        }
+        // The nominal representation preserves `out` instead of erasing it
+        // into invariant KClass<T>. Only an inferred, read-only extension can
+        // approximate the captured argument by that projection's upper bound.
         if explicitTypeArgs.isEmpty,
            signature.reifiedTypeParameterIndices.isEmpty,
            case let .classType(actualClass) = typeSystem.kind(of: implicitReceiverType),
            actualClass.classSymbol == typeSystem.kClassInterfaceSymbol,
            actualClass.args.count == 1,
+           case let .out(upperBound) = actualClass.args[0],
            case let .kClassType(declaredKClass) = typeSystem.kind(of: receiverType),
            case let .typeParam(parameter) = typeSystem.kind(of: declaredKClass.argument),
            typeVarBySymbol[parameter.symbol] != nil,
-           signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).contains(parameter.symbol),
            !(signature.parameterTypes + signature.contextReceiverTypes).contains(where: {
                typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol)
            }),
@@ -747,26 +762,14 @@ extension OverloadResolver {
                    + (typeSystem.symbolTable?.typeParameterUpperBounds(for: symbol) ?? [])
                return bounds.contains { typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol) }
            }),
-           {
-               // A nested invariant result needs a captured type, rather than
-               // replacing its argument by Any (for example Box<T>).
-               if case .typeParam = typeSystem.kind(of: signature.returnType) { return true }
-               return !typeSystem.typeContainsTypeParam(signature.returnType, symbol: parameter.symbol)
-           }(),
-           {
-               switch actualClass.args[0] {
-               case .star, .in: true
-               case .invariant, .out: false
-               }
-           }()
+           typeSystem.canApproximateCapturedUpperBound(
+               in: signature.returnType, parameter: parameter.symbol
+           )
         {
-            let capturedReceiver = typeSystem.makeKClassType(
-                argument: typeSystem.anyType, nullability: actualClass.nullability
-            )
             return decomposeSubtypeConstraint(
-                subtype: capturedReceiver, supertype: receiverType,
-                typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: range
+                subtype: typeSystem.makeKClassType(argument: upperBound, nullability: actualClass.nullability),
+                supertype: receiverType, typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem, blameRange: range
             )
         }
         // Infer a receiver parameter from the receiver itself, not a LUB of its

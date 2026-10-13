@@ -122,6 +122,12 @@ final class KotlinParser {
                         // iteratively through the statement parser.
                         node = parseTopLevelStatement()
                     }
+                } else if isAmbiguousDeclarationPrefix(token),
+                          declarationPrefixVerdict(at: 0) == .overBudget {
+                    // Check modifier-starting prefixes too, but keep their
+                    // existing declaration/expression fallback below the limit.
+                    // Statement recovery consumes an over-budget run iteratively.
+                    node = parseTopLevelStatement()
                 } else {
                     node = parseDeclaration()
                 }
@@ -151,6 +157,12 @@ final class KotlinParser {
 
             children.append(.node(node))
             range.append(arena.node(node).range)
+
+            // Braced declarations can leave their separator unconsumed.
+            // Treating it as a statement would incorrectly select script mode.
+            while stream.peek().kind == .symbol(.semicolon) {
+                _ = consumeToken(into: &children, range: &range)
+            }
         }
 
         flushPendingImportsIfNeeded()
