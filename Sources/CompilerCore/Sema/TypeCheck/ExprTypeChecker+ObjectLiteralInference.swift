@@ -689,6 +689,10 @@ extension ExprTypeChecker {
                 continue
             }
 
+            driver.declChecker.typeCheckAnnotationFactories(
+                propertyDecl.annotations + (sema.bindings.primaryConstructorPropertyAnnotations[propertySymbol] ?? []),
+                symbol: propertySymbol, ctx: memberCtx
+            )
             let declaredType = propertyDecl.type == nil ? nil : sema.symbols.propertyType(for: propertySymbol)
 
             var inferredType: TypeID?

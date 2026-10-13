@@ -612,6 +612,13 @@ final class DataFlowSemaPhase: CompilerPhase {
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
         types: TypeSystem, ctx: CompilationContext
     ) {
+        for declID in bindings.declSymbols.keys {
+            guard case let .classDecl(classDecl) = ast.arena.decl(declID) else { continue }
+            registerPrimaryConstructorPropertyAnnotations(
+                for: classDecl, ast: ast, symbols: symbols, types: types, bindings: bindings,
+                sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
         canonicalizeDeclarationAnnotations(ast: ast, bindings: bindings, symbols: symbols, types: types, interner: ctx.interner)
         withSubPhaseTiming("bindInheritanceEdges", timer: ctx.phaseTimer) {
             bindInheritanceEdges(

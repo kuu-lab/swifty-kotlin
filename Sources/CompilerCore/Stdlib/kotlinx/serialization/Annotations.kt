@@ -19,3 +19,17 @@ public annotation class SerialInfo
 @Retention(AnnotationRetention.BINARY)
 @ExperimentalSerializationApi
 public annotation class InheritableSerialInfo
+
+@MustBeDocumented
+@Target(AnnotationTarget.PROPERTY)
+public annotation class Required
+
+@MustBeDocumented
+@Target(AnnotationTarget.PROPERTY)
+public annotation class Transient
+
+@MustBeDocumented
+@Target(AnnotationTarget.PROPERTY)
+public annotation class EncodeDefault(val mode: Mode = Mode.ALWAYS) {
+    public enum class Mode { ALWAYS, NEVER }
+}

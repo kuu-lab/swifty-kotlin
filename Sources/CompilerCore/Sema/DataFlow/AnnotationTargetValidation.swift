@@ -1,6 +1,74 @@
 import Foundation
 
 extension DataFlowSemaPhase {
+    func registerPrimaryConstructorPropertyAnnotations(
+        for classDecl: ClassDecl,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        sourceManager: SourceManager?,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        lexicalEnclosingFQNames: [[InternedString]] = []
+    ) {
+        guard let file = ast.file(for: classDecl.range.start.file) else { return }
+        let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
+        for parameter in classDecl.primaryConstructorParams where parameter.isProperty && !parameter.annotations.isEmpty {
+            guard let propertyID = classDecl.memberProperties.first(where: {
+                guard case let .propertyDecl(property) = ast.arena.decl($0) else { return false }
+                return property.isSynthesizedPrimaryConstructorProperty && property.name == parameter.name
+            }), let propertySymbol = bindings.declSymbols[propertyID],
+                  bindings.primaryConstructorPropertyAnnotations[propertySymbol] == nil
+            else { continue }
+            let enclosingName = Array((symbols.symbol(propertySymbol)?.fqName ?? []).dropLast())
+            var resolvedNames: [String: String] = [:]
+            let annotations = parameter.annotations.filter { annotation in
+                guard annotation.useSiteTarget == nil || annotation.useSiteTarget?.lowercased() == "property",
+                      let annotationSymbol = resolveAnnotationSymbol(
+                          named: annotation.name, in: file, symbols: symbols, interner: interner, types: types,
+                          enclosingFQName: enclosingName, lexicalEnclosingFQNames: lexicalEnclosingFQNames
+                      ), let targets = annotationTargets(
+                          for: annotationSymbol, symbols: symbols, filesByID: filesByID, interner: interner
+                      ), targets.contains("PROPERTY")
+                else { return false }
+                // Kotlin's default primary-constructor site prefers the value
+                // parameter when both VALUE_PARAMETER and PROPERTY apply.
+                if annotation.useSiteTarget == nil && targets.contains("VALUE_PARAMETER") { return false }
+                if let usage = annotation.usageID, let symbol = symbols.symbol(annotationSymbol) {
+                    resolvedNames[usage] = symbol.fqName.map(interner.resolve).joined(separator: ".")
+                }
+                return true
+            }
+            bindings.primaryConstructorPropertyAnnotations[propertySymbol] = annotations
+            // The synthesized property's AST range is the whole class. Limit
+            // @Suppress to this parameter's annotations/default initializer.
+            let annotationTokens = parameter.annotations.flatMap { $0.constructionTokens ?? [] }
+            let parameterRange = annotationTokens.first.flatMap { first in
+                annotationTokens.last.map { last in
+                    SourceRange(start: first.range.start,
+                        end: parameter.defaultValue.flatMap { ast.arena.exprRange($0)?.end } ?? last.range.end)
+                }
+            }
+            registerAnnotations(
+                annotations, symbol: propertySymbol, declRange: parameterRange,
+                sourceFileID: file.fileID, sourceFile: file, sourceManager: sourceManager,
+                interner: interner, symbols: symbols, diagnostics: diagnostics
+            )
+            // Registration now runs after headers, so preserve the exact
+            // classifier even for qualified relative names and nested aliases.
+            let records = symbols.annotations(for: propertySymbol).map { annotation in
+                MetadataAnnotationRecord(
+                    annotationFQName: annotation.usageID.flatMap { resolvedNames[$0] } ?? annotation.annotationFQName,
+                    arguments: annotation.arguments, useSiteTarget: annotation.useSiteTarget,
+                    retention: annotation.retention, usageID: annotation.usageID,
+                    factorySymbol: annotation.factorySymbol, factoryLinkName: annotation.factoryLinkName
+                )
+            }
+            symbols.setAnnotations(records, for: propertySymbol)
+        }
+    }
+
     func validateAnnotationTargets(
         ast: ASTModule,
         symbols: SymbolTable,
