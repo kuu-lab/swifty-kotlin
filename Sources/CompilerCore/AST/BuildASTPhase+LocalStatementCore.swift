@@ -553,6 +553,11 @@ extension BuildASTPhase {
                     range: range
                 ))
             case let .memberCall(receiver, callee, typeArgs, args, _):
+                if context.astArena.isExplicitCall(lhsExpr) || !args.isEmpty {
+                    return desugarCallResultCompoundAssignment(
+                        lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
+                    )
+                }
                 guard options.allowMemberAssign,
                       typeArgs.isEmpty,
                       args.isEmpty
@@ -566,9 +571,47 @@ extension BuildASTPhase {
                     value: valueExpr,
                     range: range
                 ))
+            case .call:
+                return desugarCallResultCompoundAssignment(
+                    lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
+                )
             default:
                 return nil
             }
+        }
+
+        /// Preserve the call-result receiver without introducing writable storage:
+        /// `{ val temporary = lhs(); temporary += rhs }`. The existing immutable-local
+        /// path resolves only applicable Unit-returning assignment operators and rejects
+        /// binary-operator writeback. Lowering evaluates the call once, before the RHS.
+        private static func desugarCallResultCompoundAssignment(
+            lhsExpr: ExprID,
+            op: CompoundAssignOp,
+            valueExpr: ExprID,
+            range: SourceRange,
+            context: LocalStatementCoreContext
+        ) -> ExprID {
+            let name = context.interner.intern("$compound$\(range.start.offset)$\(lhsExpr.rawValue)")
+            let temporary = context.astArena.appendExpr(.localDecl(
+                name: name,
+                isMutable: false,
+                typeAnnotation: nil,
+                initializer: lhsExpr,
+                range: context.astArena.exprRange(lhsExpr) ?? range
+            ))
+            let assignment = context.astArena.appendExpr(.compoundAssign(
+                op: op,
+                name: name,
+                value: valueExpr,
+                range: range
+            ))
+            let block = context.astArena.appendExpr(.blockExpr(
+                statements: [temporary, assignment],
+                trailingExpr: nil,
+                range: range
+            ))
+            context.astArena.markCallResultCompoundAssignmentBlock(block)
+            return block
         }
 
         private static func stripSemicolons(_ tokens: ArraySlice<Token>) -> [Token] {

@@ -13,6 +13,7 @@ public struct ASTArenaSnapshot: Codable {
     public let infixFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
+    public let callResultCompoundAssignmentBlocks: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
 
@@ -29,6 +30,7 @@ public struct ASTArenaSnapshot: Codable {
         case infixFunctionExpressions
         case explicitCallExpressions
         case incrementDecrementExpressions
+        case callResultCompoundAssignmentBlocks
         case nonFunctionLambdaLabels
         case incrementDecrementCachedValues
     }
@@ -46,6 +48,7 @@ public struct ASTArenaSnapshot: Codable {
         infixFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
+        callResultCompoundAssignmentBlocks: Set<ExprID> = [],
         nonFunctionLambdaLabels: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:]
     ) {
@@ -61,6 +64,7 @@ public struct ASTArenaSnapshot: Codable {
         self.infixFunctionExpressions = infixFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
+        self.callResultCompoundAssignmentBlocks = callResultCompoundAssignmentBlocks
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
     }
@@ -86,6 +90,9 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
+        ) ?? []
+        callResultCompoundAssignmentBlocks = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .callResultCompoundAssignmentBlocks
         ) ?? []
         nonFunctionLambdaLabels = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -165,6 +172,9 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
+    /// Synthetic call-result assignment blocks preserve outer data flow while
+    /// keeping their receiver temporary in a separate lexical scope.
+    private var _callResultCompoundAssignmentBlocks: Set<ExprID> = []
     /// Tracks lambda literals whose leading `label@` is bound to a following
     /// postfix expression. In Kotlin a label prefixes the whole postfix-unary
     /// expression, so `foo@{ ... }()` labels the invocation rather than the
@@ -200,6 +210,7 @@ public final class ASTArena: @unchecked Sendable {
         _infixFunctionExpressions = snapshot.infixFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
+        _callResultCompoundAssignmentBlocks = snapshot.callResultCompoundAssignmentBlocks
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
     }
@@ -220,6 +231,7 @@ public final class ASTArena: @unchecked Sendable {
             infixFunctionExpressions: _infixFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
+            callResultCompoundAssignmentBlocks: _callResultCompoundAssignmentBlocks,
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
             incrementDecrementCachedValues: _incrementDecrementCachedValues
         )
@@ -474,6 +486,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _explicitCallExpressions.contains(exprID)
+    }
+
+    public func markCallResultCompoundAssignmentBlock(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _callResultCompoundAssignmentBlocks.insert(exprID)
+    }
+
+    public func isCallResultCompoundAssignmentBlock(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _callResultCompoundAssignmentBlocks.contains(exprID)
     }
 
     public func markIncrementDecrement(_ exprID: ExprID, cachedValue: ExprID? = nil) {

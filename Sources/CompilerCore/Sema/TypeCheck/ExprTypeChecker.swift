@@ -615,6 +615,7 @@ final class ExprTypeChecker {
             return inferCallableRefExpr(id, receiver: receiver, member: member, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .blockExpr(statements, trailingExpr, _):
+            let preservesOuterDataFlow = ast.arena.isCallResultCompoundAssignmentBlock(id)
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
             // Local classifiers must stay in their lexical block, just like
             // blockLocals. A do-while body uses the loop's shared scope so its
@@ -663,10 +664,13 @@ final class ExprTypeChecker {
                 // do-while bodies expose their block locals to the loop condition.
                 locals = blockLocals
             } else {
+                // The receiver temporary needs a private scope, but evaluation of
+                // its LHS/RHS must still update smart casts of existing outer symbols.
                 for (name, outerLocal) in locals {
                     if let blockLocal = blockLocals[name],
                        blockLocal.symbol == outerLocal.symbol,
-                       (outerLocal.isMutable && sema.types.nullability(of: sema.symbols.propertyType(for: outerLocal.symbol) ?? outerLocal.type) == .nullable)
+                       (preservesOuterDataFlow
+                           || (outerLocal.isMutable && sema.types.nullability(of: sema.symbols.propertyType(for: outerLocal.symbol) ?? outerLocal.type) == .nullable))
                            || (!outerLocal.isInitialized && blockLocal.isInitialized)
                     {
                         locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
