@@ -68,7 +68,7 @@ extension LambdaLowerer {
                     : 2 // VALUE
                 let declarationType = vararg && signature?.parameterTypes.indices.contains(valueIndex) == true
                     ? signature?.parameterTypes[valueIndex] : nil
-                let reflectedType = vararg && packedPublicParameters ? type : callableReflectionParameterType(
+                let reflectedType = vararg && packedPublicParameters && type != declarationType ? type : callableReflectionParameterType(
                     type, isVararg: vararg, declarationType: declarationType, sema: sema, interner: interner
                 )
                 let reflectedTypeName = vararg
