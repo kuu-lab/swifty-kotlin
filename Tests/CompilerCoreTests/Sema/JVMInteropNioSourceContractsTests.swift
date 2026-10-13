@@ -416,7 +416,7 @@ struct JVMInteropNioSourceContractsTests {
         try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let jvmField = sema.symbols.lookupAll(fqName: ["kotlin", "jvm", "JvmField"].map(ctx.interner.intern))
-            .compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .class }
+            .compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .annotationClass }
         #expect(jvmField.count == 1, "JvmField must have one canonical source or imported declaration")
         let propertyCases: [(String, String, [String?])] = [
             ("kotlinx.io.Buffer.head", "kotlin.jvm.JvmSynthetic", ["get", "set"]),
