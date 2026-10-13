@@ -135,7 +135,7 @@ extension CallTypeChecker {
         defer { ctx.sema.diagnostics.rollback(to: checkpoint) }
         var probeLocals = locals
         let prepared = prepareCallArguments(
-            args: args, candidates: arityCompatible, explicitTypeArgs: explicitTypeArgs, callRange: range,
+            args: args, callRange: range, candidates: arityCompatible, explicitTypeArgs: explicitTypeArgs,
             receiverType: receiverType, ctx: ctx, locals: &probeLocals
         )
         guard !prepared.argTypes.contains(sema.types.errorType),
