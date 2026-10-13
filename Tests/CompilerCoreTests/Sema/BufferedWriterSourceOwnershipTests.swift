@@ -20,7 +20,11 @@ struct BufferedWriterSourceOwnershipTests {
             .filter { sema.symbols.symbol($0)?.kind == .function }
         #expect(functions.count == 1)
         let owner = try #require(functions.first)
-        #expect(sema.symbols.symbol(owner)?.flags.contains(.synthetic) == false)
-        #expect(sema.symbols.isSourceBackedSymbol(owner) || sema.symbols.symbol(owner)?.flags.contains(.importedLibrary) == true)
+        if libraryMode {
+            #expect(sema.symbols.symbol(owner)?.flags.contains(.importedLibrary) == true)
+        } else {
+            #expect(sema.symbols.symbol(owner)?.flags.contains(.synthetic) == false)
+            #expect(sema.symbols.isSourceBackedSymbol(owner))
+        }
     }
 }
