@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "issue": "KUU-1761",
+  "state": "PREPARED_UNEXECUTED",
+  "swift_new_method_count": 9,
+  "swift_new_case_count": 20,
+  "python_new_case_count": 16,
+  "python_related_existing_case_count": 15,
+  "native_original_id_count": 30,
+  "supplemental_stdout_rows": 33,
+  "separate_wrapper_producer_consumer_stdout_rows": 6,
+  "paired_pass_count": 0,
+  "preconditions": [
+    "Main/Harness exclusive build/CLI ownership; root reap previous gate before any launch",
+    "Apply integrated patch; fresh build; publish valid current compiler-produced stdlib; do not reuse preparation/current old artifact",
+    "Bind candidate_fingerprint from applied HEAD/source/RuntimeABI/compiler SHA/stdlib complete file set+producer/fixtures/expected index/lock/harness",
+    "Set cores off; Linux subreaper; finite whole/process deadlines; process group TERM then KILL and wait; owned PIDs live0/Z0 after every lane",
+    "Retain argv/env/cwd/rawstdout/stderr/phase codes/timings/receipt/all before-after source/stdlib hashes; stop first failure; do not retry changed/unchanged gate without new diagnosis",
+    "Stop if free space below250MiB or owned stdout/stderr exceeds32MiB; clean only own hashed completed outputs",
+    "For file original tests use --isolated-filesystem; prevents resolvePath(\"a\") touching checkout and pins owned TMPDIR"
+  ],
+  "focused_swift_filters": [
+    "CompilerCoreTests.IOFileAPIContractTests (4methods/8cases)",
+    "RuntimeTests.RuntimeIoFileFamilyContractTests (2/2)",
+    "CompilerBackendTests.IOFileFamilyExecutionTests (3/10)",
+    "RuntimeTests.RuntimeIoFileSystemTests (existing7methods/7cases, optional pre-existing OS-backed regression scope)"
+  ],
+  "swift_gate_whole_timeout_seconds": 1800,
+  "native_original_lanes": [
+    {
+      "id": "library-O0",
+      "state": "NOT_RUN",
+      "expected_execution_ids": 30,
+      "stdlib_mode": "library",
+      "test_body_mode": "source",
+      "optimization": "O0",
+      "phase_limits": [
+        {
+          "phase": "compile",
+          "timeout_seconds": 180
+        },
+        {
+          "phase": "run",
+          "timeout_seconds": 30
+        }
+      ],
+      "whole_timeout_seconds": 230,
+      "command_template": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "<PINNED_UPSTREAM>",
+        "--compiler",
+        "<CURRENT_FROZEN_COMPILER>",
+        "--package-root",
+        "<MAIN>",
+        "--native-catalog",
+        "linux",
+        "--suite",
+        "kotlinx.io.files.SmokeFileTest",
+        "--suite",
+        "kotlinx.io.files.UtilsTest",
+        "--source-closure-index",
+        "Scripts/kotlinx_io_upstream/files/original-source-closure.linux.json",
+        "--support-source",
+        "Scripts/kotlinx_io_upstream/support/PosixFileExistenceTestAdapter.kt",
+        "--isolated-filesystem",
+        "--optimization",
+        "O0",
+        "--compile-timeout",
+        "180",
+        "--run-timeout",
+        "30",
+        "--output",
+        "<OWN_NEW_EMPTY_OUTPUT>",
+        "--stdlib-library",
+        "<FRESH_CURRENT_VALID_KKLIB>"
+      ]
+    },
+    {
+      "id": "source-O0",
+      "state": "NOT_RUN",
+      "expected_execution_ids": 30,
+      "stdlib_mode": "source",
+      "test_body_mode": "source",
+      "optimization": "O0",
+      "phase_limits": [
+        {
+          "phase": "compile",
+          "timeout_seconds": 300
+        },
+        {
+          "phase": "run",
+          "timeout_seconds": 30
+        }
+      ],
+      "whole_timeout_seconds": 350,
+      "command_template": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "<PINNED_UPSTREAM>",
+        "--compiler",
+        "<CURRENT_FROZEN_COMPILER>",
+        "--package-root",
+        "<MAIN>",
+        "--native-catalog",
+        "linux",
+        "--suite",
+        "kotlinx.io.files.SmokeFileTest",
+        "--suite",
+        "kotlinx.io.files.UtilsTest",
+        "--source-closure-index",
+        "Scripts/kotlinx_io_upstream/files/original-source-closure.linux.json",
+        "--support-source",
+        "Scripts/kotlinx_io_upstream/support/PosixFileExistenceTestAdapter.kt",
+        "--isolated-filesystem",
+        "--optimization",
+        "O0",
+        "--compile-timeout",
+        "300",
+        "--run-timeout",
+        "30",
+        "--output",
+        "<OWN_NEW_EMPTY_OUTPUT>",
+        "--stdlib-from-source"
+      ]
+    },
+    {
+      "id": "library-O2",
+      "state": "NOT_RUN",
+      "expected_execution_ids": 30,
+      "stdlib_mode": "library",
+      "test_body_mode": "source",
+      "optimization": "O2",
+      "phase_limits": [
+        {
+          "phase": "compile",
+          "timeout_seconds": 180
+        },
+        {
+          "phase": "run",
+          "timeout_seconds": 30
+        }
+      ],
+      "whole_timeout_seconds": 230,
+      "command_template": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "<PINNED_UPSTREAM>",
+        "--compiler",
+        "<CURRENT_FROZEN_COMPILER>",
+        "--package-root",
+        "<MAIN>",
+        "--native-catalog",
+        "linux",
+        "--suite",
+        "kotlinx.io.files.SmokeFileTest",
+        "--suite",
+        "kotlinx.io.files.UtilsTest",
+        "--source-closure-index",
+        "Scripts/kotlinx_io_upstream/files/original-source-closure.linux.json",
+        "--support-source",
+        "Scripts/kotlinx_io_upstream/support/PosixFileExistenceTestAdapter.kt",
+        "--isolated-filesystem",
+        "--optimization",
+        "O2",
+        "--compile-timeout",
+        "180",
+        "--run-timeout",
+        "30",
+        "--output",
+        "<OWN_NEW_EMPTY_OUTPUT>",
+        "--stdlib-library",
+        "<FRESH_CURRENT_VALID_KKLIB>"
+      ]
+    },
+    {
+      "id": "source-O2",
+      "state": "NOT_RUN",
+      "expected_execution_ids": 30,
+      "stdlib_mode": "source",
+      "test_body_mode": "source",
+      "optimization": "O2",
+      "phase_limits": [
+        {
+          "phase": "compile",
+          "timeout_seconds": 300
+        },
+        {
+          "phase": "run",
+          "timeout_seconds": 30
+        }
+      ],
+      "whole_timeout_seconds": 350,
+      "command_template": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "<PINNED_UPSTREAM>",
+        "--compiler",
+        "<CURRENT_FROZEN_COMPILER>",
+        "--package-root",
+        "<MAIN>",
+        "--native-catalog",
+        "linux",
+        "--suite",
+        "kotlinx.io.files.SmokeFileTest",
+        "--suite",
+        "kotlinx.io.files.UtilsTest",
+        "--source-closure-index",
+        "Scripts/kotlinx_io_upstream/files/original-source-closure.linux.json",
+        "--support-source",
+        "Scripts/kotlinx_io_upstream/support/PosixFileExistenceTestAdapter.kt",
+        "--isolated-filesystem",
+        "--optimization",
+        "O2",
+        "--compile-timeout",
+        "300",
+        "--run-timeout",
+        "30",
+        "--output",
+        "<OWN_NEW_EMPTY_OUTPUT>",
+        "--stdlib-from-source"
+      ]
+    },
+    {
+      "id": "library-producer-consumer-O0",
+      "state": "NOT_RUN",
+      "expected_execution_ids": 30,
+      "stdlib_mode": "library",
+      "test_body_mode": "library-consumer",
+      "optimization": "O0",
+      "phase_limits": [
+        {
+          "phase": "library-compile",
+          "timeout_seconds": 180
+        },
+        {
+          "phase": "compile",
+          "timeout_seconds": 180
+        },
+        {
+          "phase": "run",
+          "timeout_seconds": 30
+        }
+      ],
+      "whole_timeout_seconds": 410,
+      "command_template": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "<PINNED_UPSTREAM>",
+        "--compiler",
+        "<CURRENT_FROZEN_COMPILER>",
+        "--package-root",
+        "<MAIN>",
+        "--native-catalog",
+        "linux",
+        "--suite",
+        "kotlinx.io.files.SmokeFileTest",
+        "--suite",
+        "kotlinx.io.files.UtilsTest",
+        "--source-closure-index",
+        "Scripts/kotlinx_io_upstream/files/original-source-closure.linux.json",
+        "--support-source",
+        "Scripts/kotlinx_io_upstream/support/PosixFileExistenceTestAdapter.kt",
+        "--isolated-filesystem",
+        "--optimization",
+        "O0",
+        "--compile-timeout",
+        "180",
+        "--run-timeout",
+        "30",
+        "--output",
+        "<OWN_NEW_EMPTY_OUTPUT>",
+        "--stdlib-library",
+        "<FRESH_CURRENT_VALID_KKLIB>",
+        "--test-library"
+      ]
+    },
+    {
+      "id": "library-producer-consumer-O2",
+      "state": "NOT_RUN",
+      "expected_execution_ids": 30,
+      "stdlib_mode": "library",
+      "test_body_mode": "library-consumer",
+      "optimization": "O2",
+      "phase_limits": [
+        {
+          "phase": "library-compile",
+          "timeout_seconds": 180
+        },
+        {
+          "phase": "compile",
+          "timeout_seconds": 180
+        },
+        {
+          "phase": "run",
+          "timeout_seconds": 30
+        }
+      ],
+      "whole_timeout_seconds": 410,
+      "command_template": [
+        "python3",
+        "Scripts/kotlinx_io_upstream/run_candidate_suites.py",
+        "--upstream",
+        "<PINNED_UPSTREAM>",
+        "--compiler",
+        "<CURRENT_FROZEN_COMPILER>",
+        "--package-root",
+        "<MAIN>",
+        "--native-catalog",
+        "linux",
+        "--suite",
+        "kotlinx.io.files.SmokeFileTest",
+        "--suite",
+        "kotlinx.io.files.UtilsTest",
+        "--source-closure-index",
+        "Scripts/kotlinx_io_upstream/files/original-source-closure.linux.json",
+        "--support-source",
+        "Scripts/kotlinx_io_upstream/support/PosixFileExistenceTestAdapter.kt",
+        "--isolated-filesystem",
+        "--optimization",
+        "O2",
+        "--compile-timeout",
+        "180",
+        "--run-timeout",
+        "30",
+        "--output",
+        "<OWN_NEW_EMPTY_OUTPUT>",
+        "--stdlib-library",
+        "<FRESH_CURRENT_VALID_KKLIB>",
+        "--test-library"
+      ]
+    }
+  ],
+  "pending_reference_gates": [
+    "Pinned Native 0.9.1 closed observer actually compiled0/run-11 after four observations; closed-read-one remains UNOBSERVED. Preserve failed binary/raw/receipt; retry0 and no automatic rerun. Common safety checks deliberately differ from observed closed flush/read-zero. Native reference closure and acceptance of this documented safety deviation remain unresolved; candidate or JVM success must not promote that reference check.",
+    "HostTemporaryDirectoryControl.kt fresh environment modes: TMPDIR nonempty with TMP alternative; TMPDIR unset/TMP set; both unset; plus empty TMPDIR must win over nonempty TMP. Actual macOS NSTemporaryDirectory on macOS is separate; Linux does not close that branch.",
+    "Apple-specific original full catalog suites are not included in these2 common suites; coordinate KUU-1762/platform coverage, not claim full target catalog execution."
+  ],
+  "closed_common_safety_stdout_rows": 5,
+  "closed_common_safety_case_count": 4,
+  "actual_reference_observation": "Scripts/kotlinx_io_upstream/files/closed-native-reference-observation.json",
+  "failure_evidence_policy": "Backend removes only owned UUIDs after every strict check and durable full hash/output proof; nonzero/timeout/launch/compile/check failures retain all generated files. External whole-timeout/groupkill/subreaper/reap proof required."
+}

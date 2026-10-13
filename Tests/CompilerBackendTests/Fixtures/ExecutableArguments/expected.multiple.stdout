@@ -1,0 +1,7 @@
+count=6
+arg[0]=|utf16=0
+arg[1]=alpha|utf16=5
+arg[2]=日本語|utf16=3
+arg[3]=😀|utf16=2
+arg[4]=é|utf16=2
+arg[5]=a b;"'$()`[]{}|utf16=14
