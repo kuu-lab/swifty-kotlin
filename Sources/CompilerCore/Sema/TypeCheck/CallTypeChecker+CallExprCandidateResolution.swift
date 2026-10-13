@@ -132,28 +132,39 @@ extension CallTypeChecker {
                    ).isEmpty,
                    let calleeName
                 {
-                    // The merged implicit-receiver member failed constraint
-                    // solving — e.g. `FlowCollector<R>.emit` inside
-                    // `transform`, where `R` is an outer call's type parameter
-                    // opaque to this resolver. The general member path below
-                    // would still bind such a lone member leniently; mirror
-                    // that fallback here so the call is not hard-errored.
-                    // Concrete argument mismatches must still be rejected.
-                    var mapping: [Int: Int] = [:]
-                    for i in args.indices { mapping[i] = i }
-                    sema.bindings.bindCall(
-                        id,
-                        binding: CallBinding(
-                            chosenCallee: bestCandidate,
-                            substitutedTypeArguments: [],
-                            parameterMapping: mapping
+                    if signature.classTypeParameterCount > 0 {
+                        if let receiver = callImplicitReceiverType,
+                           let result = bindClassOnlyImplicitReceiverMemberFallback(
+                               id, chosen: bestCandidate, calleeName: calleeName,
+                               args: args, argTypes: argTypes, range: range,
+                               receiverType: receiver, explicitTypeArgs: explicitTypeArgs, ctx: ctx
+                           ) {
+                            return result
+                        }
+                    } else {
+                        // The merged implicit-receiver member failed constraint
+                        // solving — e.g. `FlowCollector<R>.emit` inside
+                        // `transform`, where `R` is an outer call's type parameter
+                        // opaque to this resolver. The general member path below
+                        // would still bind such a lone member leniently; mirror
+                        // that fallback here so the call is not hard-errored.
+                        // Concrete argument mismatches must still be rejected.
+                        var mapping: [Int: Int] = [:]
+                        for i in args.indices { mapping[i] = i }
+                        sema.bindings.bindCall(
+                            id,
+                            binding: CallBinding(
+                                chosenCallee: bestCandidate,
+                                substitutedTypeArguments: [],
+                                parameterMapping: mapping
+                            )
                         )
-                    )
-                    sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
-                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-                    let resultType = signature.returnType
-                    sema.bindings.bindExprType(id, type: resultType)
-                    return resultType
+                        sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
+                        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                        let resultType = signature.returnType
+                        sema.bindings.bindExprType(id, type: resultType)
+                        return resultType
+                    }
                 }
                 if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
                    let calleeName,
