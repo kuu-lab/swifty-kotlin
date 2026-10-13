@@ -595,6 +595,9 @@ extension ExprTypeChecker {
             }
             let declaredType = propertyDecl.type.map(resolvePropertyType) ?? sema.types.anyType
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
+            if let setterVisibility = propertyDecl.setter?.visibility {
+                sema.symbols.setPropertySetterVisibility(setterVisibility, for: propertySymbol)
+            }
             if let receiver = propertyDecl.receiverType.map(resolvePropertyType) {
                 sema.symbols.insertFlags(.memberExtension, for: propertySymbol)
                 sema.symbols.setExtensionPropertyReceiverType(receiver, for: propertySymbol)

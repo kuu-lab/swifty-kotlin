@@ -79,6 +79,7 @@ public final class SymbolTable {
     private var valueParameterOwners: [SymbolID: SymbolID] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
+    private var propertySetterVisibilities: [SymbolID: Visibility] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
     /// Inverse of `directSupertypes`: supertype symbol → the nominal types
     /// that declare it. Kept in sync by `setDirectSupertypes` so
@@ -709,6 +710,15 @@ public final class SymbolTable {
 
     public func propertyHasCustomGetter(for symbol: SymbolID) -> Bool {
         propertyHasCustomGetter[symbol] ?? false
+    }
+
+    public func setPropertySetterVisibility(_ visibility: Visibility, for symbol: SymbolID) {
+        propertySetterVisibilities[symbol] = visibility
+    }
+
+    public func propertySetterVisibility(for symbol: SymbolID) -> Visibility? {
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return propertySetterVisibilities[symbol]
     }
 
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {

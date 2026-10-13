@@ -250,6 +250,9 @@ extension DataFlowSemaPhase {
             }
             boundSymbolOrigins[symbol] = (origin: origin, metadataPath: metadataPath)
             if isStdlibArtifact { symbols.markImportedStdlibSymbol(symbol) }
+            if let setterVisibility = record.propertySetterVisibility {
+                symbols.setPropertySetterVisibility(setterVisibility, for: symbol)
+            }
             if let moduleFQN {
                 symbols.setModuleFQN(moduleFQN, for: symbol)
             }

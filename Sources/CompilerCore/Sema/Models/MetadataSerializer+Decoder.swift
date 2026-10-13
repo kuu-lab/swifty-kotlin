@@ -158,6 +158,7 @@ final class MetadataDecoder {
             propertyReceiverTypeSignature: rec.propertyReceiverTypeSignature,
             propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
             propertySetterExternalLinkName: rec.propertySetterExternalLinkName,
+            propertySetterVisibility: rec.propertySetterVisibility,
             abiReturnTypeSignature: rec.abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
             isMutable: rec.isMutable,
@@ -221,6 +222,7 @@ final class MetadataDecoder {
         var propertyReceiverTypeSignature: String?
         var propertyGetterExternalLinkName: String?
         var propertySetterExternalLinkName: String?
+        var propertySetterVisibility: Visibility?
         var abiReturnTypeSignature: String?
         var propertyGetterAbiReturnTypeSignature: String?
         var isMutable: Bool = false
@@ -368,6 +370,13 @@ final class MetadataDecoder {
             record.propertyGetterExternalLinkName = value.isEmpty ? nil : value
         case "setterLink":
             record.propertySetterExternalLinkName = value.isEmpty ? nil : value
+        case "setterVisibility":
+            record.propertySetterVisibility = switch value {
+            case "public": .public
+            case "internal": .internal
+            case "protected": .protected
+            default: .private
+            }
         case "getterAbiSig":
             record.propertyGetterAbiReturnTypeSignature = value.isEmpty ? nil : value
         case "mutable":
