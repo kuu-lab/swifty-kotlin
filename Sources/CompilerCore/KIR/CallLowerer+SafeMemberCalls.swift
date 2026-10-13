@@ -998,6 +998,25 @@ extension CallLowerer {
         let memberResult = arena.exprType(result) == memberResultType
             ? result : arena.appendTemporary(type: memberResultType)
 
+        // Enum.name/ordinal use ordinal helpers, not constructor-property
+        // storage. Keep the primitive ordinal result non-null until the merge.
+        if let enumProperty = tryLowerEnumEntryPropertyRead(
+            exprID,
+            loweredReceiverID: loweredReceiverID,
+            receiverExpr: receiverExpr,
+            calleeName: effectiveCalleeName,
+            args: args,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            resultTypeOverride: memberResultType,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: enumProperty, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // External member property read (e.g. Duration?.inWholeNanoseconds →
         // kk_duration_inWholeNanoseconds).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
@@ -1182,6 +1201,25 @@ extension CallLowerer {
            let callable = driver.ctx.callableValueInfo(for: localValue)
         {
             finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+
+        if tryEmitEnumEntryDispatchCall(
+            defaultMask: safeNormalized.defaultMask,
+            isSuperCall: isSuperCall,
+            chosenCallee: chosen,
+            receiver: MemberCallReceiver(expr: receiverExpr, loweredID: loweredReceiverID,
+                                         typeOverride: nonNullSafeReceiverType),
+            result: memberResult,
+            sema: sema,
+            interner: interner,
+            arguments: finalArguments,
+            instructions: &instructions.instructions
+        ) {
+            if memberResult != result {
+                instructions.append(.copy(from: memberResult, to: result))
+            }
+            instructions.append(.label(endLabel))
+            return result
         }
 
         // Safe-call collection fallback can resolve the source-backed

@@ -512,6 +512,27 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
+                // Default stubs do not have Sema signatures. Their KIR params
+                // include the receiver as an ordinary argument, so recover the
+                // concrete signature when an enum slot needs ABI adaptation.
+                if signature == nil,
+                   let stubSymbol = effectiveCallSymbol,
+                   SyntheticSymbolScheme.isSyntheticCallTarget(stubSymbol),
+                   !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(stubSymbol),
+                   let stub = module.arena.function(for: stubSymbol),
+                   let types,
+                   stub.params.contains(where: { parameter in
+                       guard case let .classType(classType) = types.kind(of: parameter.type) else { return false }
+                       return classType.nullability == .nonNull
+                           && symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+                   })
+                {
+                    signature = FunctionSignature(
+                        parameterTypes: stub.params.map(\.type),
+                        returnType: stub.returnType,
+                        isSuspend: stub.isSuspend
+                    )
+                }
                 // ABI-002: see boundaryBridgeSignatureByLinkName above.
                 if signature == nil, effectiveCallSymbol == nil {
                     signature = boundaryBridgeSignatureByLinkName[effectiveCallee]
