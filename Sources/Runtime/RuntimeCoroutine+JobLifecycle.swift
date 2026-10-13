@@ -385,7 +385,7 @@ public func kk_coroutine_current_scope() -> Int {
         // implicit receiver, then attach it to the continuation for suspensions
         // and child launchers that follow. The scope's job is the running job —
         // the same element `coroutineContext.job` resolves to here.
-        let scope = RuntimeCoroutineScope()
+        let scope = RuntimeCoroutineScope(context: state.makeContinuationContext())
         if let job = state.jobHandle {
             scope.adoptJob(job)
         }
@@ -465,11 +465,27 @@ public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
     else {
         return runtimeAllocateCancellationException(message: "Job is still active")
     }
-    let cause = job.cancellationCauseSnapshot()
-    if cause != 0 {
-        return cause
+    return runtimeJobCancellationException(job)
+}
+
+func runtimeCancellationExceptionPreservingCause(
+    message: String, cause: Int, cancellationJob: RuntimeJobHandle? = nil
+) -> Int {
+    let normalized = cause == runtimeNullSentinelInt ? 0 : cause
+    if normalized != 0, kk_is_cancellation_exception(normalized) != 0 { return normalized }
+    return runtimeAllocateCancellationException(
+        message: message, cause: normalized, cancellationJob: cancellationJob)
+}
+
+func runtimeJobCancellationException(_ job: RuntimeJobHandle) -> Int {
+    // The existing nonthrowing getter ABI cannot report the upstream active
+    // Job IllegalStateException. Keep its fallback until that ABI is revised.
+    if !job.cancellationSnapshot(), !job.isFailedSnapshot() {
+        return runtimeAllocateCancellationException(message: "Job is still active")
     }
-    return runtimeAllocateCancellationException(message: "Job is still active")
+    let snapshot = job.cancellationExceptionSnapshot()
+    return runtimeCancellationExceptionPreservingCause(
+        message: snapshot.message, cause: snapshot.cause, cancellationJob: job)
 }
 
 /// KUU-CORO-101: ABI backing for `Job.invokeOnCompletion` (via
@@ -951,11 +967,8 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
     guard let state = runtimeContinuationState(from: continuation) else {
         return 0
     }
-    if let job = state.jobHandle, job.cancellationSnapshot() {
-        let cancellation = runtimeAllocateCancellationException(
-            message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
-            cause: job.cancellationCauseSnapshot(), cancellationJob: job
-        )
+    if let job = state.jobHandle, job.cancellationSnapshot() || job.isFailedSnapshot() {
+        let cancellation = runtimeJobCancellationException(job)
         outThrown?.pointee = cancellation
         return 1
     }
@@ -963,7 +976,7 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
     // (e.g. via scope.cancel()), still observe the cancellation.  This
     // provides a safety net for execution contexts that lack a job handle.
     if state.jobHandle == nil, let scope = state.scope, scope.isCancelled {
-        let cancellation = runtimeAllocateCancellationException(
+        let cancellation = runtimeCancellationExceptionPreservingCause(
             message: scope.cancellationMessage, cause: scope.cancellationCause)
         outThrown?.pointee = cancellation
         return 1
@@ -1027,15 +1040,12 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
 /// continuation handle of its own.
 @_cdecl("kk_ensure_active")
 public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if let job = RuntimeJobHandle.current, job.cancellationSnapshot() {
-        outThrown?.pointee = runtimeAllocateCancellationException(
-            message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
-            cause: job.cancellationCauseSnapshot(), cancellationJob: job
-        )
+    if let job = RuntimeJobHandle.current, job.cancellationSnapshot() || job.isFailedSnapshot() {
+        outThrown?.pointee = runtimeJobCancellationException(job)
         return 0
     }
     if RuntimeJobHandle.current == nil, let scope = RuntimeCoroutineScope.current, scope.isCancelled {
-        outThrown?.pointee = runtimeAllocateCancellationException(
+        outThrown?.pointee = runtimeCancellationExceptionPreservingCause(
             message: scope.cancellationMessage, cause: scope.cancellationCause
         )
         return 0

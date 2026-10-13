@@ -26,8 +26,8 @@ private external fun <E> __kkActorScopeChannel(scope: ActorScope<E>): Channel<E>
 @KsSymbolName("__kk_identity")
 private external fun <E> __kkAsSendChannel(channel: Channel<E>): SendChannel<E>
 
-@KsSymbolName("kk_coroutine_current_context")
-private external fun __kkActorScopeCurrentContext(): CoroutineContext
+@KsSymbolName("__kk_coroutine_scope_context")
+private external fun __kkActorScopeContext(scope: Any): CoroutineContext
 
 // ActorScope is a class so `channel` resolves through static member
 // dispatch: the receiver handed to the launched block is the channel handle
@@ -36,7 +36,7 @@ private external fun __kkActorScopeCurrentContext(): CoroutineContext
 @ObsoleteCoroutinesApi
 public class ActorScope<E> : CoroutineScope {
     public override val coroutineContext: CoroutineContext
-        get() = __kkActorScopeCurrentContext()
+        get() = __kkActorScopeContext(this)
 
     /** The mailbox channel this actor consumes; identical to the SendChannel
      *  returned to the builder's caller. */

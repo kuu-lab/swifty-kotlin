@@ -184,6 +184,10 @@ private struct RuntimeFlowExecutionResult {
 /// Currently, short-circuiting is handled by `runtimeFlowTakeExhausted` after
 /// each element delivery rather than through this flag.
 final class RuntimeFlowCollectContext {
+    // A resumed selector can emit on a worker with no thread-local collect
+    // stack. Retain the enclosing builder so collector forwarding still
+    // reaches that builder instead of re-entering this collect context.
+    let parentEmitContext: RuntimeFlowCollectContext?
     let startedAt = DispatchTime.now().uptimeNanoseconds
     var emittedValues: [Int] = []
     var emittedEvents: [RuntimeFlowEvent] = []
@@ -195,6 +199,10 @@ final class RuntimeFlowCollectContext {
     // collector is invoked recursively until the stack overflows.
     var invokingCollector = false
     var emitHandler: ((Int) -> Int)?
+
+    init() {
+        parentEmitContext = runtimeFlowCurrentEmitContext()
+    }
 }
 
 /// Opaque flow handle. Immutable operation chain; source emitter is re-executed
@@ -363,8 +371,14 @@ private func runtimeFlowWithContinuationContext<T>(
 /// source being consumed rather than to the builder that is currently
 /// executing `emit`.
 private func runtimeFlowCurrentEmitContext() -> RuntimeFlowCollectContext? {
-    runtimeFlowCollectStackBox().stack.reversed().first { !$0.invokingCollector }
-        ?? RuntimeContinuationState.current?.flowCollectContext
+    if let context = runtimeFlowCollectStackBox().stack.reversed().first(where: { !$0.invokingCollector }) {
+        return context
+    }
+    var context = RuntimeContinuationState.current?.flowCollectContext
+    while let current = context, current.invokingCollector {
+        context = current.parentEmitContext
+    }
+    return context
 }
 
 private func runtimeFlowSortEvents(_ events: [RuntimeFlowEvent]) -> [RuntimeFlowEvent] {
@@ -1719,8 +1733,9 @@ private func runtimeFlowDeliverValue(
         return true
     }
     let currentContext = owningContext ?? runtimeFlowCurrentCollectContext()
+    let wasInvokingCollector = currentContext?.invokingCollector ?? false
     currentContext?.invokingCollector = true
-    defer { currentContext?.invokingCollector = false }
+    defer { currentContext?.invokingCollector = wasInvokingCollector }
 
     if continuation == 0 {
         // Non-suspend collector ABI: (closureRaw, value, outThrown)

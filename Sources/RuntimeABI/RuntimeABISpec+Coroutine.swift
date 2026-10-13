@@ -804,6 +804,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "dispatcher", type: .intptr),
                 RuntimeABIParameter(name: "blockFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1001,6 +1002,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
                 RuntimeABIParameter(name: "blockFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1549,6 +1551,13 @@ public extension RuntimeABISpec {
             isThrowing: true
         ),
         // CoroutineScope hierarchy / lifecycle (STDLIB-CORO-069)
+        RuntimeABIFunctionSpec(
+            name: "__kk_coroutine_scope_context",
+            parameters: [RuntimeABIParameter(name: "handle", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_coroutine_scope_is_runtime",
             parameters: [RuntimeABIParameter(name: "handle", type: .intptr)],

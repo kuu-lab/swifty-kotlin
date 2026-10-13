@@ -242,7 +242,8 @@ func runtimeRunBlockingOnEventLoop(
     // A fresh blocking coroutine owns its children's lifetime. Suspend-value
     // launcher thunks borrow an existing scope instead; joining that scope
     // here would wait for the very actor/producer executing this thunk.
-    let ownedScope = state != nil && state?.scope == nil ? RuntimeCoroutineScope() : nil
+    let ownedScope = state != nil && state?.scope == nil
+        ? RuntimeCoroutineScope(context: state?.makeContinuationContext() ?? RuntimeCoroutineContext()) : nil
     if let ownedScope {
         state?.scope = ownedScope
         // The owned scope's job is this blocking coroutine's job, so suspend

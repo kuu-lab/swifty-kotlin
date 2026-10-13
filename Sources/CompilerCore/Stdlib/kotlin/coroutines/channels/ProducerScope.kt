@@ -27,12 +27,12 @@ import kotlinx.coroutines.CoroutineScope
 @KsSymbolName("__kk_identity")
 private external fun <E> __kkProducerScopeChannel(scope: ProducerScope<E>): SendChannel<E>
 
-@KsSymbolName("kk_coroutine_current_context")
-private external fun __kkProducerScopeCurrentContext(): CoroutineContext
+@KsSymbolName("__kk_coroutine_scope_context")
+private external fun __kkProducerScopeContext(scope: Any): CoroutineContext
 
 public class ProducerScope<in E> : CoroutineScope, SendChannel<E> {
     public override val coroutineContext: CoroutineContext
-        get() = __kkProducerScopeCurrentContext()
+        get() = __kkProducerScopeContext(this)
 
     /** A reference to the channel this coroutine sends elements to. */
     public val channel: SendChannel<E>

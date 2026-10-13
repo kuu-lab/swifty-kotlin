@@ -45,11 +45,13 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         guard let job = runtimeJobHandle(from: jobRaw)
             ?? runtimeAsyncTask(from: jobRaw)?.completionJob else { return }
         parent = job
-        parentHandlerID = job.addCompletionHandler(onCancelling: true) { [weak self] cause in
-            if cause != 0, cause != runtimeNullSentinelInt { self?.cancelFromParent(cause) }
+        parentHandlerID = job.addCompletionHandler(onCancelling: true) { [weak self, weak job] cause in
+            if cause != 0, cause != runtimeNullSentinelInt, let job {
+                self?.cancelFromParent(runtimeJobCancellationException(job))
+            }
         }
-        if job.cancellationSnapshot() {
-            cancelFromParent(job.cancellationCauseSnapshot())
+        if job.cancellationSnapshot() || job.isFailedSnapshot() {
+            cancelFromParent(runtimeJobCancellationException(job))
         }
     }
 
@@ -166,8 +168,8 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     }
 
     func takeResultForDelivery() -> Int {
-        if let parent, parent.cancellationSnapshot() {
-            cancelFromParent(parent.cancellationCauseSnapshot())
+        if let parent, parent.cancellationSnapshot() || parent.isFailedSnapshot() {
+            cancelFromParent(runtimeJobCancellationException(parent))
         }
         lock.lock()
         delivered = true

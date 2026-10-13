@@ -907,6 +907,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let snapshotCancelled = isCancelled
         let resumers = completionResumers
         completionResumers = []
+        lazyStartBody = nil
         lock.unlock()
         if snapshotCancelled {
             // Cancellation may still be publishing the job state on another thread.

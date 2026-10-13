@@ -812,6 +812,22 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return cancelCause
     }
 
+    /// A finally failure can replace an earlier cancellation. Read the final
+    /// root cause rather than reusing the original cancellation's message.
+    func cancellationExceptionSnapshot() -> (cause: Int, message: String) {
+        lock.lock()
+        let failed = state == .failed
+        let cancelling = state == .cancelling
+        let cause = failed ? failure : cancelCause
+        let message = failed ? defaultCancellationMessage : cancelMessage
+        let name = debugName
+        lock.unlock()
+        if cancelling, let name, kk_is_cancellation_exception(cause) == 0 {
+            return (cause, "\(name) is cancelling")
+        }
+        return (cause, message)
+    }
+
     /// Thread-safe snapshot of the cancellation flag.
     func cancellationSnapshot() -> Bool {
         lock.lock()
