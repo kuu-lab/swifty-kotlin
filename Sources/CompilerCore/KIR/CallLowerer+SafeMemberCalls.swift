@@ -1702,18 +1702,16 @@ private func resolveVtableDispatchKind(
     layout: NominalLayout,
     sema: SemaModule
 ) -> KIRDispatchKind? {
-    // Only use virtual dispatch if the class actually has subtypes, except
-    // for abstract classes. An abstract class can have concrete subtypes in a
-    // later compilation unit (for example, a subclass of a bundled stdlib
-    // class), so its own source-backed method bodies must retain vtable
-    // dispatch even when the stdlib artifact is compiled in isolation.
+    // Open and abstract classes can acquire subtypes in a later compilation
+    // unit. Their method bodies must retain virtual dispatch when a library
+    // is compiled in isolation, even without currently known subtypes.
     //
     // Compiler-created objects register their concrete vtable slot methods at
     // allocation time, mirroring the existing itable method registry.  Raw
     // kk_alloc-backed objects can still use KTypeInfo vtables via the runtime
     // lookup fallback.
     let subtypes = sema.symbols.directSubtypes(of: parentID)
-    let isAbstractClass = sema.symbols.symbol(parentID)?.flags.contains(.abstractType) == true
-    guard !subtypes.isEmpty || isAbstractClass else { return nil }
+    let flags = sema.symbols.symbol(parentID)?.flags ?? []
+    guard !subtypes.isEmpty || flags.contains(.abstractType) || flags.contains(.openType) else { return nil }
     return layout.vtableSlots[callee].map { .vtable(slot: $0) }
 }

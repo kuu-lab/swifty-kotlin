@@ -1553,17 +1553,7 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
-        if let fallbackType = tryBindThreadLocalGetOrSetFallback(
-            id,
-            calleeName: calleeName,
-            safeCall: safeCall,
-            receiverType: lookupReceiverType,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
+
         if let fallbackType = tryBindComparatorMemberFallback(
             id,
             calleeName: calleeName,
