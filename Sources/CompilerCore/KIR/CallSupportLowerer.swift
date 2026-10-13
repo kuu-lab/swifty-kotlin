@@ -257,7 +257,6 @@ final class CallSupportLowerer {
             }
         }
         let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
-        let isLocalFunction = sema.symbols.symbol(originalSymbol)?.flags.contains(.localFunction) == true
         var effectiveParameterTypes: [TypeID] = []
         effectiveParameterTypes.reserveCapacity(paramCount)
         for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
