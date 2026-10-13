@@ -270,15 +270,20 @@ public struct MetadataAnnotationRecord: Equatable {
     public let arguments: [String]
     /// Optional use-site target (get, set, field, param, etc.).
     public let useSiteTarget: String?
+    /// Producer-side retention survives when the annotation class is non-public.
+    /// Older metadata without this field is classified from its declaration.
+    public let retention: AnnotationRetentionKind?
 
     public init(
         annotationFQName: String,
         arguments: [String] = [],
-        useSiteTarget: String? = nil
+        useSiteTarget: String? = nil,
+        retention: AnnotationRetentionKind? = nil
     ) {
         self.annotationFQName = annotationFQName
         self.arguments = arguments
         self.useSiteTarget = useSiteTarget
+        self.retention = retention
     }
 }
 

@@ -935,8 +935,14 @@ package final class MetadataEncoder {
         // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
         let isValueClass = symbol.flags.contains(.valueType)
 
-        let annotationEntries = symbols.annotations(for: symbol.id).filter {
-            !isSourceRetentionAnnotation($0, symbols: symbols, interner: interner)
+        let annotationEntries = symbols.annotations(for: symbol.id).compactMap { annotation -> MetadataAnnotationRecord? in
+            let retention = resolvedAnnotationRetention(annotation, symbols: symbols, interner: interner)
+            guard retention != .source else { return nil }
+            return MetadataAnnotationRecord(
+                annotationFQName: annotation.annotationFQName, arguments: annotation.arguments,
+                useSiteTarget: annotation.useSiteTarget,
+                retention: retention == .binary ? retention : annotation.retention
+            )
         }
 
         // P5-78: collect sealed subclass FQ names for cross-module exhaustiveness
@@ -1726,6 +1732,9 @@ package final class MetadataEncoder {
 
     private func encodeAnnotation(_ annotation: MetadataAnnotationRecord) -> String {
         var parts = [annotation.annotationFQName]
+        if let retention = annotation.retention {
+            parts.append("retention:\(retention.rawValue)")
+        }
         if let target = annotation.useSiteTarget {
             parts.append("target:\(target)")
         }

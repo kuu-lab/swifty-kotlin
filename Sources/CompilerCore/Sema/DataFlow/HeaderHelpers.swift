@@ -54,7 +54,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func metadataAnnotations(for decl: Decl) -> [AnnotationNode] {
+    func metadataAnnotations(for decl: Decl) -> [AnnotationNode] {
         guard case let .propertyDecl(property) = decl else {
             return decl.annotations
         }
@@ -92,13 +92,18 @@ extension DataFlowSemaPhase {
             } else {
                 resolvedFQName = sourceFile
                     .flatMap {
-                        resolveAnnotationSymbol(named: ann.name, in: $0, symbols: symbols, interner: interner)
+                        resolveAnnotationSymbol(
+                            named: ann.name, in: $0, symbols: symbols, interner: interner,
+                            enclosingFQName: Array((symbols.symbol(symbol)?.fqName ?? []).dropLast())
+                        )
                     }
                     .flatMap { symbols.symbol($0)?.fqName.map(interner.resolve).joined(separator: ".") }
             }
+            let name = resolvedFQName.flatMap { $0.isEmpty ? nil : $0 } ?? ann.name
             return MetadataAnnotationRecord(
-                annotationFQName: resolvedFQName.flatMap { $0.isEmpty ? nil : $0 } ?? ann.name,
-                arguments: ann.arguments,
+                annotationFQName: name,
+                arguments: name == "kotlin.annotation.Retention"
+                    ? canonicalRetentionArguments(ann.arguments, file: sourceFile, interner: interner) : ann.arguments,
                 useSiteTarget: ann.useSiteTarget
             )
         }
