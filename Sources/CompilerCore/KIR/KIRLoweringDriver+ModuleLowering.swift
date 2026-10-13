@@ -234,9 +234,12 @@ extension KIRLoweringDriver {
         }
 
         switch compilationCtx.options.emit {
-        case .kirDump, .library:
+        case .kirDump:
             return true
-        case .executable, .object, .llvmIR:
+        case .executable, .object, .llvmIR, .library:
+            // Source-backed library calls need the same bundled definitions as
+            // executables. Without bodies or imported link names, codegen falls
+            // back to bare declaration names that no consumer can resolve.
             return false
         }
     }

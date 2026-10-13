@@ -555,6 +555,7 @@ extension CallTypeChecker {
             callImplicitReceiverType: callImplicitReceiverType,
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,
+            knownApplicableImplicitMembers: knownApplicableImplicitMembers,
             expectedTypeOverrides: expectedTypeOverrides,
             preparedArgs: preparedArgs,
             argTypes: argTypes,

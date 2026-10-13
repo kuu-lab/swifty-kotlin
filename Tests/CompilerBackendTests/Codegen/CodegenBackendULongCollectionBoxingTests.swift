@@ -1,11 +1,35 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite
 struct CodegenBackendULongCollectionBoxingTests {
+    @Test(arguments: [false, true], [0, 2])
+    func testParsedULongAnyCallbackReturns(useArtifact: Bool, optimizationLevel: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimizationLevel))
+        let source = try diffCaseSource("string_ulong_any_callback.kt", file: #filePath)
+        // Kotlin/JVM 2.3.10 output: every present erased value remains a ULong.
+        let high = "9223372036854775808:true\n"
+        let max = "18446744073709551615:true\n"
+        let expected = [high, max, high, max].map {
+            "true\n" + String(repeating: $0, count: 7)
+        }.joined() + high + max + high + max + """
+        null:false
+        null:false
+        NFE:Invalid number format: '18446744073709551616'
+        IAE:radix 1 was not in valid range 2..36
+        """ + "\n"
+        try assertKotlinOutput(
+            source,
+            moduleName: "ParsedULongAnyCallbackReturns",
+            expected: expected,
+            optLevel: optLevel,
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
 
     /// Regression: runtimeNullSentinelInt is Int64.min, which is also the raw
     /// bit pattern of ULong(2^63) and Long.MIN_VALUE. kk_box_ulong / kk_box_long

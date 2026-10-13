@@ -68,6 +68,7 @@ extension DataFlowSemaPhase {
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
+        let isInnerClass: Bool
         let modality: MetadataModality
         let isSealedClass: Bool
         let isFunInterface: Bool
@@ -138,6 +139,7 @@ extension DataFlowSemaPhase {
             enumStaticInitLinkName: String? = nil,
             isDataClass: Bool = false,
             isOpenClass: Bool = false,
+            isInnerClass: Bool = false,
             modality: MetadataModality = .final,
             isSealedClass: Bool = false,
             isFunInterface: Bool = false,
@@ -202,6 +204,7 @@ extension DataFlowSemaPhase {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.isInnerClass = isInnerClass
         self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface

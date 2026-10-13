@@ -717,17 +717,17 @@ struct TypeSystemTests {
         let stringType = ts.stringType
         let kClassInt = ts.makeKClassType(argument: intType)
         let kClassString = ts.makeKClassType(argument: stringType)
-        // Even with covariance, unrelated arguments are not compatible.
+        // Unrelated invariant arguments are not compatible.
         #expect(!(ts.isSubtype(kClassInt, kClassString)))
     }
 
     @Test
-    func testKClassSubtypingIsCovariant() {
+    func testKClassSubtypingIsInvariant() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let kClassInt = ts.makeKClassType(argument: intType)
         let kClassAny = ts.makeKClassType(argument: ts.anyType)
-        #expect(ts.isSubtype(kClassInt, kClassAny))
+        #expect(!(ts.isSubtype(kClassInt, kClassAny)))
         #expect(!(ts.isSubtype(kClassAny, kClassInt)))
     }
 
@@ -835,22 +835,27 @@ struct TypeSystemTests {
     @Test
     func testLubKClassDifferentArguments() {
         let ts = TypeSystem()
+        ts.kClassInterfaceSymbol = SymbolID(rawValue: 42)
         let intType = ts.make(.primitive(.int, .nonNull))
         let stringType = ts.stringType
         let kClassInt = ts.makeKClassType(argument: intType)
         let kClassString = ts.makeKClassType(argument: stringType)
-        // lub(KClass<Int>, KClass<String>) should be KClass<lub(Int,String)>
+        // A join must retain an out projection instead of inventing KClass<Any>.
         let result = ts.lub([kClassInt, kClassString])
-        if case let .kClassType(kc) = ts.kind(of: result) {
+        if case let .classType(kc) = ts.kind(of: result),
+           case let .out(argument) = kc.args.first {
             #expect(kc.nullability == .nonNull)
             // The inner argument should be a supertype of both Int and String
             #expect(
-                ts.isSubtype(intType, kc.argument) && ts.isSubtype(stringType, kc.argument),
+                ts.isSubtype(intType, argument) && ts.isSubtype(stringType, argument),
                 "KClass argument should be a supertype of both Int and String"
             )
         } else {
-            Issue.record("Expected kClassType for lub of two KClass types, got \(ts.renderType(result))")
+            Issue.record("Expected projected KClass for lub, got \(ts.renderType(result))")
         }
+        #expect(ts.isSubtype(kClassInt, result))
+        #expect(ts.isSubtype(kClassString, result))
+        #expect(!ts.isSubtype(result, ts.makeKClassType(argument: ts.anyType)))
     }
 
     @Test

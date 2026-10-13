@@ -74,7 +74,7 @@ extension CallTypeChecker {
            let local = locals[calleeName]
         {
             if !local.isInitialized,
-               sema.symbols.symbol(local.symbol)?.flags.contains(.lateinitProperty) != true
+               ctx.cachedSymbol(local.symbol)?.flags.contains(.lateinitProperty) != true
             {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
