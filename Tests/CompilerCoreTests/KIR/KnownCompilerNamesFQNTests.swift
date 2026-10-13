@@ -5,6 +5,60 @@ import Testing
 @Suite
 struct KnownCompilerNamesFQNTests {
 
+    @Test(arguments: [[], ["kotlin", "collections"], ["mypkg"], ["mypkg", "nested"], ["kotlin", "other"]])
+    func mutableCollectionFamiliesRespectPackage(package: [String]) throws {
+        let interner = StringInterner()
+        let knownNames = KnownCompilerNames(interner: interner)
+        for name in ["MutableSet", "HashSet", "LinkedHashSet", "MutableMap", "HashMap", "LinkedHashMap"] {
+            let symbols = SymbolTable()
+            let fqName = package.isEmpty ? [] : (package + [name]).map(interner.intern)
+            let id = symbols.define(
+                kind: .class, name: interner.intern(name), fqName: fqName,
+                declSite: nil, visibility: .public, flags: []
+            )
+            let symbol = try #require(symbols.symbol(id))
+            let isSet = name.hasSuffix("Set")
+            let expected = package == ["kotlin", "collections"]
+                || (package.isEmpty && (isSet || name == "MutableMap"))
+            if isSet {
+                #expect(knownNames.isMutableSetSymbol(symbol) == expected)
+                #expect(knownNames.isSetLikeSymbol(symbol) == expected)
+            } else {
+                #expect(knownNames.isMutableMapSymbol(symbol) == expected)
+                #expect(knownNames.isMapLikeSymbol(symbol) == expected)
+            }
+            if package.isEmpty {
+                let rootID = symbols.define(
+                    kind: .class, name: interner.intern(name), fqName: [interner.intern(name)],
+                    declSite: nil, visibility: .public, flags: []
+                )
+                let rootSymbol = try #require(symbols.symbol(rootID))
+                #expect(!knownNames.isMutableSetSymbol(rootSymbol))
+                #expect(!knownNames.isMutableMapSymbol(rootSymbol))
+            }
+        }
+    }
+
+    @Test(arguments: ["SortedSet", "NavigableSet", "TreeSet", "SortedMap", "NavigableMap", "TreeMap"])
+    func javaUtilMutableCollectionFamiliesRemainRecognized(name: String) throws {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let knownNames = KnownCompilerNames(interner: interner)
+        let id = symbols.define(
+            kind: .class, name: interner.intern(name),
+            fqName: ["java", "util", name].map(interner.intern),
+            declSite: nil, visibility: .public, flags: []
+        )
+        let symbol = try #require(symbols.symbol(id))
+        if name.hasSuffix("Set") {
+            #expect(knownNames.isMutableSetSymbol(symbol))
+            #expect(knownNames.isSetLikeSymbol(symbol))
+        } else {
+            #expect(knownNames.isMutableMapSymbol(symbol))
+            #expect(knownNames.isMapLikeSymbol(symbol))
+        }
+    }
+
     @Test func testIsSetLikeSymbolMatchesStdlibSetFQN() {
         let interner = StringInterner()
         let symbols = SymbolTable()

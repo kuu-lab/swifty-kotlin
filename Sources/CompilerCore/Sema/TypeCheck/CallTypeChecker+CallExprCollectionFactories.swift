@@ -261,11 +261,32 @@ extension CallTypeChecker {
                 return sourceBackedFactory.type
             }
 
+            guard ["ArrayList", "HashSet", "LinkedHashSet", "HashMap", "LinkedHashMap"].contains(resolvedName) else {
+                return nil
+            }
             // The collection aliases and the concrete LinkedHashSet class are
             // type declarations (Stdlib/kotlin/collections/CollectionAliases.kt)
             // rather than factory functions, so their constructor calls are typed
             // here; CollectionLiteralLoweringPass rewrites the resulting calls to
             // the matching runtime bridge.
+            // A same-named user declaration must go through ordinary overload
+            // resolution rather than acquire a stdlib collection result type.
+            let collectionFQName = [knownNames.kotlin, knownNames.collections, calleeName]
+            let hasNonStdlibClassifier = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                switch symbol.kind {
+                case .class, .interface, .enumClass, .annotationClass, .object, .typeAlias: return true
+                default: return false
+                }
+            }).contains { ctx.cachedSymbol($0)?.fqName != collectionFQName }
+            if locals[calleeName] != nil || hasNonStdlibClassifier || candidates.contains(where: { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                let declarationFQName = symbol.kind == .constructor
+                    ? Array(symbol.fqName.dropLast()) : symbol.fqName
+                return declarationFQName != collectionFQName
+            }) {
+                return nil
+            }
             let expectedCollectionArgs: [TypeID] = if let expectedType,
                                                        expectedType != sema.types.errorType,
                                                        case let .classType(expectedClassType) = sema.types.kind(of: expectedType)

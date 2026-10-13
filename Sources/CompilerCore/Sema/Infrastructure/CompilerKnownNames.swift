@@ -1314,12 +1314,13 @@ package struct KnownCompilerNames {
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableMap
+        (symbol.fqName.isEmpty && symbol.name == mutableMap)
             || mutableMapLikeFQNames.contains(symbol.fqName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet
+        (symbol.fqName.isEmpty
+            && (symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet))
             || mutableSetLikeFQNames.contains(symbol.fqName)
     }
 
