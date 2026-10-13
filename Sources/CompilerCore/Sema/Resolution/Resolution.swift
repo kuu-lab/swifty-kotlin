@@ -318,6 +318,7 @@ extension OverloadResolver {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
                 implicitReceiverType: implicitReceiverType,
+                explicitTypeArgs: call.explicitTypeArgs,
                 typeVarBySymbol: typeVarBySymbol,
                 range: call.range,
                 typeSystem: ctx.types
@@ -712,6 +713,7 @@ extension OverloadResolver {
     private func buildReceiverConstraints(
         signature: FunctionSignature,
         implicitReceiverType: TypeID?,
+        explicitTypeArgs: [TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
         range: SourceRange,
         typeSystem: TypeSystem
@@ -721,6 +723,51 @@ extension OverloadResolver {
         }
         guard let implicitReceiverType else {
             return nil
+        }
+        // Projected KClass receivers use a nominal type, while KClass<T>
+        // extension signatures use the dedicated representation. A read-only
+        // extension can approximate the captured argument by KClass's Any bound.
+        // Do not use that approximation to consume T or fix it explicitly.
+        if explicitTypeArgs.isEmpty,
+           signature.reifiedTypeParameterIndices.isEmpty,
+           case let .classType(actualClass) = typeSystem.kind(of: implicitReceiverType),
+           actualClass.classSymbol == typeSystem.kClassInterfaceSymbol,
+           actualClass.args.count == 1,
+           case let .kClassType(declaredKClass) = typeSystem.kind(of: receiverType),
+           case let .typeParam(parameter) = typeSystem.kind(of: declaredKClass.argument),
+           typeVarBySymbol[parameter.symbol] != nil,
+           signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).contains(parameter.symbol),
+           !(signature.parameterTypes + signature.contextReceiverTypes).contains(where: {
+               typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol)
+           }),
+           !signature.typeParameterSymbols.enumerated().contains(where: { index, symbol in
+               guard symbol != parameter.symbol else { return false }
+               let bounds = (index < signature.typeParameterUpperBoundsList.count
+                   ? signature.typeParameterUpperBoundsList[index] : [])
+                   + (typeSystem.symbolTable?.typeParameterUpperBounds(for: symbol) ?? [])
+               return bounds.contains { typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol) }
+           }),
+           {
+               // A nested invariant result needs a captured type, rather than
+               // replacing its argument by Any (for example Box<T>).
+               if case .typeParam = typeSystem.kind(of: signature.returnType) { return true }
+               return !typeSystem.typeContainsTypeParam(signature.returnType, symbol: parameter.symbol)
+           }(),
+           {
+               switch actualClass.args[0] {
+               case .star, .in: true
+               case .invariant, .out: false
+               }
+           }()
+        {
+            let capturedReceiver = typeSystem.makeKClassType(
+                argument: typeSystem.anyType, nullability: actualClass.nullability
+            )
+            return decomposeSubtypeConstraint(
+                subtype: capturedReceiver, supertype: receiverType,
+                typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                blameRange: range
+            )
         }
         // Infer a receiver parameter from the receiver itself, not a LUB of its
         // separate bounds. Dependent bound arguments are projected after solving.
