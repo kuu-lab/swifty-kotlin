@@ -89,7 +89,7 @@ final class PropertyLoweringPass: LoweringPass {
             return result
         }()
 
-        let externalTopLevelCallee: (SymbolID) -> InternedString? = { symbol in
+        let externalGlobalPropertyCallee: (SymbolID) -> InternedString? = { symbol in
             guard let sema = ctx.sema else { return nil }
             guard sema.symbols.propertyType(for: symbol) != nil,
                   let linkName = sema.symbols.externalLinkName(for: symbol),
@@ -172,13 +172,17 @@ final class PropertyLoweringPass: LoweringPass {
                     }
 
                     if case let .loadGlobal(lgResult, sym) = instruction,
-                       let externalCallee = externalTopLevelCallee(sym)
+                       let externalCallee = externalGlobalPropertyCallee(sym),
+                       let sema
                     {
+                        let getterArguments = externalGlobalPropertyGetterArguments(
+                            for: sym, sema: sema, arena: module.arena, into: &loweredBody
+                        )
                         loweredBody.append(
                             .call(
                                 symbol: nil,
                                 callee: externalCallee,
-                                arguments: [],
+                                arguments: getterArguments,
                                 result: lgResult,
                                 canThrow: false,
                                 thrownResult: nil
@@ -223,13 +227,17 @@ final class PropertyLoweringPass: LoweringPass {
 
                     if case let .constValue(cvResult, value) = instruction,
                        case let .symbolRef(sym) = value,
-                       let externalCallee = externalTopLevelCallee(sym)
+                       let externalCallee = externalGlobalPropertyCallee(sym),
+                       let sema
                     {
+                        let getterArguments = externalGlobalPropertyGetterArguments(
+                            for: sym, sema: sema, arena: module.arena, into: &loweredBody
+                        )
                         loweredBody.append(
                             .call(
                                 symbol: nil,
                                 callee: externalCallee,
-                                arguments: [],
+                                arguments: getterArguments,
                                 result: cvResult,
                                 canThrow: false,
                                 thrownResult: nil

@@ -720,13 +720,17 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: id, value: constant))
                 return id
             }
-            // Synthetic top-level properties backed by a runtime bridge
-            // have no global storage. Emit their zero-argument bridge
-            // before the ordinary top-level property load path (for
-            // example, the bare kotlinx.coroutines.isActive property).
+            // Synthetic package/object properties backed by a runtime bridge
+            // are read directly. Object getters retain their singleton receiver;
+            // package getters (e.g. kotlinx.coroutines.isActive) take no receiver.
+            let externalPropertyOwnerKind = sema.symbols.parentSymbol(for: symbol).flatMap {
+                sema.symbols.symbol($0)?.kind
+            }
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
                sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
+               externalPropertyOwnerKind == nil || externalPropertyOwnerKind == .package
+                   || externalPropertyOwnerKind == .object,
                let externalLinkName = sema.symbols.externalLinkName(for: symbol),
                !externalLinkName.isEmpty
             {
@@ -734,10 +738,13 @@ extension ExprLowerer {
                     ?? sema.symbols.propertyType(for: symbol)
                     ?? sema.types.anyType
                 let result = arena.appendTemporary(type: resultType)
+                let getterArguments = externalGlobalPropertyGetterArguments(
+                    for: symbol, sema: sema, arena: arena, into: &instructions
+                )
                 instructions.append(.call(
                     symbol: symbol,
                     callee: interner.intern(externalLinkName),
-                    arguments: [],
+                    arguments: getterArguments,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
