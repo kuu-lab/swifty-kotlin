@@ -251,6 +251,21 @@ package final class MetadataEncoder {
         return (selfSignature, supertypeSignatures)
     }
 
+    /// SOURCE-retention annotations (e.g. `kotlin.OptIn`) are compile-time-only
+    /// markers; they must not survive into serialized metadata.
+    private func isSourceRetentionAnnotation(
+        _ annotation: MetadataAnnotationRecord,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        let fqParts = annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) }
+        guard let annotationClass = symbols.lookup(fqName: fqParts) else { return false }
+        return symbols.annotations(for: annotationClass).contains {
+            $0.annotationFQName == "kotlin.annotation.Retention"
+                && $0.arguments.contains { $0.hasSuffix("SOURCE") }
+        }
+    }
+
     private func metadataTypeSignature(
         _ type: TypeID,
         symbols: SymbolTable,
@@ -264,7 +279,7 @@ package final class MetadataEncoder {
             types: types
         )
         return mangler.encodeType(
-            expandedType,
+            types.approximatingCapturedTypes(in: expandedType),
             symbols: symbols,
             types: types,
             nameResolver: nameResolver,

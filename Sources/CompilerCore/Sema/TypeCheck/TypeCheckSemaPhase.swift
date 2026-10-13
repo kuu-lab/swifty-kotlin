@@ -78,10 +78,10 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // crash with SIGBUS (signal 10). Run it on a big-stack thread so
         // recursion headroom is independent of the calling thread, matching
         // `BuildKIRPhase`'s handling of the same class of issue in lowering.
-        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files)
+        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.frontendFlags.contains("sema-parallel") ? ctx.frontendJobs : 1)
         try withSemaSubPhaseTiming("type-check", ctx: ctx) {
             try LargeStackExecutor.run {
-                work.run()
+                try work.run()
             }
         }
 
@@ -127,15 +127,11 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // type checking has populated bindings; KIR lowering reads the result
         // to dispatch their `compareTo` receivers through `kk_char_compareTo`
         // like kotlinc's unboxed `Intrinsics.compare` on a primitive `char`.
-        sema.bindings.setNonEscapingComparableCharLocals(
-            ComparableCharEscapeAnalyzer(
-                ast: ast,
-                symbols: sema.symbols,
-                types: sema.types,
-                bindings: sema.bindings,
-                interner: ctx.interner
-            ).analyze()
-        )
+        // This post-pass recursively walks the same deep expressions as the
+        // body checker; it must not return to a thin cooperative-pool stack.
+        let escapeWork = ComparableCharEscapeWork(ast: ast, sema: sema, interner: ctx.interner)
+        let nonEscapingLocals = try LargeStackExecutor.run { escapeWork.run() }
+        sema.bindings.setNonEscapingComparableCharLocals(nonEscapingLocals)
     }
 
     /// Collects the lambda arguments whose bodies execute in the caller's own
@@ -271,18 +267,42 @@ private final class TypeCheckWork: @unchecked Sendable {
     let driver: TypeCheckDriver
     let fileScopes: [Int32: FileScope]
     let files: [ASTFile]
+    let frontendJobs: Int
 
-    init(driver: TypeCheckDriver, fileScopes: [Int32: FileScope], files: [ASTFile]) {
+    init(driver: TypeCheckDriver, fileScopes: [Int32: FileScope], files: [ASTFile], frontendJobs: Int) {
         self.driver = driver
         self.fileScopes = fileScopes
         self.files = files
+        self.frontendJobs = frontendJobs
     }
 
-    func run() {
-        driver.typeCheckModule(fileScopes: fileScopes, files: files)
+    func run() throws {
+        try driver.typeCheckModule(fileScopes: fileScopes, files: files, frontendJobs: frontendJobs)
         ConstPropertyEvaluator(ast: driver.ast, sema: driver.sema, interner: driver.interner)
             .evaluate(diagnostics: driver.diagnostics)
         driver.declChecker.validatePendingAnnotationConstants()
         driver.validateJsFileNameAnnotationArguments(in: files)
+    }
+}
+
+
+// Inputs are handed to one joined large-stack thread after all body workers
+// finish. The caller owns the resulting binding-table update.
+private final class ComparableCharEscapeWork: @unchecked Sendable {
+    let ast: ASTModule
+    let sema: SemaModule
+    let interner: StringInterner
+
+    init(ast: ASTModule, sema: SemaModule, interner: StringInterner) {
+        self.ast = ast
+        self.sema = sema
+        self.interner = interner
+    }
+
+    func run() -> Set<SymbolID> {
+        ComparableCharEscapeAnalyzer(
+            ast: ast, symbols: sema.symbols, types: sema.types,
+            bindings: sema.bindings, interner: interner
+        ).analyze()
     }
 }

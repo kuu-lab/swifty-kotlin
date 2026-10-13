@@ -502,22 +502,84 @@ extension DeclTypeChecker {
             }
         }
 
-        let scopeCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(name)).visible
-            .filter { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      symbol.kind == .function,
-                      symbol.flags.contains(.operatorFunction),
-                      let signature = sema.symbols.functionSignature(for: candidate),
-                      let declaredReceiver = signature.receiverType
-                else {
-                    return false
-                }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: receiverType,
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
+        // A same-named extension only shadows outer scopes when it can
+        // satisfy this convention call. Check the complete signature before
+        // choosing a lexical tier, including thisRef and generic bounds.
+        let scopeCandidates = ctx.scope.lookup(name, matching: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  symbol.flags.contains(.operatorFunction),
+                  !(symbol.flags.contains(.expectDeclaration)
+                    && sema.symbols.actualSymbol(for: candidate) != nil),
+                  sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                  !ctx.filterByVisibility([candidate]).visible.isEmpty,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
             }
+            guard driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            ) else { return false }
+            let call = CallExpr(
+                range: range,
+                calleeName: name,
+                args: argumentTypes.map { CallArg(type: $0) }
+            )
+            return !ctx.resolver.probeCall(
+                candidates: [candidate],
+                call: call,
+                expectedType: expectedType,
+                implicitReceiverType: receiverType,
+                ctx: sema
+            ).viableCandidates.isEmpty
+        })
+
+        func resolveExtensions(_ extensionCandidates: [SymbolID]) -> PropertyDelegateFunctionResolution? {
+            // A MutableMap delegate has both the Map and MutableMap getValue
+            // extensions in an imported stdlib artifact. Prefer the more specific
+            // MutableMap receiver before overload resolution, otherwise the two
+            // projected signatures are reported as ambiguous.
+            var preferredExtensionCandidates = extensionCandidates
+            if name == interner.intern("getValue"),
+               argumentTypes.count == 2,
+               isMutableMapDelegateType(receiverType, sema: sema, interner: interner)
+            {
+                let mutableMapFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("MutableMap"),
+                ]
+                let mutableMapCandidates = extensionCandidates.filter { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType,
+                          let receiverSymbol = driver.helpers.nominalSymbol(of: declaredReceiver, types: sema.types),
+                          let receiverInfo = sema.symbols.symbol(receiverSymbol)
+                    else {
+                        return false
+                    }
+                    return receiverInfo.fqName == mutableMapFQName
+                }
+                if !mutableMapCandidates.isEmpty {
+                    preferredExtensionCandidates = mutableMapCandidates
+                }
+            }
+            if let extensionResolution = resolve(preferredExtensionCandidates) {
+                if let diagnostic = extensionResolution.diagnostic {
+                    ctx.sema.diagnostics.emit(diagnostic)
+                }
+                return extensionResolution
+            }
+
+            return nil
+        }
+
+        if let scopeResolution = resolveExtensions(ctx.filterByVisibility(scopeCandidates).visible) {
+            return scopeResolution
+        }
+
         let bundledCandidates = driver.callChecker.collectBundledStdlibExtensionCandidates(
             named: name,
             receiverType: receiverType,
@@ -526,8 +588,6 @@ extension DeclTypeChecker {
             sema: sema,
             interner: interner
         )
-        var extensionCandidates: [SymbolID] = []
-        var seen: Set<SymbolID> = []
         // Default-imported collection delegate operators are not covered by
         // the atomic-only bundled extension fallback.
         let mapCandidates = bundledMapDelegateCandidates(
@@ -535,45 +595,9 @@ extension DeclTypeChecker {
             sema: sema,
             interner: interner
         )
-        for candidate in scopeCandidates + bundledCandidates + mapCandidates where seen.insert(candidate).inserted {
-            extensionCandidates.append(candidate)
-        }
-        // A MutableMap delegate has both the Map and MutableMap getValue
-        // extensions in an imported stdlib artifact. Prefer the more specific
-        // MutableMap receiver before overload resolution, otherwise the two
-        // projected signatures are reported as ambiguous.
-        var preferredExtensionCandidates = extensionCandidates
-        if name == interner.intern("getValue"),
-           argumentTypes.count == 2,
-           isMutableMapDelegateType(receiverType, sema: sema, interner: interner)
-        {
-            let mutableMapFQName = [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("MutableMap"),
-            ]
-            let mutableMapCandidates = extensionCandidates.filter { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
-                      let declaredReceiver = signature.receiverType,
-                      let receiverSymbol = driver.helpers.nominalSymbol(of: declaredReceiver, types: sema.types),
-                      let receiverInfo = sema.symbols.symbol(receiverSymbol)
-                else {
-                    return false
-                }
-                return receiverInfo.fqName == mutableMapFQName
-            }
-            if !mutableMapCandidates.isEmpty {
-                preferredExtensionCandidates = mutableMapCandidates
-            }
-        }
-        if let extensionResolution = resolve(preferredExtensionCandidates) {
-            if let diagnostic = extensionResolution.diagnostic {
-                ctx.sema.diagnostics.emit(diagnostic)
-            }
-            return extensionResolution
-        }
-
-        return nil
+        var seen: Set<SymbolID> = []
+        let fallbackCandidates = (bundledCandidates + mapCandidates).filter { seen.insert($0).inserted }
+        return resolveExtensions(fallbackCandidates)
     }
 
     private func isMutableMapDelegateType(

@@ -721,6 +721,7 @@ extension ExprTypeChecker {
                     bindReceiver: isBoundReceiver,
                     boundReceiver: boundReceiverType.map { (candidate, $0) },
                     expectedFunctionType: inputType,
+                    interner: interner,
                     sema: sema
                 ) != nil
             }
