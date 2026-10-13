@@ -17,6 +17,11 @@ final class KIRNominalDispatchCache {
     private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
     /// Interface → property → itable slot, built lazily from the slot table.
     private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
+    /// Interface → property-setter slot table, derived from the cached getter
+    /// table so eligibility, ordering, and the setter base stay in sync.
+    private var interfacePropertySetterSlotsByInterface: [SymbolID: [KIRInterfacePropertySetterSlot]] = [:]
+    /// Interface → property → setter itable slot, built lazily from the table.
+    private var interfacePropertySetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
 
     func vtableImplementations(
         for nominalSymbol: SymbolID,
@@ -111,6 +116,43 @@ final class KIRNominalDispatchCache {
             }
         }
         interfacePropertyGetterSlotByPropertyByInterface[interfaceSymbol] = map
+        return map[interfaceProperty]
+    }
+
+    func interfacePropertySetterSlots(
+        for interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [KIRInterfacePropertySetterSlot] {
+        if let cached = interfacePropertySetterSlotsByInterface[interfaceSymbol] {
+            return cached
+        }
+        let getterSlots = interfacePropertyGetterSlots(
+            for: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        let computed = kirInterfacePropertySetterSlots(from: getterSlots, sema: sema)
+        interfacePropertySetterSlotsByInterface[interfaceSymbol] = computed
+        return computed
+    }
+
+    /// Itable slot of `interfaceProperty`'s setter on `interfaceSymbol`, or
+    /// nil when the property does not participate in interface dispatch.
+    func interfacePropertySetterSlot(
+        for interfaceProperty: SymbolID,
+        in interfaceSymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int? {
+        if let map = interfacePropertySetterSlotByPropertyByInterface[interfaceSymbol] {
+            return map[interfaceProperty]
+        }
+        var map: [SymbolID: Int] = [:]
+        for slot in interfacePropertySetterSlots(for: interfaceSymbol, sema: sema, interner: interner) {
+            map[slot.propertySymbol] = slot.slot
+        }
+        interfacePropertySetterSlotByPropertyByInterface[interfaceSymbol] = map
         return map[interfaceProperty]
     }
 }
@@ -809,7 +851,30 @@ func itableBridgeSymbolForMethod(
         return implementation
     }
     let implementationFn = arena.function(for: implementation)
-    guard implementationFn != nil || implementationSignature != nil else { return implementation }
+    // Nested singleton initializers register dispatch before their member bodies
+    // are lowered. Ordinary source object methods already have their final ABI
+    // in Sema, so their erasure bridges can reference the forthcoming definition.
+    // Varargs, reified tokens, and member extensions alter the KIR parameter list.
+    let hasForwardObjectSignature: Bool = {
+        guard sema.symbols.symbol(nominalSymbol)?.kind == .object,
+              sema.symbols.parentSymbol(for: implementation) == nominalSymbol,
+              let implementationInfo = sema.symbols.symbol(implementation),
+              implementationInfo.kind == .function,
+              !implementationInfo.flags.contains(.abstractType),
+              !implementationInfo.flags.contains(.synthetic),
+              !implementationInfo.flags.contains(.memberExtension),
+              sema.symbols.externalLinkName(for: implementation) == nil,
+              !implSig.valueParameterIsVararg.contains(true),
+              implSig.reifiedTypeParameterIndices.isEmpty,
+              let receiverType = implSig.receiverType,
+              case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+              receiverClass.classSymbol == nominalSymbol
+        else { return false }
+        return true
+    }()
+    guard implementationFn != nil || implementationSignature != nil || hasForwardObjectSignature else {
+        return implementation
+    }
     let implementationReturnType = implementationFn?.returnType ?? implSig.returnType
 
     func isStringAggregate(_ type: TypeID?) -> Bool {

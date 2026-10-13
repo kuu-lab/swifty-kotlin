@@ -295,6 +295,69 @@ extension CallLowerer {
         }
     }
 
+    /// Emits the ordinal dispatcher shared by ordinary and safe enum calls.
+    func tryEmitEnumEntryDispatchCall(
+        defaultMask: Int64,
+        isSuperCall: Bool,
+        chosenCallee: SymbolID?,
+        receiver: MemberCallReceiver,
+        result: KIRExprID,
+        sema: SemaModule,
+        interner: StringInterner,
+        arguments: [KIRExprID],
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        // Enum entry implementations are stored as ordinary functions whose
+        // first argument is the ordinal-backed enum value. Route the resolved
+        // enum member through the predeclared ordinal dispatcher before any
+        // runtime-name or virtual-dispatch rewriting can select the abstract
+        // declaration itself.
+        //
+        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
+        // or any interface member) that more than one enum class in this
+        // compilation registers entry-body dispatch for. A single
+        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
+        // would have the second such enum processed silently overwrite the
+        // first's registration. Resolve the helper directly under the
+        // *receiver's own* enum class fqName instead (deterministic from
+        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
+        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
+        // cross-resolve to each other's dispatch helper.
+        if defaultMask == 0,
+           !isSuperCall,
+           let chosenCallee,
+           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
+           let receiverType = receiver.type(in: sema),
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass,
+           let dispatchSymbol = {
+               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
+               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
+                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+               }
+           }(),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
+           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
+           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
+           !dispatchSignature.isSuspend,
+           arguments.first == receiver.loweredID
+        {
+            instructions.append(.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: arguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return true
+        }
+        return false
+    }
+
     func emitMemberCallInstruction(
         normalized: NormalizedCallResult,
         callBinding: CallBinding?,
@@ -369,52 +432,17 @@ extension CallLowerer {
             ))
             return
         }
-        // Enum entry implementations are stored as ordinary functions whose
-        // first argument is the ordinal-backed enum value. Route the resolved
-        // enum member through the predeclared ordinal dispatcher before any
-        // runtime-name or virtual-dispatch rewriting can select the abstract
-        // declaration itself.
-        //
-        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
-        // or any interface member) that more than one enum class in this
-        // compilation registers entry-body dispatch for. A single
-        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
-        // would have the second such enum processed silently overwrite the
-        // first's registration. Resolve the helper directly under the
-        // *receiver's own* enum class fqName instead (deterministic from
-        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
-        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
-        // cross-resolve to each other's dispatch helper.
-        if normalized.defaultMask == 0,
-           !isSuperCall,
-           let chosenCallee,
-           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
-           let receiverType = receiver.type(in: sema),
-           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
-               sema.types.makeNonNullable(receiverType), sema: sema
-           ),
-           receiverClassSymbol.kind == .enumClass,
-           let dispatchSymbol = {
-               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
-               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
-                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
-               }
-           }(),
-           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
-           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
-           dispatchSignature.typeParameterSymbols.isEmpty,
-           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
-           !dispatchSignature.isSuspend,
-           finalArguments.first == receiver.loweredID
-        {
-            instructions.append(.call(
-                symbol: dispatchSymbol,
-                callee: dispatchInfo.name,
-                arguments: finalArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+        if tryEmitEnumEntryDispatchCall(
+            defaultMask: normalized.defaultMask,
+            isSuperCall: isSuperCall,
+            chosenCallee: chosenCallee,
+            receiver: receiver,
+            result: result,
+            sema: sema,
+            interner: interner,
+            arguments: finalArguments,
+            instructions: &instructions
+        ) {
             return
         }
         // Enum values are raw ordinals while they remain statically enum-typed.

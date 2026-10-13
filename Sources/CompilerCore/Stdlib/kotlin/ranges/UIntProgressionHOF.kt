@@ -8,8 +8,6 @@ import kotlin.random.Random
 
 // MIGRATION-RANGE-002: UIntProgression higher-order functions, moved verbatim from RangeHOF.kt.
 
-// MARK: - UIntProgression
-
 private fun uintProgressionDescription(progression: UIntProgression): String {
     val step = progression.step
     return if (step > 0) {

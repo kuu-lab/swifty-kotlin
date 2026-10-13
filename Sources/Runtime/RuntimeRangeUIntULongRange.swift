@@ -6,7 +6,6 @@
 // HOF logic and range-handle validation live in RuntimeRangeSharedHOF.swift.
 // These @_cdecl functions are thin ABI entry points.
 
-// MARK: - UIntProgression operations (STDLIB-RANGE-039)
 
 @_cdecl("__kk_uint_rangeTo")
 public func __kk_uint_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
@@ -71,7 +70,6 @@ public func __kk_uint_range_next(_ iterRaw: Int) -> Int {
     return current
 }
 
-// MARK: - UIntRange properties and HOFs (STDLIB-RANGE-036)
 
 @_cdecl("__kk_uint_range_step")
 public func kk_uint_range_step(_ rangeRaw: Int) -> Int {
@@ -284,7 +282,6 @@ public func __kk_uint_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeM
     )
 }
 
-// MARK: - ULong HOFs (STDLIB-RANGE-037/039)
 
 @_cdecl("__kk_ulong_range_randomOrNull")
 public func __kk_ulong_range_randomOrNull(_ rangeRaw: Int) -> Int {
@@ -356,7 +353,6 @@ public func __kk_ulong_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: Unsafe
     )
 }
 
-// MARK: - ULongProgression operations (STDLIB-RANGE-039)
 
 @_cdecl("__kk_ulong_rangeTo")
 public func __kk_ulong_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
@@ -370,7 +366,7 @@ public func __kk_ulong_downTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_ulong_step")
 public func __kk_ulong_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
-    runtimeUnsignedStep(rangeRaw, stepValue)
+    __kk_uint_step(rangeRaw, stepValue)
 }
 
 @_cdecl("kk_range_step")

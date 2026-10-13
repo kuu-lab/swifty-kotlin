@@ -26,15 +26,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Instant class (registered by registerSyntheticInstantStubs)
-
         _ = ensureClassSymbol(
             named: "Instant",
             in: kotlinTimePkg,
             symbols: symbols,
             interner: interner
         )
-        // MARK: - Clock interface
 
         let clockSymbol = ensureInterfaceSymbol(
             named: "Clock",
@@ -62,7 +59,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Creates the public namespace object `Clock.Companion`.
     private func ensureClockCompanionSymbol(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,
@@ -100,8 +96,6 @@ extension DataFlowSemaPhase {
         return companionFQName
     }
 
-    /// Creates a nested object (e.g. Clock.System) under an existing class symbol.
-    /// Returns the FQ name of the newly created (or existing) object.
     private func ensureClockNestedObject(
         named objectName: String,
         ownerSymbol: SymbolID,

@@ -80,23 +80,23 @@ extension ExprTypeChecker {
             ) else {
                 driver.helpers.emitVisibilityError(
                     for: symbol, name: ctx.interner.resolve(symbol.name), range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             driver.helpers.checkDeprecation(
                 for: symbolID, sema: sema, interner: ctx.interner, range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
-                for: symbolID, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics
+                for: symbolID, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
             )
             sema.bindings.bindIdentifier(expr, symbol: symbolID)
             sema.bindings.bindExprType(expr, type: sema.types.make(.classType(ClassType(classSymbol: symbolID))))
         }
         let targetType = sema.types.make(.classType(ClassType(classSymbol: target.1)))
         sema.bindings.bindClassRefTargetType(id, type: targetType)
-        let result = sema.types.makeKClassType(argument: targetType)
+        let result = sema.types.makeKClassType(argument: classRefTypeArgument(for: target.1, ctx: ctx))
         sema.bindings.bindExprType(id, type: result)
         return result
     }
@@ -117,7 +117,7 @@ extension ExprTypeChecker {
                   sym.kind == .typeParameter else { continue }
             if !sym.flags.contains(.reifiedTypeParameter) {
                 let name = interner.resolve(sym.name)
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-REIFIED",
                     "Cannot use 'T::class' on non-reified type parameter '\(name)'.",
                     range: range
@@ -140,7 +140,7 @@ extension ExprTypeChecker {
             else { continue }
             let classType = sema.types.make(.classType(ClassType(classSymbol: sym.id)))
             sema.bindings.bindClassRefTargetType(id, type: classType)
-            let kClassType = sema.types.makeKClassType(argument: classType)
+            let kClassType = sema.types.makeKClassType(argument: classRefTypeArgument(for: sym.id, ctx: ctx))
             sema.bindings.bindExprType(id, type: kClassType)
             _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
             return kClassType
@@ -177,6 +177,19 @@ extension ExprTypeChecker {
             }
         }
         return nil
+    }
+
+    private func classRefTypeArgument(for symbolID: SymbolID, ctx: TypeInferenceContext) -> TypeID {
+        // Keep the classifier binding for native reflection metadata, but use
+        // the canonical primitive in KClass<T> so cast/safeCast retain T.
+        // A user classifier named Int (or an alias to it) must remain nominal.
+        if let symbol = ctx.cachedSymbol(symbolID),
+           symbol.fqName.count == 2,
+           symbol.fqName[0] == ctx.interner.intern("kotlin"),
+           let primitive = driver.builtinTypeNamesCache.primitiveType(for: symbol.name) {
+            return ctx.sema.types.make(.primitive(primitive, .nonNull))
+        }
+        return ctx.sema.types.make(.classType(ClassType(classSymbol: symbolID)))
     }
 
     func inferExprReceiverClassRef(
@@ -218,7 +231,7 @@ extension ExprTypeChecker {
             isFlowNonNull = false
         }
         if !isFlowNonNull, classRefReceiverCanBeNull(receiverType, sema: sema, visited: &visited) {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-CLASS-REF-NULLABLE",
                 "Expression in a class literal has a nullable type. Use '!!' to make it non-nullable.",
                 range: range

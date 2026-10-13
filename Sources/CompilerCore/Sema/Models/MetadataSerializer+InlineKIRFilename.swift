@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Inline KIR Filename Helpers
-
 extension String {
     /// FNV-1a 64-bit hash used to derive a stable, filesystem-safe filename
     /// from an arbitrary mangled name.

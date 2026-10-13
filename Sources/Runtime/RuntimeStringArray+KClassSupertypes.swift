@@ -1,9 +1,7 @@
 import Foundation
 import RuntimeABI
 
-// MARK: - KUU-1357: KClass.supertypes (multi-supertype KType list)
-
-/// JVM-parity supertypes for bundled builtin types. kotlin-reflect reports
+/// JVM-parity direct supertypes for bundled builtin types. kotlin-reflect reports
 /// JVM-only supertypes (`kotlin.Number`, `java.io.Serializable`,
 /// `kotlin.Cloneable`, …) that Sema does not model, so the display-name lists
 /// are curated here keyed by qualified name. Verified against kotlinc +
@@ -13,18 +11,19 @@ private let runtimeBuiltinSupertypes: [String: [String]] = {
         "kotlin.Any": [],
         "kotlin.Unit": ["kotlin.Any"],
         "kotlin.Nothing": ["kotlin.Any"],
-        "kotlin.Byte": ["kotlin.Number", "kotlin.Comparable<kotlin.Byte>", "java.io.Serializable"],
-        "kotlin.Short": ["kotlin.Number", "kotlin.Comparable<kotlin.Short>", "java.io.Serializable"],
-        "kotlin.Int": ["kotlin.Number", "kotlin.Comparable<kotlin.Int>", "java.io.Serializable"],
-        "kotlin.Long": ["kotlin.Number", "kotlin.Comparable<kotlin.Long>", "java.io.Serializable"],
-        "kotlin.Float": ["kotlin.Number", "kotlin.Comparable<kotlin.Float>", "java.io.Serializable"],
-        "kotlin.Double": ["kotlin.Number", "kotlin.Comparable<kotlin.Double>", "java.io.Serializable"],
+        // Numeric primitives inherit Serializable through Number, not directly.
+        "kotlin.Byte": ["kotlin.Number", "kotlin.Comparable<kotlin.Byte>"],
+        "kotlin.Short": ["kotlin.Number", "kotlin.Comparable<kotlin.Short>"],
+        "kotlin.Int": ["kotlin.Number", "kotlin.Comparable<kotlin.Int>"],
+        "kotlin.Long": ["kotlin.Number", "kotlin.Comparable<kotlin.Long>"],
+        "kotlin.Float": ["kotlin.Number", "kotlin.Comparable<kotlin.Float>"],
+        "kotlin.Double": ["kotlin.Number", "kotlin.Comparable<kotlin.Double>"],
         "kotlin.UByte": ["kotlin.Comparable<kotlin.UByte>", "kotlin.Any"],
         "kotlin.UShort": ["kotlin.Comparable<kotlin.UShort>", "kotlin.Any"],
         "kotlin.UInt": ["kotlin.Comparable<kotlin.UInt>", "kotlin.Any"],
         "kotlin.ULong": ["kotlin.Comparable<kotlin.ULong>", "kotlin.Any"],
-        "kotlin.Char": ["kotlin.Comparable<kotlin.Char>", "java.io.Serializable", "kotlin.Any"],
-        "kotlin.Boolean": ["kotlin.Comparable<kotlin.Boolean>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.Char": ["kotlin.Comparable<kotlin.Char>", "kotlin.Any"],
+        "kotlin.Boolean": ["kotlin.Comparable<kotlin.Boolean>", "kotlin.Any"],
         "kotlin.String": [
             "kotlin.Comparable<kotlin.String>", "kotlin.CharSequence",
             "java.io.Serializable", "kotlin.Any",

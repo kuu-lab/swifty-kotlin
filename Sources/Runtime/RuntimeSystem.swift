@@ -7,8 +7,6 @@ import Foundation
     import Glibc
 #endif
 
-// MARK: - kotlin.system OS bridges (KSP-617)
-//
 // The public kotlin.system surface lives in bundled Kotlin source
 // (Sources/CompilerCore/Stdlib/kotlin/system/). Only the OS entry points stay
 // here, demoted to __kk_ so they are reachable from the stdlib layer alone.
@@ -44,8 +42,6 @@ public func __kk_system_getTimeMicros() -> Int {
 public func __kk_system_getTimeNanos() -> Int {
     __kk_system_nanoTime()
 }
-
-// MARK: - processStartNanos (STDLIB-TIME-085)
 
 private let processStartNanosValue: Int = Int(clamping: DispatchTime.now().uptimeNanoseconds)
 

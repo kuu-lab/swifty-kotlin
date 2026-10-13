@@ -62,7 +62,7 @@ extension ExprTypeChecker {
             ),
             expectedType: nil,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
 
         if usesScopedCharExtensions, resolved.chosenCallee == nil,
@@ -72,7 +72,7 @@ extension ExprTypeChecker {
         }
         if let diagnostic = resolved.diagnostic {
             if emitDiagnostics {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(exprID, type: sema.types.errorType)
             }
             return sema.types.errorType
@@ -105,7 +105,7 @@ extension ExprTypeChecker {
            !sema.types.isSubtype(returnType, sema.types.unitType)
         {
             if emitDiagnostics {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0300",
                     "Operator '\(interner.resolve(operatorNames[0]))' used in compound assignment must return Unit.",
                     range: range
@@ -119,7 +119,7 @@ extension ExprTypeChecker {
            !sema.types.isSubtype(returnType, receiverType)
         {
             if emitDiagnostics {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0301",
                     "Operator '\(interner.resolve(operatorNames[0]))' result type must be assignable to the left-hand side.",
                     range: range
@@ -174,15 +174,15 @@ extension ExprTypeChecker {
             ),
             expectedType: nil,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(exprID, type: sema.types.errorType)
             return sema.types.errorType
         }
         guard let chosen = resolved.chosenCallee else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(interner.resolve(operatorName))'.",
                 range: range
@@ -198,7 +198,7 @@ extension ExprTypeChecker {
             sema: sema
         )
         guard sema.types.isSubtype(returnType, receiverType) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0303",
                 "Operator '\(interner.resolve(operatorName))' result type must be assignable to the left-hand side.",
                 range: range
@@ -232,7 +232,7 @@ extension ExprTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let name = op == .plusAssign ? "inc" : "dec"
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0002",
             "No viable overload found for operator '\(name)'.",
             range: range
@@ -267,7 +267,7 @@ extension ExprTypeChecker {
                 return resolvedType
             }
             guard isMutable else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
@@ -316,7 +316,7 @@ extension ExprTypeChecker {
         guard invalidResult || hasInvalidBuiltinCharArithmetic(op: binaryOp, lhs: lhs, rhs: rhs, sema: sema) else {
             return false
         }
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0002",
             "No viable builtin Char operator for compound assignment.",
             range: range
@@ -347,7 +347,7 @@ extension ExprTypeChecker {
             if !local.isInitialized,
                sema.symbols.symbol(local.symbol)?.flags.contains(.lateinitProperty) != true
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",
                     range: range
@@ -389,7 +389,7 @@ extension ExprTypeChecker {
                    ),
                    binaryFallback != sema.types.errorType
                 {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0302",
                         "Assignment operator is ambiguous because both '\(interner.resolve(operatorFunctionNames(for: op, interner: interner)[0]))' and the corresponding binary operator are applicable.",
                         range: range
@@ -410,7 +410,7 @@ extension ExprTypeChecker {
             ) {
                 if resolvedType == sema.types.errorType || !local.isMutable {
                     if !local.isMutable, resolvedType != sema.types.errorType {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0014",
                             "Val cannot be reassigned.",
                             range: range
@@ -423,7 +423,7 @@ extension ExprTypeChecker {
                 return sema.types.unitType
             }
             if !local.isMutable {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
@@ -511,7 +511,7 @@ extension ExprTypeChecker {
                     for: property,
                     name: interner.resolve(name),
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
@@ -553,7 +553,7 @@ extension ExprTypeChecker {
                    ),
                    binaryFallback != sema.types.errorType
                 {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0302",
                         "Assignment operator is ambiguous because both '\(interner.resolve(operatorFunctionNames(for: op, interner: interner)[0]))' and the corresponding binary operator are applicable.",
                         range: range
@@ -574,7 +574,7 @@ extension ExprTypeChecker {
             ) {
                 if resolvedType == sema.types.errorType || !propSymbol.flags.contains(.mutable) {
                     if !propSymbol.flags.contains(.mutable), resolvedType != sema.types.errorType {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0014",
                             "Val cannot be reassigned.",
                             range: range
@@ -586,7 +586,7 @@ extension ExprTypeChecker {
                 return sema.types.unitType
             }
             if !propSymbol.flags.contains(.mutable) {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
@@ -624,19 +624,19 @@ extension ExprTypeChecker {
         }
 
         if !dslBlockedIDs.isEmpty {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-DSLMARKER",
                 "'@DslMarker' implicit access to '\(interner.resolve(name))' from outer receiver is restricted. Use explicit receiver.",
                 range: range
             )
         } else if name == KnownCompilerNames(interner: interner).field {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-FIELD",
                 "'field' can only be used inside a property getter or setter body.",
                 range: range
             )
         } else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0013",
                 "Unresolved local variable '\(interner.resolve(name))'.",
                 range: range
@@ -709,7 +709,7 @@ extension ExprTypeChecker {
             range: range,
             ctx: ctx
         ) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '\(interner.resolve(calleeName))'.",
                 range: range
@@ -732,7 +732,7 @@ extension ExprTypeChecker {
                 for: propSymbol,
                 name: interner.resolve(calleeName),
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
@@ -774,7 +774,7 @@ extension ExprTypeChecker {
                ),
                binaryFallback != sema.types.errorType
             {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0302",
                     "Assignment operator is ambiguous because both '\(interner.resolve(operatorFunctionNames(for: op, interner: interner)[0]))' and the corresponding binary operator are applicable.",
                     range: range
@@ -796,7 +796,7 @@ extension ExprTypeChecker {
         ) {
             if resolvedType == sema.types.errorType || propSymbol?.flags.contains(.mutable) != true {
                 if propSymbol?.flags.contains(.mutable) != true, resolvedType != sema.types.errorType {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0014",
                         "Val cannot be reassigned.",
                         range: range
@@ -818,7 +818,7 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
         if propSymbol?.flags.contains(.mutable) != true {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0014",
                 "Val cannot be reassigned.",
                 range: range

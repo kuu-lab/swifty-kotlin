@@ -1,6 +1,18 @@
 import Foundation
 import RuntimeABI
 
+/// Single-character Kotlin escapes decoded by ``decodeKotlinStringEscapes``.
+private let simpleKotlinStringEscapes: [Character: Character] = [
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+    "\"": "\"",
+    "'": "'",
+    "\\": "\\",
+    "$": "$",
+    "b": "\u{08}",
+]
+
 /// Decodes standard Kotlin string-literal escape sequences (`\n`, `\\`, `\"`,
 /// `\uXXXX` including surrogate pairs, etc.) so that text reconstructed from
 /// raw lexer tokens matches the value a user would see at runtime.
@@ -27,31 +39,12 @@ internal func decodeKotlinStringEscapes(_ raw: String) -> String {
         }
 
         let escape = raw[escapeIndex]
+        if let decoded = simpleKotlinStringEscapes[escape] {
+            result.append(decoded)
+            index = raw.index(after: escapeIndex)
+            continue
+        }
         switch escape {
-        case "n":
-            result.append("\n")
-            index = raw.index(after: escapeIndex)
-        case "t":
-            result.append("\t")
-            index = raw.index(after: escapeIndex)
-        case "r":
-            result.append("\r")
-            index = raw.index(after: escapeIndex)
-        case "\"":
-            result.append("\"")
-            index = raw.index(after: escapeIndex)
-        case "'":
-            result.append("'")
-            index = raw.index(after: escapeIndex)
-        case "\\":
-            result.append("\\")
-            index = raw.index(after: escapeIndex)
-        case "$":
-            result.append("$")
-            index = raw.index(after: escapeIndex)
-        case "b":
-            result.append("\u{08}")
-            index = raw.index(after: escapeIndex)
         case "u":
             let hexStart = raw.index(after: escapeIndex)
             let hexEnd = advance(hexStart, by: 4)

@@ -17,8 +17,6 @@
 /// When caching is disabled (the default), all call-sites receive `nil` and fall
 /// back to the original uncached paths.
 final class SemaCacheContext {
-    // MARK: - Scope lookup cache
-
     /// Keyed by the identity of the ``Scope`` object (via ``ObjectIdentifier``)
     /// and the interned name being looked up.
     ///
@@ -30,7 +28,6 @@ final class SemaCacheContext {
     /// `ObjectIdentifier` reuse after a scope is deallocated.
     private var scopeRetainer: [ObjectIdentifier: Scope] = [:]
 
-    /// Cached wrapper around ``Scope.lookup(_:)``.
     func lookupInScope(_ name: InternedString, scope: Scope) -> [SymbolID] {
         let scopeKey = ObjectIdentifier(scope)
         if let nameCache = scopeCache[scopeKey], let cached = nameCache[name] {
@@ -44,15 +41,12 @@ final class SemaCacheContext {
         return result
     }
 
-    // MARK: - Symbol lookup cache
-
     /// Caches ``SymbolTable.symbol(_:)`` results to avoid repeated bounds checks.
     private var symbolCache: [SymbolID: SemanticSymbol] = [:]
 
     /// Set of IDs that have been queried but returned `nil` (invalid / out-of-bounds).
     private var symbolMissCache: Set<SymbolID> = []
 
-    /// Cached wrapper around ``SymbolTable.symbol(_:)``.
     func symbol(_ id: SymbolID, in table: SymbolTable) -> SemanticSymbol? {
         if let cached = symbolCache[id] {
             return cached
@@ -68,8 +62,6 @@ final class SemaCacheContext {
         }
         return result
     }
-
-    // MARK: - Overload resolution cache
 
     /// Cache key for ``OverloadResolver.resolveCall``.
     ///
@@ -98,7 +90,6 @@ final class SemaCacheContext {
 
     private var callResolutionCache: [CallResolutionKey: ResolvedCall] = [:]
 
-    /// Returns a previously cached resolution result, or `nil` on a cache miss.
     func cachedCallResolution(for key: CallResolutionKey) -> ResolvedCall? {
         callResolutionCache[key]
     }
@@ -141,8 +132,6 @@ final class SemaCacheContext {
             dispatchReceiverTypes: call.dispatchReceiverTypes
         )
     }
-
-    // MARK: - Statistics (for testing / debugging)
 
     private(set) var scopeHits: Int = 0
     private(set) var scopeMisses: Int = 0

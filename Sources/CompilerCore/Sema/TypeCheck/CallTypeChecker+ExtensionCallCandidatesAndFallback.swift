@@ -119,6 +119,18 @@ extension CallTypeChecker {
                     }
                 }()
                 let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
+                // findAnnotation belongs to reflect.full, outside default
+                // imports. Short-name recovery must respect aliases as well.
+                if symbol.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
+                   !scopedCandidates.contains(candidate) {
+                    let package = Array(symbol.fqName.dropLast())
+                    guard let file = ctx.currentASTFile,
+                          file.packageFQName == package || file.imports.contains(where: { importDecl in
+                              if importDecl.isWildcard { return importDecl.path == package }
+                              return importDecl.path == symbol.fqName
+                                  && (importDecl.alias ?? symbol.name) == calleeName
+                          }) else { return false }
+                }
                 guard !symbol.flags.contains(.localFunction),
                       symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
                     return false
@@ -265,6 +277,15 @@ extension CallTypeChecker {
             return nil
         }
         let scopedExtensionCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
+        // Receiver lambdas expose their owner's member extensions through the
+        // dispatch receiver rather than the lexical/import scope. Keep those
+        // candidates when an explicit receiver's ordinary members cannot
+        // accept the call (e.g. Parser.parse(source) beside State.Parser.parse()).
+        let dispatchExtensionCandidates = Set(collectDispatchReceiverMemberExtensionCandidates(
+            named: calleeName,
+            extensionReceiverType: memberLookupType,
+            ctx: ctx
+        ))
         let allowsImportlessAtomicExtensions = isAtomicMigrationReceiver(memberLookupType, sema: sema, interner: interner)
         var allCandidates = collectExtensionCallCandidates(
             named: calleeName,
@@ -278,6 +299,7 @@ extension CallTypeChecker {
         ).filter { candidate in
             !sema.symbols.isSourceBackedSymbol(candidate)
                 || scopedExtensionCandidates.contains(candidate)
+                || dispatchExtensionCandidates.contains(candidate)
                 || locals[calleeName]?.symbol == candidate
                 || allowsImportlessAtomicExtensions
         }
@@ -519,7 +541,7 @@ extension CallTypeChecker {
                sema.symbols.functionSignature(for: candidate)?.receiverType == sema.types.makeNullable(charSequenceType)
            })
         {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution.",
                 range: range
@@ -692,13 +714,13 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: chosen,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
 
         // Same use-site variance projection check as the primary path.
@@ -720,7 +742,7 @@ extension CallTypeChecker {
                     symbols: sema.symbols,
                     interner: interner
                 )
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-VAR-OUT",
                     "A type projection on the receiver prevents calling '\(interner.resolve(calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
                     range: range

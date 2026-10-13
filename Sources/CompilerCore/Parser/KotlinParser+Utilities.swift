@@ -75,8 +75,33 @@ extension KotlinParser {
         }
     }
 
+    /// Offset just past the annotation prefix starting at the `@` seen at
+    /// `offset`: an optional use-site target (`@field:`), the qualified
+    /// annotation name, and an optional balanced argument group. Mirrors the
+    /// token shape consumed by `consumeDeclarationAnnotationPrefixIfPresent`
+    /// without mutating the parser stream. Returns nil when the qualified
+    /// name is missing.
+    func offsetPastAnnotationPrefix(from offset: Int) -> Int? {
+        var cursor = offset + 1
+        if isAnnotationUseSiteTarget(stream.peek(cursor)),
+           stream.peek(cursor + 1).kind == .symbol(.colon) {
+            cursor += 2
+        }
+        guard isIdentifierLike(stream.peek(cursor).kind) else { return nil }
+        cursor += 1
+        while stream.peek(cursor).kind == .symbol(.dot),
+              isIdentifierLike(stream.peek(cursor + 1).kind) {
+            cursor += 2
+        }
+        if stream.peek(cursor).kind == .symbol(.lParen) {
+            cursor = offsetPastBalancedGroup(from: cursor,
+                                             open: .symbol(.lParen), close: .symbol(.rParen))
+        }
+        return cursor
+    }
+
     func parseBalancedGroup(
-        opening: Symbol, closing: Symbol, allowsPrimaryConstructorParameters: Bool = false
+        opening: Symbol, closing: Symbol, allowsConstructorParameters: Bool = false
     ) -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -85,7 +110,7 @@ extension KotlinParser {
             return arena.appendNode(kind: .statement, range: invalidRange, [])
         }
 
-        let parsesConstructorParameters = allowsPrimaryConstructorParameters
+        let parsesConstructorParameters = allowsConstructorParameters
             && opening == .lParen && closing == .rParen
         var atConstructorParameterStart = true
         var constructorParameterPrefixEnd: Int?
@@ -102,7 +127,7 @@ extension KotlinParser {
             // comma may cross a declaration-looking newline. Keep the usual
             // recovery boundary for a missing ')' and following declarations.
             if parsesConstructorParameters, closingSymbols.count == 1, atConstructorParameterStart {
-                constructorParameterPrefixEnd = primaryConstructorParameterPrefixEnd()
+                constructorParameterPrefixEnd = lookaheadConstructorParameterPrefixEnd()
             }
             let isConstructorParameterPrefix = parsesConstructorParameters
                 && constructorParameterPrefixEnd.map { stream.index < $0 } == true
@@ -124,7 +149,7 @@ extension KotlinParser {
                         constructorInDefaultValue = true
                     } else if token.kind == .symbol(.lessThan) {
                         if !constructorInDefaultValue || constructorTypeArgumentDepth > 0
-                            || primaryConstructorDefaultStartsTypeArguments() {
+                            || constructorDefaultStartsTypeArguments() {
                             constructorTypeArgumentDepth += 1
                         }
                     } else if token.kind == .symbol(.greaterThan), constructorTypeArgumentDepth > 0 {
@@ -155,9 +180,9 @@ extension KotlinParser {
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
     }
 
-    /// Called once per parameter boundary; the cached end also covers
-    /// annotations/modifiers split across newlines.
-    private func primaryConstructorParameterPrefixEnd() -> Int? {
+    /// Called once per constructor parameter boundary; the cached end also
+    /// covers annotations/modifiers split across newlines.
+    private func lookaheadConstructorParameterPrefixEnd() -> Int? {
         var offset = 0
         var work = 0
         while true {
@@ -184,23 +209,23 @@ extension KotlinParser {
                 continue
             }
             // Modifier keywords can themselves be parameter names (`value:`).
-            if isPrimaryConstructorParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
+            if isConstructorParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
                 return stream.index + offset + 2
             }
-            if case let .keyword(keyword) = kind, isPrimaryConstructorParameterModifier(keyword) {
+            if case let .keyword(keyword) = kind, isConstructorParameterModifier(keyword) {
                 offset += 1
                 continue
             }
             if kind == .keyword(.val) || kind == .keyword(.var) {
                 offset += 1
             }
-            guard isPrimaryConstructorParameterName(stream.peek(offset).kind),
+            guard isConstructorParameterName(stream.peek(offset).kind),
                   stream.peek(offset + 1).kind == .symbol(.colon) else { return nil }
             return stream.index + offset + 2
         }
     }
 
-    private func isPrimaryConstructorParameterModifier(_ keyword: Keyword) -> Bool {
+    private func isConstructorParameterModifier(_ keyword: Keyword) -> Bool {
         switch keyword {
         case .public, .private, .internal, .protected, .override, .final, .open, .actual, .expect,
              .vararg, .noinline, .crossinline:
@@ -210,7 +235,7 @@ extension KotlinParser {
         }
     }
 
-    private func isPrimaryConstructorParameterName(_ kind: TokenKind) -> Bool {
+    private func isConstructorParameterName(_ kind: TokenKind) -> Bool {
         switch kind {
         case .identifier, .backtickedIdentifier, .softKeyword:
             true
@@ -221,7 +246,7 @@ extension KotlinParser {
         }
     }
 
-    private func primaryConstructorDefaultStartsTypeArguments() -> Bool {
+    private func constructorDefaultStartsTypeArguments() -> Bool {
         guard let anchor = lastConsumedToken, isIdentifierLike(anchor.kind) else { return false }
         var depth = 0
         // Bound this new lookup before calling the existing generic scanner.
@@ -707,25 +732,14 @@ extension KotlinParser {
         in tokens: C,
         before endIndex: C.Index
     ) -> Bool where C.Element == Token {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
         var index = tokens.startIndex
         while index != endIndex {
             let kind = tokens[index].kind
-            let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
-            if isTopLevel, kind == .keyword(.do) {
+            if depth.isTopLevel, kind == .keyword(.do) {
                 return true
             }
-            switch kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            default: break
-            }
+            depth.track(kind)
             index = tokens.index(after: index)
         }
         return false
@@ -792,6 +806,36 @@ extension KotlinParser {
             start: SourceLocation(file: FileID.invalid, offset: 0),
             end: SourceLocation(file: FileID.invalid, offset: 0)
         )
+    }
+
+    /// Bracket nesting tracked while flat-scanning tokens. Unmatched closers
+    /// clamp at zero so one-sided groups cannot drive a count negative. Each
+    /// loop reads only the counters it needs: `isTopLevel` deliberately
+    /// excludes `angle`, because an unmatched `<`/`>` may be a comparison
+    /// operator rather than a type-argument list.
+    struct BracketDepth {
+        var angle = 0
+        var paren = 0
+        var bracket = 0
+        var brace = 0
+
+        var isTopLevel: Bool {
+            paren == 0 && bracket == 0 && brace == 0
+        }
+
+        mutating func track(_ kind: TokenKind) {
+            switch kind {
+            case .symbol(.lessThan): angle += 1
+            case .symbol(.greaterThan): angle = max(0, angle - 1)
+            case .symbol(.lParen): paren += 1
+            case .symbol(.rParen): paren = max(0, paren - 1)
+            case .symbol(.lBracket): bracket += 1
+            case .symbol(.rBracket): bracket = max(0, bracket - 1)
+            case .symbol(.lBrace): brace += 1
+            case .symbol(.rBrace): brace = max(0, brace - 1)
+            default: break
+            }
+        }
     }
 }
 
@@ -880,6 +924,10 @@ enum ParserBoundaryPolicy {
     }
 
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
+        // Both class and property delegation require an expression after `by`.
+        if kind == .softKeyword(.by) {
+            return true
+        }
         if case let .symbol(symbol) = kind {
             return danglingContinuationSymbols.contains(symbol)
         }

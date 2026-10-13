@@ -1,7 +1,8 @@
 
 public struct IncrementalFrontendState: Codable {
-    // Version 4 preserves the lateinit modifier on local declarations.
-    public static let supportedVersion = 4
+    // Version 5 preserves the lateinit modifier on local declarations and
+    // trailing-lambda syntax on call arguments.
+    public static let supportedVersion = 5
 
     public let version: Int
     public let buildConfigurationHash: String

@@ -627,6 +627,28 @@ extension CallLowerer {
             else {
                 continue
             }
+            // KIR's callable environment also includes captures propagated
+            // through nested lambdas and references to local functions.
+            // Check the job before boxing hides that environment; producer
+            // deliberately remains free to capture caller state.
+            if parameterIndex == 2,
+               sema.bindings.workerExecuteCallees.contains(chosenCallee),
+               let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
+               callable.captureArguments.contains(where: { capture in
+                   // A static local function entry is code, not captured state.
+                   // Capturing callees also contribute their environment here.
+                   guard let dependency = driver.ctx.callableValueInfo(for: capture),
+                         dependency.captureArguments.isEmpty,
+                         sema.symbols.symbol(dependency.symbol)?.flags.contains(.localFunction) == true
+                   else { return true }
+                   return false
+               }) {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0430",
+                    "Worker.execute job must be a non-capturing lambda or an unbound callable reference.",
+                    range: sema.bindings.workerExecuteJobRanges[sourceArgExprs[sourceArgExprIndex]]
+                )
+            }
             // Ordinary same-module inline callbacks consume raw symbols directly.
             // Restricted callbacks may escape; tagged references use the erased ABI.
             if isInline, !isImported,
@@ -694,7 +716,7 @@ extension CallLowerer {
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported
-            // Ordinary inline callbacks retain their positional captures,
+            // Ordinary inline callbacks retain their captures,
             // including lambdas whose suspension comes from a nested inline
             // call. Boxing them hides the body and its coroutine context.
             // Imported parameter metadata excludes escaping callbacks.
@@ -702,7 +724,7 @@ extension CallLowerer {
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
-                   || (signature.hasExplicitInlineParameterMetadata && allowsRawInlineArgument && !callable.hasClosureParam)
+                   || (signature.hasExplicitInlineParameterMetadata && allowsRawInlineArgument)
                    || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (!functionType.isSuspend || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (allowsRawInlineArgument
@@ -744,8 +766,7 @@ extension CallLowerer {
         boxCallee: InternedString,
         sema: SemaModule,
         arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        interner: StringInterner
     ) -> KIRCallableValueInfo {
         let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
         let adapterName = interner.intern("kk_generate_sequence_box_adapter_\(adapterSymbol.rawValue)")
@@ -932,8 +953,7 @@ extension CallLowerer {
                 boxCallee: boxCallee,
                 sema: sema,
                 arena: arena,
-                interner: interner,
-                instructions: &instructions
+                interner: interner
             )
             let adapterExpr = arena.appendExpr(
                 .symbolRef(adapterInfo.symbol),

@@ -80,12 +80,12 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 diagnostics: diagnostics
             )
             let classTypeParamSymbols = classTypeParamResult.symbols
             let classLocalTypeParameters = classTypeParamResult.localMap
 
-            // Create owner type with type parameter references as args
             let typeParamArgs: [TypeArg] = classTypeParamSymbols.map { tpSymbol in
                 .invariant(types.make(.typeParam(TypeParamType(symbol: tpSymbol))))
             }
@@ -167,6 +167,7 @@ extension DataFlowSemaPhase {
                         declSite: classDecl.range,
                         ast: ast, symbols: symbols, types: types,
                         interner: interner,
+                        sourceManager: sourceManager,
                         localTypeParameters: classLocalTypeParameters,
                         relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
@@ -226,6 +227,7 @@ extension DataFlowSemaPhase {
                     declSite: secondaryCtor.range,
                     ast: ast, symbols: symbols, types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: classLocalTypeParameters,
                     relativeOwnerFQName: fqName,
                     currentPackageFQName: package,
@@ -260,7 +262,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // Value class validation: must have exactly one primary constructor parameter
             if isValueClassDeclaration(classDecl) {
                 let valParams = classDecl.primaryConstructorParams
                 if valParams.count != 1 {
@@ -270,7 +271,6 @@ extension DataFlowSemaPhase {
                         range: classDecl.range
                     )
                 } else {
-                    // Record the underlying type of the value class
                     let singleParam = valParams[0]
                     let underlyingType = resolveTypeRef(
                         singleParam.type,
@@ -278,6 +278,7 @@ extension DataFlowSemaPhase {
                         symbols: symbols,
                         types: types,
                         interner: interner,
+                        sourceManager: sourceManager,
                         localTypeParameters: classLocalTypeParameters,
                         relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
@@ -442,7 +443,6 @@ extension DataFlowSemaPhase {
                     interner: interner
                 )
             }
-            // Process companion object: register as nested object and link to owner class
             if let companionDeclID = classDecl.companionObject {
                 collectCompanionObjectHeader(
                     companionDeclID: companionDeclID,
@@ -493,7 +493,6 @@ extension DataFlowSemaPhase {
             }
 
         case let .interfaceDecl(interfaceDecl):
-            // Register interface type parameters as symbols
             let ifaceTypeParamResult = registerNominalTypeParameters(
                 interfaceDecl.typeParams,
                 ownerSymbol: symbol,
@@ -504,6 +503,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 diagnostics: diagnostics
             )
             let ifaceTypeParamSymbols = ifaceTypeParamResult.symbols
@@ -549,7 +549,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterSymbols: ifaceTypeParamSymbols,
                 classLocalTypeParameters: ifaceLocalTypeParameters
             )
-            // Process companion object for interface
             if let companionDeclID = interfaceDecl.companionObject {
                 collectCompanionObjectHeader(
                     companionDeclID: companionDeclID,
@@ -647,7 +646,7 @@ extension DataFlowSemaPhase {
                 localNamespaceFQName: localNamespaceFQName,
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
-                interner: interner, isInline: funDecl.isInline,
+                interner: interner, sourceManager: sourceManager, isInline: funDecl.isInline,
                 diagnostics: diagnostics,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -660,6 +659,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: typeParamResult.localTypeParameters,
                     relativeOwnerFQName: package,
                     currentPackageFQName: package,
@@ -674,6 +674,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -691,6 +692,7 @@ extension DataFlowSemaPhase {
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -704,6 +706,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -821,7 +824,7 @@ extension DataFlowSemaPhase {
                 localNamespaceFQName: fqName + [interner.intern("$\(symbol.rawValue)")],
                 declSite: propertyDecl.range,
                 ast: ast, symbols: symbols, types: types,
-                interner: interner, isInline: propertyDecl.allAccessorsAreInline,
+                interner: interner, sourceManager: sourceManager, isInline: propertyDecl.allAccessorsAreInline,
                 diagnostics: diagnostics,
                 relativeOwnerFQName: package, currentPackageFQName: package,
                 imports: file.imports
@@ -835,6 +838,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -854,6 +858,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -947,6 +952,7 @@ extension DataFlowSemaPhase {
                         symbols: symbols,
                         types: types,
                         interner: interner,
+                        sourceManager: sourceManager,
                         localTypeParameters: [:],
                         relativeOwnerFQName: package,
                         currentPackageFQName: package,
@@ -993,6 +999,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
                 currentPackageFQName: package,
                 imports: file.imports,

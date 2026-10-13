@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - Structured Concurrency (P5-89)
 
 private enum RuntimeJobState: Equatable, Sendable {
     case new
@@ -273,14 +272,14 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
         set {
             let key = RuntimeJobHandleTaskKey.currentTaskKey
-            installCurrent(newValue, forTask: key)
+            installState(newValue, forTask: key)
         }
     }
 
     private static let taskJobLock = NSLock()
     nonisolated(unsafe) private static var taskJobMap: [RuntimeTaskKey: RuntimeJobHandle] = [:]
 
-    private static func installCurrent(_ job: RuntimeJobHandle?, forTask key: RuntimeTaskKey) {
+    private static func installState(_ job: RuntimeJobHandle?, forTask key: RuntimeTaskKey) {
         taskJobLock.lock()
         if let job {
             taskJobMap[key] = job

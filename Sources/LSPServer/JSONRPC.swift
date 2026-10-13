@@ -150,8 +150,6 @@ public final class JSONRPCConnection {
         output.write(framed)
     }
 
-    // MARK: - Framing helpers
-
     private func readMore() -> Bool {
         let chunk = input.readChunk()
         if chunk.isEmpty { return false }

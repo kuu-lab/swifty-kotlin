@@ -6,8 +6,6 @@ package enum MetadataModality: String {
     case abstract
 }
 
-// MARK: - Shared Metadata Record
-
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
 /// This is the single source of truth for what information survives the metadata round-trip.
 package struct MetadataRecord {
@@ -20,7 +18,6 @@ package struct MetadataRecord {
     package let isInline: Bool
     package let isOperator: Bool
     package let isInfix: Bool
-    /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
     package let isMemberExtension: Bool
     /// Nominal owner of a callable/property receiver. The indexed metadata
@@ -41,7 +38,6 @@ package struct MetadataRecord {
     /// that share one FQ name.
     package let callableTypeParameterSignatures: [String]
     package let inputOnlyTypeParameterIndices: Set<Int>
-    /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
     /// contain a non-local return when the callable is inline-expanded.
@@ -54,9 +50,7 @@ package struct MetadataRecord {
     /// symbol's (nonexistent) AST body.
     package let valueParameterCallsInPlaceKinds: [InvocationKind?]
     package let contractImplicationEffects: [ContractImplicationEffect]
-    /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
-    /// Whether the function/constructor is declared `throws`.
     package let canThrow: Bool
     /// Resolved names of value parameters, in declaration order, used for
     /// named-argument resolution on imported functions.
@@ -65,7 +59,6 @@ package struct MetadataRecord {
     /// call sites append the correct runtime type-token arguments for inline
     /// functions imported from a precompiled stdlib artifact.
     package let reifiedTypeParameterIndices: Set<Int>
-    /// Link name of the precompiled default-argument stub (e.g. `foo$default`).
     let defaultStubExternalLinkName: String?
     let externalLinkName: String?
     package let declaredFieldCount: Int?
@@ -77,19 +70,14 @@ package struct MetadataRecord {
     let fieldOffsets: String?
     let vtableSlots: String?
     let itableSlots: String?
-    /// Link name of the precompiled top-level object initializer (e.g. `__object_init_*`).
     let objectInitializerLinkName: String?
-    /// Link name of the precompiled companion object initializer (e.g. `__companion_init_*`).
     let companionInitializerLinkName: String?
-    /// Link name of the guarded object/companion body initializer.
     let objectLazyInitializerLinkName: String?
-    /// Link name of the precompiled enum static initializer (e.g. `__enum_static_init_*`).
     package let enumStaticInitLinkName: String?
 
     // P5-74: data class flag
     package let isDataClass: Bool
 
-    /// Whether a nominal declaration is explicitly open and may be subclassed.
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
     /// Inner classes require an enclosing instance even when their public constructor arity is zero.
@@ -120,11 +108,8 @@ package struct MetadataRecord {
     let isExpect: Bool
     let isActual: Bool
 
-    /// Receiver type signature for extension properties; nil for non-extension properties.
     let propertyReceiverTypeSignature: String?
-    /// Link name of the precompiled getter accessor for extension properties.
     let propertyGetterExternalLinkName: String?
-    /// Link name of the precompiled setter accessor for `var` properties.
     let propertySetterExternalLinkName: String?
     /// ABI return type signature for functions whose compiled return type differs
     /// from the source-level signature (e.g. raw `Int` string handles).
@@ -132,7 +117,6 @@ package struct MetadataRecord {
     /// ABI return type signature for extension property getters when it differs
     /// from the property's source type.
     let propertyGetterAbiReturnTypeSignature: String?
-    /// True for `var` properties/fields.
     package let isMutable: Bool
     /// Self type signature of a generic nominal declaration, carrying its type
     /// parameters and their declared variance (e.g.
@@ -304,6 +288,8 @@ struct MetadataIndexEntry {
     let offset: Int
     let length: Int
     let record: MetadataRecord
+    /// Older v2 indexes omit initializer links; absence is unknown there.
+    var hasCompleteInitializerInfo: Bool = false
 }
 
 /// Lazily reads v2 metadata records from the body section of `metadata.bin`.
@@ -317,58 +303,113 @@ final class IndexedMetadataFile {
     private var decodedRecords: [Int: MetadataRecord] = [:]
 
     init?(data: Data) {
+        let parsed = data.withUnsafeBytes { rawBytes -> (entries: [MetadataIndexEntry], bodyStart: Int)? in
+            let bytes = rawBytes.bindMemory(to: UInt8.self)
+            var cursor = 0
+            func readLine() -> Range<Int>? {
+                guard cursor < bytes.count else { return nil }
+                var start = cursor
+                while cursor < bytes.count, bytes[cursor] != 0x0A { cursor += 1 }
+                var end = cursor
+                if cursor < bytes.count { cursor += 1 }
+                // Metadata uses ASCII separators, including CRLF on input.
+                func isWhitespace(_ byte: UInt8) -> Bool {
+                    byte == 0x20 || (0x09 ... 0x0D).contains(byte)
+                }
+                while start < end, isWhitespace(bytes[start]) { start += 1 }
+                while end > start, isWhitespace(bytes[end - 1]) { end -= 1 }
+                if start < end, bytes[start] >= 0x80 || bytes[end - 1] >= 0x80 {
+                    // Keep Foundation's legacy Unicode edge trimming without
+                    // allocating strings on the usual ASCII index path.
+                    let line = String(decoding: UnsafeBufferPointer(rebasing: bytes[start ..< end]), as: UTF8.self)
+                    let nonWhitespace = CharacterSet.whitespacesAndNewlines.inverted
+                    if let first = line.rangeOfCharacter(from: nonWhitespace),
+                       let last = line.rangeOfCharacter(from: nonWhitespace, options: .backwards)
+                    {
+                        start += line[..<first.lowerBound].utf8.count
+                        end -= line[last.upperBound...].utf8.count
+                    } else {
+                        start = end
+                    }
+                }
+                return start ..< end
+            }
+            func string(_ range: Range<Int>) -> String {
+                String(decoding: UnsafeBufferPointer(rebasing: bytes[range]), as: UTF8.self)
+            }
+            func recordLineHasCompleteInitializerInfo(_ recordBytes: UnsafeBufferPointer<UInt8>) -> Bool {
+                var tokenStart = 0
+                for index in 0 ... recordBytes.count
+                where index == recordBytes.count || recordBytes[index] == 0x20 {
+                    if tokenStart < index,
+                       Self.stringMarkerMatches(tokenStart ..< index, bytes: recordBytes, marker: "initIndex=1")
+                    {
+                        return true
+                    }
+                    tokenStart = index + 1
+                }
+                return false
+            }
+            func headerLine() -> String? {
+                readLine().map { string($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            }
+            guard headerLine() == "kklib-metadata-v2",
+                  let recordsLine = headerLine(), recordsLine.hasPrefix("records="),
+                  let recordCount = Int(recordsLine.dropFirst("records=".count)), recordCount >= 0,
+                  headerLine() == "index"
+            else { return nil }
+
+            var entries: [MetadataIndexEntry] = []
+            // Bound the count hint by the available bytes and a fixed initial
+            // capacity. Larger indexes grow as their records are parsed.
+            entries.reserveCapacity(min(recordCount, bytes.count / 8, 65_536))
+            let decoder = MetadataDecoder()
+            while let range = readLine() {
+                if Self.stringMarkerMatches(range, bytes: bytes, marker: "body") {
+                    return (entries, cursor)
+                }
+                // serializeIndexed emits an empty index line for zero records.
+                if range.isEmpty, recordCount == 0 { continue }
+                var firstTab = range.lowerBound
+                while firstTab < range.upperBound, bytes[firstTab] != 0x09 { firstTab += 1 }
+                guard firstTab < range.upperBound else { return nil }
+                var secondTab = firstTab + 1
+                while secondTab < range.upperBound, bytes[secondTab] != 0x09 { secondTab += 1 }
+                guard secondTab < range.upperBound,
+                      let offset = Int(string(range.lowerBound ..< firstTab)), offset >= 0,
+                      let length = Int(string(firstTab + 1 ..< secondTab)), length > 0
+                else { return nil }
+                let recordBytes = UnsafeBufferPointer(rebasing: bytes[secondTab + 1 ..< range.upperBound])
+                guard let record = decoder.decodeIndexRecordLine(recordBytes) else { return nil }
+                entries.append(MetadataIndexEntry(
+                    offset: offset, length: length, record: record,
+                    hasCompleteInitializerInfo: recordLineHasCompleteInitializerInfo(recordBytes)
+                ))
+            }
+            return nil
+        }
+        guard let parsed else { return nil }
         self.data = data
-        var cursor = 0
-        let bytes = [UInt8](data)
+        self.bodyStart = parsed.bodyStart
+        self.entries = parsed.entries
+    }
 
-        func readLine() -> String? {
-            guard cursor <= bytes.count else { return nil }
-            let start = cursor
-            while cursor < bytes.count, bytes[cursor] != 0x0A {
-                cursor += 1
-            }
-            let line = String(decoding: bytes[start ..< cursor], as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if cursor < bytes.count {
-                cursor += 1
-            }
-            return line
-        }
-
-        guard readLine() == "kklib-metadata-v2" else { return nil }
-        guard let recordsLine = readLine(), recordsLine.hasPrefix("records=") else { return nil }
-        guard Int(recordsLine.dropFirst("records=".count)) != nil else { return nil }
-        guard readLine() == "index" else { return nil }
-
-        var parsedEntries: [MetadataIndexEntry] = []
-        let decoder = MetadataDecoder()
-        while let line = readLine(), line != "body" {
-            let fields = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-            guard fields.count == 3,
-                  let offset = Int(fields[0]),
-                  let length = Int(fields[1]),
-                  offset >= 0,
-                  length > 0,
-                  let record = decoder.decode("symbols=1\n\(fields[2])\n").first
-            else {
-                return nil
-            }
-            parsedEntries.append(MetadataIndexEntry(offset: offset, length: length, record: record))
-        }
-
-        guard cursor <= bytes.count else { return nil }
-        self.bodyStart = cursor
-        self.entries = parsedEntries
+    private static func stringMarkerMatches(
+        _ range: Range<Int>, bytes: UnsafeBufferPointer<UInt8>, marker: StaticString
+    ) -> Bool {
+        marker.withUTF8Buffer { bytes[range].elementsEqual($0) }
     }
 
     func record(for entry: MetadataIndexEntry) -> MetadataRecord? {
+        guard entry.offset >= 0, entry.offset <= data.count - bodyStart,
+              entry.length > 0, entry.length <= data.count - bodyStart - entry.offset
+        else { return nil }
         if let cached = decodedRecords[entry.offset] {
             return cached
         }
         let start = bodyStart + entry.offset
         let end = start + entry.length
-        guard start >= bodyStart, end <= data.count else { return nil }
-        let body = data.subdata(in: start ..< end)
+        let body = data.subdata(in: data.startIndex + start ..< data.startIndex + end)
         guard let line = String(data: body, encoding: .utf8) else { return nil }
         let record = MetadataDecoder().decode("symbols=1\n\(line)\n").first
         if let record {
