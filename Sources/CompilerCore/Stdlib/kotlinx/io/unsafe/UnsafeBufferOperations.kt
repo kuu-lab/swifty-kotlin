@@ -427,6 +427,7 @@ public interface SegmentReadContext {
  */
 @UnsafeIoApi
 @OptIn(ExperimentalContracts::class)
+@kotlin.jvm.JvmSynthetic
 public inline fun SegmentReadContext.withData(
     segment: Segment,
     readAction: (bytes: ByteArray, startIndexInclusive: Int, endIndexExclusive: Int) -> Unit

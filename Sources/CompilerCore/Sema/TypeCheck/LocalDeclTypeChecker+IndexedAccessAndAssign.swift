@@ -89,61 +89,12 @@ extension LocalDeclTypeChecker {
             sema: sema,
             interner: interner
         )
-        if getCandidates.isEmpty {
-            let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-            let scopedCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(getName)).visible
-            getCandidates = scopedCandidates.filter { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      symbol.kind == .function,
-                      symbol.flags.contains(.operatorFunction),
-                      let signature = sema.symbols.functionSignature(for: candidate),
-                      let declaredReceiver = signature.receiverType
-                else {
-                    return false
-                }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: nonNullReceiver,
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
-            }
+        getCandidates = ctx.filterByVisibility(getCandidates).visible.filter {
+            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if getCandidates.isEmpty {
-            let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-            let visibleSyntheticCandidates = ctx.filterByVisibility(sema.symbols.lookupByShortName(getName)).visible
-            getCandidates = visibleSyntheticCandidates.filter { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      symbol.kind == .function,
-                      symbol.flags.contains(.synthetic),
-                      symbol.flags.contains(.operatorFunction),
-                      let signature = sema.symbols.functionSignature(for: candidate),
-                      let declaredReceiver = signature.receiverType
-                else {
-                    return false
-                }
-                if let parentID = sema.symbols.parentSymbol(for: candidate),
-                   let parentSymbol = sema.symbols.symbol(parentID),
-                   parentSymbol.kind == .property
-                {
-                    return false
-                }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: nonNullReceiver,
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
-            }
-        }
-        if getCandidates.isEmpty {
-            // Bundled stdlib operator extensions (e.g. AtomicIntArray.get) are
-            // conceptually members and resolve without an explicit import.
-            getCandidates = driver.callChecker.collectBundledStdlibExtensionCandidates(
-                named: getName,
-                receiverType: receiverType,
-                requireOperator: true,
-                sourceFile: ctx.currentASTFile,
-                sema: sema,
-                interner: interner
+            getCandidates = collectIndexedGetExtensionCandidates(
+                named: getName, receiverType: receiverType, ctx: ctx
             )
         }
 
@@ -165,47 +116,42 @@ extension LocalDeclTypeChecker {
             indexTypes.append(valueType)
         }
 
-        // The canonical array member accepts exactly one Int. Other index
-        // shapes may have a user-defined operator extension, which remains
-        // available when that member is inapplicable.
-        if let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
-           receiverSymbol.fqName == [interner.intern("kotlin"), receiverSymbol.name],
-           KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name),
-           indexTypes.count != 1 || !sema.types.isSubtype(indexTypes[0], intType)
-        {
-            getCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(getName)).visible.filter { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      symbol.kind == .function,
-                      symbol.flags.contains(.operatorFunction),
-                      let signature = sema.symbols.functionSignature(for: candidate),
-                      let declaredReceiver = signature.receiverType,
-                      driver.helpers.declaresExtensionReceiver(candidate, sema: sema, interner: interner)
-                else { return false }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: sema.types.makeNonNullable(receiverType),
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
-            }
+        let getCall = CallExpr(range: range, calleeName: getName, args: zip(indices, indexTypes).map { index, type in
+            let literal = driver.callChecker.integerLiteralValues(index, ast: ast)
+            return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+        })
+        // Member existence does not imply applicability. Probe without emitting
+        // diagnostics, retaining even ambiguous viable members ahead of extensions.
+        if ctx.resolver.probeCall(
+            candidates: getCandidates, call: getCall, expectedType: nil,
+            implicitReceiverType: receiverType, ctx: sema
+        ).viableCandidates.isEmpty {
+            let extensions = collectIndexedGetExtensionCandidates(
+                named: getName, receiverType: receiverType, call: getCall, ctx: ctx
+            )
+            if !extensions.isEmpty { getCandidates = extensions }
         }
 
         if !getCandidates.isEmpty {
             // Resolve via operator fun get
-            let callArgs = indexTypes.map { CallArg(type: $0) }
             let resolved = ctx.resolver.resolveCall(
                 candidates: getCandidates,
-                call: CallExpr(
-                    range: range,
-                    calleeName: getName,
-                    args: callArgs
-                ),
+                call: getCall,
                 expectedType: nil,
                 implicitReceiverType: receiverType,
                 ctx: ctx.sema
             )
+            if let diagnostic = resolved.diagnostic {
+                ctx.sema.diagnostics.emit(diagnostic)
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             if let chosen = resolved.chosenCallee,
                let signature = sema.symbols.functionSignature(for: chosen)
             {
+                driver.callChecker.contextualizeResolvedIntegerArguments(
+                    args: indices.map { CallArgument(expr: $0) }, resolved: resolved, ctx: ctx, locals: &locals
+                )
                 // Record the resolved call so KIR lowering can dispatch correctly
                 sema.bindings.bindCall(
                     id,

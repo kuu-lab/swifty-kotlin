@@ -506,15 +506,15 @@ extension KIRLoweringDriver {
             )
         }
 
-        for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
-            if symbol.kind == .function,
-               interner.resolve(symbol.name).hasPrefix("__kk_library_top_level_init_") {
-                appendInitializer(symbol.id)
-                continue
-            }
-            // Initializer side effects must run even for unused declarations.
-            // Complete indexes let us skip owners with no initializer links;
-            // older artifacts still decode their owners to discover the links.
+        let importedSymbols = sema.symbols.allSymbols().filter { $0.flags.contains(.importedLibrary) }
+
+        // Imported top-level properties can capture an object singleton. Make
+        // every imported object's eager handle (and its interface registrations)
+        // available before enum or library property initialization. Keeping
+        // these in one symbol-order pass let a library initializer run before
+        // its object initializer, leaving interface-typed singleton properties
+        // with a null receiver in the consuming module.
+        for symbol in importedSymbols {
             guard sema.symbols.mayHaveImportedInitializers(for: symbol.id) else { continue }
             switch symbol.kind {
             case .object:
@@ -523,10 +523,23 @@ extension KIRLoweringDriver {
                 appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
             case .enumClass:
                 appendInitializer(sema.symbols.companionObjectInitializerSymbol(for: symbol.id))
-                appendInitializer(sema.symbols.enumStaticInitSymbol(for: symbol.id))
             default:
                 break
             }
+        }
+
+        // Enum entry initialization may itself access imported singletons, so
+        // keep it after all object and companion handles have been allocated.
+        for symbol in importedSymbols where symbol.kind == .enumClass {
+            appendInitializer(sema.symbols.enumStaticInitSymbol(for: symbol.id))
+        }
+
+        // Run library stored-property initializers only after singleton handles
+        // and enum entries have been prepared. Keep the existing imported-symbol
+        // order among libraries' top-level initializer calls.
+        for symbol in importedSymbols where symbol.kind == .function {
+            guard interner.resolve(symbol.name).hasPrefix("__kk_library_top_level_init_") else { continue }
+            appendInitializer(symbol.id)
         }
     }
 

@@ -68,6 +68,16 @@ public final class DiagnosticEngine: @unchecked Sendable {
         self.maxDiagnosticsPerFile = max(1, maxDiagnosticsPerFile)
     }
 
+    /// Workers own speculative diagnostics and inherit only suppression policy.
+    /// The parent applies deduplication and per-file limits when joining deltas.
+    func makeSemaWorkerDiagnostics() -> DiagnosticEngine {
+        lock.lock()
+        defer { lock.unlock() }
+        let worker = DiagnosticEngine(maxDiagnosticsPerFile: Int.max)
+        worker.suppressions = suppressions
+        return worker
+    }
+
     /// Register a @Suppress annotation: suppress the given diagnostic code for any
     /// diagnostic whose primary range overlaps or is contained within `range`.
     /// When the suppression name is severity-constrained (DEPRECATION /

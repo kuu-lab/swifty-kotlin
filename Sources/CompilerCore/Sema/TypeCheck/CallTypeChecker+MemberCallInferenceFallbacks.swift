@@ -43,7 +43,10 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
+        // Imported declarations also carry .synthetic, but their real
+        // overloads must remain available for Locale arguments.
         guard let symbol = sema.symbols.symbol(symbolID),
+              !sema.symbols.isSourceBackedSymbol(symbolID),
               symbol.fqName == [
                   interner.intern("kotlin"),
                   interner.intern("text"),
