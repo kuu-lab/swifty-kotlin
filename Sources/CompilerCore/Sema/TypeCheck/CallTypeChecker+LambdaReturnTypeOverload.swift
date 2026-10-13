@@ -222,9 +222,13 @@ extension CallTypeChecker {
                     contextualArgExpectedTypes[index] = callableReferenceExpectedType(
                         at: index,
                         argumentLabel: argument.label,
+                        args: args,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
-                        sema: sema
+                        receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        resolver: ctx.resolver,
+                        ctx: ctx
                     )
                 case .ifExpr:
                     contextualArgExpectedTypes[index] = uniformContextualParameterType(
