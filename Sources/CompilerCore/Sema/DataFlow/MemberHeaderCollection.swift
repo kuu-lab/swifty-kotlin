@@ -331,7 +331,7 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            let returnType: TypeID = if let explicit = resolveTypeRef(
+            var returnType: TypeID = if let explicit = resolveTypeRef(
                 funDecl.returnType,
                 ast: ast,
                 symbols: symbols,
@@ -353,6 +353,12 @@ extension DataFlowSemaPhase {
                 case .expr:
                     anyType
                 }
+            }
+
+            if ctx.sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true {
+                returnType = javaThreadLocalReturnType(
+                    returnType, fqName: memberFQName, types: types, interner: interner
+                )
             }
 
             // Include class type parameter symbols so the overload resolver can
