@@ -21,7 +21,9 @@ extension ExprTypeChecker {
         if let local = locals[name],
            !isQualifier || sema.symbols.symbol(local.symbol)?.kind != .function
         {
-            if !local.isInitialized {
+            if !local.isInitialized,
+               sema.symbols.symbol(local.symbol)?.flags.contains(.lateinitProperty) != true
+            {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(name))' must be initialized before use.",

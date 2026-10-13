@@ -241,6 +241,18 @@ public func kk_kxmini_run_blocking_with_cont(
     // current scope shares the caller's job. A genuine top-level `runBlocking`
     // has no ambient scope, so this is a no-op there.
     let contState = runtimeContinuationState(from: continuation)
+    // Only a new context-aware blocking invocation opts into this link.
+    // Existing nil-policy suspend-value borrowing retains its original path.
+    let blockingCaller = RuntimeContinuationState.current?.blockingScheduler != nil
+        ? RuntimeContinuationState.current : nil
+    if let contState, let blockingCaller {
+        contState.blockingScheduler = blockingCaller.blockingScheduler
+        contState.eventLoop = blockingCaller.eventLoop
+        blockingCaller.bindSuspendedCallChild(contState)
+    }
+    defer {
+        if let contState { blockingCaller?.unbindSuspendedCallChild(contState) }
+    }
     if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
         if contState.jobHandle == nil,

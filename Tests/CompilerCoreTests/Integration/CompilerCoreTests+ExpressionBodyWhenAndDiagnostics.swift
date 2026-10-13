@@ -286,7 +286,7 @@ extension CompilerCoreTests {
             return
         }
         guard let declarationID = stmts.first,
-              case let .localDecl(declaredName, _, _, _, _, _) = ast.arena.expr(declarationID)
+              case let .localDecl(declaredName, _, _, _, _, _, _) = ast.arena.expr(declarationID)
         else {
             Issue.record("Expected the local declaration before the do-while loop.")
             return
