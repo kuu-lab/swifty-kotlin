@@ -11,6 +11,24 @@ import kotlin.internal.KsSymbolName
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KType
+import kotlin.reflect.isInstance
+import kotlin.reflect.qualifiedName
+
+/**
+ * Casts [value] to this class, throwing [TypeCastException] for null or a non-instance.
+ */
+@SinceKotlin("1.1")
+@Suppress("UNCHECKED_CAST")
+public fun <T : Any> KClass<T>.cast(value: Any?): T {
+    if (!isInstance(value)) throw TypeCastException("Value cannot be cast to $qualifiedName")
+    return value as T
+}
+
+/** Returns [value] as this class, or null for null or a non-instance. */
+@SinceKotlin("1.1")
+@Suppress("UNCHECKED_CAST")
+public fun <T : Any> KClass<T>.safeCast(value: Any?): T? =
+    if (isInstance(value)) value as T else null
 
 @KsSymbolName("__kk_kclass_primary_constructor")
 private external fun __kk_kclass_primary_constructor(kclass: KClass<*>): Any?
