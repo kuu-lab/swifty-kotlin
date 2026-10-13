@@ -145,7 +145,12 @@ struct TypedAnnotationMetadataTests {
             let context = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: true)
             try runSema(context)
             #expect(context.diagnostics.diagnostics.contains { $0.message.contains("compile-time constants") })
-            #expect(context.diagnostics.diagnostics.contains { $0.message.contains("must be an Annotation") })
+            let lookupOffset = try #require(source.range(of: "Tagged::class.findAnnotation<Int>()")).lowerBound
+            let expectedOffset = source[..<lookupOffset].utf8.count
+            #expect(context.diagnostics.diagnostics.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-BOUND"
+                    && $0.primaryRange?.start.offset == expectedOffset
+            })
             #expect(context.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST" }.count >= 5)
         }
     }
