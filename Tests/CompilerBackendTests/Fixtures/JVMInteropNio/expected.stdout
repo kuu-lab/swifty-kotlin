@@ -1,0 +1,156 @@
+relative-default:2/3
+absolute:2/1
+relative-invalid:Bounds/1
+absolute-at-limit-zero:Bounds/1
+position-invalid:Argument/1
+limit-invalid:Argument/3
+underflow:Underflow/3
+overflow:Overflow/3
+readonly-relative-before-overflow:ReadOnly/3
+readonly-absolute-bounds-first:Bounds/3
+readonly-absolute-empty:none/3
+readonly-shared:8/true/false
+slice-shared:7/2/1
+buffer-channel-read:2/2/1
+buffer-channel-close-noop:true
+buffer-read-empty:-1
+get-overlap:1, 2, 1, 2, 3/3
+put-overlap:1, 2, 1, 2, 3/5
+duplicate-shared-independent:9/1/1
+limit-invalidates-mark:InvalidMark/1/1
+direct-hidden-array:true/false/Unsupported
+wrap-offset:5/2/4/0
+relative-put-success:0, 7, 8, 0/3
+absolute-put-success:5, 7, 8, 0/3
+buffer-transfer:4/3, 4
+buffer-channel-write-after-close:2/2/2
+source-channel-open:true
+source-buffer-read:1/1/1
+source-channel-read:1/2
+source-channel-close:false/State
+sink-buffer-write:1/1/10
+sink-channel-write:1/1/11
+sink-channel-close:false/State
+lazy-create:0/0
+lazy-read:253/1/0
+lazy-bulk:1/9, -2, 9, 9/2
+raw-short:1/3
+bulk-eof:-1/4
+zero-range:-1/5
+invalid-range:Argument/5
+input-mark:false/IO
+input-close:1/IO/IO
+closed-before-bounds:IO
+input-exception-identity:true/true
+buffer-output-after-close:2, 3, -1
+output-range-invalid:Bounds/0
+output-range:5, 6
+output-closed:IO/none
+output-failed-transaction:true/8192/true
+charset-canonical:ISO-8859-1/-23/é
+charset-range:1/é
+charset-write-bounds:Bounds/Argument/0
+charset-read-bounds:Argument/EOF
+charset-whole-empty:0
+charset-utf8:2/é
+exception-aliases:x/true/true
+unsafe-head-view:3/0/true/1
+unsafe-head-commit:1/2/1/3
+unsafe-head-rollback:IO/2/4
+unsafe-head-readonly:ReadOnly/1
+unsafe-tail-commit:2/7, 8
+unsafe-tail-rollback:IO/0
+unsafe-iovec:2/true/8192/1
+unsafe-bulk-commit:8193/0
+unsafe-bulk-invalid:State/1
+unsafe-bulk-rollback:IO/1
+unsafe-bulk-empty-iovec:Argument/1
+unsafe-head-empty:Argument/0
+stream-transfer:true/1, 2, 3/-1
+stream-write-count:true/4, 5/6
+stream-write-eof:EOF/7, 8
+stream-write-negative:Argument/9/0
+stream-copy-default-end:11, 12/3
+stream-copy-default-start:10/3
+stream-copy-invalid:Bounds/Argument/0/3
+stream-read-count:10/2
+stream-read-default:11, 12/0
+stream-read-invalid:Argument/Argument/0
+bytearray-close-noop:13/-1
+charset-constructor:é/é
+charset-constructor-bounds:Bounds/Bounds
+charset-input-stream:233
+charset-reader:é
+charset-roundtrip:UTF-8/65, -61, -87/Aé
+charset-roundtrip:ISO-8859-1/65, -23/Aé
+charset-roundtrip:US-ASCII/65, 63/A?
+charset-roundtrip:UTF-16/-2, -1, 0, 65, 0, -23/Aé
+charset-roundtrip:UTF-16BE/0, 65, 0, -23/Aé
+charset-roundtrip:UTF-16LE/65, 0, -23, 0/Aé
+charset-replacement:UTF-8/-16, -97, -104, -128/63
+charset-replacement:ISO-8859-1/63/63
+charset-replacement:US-ASCII/63/63
+charset-replacement:UTF-16BE/-40, 61, -34, 0/-1, -3
+charset-empty:UTF-8/0
+charset-empty:ISO-8859-1/0
+charset-empty:US-ASCII/0
+charset-empty:UTF-16/0
+charset-empty:UTF-16BE/0
+charset-empty:UTF-16LE/0
+charset-utf8-malformed:65533, 65533
+charset-utf8-malformed:65533
+charset-utf8-malformed:65533
+charset-utf8-malformed:65533, 65
+charset-utf16-malformed:65533
+charset-utf16-malformed:55296, 56320, 65533
+model-beans:true/true/true
+model-for-name:UTF8/UTF-8
+model-for-name:ASCII/US-ASCII
+model-for-name:latin1/ISO-8859-1
+model-for-name:utf-32/UTF-32
+model-for-name:UTF_32LE/UTF-32LE
+model-for-name:UnicodeBigUnmarked/UTF-16BE
+model-illegal:IllegalCharset:<bad>
+model-unsupported:UnsupportedCharset:missing-1762
+model-output-capacity:Argument
+model-output-snapshot:2, 3/2
+model-output-close-noop:2, 3, -1
+model-output-bounds:Bounds/3
+model-output-charsets:é/é
+model-output-invalid-charset:IO/IO
+model-output-copy:6, 7/3
+model-output-drain:6, 7, 5, 6, 7/0
+model-output-raw-sink:8, 9/10
+model-output-types:true/true/true
+model-input-erased-close:1/IO
+model-output-erased-close:1/IO
+storage-constructor-alias:9/true
+storage-mark-first:2
+storage-reset-alias:8
+storage-close-mark:3/0
+storage-reset-after-close:8
+storage-extension-range-alias:7/true
+storage-extension-range-initial-mark:7
+storage-writer-before-flush:0
+storage-writer-charset:-23
+storage-writer-closed:IO/-23
+storage-callback-writer:0, -23/1/1/1
+stream-descriptions-empty:true/true
+stream-descriptions-updated:true/true
+stream-description-source-error:true
+stream-description-sink-error:true
+sequence-construction-lazy:2/1
+sequence-read-first:1/1
+sequence-range-first-only:1/9, 2, 9/1
+sequence-read-rest:3
+sequence-close-both:true/true
+sequence-source-error:true
+sequence-nested:6, 7
+sequence-zero-empty:0
+sequence-invalid-empty:Bounds
+sequence-invalid-closed:-1
+sequence-closed-source-bounds:Bounds
+sequence-close-error:true/1/1
+sequence-mark-supported:false
+sequence-copy-all:3/1, 2, 3/0/0
+sequence-copy-error:true/7

@@ -24,6 +24,9 @@ struct KClassCacheKey: Hashable {
 
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
+    var nextForeignResourceToken: Int = 1
+    var foreignResources: [Int: RuntimeForeignResourceLease] = [:]
+    var retiredForeignResources: [RuntimeForeignResourceLease] = []
     var objectPointers: Set<UInt> = []
     /// Existing retained reference cells are external owners, not swept boxes.
     /// Trace their direct kk_alloc payloads until replacement or owner release.
@@ -343,9 +346,13 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
         state.threadLocalValues
     }
     let callableRoots = runtimeCallableReflectionRoots()
-    runtimeStorage.withGCLock { state in
+    let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
         performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots, callableRoots: callableRoots)
+        let retired = state.retiredForeignResources
+        state.retiredForeignResources.removeAll()
+        return retired
     }
+    withExtendedLifetime(retired) {} // ARC destruction outside gcLock.
 }
 
 @_cdecl("kk_gc_schedule")
@@ -559,7 +566,13 @@ public func kk_runtime_force_reset() {
 /// releases the box.
 func kk_runtime_reset_gc() {
     runtimeResetAtomicfuParkingCaches()
-    runtimeStorage.withGCLock { state in
+    let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
+        var retired = state.retiredForeignResources
+        state.retiredForeignResources.removeAll()
+        for token in Array(state.foreignResources.keys) {
+            if state.foreignResources[token]?.owner != nil,
+               let lease = state.foreignResources.removeValue(forKey: token) { retired.append(lease) }
+        }
         for (_, object) in state.heapObjects {
             object.pointer.deallocate()
         }
@@ -570,7 +583,9 @@ func kk_runtime_reset_gc() {
         state.coroutineRoots.removeAll(keepingCapacity: false)
         state.pinnedObjectCounts.removeAll(keepingCapacity: false)
         state.stableRefCounts.removeAll(keepingCapacity: false)
+        return retired
     }
+    withExtendedLifetime(retired) {}
     runtimeGCTuningState.reset()
     resetCaseInsensitiveOrderCache()
 }
@@ -700,6 +715,13 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     worklist.reserveCapacity(state.heapObjects.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
     worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+    // Box owners are retained until runtimeReleaseObject; roots attached to an
+    // SDK lease follow that existing lifetime. Heap owners are handled as edges.
+    for lease in state.foreignResources.values {
+        if let owner = lease.owner, state.objectPointers.contains(owner) {
+            worklist.append(contentsOf: (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+        }
+    }
     collectRetainedAtomicPayloadRootsLocked(state: state, into: &worklist)
 
     while let current = worklist.popLast() {
@@ -713,6 +735,9 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
         }
         header.pointee.flags |= kkObjMarkFlag
         appendObjectChildrenLocked(of: object, into: &worklist)
+        for lease in state.foreignResources.values where lease.owner == key {
+            worklist.append(contentsOf: (lease.dependentRoots + lease.attachmentRoots).compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+        }
     }
 
     var survivors: [UInt: HeapObjectRecord] = [:]
@@ -723,6 +748,12 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             header.pointee.flags &= ~kkObjMarkFlag
             survivors[key] = object
         } else {
+            let tokens = state.foreignResources.compactMap { $0.value.owner == key ? $0.key : nil }
+            for token in tokens {
+                if let lease = state.foreignResources.removeValue(forKey: token) {
+                    state.retiredForeignResources.append(lease)
+                }
+            }
             removeRuntimeObjectMetadata(forObjectKey: key)
             object.pointer.deallocate()
         }
