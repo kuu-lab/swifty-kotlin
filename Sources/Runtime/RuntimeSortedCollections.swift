@@ -7,7 +7,6 @@
 // SortedSet/NavigableSet/SortedMap/NavigableMap member surface declared in
 // `Sources/CompilerCore/Stdlib/java/util/`.
 
-// MARK: - Sorted set helpers
 
 private func runtimeSortedSetBoxCreate(comparatorRaw: Int) -> RuntimeSetBox {
     let box = RuntimeSetBox(elements: [])
@@ -62,7 +61,6 @@ private func runtimeSortedSetBound(
     return result
 }
 
-// MARK: - TreeSet construction (__kk_tree_set_*)
 
 /// `java.util.TreeSet(comparator)` / `java.util.TreeSet()` — a null-sentinel
 /// or 0 comparator selects natural order.
@@ -109,7 +107,6 @@ public func kk_tree_set_init(_ setRaw: Int, _ comparatorRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - SortedSet members (__kk_sorted_set_*)
 
 /// `SortedSet.comparator()` — the stored comparator object, or null for
 /// natural ordering.
@@ -238,7 +235,6 @@ public func kk_sorted_set_descending_iterator(_ setRaw: Int) -> Int {
     return raw
 }
 
-// MARK: - Sorted map helpers
 
 private func runtimeSortedMapBoxCreate(comparatorRaw: Int) -> RuntimeMapBox {
     let box = RuntimeMapBox(keys: [], values: [])
@@ -310,7 +306,6 @@ private func runtimeSortedMapBound(
     return result
 }
 
-// MARK: - TreeMap construction (__kk_tree_map_*)
 
 /// `java.util.TreeMap(comparator)` / `java.util.TreeMap()`.
 @_cdecl("__kk_tree_map_new")
@@ -345,7 +340,6 @@ public func kk_tree_map_init(_ mapRaw: Int, _ comparatorRaw: Int) -> Int {
     return 0
 }
 
-// MARK: - SortedMap members (__kk_sorted_map_*)
 
 /// `SortedMap.comparator()` — the stored comparator object, or null.
 @_cdecl("__kk_sorted_map_comparator")

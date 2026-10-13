@@ -230,19 +230,23 @@ extension CallTypeChecker {
                 cachedNonLambdaArgTypes[index] = argTypes[index]
             }
         }
+        var argumentExpectedTypeOverrides: [Int: TypeID] = [:]
+        if isLongRangeLiteralContainsCall {
+            argumentExpectedTypeOverrides[0] = sema.types.longType
+        } else if isULongRangeLiteralContainsCall {
+            argumentExpectedTypeOverrides[0] = sema.types.ulongType
+        }
+        prepareSingleCandidateNestedCallExpectedTypes(
+            args: args,
+            candidates: candidates,
+            ctx: ctx,
+            expectedTypeOverrides: &argumentExpectedTypeOverrides
+        )
         let preparedArgs = prepareCallArguments(
             args: args,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
-            expectedTypeOverrides: {
-                if isLongRangeLiteralContainsCall {
-                    return [0: sema.types.longType]
-                }
-                if isULongRangeLiteralContainsCall {
-                    return [0: sema.types.ulongType]
-                }
-                return [:]
-            }(),
+            expectedTypeOverrides: argumentExpectedTypeOverrides,
             contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
@@ -341,7 +345,9 @@ extension CallTypeChecker {
             var extensionCandidates = receiverMatchingExtensions(ctx.scope.lookup(calleeName))
             if extensionCandidates.isEmpty || ctx.resolver.probeCall(
                 candidates: extensionCandidates,
-                call: CallExpr(range: range, calleeName: calleeName, args: preparedArgs.argTypes.map { CallArg(type: $0) }),
+                call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
+                    CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
+                }),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
                 ctx: ctx.sema

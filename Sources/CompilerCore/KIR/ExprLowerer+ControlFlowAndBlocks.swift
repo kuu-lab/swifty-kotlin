@@ -191,7 +191,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localFunDecl(localFunName, _, localFunValueParams, _, localFunBody, _, _):
+        case let .localFunDecl(localFunName, _, localFunValueParams, _, localFunBody, _, _, _):
             return lowerLocalFunDecl(
                 name: localFunName,
                 valueParams: localFunValueParams,

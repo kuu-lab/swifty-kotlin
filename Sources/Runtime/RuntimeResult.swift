@@ -1,5 +1,3 @@
-// MARK: - Result Runtime Types
-
 final class RuntimeResultBox {
     let isSuccess: Bool
     let value: Int      // success value or 0
@@ -279,8 +277,6 @@ func runtimeResultRecoverCatching(
     }
     return runtimeResultSuccess(recovered)
 }
-
-// MARK: - Bundled Result.kt Runtime Bridges
 
 @_cdecl("kk_runtime_result_success")
 public func kk_runtime_result_success(_ value: Int) -> Int {

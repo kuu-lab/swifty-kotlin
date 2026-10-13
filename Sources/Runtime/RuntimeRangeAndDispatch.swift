@@ -271,7 +271,6 @@ func runtimeUnsignedRangeLastMatch(
     return 0
 }
 
-// MARK: - Signed range traverse helpers (parallel to unsigned variants above)
 
 func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
     if range.step > 0 { return range.first > range.last }
@@ -1117,7 +1116,6 @@ private func runtimeObjectIteratorMethodCall(
     return result
 }
 
-// MARK: - IntRange properties (STDLIB-092)
 
 @_cdecl("__kk_range_first")
 public func kk_range_first(_ rangeRaw: Int) -> Int {
@@ -1256,7 +1254,6 @@ public func kk_range_endExclusive(_ rangeRaw: Int, _ outThrown: UnsafeMutablePoi
     return range.last &+ 1
 }
 
-// MARK: - IntRange take/drop/average/sorted (STDLIB-RANGE-TDS)
 
 @_cdecl("kk_range_take")
 public func kk_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1304,7 +1301,6 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
     return RuntimeSignedRangeHOFKind.sorted(range)
 }
 
-// MARK: - CharRange HOFs (STDLIB-290)
 
 @_cdecl("__kk_char_range_step")
 public func __kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1531,7 +1527,6 @@ public func __kk_char_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ o
     return runtimeCharRangeRandom(range, randomRaw: randomRaw, outThrown: outThrown)
 }
 
-// MARK: - Progression fromClosedRange (STDLIB-RANGE-039)
 
 func runtimeSignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
     if step > 0 {
@@ -1673,7 +1668,6 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
     ))
 }
 
-// MARK: - ULongRange properties (STDLIB-RANGE-037)
 
 @_cdecl("__kk_ulong_range_first_orThrow")
 public func kk_ulong_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1711,8 +1705,4 @@ private func runtimeRangeIteratorHasNext(_ iterator: RuntimeRangeIteratorBox) ->
 
 private func runtimeSignedRangeForInIteratorBox(from rawValue: Int) -> RuntimeSignedRangeForInIteratorBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeSignedRangeForInIteratorBox.self)
-}
-
-private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
-    resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
 }

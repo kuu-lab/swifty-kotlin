@@ -694,7 +694,7 @@ extension CallLowerer {
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported
-            // Ordinary inline callbacks retain their positional captures,
+            // Ordinary inline callbacks retain their captures,
             // including lambdas whose suspension comes from a nested inline
             // call. Boxing them hides the body and its coroutine context.
             // Imported parameter metadata excludes escaping callbacks.
@@ -702,7 +702,7 @@ extension CallLowerer {
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
-                   || (signature.hasExplicitInlineParameterMetadata && allowsRawInlineArgument && !callable.hasClosureParam)
+                   || (signature.hasExplicitInlineParameterMetadata && allowsRawInlineArgument)
                    || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (!functionType.isSuspend || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (allowsRawInlineArgument

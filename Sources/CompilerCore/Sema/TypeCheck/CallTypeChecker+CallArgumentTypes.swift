@@ -159,6 +159,7 @@ extension CallTypeChecker {
             CallArg(
                 label: argument.label,
                 isSpread: argument.isSpread,
+                isTrailingLambda: argument.isTrailingLambda,
                 type: sema.bindings.exprTypes[argument.expr] ?? sema.types.anyType
             )
         }
@@ -220,6 +221,49 @@ extension CallTypeChecker {
             args: [.out(parameterType)],
             nullability: .nonNull
         )))
+    }
+
+    /// Returns a concrete parameter type shared by every candidate for a call
+    /// argument. This lets context-sensitive expressions such as `if` inherit
+    /// an unambiguous expected type without choosing between overloads early.
+    func uniformContextualParameterType(
+        for argument: CallArgument,
+        at index: Int,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        var commonType: TypeID?
+        for candidate in candidates {
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  let parameterIndex = parameterIndexForCallArgument(
+                      at: index,
+                      label: argument.label,
+                      in: signature,
+                      sema: ctx.sema
+                  ),
+                  let parameterType = contextualCallArgumentType(
+                      argument,
+                      parameterIndex: parameterIndex,
+                      in: signature,
+                      ctx: ctx
+                  )
+            else {
+                return nil
+            }
+            let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            guard !ctx.resolver.containsTypeVariable(
+                parameterType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.sema.types
+            ) else {
+                return nil
+            }
+            if let commonType, commonType != parameterType {
+                return nil
+            }
+            commonType = parameterType
+        }
+        return commonType
     }
 
     /// Returns the single unsigned parameter type shared by all candidates for a

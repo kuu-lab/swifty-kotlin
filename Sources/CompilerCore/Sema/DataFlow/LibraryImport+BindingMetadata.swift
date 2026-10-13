@@ -147,7 +147,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable
     ) {
         guard record.kind == .function || record.kind == .property || record.kind == .field
-              || record.kind == .backingField || record.kind == .constructor,
+              || record.kind == .backingField || record.kind == .constructor
+              || isNominalLayoutTargetSymbol(record.kind),
               record.fqName.count >= 2
         else {
             return
@@ -157,7 +158,8 @@ extension DataFlowSemaPhase {
         let ownerCandidates = symbols.lookupAll(fqName: ownerFQName).compactMap { symbols.symbol($0) }
         if let ownerSymbol = ownerCandidates.first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id {
             symbols.setParentSymbol(ownerSymbol, for: symbol)
-        } else if (record.receiverOwnerFQName != nil || record.propertyReceiverTypeSignature != nil),
+        } else if (record.receiverOwnerFQName != nil || record.propertyReceiverTypeSignature != nil
+                   || isNominalLayoutTargetSymbol(record.kind)),
                   let packageOwner = ownerCandidates.first(where: { $0.kind == .package })
         {
             // A package parent is semantically required for extension lookup.

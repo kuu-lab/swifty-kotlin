@@ -628,6 +628,12 @@ package struct KnownCompilerNames {
     /// Bundled Kotlin-source Array copy entry points (KSP-1515).
     let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
+    /// `MutableMap` plus its concrete stdlib/`java.util` subtype FQ names,
+    /// shared by `isMutableMapSymbol` and `isMapLikeSymbol`.
+    let mutableMapLikeFQNames: Set<[InternedString]>
+    /// `MutableSet` plus its concrete stdlib/`java.util` subtype FQ names,
+    /// shared by `isMutableSetSymbol` and `isSetLikeSymbol`.
+    let mutableSetLikeFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
         self = interner.cachedCompilerNames {
@@ -869,6 +875,28 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicLongArrayName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicArrayName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
+        ]
+
+        // KUU-556: LinkedHashMap is a real HashMap subclass (its own symbol),
+        // not a MutableMap typealias resolving straight through to MutableMap.
+        // KUU-1361: the sorted java.util types are MutableMap/MutableSet
+        // subtypes backed by a sorted RuntimeMapBox/RuntimeSetBox; calls
+        // through any static receiver type must reach the __kk bridges.
+        mutableMapLikeFQNames = [
+            kotlinCollectionsMutableMapFQName,
+            kotlinCollectionsHashMapFQName,
+            kotlinCollectionsLinkedHashMapFQName,
+            javaUtilSortedMapFQName,
+            javaUtilNavigableMapFQName,
+            javaUtilTreeMapFQName,
+        ]
+        mutableSetLikeFQNames = [
+            kotlinCollectionsMutableSetFQName,
+            kotlinCollectionsHashSetFQName,
+            kotlinCollectionsLinkedHashSetFQName,
+            javaUtilSortedSetFQName,
+            javaUtilNavigableSetFQName,
+            javaUtilTreeSetFQName,
         ]
 
 
@@ -1204,11 +1232,9 @@ package struct KnownCompilerNames {
     /// classes, unsigned variants included. For-loop lowering routes these
     /// classes through their bundled `iterator()` operators.
     func isRangeLikeClassName(_ name: InternedString) -> Bool {
-        name == intRange || name == longRange || name == charRange
+        isSignedRangeLikeClassName(name)
             || name == uintRange || name == ulongRange
-            || name == intProgression || name == longProgression
-            || name == charProgression || name == uintProgression
-            || name == ulongProgression
+            || name == uintProgression || name == ulongProgression
     }
 
     func isSignedRangeLikeClassName(_ name: InternedString) -> Bool {
@@ -1282,50 +1308,25 @@ package struct KnownCompilerNames {
     }
 
     func isMapLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == map || symbol.name == mutableMap
+        symbol.name == map
             || symbolMatches(symbol, fqName: kotlinCollectionsMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
-            // KUU-556: LinkedHashMap is now a real HashMap subclass (its own
-            // symbol), not a MutableMap typealias resolving straight through
-            // to the mutableMap check above.
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
-            // KUU-1361: sorted map types are MutableMap subtypes backed by a
-            // sorted RuntimeMapBox; calls through any static receiver type
-            // must reach the __kk map bridges.
-            || symbolMatches(symbol, fqName: javaUtilSortedMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeMapFQName)
+            || isMutableMapSymbol(symbol)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableMap
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilSortedMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableMapFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeMapFQName)
+        (symbol.fqName.isEmpty && symbol.name == mutableMap)
+            || mutableMapLikeFQNames.contains(symbol.fqName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilSortedSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeSetFQName)
+        (symbol.fqName.isEmpty
+            && (symbol.name == mutableSet || symbol.name == hashSet || symbol.name == linkedHashSet))
+            || mutableSetLikeFQNames.contains(symbol.fqName)
     }
 
     func isSetLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         if symbolMatches(symbol, fqName: kotlinCollectionsSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
-            || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilSortedSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilNavigableSetFQName)
-            || symbolMatches(symbol, fqName: javaUtilTreeSetFQName)
+            || mutableSetLikeFQNames.contains(symbol.fqName)
         {
             return true
         }

@@ -7,6 +7,7 @@
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
+| `real_programs/run.py` | – | Run the [23 pinned public Kotlin consumers](real_programs/round1/README.md) against Kotlin 2.3.10 and native O0/O2 with one fresh shared stdlib; compare exit code, stdout, and stderr |
 | `run_candidate_only.sh` | ✓ | Compile one Kotlin case without a JVM reference and compare stdout with its `.expected` file |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
@@ -499,6 +500,23 @@ bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTes
 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
   --target-prefix RuntimeTests
 ```
+
+## Sema interval benchmark
+
+Build `kswiftc`, then measure Sema independently of the earlier frontend phases:
+
+```bash
+python3 Scripts/benchmark_sema.py --files 10 50 100 --jobs 1 4 --runs 3 > /tmp/sema-user.tsv
+python3 Scripts/benchmark_sema.py --stdlib source --files 1 --jobs 1 4 --runs 3 > /tmp/sema-source.tsv
+```
+
+Each configuration gets one unreported warmup. TSV rows retain all measured
+samples for Sema and its setup, header collection, declaration validation, body checks,
+and type checking intervals. Sema currently runs serially for every jobs value;
+these measurements are a baseline, not evidence of parallel Sema speedup.
+Use `--stdlib artifact --stdlib-library <path>` to measure a compatible artifact
+separately. See [the parallelization audit](../docs/sema-parallelization.md) for
+interval boundaries, shared-state constraints, and the proposed implementation gates.
 
 ## Refactoring guard metrics
 

@@ -1,4 +1,3 @@
-// MARK: - Sequence Functions (STDLIB-003)
 
 func runtimeSequenceBox(from rawValue: Int) -> RuntimeSequenceBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeSequenceBox.self)
@@ -478,7 +477,6 @@ final class SequenceTraversalState {
     var chunkedBuffers: [Int: [Int]] = [:]
 }
 
-// MARK: - Shared constants
 
 /// Error message for `first()` / `last()` on an empty sequence.
 let kEmptySequenceNoSuchElement = "Sequence is empty."
@@ -1742,7 +1740,6 @@ private func evaluateSequenceValues(
 
 // maybeUnbox() is defined in RuntimeCollectionHelpers.swift
 
-// MARK: - Runtime-backed Sequence/Iterator itable support
 
 /// `Sequence.iterator()` implementation for `RuntimeSequenceBox`.
 /// Returns a `RuntimeSequenceIteratorBox` handle registered with the

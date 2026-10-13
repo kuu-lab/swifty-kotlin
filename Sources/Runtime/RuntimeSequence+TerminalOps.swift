@@ -1,4 +1,3 @@
-// MARK: - Sequence Terminal Operations: first/firstOrNull/last/count (STDLIB-273)
 
 @_cdecl("kk_sequence_first")
 public func kk_sequence_first(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -203,7 +202,6 @@ public func kk_sequence_count(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
     return count
 }
 
-// MARK: - Sequence Terminal Operations: contains/indexOf/elementAt/sum/average/toMutableList/toMutableSet/unzip
 
 @_cdecl("kk_sequence_contains")
 public func kk_sequence_contains(_ seqRaw: Int, _ element: Int) -> Int {
@@ -359,33 +357,6 @@ public func kk_sequence_indexOfLast(
     return matchIndex
 }
 
-@_cdecl("kk_sequence_intersect")
-public func kk_sequence_intersect(_ seqRaw: Int, _ otherRaw: Int) -> Int {
-    guard let otherElements = runtimeIterableElements(from: otherRaw) else {
-        invalidContainerPanic(#function, "iterable")
-    }
-    var otherKeys = Set<RuntimeElementKey>()
-    otherKeys.reserveCapacity(otherElements.count)
-    for elem in otherElements {
-        otherKeys.insert(RuntimeElementKey(value: elem))
-    }
-
-    var sourceElements: [Int] = []
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            sourceElements.append(elem)
-            return true
-        }
-    } else {
-        sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    }
-
-    let result = runtimeDeduplicatePreservingOrder(sourceElements).filter { elem in
-        otherKeys.contains(RuntimeElementKey(value: elem))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: result))
-}
-
 @_cdecl("kk_sequence_elementAtOrNull")
 public func kk_sequence_elementAtOrNull(_ seqRaw: Int, _ index: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -510,7 +481,6 @@ public func kk_sequence_unzip(_ seqRaw: Int) -> Int {
     )
 }
 
-// MARK: - Sequence Terminal Operations: any/all/none/reduce (STDLIB-274)
 
 @_cdecl("kk_sequence_any")
 public func kk_sequence_any(

@@ -447,236 +447,25 @@ package enum KlibIrDecoding {
         throw KlibFormatError.corruptProto("IrVarargElement has no value set")
     }
 
-    /// `IrOperationPre_2_4_0` — the legacy operation oneof (field numbers
-    /// differ from `IrExpression.operation`).
+    /// `IrOperationPre_2_4_0` field number → the same member's field
+    /// number in the Kotlin 2.4 `IrExpression.operation` oneof.
+    private static let modernOperationField: [Int: Int] = [
+        1: 10, 2: 22, 3: 8, 4: 19, 5: 21, 6: 5, 7: 23, 8: 26, 9: 25, 10: 27,
+        11: 39, 12: 18, 13: 20, 14: 15, 15: 17, 16: 6, 17: 28, 18: 40,
+        19: 12, 20: 16, 21: 7, 22: 29, 23: 30, 24: 31, 25: 14, 26: 32,
+        27: 13, 28: 24, 29: 33, 30: 34, 31: 35, 32: 9, 33: 36, 34: 37,
+        35: 38, 36: 11, 37: 43, 38: 41, 39: 42,
+    ]
+
+    /// `IrOperationPre_2_4_0` — the legacy operation oneof, carrying the
+    /// same operation messages as `IrExpression.operation` under pre-2.4
+    /// field numbers. Only the numbering differs, so each member is
+    /// re-tagged to its modern number and decoded by ``expression``.
     private static func legacyOperation(_ proto: ProtoFields) throws -> KlibIrExpressionKind {
-        if let value = try proto.message(1) {
-            return .block(
-                statements: try statementList(value, field: 1),
-                originName: value.int32(2)
-            )
-        }
-        if let value = try proto.message(2) {
-            return .break(loopId: value.int32(1) ?? 0, label: value.int32(2))
-        }
-        if let value = try proto.message(3) {
-            return .call(
-                symbol: try value.symbol(1, name: "call.symbol"),
-                memberAccess: try callMemberAccess(value, memberAccessField: 2, argumentField: 5, typeArgumentField: 6),
-                super: try value.optionalSymbol(3),
-                originName: value.int32(4)
-            )
-        }
-        if let value = try proto.message(4) {
-            return .classReference(
-                classSymbol: try value.symbol(1, name: "class_reference.class_symbol"),
-                classType: value.int32(2) ?? 0
-            )
-        }
-        if let value = try proto.message(5) {
-            return .composite(
-                statements: try statementList(value, field: 1),
-                originName: value.int32(2)
-            )
-        }
-        if let value = try proto.message(6) {
-            return try const(value)
-        }
-        if let value = try proto.message(7) {
-            return .continue(loopId: value.int32(1) ?? 0, label: value.int32(2))
-        }
-        if let value = try proto.message(8) {
-            return .delegatingConstructorCall(
-                symbol: try value.symbol(1, name: "delegating_constructor_call.symbol"),
-                memberAccess: try callMemberAccess(value, memberAccessField: 2, argumentField: 3, typeArgumentField: 4)
-            )
-        }
-        if let value = try proto.message(9) {
-            return .doWhile(loop: try protoMessageLoop(value))
-        }
-        if let value = try proto.message(10) {
-            return .enumConstructorCall(
-                symbol: try value.symbol(1, name: "enum_constructor_call.symbol"),
-                memberAccess: try callMemberAccess(value, memberAccessField: 2, argumentField: 3, typeArgumentField: 4)
-            )
-        }
-        if let value = try proto.message(11) {
-            return .functionReference(
-                symbol: try value.symbol(1, name: "function_reference.symbol"),
-                memberAccess: try callMemberAccess(value, memberAccessField: 3, argumentField: 5, typeArgumentField: 6),
-                reflectionTarget: try value.optionalSymbol(4),
-                originName: value.int32(2)
-            )
-        }
-        if let value = try proto.message(12) {
-            return .getClass(argument: try value.required(1, name: "get_class.argument", expression))
-        }
-        if let value = try proto.message(13) {
-            return .getEnumValue(symbol: try value.symbol(1, name: "get_enum_value.symbol"))
-        }
-        if let value = try proto.message(14) {
-            return .getField(
-                access: try value.required(1, name: "field_access", fieldAccess),
-                originName: value.int32(2)
-            )
-        }
-        if let value = try proto.message(15) {
-            return .getObject(symbol: try value.symbol(1, name: "get_object.symbol"))
-        }
-        if let value = try proto.message(16) {
-            return .getValue(
-                symbol: try value.symbol(1, name: "get_value.symbol"),
-                originName: value.int32(2)
-            )
-        }
-        if let value = try proto.message(17) {
-            return .instanceInitializerCall(symbol: try value.symbol(1, name: "instance_initializer_call.symbol"))
-        }
-        if let value = try proto.message(18) {
-            return .propertyReference(
-                field: try value.optionalSymbol(1),
-                getter: try value.optionalSymbol(2),
-                setter: try value.optionalSymbol(3),
-                symbol: try value.symbol(6, name: "property_reference.symbol"),
-                memberAccess: try callMemberAccess(value, memberAccessField: 5, argumentField: 7, typeArgumentField: 8),
-                originName: value.int32(4)
-            )
-        }
-        if let value = try proto.message(19) {
-            guard let returnExpr = try value.message(2) else { throw KlibIrDecodeError.missing("return.value") }
-            return .return(
-                target: try value.symbol(1, name: "return.return_target"),
-                value: try expression(returnExpr)
-            )
-        }
-        if let value = try proto.message(20) {
-            guard let setValue = try value.message(2) else { throw KlibIrDecodeError.missing("set_field.value") }
-            return .setField(
-                access: try value.required(1, name: "field_access", fieldAccess),
-                value: try expression(setValue),
-                originName: value.int32(3)
-            )
-        }
-        if let value = try proto.message(21) {
-            guard let setExpr = try value.message(2) else { throw KlibIrDecodeError.missing("set_value.value") }
-            return .setValue(
-                symbol: try value.symbol(1, name: "set_value.symbol"),
-                value: try expression(setExpr),
-                originName: value.int32(3)
-            )
-        }
-        if let value = try proto.message(22) {
-            return .stringConcat(arguments: try expressionList(value, field: 1))
-        }
-        if let value = try proto.message(23) {
-            return .throw(value: try value.required(1, name: "throw.value", expression))
-        }
-        if let value = try proto.message(24) {
-            return .try(
-                result: try value.required(1, name: "try.result", expression),
-                catches: try statementList(value, field: 2),
-                finally: try optionalExpression(value, field: 3)
-            )
-        }
-        if let value = try proto.message(25) {
-            return .typeOp(
-                operator: value.int32(1).flatMap { KlibTypeOperator(rawValue: Int($0)) } ?? .implicitCast,
-                operandType: value.int32(2) ?? 0,
-                argument: try value.required(3, name: "type_op.argument", expression)
-            )
-        }
-        if let value = try proto.message(26) {
-            return .vararg(
-                elementType: value.int32(1) ?? 0,
-                elements: try value.decodedList(2, varargElement)
-            )
-        }
-        if let value = try proto.message(27) {
-            return .when(
-                branches: try statementList(value, field: 1),
-                originName: value.int32(2)
-            )
-        }
-        if let value = try proto.message(28) {
-            return .while(loop: try protoMessageLoop(value))
-        }
-        if let value = try proto.message(29) {
-            return .dynamicMember(
-                memberName: value.int32(1) ?? 0,
-                receiver: try value.required(2, name: "dynamic_member.receiver", expression)
-            )
-        }
-        if let value = try proto.message(30) {
-            return .dynamicOperator(
-                operator: value.int32(1).flatMap { KlibDynamicOperator(rawValue: Int($0)) } ?? .invoke,
-                receiver: try value.required(2, name: "dynamic_operator.receiver", expression),
-                arguments: try expressionList(value, field: 3)
-            )
-        }
-        if let value = try proto.message(31) {
-            return .localDelegatedPropertyReference(
-                delegate: try value.optionalSymbol(1),
-                getter: try value.optionalSymbol(2),
-                setter: try value.optionalSymbol(3),
-                symbol: try value.symbol(4, name: "local_delegated_property_reference.symbol"),
-                originName: value.int32(5)
-            )
-        }
-        if let value = try proto.message(32) {
-            return .constructorCall(
-                symbol: try value.symbol(1, name: "constructor_call.symbol"),
-                constructorTypeArgumentsCount: value.int32(2) ?? 0,
-                memberAccess: try callMemberAccess(value, memberAccessField: 3, argumentField: 5, typeArgumentField: 6),
-                originName: value.int32(4)
-            )
-        }
-        if let value = try proto.message(33) {
-            return .functionExpression(
-                function: try value.required(1, name: "function_expression.function", function),
-                originName: value.int32(2) ?? 0
-            )
-        }
-        if let value = try proto.message(34) {
-            return .errorExpression(description: value.int32(1) ?? 0)
-        }
-        if let value = try proto.message(35) {
-            return .errorCallExpression(
-                description: value.int32(1) ?? 0,
-                receiver: try optionalExpression(value, field: 2),
-                valueArguments: try expressionList(value, field: 3)
-            )
-        }
-        if let value = try proto.message(36) {
-            let block = try value.decoded(2) { try statementList($0, field: 1) } ?? []
-            return .returnableBlock(
-                symbol: try value.symbol(1, name: "returnable_block.symbol"),
-                statements: block,
-                originName: (try value.message(2))?.int32(2)
-            )
-        }
-        if let value = try proto.message(37) {
-            return try inlinedFunctionBlock(value)
-        }
-        if let value = try proto.message(38) {
-            guard let invokeProto = try value.message(4) else { throw KlibIrDecodeError.missing("rich_function_reference.invoke_function") }
-            return .richFunctionReference(
-                boundValues: try expressionList(value, field: 1),
-                reflectionTarget: try value.optionalSymbol(2),
-                overriddenFunction: try value.symbol(3, name: "rich_function_reference.overridden_function_symbol"),
-                invokeFunction: try function(invokeProto),
-                flags: value.int64(5).map { UInt64(bitPattern: $0) } ?? 0,
-                originName: value.int32(6)
-            )
-        }
-        if let value = try proto.message(39) {
-            guard let getterProto = try value.message(3) else { throw KlibIrDecodeError.missing("rich_property_reference.getter_function") }
-            return .richPropertyReference(
-                boundValues: try expressionList(value, field: 1),
-                reflectionTarget: try value.optionalSymbol(2),
-                getterFunction: try function(getterProto),
-                setterFunction: try protoSetterFunction(value),
-                originName: value.int32(5)
-            )
+        for legacyField in 1 ... 39 {
+            guard let modernField = modernOperationField[legacyField],
+                  case .bytes = proto.wireValues(legacyField).last else { continue }
+            return try expression(proto.retagged(legacyField, as: modernField)).kind
         }
         throw KlibFormatError.corruptProto("IrOperationPre_2_4_0 has no operation set")
     }

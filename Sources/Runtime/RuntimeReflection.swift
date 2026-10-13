@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Runtime Reflection (REFL-004)
 
 private let runtimeHiddenAnnotationFQNames: Set<String> = [
     "kotlin.Metadata",
@@ -8,10 +7,6 @@ private let runtimeHiddenAnnotationFQNames: Set<String> = [
 
 private func runtimeShouldExposeAnnotation(fqName: String) -> Bool {
     !runtimeHiddenAnnotationFQNames.contains(fqName)
-}
-
-private func runtimeReflectionKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
 }
 
 private extension RuntimeKClassBox {
@@ -69,13 +64,12 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {
+    guard let kclass = runtimeKClassBox(from: kclassRaw) else {
         return 0
     }
     return kclass.metadata?.typeParameterCount ?? 0
 }
 
-// MARK: - Annotation Reflection (STDLIB-REFLECT-065)
 
 /// Returns the annotations list for a KClass as a RuntimeListBox.
 /// Each element is a RuntimeAnnotationBox raw handle.
@@ -83,7 +77,7 @@ public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
 /// - Returns: Opaque pointer to a RuntimeListBox of annotation handles.
 @_cdecl("__kk_kclass_get_annotations")
 public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+    guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata
     else {
         // Return empty list.
@@ -130,7 +124,7 @@ public func __kk_kcallable_register_single_annotation(
 /// - Returns: Opaque pointer to a RuntimeAnnotationBox, or null sentinel if not found.
 @_cdecl("__kk_kclass_find_annotation")
 public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+    guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata,
           let searchName = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
     else {
@@ -157,7 +151,7 @@ public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int
 /// this returns null unless a future emitter stores a runtime object handle.
 @_cdecl("__kk_kclass_find_associated_object")
 public func __kk_kclass_find_associated_object(_ kclassRaw: Int, _ keyNameRaw: Int) -> Int {
-    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+    guard let kclass = runtimeKClassBox(from: kclassRaw),
           let metadata = kclass.metadata,
           let keyName = extractString(from: UnsafeMutableRawPointer(bitPattern: keyNameRaw))
     else {
@@ -218,13 +212,11 @@ public func __kk_kclass_register_single_annotation(
     return 0
 }
 
-// MARK: - KFunction Dynamic Call (STDLIB-REFLECT-067)
 
 private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
     resolveRuntimeHandle(raw, as: RuntimeKFunctionBox.self)
 }
 
-// MARK: - KParameter (STDLIB-REFLECT-063)
 
 /// Creates and registers a KParameter box.
 /// - Parameters:
@@ -255,7 +247,7 @@ public func __kk_kparameter_create(
     return registerRuntimeObject(box, typeID: kParameterRuntimeTypeID)
 }
 
-private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
+func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
     resolveRuntimeHandle(raw, as: RuntimeKParameterBox.self)
 }
 
@@ -326,7 +318,6 @@ public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
     }
 }
 
-// MARK: - KFunction Factory (STDLIB-REFLECT-063)
 
 /// Creates and registers a KFunction box.
 /// - Parameters:
@@ -489,7 +480,6 @@ public func __kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-// MARK: KFunction.call() — arity 0
 
 @_cdecl("__kk_kfunction_call_0")
 public func __kk_kfunction_call_0(
@@ -520,7 +510,6 @@ public func __kk_kfunction_call_0(
     }
 }
 
-// MARK: KFunction.call() — arity 1
 
 @_cdecl("__kk_kfunction_call_1")
 public func __kk_kfunction_call_1(
@@ -552,7 +541,6 @@ public func __kk_kfunction_call_1(
     }
 }
 
-// MARK: KFunction.call() — arity 2
 
 @_cdecl("__kk_kfunction_call_2")
 public func __kk_kfunction_call_2(
@@ -585,7 +573,6 @@ public func __kk_kfunction_call_2(
     }
 }
 
-// MARK: KFunction.call() — arity 3
 
 @_cdecl("__kk_kfunction_call_3")
 public func __kk_kfunction_call_3(
@@ -619,7 +606,6 @@ public func __kk_kfunction_call_3(
     }
 }
 
-// MARK: KFunction.call() — vararg (list-based)
 
 /// Dispatches to the appropriate arity overload by unpacking a runtime List.
 @_cdecl("__kk_kfunction_call_vararg")
@@ -670,7 +656,6 @@ public func __kk_kfunction_call_vararg(
     }
 }
 
-// MARK: - STDLIB-REFLECT-066: KType toString
 
 func runtimeKTypeProjectionToString(_ box: RuntimeKTypeProjectionBox) -> String {
     if box.variance == nil {
@@ -806,7 +791,6 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
     return baseName + arguments + nullableSuffix
 }
 
-// MARK: - KConstructor (STDLIB-REFLECT-064)
 
 /// Creates and registers a KConstructor box.
 /// - Parameters:

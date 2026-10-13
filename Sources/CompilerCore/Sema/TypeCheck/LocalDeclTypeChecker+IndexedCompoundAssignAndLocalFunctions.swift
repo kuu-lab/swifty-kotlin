@@ -493,6 +493,7 @@ extension LocalDeclTypeChecker {
     func inferLocalFunDeclExpr(
         _ id: ExprID,
         name: InternedString,
+        typeParams: [TypeParamDecl] = [],
         receiverTypeRef: TypeRefID? = nil,
         valueParams: [ValueParamDecl],
         returnTypeRef: TypeRefID?,
@@ -505,11 +506,61 @@ extension LocalDeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let localFunctionScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)
+        var typeParameterSymbols: [SymbolID] = []
+        var reifiedTypeParameterIndices: Set<Int> = []
+        for (index, typeParam) in typeParams.enumerated() {
+            var flags: SymbolFlags = []
+            if typeParam.isReified {
+                flags.insert(.reifiedTypeParameter)
+                reifiedTypeParameterIndices.insert(index)
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0020",
+                    "Only type parameters of inline functions can be reified",
+                    range: range
+                )
+            }
+            let typeParamSymbol = sema.symbols.define(
+                kind: .typeParameter,
+                name: typeParam.name,
+                fqName: [
+                    interner.intern("__localfun_\(id.rawValue)"),
+                    name,
+                    typeParam.name,
+                ],
+                declSite: range,
+                visibility: .private,
+                flags: flags
+            )
+            typeParameterSymbols.append(typeParamSymbol)
+            localFunctionScope.insert(typeParamSymbol)
+        }
+        let functionTypeContext = ctx.copying(scope: localFunctionScope)
+        for (typeParam, typeParamSymbol) in zip(typeParams, typeParameterSymbols) {
+            let upperBounds = typeParam.upperBounds.compactMap { boundRef in
+                driver.helpers.resolveTypeRef(
+                    boundRef,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner,
+                    scope: localFunctionScope,
+                    diagnostics: sema.diagnostics,
+                    inferenceContext: functionTypeContext,
+                    usageRange: range
+                )
+            }
+            if !upperBounds.isEmpty {
+                sema.symbols.setTypeParameterUpperBounds(upperBounds, for: typeParamSymbol)
+            }
+        }
+        let typeParameterUpperBoundsList = typeParameterSymbols.map {
+            sema.symbols.typeParameterUpperBounds(for: $0)
+        }
 
         let receiverType = receiverTypeRef.map {
             driver.helpers.resolveTypeRef(
-                $0, ast: ast, sema: sema, interner: interner, scope: ctx.scope,
-                diagnostics: ctx.sema.diagnostics, inferenceContext: ctx, usageRange: range
+                $0, ast: ast, sema: sema, interner: interner, scope: localFunctionScope,
+                diagnostics: ctx.sema.diagnostics, inferenceContext: functionTypeContext, usageRange: range
             )
         }
         var parameterTypes: [TypeID] = []
@@ -521,9 +572,9 @@ extension LocalDeclTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    scope: ctx.scope,
+                    scope: localFunctionScope,
                     diagnostics: ctx.sema.diagnostics,
-                    inferenceContext: ctx,
+                    inferenceContext: functionTypeContext,
                     usageRange: range
                 )
             } else {
@@ -551,9 +602,9 @@ extension LocalDeclTypeChecker {
                 ast: ast,
                 sema: sema,
                 interner: interner,
-                scope: ctx.scope,
+                scope: localFunctionScope,
                 diagnostics: ctx.sema.diagnostics,
-                inferenceContext: ctx,
+                inferenceContext: functionTypeContext,
                 usageRange: range
             )
         } else {
@@ -590,7 +641,10 @@ extension LocalDeclTypeChecker {
             valueParameterSymbols: paramSymbols,
             valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),
             valueParameterIsVararg: valueParams.map(\.isVararg),
-            valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline }
+            valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline },
+            typeParameterSymbols: typeParameterSymbols,
+            reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList
         )
         sema.symbols.setFunctionSignature(signature, for: funSymbol)
 
@@ -615,7 +669,8 @@ extension LocalDeclTypeChecker {
         }
         bodyLocals.memberFlow = [:]
         let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
-        var bodyCtx = ctx.copying(
+        var bodyCtx = driver.helpers.localFunctionOptInContext(ctx).copying(
+            scope: localFunctionScope,
             implicitReceiverType: bodyReceiverType,
             loopDepth: 0,
             loopLabelStack: [],
@@ -675,7 +730,10 @@ extension LocalDeclTypeChecker {
                 valueParameterSymbols: paramSymbols,
                 valueParameterHasDefaultValues: valueParams.map(\.hasDefaultValue),
                 valueParameterIsVararg: valueParams.map(\.isVararg),
-                valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline }
+                valueParameterAllowsNonLocalReturn: valueParams.map { !$0.isCrossinline && !$0.isNoinline },
+                typeParameterSymbols: typeParameterSymbols,
+                reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+                typeParameterUpperBoundsList: typeParameterUpperBoundsList
             )
             sema.symbols.setFunctionSignature(inferredSignature, for: funSymbol)
         }

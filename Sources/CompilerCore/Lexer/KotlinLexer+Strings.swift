@@ -244,29 +244,7 @@ extension KotlinLexer {
                 offset += 1
                 continue
             }
-            for scannedToken in scanned {
-                switch scannedToken.kind {
-                case .symbol(.lBrace):
-                    depth += 1
-                case .symbol(.rBrace):
-                    depth -= 1
-                default:
-                    break
-                }
-            }
             tokens.append(contentsOf: scanned)
-            for token in scanned {
-                switch token.kind {
-                case .symbol(.lBrace):
-                    depth += 1
-                case .symbol(.rBrace):
-                    if depth > 1 {
-                        depth -= 1
-                    }
-                default:
-                    break
-                }
-            }
         }
 
         diagnostics.error(
@@ -340,8 +318,6 @@ extension KotlinLexer {
             }
         }
     }
-
-    // MARK: - Multi-dollar string support (Kotlin 2.1+)
 
     /// Scans a multi-dollar single-line string: `$$"..."`, `$$$"..."`, etc.
     /// The `dollarCount` is the number of `$` in the prefix (e.g. 2 for `$$`).

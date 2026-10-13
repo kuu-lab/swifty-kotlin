@@ -462,8 +462,6 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
     return anyObject as? T
 }
 
-// MARK: - UTF-16 Substring Helper (Kotlin-compatible indexing)
-
 /// Extracts a substring from `source` using UTF-16 code unit indices,
 /// approximating Kotlin's `CharSequence.subSequence(startIndex, endIndex)` semantics.
 ///

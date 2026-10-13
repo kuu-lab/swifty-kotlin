@@ -8,8 +8,6 @@ import kotlin.random.Random
 
 // MIGRATION-RANGE-002: ULongProgression higher-order functions, moved verbatim from RangeHOF.kt.
 
-// MARK: - ULongProgression
-
 private fun ulongProgressionDescription(progression: ULongProgression): String {
     val step = progression.step
     return if (step > 0) {

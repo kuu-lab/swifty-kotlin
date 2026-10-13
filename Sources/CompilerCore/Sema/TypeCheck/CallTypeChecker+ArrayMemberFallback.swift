@@ -88,10 +88,10 @@ extension CallTypeChecker {
         "sum", "average", "min", "max", "minOrNull", "maxOrNull",
         "foldRight", "reduceRight", "scan", "runningFold",
         "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
-        "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
+        "mapIndexedNotNull", "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
-        "indexOf", "lastIndexOf", "fill", "sortedBy", "sortedWith",
+        "indexOf", "lastIndexOf", "indexOfFirst", "fill", "sortedBy", "sortedWith",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import

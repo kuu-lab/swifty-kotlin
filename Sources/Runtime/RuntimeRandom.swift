@@ -1,5 +1,4 @@
 
-// MARK: - Seeded Random (STDLIB-516)
 
 /// A deterministic PRNG using the xorshift64* algorithm.
 /// Each `Random(seed)` call creates a new instance whose state evolves
@@ -154,7 +153,6 @@ public func __kk_random_seed_entropy() -> Int {
     return Int(bitPattern: UInt(truncatingIfNeeded: rng.next()))
 }
 
-// MARK: - SecureRandom (STDLIB-101)
 
 final class SecureRandomBox {
     // java.security.SecureRandom.setSeed only supplements a CSPRNG's entropy
@@ -260,7 +258,6 @@ private func runtimeRandomUIntRange(receiver: Int, from: UInt64, until: UInt64) 
     from + runtimeRandomUIntBelow(until - from, receiver: receiver)
 }
 
-// MARK: - Constructor
 
 private func runtimeCreateSeededRandom(seed: Int) -> Int {
     let box = SeededRandomBox(seed: seed)
@@ -277,7 +274,6 @@ public func __kk_random_create_seeded(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
 }
 
-// MARK: - SecureRandom Constructor / Factory
 
 @_cdecl("__kk_secure_random_get_instance")
 public func __kk_secure_random_get_instance() -> Int {
@@ -318,7 +314,6 @@ public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> I
     return arrayRaw
 }
 
-// MARK: - Random (STDLIB-165, STDLIB-514, STDLIB-515, STDLIB-516, STDLIB-653, STDLIB-654, STDLIB-655)
 
 public func __kk_random_default() -> Int {
     0
@@ -443,7 +438,6 @@ public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ o
     return Int(runtimeRandomUIntRange(receiver: receiver, from: first, until: exclusiveUpper))
 }
 
-// MARK: - nextBytes (STDLIB-653)
 
 private func runtimeRandomByte(receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
@@ -574,7 +568,6 @@ public func kk_random_nextUBytes_range(
     return arrayRaw
 }
 
-// MARK: - nextBits (STDLIB-RANDOM-100)
 
 public func kk_random_nextBits(_ receiver: Int, _ bitCount: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

@@ -376,7 +376,7 @@ extension CallTypeChecker {
             sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
         }
         let callArgs = zip(args, argTypes).map { arg, type in
-            CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+            CallArg(label: arg.label, isSpread: arg.isSpread, isTrailingLambda: arg.isTrailingLambda, type: type)
         }
         let call = CallExpr(
             range: range,
@@ -423,6 +423,17 @@ extension CallTypeChecker {
            sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
         {
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+        }
+        if args.isEmpty {
+            switch sema.wellKnownSymbols.enumIntrinsic(for: chosen) {
+            case .enumValues:
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumValues)
+                sema.bindings.markCollectionExpr(id)
+            case .enumEntries:
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumEntries)
+            case .enumValueOf, .enumEntriesIntrinsic, .none:
+                break
+            }
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(

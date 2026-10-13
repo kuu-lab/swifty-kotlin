@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - Native Concurrent ABI (STDLIB-NATIVE-CONCURRENT-ABI-001..003, 005..006)
 //
 // Implements the runtime entry-points required by the Kotlin/Native
 // concurrent standard library:
@@ -24,7 +23,6 @@ import Foundation
 //     walk reachable references.  A future pass can add that once the type-info
 //     system exposes field offsets.
 
-// MARK: - ABI-001  Worker.id
 
 /// Global monotonic counter for Worker IDs.
 private let workerIDCounter = WorkerIDCounter()
@@ -133,7 +131,6 @@ public func kk_worker_id(_ workerHandle: Int) -> Int {
     return workerIDRegistry.id(for: UInt(bitPattern: ptr))
 }
 
-// MARK: - ABI-002  Future<T>
 
 /// Runtime backing for `kotlin.native.concurrent.Future<T>`.
 ///
@@ -320,7 +317,6 @@ public func kk_future_consume(_ futureHandle: Int) -> Int {
     return box.consume()
 }
 
-// MARK: - KSP-1216 package-level bridges
 
 /// The modern memory manager no longer detaches object graphs. Keep the raw
 /// managed reference as the opaque NativePtr token consumed by attach.
@@ -517,7 +513,6 @@ public func __kk_native_concurrent_worker_from_cpointer(_ pointerHandle: Int) ->
     return activeWorkerRegistry.handle(forID: Int(bitPattern: address)) ?? 0
 }
 
-// MARK: - ABI-003  TransferMode
 
 // TransferMode raw values (mirrors Kotlin/Native enum ordinal):
 //   SAFE   = 0  — freeze the object before transfer; enforce immutability
@@ -544,7 +539,6 @@ public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     return objectRaw
 }
 
-// MARK: - Worker receiver helpers
 
 /// Process jobs already queued for a Worker.
 @_cdecl("kk_worker_process_queue")
@@ -599,7 +593,6 @@ public func kk_worker_as_cpointer(_ workerHandle: Int) -> Int {
     return kk_copaque_pointer_new(workerID)
 }
 
-// MARK: - ABI-006  Worker.executeAfter(afterMicroseconds, operation)
 
 /// Schedule a closure to run on a Worker after `afterMicroseconds` microseconds.
 ///

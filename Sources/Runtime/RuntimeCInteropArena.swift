@@ -1,4 +1,3 @@
-// MARK: - kotlinx.cinterop arenas, variables, and pointer helpers (KUU-1375)
 //
 // Runtime backing for the Kotlin/Native-style `kotlinx.cinterop` FFI surface.
 // All C memory here is real `malloc`'d unmanaged memory: `memScoped`/`Arena`
@@ -108,7 +107,6 @@ func runtimeCInteropNominalTypeID(forTypeToken token: Int) -> Int64 {
     return (wide >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
 }
 
-// MARK: - Arena boxes
 
 /// Runtime backing for `MemScope` / `Arena`: a C allocation arena whose
 /// outstanding `malloc` blocks and `defer` callbacks are released by `clear()`.
@@ -287,7 +285,6 @@ final class RuntimeCInteropVarBox: @unchecked Sendable {
     }
 }
 
-// MARK: - Type edge registration
 
 private let cinteropMemScopeTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.MemScope")
 private let cinteropArenaTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.Arena")
@@ -346,7 +343,6 @@ func registerCInteropRuntimeTypeMetadata() {
     }
 }
 
-// MARK: - Handle resolution
 
 func resolveCInteropArenaBox(from handle: Int) -> RuntimeCInteropArenaBox? {
     guard handle != 0, handle != runtimeNullSentinelInt,
@@ -400,7 +396,6 @@ func resolveCOpaquePointerBox(from handle: Int) -> RuntimeCOpaquePointerBox? {
     return tryCast(ptr, to: RuntimeCOpaquePointerBox.self)
 }
 
-// MARK: - Scope factories
 
 /// `MemScope()` / `memScoped` scope object. Registered as MemScope so `is`
 /// checks see MemScope <: ArenaBase <: AutofreeScope <: NativePlacement.
@@ -433,7 +428,6 @@ public func kk_native_heap_get() -> Int {
     )
 }
 
-// MARK: - Allocation
 
 /// Shared NativePlacement.allocRaw(size, align) dispatch for arena and
 /// nativeHeap. Returns a `NativePtr` box. `size` arrives as a boxed Long,
@@ -553,7 +547,6 @@ public func kk_arena_clear(_ scope: Int, _ outThrown: UnsafeMutablePointer<Int>?
     return 0
 }
 
-// MARK: - CVariable navigation
 
 /// `CVariable.ptr` — a CPointer handle over the variable's address carrying
 /// its declared pointee type.
@@ -576,7 +569,6 @@ public func kk_cvar_raw_ptr(_ varHandle: Int) -> Int {
     )
 }
 
-// MARK: - Primitive value load/store
 //
 // `value` properties resolve to `kk_cvar_<kind>_load` reads; assignment lowers
 // through the `_store` twin selected by the property-store convention.
@@ -776,7 +768,6 @@ public func kk_cvar_cpointer_store(_ varHandle: Int, _ value: Int) -> Int {
     }
 }
 
-// MARK: - CPointer navigation
 
 /// `CPointer.pointed` — a CVariable view over the pointed-at address.
 @_cdecl("kk_cpointer_pointed")
@@ -869,7 +860,6 @@ public func kk_cpointer_toKString(_ handle: Int) -> Int {
     return runtimeMakeStringRaw(String(decoding: collected, as: UTF8.self))
 }
 
-// MARK: - String cstr / CValues
 
 /// `String.cstr` (member extension on the MemScope family) — copies the
 /// string's UTF-8 bytes plus a NUL terminator into scope-owned memory.
@@ -929,7 +919,6 @@ public func kk_cvalues_get_pointer(_ cvaluesHandle: Int, _ scope: Int) -> Int {
     )
 }
 
-// MARK: - NativePtr
 
 /// `NativePtr.toLong()` — raw Long (primitive values are raw in KIR temps).
 @_cdecl("kk_native_ptr_toLong")
@@ -947,7 +936,6 @@ public func kk_native_null_ptr() -> Int {
     )
 }
 
-// MARK: - sizeOf / alignOf
 
 /// `sizeOf<T>()` / `alloc` sizing — C layout size of T's storage kind.
 /// Returns a raw Long.

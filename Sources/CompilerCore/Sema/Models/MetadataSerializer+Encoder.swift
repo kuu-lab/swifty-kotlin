@@ -23,7 +23,8 @@ package final class MetadataEncoder {
         objectInitializerLinkNames: [SymbolID: String] = [:],
         companionInitializerLinkNames: [SymbolID: String] = [:],
         objectLazyInitializerLinkNames: [SymbolID: String] = [:],
-        enumStaticInitLinkNames: [SymbolID: String] = [:]
+        enumStaticInitLinkNames: [SymbolID: String] = [:],
+        runtimeReflectionOnly: Bool = false
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -66,7 +67,15 @@ package final class MetadataEncoder {
                         excludedSourceFileIDs: excludeSourceFileIDs,
                         allowShellBackedEnum: true
                     )
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper {
+                // Source classes' delegated members have compiled bodies and
+                // occupy the vtable. Consumers need their declarations to
+                // restore those slots and inherit the forwarding members.
+                let keepAsDelegatedMember = (symbol.kind == .property
+                    && symbols.classDelegationForwardingPropertyInfo(for: symbol.id) != nil
+                    || symbol.kind == .function
+                    && symbols.classDelegationForwardingMethodInfo(for: symbol.id) != nil)
+                    && symbol.declSite.map { !excludeSourceFileIDs.contains($0.start.file.rawValue) } == true
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -87,7 +96,7 @@ package final class MetadataEncoder {
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
                 if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember, !keepAsEnumClassMember {
-                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    var parentID = symbols.parentSymbolIfKnown(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
                             let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(parent.kind)
@@ -96,51 +105,20 @@ package final class MetadataEncoder {
                                 return false
                             }
                         }
-                        parentID = symbols.parentSymbol(for: p)
+                        parentID = symbols.parentSymbolIfKnown(for: p)
                     }
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
-                // KSP-911: ULongArray(LongArray) is an internal storage
-                // constructor. Keep it in the stdlib object for source-backed
-                // implementation calls, but do not export it to consumers.
+                // KSP-911 / KSP-908 / KSP-1089 / KSP-1093: internal storage
+                // constructors. Keep them in the stdlib object for
+                // source-backed implementation calls and public initializer
+                // factories, but do not export them to consumers.
                 if includeNonPublic,
                    symbol.kind == .function,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "ULongArray"],
-                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
-                {
-                    return false
-                }
-                // KSP-908: UIntArray(IntArray) is an internal storage
-                // constructor. It must remain in the stdlib object for
-                // source-backed implementation calls, but must not be
-                // imported as a public overload by consumer modules.
-                if includeNonPublic,
-                   symbol.kind == .function,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "UIntArray"],
-                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
-                {
-                    return false
-                }
-                // KSP-1089: AtomicIntArray(IntArray) is an internal storage
-                // constructor. Keep it in the stdlib object for the public
-                // initializer factory, but do not export it to consumers.
-                if includeNonPublic,
-                   symbol.kind == .function,
-                   symbol.visibility != .public,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "concurrent", "AtomicIntArray"],
-                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
-                {
-                    return false
-                }
-                // KSP-1093: AtomicLongArray(LongArray) is an internal storage
-                // constructor. Keep it in the stdlib object for the public
-                // initializer factory, but do not export it to consumers.
-                if includeNonPublic,
-                   symbol.kind == .function,
-                   symbol.visibility != .public,
-                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "concurrent", "AtomicLongArray"],
+                   let requiresNonPublic = Self.unexportedStorageConstructors[symbol.fqName.map { interner.resolve($0) }],
+                   !requiresNonPublic || symbol.visibility != .public,
                    symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
                 {
                     return false
@@ -178,6 +156,16 @@ package final class MetadataEncoder {
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
         for symbol in exported {
+            // Runtime blobs consume a small projection of library metadata.
+            // Preserve the same selection and ordering, without constructing
+            // mangled signatures, contracts, annotations, or dispatch maps.
+            if runtimeReflectionOnly {
+                records.append(buildRuntimeReflectionRecord(
+                    for: symbol, symbols: symbols, interner: interner,
+                    inlineFunctionSymbols: inlineFunctionSymbols
+                ))
+                continue
+            }
             let isSyntheticNominalAnchor = !includeSynthetic
                 && includeSyntheticNominalAnchors
                 && symbol.flags.contains(.synthetic)
@@ -1032,8 +1020,20 @@ package final class MetadataEncoder {
         return entries.joined(separator: ",")
     }
 
+    /// Internal storage-constructor FQ names that stay in the stdlib object
+    /// for source-backed implementation calls but are not exported
+    /// (KSP-911, KSP-908, KSP-1089, KSP-1093). A `true` value additionally
+    /// limits the exclusion to non-public overloads, so the same-named public
+    /// initializer factory keeps exporting.
+    private static let unexportedStorageConstructors: [[String]: Bool] = [
+        ["kotlin", "ULongArray"]: false,
+        ["kotlin", "UIntArray"]: false,
+        ["kotlin", "concurrent", "AtomicIntArray"]: true,
+        ["kotlin", "concurrent", "AtomicLongArray"]: true,
+    ]
+
     /// Nominal kinds that carry layout information in metadata.
-    private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
+    static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
     /// True when `symbolID` is (or belongs to) a compiler-generated member of a
     /// source-backed data class (KSP-626).
@@ -1042,7 +1042,7 @@ package final class MetadataEncoder {
         symbols: SymbolTable,
         excludedSourceFileIDs: Set<Int32>
     ) -> Bool {
-        var currentID = symbols.parentSymbol(for: symbolID)
+        var currentID = symbols.parentSymbolIfKnown(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if nominalKinds.contains(parent.kind) {
                 guard parent.flags.contains(.dataType),
@@ -1058,7 +1058,7 @@ package final class MetadataEncoder {
                 }
                 return true
             }
-            currentID = symbols.parentSymbol(for: parentID)
+            currentID = symbols.parentSymbolIfKnown(for: parentID)
         }
         return false
     }
@@ -1094,7 +1094,7 @@ package final class MetadataEncoder {
         excludedSourceFileIDs: Set<Int32>,
         allowShellBackedEnum: Bool = false
     ) -> Bool {
-        var currentID = symbols.parentSymbol(for: symbolID)
+        var currentID = symbols.parentSymbolIfKnown(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if Self.nominalKinds.contains(parent.kind) {
                 if parent.kind == .enumClass,
@@ -1124,14 +1124,14 @@ package final class MetadataEncoder {
                 // Synthetic companions / nested anchors may sit between the
                 // member and the owning enum class; keep walking.
                 if parent.flags.contains(.synthetic) {
-                    currentID = symbols.parentSymbol(for: parentID)
+                    currentID = symbols.parentSymbolIfKnown(for: parentID)
                     continue
                 }
                 // valueOf / entries are synthesized on the companion object,
                 // which may be a user-declared (non-synthetic) companion. Walk
                 // through it to reach the owning enum class.
                 if parent.kind == .object,
-                   let grandparentID = symbols.parentSymbol(for: parentID),
+                   let grandparentID = symbols.parentSymbolIfKnown(for: parentID),
                    symbols.companionObjectSymbol(for: grandparentID) == parentID
                 {
                     currentID = grandparentID
@@ -1139,7 +1139,7 @@ package final class MetadataEncoder {
                 }
                 return false
             }
-            currentID = symbols.parentSymbol(for: parentID)
+            currentID = symbols.parentSymbolIfKnown(for: parentID)
         }
         return false
     }
@@ -1458,6 +1458,20 @@ package final class MetadataEncoder {
         {
             fields.append("companionFq=\(companionFQName)")
         }
+        if Self.nominalKinds.contains(record.kind) {
+            // A completeness marker distinguishes no initializer from an old
+            // index that left these links in the declaration body only.
+            fields.append("initIndex=1")
+            if let link = record.objectInitializerLinkName, !link.isEmpty {
+                fields.append("objectInitLink=\(link)")
+            }
+            if let link = record.companionInitializerLinkName, !link.isEmpty {
+                fields.append("companionInitLink=\(link)")
+            }
+            if let link = record.enumStaticInitLinkName, !link.isEmpty {
+                fields.append("enumStaticInitLink=\(link)")
+            }
+        }
         if record.isDataClass { fields.append("dataClass=1") }
         if record.isOpenClass { fields.append("openClass=1") }
         if record.modality != .final { fields.append("modality=\(record.modality.rawValue)") }
@@ -1475,7 +1489,32 @@ package final class MetadataEncoder {
         interner: StringInterner,
         includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
-        let pairs: [(String, Int)] = offsets.compactMap { symbolID, offset in
+        // Export a property's storage under its own name. Consumers do not
+        // have the producer's property-to-backing-field association, and a
+        // private backing field may not be exported at all. Replace its key
+        // rather than adding an alias: layout field counts count keys, so two
+        // names for one slot would grow the imported object layout.
+        // The offsets include inherited fields; inspect each storage owner.
+        let storageOwners = Set(offsets.keys.compactMap { symbols.parentSymbol(for: $0) })
+        var exportedPropertyByBackingField: [SymbolID: SymbolID] = [:]
+        for owner in storageOwners {
+            guard let ownerSymbol = symbols.symbol(owner) else { continue }
+            for propertyID in symbols.children(ofFQName: ownerSymbol.fqName) {
+                guard let property = symbols.symbol(propertyID), property.kind == .property,
+                      !property.fqName.isEmpty,
+                      symbols.parentSymbol(for: propertyID) == owner,
+                      includedSymbolIDs?.contains(propertyID) ?? true,
+                      let backingField = symbols.backingFieldSymbol(for: propertyID),
+                      offsets[backingField] != nil,
+                      symbols.parentSymbol(for: backingField) == owner
+                else {
+                    continue
+                }
+                exportedPropertyByBackingField[backingField] = propertyID
+            }
+        }
+        let pairs: [(String, Int)] = offsets.compactMap { storageSymbolID, offset in
+            let symbolID = exportedPropertyByBackingField[storageSymbolID] ?? storageSymbolID
             guard let symbol = symbols.symbol(symbolID) else {
                 return nil
             }
@@ -1513,12 +1552,12 @@ package final class MetadataEncoder {
         guard name == "values" || name == "valueOf" || name == "entries" else {
             return false
         }
-        var ancestorID = symbols.parentSymbol(for: symbol.id)
+        var ancestorID = symbols.parentSymbolIfKnown(for: symbol.id)
         while let ancestor = ancestorID, let ancestorSymbol = symbols.symbol(ancestor) {
             if ancestorSymbol.kind == .enumClass {
                 return ancestorSymbol.visibility != .public
             }
-            ancestorID = symbols.parentSymbol(for: ancestor)
+            ancestorID = symbols.parentSymbolIfKnown(for: ancestor)
         }
         return false
     }
