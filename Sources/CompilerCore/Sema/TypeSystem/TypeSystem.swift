@@ -14,6 +14,9 @@ public final class TypeSystem {
     private var nominalTypeParameterVariancesMap: [SymbolID: [TypeVariance]] = [:]
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
+    // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
+    var activeNominalLUBInputs: Set<Set<TypeID>> = []
+    static let maxNominalLUBDepth = 16
 
     public internal(set) var comparableInterfaceSymbol: SymbolID?
 
