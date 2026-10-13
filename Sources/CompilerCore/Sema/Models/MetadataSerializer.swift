@@ -80,6 +80,8 @@ package struct MetadataRecord {
 
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
+    /// Inner classes require an enclosing instance even when their public constructor arity is zero.
+    package let isInnerClass: Bool
     /// Declaration modality for classes and members. Final is omitted from the
     /// wire format so older artifacts remain compact and decode as final.
     package let modality: MetadataModality
@@ -175,6 +177,7 @@ package struct MetadataRecord {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        isInnerClass: Bool = false,
         modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
@@ -236,6 +239,7 @@ package struct MetadataRecord {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.isInnerClass = isInnerClass
         self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface

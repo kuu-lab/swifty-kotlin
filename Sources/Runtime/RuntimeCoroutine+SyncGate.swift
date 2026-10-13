@@ -106,6 +106,9 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// global pool. `nil` keeps the original global-pool behaviour, which is
     /// what dispatcher-bound bodies and direct runtime (test) calls get.
     var eventLoop: RuntimeEventLoop?
+    /// Set only by the canonical context-aware runBlocking boundary and its
+    /// structured descendants. nil preserves legacy invocation scheduling.
+    var blockingScheduler: RuntimeBlockingScheduler?
     // Public builders leave scheduling to the intercepted continuation itself.
     var resumesInline = false
     var builderContext: RuntimeCoroutineContext?
@@ -344,7 +347,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
         if resumeSignalPending {
             resumeSignalPending = false
             let loop = eventLoop
+            let scheduler = blockingScheduler
             stateLock.unlock()
+            if let scheduler {
+                scheduler.enqueueResume { boxedContinuation.invoke() }
+                return
+            }
             // Signal already arrived — re-queue the continuation immediately.
             //
             // On a runBlocking event loop this lands at the TAIL of the queue,
@@ -442,7 +450,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
             resumeContinuation = nil
             let loop = eventLoop
             let inlineResume = resumesInline
+            let scheduler = blockingScheduler
             stateLock.unlock()
+            if let scheduler {
+                scheduler.enqueueResume { cont.invoke() }
+                return
+            }
             // Queue the resumption on the coroutine's event loop when it has
             // one, so resumptions keep the loop's FIFO order instead of being
             // ordered by whichever global-pool thread happens to pick them up.

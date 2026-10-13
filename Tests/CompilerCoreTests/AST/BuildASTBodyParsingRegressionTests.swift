@@ -286,7 +286,7 @@ struct BuildASTBodyParsingRegressionTests {
 
                 let localInitializers = bodyExprs.compactMap { exprID -> (InternedString, ExprID)? in
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           let initializer
                     else {
                         return nil

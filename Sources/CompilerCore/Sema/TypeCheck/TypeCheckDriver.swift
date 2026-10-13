@@ -122,6 +122,7 @@ final class TypeCheckDriver {
         if let subjectType = ctx.whenSubjectTypes[id] {
             return subjectType
         }
+        let ctx = ctx.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
         notePendingDeclarationDependency(at: id)
         if let callee = sema.bindings.callBinding(for: id)?.chosenCallee {

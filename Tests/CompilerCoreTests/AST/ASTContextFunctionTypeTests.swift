@@ -113,7 +113,7 @@ struct ASTContextFunctionTypeTests {
         ]
         var checked = Set<String>()
         for expr in ast.arena.exprs {
-            guard case let .localDecl(nameID, _, annotation?, _, _, _) = expr else { continue }
+            guard case let .localDecl(nameID, _, annotation?, _, _, _, _) = expr else { continue }
             let name = ctx.interner.resolve(nameID)
             guard let expectedType = expected[name] else { continue }
             guard case let .functionType(_, _, _, _, isSuspend, nullable) = ast.arena.typeRef(annotation) else {
