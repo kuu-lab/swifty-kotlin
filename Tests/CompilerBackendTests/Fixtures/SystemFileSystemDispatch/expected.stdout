@@ -1,0 +1,12 @@
+before exists
+true
+after exists
+local exists:true
+missing exists:false:false
+direct read:7
+fixture
+direct eof:-1
+local read:7
+fixture
+direct missing source
+local missing source
