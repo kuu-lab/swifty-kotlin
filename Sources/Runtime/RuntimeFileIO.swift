@@ -843,7 +843,9 @@ public func __kk_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutableP
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read received invalid InputStream handle")
     }
-    return stream.readByte()
+    let result = stream.readByte()
+    runtimePropagateInputStreamError(stream, outThrown)
+    return result
 }
 
 @_cdecl("__kk_input_stream_available")
@@ -870,7 +872,9 @@ public func __kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrow
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_skip received invalid InputStream handle")
     }
-    return stream.skip(countRaw)
+    let result = stream.skip(countRaw)
+    runtimePropagateInputStreamError(stream, outThrown)
+    return result
 }
 
 @_cdecl("__kk_input_stream_read_bytes")
@@ -931,6 +935,7 @@ public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: Unsafe
     // Try a plain InputStream first.
     if let stream = runtimeInputStreamBox(from: streamRaw) {
         let bytes = stream.readAllBytes()
+        runtimePropagateInputStreamError(stream, outThrown)
         return runtimeMakeIoReadByteArray(bytes)
     }
     // Fall back to a SequenceInputStream chain.

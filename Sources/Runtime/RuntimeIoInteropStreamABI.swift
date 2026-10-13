@@ -36,7 +36,6 @@ public func __kk_input_stream_read_range(
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(message: "offset/count out of bounds")
         return -1
     }
-    if input.available() == 0 { return -1 }
     if count == 0 { return 0 }
     var copied = 0
     while copied < count {
@@ -47,6 +46,7 @@ public func __kk_input_stream_read_range(
         else { list?[offset + copied] = byte }
         copied += 1
     }
+    runtimePropagateInputStreamError(input, outThrown)
     return copied == 0 ? -1 : copied
 }
 

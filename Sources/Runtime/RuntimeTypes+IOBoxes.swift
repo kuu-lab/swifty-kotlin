@@ -216,7 +216,10 @@ final class RuntimeBufferedReaderBox {
     }
 }
 
-final class RuntimeInputStreamBox: RuntimeChildReferenceProviding {
+class RuntimeInputStreamBox: RuntimeChildReferenceProviding {
+    /// Native stream implementations report I/O failures through the existing ABI.
+    var readError: String? { nil }
+
     private let data: Data
     private let arrayRaw: Int?
     private let begin: Int

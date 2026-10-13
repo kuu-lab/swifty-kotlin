@@ -1,5 +1,6 @@
 package kotlin.system
 
+import java.io.InputStream
 import java.io.PrintStream
 import kotlin.internal.KsSymbolName
 
@@ -9,6 +10,8 @@ import kotlin.internal.KsSymbolName
 public object System {
     // The default-import compatibility object must expose the JVM stderr stream too.
     public val err: PrintStream = java.lang.System.err
+
+    public val `in`: InputStream = java.lang.System.`in`
 
     @KsSymbolName("__kk_system_currentTimeMillis")
     private external fun __currentTimeMillis(): Long
