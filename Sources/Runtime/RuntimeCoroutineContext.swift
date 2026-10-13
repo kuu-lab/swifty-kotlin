@@ -587,6 +587,11 @@ public func __kk_context_get_dispatch(
     return result == 0 ? runtimeNullSentinelInt : result
 }
 
+let runtimeCoroutineContextFoldBridgePointer: Int = {
+    let bridge: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_context_fold
+    return unsafeBitCast(bridge, to: Int.self)
+}()
+
 /// Fold the known coroutine context elements from left to right.
 @_cdecl("kk_context_fold")
 public func kk_context_fold(
@@ -599,7 +604,12 @@ public func kk_context_fold(
     outThrown?.pointee = 0
     // Source methods receive a Kotlin function value, whereas the bridge ABI
     // receives the callback entry point and its captured environment separately.
-    if kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1) != 0 {
+    // Runtime-backed Job implementations can register this bridge itself in
+    // their context itable. It takes a split callback pair, whereas Kotlin
+    // overrides take one function value; never invoke the bridge through the
+    // source-method ABI or recursively dispatch back into it.
+    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1)
+    if method != 0, method != runtimeCoroutineContextFoldBridgePointer {
         let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
         if let result = runtimeSourceInterfaceCall2(
             contextRaw, initial, operation,
