@@ -979,6 +979,12 @@ hard error; the compiler does not fall back to injecting bundled sources.
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
 * inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
 
+通常のライブラリを bundled stdlib ソースでコンパイルする場合、stdlib 本体も
+KIR・オブジェクトへ出力する。stdlib 宣言はライブラリの公開メタデータから除外し、
+bundled 関数には既存の `linkonce_odr` を適用する。プリコンパイル済み stdlib を
+指定した場合は、import 済みのリンク名でその artifact を参照する。
+そのライブラリの consumer にも、同じ stdlib artifact を依存先として指定する。
+
 **注意**：この方式は Kotlin の inline / reified を跨モジュールで成立させるために必須。
 
 ## J14.4 Kotlin/Native `.klib` の消費（実験的）

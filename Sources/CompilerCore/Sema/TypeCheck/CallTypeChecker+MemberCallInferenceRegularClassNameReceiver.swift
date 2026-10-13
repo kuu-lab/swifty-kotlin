@@ -462,23 +462,56 @@ extension CallTypeChecker {
                             return resultType
                         }
                     }
-                    let callArgs = zip(args, argTypes).map { arg, type in
-                        let literal = integerLiteralValues(arg.expr, ast: ast)
-                        return CallArg(
-                            label: arg.label,
-                            isSpread: arg.isSpread,
-                            type: type,
-                            signedIntegerLiteral: literal.signed,
-                            unsignedIntegerLiteral: literal.unsigned,
-                            isTrailingLambda: arg.isTrailingLambda
-                        )
+                    // Nested constructors return before ordinary member-call
+                    // preparation, so infer lambdas and callable references
+                    // against their constructor parameter types here too.
+                    var cachedNonLambdaArgTypes: [Int: TypeID] = [:]
+                    for (index, argument) in args.enumerated() {
+                        if ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                            continue
+                        }
+                        cachedNonLambdaArgTypes[index] = argTypes[index]
                     }
-                    let call = CallExpr(range: range, calleeName: calleeName, args: callArgs, explicitTypeArgs: explicitTypeArgs)
-                    let resolved = ctx.resolver.resolveCall(
-                        candidates: visibleNested,
-                        call: call,
+                    var expectedTypeOverrides: [Int: TypeID] = [:]
+                    var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
+                    prepareCallExprArgumentContexts(
+                        args: args,
+                        callRange: range,
+                        ctx: ctx,
                         expectedType: expectedType,
-                        ctx: sema
+                        explicitTypeArgs: explicitTypeArgs,
+                        calleeName: calleeName,
+                        candidates: visibleNested,
+                        withContextExpectedLambdaType: nil,
+                        expectedTypeOverrides: &expectedTypeOverrides,
+                        lambdaContextOverrides: &lambdaContextOverrides
+                    )
+                    let preparedArgs = prepareCallArguments(
+                        args: args,
+                        callRange: range,
+                        candidates: visibleNested,
+                        preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
+                        expectedTypeOverrides: expectedTypeOverrides,
+                        contextualCallResultType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        lambdaContextOverrides: lambdaContextOverrides,
+                        ctx: ctx,
+                        locals: &locals
+                    )
+                    let resolved = resolveCallRespectingLambdaReturnType(
+                        candidates: visibleNested,
+                        args: args,
+                        argTypes: preparedArgs.argTypes,
+                        range: range,
+                        calleeName: calleeName,
+                        explicitTypeArgs: explicitTypeArgs,
+                        expectedType: expectedType,
+                        implicitReceiverType: nil,
+                        lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                        inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                        blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                        hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                        ctx: ctx
                     )
                     if let diagnostic = resolved.diagnostic {
                         // Kotlin gives applicable nested constructors priority
@@ -491,7 +524,19 @@ extension CallTypeChecker {
                            diagnostic.code != "KSWIFTK-SEMA-0003",
                            expectedType == nil || ctx.resolver.probeCall(
                                candidates: visibleNested,
-                               call: call,
+                               call: CallExpr(
+                                   range: range,
+                                   calleeName: calleeName,
+                                   args: zip(args, preparedArgs.argTypes).map { argument, type in
+                                       CallArg(
+                                           label: argument.label,
+                                           isSpread: argument.isSpread,
+                                           type: type,
+                                           isTrailingLambda: argument.isTrailingLambda
+                                       )
+                                   },
+                                   explicitTypeArgs: explicitTypeArgs
+                               ),
                                expectedType: nil,
                                ctx: sema
                            ).viableCandidates.isEmpty
