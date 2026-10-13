@@ -250,12 +250,7 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
-                    let expectation = lambdaLiteralExpectedType(
-                        at: index, args: args, callRange: callRange, candidates: expectedTypeCandidates,
-                        explicitTypeArgs: explicitTypeArgs, receiverType: receiverType,
-                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                        resolver: ctx.resolver, sema: sema, ctx: ctx
-                    ).type ?? callableReferenceExpectedType(
+                    let expectation = callableReferenceExpectedType(
                         at: index,
                         argumentLabel: argument.label,
                         args: args,
@@ -266,7 +261,12 @@ extension CallTypeChecker {
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                         resolver: ctx.resolver,
                         ctx: ctx
-                    )
+                    ) ?? lambdaLiteralExpectedType(
+                        at: index, args: args, callRange: callRange, candidates: expectedTypeCandidates,
+                        explicitTypeArgs: explicitTypeArgs, receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        resolver: ctx.resolver, sema: sema, ctx: ctx
+                    ).type
                     let contextualType = contextualCallableArgumentType(
                         expectation, callResultType: contextualCallResultType,
                         candidates: candidates, sema: sema
