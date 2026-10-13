@@ -152,7 +152,8 @@ extension DeclTypeChecker {
             argumentTypes: Array(delegateAccessorArgs.prefix(2)),
             expectedType: getValueExpectedType,
             range: delegateCallRange,
-            ctx: ctx
+            ctx: ctx,
+            locals: locals
         )
         // Tracks whether getValue/setValue were actually resolved for the *effective*
         // delegate type (see below: provideDelegate, when present, fully supersedes
@@ -198,7 +199,8 @@ extension DeclTypeChecker {
                 ),
                 expectedType: nil,
                 range: delegateCallRange,
-                ctx: ctx
+                ctx: ctx,
+                locals: locals
             )
             setValueDiagnosticReported = setValueResolution?.diagnostic != nil
             if let setValueResolution,
@@ -222,7 +224,8 @@ extension DeclTypeChecker {
             argumentTypes: Array(delegateAccessorArgs.prefix(2)),
             expectedType: nil,
             range: delegateCallRange,
-            ctx: ctx
+            ctx: ctx,
+            locals: locals
         )
         if let provideDelegateResolution,
            let provideDelegateSymbol = provideDelegateResolution.symbol
@@ -251,6 +254,7 @@ extension DeclTypeChecker {
                     expectedType: result,
                     range: delegateCallRange,
                     ctx: ctx,
+                    locals: locals,
                     allowNonOperatorMemberOverride: true
                 )
                 getValueResolved = actualGetValueResolution?.symbol != nil
@@ -284,6 +288,7 @@ extension DeclTypeChecker {
                         expectedType: nil,
                         range: delegateCallRange,
                         ctx: ctx,
+                        locals: locals,
                         allowNonOperatorMemberOverride: true
                     )
                     // Same rationale as getValueResolved above: provideDelegate's
@@ -395,6 +400,7 @@ extension DeclTypeChecker {
         expectedType: TypeID?,
         range: SourceRange,
         ctx: TypeInferenceContext,
+        locals: LocalBindings,
         allowNonOperatorMemberOverride: Bool = false
     ) -> PropertyDelegateFunctionResolution? {
         let sema = ctx.sema
@@ -464,6 +470,27 @@ extension DeclTypeChecker {
                 ctx.sema.diagnostics.emit(diagnostic)
             }
             return memberResolution
+        }
+
+        // Local functions live in LocalBindings rather than the lexical symbol
+        // scopes. Applicable local operator extensions precede outer extensions,
+        // but delegate members retain priority over every extension.
+        if let local = locals[name],
+           let symbol = ctx.cachedSymbol(local.symbol),
+           symbol.kind == .function,
+           symbol.flags.contains(.operatorFunction),
+           let declaredReceiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
+           driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+               callSiteReceiver: receiverType,
+               declaredReceiver: declaredReceiver,
+               sema: sema
+           ),
+           let localResolution = resolve([local.symbol])
+        {
+            if let diagnostic = localResolution.diagnostic {
+                ctx.sema.diagnostics.emit(diagnostic)
+            }
+            return localResolution
         }
 
         // Member extensions are declared on the dispatch receiver's class,

@@ -147,6 +147,24 @@ extension LambdaLowerer {
     ) {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
+            // Accessing a delegated local also calls its convention functions.
+            // Capture local operators so their environments survive the fresh
+            // scope used by a lambda or nested local function body.
+            var conventions = [
+                sema.symbols.delegateGetValueSymbol(for: symbol),
+                sema.symbols.delegateSetValueSymbol(for: symbol),
+            ]
+            // A declaration inside the nested body runs provideDelegate there;
+            // reading an already-created delegate does not call it again.
+            if case .localDecl(_, _, _, _, true, _, _) = ast.arena.expr(exprID) {
+                conventions.append(sema.symbols.delegateProvideDelegateSymbol(for: symbol))
+            }
+            for convention in conventions.compactMap({ $0 }) where
+                sema.symbols.symbol(convention)?.flags.contains(.localFunction) == true
+                    && seen.insert(convention).inserted
+            {
+                referenced.append(convention)
+            }
         }
         // Named local calls may bind only the call, leaving the callee name
         // without an identifier binding. Their environments are still captures.
