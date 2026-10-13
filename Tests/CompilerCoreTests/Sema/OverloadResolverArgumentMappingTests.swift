@@ -25,7 +25,7 @@ extension OverloadResolverTests {
         ), for: fn)
         let resolved = resolver.resolveCall(candidates: [fn], call: CallExpr(
             range: makeRange(start: 0, end: 10), calleeName: interner.intern("callbacks"),
-            args: [CallArg(isTrailingLambda: trailing, type: callable)]
+            args: [CallArg(type: callable, isTrailingLambda: trailing)]
         ), expectedType: nil, ctx: ctx)
         if trailing && !firstHasDefault {
             #expect(resolved.chosenCallee == nil)
