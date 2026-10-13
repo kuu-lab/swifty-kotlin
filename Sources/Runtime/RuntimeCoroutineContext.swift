@@ -6,7 +6,6 @@ import Foundation
 //
 // Split out from `RuntimeCoroutine.swift`.
 
-// MARK: - CoroutineContext Elements (STDLIB-CORO-077)
 
 private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.CoroutineContext"
@@ -288,9 +287,23 @@ public func kk_coroutine_name_key_get(_ receiver: Int) -> Int {
 private final class RuntimeContinuationInterceptorKey: @unchecked Sendable {}
 private let runtimeContinuationInterceptorKeyRaw = runtimeRegisterObject(RuntimeContinuationInterceptorKey())
 
+/// Runtime-backed companions bypass Kotlin object allocation and its type registration.
+/// Register both the companion identity and Key supertype whenever a key is exposed.
+private func runtimeTypedCoroutineContextKey(_ rawValue: Int, fqName: String) -> Int {
+    let typeID = runtimeStableNominalTypeID(fqName: fqName)
+    runtimeRegisterObjectType(rawValue: rawValue, classID: typeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: typeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Key")
+    )
+    return rawValue
+}
+
 @_cdecl("kk_continuation_interceptor_key")
 public func kk_continuation_interceptor_key() -> Int {
-    runtimeContinuationInterceptorKeyRaw
+    runtimeTypedCoroutineContextKey(
+        runtimeContinuationInterceptorKeyRaw, fqName: "kotlin.coroutines.ContinuationInterceptor.Key"
+    )
 }
 
 /// `CoroutineDispatcher.Key` is a distinct object in kotlinx — an
@@ -303,7 +316,9 @@ private let runtimeCoroutineDispatcherKeyRaw = runtimeRegisterObject(RuntimeCoro
 
 @_cdecl("kk_coroutine_dispatcher_key")
 public func kk_coroutine_dispatcher_key() -> Int {
-    runtimeCoroutineDispatcherKeyRaw
+    runtimeTypedCoroutineContextKey(
+        runtimeCoroutineDispatcherKeyRaw, fqName: "kotlinx.coroutines.CoroutineDispatcher.Key"
+    )
 }
 
 /// KUU-1405: singleton backing `CoroutineExceptionHandler.Key` so
@@ -390,15 +405,6 @@ func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: In
             return runtimeCoroutineElementKeyHandle(for: receiver)
         }
         return unsafeBitCast(getter, to: Int.self)
-    case 3:
-        // KUU-1395: a dispatcher/interceptor element's `key` is
-        // ContinuationInterceptor.Key — kotlinx's CoroutineDispatcher passes
-        // it to AbstractCoroutineContextElement's constructor.
-        let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-            outThrown?.pointee = 0
-            return kk_continuation_interceptor_key()
-        }
-        return unsafeBitCast(getter, to: Int.self)
     default:
         return nil
     }
@@ -417,12 +423,12 @@ private func runtimeCoroutineElementKeyHandle(for receiver: Int) -> Int {
             || tryCast(ptr, to: RuntimeExceptionHandlerBox.self) != nil
         {
             return tryCast(ptr, to: RuntimeDispatcher.self) != nil
-                ? runtimeContinuationInterceptorKeyRaw
+                ? kk_continuation_interceptor_key()
                 : runtimeExceptionHandlerKeyRaw
         }
     }
     if isDispatcherTag(receiver) {
-        return runtimeContinuationInterceptorKeyRaw
+        return kk_continuation_interceptor_key()
     }
     if runtimeJobHandle(from: receiver) != nil || runtimeAsyncTask(from: receiver) != nil {
         return runtimeJobKeyRaw
@@ -597,6 +603,11 @@ public func __kk_context_get_dispatch(
     return result == 0 ? runtimeNullSentinelInt : result
 }
 
+let runtimeCoroutineContextFoldBridgePointer: Int = {
+    let bridge: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_context_fold
+    return unsafeBitCast(bridge, to: Int.self)
+}()
+
 /// Fold the known coroutine context elements from left to right.
 @_cdecl("kk_context_fold")
 public func kk_context_fold(
@@ -609,7 +620,12 @@ public func kk_context_fold(
     outThrown?.pointee = 0
     // Source methods receive a Kotlin function value, whereas the bridge ABI
     // receives the callback entry point and its captured environment separately.
-    if kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1) != 0 {
+    // Runtime-backed Job implementations can register this bridge itself in
+    // their context itable. It takes a split callback pair, whereas Kotlin
+    // overrides take one function value; never invoke the bridge through the
+    // source-method ABI or recursively dispatch back into it.
+    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1)
+    if method != 0, method != runtimeCoroutineContextFoldBridgePointer {
         let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
         if let result = runtimeSourceInterfaceCall2(
             contextRaw, initial, operation,
@@ -1314,7 +1330,6 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     return RuntimeCoroutineContext(dispatcher: raw)
 }
 
-// MARK: - Coroutine Dispatcher Scheduler (STDLIB-133)
 
 /// A coroutine dispatcher that schedules work on a specific GCD queue.
 /// Each dispatcher wraps a DispatchQueue and provides `dispatch(_:)` to execute

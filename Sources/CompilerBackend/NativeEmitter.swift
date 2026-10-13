@@ -58,6 +58,7 @@ struct NativeEmitter {
         let int64DIType: LLVMCAPIBindings.LLVMMetadataRef?
     }
 
+    let phaseTimer: PhaseTimer?
     let target: TargetTriple
     let optLevel: OptimizationLevel
     let debugInfo: Bool
@@ -90,8 +91,10 @@ struct NativeEmitter {
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        linkOnceODRSymbols: Set<SymbolID> = []
+        linkOnceODRSymbols: Set<SymbolID> = [],
+        phaseTimer: PhaseTimer? = nil
     ) {
+        self.phaseTimer = phaseTimer
         self.target = target
         self.optLevel = optLevel
         self.debugInfo = debugInfo
@@ -104,7 +107,7 @@ struct NativeEmitter {
         var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
         var ambiguousLinkNames: Set<String> = []
         for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
-            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+            guard let linkName = symbols?.externalLinkNameIfKnown(for: symbol.id),
                   !linkName.isEmpty,
                   !ambiguousLinkNames.contains(linkName)
             else {
@@ -234,7 +237,7 @@ struct NativeEmitter {
             for declaration in module.arena.declarations {
                 guard case let .function(function) = declaration,
                       rawSymbols.contains(function.symbol),
-                      Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner)
+                      Self.isSyntheticCallbackFunction(function, symbols: symbols)
                 else {
                     continue
                 }
@@ -248,7 +251,7 @@ struct NativeEmitter {
                     continue
                 }
                 let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
-                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols, interner: interner) {
+                if rawCallbackKeys.contains(key), Self.isSyntheticCallbackFunction(function, symbols: symbols) {
                     rawSymbols.insert(function.symbol)
                 }
             }
@@ -362,8 +365,7 @@ struct NativeEmitter {
 
     private static func isSyntheticCallbackFunction(
         _ function: KIRFunction,
-        symbols: SymbolTable?,
-        interner: StringInterner
+        symbols: SymbolTable?
     ) -> Bool {
         guard let symbols else { return true }
         guard let symbolInfo = symbols.symbol(function.symbol) else { return false }
@@ -422,7 +424,9 @@ struct NativeEmitter {
     }
 
     func emitLLVMIR(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try withSubPhaseTiming("emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -436,26 +440,34 @@ struct NativeEmitter {
             bindings.setTarget(built.module, triple: triple)
 
             if optLevel != .O0 {
-                let targetMachine = try configuredTargetMachine(for: built.module)
+                let targetMachine = try withSubPhaseTiming("initTarget", timer: phaseTimer) {
+                    try configuredTargetMachine(for: built.module)
+                }
                 defer { bindings.disposeTargetMachine(targetMachine) }
-                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
-                    throw LLVMBackendError.nativeEmissionFailed(error)
+                try withSubPhaseTiming("opt", timer: phaseTimer) {
+                    if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                        throw LLVMBackendError.nativeEmissionFailed(error)
+                    }
                 }
             }
 
-            guard let llvmIR = bindings.printModule(built.module) else {
-                throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
-            }
-            do {
-                try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            } catch {
-                throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+            try withSubPhaseTiming("write", timer: phaseTimer) {
+                guard let llvmIR = bindings.printModule(built.module) else {
+                    throw LLVMBackendError.nativeEmissionFailed("LLVMPrintModuleToString returned null")
+                }
+                do {
+                    try llvmIR.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                } catch {
+                    throw LLVMBackendError.nativeEmissionFailed("failed to write LLVM IR to '\(outputPath)'")
+                }
             }
         }
     }
 
     func emitObject(outputPath: String) throws {
-        let built = try buildModule()
+        let built = try withSubPhaseTiming("emit", timer: phaseTimer) {
+            try buildModule()
+        }
         defer {
             bindings.disposeModule(built.module)
             bindings.disposeContext(built.context)
@@ -465,15 +477,20 @@ struct NativeEmitter {
         // on Linux. Keep module construction parallel, but serialize only the
         // target-machine section that is not thread-safe.
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            let targetMachine = try configuredTargetMachine(for: built.module)
+            let targetMachine = try withSubPhaseTiming("initTarget", timer: phaseTimer) {
+                try configuredTargetMachine(for: built.module)
+            }
             defer { bindings.disposeTargetMachine(targetMachine) }
 
-            if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
-                throw LLVMBackendError.nativeEmissionFailed(error)
+            try withSubPhaseTiming("opt", timer: phaseTimer) {
+                if let error = bindings.optimizeModule(built.module, targetMachine: targetMachine, optLevel: optLevel) {
+                    throw LLVMBackendError.nativeEmissionFailed(error)
+                }
             }
-
-            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
-                throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+            try withSubPhaseTiming("write", timer: phaseTimer) {
+                if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: built.module, outputPath: outputPath) {
+                    throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+                }
             }
         }
     }
@@ -672,16 +689,7 @@ struct NativeEmitter {
         let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
         let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
 
-        func isStringAggregateType(_ type: TypeID?) -> Bool {
-            guard let type,
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: type)
-            else {
-                return false
-            }
-            return typeLowering != nil
-        }
-
+        // Create LLVM global variables for each KIR global declaration.
         // Globals that back properties/singletons shared across .kklib modules
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
@@ -768,7 +776,12 @@ struct NativeEmitter {
                 )
             }
             parameterTypes.append(outThrownPointerType)
-            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI && isStringAggregateType(function.returnType)
+            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                && isStringAggregateType(
+                    function.returnType,
+                    typeSystem: typeSystem,
+                    hasStringLowering: typeLowering != nil
+                )
             let returnType = if returnsRawStringRuntimeCallback {
                 int64Type
             } else {
@@ -814,7 +827,11 @@ struct NativeEmitter {
                 do {
                     let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
                     let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
-                        && isStringAggregateType(function.returnType)
+                        && isStringAggregateType(
+                            function.returnType,
+                            typeSystem: typeSystem,
+                            hasStringLowering: typeLowering != nil
+                        )
                     try emitFunctionBody(
                         function: function,
                         llvmFunction: llvmFunction,
@@ -852,14 +869,16 @@ struct NativeEmitter {
             }
         }
 
-        RuntimeReflectionMetadataEmitter.emitGlobals(
-            records: reflectionMetadataRecords,
-            bindings: bindings,
-            module: llvmModule,
-            context: context,
-            int64Type: int64Type,
-            symbolPrefix: reflectionMetadataSymbolPrefix
-        )
+        PhaseTimer.measureSubPhase("IR/reflection globals", timer: phaseTimer) {
+            RuntimeReflectionMetadataEmitter.emitGlobals(
+                records: reflectionMetadataRecords,
+                bindings: bindings,
+                module: llvmModule,
+                context: context,
+                int64Type: int64Type,
+                symbolPrefix: reflectionMetadataSymbolPrefix
+            )
+        }
 
         return (context: context, module: llvmModule)
     }
@@ -1031,9 +1050,6 @@ struct NativeEmitter {
     }
 
     func targetTripleString() -> String {
-        if let osVersion = target.osVersion, !osVersion.isEmpty {
-            return "\(target.arch)-\(target.vendor)-\(target.os)\(osVersion)"
-        }
-        return "\(target.arch)-\(target.vendor)-\(target.os)"
+        CodegenRuntimeSupport.targetTripleString(target)
     }
 }

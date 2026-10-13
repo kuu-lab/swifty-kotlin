@@ -6,6 +6,10 @@ final class TestRunnerGenerator {
     static let entryPoint = "kswiftk.generated.tests.main"
     static let generatedPackage = "kswiftk.generated.tests"
     static let prefix = "__kswiftk_test_"
+    private static let annotationNames: Set<String> = ["Test", "Ignore", "BeforeTest", "AfterTest", "BeforeClass", "AfterClass"]
+    private static let annotationFQNames = Set(annotationNames.map { "kotlin.test." + $0 })
+    private static let lifecycleNames: Set<String> = annotationNames.subtracting(["Ignore"])
+    private static let classHookNames: Set<String> = ["BeforeClass", "AfterClass"]
 
     struct Result {
         let runnerPath: String
@@ -28,6 +32,8 @@ final class TestRunnerGenerator {
         let methods: [DeclID]
         let isObject: Bool
         let isAbstract: Bool
+        let isCompanion: Bool
+        let companion: DeclID?
         let isGenericOrInner: Bool
     }
 
@@ -37,6 +43,7 @@ final class TestRunnerGenerator {
         let file: FileID
         let offset: Int
         let ignored: Bool
+        let suiteKey: String
     }
 
     let context: CompilationContext
@@ -45,6 +52,7 @@ final class TestRunnerGenerator {
     private var insertions: [FileID: [(Int, String)]] = [:]
     private var fileWrappers: [FileID: String] = [:]
     private var cases: [Case] = []
+    private var suitePhases: [String: (before: String?, after: String?)] = [:]
     private var bridged: Set<DeclID> = []
     private var sourceTags: [SymbolID: Set<String>] = [:]
 
@@ -65,14 +73,18 @@ final class TestRunnerGenerator {
             let topLevel = file.topLevelDecls.compactMap { methods[$0] }
             let before = topLevel.filter { $0.tags.contains("BeforeTest") }
             let after = topLevel.filter { $0.tags.contains("AfterTest") }
-            for test in topLevel where test.tags.contains("Test") {
+            let tests = topLevel.filter { $0.tags.contains("Test") }
+            if tests.contains(where: { !$0.tags.contains("Ignore") }) {
+                addSuitePhases(topLevel, suite: nil, file: file.fileID)
+            }
+            for test in tests {
                 let fileName = URL(fileURLWithPath: context.sourceManager.path(of: file.fileID)).lastPathComponent
                 let name = qualifiedName(test.symbol) + " [" + fileName + "]"
                 addCase(test, suite: nil, before: before, after: after, name: name,
                         ignored: test.tags.contains("Ignore"), file: file.fileID)
             }
         }
-        for suite in suites.values.sorted(by: { qualifiedName($0.symbol) < qualifiedName($1.symbol) }) where !suite.isAbstract {
+        for suite in suites.values.sorted(by: { qualifiedName($0.symbol) < qualifiedName($1.symbol) }) where !suite.isAbstract && !suite.isCompanion {
             let inherited = inheritedMethods(suite, visited: [])
             let tests = inherited.filter { $0.tags.contains("Test") }
             guard !tests.isEmpty else { continue }
@@ -81,6 +93,13 @@ final class TestRunnerGenerator {
             let suiteIgnored = tags(suite.symbol).contains("Ignore")
             if tests.contains(where: { !suiteIgnored && !$0.tags.contains("Ignore") }) {
                 validateSuite(suite)
+                let hookOwner = suite.isObject ? suite : suite.companion.flatMap { companion in
+                    suites.values.first { $0.id == companion }
+                }
+                if let hookOwner {
+                    addSuitePhases(inheritedMethods(hookOwner, visited: []), suite: hookOwner,
+                                   file: suite.file, suiteKey: key(suite: suite, file: suite.file))
+                }
             }
             for test in tests {
                 addCase(test, suite: suite, before: before, after: after,
@@ -117,13 +136,14 @@ final class TestRunnerGenerator {
 
     private func collect(_ declarations: [DeclID], file: FileID) {
         guard let ast = context.ast, let sema = context.sema else { return }
+        let sourceFile = ast.file(for: file)
         for id in declarations {
             guard let declaration = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { continue }
             // Resolve against the complete table and the declaration's lexical
             // scope, without the legacy unscoped annotation fallback.
-            if let sourceFile = ast.sortedFiles.first(where: { $0.fileID == file }) {
+            if let sourceFile {
                 sourceTags[symbol] = Set(declaration.annotations.compactMap { annotation in
-                    if annotation.name.contains("."), !["kotlin.test.Test", "kotlin.test.Ignore", "kotlin.test.BeforeTest", "kotlin.test.AfterTest"].contains(annotation.name) {
+                    if annotation.name.contains("."), !Self.annotationFQNames.contains(annotation.name) {
                         return nil
                     }
                     guard let resolved = resolveAnnotationSymbol(named: annotation.name, in: sourceFile,
@@ -133,13 +153,13 @@ final class TestRunnerGenerator {
                           let fqName = sema.symbols.symbol(resolved)?.fqName.map(context.interner.resolve).joined(separator: "."),
                           fqName.hasPrefix("kotlin.test.") else { return nil }
                     let shortName = String(fqName.dropFirst("kotlin.test.".count))
-                    return ["Test", "Ignore", "BeforeTest", "AfterTest"].contains(shortName) ? shortName : nil
+                    return Self.annotationNames.contains(shortName) ? shortName : nil
                 })
             }
             switch declaration {
             case let .funDecl(function):
                 let annotations = tags(symbol)
-                if !annotations.isDisjoint(with: ["Test", "BeforeTest", "AfterTest"]) {
+                if !annotations.isDisjoint(with: Self.lifecycleNames) {
                     validateMethod(function, symbol: symbol)
                 }
                 methods[id] = Method(id: id, declaration: function, symbol: symbol, tags: annotations)
@@ -147,11 +167,23 @@ final class TestRunnerGenerator {
                 suites[symbol] = Suite(id: id, symbol: symbol, file: file, range: klass.range,
                                        methods: klass.memberFunctions, isObject: false,
                                        isAbstract: klass.modifiers.contains(.abstract) || klass.modifiers.contains(.sealed),
+                                       isCompanion: false, companion: klass.companionObject,
                                        isGenericOrInner: !klass.typeParams.isEmpty || klass.isInner)
                 collect(klass.memberFunctions + klass.nestedClasses + klass.nestedObjects + (klass.companionObject.map { [$0] } ?? []), file: file)
+                for id in klass.memberFunctions {
+                    guard let function = ast.arena.decl(id), case let .funDecl(method) = function,
+                          let methodSymbol = sema.bindings.declSymbol(for: id) else { continue }
+                    // Native warns and does not register class hooks on instances.
+                    for name in tags(methodSymbol).intersection(Self.classHookNames).sorted() {
+                        context.diagnostics.warning("KSWIFTK-TEST-0002",
+                            "Annotation kotlin.test.\(name) is only allowed for methods of an object (named or companion) or top level functions.",
+                            range: method.range)
+                    }
+                }
             case let .objectDecl(object):
                 suites[symbol] = Suite(id: id, symbol: symbol, file: file, range: object.range,
-                                       methods: object.memberFunctions, isObject: true, isAbstract: false, isGenericOrInner: false)
+                                       methods: object.memberFunctions, isObject: true, isAbstract: false,
+                                       isCompanion: object.modifiers.contains(.companion), companion: nil, isGenericOrInner: false)
                 collect(object.memberFunctions + object.nestedClasses + object.nestedObjects, file: file)
             case let .interfaceDecl(interface):
                 collect(interface.nestedClasses + interface.nestedObjects + (interface.companionObject.map { [$0] } ?? []), file: file)
@@ -164,11 +196,10 @@ final class TestRunnerGenerator {
     private func tags(_ symbol: SymbolID) -> Set<String> {
         if let source = sourceTags[symbol] { return source }
         guard let sema = context.sema else { return [] }
-        let names: Set<String> = ["Test", "Ignore", "BeforeTest", "AfterTest"]
         return Set(sema.symbols.annotations(for: symbol).compactMap {
             guard $0.annotationFQName.hasPrefix("kotlin.test.") else { return nil }
             let name = String($0.annotationFQName.dropFirst("kotlin.test.".count))
-            return names.contains(name) ? name : nil
+            return Self.annotationNames.contains(name) ? name : nil
         })
     }
 
@@ -199,8 +230,17 @@ final class TestRunnerGenerator {
                     && method.declaration.modifiers.contains(.override) && method.declaration.valueParams.isEmpty
                     && method.declaration.receiverType == nil && method.declaration.contextReceivers.isEmpty
             }
-            let annotations = overridden.reduce(method.tags) { $0.union($1.tags) }
-            guard !annotations.isDisjoint(with: ["Test", "BeforeTest", "AfterTest"]) else { continue }
+            var annotations = overridden.reduce(method.tags) { $0.union($1.tags) }
+            // Native takes Ignore from the nearest declaration carrying Test.
+            // An explicit Test replaces the inherited flag; Ignore alone on an
+            // override does not change the inherited test's ignored status.
+            let testTags = method.tags.contains("Test") ? method.tags
+                : overridden.first(where: { $0.tags.contains("Test") })?.tags
+            if let testTags {
+                if testTags.contains("Ignore") { annotations.insert("Ignore") }
+                else { annotations.remove("Ignore") }
+            }
+            guard !annotations.isDisjoint(with: Self.lifecycleNames) else { continue }
             result.removeAll { candidate in overridden.contains { $0.id == candidate.id } }
             validateMethod(method.declaration, symbol: method.symbol)
             result.append(Method(id: method.id, declaration: method.declaration, symbol: method.symbol, tags: annotations))
@@ -236,20 +276,17 @@ final class TestRunnerGenerator {
     private func addCase(_ test: Method, suite: Suite?, before: [Method], after: [Method], name: String, ignored: Bool, file: FileID) {
         let suffix = "\(suite?.id.rawValue ?? -1)_\(test.id.rawValue)".replacingOccurrences(of: "-", with: "n")
         let wrapper = Self.prefix + "case_" + suffix
-        let package = context.ast?.sortedFiles.first(where: { $0.fileID == file })?.packageFQName.map(context.interner.resolve).map(identifier).joined(separator: ".") ?? ""
+        let package = context.ast?.file(for: file)?.packageFQName.map(context.interner.resolve).map(identifier).joined(separator: ".") ?? ""
         cases.append(Case(name: name, wrapper: package.isEmpty ? wrapper : package + "." + wrapper,
-                          file: file, offset: test.declaration.range.start.offset, ignored: ignored))
+                          file: file, offset: test.declaration.range.start.offset, ignored: ignored,
+                          suiteKey: key(suite: suite, file: file)))
         if ignored { return }
         let body: String
         if let suite {
             for method in before + [test] + after { addBridge(method) }
             let member = Self.prefix + "run_" + suffix
             insert("\nfun \(member)(): Unit {\n" + lifecycle(test.bridge + "()", before: before.map { $0.bridge + "()" }, after: after.map { $0.bridge + "()" }, name: name) + "\n}\n", into: suite)
-            let filePackage = context.ast?.sortedFiles.first(where: { $0.fileID == suite.file })?.packageFQName ?? []
-            let components = context.sema?.symbols.symbol(suite.symbol)?.fqName ?? []
-            let receiver = components.dropFirst(filePackage.count).map { identifier(context.interner.resolve($0)) }.joined(separator: ".")
-                + (suite.isObject ? "" : "()")
-            body = "val __kswiftk_test_instance = \(receiver)\n__kswiftk_test_instance.\(member)()"
+            body = "val __kswiftk_test_instance = \(receiver(suite))\n__kswiftk_test_instance.\(member)()"
         } else {
             body = lifecycle(identifier(context.interner.resolve(test.declaration.name)) + "()",
                              before: before.map { identifier(context.interner.resolve($0.declaration.name)) + "()" },
@@ -268,6 +305,63 @@ final class TestRunnerGenerator {
         }
 
         """
+    }
+
+    private func key(suite: Suite?, file: FileID) -> String {
+        suite.map { "suite_\($0.id.rawValue)" } ?? "file_\(file.rawValue)"
+    }
+
+    private func receiver(_ suite: Suite, instantiate: Bool = true) -> String {
+        let filePackage = context.ast?.file(for: suite.file)?.packageFQName ?? []
+        let components = context.sema?.symbols.symbol(suite.symbol)?.fqName ?? []
+        return components.dropFirst(filePackage.count).map { identifier(context.interner.resolve($0)) }.joined(separator: ".")
+            + (suite.isObject || !instantiate ? "" : "()")
+    }
+
+    private func addSuitePhases(_ hooks: [Method], suite: Suite?, file: FileID, suiteKey: String? = nil) {
+        let group = suiteKey ?? key(suite: suite, file: file)
+        let visibility = context.sema.map { VisibilityChecker(symbols: $0.symbols, sourceManager: context.sourceManager) }
+        var lexicalOwner: Suite?
+        if let suite, suite.isCompanion, let sema = context.sema,
+           let symbol = sema.symbols.symbol(suite.symbol),
+           visibility?.isAccessible(symbol, fromFile: file, enclosingClass: nil) == false,
+           let parent = sema.symbols.parentSymbol(for: suite.symbol) {
+            lexicalOwner = suites[parent]
+        }
+        let accessObject = Self.prefix + "suite_hooks_" + group
+        var accessMethods = ""
+        // Native registers declared hooks before fake overrides, which it sorts by name.
+        let own = hooks.filter { context.sema?.symbols.parentSymbol(for: $0.symbol) == suite?.symbol }
+        let inherited = hooks.filter { context.sema?.symbols.parentSymbol(for: $0.symbol) != suite?.symbol && !$0.declaration.modifiers.contains(.private) }
+            .sorted { context.interner.resolve($0.declaration.name) < context.interner.resolve($1.declaration.name) }
+        let ordered = suite == nil ? hooks : own + inherited
+        func phase(_ tag: String) -> String? {
+            let selected = ordered.filter { $0.tags.contains(tag) }
+            guard !selected.isEmpty else { return nil }
+            let wrapper = Self.prefix + tag + "_" + group
+            var calls = selected.map { method in
+                if let suite {
+                    addBridge(method)
+                    let target = lexicalOwner.map { receiver($0, instantiate: false) } ?? receiver(suite)
+                    return target + "." + method.bridge + "()"
+                }
+                return identifier(context.interner.resolve(method.declaration.name)) + "()"
+            }.joined(separator: "\n")
+            if let lexicalOwner {
+                // Keep hidden companions accessible from their original class
+                // scope without constructing a test instance or changing visibility.
+                let member = tag == "BeforeClass" ? "before" : "after"
+                accessMethods += "\nfun \(member)(): Unit {\n\(calls)\n}\n"
+                calls = receiver(lexicalOwner, instantiate: false) + "." + accessObject + "." + member + "()"
+            }
+            fileWrappers[file, default: ""] += "\nfun \(wrapper)(): Unit {\n\(calls)\n}\n"
+            let package = context.ast?.file(for: file)?.packageFQName.map(context.interner.resolve).map(identifier).joined(separator: ".") ?? ""
+            return package.isEmpty ? wrapper : package + "." + wrapper
+        }
+        suitePhases[group] = (phase("BeforeClass"), phase("AfterClass"))
+        if let lexicalOwner, !accessMethods.isEmpty {
+            insert("\nobject \(accessObject) {\n\(accessMethods)\n}\n", into: lexicalOwner)
+        }
     }
 
     private func addBridge(_ method: Method) {
@@ -325,8 +419,24 @@ final class TestRunnerGenerator {
     }
 
     private func renderRunner() -> String {
-        let calls = cases.map { $0.ignored ? "reporter.skip(\(literal($0.name)))" : "\($0.wrapper)(reporter)" }.joined(separator: "\n")
-        let imports = cases.filter { !$0.ignored && !$0.wrapper.contains(".") }.map { "import " + $0.wrapper }.joined(separator: "\n")
+        var groups: [String] = []
+        var grouped: [String: [Case]] = [:]
+        for test in cases {
+            if grouped[test.suiteKey] == nil { groups.append(test.suiteKey) }
+            grouped[test.suiteKey, default: []].append(test)
+        }
+        let calls = groups.flatMap { group -> [String] in
+            let tests = grouped[group] ?? []
+            let phases = suitePhases[group]
+            var calls: [String] = []
+            if let before = phases?.before { calls.append(before + "()") }
+            calls += tests.map { $0.ignored ? "reporter.skip(\(literal($0.name)))" : "\($0.wrapper)(reporter)" }
+            if let after = phases?.after { calls.append(after + "()") }
+            return calls
+        }.joined(separator: "\n")
+        let wrappers = cases.filter { !$0.ignored }.map(\.wrapper)
+            + groups.flatMap { [suitePhases[$0]?.before, suitePhases[$0]?.after].compactMap { $0 } }
+        let imports = wrappers.filter { !$0.contains(".") }.map { "import " + $0 }.joined(separator: "\n")
         return """
         package \(Self.generatedPackage)
         \(imports)

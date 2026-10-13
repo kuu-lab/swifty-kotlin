@@ -106,14 +106,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_safe_cast"),
         ]
 
-        // Callees that retrieve an element from a generic collection. After
-        // 75507ca0d, kk_mutable_list_add boxes primitives for type erasure, so
-        // these accessors may return a boxed pointer even when the KIR result
-        // type is a non-null primitive. Unbox at the retrieval site so that all
-        // downstream uses of the element (arithmetic, comparisons, calls) see
-        // the plain primitive value.
+        // Callees that retrieve an element from a generic collection. List and
+        // map values are boxed for type erasure, so these accessors may return a
+        // boxed pointer even when the KIR result type is a non-null primitive.
+        // Unbox at the retrieval site so downstream arithmetic, comparisons,
+        // and calls see the plain primitive value.
         let collectionElementAccessorCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_list_get"),
+            ctx.interner.intern("__kk_map_get"),
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
@@ -179,7 +179,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         if let symbols {
             var ambiguousBoundaryBridges: Set<InternedString> = []
             for symbol in symbols.allSymbols() where symbol.kind == .function {
-                guard let linkName = symbols.externalLinkName(for: symbol.id),
+                guard let linkName = symbols.externalLinkNameIfKnown(for: symbol.id),
                       Self.typeParamBoxingBoundaryCallees.contains(linkName),
                       let signature = symbols.functionSignature(for: symbol.id)
                 else {
@@ -512,6 +512,27 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 if signature == nil {
                     signature = signatureByName[effectiveCallee]
                 }
+                // Default stubs do not have Sema signatures. Their KIR params
+                // include the receiver as an ordinary argument, so recover the
+                // concrete signature when an enum slot needs ABI adaptation.
+                if signature == nil,
+                   let stubSymbol = effectiveCallSymbol,
+                   SyntheticSymbolScheme.isSyntheticCallTarget(stubSymbol),
+                   !SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(stubSymbol),
+                   let stub = module.arena.function(for: stubSymbol),
+                   let types,
+                   stub.params.contains(where: { parameter in
+                       guard case let .classType(classType) = types.kind(of: parameter.type) else { return false }
+                       return classType.nullability == .nonNull
+                           && symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+                   })
+                {
+                    signature = FunctionSignature(
+                        parameterTypes: stub.params.map(\.type),
+                        returnType: stub.returnType,
+                        isSuspend: stub.isSuspend
+                    )
+                }
                 // ABI-002: see boundaryBridgeSignatureByLinkName above.
                 if signature == nil, effectiveCallSymbol == nil {
                     signature = boundaryBridgeSignatureByLinkName[effectiveCallee]
@@ -555,6 +576,31 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     )
                 } else {
                     boxedArguments = arguments
+                }
+
+                // Synthesized delegation and imported bodies can reach this
+                // bridge with a Kotlin function value instead of the C callback
+                // pair produced by direct member-call lowering. Normalize only
+                // the unexpanded shape; already-expanded calls stay intact.
+                if runtimeLink == ctx.interner.intern("kk_context_fold"),
+                   boxedArguments.count == 3
+                {
+                    let operation = boxedArguments[2]
+                    let fnPtr = emitNonThrowingCall(
+                        callee: ctx.interner.intern("kk_function_value_fn_ptr"),
+                        arg: operation,
+                        resultType: types?.intType,
+                        arena: module.arena,
+                        into: &newBody
+                    )
+                    let closureRaw = emitNonThrowingCall(
+                        callee: ctx.interner.intern("kk_function_value_closure_raw"),
+                        arg: operation,
+                        resultType: types?.intType,
+                        arena: module.arena,
+                        into: &newBody
+                    )
+                    boxedArguments = [boxedArguments[0], boxedArguments[1], fnPtr, closureRaw]
                 }
 
                 // `generateSequence` reaches this private runtime bridge after

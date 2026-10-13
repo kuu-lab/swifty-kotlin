@@ -112,8 +112,6 @@ public inline fun <R> withWorker(
     }
 }
 
-// MARK: Worker.Companion
-//
 // KSP-1251: the public Worker.Companion surface is Kotlin source backed. The
 // Worker nominal type (and its Companion object) remains synthetic, so these
 // are package-level extensions on the Companion receiver — the same shape the

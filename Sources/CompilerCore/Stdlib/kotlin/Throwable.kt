@@ -26,6 +26,21 @@ public open class Throwable {
     @KsSymbolName("__kk_throwable_new_with_cause")
     public constructor(message: String?, cause: Throwable?)
 
+    protected constructor(
+        message: String?,
+        cause: Throwable?,
+        enableSuppression: Boolean,
+        writableStackTrace: Boolean
+    ) {
+        __kkThrowableSetMessage(this, message)
+        __kkThrowableSetCause(this, cause)
+        __kkThrowableSetOptions(
+            this,
+            if (enableSuppression) 1L else 0L,
+            if (writableStackTrace) 1L else 0L
+        )
+    }
+
     public open val message: String?
         get() = __kkThrowableMessage(this)
 
@@ -99,6 +114,13 @@ internal external fun __kkThrowableCause(throwable: Throwable): Throwable?
 
 @KsSymbolName("__kk_throwable_setCause")
 internal external fun __kkThrowableSetCause(throwable: Throwable, cause: Throwable?)
+
+@KsSymbolName("__kk_throwable_set_options")
+internal external fun __kkThrowableSetOptions(
+    throwable: Throwable,
+    enableSuppression: Long,
+    writableStackTrace: Long
+)
 
 @KsSymbolName("__kk_throwable_appendSuppressed")
 internal external fun __kkThrowableAppendSuppressed(throwable: Throwable, exception: Throwable)

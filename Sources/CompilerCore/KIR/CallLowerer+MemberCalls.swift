@@ -12,14 +12,14 @@ extension CallLowerer {
     // objectInstance/sealedSubclasses are source-declared KClass properties
     // whose native boxes use the runtime registry instead of source itables.
     // The remaining names stay here:
-    // - findAnnotation/findAssociatedObject take a reified type argument,
+    // - findAssociatedObject takes a reified type argument,
     //   which this compiler only supports via a small special-cased
     //   allowlist (like typeOf<T>()).
     // - properties is not a real kotlin-stdlib name (only the `member`/
     //   `declaredMember`-prefixed variants exist upstream); diff cases rely
     //   on freely shadowing it with a real user-declared extension.
     private static let kclassMembers: Set<String> = [
-        "findAnnotation", "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses", "constructors",
+        "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses", "constructors",
     ]
 
     func lowerMemberCallExpr(
@@ -371,12 +371,26 @@ extension CallLowerer {
             return result
         }
 
-        // ── T::class.findAnnotation<A>() / T::class.findAssociatedObject<A>() ──
+        // The native annotation lookup is keyed by the resolved public
+        // declaration, so aliases work and user extensions keep their bodies.
+        if let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
+           sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
+           let receiverType = sema.bindings.exprTypes[receiverExpr],
+           isKClassReceiverType(receiverType, sema: sema, interner: interner) {
+            return lowerKClassVarReflectMemberCall(
+                exprID, receiverExpr: receiverExpr, memberName: "findAnnotation",
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions
+            )
+        }
+
+        // ── T::class.findAssociatedObject<A>() and native KClass properties ──
         // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the
         // boolean flags now resolve as ordinary Kotlin extension declarations
         // (Sources/CompilerCore/Stdlib/kotlin/reflect/) through the normal
         // member-call path below this block. Only
-        // findAnnotation/findAssociatedObject remain special-cased here — see
+        // findAssociatedObject remains name-dispatched here — see
         // CallLowerer.kclassMembers for why.
         if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
            refMember == KnownCompilerNames(interner: interner).className,
@@ -399,7 +413,7 @@ extension CallLowerer {
             }
         }
 
-        // KSP-496: KClass-typed variable receiver — findAnnotation/findAssociatedObject only (see note above).
+        // KSP-496: KClass-typed variable receiver for the remaining native members.
         if let receiverType = sema.bindings.exprTypes[receiverExpr],
            isKClassReceiverType(receiverType, sema: sema, interner: interner)
         {

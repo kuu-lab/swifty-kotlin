@@ -47,6 +47,10 @@ extension BuildASTPhase {
         let diagnostics: DiagnosticEngine?
         var index: Int
 
+        // Bounded declaration prefixes must not accept recovered expressions
+        // whose operand or control-flow branch was cut off by the slice.
+        private(set) var hasIncompleteExpression = false
+
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
@@ -108,6 +112,18 @@ extension BuildASTPhase {
 
         func parse() -> ExprID? {
             let expression = parseAssignmentOrExpression()
+            if let expression,
+               let unexpected = current(),
+               let expressionRange = astArena.exprRange(expression),
+               expressionRange.end.offset == unexpected.range.start.offset,
+               isInfixIdentifierToken(unexpected)
+            {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0018",
+                    "Unexpected token after expression.",
+                    range: unexpected.range
+                )
+            }
             if expression == nil, let first = tokens.first {
                 switch first.kind {
                 case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
@@ -131,8 +147,10 @@ extension BuildASTPhase {
 
         func parseExpression(minPrecedence: Int) -> ExprID? {
             defer { leaveRecursion() }
-            guard enterRecursion() else { return nil }
-            guard let lhs = parsePrefixUnary() else { return nil }
+            guard enterRecursion(), let lhs = parsePrefixUnary() else {
+                hasIncompleteExpression = true
+                return nil
+            }
             return parseInfixOperators(lhs: lhs, minPrecedence: minPrecedence)
         }
 
@@ -215,6 +233,8 @@ extension BuildASTPhase {
             guard infixPrecedence >= minPrecedence,
                   let token = current(),
                   isInfixIdentifierToken(token),
+                  let lhsRange = astArena.exprRange(lhs),
+                  lhsRange.end.offset < token.range.start.offset,
                   newlineBeforeInfixContinuesExpression(token),
                   let nextToken = peek(1),
                   canStartExpression(nextToken)

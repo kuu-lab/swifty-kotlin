@@ -7,6 +7,7 @@ private extension CallExpr {
             CallArg(
                 label: arg.label,
                 isSpread: arg.isSpread,
+                isTrailingLambda: arg.isTrailingLambda,
                 type: replacements[index] ?? arg.type,
                 signedIntegerLiteral: arg.signedIntegerLiteral,
                 unsignedIntegerLiteral: arg.unsignedIntegerLiteral
@@ -32,26 +33,15 @@ extension OverloadResolver {
         ignoringLambdaReturnTypeArgumentIndices: Set<Int> = [],
         ctx: SemaModule
     ) -> ProbedCallResult {
-        let solver = ConstraintSolver()
-        var viable: [ViableCandidate] = []
-        for candidate in candidates {
-            let candidateCall = call.replacingArgumentTypes(candidateArgumentTypes[candidate] ?? [:])
-            let evaluation = evaluateCandidate(
-                candidate,
-                call: candidateCall,
-                expectedType: expectedType,
-                implicitReceiverType: implicitReceiverType,
-                ignoredLambdaReturnTypeArgumentIndices: ignoringLambdaReturnTypeArgumentIndices,
-                solver: solver,
-                ctx: ctx
-            )
-            switch evaluation {
-            case let .viable(value):
-                viable.append(value)
-            case .constraintFailure, .rejected:
-                continue
-            }
-        }
+        let (viable, _) = evaluateCandidates(
+            candidates,
+            call: call,
+            expectedType: expectedType,
+            implicitReceiverType: implicitReceiverType,
+            candidateArgumentTypes: candidateArgumentTypes,
+            ignoredLambdaReturnTypeArgumentIndices: ignoringLambdaReturnTypeArgumentIndices,
+            ctx: ctx
+        )
         return ProbedCallResult(
             viableCandidates: viable.map { $0.toProbedCallCandidate() }
         )
@@ -188,7 +178,9 @@ extension OverloadResolver {
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         ctx: SemaModule
     ) -> ResolvedCall {
-        if !candidateArgumentTypes.isEmpty {
+        // --- cache lookup ---
+        // Per-candidate argument overrides bypass the shared cache key.
+        guard candidateArgumentTypes.isEmpty, let cache = cacheContext else {
             return resolveCallUncached(
                 candidates: candidates,
                 call: call,
@@ -198,32 +190,19 @@ extension OverloadResolver {
                 ctx: ctx
             )
         }
-        // --- cache lookup ---
-        if let cache = cacheContext {
-            let key = SemaCacheContext.makeCallResolutionKey(
-                candidates: candidates,
-                call: call,
-                expectedType: expectedType,
-                implicitReceiverType: implicitReceiverType,
-                symbols: ctx.symbols
-            )
-            if let cached = cache.cachedCallResolution(for: key) {
-                cache.recordCallResolutionHit()
-                return cached
-            }
-            cache.recordCallResolutionMiss()
-            let result = resolveCallUncached(
-                candidates: candidates,
-                call: call,
-                expectedType: expectedType,
-                implicitReceiverType: implicitReceiverType,
-                candidateArgumentTypes: [:],
-                ctx: ctx
-            )
-            cache.cacheCallResolution(result, for: key)
-            return result
+        let key = SemaCacheContext.makeCallResolutionKey(
+            candidates: candidates,
+            call: call,
+            expectedType: expectedType,
+            implicitReceiverType: implicitReceiverType,
+            symbols: ctx.symbols
+        )
+        if let cached = cache.cachedCallResolution(for: key) {
+            cache.recordCallResolutionHit()
+            return cached
         }
-        return resolveCallUncached(
+        cache.recordCallResolutionMiss()
+        let result = resolveCallUncached(
             candidates: candidates,
             call: call,
             expectedType: expectedType,
@@ -231,6 +210,8 @@ extension OverloadResolver {
             candidateArgumentTypes: [:],
             ctx: ctx
         )
+        cache.cacheCallResolution(result, for: key)
+        return result
     }
 
     private func resolveCallUncached(
@@ -241,9 +222,35 @@ extension OverloadResolver {
         candidateArgumentTypes: [SymbolID: [Int: TypeID]],
         ctx: SemaModule
     ) -> ResolvedCall {
+        let (viable, candidateFailures) = evaluateCandidates(
+            candidates,
+            call: call,
+            expectedType: expectedType,
+            implicitReceiverType: implicitReceiverType,
+            candidateArgumentTypes: candidateArgumentTypes,
+            ignoredLambdaReturnTypeArgumentIndices: [],
+            ctx: ctx
+        )
+        return selectResult(
+            from: viable,
+            call: call,
+            typeSystem: ctx.types,
+            candidateFailures: candidateFailures
+        )
+    }
+
+    private func evaluateCandidates(
+        _ candidates: [SymbolID],
+        call: CallExpr,
+        expectedType: TypeID?,
+        implicitReceiverType: TypeID?,
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]],
+        ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
+        ctx: SemaModule
+    ) -> (viable: [ViableCandidate], failures: [Diagnostic]) {
         let solver = ConstraintSolver()
         var viable: [ViableCandidate] = []
-        var candidateFailures: [Diagnostic] = []
+        var failures: [Diagnostic] = []
         for candidate in candidates {
             let candidateCall = call.replacingArgumentTypes(candidateArgumentTypes[candidate] ?? [:])
             let evaluation = evaluateCandidate(
@@ -251,7 +258,7 @@ extension OverloadResolver {
                 call: candidateCall,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
-                ignoredLambdaReturnTypeArgumentIndices: [],
+                ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
                 solver: solver,
                 ctx: ctx
             )
@@ -259,17 +266,12 @@ extension OverloadResolver {
             case let .viable(value):
                 viable.append(value)
             case let .constraintFailure(diagnostic):
-                candidateFailures.append(diagnostic)
+                failures.append(diagnostic)
             case .rejected:
                 continue
             }
         }
-        return selectResult(
-            from: viable,
-            call: call,
-            typeSystem: ctx.types,
-            candidateFailures: candidateFailures
-        )
+        return (viable, failures)
     }
 
     private func evaluateCandidate(
@@ -316,6 +318,7 @@ extension OverloadResolver {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
                 implicitReceiverType: implicitReceiverType,
+                explicitTypeArgs: call.explicitTypeArgs,
                 typeVarBySymbol: typeVarBySymbol,
                 range: call.range,
                 typeSystem: ctx.types
@@ -650,8 +653,6 @@ extension OverloadResolver {
             return .rejected
         }
 
-        // Emit KSWIFTK-SEMA-INFER when a type variable could not be inferred
-        // (solver returned errorType because it had no bounds).
         if let inferDiag = checkForUninferredTypeVariables(
             signature: signature,
             substitution: substitution,
@@ -705,13 +706,14 @@ extension OverloadResolver {
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: substitution,
             parameterMapping: parameterMapping,
-            usesVararg: normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
+            usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
         ))
     }
 
     private func buildReceiverConstraints(
         signature: FunctionSignature,
         implicitReceiverType: TypeID?,
+        explicitTypeArgs: [TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
         range: SourceRange,
         typeSystem: TypeSystem
@@ -721,6 +723,54 @@ extension OverloadResolver {
         }
         guard let implicitReceiverType else {
             return nil
+        }
+        // Fixed KClass receivers must retain the complete projection relation.
+        // Decomposing their arguments would turn an in/out combination into
+        // equality and discard the declaration's upper bound.
+        let isKClassReceiver: Bool = switch typeSystem.kind(of: receiverType) {
+        case .kClassType: true
+        case let .classType(classType): classType.classSymbol == typeSystem.kClassInterfaceSymbol
+        default: false
+        }
+        if isKClassReceiver,
+           !containsTypeVariable(receiverType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+        {
+            return [VariableConstraint(
+                kind: .subtype, left: .type(implicitReceiverType), right: .type(receiverType),
+                blameRange: range
+            )]
+        }
+        // The nominal representation preserves `out` instead of erasing it
+        // into invariant KClass<T>. Only an inferred, read-only extension can
+        // approximate the captured argument by that projection's upper bound.
+        if explicitTypeArgs.isEmpty,
+           signature.reifiedTypeParameterIndices.isEmpty,
+           case let .classType(actualClass) = typeSystem.kind(of: implicitReceiverType),
+           actualClass.classSymbol == typeSystem.kClassInterfaceSymbol,
+           actualClass.args.count == 1,
+           case let .out(upperBound) = actualClass.args[0],
+           case let .kClassType(declaredKClass) = typeSystem.kind(of: receiverType),
+           case let .typeParam(parameter) = typeSystem.kind(of: declaredKClass.argument),
+           typeVarBySymbol[parameter.symbol] != nil,
+           !(signature.parameterTypes + signature.contextReceiverTypes).contains(where: {
+               typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol)
+           }),
+           !signature.typeParameterSymbols.enumerated().contains(where: { index, symbol in
+               guard symbol != parameter.symbol else { return false }
+               let bounds = (index < signature.typeParameterUpperBoundsList.count
+                   ? signature.typeParameterUpperBoundsList[index] : [])
+                   + (typeSystem.symbolTable?.typeParameterUpperBounds(for: symbol) ?? [])
+               return bounds.contains { typeSystem.typeContainsTypeParam($0, symbol: parameter.symbol) }
+           }),
+           typeSystem.canApproximateCapturedUpperBound(
+               in: signature.returnType, parameter: parameter.symbol
+           )
+        {
+            return decomposeSubtypeConstraint(
+                subtype: typeSystem.makeKClassType(argument: upperBound, nullability: actualClass.nullability),
+                supertype: receiverType, typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem, blameRange: range
+            )
         }
         // Infer a receiver parameter from the receiver itself, not a LUB of its
         // separate bounds. Dependent bound arguments are projected after solving.
@@ -849,7 +899,7 @@ extension OverloadResolver {
         sema: SemaModule
     ) -> Bool {
         let typeSystem = sema.types
-        let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+        let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
         var processedAll = true
         for argIndex in call.args.indices {
             if ignoredIntegerLiteralArgumentIndices.contains(argIndex) { continue }
@@ -923,9 +973,21 @@ extension OverloadResolver {
                 continue
             }
 
+            // SAM adaptation is a call-site conversion, not nominal subtyping.
+            // Constrain the function value against the SAM method so generic
+            // interface arguments participate in ordinary candidate inference.
+            let constraintParameterType: TypeID
+            if !arg.isSpread,
+               case .functionType = typeSystem.kind(of: argType),
+               let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
+            {
+                constraintParameterType = typeSystem.make(.functionType(samFunction))
+            } else {
+                constraintParameterType = paramType
+            }
             let decomposed = decomposeSubtypeConstraint(
                 subtype: argType,
-                supertype: paramType,
+                supertype: constraintParameterType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: call.range
@@ -967,7 +1029,6 @@ extension OverloadResolver {
         return nil
     }
 
-    /// Returns the source-level element type represented by a spread argument.
     private func namedVarargArgumentElementType(
         _ type: TypeID,
         parameterType: TypeID,
@@ -1298,6 +1359,22 @@ extension OverloadResolver {
         call: CallExpr,
         typeSystem: TypeSystem
     ) -> Bool {
+        // Between function and SAM parameters, Kotlin prefers the callable
+        // overload that accepts the function value without adaptation. Keep
+        // nominal overloads (for example SAM versus Any) on the usual rules.
+        var prefersFunctionParameter = false
+        for (index, pair) in zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).enumerated() {
+            guard case .functionType = typeSystem.kind(of: call.args[index].type) else { continue }
+            let lhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.0) { true } else { false }
+            let rhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.1) { true } else { false }
+            func isSam(_ type: TypeID) -> Bool {
+                guard case let .classType(nominal) = typeSystem.kind(of: type) else { return false }
+                return typeSystem.symbolTable?.symbol(nominal.classSymbol)?.flags.contains(.funInterface) == true
+            }
+            if lhsIsFunction, isSam(pair.1) { prefersFunctionParameter = true }
+            if rhsIsFunction, isSam(pair.0) { return false }
+        }
+        if prefersFunctionParameter { return true }
         if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, call: call, typeSystem: typeSystem) {
             return true
         }
@@ -1325,8 +1402,8 @@ extension OverloadResolver {
                 // parameters are not supplied by the call and are optional (default
                 // or vararg). If every extra parameter is bound, the smaller
                 // candidate (e.g. a vararg overload) is not preferred.
-                let rhsDefaults = normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
-                let rhsVarargs = normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
+                let rhsDefaults = Self.normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
+                let rhsVarargs = Self.normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
                 var unboundFound = false
                 var extraAreOptional = true
                 for p in 0..<rhsCount {
@@ -1426,8 +1503,6 @@ extension OverloadResolver {
         return strictlyMoreSpecific
     }
 
-    /// Returns `true` if `signature` declares any receiver or parameter type
-    /// that contains a type parameter (e.g. `fun <T> T.compareTo(T)`).
     private func signatureContainsTypeParameter(
         _ signature: FunctionSignature,
         typeSystem: TypeSystem

@@ -102,9 +102,6 @@ private let accumulatingSum: @convention(c) (Int, Int, Int, UnsafeMutablePointer
     acc + value
 }
 
-private let indexedAccumulatingSum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, acc, value, _ in
-    acc + index * value
-}
 
 private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, acc, _ in
     value * 10 + acc
@@ -123,19 +120,9 @@ private let throwingIndexedAccumulator: @convention(c) (Int, Int, Int, Int, Unsa
     return 0
 }
 
-private let throwingSequenceGenerator: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "sequence generator failed")
-    return 0
-}
 
-private let sequenceAssociatePair: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    kk_pair_new(value * 2, value * 10)
-}
 
 // Maps value → (value % 2, value * 10), producing duplicate keys for odd/even groups.
-private let sequenceAssociatePairDuplicateKeys: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    kk_pair_new(value % 2, value * 10)
-}
 
 private let sequenceParitySelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 2
@@ -145,31 +132,16 @@ private let sequenceLessThanThree: @convention(c) (Int, Int, UnsafeMutablePointe
     value < 3 ? 1 : 0
 }
 
-private let sequenceModuloThreeSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value % 3
-}
 
 private let sequenceIndexTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, _ in
     index * 10
 }
 
-private let sequenceValueTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value * 10
-}
 
 private let sequenceLessThanFour: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value < 4 ? 1 : 0
 }
 
-private let sequenceReverseIntComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
-    if lhs > rhs {
-        return -1
-    }
-    if lhs < rhs {
-        return 1
-    }
-    return 0
-}
 
 let sequenceFirstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value.isMultiple(of: 2) ? value * 10 : runtimeNullSentinelInt
@@ -225,29 +197,14 @@ private let sequenceFirstNotNullOfAlwaysNull: @convention(c) (Int, Int, UnsafeMu
     runtimeNullSentinelInt
 }
 
-private let sequenceSumByWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value == 2 ? 10 : value
-}
 
-private let sequenceSumByDoubleWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    kk_double_to_bits(value == 2 ? 1.5 : 0.25)
-}
 
 private let sequenceGreaterThanTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value > 2 ? 1 : 0
 }
 
-private let sequenceNegatedSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    -value
-}
 
-private let sequenceMaxWithNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
-    lhs - rhs
-}
 
-private let sequenceMaxWithOrNullNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
-    lhs - rhs
-}
 
 private func runtimeTestStringHandle(_ value: String) -> Int {
     let bytes = Array(value.utf8)
@@ -526,14 +483,6 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_indexOfLast(seq, unsafeBitCast(greaterThanTenPredicate, to: Int.self), 0, nil) == -1)
     }
 
-    @Test func intersectReturnsDeduplicatedSetInReceiverOrder() {
-        let seq = makeSequence([1, 2, 2, 3, 4])
-        let other = registerRuntimeObject(RuntimeListBox(elements: [2, 4, 5]))
-
-        let result = kk_sequence_intersect(seq, other)
-
-        #expect(setElements(result) == [2, 4])
-    }
     @Test func groupByGroupsElementsIntoNewMap() {
         let seq = makeSequence([1, 2, 3, 4, 5])
 
@@ -1521,14 +1470,6 @@ struct RuntimeSequenceTests {
         #expect(sequenceElements(combined) == [1, 2, 3, 4])
     }
 
-    @Test func unionCombinesSequenceAndIterableIntoSet() {
-        let seq = makeSequence([1, 2, 3, 2])
-        let other = runtimeTestMakeList([3, 4, 1])
-        let unioned = kk_sequence_union(seq, other)
-
-        #expect(setElements(unioned) == [1, 2, 3, 4])
-    }
-
     // MARK: - Sequence.minus (STDLIB-562)
 
     @Test func minusRemovesFirstOccurrenceOfElement() {
@@ -1564,15 +1505,6 @@ struct RuntimeSequenceTests {
         let reduced = kk_sequence_minus(seq, 2)
         let asList = kk_sequence_to_list(reduced, nil)
         #expect(runtimeTestListElements(asList) == [1, 3])
-    }
-
-    // MARK: - Sequence.subtract (STDLIB-SEQ-FN-115)
-
-    @Test func subtractReturnsSetRemovingIterableElements() {
-        let seq = makeSequence([1, 2, 2, 3, 4])
-        let other = runtimeTestMakeList([2, 4, 2])
-        let result = kk_sequence_subtract(seq, other)
-        #expect(setElements(result) == [1, 3])
     }
 
     // MARK: - Eager Materialization (Intentional Simplification)

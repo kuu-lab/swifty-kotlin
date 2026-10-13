@@ -377,7 +377,9 @@ extension DataFlowSemaPhase {
                 guard let receiverType = resolveTypeRefForInheritance(
                     receiverRefID, currentPackage: currentPackage,
                     imports: imports,
-                    enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
                     symbols: symbols, types: types, interner: interner
                 ) else { return nil }
                 paramTypes.append(receiverType)
@@ -386,7 +388,9 @@ extension DataFlowSemaPhase {
                 guard let paramType = resolveTypeRefForInheritance(
                     paramRef, currentPackage: currentPackage,
                     imports: imports,
-                    enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
                     symbols: symbols, types: types, interner: interner
                 ) else { return nil }
                 paramTypes.append(paramType)
@@ -394,7 +398,9 @@ extension DataFlowSemaPhase {
             guard let returnType = resolveTypeRefForInheritance(
                 returnRefID, currentPackage: currentPackage,
                 imports: imports,
-                enclosingTypeParameters: enclosingTypeParameters, ast: ast,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
                 symbols: symbols, types: types, interner: interner
             ) else { return nil }
             let functionFQName = [
@@ -436,6 +442,7 @@ extension DataFlowSemaPhase {
                     currentPackage: currentPackage,
                     imports: imports,
                     enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -462,6 +469,7 @@ extension DataFlowSemaPhase {
                         currentPackage: currentPackage,
                         imports: imports,
                         enclosingTypeParameters: enclosingTypeParameters,
+                        enclosingClassScopes: enclosingClassScopes,
                         ast: ast,
                         symbols: symbols,
                         types: types,
@@ -516,11 +524,15 @@ extension DataFlowSemaPhase {
             .first?.id ?? symbol
     }
 
+    /// Resolve type arguments through the enclosing classifier scopes as well
+    /// as package/import scopes, so nested self types such as `Hand` in
+    /// `Comparable<Hand>` keep their nominal identity.
     private func resolveTypeArgRefsForInheritance(
         _ argRefs: [TypeArgRef],
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -533,17 +545,47 @@ extension DataFlowSemaPhase {
         for argRef in argRefs {
             switch argRef {
             case let .invariant(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(
+                    innerRef,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) else {
                     return []
                 }
                 result.append(.invariant(resolved))
             case let .out(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(
+                    innerRef,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) else {
                     return []
                 }
                 result.append(.out(resolved))
             case let .in(innerRef):
-                guard let resolved = resolveTypeRefForInheritance(innerRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) else {
+                guard let resolved = resolveTypeRefForInheritance(
+                    innerRef,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) else {
                     return []
                 }
                 result.append(.in(resolved))
@@ -559,6 +601,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -596,6 +639,7 @@ extension DataFlowSemaPhase {
                 for: path,
                 currentPackage: currentPackage,
                 imports: imports,
+                enclosingClassScopes: enclosingClassScopes,
                 symbols: symbols
             )
             for candidatePath in candidatePaths {
@@ -603,7 +647,17 @@ extension DataFlowSemaPhase {
                     .compactMap({ symbols.symbol($0) })
                     .first(where: { isNominalTypeSymbol($0.kind) })
                 {
-                    let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
+                    let resolvedArgs = resolveTypeArgRefsForInheritance(
+                        argRefs,
+                        currentPackage: currentPackage,
+                        imports: imports,
+                        enclosingTypeParameters: enclosingTypeParameters,
+                        enclosingClassScopes: enclosingClassScopes,
+                        ast: ast,
+                        symbols: symbols,
+                        types: types,
+                        interner: interner
+                    )
                     return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                 }
             }
@@ -628,7 +682,17 @@ extension DataFlowSemaPhase {
                         .compactMap({ symbols.symbol($0) })
                         .first(where: { isNominalTypeSymbol($0.kind) })
                     {
-                        let resolvedArgs = resolveTypeArgRefsForInheritance(argRefs, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner)
+                        let resolvedArgs = resolveTypeArgRefsForInheritance(
+                            argRefs,
+                            currentPackage: currentPackage,
+                            imports: imports,
+                            enclosingTypeParameters: enclosingTypeParameters,
+                            enclosingClassScopes: enclosingClassScopes,
+                            ast: ast,
+                            symbols: symbols,
+                            types: types,
+                            interner: interner
+                        )
                         return types.make(.classType(ClassType(classSymbol: nominalSymbol.id, args: resolvedArgs, nullability: nullability)))
                     }
                 }
@@ -638,10 +702,29 @@ extension DataFlowSemaPhase {
             return resolveFunctionTypeForInheritance(
                 contextReceiverRefIDs: contextReceiverRefIDs,
                 receiverRefID: receiverRefID, paramRefIDs: paramRefIDs, returnRefID: returnRefID, isSuspend: isSuspend, nullable: nullable,
-                currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             )
         case let .intersection(partRefs):
-            let partTypes = partRefs.compactMap { resolveTypeRefForInheritance($0, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner) }
+            let partTypes = partRefs.compactMap {
+                resolveTypeRefForInheritance(
+                    $0,
+                    currentPackage: currentPackage,
+                    imports: imports,
+                    enclosingTypeParameters: enclosingTypeParameters,
+                    enclosingClassScopes: enclosingClassScopes,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )
+            }
             guard partTypes.count == partRefs.count else { return nil }
             return types.make(.intersection(partTypes))
         case let .annotated(base, annotations):
@@ -650,6 +733,7 @@ extension DataFlowSemaPhase {
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -678,6 +762,7 @@ extension DataFlowSemaPhase {
         currentPackage: [InternedString],
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
+        enclosingClassScopes: [[InternedString]],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -687,26 +772,58 @@ extension DataFlowSemaPhase {
         var contextReceiverTypes: [TypeID] = []
         for contextReceiverRef in contextReceiverRefIDs {
             guard let contextReceiverType = resolveTypeRefForInheritance(
-                contextReceiverRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                contextReceiverRef,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
         var receiverType: TypeID?
         if let receiverRefID {
             guard let resolved = resolveTypeRefForInheritance(
-                receiverRefID, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                receiverRefID,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             ) else { return nil }
             receiverType = resolved
         }
         var paramTypes: [TypeID] = []
         for paramRef in paramRefIDs {
             guard let paramType = resolveTypeRefForInheritance(
-                paramRef, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+                paramRef,
+                currentPackage: currentPackage,
+                imports: imports,
+                enclosingTypeParameters: enclosingTypeParameters,
+                enclosingClassScopes: enclosingClassScopes,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner
             ) else { return nil }
             paramTypes.append(paramType)
         }
         guard let returnType = resolveTypeRefForInheritance(
-            returnRefID, currentPackage: currentPackage, imports: imports, enclosingTypeParameters: enclosingTypeParameters, ast: ast, symbols: symbols, types: types, interner: interner
+            returnRefID,
+            currentPackage: currentPackage,
+            imports: imports,
+            enclosingTypeParameters: enclosingTypeParameters,
+            enclosingClassScopes: enclosingClassScopes,
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            interner: interner
         ) else { return nil }
         return types.make(.functionType(FunctionType(
             contextReceivers: contextReceiverTypes,
@@ -736,11 +853,9 @@ extension DataFlowSemaPhase {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 validateAbstractOverridesForDecl(
                     declID: declID,
-                    file: file,
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
-                    types: types,
                     diagnostics: diagnostics,
                     interner: interner
                 )
@@ -895,6 +1010,7 @@ extension DataFlowSemaPhase {
         let name: InternedString
         let parameterTypes: [TypeID]
         let methodTypeParameters: [SymbolID]
+        let methodUpperBounds: [[TypeID]]
         let isSuspend: Bool
 
         func matches(_ other: DelegationDispatchKey, types: TypeSystem) -> Bool {
@@ -902,31 +1018,27 @@ extension DataFlowSemaPhase {
                   parameterTypes.count == other.parameterTypes.count,
                   methodTypeParameters.count == other.methodTypeParameters.count
             else { return false }
-            // Compare alpha-equivalent method parameters after the interface's
-            // class parameters have been substituted. Arity alone loses overloads.
-            let typeVarBySymbol = types.makeTypeVarBySymbol(methodTypeParameters)
-            var substitution: [TypeVarID: TypeID] = [:]
-            for (parameter, otherParameter) in zip(methodTypeParameters, other.methodTypeParameters) {
-                guard let typeVar = typeVarBySymbol[parameter] else { continue }
-                substitution[typeVar] = types.make(.typeParam(TypeParamType(
-                    symbol: otherParameter, nullability: .nonNull
-                )))
+            func aligned(_ type: TypeID) -> TypeID {
+                alphaAlignedMethodType(type, sourceParameters: methodTypeParameters,
+                                       targetParameters: other.methodTypeParameters, types: types)
             }
-            return parameterTypes.map {
-                types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
-            } == other.parameterTypes
+            return methodIdentityParameterTypesMatch(candidateParameterTypes: other.parameterTypes,
+                                                     interfaceParameterTypes: parameterTypes.map(aligned), types: types)
+                && methodUpperBoundSetsMatch(methodUpperBounds.map { $0.map(aligned) }, other.methodUpperBounds, types: types)
         }
     }
 
     private func delegationDispatchKey(
         for method: SemanticSymbol,
         signature: FunctionSignature,
-        parameterTypes: [TypeID]? = nil
+        parameterTypes: [TypeID]? = nil,
+        methodUpperBounds: [[TypeID]]
     ) -> DelegationDispatchKey {
         return DelegationDispatchKey(
             name: method.name,
             parameterTypes: parameterTypes ?? signature.parameterTypes,
             methodTypeParameters: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)),
+            methodUpperBounds: methodUpperBounds,
             isSuspend: signature.isSuspend
         )
     }
@@ -987,7 +1099,8 @@ extension DataFlowSemaPhase {
                   let method = symbols.symbol(funSymbol),
                   let signature = symbols.functionSignature(for: funSymbol)
             else { continue }
-            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature))
+            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature,
+                                                         methodUpperBounds: methodTypeParameterBounds(signature, types: types)))
         }
         var classPropertyNames: Set<InternedString> = []
         for propDeclID in memberProperties {
@@ -1052,6 +1165,13 @@ extension DataFlowSemaPhase {
                                 substituteDelegationType(
                                     $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
                                 )
+                            },
+                            methodUpperBounds: methodTypeParameterBounds(ifaceSig, types: types).map { bounds in
+                                bounds.map {
+                                    substituteDelegationType(
+                                        $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                                    )
+                                }
                             }
                         )
                         guard !seenMethodKeys.contains(where: { key.matches($0, types: types) }) else { continue }
@@ -1189,19 +1309,58 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol, args: classTypeArgs, nullability: .nonNull
         )))
 
-        let parameterTypes = ifaceSig.parameterTypes.map {
+        // Class parameters come from the delegating receiver; method parameters
+        // need fresh binders owned by this forwarder, including in their bounds.
+        let interfaceMethodParameters = Array(ifaceSig.typeParameterSymbols.dropFirst(ifaceSig.classTypeParameterCount))
+        let localNamespace = forwardingFQName + [interner.intern("$\(forwardingSymbol.rawValue)")]
+        let methodParameters = interfaceMethodParameters.map { original in
+            let name = symbols.symbol(original)?.name ?? interner.intern("T\(original.rawValue)")
+            let parameter = symbols.define(
+                kind: .typeParameter,
+                name: name,
+                fqName: localNamespace + [name],
+                declSite: range,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(forwardingSymbol, for: parameter)
+            symbols.setAnnotations(symbols.annotations(for: original), for: parameter)
+            return parameter
+        }
+        var forwardingSubstitution = substitution
+        var forwardingTypeVars = typeVarBySymbol
+        for (original, parameter) in zip(interfaceMethodParameters, methodParameters) {
+            let typeVar = TypeVarID(rawValue: Int32(forwardingTypeVars.count))
+            forwardingTypeVars[original] = typeVar
+            forwardingSubstitution[typeVar] = types.make(.typeParam(TypeParamType(
+                symbol: parameter, nullability: .nonNull
+            )))
+        }
+        func substitute(_ type: TypeID) -> TypeID {
             substituteDelegationType(
-                $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                type, substitution: forwardingSubstitution, typeVarBySymbol: forwardingTypeVars, types: types
             )
         }
-        let returnType = substituteDelegationType(
-            ifaceSig.returnType, substitution: substitution,
-            typeVarBySymbol: typeVarBySymbol, types: types
-        )
+        let methodBounds = interfaceMethodParameters.enumerated().map { index, original in
+            let signatureIndex = ifaceSig.classTypeParameterCount + index
+            let bounds = signatureIndex < ifaceSig.typeParameterUpperBoundsList.count
+                ? ifaceSig.typeParameterUpperBoundsList[signatureIndex]
+                : symbols.typeParameterUpperBounds(for: original)
+            let substitutedBounds = bounds.map(substitute)
+            symbols.setTypeParameterUpperBounds(substitutedBounds, for: methodParameters[index])
+            return substitutedBounds
+        }
+
+        let parameterTypes = ifaceSig.parameterTypes.map {
+            substitute($0)
+        }
+        let returnType = substitute(ifaceSig.returnType)
 
         var paramSymbols: [SymbolID] = []
         for (index, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern("p\(index)")
+            let paramName = index < ifaceSig.valueParameterSymbols.count
+                ? symbols.symbol(ifaceSig.valueParameterSymbols[index])?.name ?? interner.intern("p\(index)")
+                : interner.intern("p\(index)")
             let paramFQName = forwardingFQName + [paramName]
             let paramSymbol = symbols.define(
                 kind: .valueParameter,
@@ -1224,7 +1383,10 @@ extension DataFlowSemaPhase {
             valueParameterSymbols: paramSymbols,
             valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
             valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count),
-            typeParameterSymbols: classTypeParameterSymbols,
+            typeParameterSymbols: classTypeParameterSymbols + methodParameters,
+            typeParameterUpperBoundsList: classTypeParameterSymbols.map {
+                symbols.typeParameterUpperBounds(for: $0)
+            } + methodBounds,
             classTypeParameterCount: classTypeParameterSymbols.count
         )
         symbols.setFunctionSignature(forwardingSig, for: forwardingSymbol)
@@ -1292,11 +1454,9 @@ extension DataFlowSemaPhase {
 
     private func validateAbstractOverridesForDecl(
         declID: DeclID,
-        file: ASTFile,
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
-        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -1307,13 +1467,16 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Only check concrete class/object declarations (not abstract, not interface)
         guard symbolInfo.kind == .class || symbolInfo.kind == .object,
-              !symbolInfo.flags.contains(.abstractType)
+              !symbolInfo.flags.contains(.abstractType),
+              !symbolInfo.flags.contains(.expectDeclaration)
         else {
             return
         }
 
+        // An expect declaration describes the common API but does not provide
+        // the platform implementation. Check inherited abstract obligations
+        // on its actual declaration, where the implementation is available.
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
@@ -1348,7 +1511,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Collects the set of member names that this class provides via `override`.
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
@@ -1430,7 +1592,6 @@ extension DataFlowSemaPhase {
                 else {
                     continue
                 }
-                // Only check class and interface declarations that have supertypes
                 let hasSuperTypes: Bool
                 switch decl {
                 case let .classDecl(classDecl):

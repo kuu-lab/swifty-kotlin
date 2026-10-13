@@ -414,6 +414,53 @@ struct CollectionFactorySourceMigrationTests {
         }
     }
 
+    @Test
+    func hashSetSuperclassCallsKeepTheReceiverAndConstructorBody() throws {
+        let source = """
+        class EmptySet : HashSet<Int>()
+        class CapacitySet : HashSet<Int>(8)
+        class FactorSet : HashSet<Int>(8, 0.75f)
+        class CopySet : HashSet<Int>(listOf(1, 2))
+        fun main() {
+            println(EmptySet().size)
+            println(CapacitySet().size)
+            println(FactorSet().size)
+            println(CopySet().size)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "HashSetSuperclassCalls", emit: .kirDump
+            )
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let module = try #require(ctx.kir)
+            let hashSet = try #require(sema.symbols.lookup(
+                fqName: ["kotlin", "collections", "HashSet"].map(ctx.interner.intern)
+            ))
+            for (name, argumentCount) in [("EmptySet", 1), ("CapacitySet", 2), ("FactorSet", 3), ("CopySet", 2)] {
+                let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(name)]))
+                let constructors = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+                    guard case let .function(function) = declaration,
+                          sema.symbols.symbol(function.symbol)?.kind == .constructor,
+                          sema.symbols.parentSymbol(for: function.symbol) == owner
+                    else { return nil }
+                    return function
+                }
+                let constructor = try #require(constructors.first)
+                #expect(constructor.body.contains { instruction in
+                    guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                          let symbol,
+                          sema.symbols.symbol(symbol)?.kind == .constructor,
+                          sema.symbols.parentSymbol(for: symbol) == hashSet
+                    else { return false }
+                    return arguments.count == argumentCount
+                }, "\(name) must initialize its receiver through the source constructor")
+            }
+        }
+    }
+
     /// KUU-646: `mutableMapOf` / `linkedMapOf` declare a mutable result, so they
     /// need the LinkedHashMap-tagged bridge. `hashMapOf` keeps HashMap.
     /// `__kk_map_of` is shared with read-only `mapOf` and tags its box as `Map`.

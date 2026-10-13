@@ -25,7 +25,10 @@ func makeCompilationContext(
         frontendFlags: frontendFlags,
         irFlags: irFlags,
         includeStdlib: includeStdlib,
-        stdlibLibraryPath: stdlibLibraryPath
+        stdlibLibraryPath: stdlibLibraryPath,
+        // The case profile chooses the artifact explicitly. In particular,
+        // a source profile must not inherit the process default artifact.
+        allowDefaultStdlibLibrary: false
     )
     return CompilationContext(
         options: options,
