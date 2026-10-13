@@ -274,6 +274,12 @@ extension KIRLoweringDriver {
 
             switch decl {
             case let .classDecl(classDecl):
+                // The actual enum owns the runtime slots and reflection wrappers.
+                if sema.symbols.symbol(symbol)?.kind == .enumClass,
+                   sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
+                {
+                    continue
+                }
                 declIDs.append(contentsOf: lowerTopLevelClassDecl(
                     classDecl,
                     symbol: symbol,
