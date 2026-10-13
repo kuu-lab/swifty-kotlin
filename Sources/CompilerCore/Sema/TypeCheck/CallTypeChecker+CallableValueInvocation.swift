@@ -91,6 +91,7 @@ extension CallTypeChecker {
         resolved: ResolvedCall,
         sema: SemaModule
     ) -> TypeID {
+        bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
         sema.bindings.bindCall(
             id,
             binding: CallBinding(
