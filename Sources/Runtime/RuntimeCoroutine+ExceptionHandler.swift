@@ -1,7 +1,6 @@
 import Dispatch
 import Foundation
 
-// MARK: - CoroutineExceptionHandler (STDLIB-CORO-072)
 
 /// A heap-allocated box holding a Swift closure that acts as a CoroutineExceptionHandler.
 /// The closure receives the raw CoroutineContext and throwable pointers and

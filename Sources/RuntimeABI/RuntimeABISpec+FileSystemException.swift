@@ -6,8 +6,6 @@
 /// box carries the runtime type identity catch-clause dispatch (`kk_op_is`)
 /// needs, plus shared `file` / `other` / `reason` accessors.
 public extension RuntimeABISpec {
-    // MARK: - kotlin.io filesystem exceptions (KSP-619)
-
     private static let fileSystemExceptionPrefixes = [
         "file_system",
         "file_already_exists",

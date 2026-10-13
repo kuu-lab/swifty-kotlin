@@ -78,7 +78,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | 6 | **BuildKIR** | AST + Sema | `ctx.kir` (KIRModule) | `KIR/BuildKIRPhase.swift`, `KIR/KIRLoweringDriver.swift` |
 | 7 | **Lowering** | KIR | KIR (in-place 変換) | `Lowering/LoweringPhase.swift` + 各 `*LoweringPass.swift` |
 | 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift` |
-| 9 | **Link** | `.o` ファイル | 実行ファイル (`swiftc` 呼び出し) | `CompilerBackend/LinkPhase.swift` |
+| 9 | **Link** | `.o` ファイル | 実行ファイル (macOS 通常リンクは clang、debug / Linux 等は swiftc) | `CompilerBackend/LinkPhase.swift` |
 
 ---
 
@@ -105,6 +105,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `BackendPhaseProvider.swift` | `makeBackendPhases()` — CodegenPhase + LinkPhase を提供 |
 | `CodegenPhase.swift` | KIR → LLVM IR 変換フェーズ |
 | `LinkPhase.swift` | オブジェクト → 実行ファイルリンクフェーズ |
+| `MacOSLinkerPlan.swift` | Swift ドライバの clang リンク引数を取得・保存し、ツールチェーン / SDK 指紋で再検証 |
 | `LLVMBackend.swift` | LLVM バックエンドエントリ |
 | `LLVMCAPIBindings.swift` (+分割6ファイル: `+Core` / `+DebugInfo` / `+IRBuilder` / `+Loading` / `+Passes` / `+TargetMachine`) | LLVM C API の Swift ラッパー。`+Loading.swift` が `libLLVM.dylib` / `libLLVM.so` を `dlopen`/`dlsym` で動的ロード |
 | `NativeEmitter.swift` (+分割3ファイル: `+EmissionConstants` / `+FunctionEmission` / `+TypeLowering`) | ネイティブコード発行 |

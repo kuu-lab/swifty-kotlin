@@ -106,7 +106,7 @@ extension ExprTypeChecker {
                 sema: sema,
                 interner: interner,
                 scope: ctx.scope,
-                diagnostics: ctx.semaCtx.diagnostics,
+                diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
                 usageRange: range
             )
@@ -123,7 +123,7 @@ extension ExprTypeChecker {
                     argumentCounts = nil
                 }
                 if let argumentCounts, argumentCounts.expected != argumentCounts.actual {
-                    ctx.semaCtx.diagnostics.error(
+                    ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0062",
                         "Type argument count mismatch: expected \(argumentCounts.expected) but got \(argumentCounts.actual).",
                         range: range
@@ -673,7 +673,7 @@ extension ExprTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: sema,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 resultType = expectedSamInterfaceType ?? expectedFunctionType
             }
@@ -692,6 +692,42 @@ extension ExprTypeChecker {
         } else {
             nil
         }
+        if candidates.count == 1 {
+            driver.inferFunctionReturnTypesIfNeeded(for: candidates)
+        } else if let expectedFunctionType,
+                  case let .functionType(expectedFunction) = sema.types.kind(of: expectedFunctionType),
+                  candidates.contains(where: {
+                      driver.inferredReturnFunctions[$0] != nil
+                          && !driver.checkedInferredReturnFunctions.contains($0)
+                  })
+        {
+            // The inferred return is unavailable while choosing a dependency.
+            // Infer only an unambiguous input shape. A broader unselected
+            // overload must not introduce a dependency cycle.
+            let inputType = sema.types.make(.functionType(FunctionType(
+                contextReceivers: expectedFunction.contextReceivers,
+                receiver: expectedFunction.receiver,
+                params: expectedFunction.params,
+                returnType: sema.types.nullableAnyType,
+                isSuspend: expectedFunction.isSuspend,
+                isCallableReference: expectedFunction.isCallableReference,
+                nullability: expectedFunction.nullability,
+                throws: expectedFunction.throws
+            )))
+            let inputMatches = candidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                return driver.helpers.contextualCallableFunctionType(
+                    for: signature,
+                    bindReceiver: isBoundReceiver,
+                    boundReceiver: boundReceiverType.map { (candidate, $0) },
+                    expectedFunctionType: inputType,
+                    sema: sema
+                ) != nil
+            }
+            if inputMatches.count == 1 {
+                driver.inferFunctionReturnTypesIfNeeded(for: inputMatches)
+            }
+        }
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
@@ -709,6 +745,15 @@ extension ExprTypeChecker {
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
                 sema: sema
             )
+            if let expectedFunctionType,
+               let unitCoercedType = driver.helpers.unitCoercedCallableReferenceType(
+                   inferredType,
+                   expectedFunctionType: expectedFunctionType,
+                   sema: sema
+               )
+            {
+                inferredType = unitCoercedType
+            }
             let resultType: TypeID
             // An expected type that still mentions type parameters belongs to a
             // generic signature whose type arguments are inferred from this very
@@ -727,7 +772,7 @@ extension ExprTypeChecker {
                     ) {
                         inferredType = specializedType
                     } else {
-                        ctx.semaCtx.diagnostics.error(
+                        ctx.sema.diagnostics.error(
                             "KSWIFTK-TYPE-0001",
                             "Type constraint could not be satisfied.",
                             range: range
@@ -784,7 +829,7 @@ extension ExprTypeChecker {
         }
 
         if candidates.isEmpty {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0022",
                 "Unresolved reference '::\(interner.resolve(member))'.",
                 range: range
@@ -859,7 +904,7 @@ extension ExprTypeChecker {
             } ?? type
         }
         guard let expectedType = contextualType, case .functionType = sema.types.kind(of: expectedType) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",
                 range: range
@@ -881,7 +926,7 @@ extension ExprTypeChecker {
             range: range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         sema.bindings.bindPrimitiveOperatorCallableRef(id, op: op)
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)

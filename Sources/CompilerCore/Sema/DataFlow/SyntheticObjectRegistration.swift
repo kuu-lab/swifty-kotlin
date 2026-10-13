@@ -1,6 +1,3 @@
-/// Returns the existing symbol for `pkg.name` if one was already registered,
-/// otherwise defines a fresh synthetic `kind: .object` symbol there and
-/// returns it.
 func ensureSyntheticObjectSymbol(
     named name: String,
     in pkg: [InternedString],

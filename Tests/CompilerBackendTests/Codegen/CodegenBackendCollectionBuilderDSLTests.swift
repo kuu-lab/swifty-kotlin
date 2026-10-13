@@ -58,11 +58,8 @@ struct CodegenBackendCollectionBuilderDSLTests {
         return try String(contentsOfFile: llvmPath, encoding: .utf8)
     }
 
-    /// Artifact path: the stdlib comes from a precompiled `.kklib`, passed
-    /// explicitly through `stdlibLibraryPath`.  The process-wide default
-    /// artifact only applies to `emit == .executable`
-    /// (`CompilerOptions.shouldUseDefaultStdlib`), so an IR-emitting test has
-    /// to name the artifact itself to actually exercise this path.
+    /// Artifact path: explicitly select the shared precompiled `.kklib`
+    /// so this test exercises imported stdlib symbols.
     @Test
     func builderDSLLowersToSourceBackedHelpersThroughStdlibArtifact() throws {
         try withTemporaryFile(contents: Self.allOverloadsSource) { path in

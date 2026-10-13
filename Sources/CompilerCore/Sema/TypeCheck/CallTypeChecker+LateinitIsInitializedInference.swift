@@ -33,7 +33,7 @@ extension CallTypeChecker {
                 return nil
             }
 
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-LATEINIT",
                 "'isInitialized' is only available on property literals.",
                 range: range
@@ -62,7 +62,7 @@ extension CallTypeChecker {
                 ctx: ctx,
                 sema: sema
             ) else {
-                ctx.semaCtx.diagnostics.error(
+                ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-LATEINIT",
                     "backing field of '\(interner.resolve(propertyInfo.name))' is not accessible at this point.",
                     range: range
@@ -84,7 +84,7 @@ extension CallTypeChecker {
             return boolType
         }
 
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-LATEINIT",
             "'isInitialized' is only available on lateinit property references.",
             range: range

@@ -13,4 +13,6 @@ package kotlin.reflect
 /**
  * Represents an annotated element and allows to obtain its annotations.
  */
-public interface KAnnotatedElement
+public interface KAnnotatedElement {
+    public val annotations: List<Annotation>
+}

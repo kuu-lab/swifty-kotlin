@@ -1181,7 +1181,7 @@ extension DataFlowSemaPhase {
         let kTypeParameterSymbol = ensureInterfaceSymbol(
             named: "KTypeParameter", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
-        addKTypeParameterDirectSupertypes(
+        addSyntheticDirectSupertypes(
             [kClassifierSymbol],
             to: kTypeParameterSymbol,
             symbols: symbols,
@@ -1310,24 +1310,6 @@ extension DataFlowSemaPhase {
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
     }
 
-    private func addKTypeParameterDirectSupertypes(
-        _ supertypes: [SymbolID],
-        to symbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) {
-        var symbolSupertypes = symbols.directSupertypes(for: symbol)
-        for supertype in supertypes where !symbolSupertypes.contains(supertype) {
-            symbolSupertypes.append(supertype)
-        }
-        symbols.setDirectSupertypes(symbolSupertypes, for: symbol)
-
-        var typeSupertypes = types.directNominalSupertypes(for: symbol)
-        for supertype in supertypes where !typeSupertypes.contains(supertype) {
-            typeSupertypes.append(supertype)
-        }
-        types.setNominalDirectSupertypes(typeSupertypes, for: symbol)
-    }
 
     // STDLIB-REFLECT-073: Register KVariance enum with declaration/use-site variance entries.
     private func registerSyntheticKVarianceStub(

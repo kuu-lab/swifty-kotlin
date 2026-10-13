@@ -24,8 +24,9 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
+        // Keep the class receiver addressable to nested lambdas that use `this@Class`.
         let classContext = ctx.withoutSuspensionContext()
-            .withOuterReceiver(label: classLabel, type: classType)
+            .withOuterReceiver(label: classLabel, type: classType, symbol: symbol)
             .copying(
                 scope: classScope,
                 implicitReceiverType: classType,
@@ -56,6 +57,108 @@ extension DeclTypeChecker {
             nestedObjects: nestedObjects,
             ctx: ctx
         )
+
+        for declID in nestedObjects {
+            guard case let .objectDecl(objectDecl)? = ctx.ast.arena.decl(declID),
+                  let objectSymbol = ctx.sema.bindings.declSymbols[declID]
+            else { continue }
+            precheckIndependentObjectMemberProperties(
+                objectDecl, symbol: objectSymbol, ctx: classContext,
+                solver: solver, diagnostics: diagnostics
+            )
+        }
+        precheckIndependentNestedClassProperties(
+            classDecl.nestedClasses, ctx: classContext,
+            solver: solver, diagnostics: diagnostics
+        )
+        precheckIndependentMemberProperties(
+            classDecl.memberProperties, ctx: classContext,
+            initialLocals: primaryConstructorLocals,
+            solver: solver, diagnostics: diagnostics
+        )
+    }
+
+    func makeObjectTypeCheckContext(
+        objectDecl: ObjectDecl,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeInferenceContext {
+        let sema = ctx.sema
+        let objectType = sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        let objectScope = buildClassMemberScope(
+            ownerSymbol: symbol,
+            ownerType: objectType,
+            memberFunctions: objectDecl.memberFunctions,
+            memberProperties: objectDecl.memberProperties,
+            nestedClasses: objectDecl.nestedClasses,
+            nestedObjects: objectDecl.nestedObjects,
+            ctx: ctx
+        )
+        let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
+        return ctx.withoutSuspensionContext()
+            .withOuterReceiver(label: objectLabel, type: objectType)
+            .copying(
+                scope: objectScope,
+                implicitReceiverType: objectType,
+                currentDeclSymbol: symbol,
+                enclosingClassSymbol: symbol
+            )
+    }
+
+    func precheckIndependentObjectMemberProperties(
+        _ objectDecl: ObjectDecl,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        // Use the same receiver and visibility scope as the authoritative pass.
+        // Companion initializers must not inherit constructor parameter locals.
+        let objectContext = makeObjectTypeCheckContext(objectDecl: objectDecl, symbol: symbol, ctx: ctx)
+        precheckIndependentMemberProperties(
+            objectDecl.memberProperties, ctx: objectContext,
+            solver: solver, diagnostics: diagnostics
+        )
+        precheckIndependentNestedClassProperties(
+            objectDecl.nestedClasses, ctx: objectContext,
+            solver: solver, diagnostics: diagnostics
+        )
+        for declID in objectDecl.nestedObjects {
+            guard case let .objectDecl(nestedObject)? = ctx.ast.arena.decl(declID),
+                  let nestedSymbol = ctx.sema.bindings.declSymbols[declID]
+            else { continue }
+            precheckIndependentObjectMemberProperties(
+                nestedObject, symbol: nestedSymbol, ctx: objectContext,
+                solver: solver, diagnostics: diagnostics
+            )
+        }
+    }
+
+    private func precheckIndependentNestedClassProperties(
+        _ declIDs: [DeclID],
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        for declID in declIDs {
+            guard case let .classDecl(classDecl)? = ctx.ast.arena.decl(declID),
+                  let symbol = ctx.sema.bindings.declSymbols[declID]
+            else { continue }
+            let nestedContext = classDecl.isInner ? ctx : ctx.copying(outerReceiverTypes: [])
+            precheckIndependentClassMemberProperties(
+                classDecl, symbol: symbol, ctx: nestedContext,
+                solver: solver, diagnostics: diagnostics
+            )
+        }
+    }
+
+    private func precheckIndependentMemberProperties(
+        _ memberProperties: [DeclID],
+        ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:],
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
         let sema = ctx.sema
 
         // Revisit member properties until their dependencies resolve. Calls and
@@ -65,14 +168,14 @@ extension DeclTypeChecker {
         var didPrecheckProperty: Bool
         repeat {
             didPrecheckProperty = false
-            for declID in classDecl.memberProperties {
+            for declID in memberProperties {
                 guard !driver.precheckedPropertyDecls.contains(declID),
                       let decl = ctx.ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
                       canSafelyPrecheckInferredProperty(
                           property,
-                          in: classContext,
-                          initialLocals: primaryConstructorLocals
+                          in: ctx,
+                          initialLocals: initialLocals
                       ),
                       let propertySymbol = sema.bindings.declSymbols[declID]
                 else {
@@ -82,8 +185,8 @@ extension DeclTypeChecker {
                     property,
                     declID: declID,
                     symbol: propertySymbol,
-                    ctx: classContext.with(currentDeclSymbol: propertySymbol),
-                    initialLocals: primaryConstructorLocals,
+                    ctx: ctx.with(currentDeclSymbol: propertySymbol),
+                    initialLocals: initialLocals,
                     solver: solver,
                     diagnostics: diagnostics
                 )
@@ -216,6 +319,17 @@ extension DeclTypeChecker {
             let type = safePrecheckFlowType(for: local.symbol, fallback: local.type, in: ctx)
             return local.isInitialized && isSafePrecheckValueType(type, in: ctx) ? type : nil
         }
+        // Match expression inference's receiver tower before falling back to
+        // lexical names. An unresolved inherited member can shadow a concrete
+        // top-level property and must keep this initializer on the normal pass.
+        for receiver in ctx.implicitReceiverMemberLookupEntries() {
+            if let property = driver.helpers.lookupMemberProperty(
+                named: name, receiverType: receiver.type, sema: ctx.sema
+            ) {
+                let type = safePrecheckFlowType(for: property.symbol, fallback: property.type, in: ctx)
+                return isSafePrecheckValueType(type, in: ctx) ? type : nil
+            }
+        }
         let candidates = ctx.scope.lookup(name)
         guard candidates.count == 1,
               let symbol = ctx.sema.symbols.symbol(candidates[0]),
@@ -235,13 +349,27 @@ extension DeclTypeChecker {
     ) -> TypeID? {
         guard case let .call(callee, typeArgs, args, _)? = ctx.ast.arena.expr(exprID),
               typeArgs.isEmpty,
-              args.isEmpty,
               case let .nameRef(name, _)? = ctx.ast.arena.expr(callee),
               locals[name] == nil
         else {
             return nil
         }
-        let candidates = ctx.cachedScopeLookup(name).filter { candidate in
+        let namedCandidates = ctx.cachedScopeLookup(name)
+        if namedCandidates.count == 1,
+           let symbol = ctx.sema.symbols.symbol(namedCandidates[0]),
+           symbol.kind == .class || symbol.kind == .enumClass,
+           ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id).isEmpty,
+           args.allSatisfy({ safePrecheckExpressionType($0.expr, in: ctx, locals: locals) != nil })
+        {
+            // Every constructor of this non-generic class returns the same
+            // header-resolved type. The property checker still resolves the
+            // overload and validates argument types and visibility once.
+            return ctx.sema.types.make(.classType(ClassType(
+                classSymbol: symbol.id, args: [], nullability: .nonNull
+            )))
+        }
+        guard args.isEmpty else { return nil }
+        let candidates = namedCandidates.filter { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
                   symbol.kind == .function,
                   let signature = ctx.sema.symbols.functionSignature(for: candidate)

@@ -109,7 +109,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        // fetchAndAdd(delta: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndAdd", externalLinkName: "\(prefix)_fetchAndAdd",
@@ -128,7 +127,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // addAndFetch(delta: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "addAndFetch", externalLinkName: "\(prefix)_addAndFetch",
@@ -147,7 +145,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // fetchAndIncrement() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndIncrement", externalLinkName: "\(prefix)_fetchAndIncrement",
@@ -166,7 +163,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // fetchAndDecrement() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndDecrement", externalLinkName: "\(prefix)_fetchAndDecrement",
@@ -185,7 +181,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // incrementAndFetch() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "incrementAndFetch", externalLinkName: "\(prefix)_incrementAndFetch",
@@ -204,7 +199,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // decrementAndFetch() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "decrementAndFetch", externalLinkName: "\(prefix)_decrementAndFetch",

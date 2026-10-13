@@ -3,6 +3,39 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Worker.execute is a Kotlin/Native member represented by a bundled
+    /// package extension. Recover it before contextualizing producer/job lambdas.
+    func collectWorkerExecuteMemberCandidates(
+        named name: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let package = ["kotlin", "native", "concurrent"].map(interner.intern)
+        guard name == interner.intern("execute"),
+              let owner = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(receiverType), types: sema.types
+              ),
+              sema.symbols.symbol(owner)?.fqName == package + [interner.intern("Worker")]
+        else { return [] }
+        return sema.symbols.lookupAll(fqName: package + [name]).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  sema.symbols.parentSymbol(for: candidate) == owner
+            else { return false }
+            // A user extension with the same package/name is not the stdlib API.
+            if let file = symbol.declSite?.start.file,
+               driver.sourceManager?.origin(of: file) != .bundledStdlib {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType, declaredReceiver: receiver, sema: sema
+            )
+        }
+    }
+
     /// Whether `receiverType`'s nominal owner is one of the atomic stdlib classes
     /// whose bundled `*At`/alias source is the live implementation. Gates the
     /// importless bundled-extension member fallback so it never surfaces the

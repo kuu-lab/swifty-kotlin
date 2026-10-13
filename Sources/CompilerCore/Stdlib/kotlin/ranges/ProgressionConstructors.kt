@@ -15,17 +15,14 @@ import kotlin.internal.KsSymbolName
 // the stdlib layer; source-backed operators use them only where their construction
 // semantics still need a runtime handle.
 
-// MARK: - UInt rangeTo bridge
 
 @KsSymbolName("__kk_uint_rangeTo")
 internal external fun __uintRangeTo(a: UInt, b: UInt): UIntRange
 
-// MARK: - ULong rangeTo bridge
 
 @KsSymbolName("__kk_ulong_rangeTo")
 internal external fun __ulongRangeTo(a: ULong, b: ULong): ULongRange
 
-// MARK: - rangeUntil / until bridges
 
 @KsSymbolName("__kk_op_rangeUntil")
 internal external fun __rangeUntil(a: Int, b: Int): IntRange
@@ -42,7 +39,6 @@ internal external fun __rangeUntil(a: UInt, b: UInt): UIntRange
 @KsSymbolName("__kk_op_ulong_rangeUntil")
 internal external fun __ulongRangeUntil(a: ULong, b: ULong): ULongRange
 
-// MARK: - step bridges
 
 @KsSymbolName("__kk_op_step")
 internal external fun __intProgressionStep(range: IntProgression, step: Int): IntProgression
@@ -74,7 +70,6 @@ internal external fun __uintProgressionStep(range: UIntProgression, step: Int): 
 @KsSymbolName("__kk_uint_step")
 internal external fun __uintRangeStep(range: UIntRange, step: Int): UIntProgression
 
-// MARK: - fromClosedRange bridges
 
 @KsSymbolName("__kk_int_progression_fromClosedRange")
 internal external fun IntProgression.Companion.__intProgressionFromClosedRange(start: Int, end: Int, step: Int): IntProgression
@@ -94,7 +89,6 @@ internal external fun ULongProgression.Companion.__ulongProgressionFromClosedRan
 @KsSymbolName("__kk_ulong_progression_fromClosedRange")
 internal external fun ULongProgression.Companion.__ulongProgressionFromClosedRange(start: ULong, end: ULong, step: Long): ULongProgression
 
-// MARK: - Int/Byte/Short/Long until / rangeUntil
 
 
 public infix fun Byte.until(to: Byte): IntRange = __rangeUntil(this.toInt(), to.toInt())
@@ -114,7 +108,6 @@ public infix fun Long.until(to: Short): LongRange = __rangeUntil(this, to.toLong
 public infix fun Long.until(to: Int): LongRange = __rangeUntil(this, to.toLong())
 public infix fun Long.until(to: Long): LongRange = __rangeUntil(this, to)
 
-// MARK: - ..< (rangeUntil) operators
 public operator infix fun Byte.rangeUntil(to: Byte): IntRange = __rangeUntil(this.toInt(), to.toInt())
 public operator infix fun Byte.rangeUntil(to: Short): IntRange = __rangeUntil(this.toInt(), to.toInt())
 public operator infix fun Byte.rangeUntil(to: Int): IntRange = __rangeUntil(this.toInt(), to)
@@ -132,7 +125,6 @@ public operator infix fun Long.rangeUntil(to: Short): LongRange = __rangeUntil(t
 public operator infix fun Long.rangeUntil(to: Int): LongRange = __rangeUntil(this, to.toLong())
 public operator infix fun Long.rangeUntil(to: Long): LongRange = __rangeUntil(this, to)
 
-// MARK: - downTo operators
 public operator infix fun Byte.downTo(to: Byte): IntProgression = IntProgression.fromClosedRange(this.toInt(), to.toInt(), -1)
 public operator infix fun Byte.downTo(to: Short): IntProgression = IntProgression.fromClosedRange(this.toInt(), to.toInt(), -1)
 public operator infix fun Byte.downTo(to: Int): IntProgression = IntProgression.fromClosedRange(this.toInt(), to, -1)
@@ -150,24 +142,20 @@ public operator infix fun Long.downTo(to: Short): LongProgression = LongProgress
 public operator infix fun Long.downTo(to: Int): LongProgression = LongProgression.fromClosedRange(this, to.toLong(), -1)
 public operator infix fun Long.downTo(to: Long): LongProgression = LongProgression.fromClosedRange(this, to, -1)
 
-// MARK: - Char until / rangeUntil / downTo
 public infix fun Char.until(to: Char): CharRange = __rangeUntil(this, to)
 public operator infix fun Char.rangeUntil(to: Char): CharRange = __rangeUntil(this, to)
 public operator infix fun Char.downTo(to: Char): CharProgression = CharProgression.fromClosedRange(this, to, -1)
 
-// MARK: - UInt rangeTo / until / rangeUntil / downTo
 public operator fun UInt.rangeTo(to: UInt): UIntRange = __uintRangeTo(this, to)
 public infix fun UInt.until(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.rangeUntil(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.downTo(to: UInt): UIntProgression = UIntProgression.fromClosedRange(this, to, -1)
 
-// MARK: - ULong rangeTo / until / rangeUntil / downTo
 public operator fun ULong.rangeTo(to: ULong): ULongRange = __ulongRangeTo(this, to)
 public infix fun ULong.until(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.rangeUntil(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.downTo(to: ULong): ULongProgression = ULongProgression.fromClosedRange(this, to, -1)
 
-// MARK: - step operators
 public operator infix fun IntProgression.step(step: Int): IntProgression = __intProgressionStep(this, step)
 public operator infix fun LongProgression.step(step: Int): LongProgression = __longProgressionStep(this, step)
 public operator infix fun LongProgression.step(step: Long): LongProgression = __longProgressionStep(this, step)
@@ -201,7 +189,6 @@ public operator infix fun ULongRange.step(step: Long): ULongProgression {
     return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 
-// MARK: - fromClosedRange companion factories
 public fun IntProgression.Companion.fromClosedRange(start: Int, end: Int, step: Int): IntProgression = __intProgressionFromClosedRange(start, end, step)
 public fun LongProgression.Companion.fromClosedRange(start: Long, end: Long, step: Int): LongProgression = __longProgressionFromClosedRange(start, end, step)
 public fun CharProgression.Companion.fromClosedRange(start: Char, end: Char, step: Int): CharProgression = __charProgressionFromClosedRange(start, end, step)

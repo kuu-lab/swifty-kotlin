@@ -216,7 +216,7 @@ extension CallTypeChecker {
                 guard let expectedType = candidateExpectedTypes[index] else {
                     return nil
                 }
-                let checkpoint = ctx.semaCtx.diagnostics.checkpoint()
+                let checkpoint = ctx.sema.diagnostics.checkpoint()
                 var candidateLocals = locals
                 let argumentType = driver.inferExpr(
                     args[index].expr,
@@ -224,10 +224,10 @@ extension CallTypeChecker {
                     locals: &candidateLocals,
                     expectedType: expectedType
                 )
-                let emittedError = ctx.semaCtx.diagnostics.diagnostics.dropFirst(checkpoint).contains {
+                let emittedError = ctx.sema.diagnostics.diagnostics.dropFirst(checkpoint).contains {
                     $0.severity == .error
                 }
-                ctx.semaCtx.diagnostics.rollback(to: checkpoint)
+                ctx.sema.diagnostics.rollback(to: checkpoint)
                 guard !emittedError,
                       argumentType != ctx.sema.types.errorType,
                       !typeContainsErrorType(argumentType, sema: ctx.sema)
@@ -597,7 +597,7 @@ extension CallTypeChecker {
                     partialSubstitution[variable] = boundType
                 }
             }
-            let diagnosticsCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+            let diagnosticsCheckpoint = ctx.sema.diagnostics.checkpoint()
             var retryArgTypes = argTypes
             var reinferredIndices: [Int] = []
             for index in deferredIndices {
@@ -627,7 +627,7 @@ extension CallTypeChecker {
                 reinferredIndices.append(index)
             }
             guard !reinferredIndices.isEmpty else {
-                ctx.semaCtx.diagnostics.rollback(to: diagnosticsCheckpoint)
+                ctx.sema.diagnostics.rollback(to: diagnosticsCheckpoint)
                 continue
             }
             let retried = resolveCallRespectingLambdaReturnType(
@@ -651,12 +651,12 @@ extension CallTypeChecker {
                 // call's `KSWIFTK-SEMA-INFER`) are stale — drop them.
                 for index in reinferredIndices {
                     if let argumentRange = ast.arena.exprRange(args[index].expr) {
-                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
                     }
                 }
                 return retried
             }
-            ctx.semaCtx.diagnostics.rollback(to: diagnosticsCheckpoint)
+            ctx.sema.diagnostics.rollback(to: diagnosticsCheckpoint)
         }
         return nil
     }

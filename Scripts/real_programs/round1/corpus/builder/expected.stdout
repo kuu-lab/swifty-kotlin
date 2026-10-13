@@ -1,0 +1,15 @@
+dns -> 1.1.1.1
+call timeout -> 100
+connect timeout -> 10000
+read timeout -> 10000
+write timeout -> 0
+dns -> 1.1.1.1
+call timeout -> 100
+connect timeout -> 10000
+read timeout -> 10000
+write timeout -> 0
+dns -> 1.1.1.1
+call timeout -> 100
+connect timeout -> 10000
+read timeout -> 10000
+write timeout -> 0

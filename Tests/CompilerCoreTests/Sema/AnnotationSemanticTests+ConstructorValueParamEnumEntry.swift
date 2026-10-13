@@ -286,6 +286,83 @@ extension AnnotationSemanticTests {
 
 
 
+    @Test func testSecondaryConstructorParameterAnnotationsKeepTheirTargets() throws {
+        let sources = [
+            """
+            @Target(AnnotationTarget.VALUE_PARAMETER)
+            annotation class ParamOnly
+            @Target(AnnotationTarget.CONSTRUCTOR)
+            annotation class CtorOnly
+
+            class Good(@param:ParamOnly val name: String) {
+                @CtorOnly
+                constructor(
+                    @ParamOnly value: String,
+                    explicit: Boolean
+                ) : this(value)
+            }
+            """,
+            """
+            @Target(AnnotationTarget.VALUE_PARAMETER)
+            annotation class ParamOnly
+            @Target(AnnotationTarget.CONSTRUCTOR)
+            annotation class CtorOnly
+
+            class BadParameter(val name: String) {
+                constructor(@CtorOnly value: String, ignored: Boolean) : this(value)
+            }
+            """,
+            """
+            @Target(AnnotationTarget.VALUE_PARAMETER)
+            annotation class ParamOnly
+            @Target(AnnotationTarget.CONSTRUCTOR)
+            annotation class CtorOnly
+
+            class BadConstructor(val name: String) {
+                @ParamOnly
+                constructor(value: String, ignored: Boolean) : this(value)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let goodDiagnostics = diagnosticsForPath(paths[0], in: ctx)
+            let goodTargetDiagnostics = goodDiagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+            }
+            let goodUnterminatedGroups = goodDiagnostics.filter {
+                $0.code == "KSWIFTK-PARSE-0004"
+            }
+            #expect(
+                goodTargetDiagnostics.isEmpty,
+                "Primary and secondary VALUE_PARAMETER annotations, including @param, should be accepted: \(goodDiagnostics)"
+            )
+            #expect(
+                goodUnterminatedGroups.isEmpty,
+                "A multiline secondary constructor parameter list must include parameter annotations: \(goodDiagnostics)"
+            )
+
+            let badParameterDiagnostics = diagnosticsForPath(paths[1], in: ctx)
+                .filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+            #expect(
+                badParameterDiagnostics.count == 1,
+                "@Target(CONSTRUCTOR) must not make the annotation valid on a secondary parameter: \(badParameterDiagnostics)"
+            )
+            #expect(badParameterDiagnostics.allSatisfy(isError))
+
+            let badConstructorDiagnostics = diagnosticsForPath(paths[2], in: ctx)
+                .filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+            #expect(
+                badConstructorDiagnostics.count == 1,
+                "@Target(VALUE_PARAMETER) must not make the annotation valid on a secondary constructor: \(badConstructorDiagnostics)"
+            )
+            #expect(badConstructorDiagnostics.allSatisfy(isError))
+        }
+    }
+
     // MARK: - Primary constructor annotations
 
 

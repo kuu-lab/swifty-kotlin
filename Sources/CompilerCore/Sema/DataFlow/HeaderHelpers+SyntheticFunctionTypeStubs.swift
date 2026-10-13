@@ -8,13 +8,11 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // kotlin.Function パッケージ階層の確立
         let kotlinFunctionPkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("Function")],
             symbols: symbols
         )
 
-        // Function0-22 のインターフェースを登録
         for arity in 0...22 {
             registerSyntheticFunctionInterface(
                 arity: arity,
@@ -63,7 +61,6 @@ extension DataFlowSemaPhase {
         var typeParamSymbols: [SymbolID] = []
         var typeParamTypes: [TypeID] = []
 
-        // パラメータ型 P1-P22 (in変位)
         if arity > 0 {
             for i in 1...arity {
                 let paramName = interner.intern("P\(i)")
@@ -84,7 +81,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // 戻り値型パラメータ R (out変位) は宣言順の最後
         let returnParamName = interner.intern("R")
         let returnParamFQName = interfaceFQName + [returnParamName]
         let returnParamSymbol = symbols.define(
@@ -101,18 +97,16 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         ))))
 
-        // 型パラメータの変位指定を設定: [in P1, .., in PN, out R]
         var variances: [TypeVariance] = []
         if arity > 0 {
             for _ in 1...arity {
-                variances.append(.in) // パラメータはin
+                variances.append(.in)
             }
         }
-        variances.append(.out) // 戻り値はout
+        variances.append(.out)
         types.setNominalTypeParameterSymbols(typeParamSymbols, for: interfaceSymbol)
         types.setNominalTypeParameterVariances(variances, for: interfaceSymbol)
 
-        // invokeメソッドの登録
         registerSyntheticFunctionInvokeMethod(
             ownerSymbol: interfaceSymbol,
             arity: arity,
@@ -148,7 +142,6 @@ extension DataFlowSemaPhase {
         let runtimeInvoke = arity == 1 || arity > 5 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
         symbols.setExternalLinkName(runtimeInvoke, for: invokeSymbol)
 
-        // パラメータ型の構築
         var parameterTypes: [TypeID] = []
         var parameterSymbols: [SymbolID] = []
 
@@ -180,7 +173,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // レシーバ型の構築
         let receiverType = types.make(.classType(ClassType(
             classSymbol: ownerSymbol,
             args: typeParamSymbols.enumerated().map { index, symbol in

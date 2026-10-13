@@ -752,8 +752,6 @@ final class ObjectLiteralLowerer {
         )
     }
 
-    // MARK: - REFL-004: KClass Binary Metadata Registration
-
     /// Emits a call to `__kk_kclass_register_metadata` to register compile-time
     /// metadata for a nominal type so that `KClass` instances can query it at runtime.
     private func registerKClassMetadata(

@@ -111,7 +111,12 @@ extension BuildASTPhase {
                 setter = siblingResult.setter
                 foundSiblingBlockAccessor = getter != nil || setter != nil
             }
-            if !foundSiblingBlockAccessor {
+            // A block after an initializer or delegate belongs to that expression.
+            // Its object members must not become accessors of the outer property.
+            let hasInitializerOrDelegate = directTokens.contains {
+                $0.kind == .symbol(.assign) || $0.kind == .softKeyword(.by)
+            }
+            if !foundSiblingBlockAccessor, !hasInitializerOrDelegate {
                 for child in arena.children(of: accessorBlockID) {
                     processAccessorChild(
                         child,
@@ -343,14 +348,7 @@ extension BuildASTPhase {
         var setter: PropertyAccessorDecl?
         var remaining = allTokens[...]
 
-        while let startIdx = remaining.firstIndex(where: { token in
-            switch token.kind {
-            case .softKeyword(.get), .softKeyword(.set):
-                true
-            default:
-                false
-            }
-        }) {
+        while let startIdx = topLevelAccessorKeywordIndex(in: remaining) {
             let tokensBeforeAccessor = Array(remaining[..<startIdx])
             let annotations = accessorAnnotations(from: tokensBeforeAccessor, interner: interner)
             let token = remaining[startIdx]
@@ -528,6 +526,27 @@ extension BuildASTPhase {
         }
 
         return (getter, setter)
+    }
+
+    private func topLevelAccessorKeywordIndex(in tokens: ArraySlice<Token>) -> Int? {
+        var depth = BracketDepth()
+        for index in tokens.indices {
+            let token = tokens[index]
+            if depth.isBracketBraceParenTopLevel,
+               token.kind == .softKeyword(.get) || token.kind == .softKeyword(.set) {
+                if index > tokens.startIndex {
+                    switch tokens[index - 1].kind {
+                    case .symbol(.dot), .symbol(.questionDot):
+                        continue
+                    default:
+                        break
+                    }
+                }
+                return index
+            }
+            depth.track(token.kind)
+        }
+        return nil
     }
 
     private func processPropertyAccessorWithBlock(
@@ -805,8 +824,6 @@ extension BuildASTPhase {
         return .unit
     }
 
-    // MARK: - Explicit Backing Field (Kotlin 2.0)
-
     func declarationExplicitBackingField(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -851,7 +868,6 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExplicitBackingField? {
-        // tokens[0] is `field`
         guard tokens.count >= 2 else { return nil }
         var index = 1
 

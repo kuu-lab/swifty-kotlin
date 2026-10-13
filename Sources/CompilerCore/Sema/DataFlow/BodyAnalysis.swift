@@ -24,20 +24,6 @@ extension DataFlowSemaPhase {
                 seenNames.insert(valueParam.name)
             }
 
-            // Validate tailrec: the terminal expression must be a self-recursive call.
-            if funDecl.isTailrec {
-                let isTailCall = checkTailRecursiveBody(
-                    funDecl.body, functionName: funDecl.name, ast: ast
-                )
-                if !isTailCall {
-                    diagnostics.warning(
-                        "KSWIFTK-SEMA-TAILREC",
-                        "Function marked 'tailrec' but last expression is not a self-recursive call.",
-                        range: funDecl.range
-                    )
-                }
-            }
-
         case .propertyDecl:
             break
 
@@ -52,6 +38,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
+        sourceManager: SourceManager? = nil,
         localTypeParameters: [InternedString: SymbolID] = [:],
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
@@ -146,7 +133,12 @@ extension DataFlowSemaPhase {
                 }
             }
             if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
-                if resolved.flags.contains(.importedLibrary), let usageRange {
+                let isBundledDeclaration = (symbols.sourceFileID(for: resolved.id) ?? resolved.declSite?.start.file)
+                    .map { sourceManager?.origin(of: $0)?.isBundledStdlib == true } == true
+                // Header resolution has no enclosing-class context here. The
+                // source-origin check enforces the stdlib's internal module
+                // boundary; private/protected source access uses type checking.
+                if resolved.flags.contains(.importedLibrary) || (isBundledDeclaration && resolved.visibility == .internal), let usageRange {
                     let fileID = usageRange.start.file
                     let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
                         KnownCompilerAnnotation.suppress.matches(annotation.name)
@@ -157,6 +149,7 @@ extension DataFlowSemaPhase {
                     } == true
                     let checker = VisibilityChecker(
                         symbols: symbols,
+                        sourceManager: sourceManager,
                         invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
                     )
                     if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
@@ -184,6 +177,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -260,6 +254,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -286,6 +281,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -306,6 +302,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
@@ -322,6 +319,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -340,6 +338,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
@@ -365,6 +364,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
@@ -383,6 +383,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
                 relativeOwnerFQName: relativeOwnerFQName,
                 currentPackageFQName: currentPackageFQName,
@@ -577,6 +578,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
+        sourceManager: SourceManager? = nil,
         localTypeParameters: [InternedString: SymbolID] = [:],
         relativeOwnerFQName: [InternedString]? = nil,
         currentPackageFQName: [InternedString]? = nil,
@@ -596,6 +598,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -612,6 +615,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -628,6 +632,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
@@ -687,7 +692,6 @@ extension DataFlowSemaPhase {
         recursionDepth: Int = 0,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID? {
-        // Cycle detection
         guard !visited.contains(symbolID) else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-ALIAS-CYCLE",
@@ -696,7 +700,6 @@ extension DataFlowSemaPhase {
             )
             return nil
         }
-        // Depth limit
         guard depth < DataFlowSemaPhase.maxAliasExpansionDepth else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-ALIAS-DEPTH",
@@ -964,60 +967,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Check whether the function body contains a self-recursive call in tail position.
-    /// Tail positions are tracked through `if`/`when`/block/elvis branches so
-    /// expression bodies (`= if (c) acc else f(x)`) and early returns nested in
-    /// branches (`if (c) { return f(x) }`) are recognised.
-    func checkTailRecursiveBody(
-        _ body: FunctionBody, functionName: InternedString, ast: ASTModule
-    ) -> Bool {
-        switch body {
-        case .unit:
-            return false
-        case let .expr(exprID, _):
-            return containsTailCall(exprID, isValuePosition: true, functionName: functionName, ast: ast)
-        case let .block(exprIDs, _):
-            for (index, exprID) in exprIDs.enumerated() {
-                // The last statement doubles as the implicit result; earlier
-                // statements only count through an explicit `return`.
-                let isLast = index == exprIDs.count - 1
-                if containsTailCall(exprID, isValuePosition: isLast, functionName: functionName, ast: ast) {
-                    return true
-                }
-            }
-            return false
-        }
-    }
-
-    /// `isValuePosition` is true when the expression's value is the function's
-    /// result; otherwise only an explicit `return f(..)` inside it counts.
-    private func containsTailCall(
-        _ exprID: ExprID, isValuePosition: Bool, functionName: InternedString, ast: ASTModule
-    ) -> Bool {
-        guard let expr = ast.arena.expr(exprID) else { return false }
-        func recurse(_ id: ExprID, _ valuePosition: Bool) -> Bool {
-            containsTailCall(id, isValuePosition: valuePosition, functionName: functionName, ast: ast)
-        }
-        switch expr {
-        case let .returnExpr(value, _, _):
-            return value.map { recurse($0, true) } ?? false
-        case .call, .memberCall, .safeMemberCall:
-            return isValuePosition && isSelfRecursiveCall(exprID, functionName: functionName, ast: ast)
-        case let .ifExpr(_, thenExpr, elseExpr, _):
-            return recurse(thenExpr, isValuePosition) || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
-        case let .whenExpr(_, branches, elseExpr, _):
-            return branches.contains { recurse($0.body, isValuePosition) }
-                || (elseExpr.map { recurse($0, isValuePosition) } ?? false)
-        case let .blockExpr(statements, trailingExpr, _):
-            return statements.contains { recurse($0, false) }
-                || (trailingExpr.map { recurse($0, isValuePosition) } ?? false)
-        case let .binary(op, _, rhs, _):
-            return op == .elvis && recurse(rhs, isValuePosition)
-        default:
-            return false
-        }
-    }
-
     /// Resolve a nested type reference (e.g. `Char.Companion`) inside a builtin
     /// type's synthetic class symbol when normal nominal lookup fails.
     private func resolveBuiltinClassNestedType(
@@ -1056,31 +1005,4 @@ extension DataFlowSemaPhase {
         return symbols.symbol(symbolID)
     }
 
-    /// Check if the given expression is a call to a function with the given name.
-    /// Handles direct calls (`f(...)`) and qualified self-calls (`this.f(...)`).
-    private func isSelfRecursiveCall(
-        _ exprID: ExprID, functionName: InternedString, ast: ASTModule
-    ) -> Bool {
-        guard let expr = ast.arena.expr(exprID) else { return false }
-
-        switch expr {
-        case let .call(callee, _, _, _):
-            // Direct self call: `f(...)`.
-            guard let calleeExpr = ast.arena.expr(callee),
-                  case let .nameRef(name, _) = calleeExpr
-            else { return false }
-            return name == functionName
-
-        case let .memberCall(receiver, callee, _, _, _),
-             let .safeMemberCall(receiver, callee, _, _, _):
-            // Qualified self call: `this.f(...)` / `this?.f(...)`.
-            guard let receiverExpr = ast.arena.expr(receiver),
-                  case .thisRef = receiverExpr
-            else { return false }
-            return callee == functionName
-
-        default:
-            return false
-        }
-    }
 }

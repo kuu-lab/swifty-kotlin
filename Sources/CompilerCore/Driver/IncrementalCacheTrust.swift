@@ -51,7 +51,6 @@ enum IncrementalCacheTrust {
         let mac: String
     }
 
-    // MARK: - Location validation
 
     /// Read-only validation used before loading state. A missing cache
     /// directory yields `.missing`; anything unsafe yields `.untrusted` with a
@@ -185,7 +184,6 @@ enum IncrementalCacheTrust {
         return secured.isDirectory && !secured.isSymlink && (secured.mode & 0o077 == 0)
     }
 
-    // MARK: - Integrity index
 
     /// Loads and authenticates `integrity.json`. Returns nil when the index is
     /// absent, malformed, or fails its keyed MAC — the cache is then ignored.
@@ -326,7 +324,6 @@ enum IncrementalCacheTrust {
         }
     }
 
-    // MARK: - Integrity key
 
     /// The per-user key used to authenticate cache contents. It lives in the
     /// user's private cache root — outside any workspace — and is only ever
@@ -386,7 +383,6 @@ enum IncrementalCacheTrust {
             .map { normalize($0) + "/" + integrityKeyName }
     }
 
-    // MARK: - Crypto helpers
 
     private static func mac(for entries: [IntegrityIndex.Entry], key: Data) -> String {
         struct MACPayload: Codable {
@@ -431,7 +427,6 @@ enum IncrementalCacheTrust {
         return difference == 0
     }
 
-    // MARK: - Path helpers
 
     static func normalize(_ path: String) -> String {
         var standardized = URL(fileURLWithPath: path).standardized.path

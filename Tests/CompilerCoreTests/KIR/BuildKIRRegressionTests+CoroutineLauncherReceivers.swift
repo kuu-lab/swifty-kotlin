@@ -138,7 +138,7 @@ extension BuildKIRRegressionTests {
         """)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-        let module = try #require(ctx.kir)
+        _ = try #require(ctx.kir)
         let lambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
             function.body.contains { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }

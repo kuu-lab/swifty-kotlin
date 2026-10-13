@@ -201,7 +201,7 @@ extension LocalDeclTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee,
                let signature = sema.symbols.functionSignature(for: chosen)
@@ -255,7 +255,7 @@ extension LocalDeclTypeChecker {
                     ),
                     expectedType: nil,
                     implicitReceiverType: receiverType,
-                    ctx: ctx.semaCtx
+                    ctx: ctx.sema
                 )
                 if let chosen = resolved.chosenCallee,
                    let signature = sema.symbols.functionSignature(for: chosen)
@@ -288,14 +288,14 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         if sema.types.isSubtype(receiverType, sema.types.stringType) {
             sema.bindings.bindExprType(id, type: sema.types.charType)
             return sema.types.charType
         }
         guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "Unresolved member function 'get'.",
                 range: range
@@ -336,8 +336,11 @@ extension LocalDeclTypeChecker {
         )
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-            let scopedCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(setName)).visible
-            setCandidates = scopedCandidates.filter { candidate in
+            // An unrelated nearer extension must not hide an applicable set
+            // from an outer scope (e.g. the default-imported MutableMap.set).
+            // Stop at the first scope with receiver-compatible operators so
+            // applicable user extensions retain their normal priority.
+            let scopedCandidates = ctx.scope.lookup(setName, matching: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
@@ -346,12 +349,19 @@ extension LocalDeclTypeChecker {
                 else {
                     return false
                 }
+                // Preserve cachedScopeLookup's expect/actual filtering.
+                if symbol.flags.contains(.expectDeclaration),
+                   sema.symbols.actualSymbol(for: candidate) != nil
+                {
+                    return false
+                }
                 return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
                     callSiteReceiver: nonNullReceiver,
                     declaredReceiver: declaredReceiver,
                     sema: sema
                 )
-            }
+            })
+            setCandidates = ctx.filterByVisibility(scopedCandidates).visible
         }
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
@@ -485,7 +495,7 @@ extension LocalDeclTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
                 // Record the resolved call so KIR lowering can dispatch correctly
@@ -511,7 +521,7 @@ extension LocalDeclTypeChecker {
             return sema.types.errorType
         }
         guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "Unresolved member function 'set'.",
                 range: range
@@ -525,7 +535,7 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         let elementExpectedType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
@@ -537,7 +547,7 @@ extension LocalDeclTypeChecker {
                 range: ast.arena.exprRange(valueExpr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
