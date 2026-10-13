@@ -16,7 +16,8 @@ final class LLVMBackend {
         debugInfo: Bool,
         diagnostics: DiagnosticEngine,
         moduleName: String = "main",
-        phaseTimer: PhaseTimer? = nil
+        phaseTimer: PhaseTimer? = nil,
+        session: LLVMBackendSession = LLVMBackendSession()
     ) throws {
         self.target = target
         self.moduleName = moduleName
@@ -25,7 +26,7 @@ final class LLVMBackend {
         self.debugInfo = debugInfo
         self.diagnostics = diagnostics
 
-        guard let bindings = LLVMCAPIBindings.loadUsable() else {
+        guard let bindings = session.loadBindings() else {
             diagnostics.error(
                 "KSWIFTK-BACKEND-1007",
                 "LLVM backend is unavailable because the LLVM C API bindings could not be loaded.",

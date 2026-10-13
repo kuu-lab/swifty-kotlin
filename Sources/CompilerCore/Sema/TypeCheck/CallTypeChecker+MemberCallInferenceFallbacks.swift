@@ -126,7 +126,7 @@ extension CallTypeChecker {
         }
 
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
@@ -244,7 +244,7 @@ extension CallTypeChecker {
             : [concreteMemberCandidates, normalCandidates]
         for candidates in candidateGroups where !candidates.isEmpty {
             let resolvedArgs = zip(args, refinedArgTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: candidates,
@@ -390,7 +390,7 @@ extension CallTypeChecker {
             : [concreteMemberCandidates, normalCandidates]
         for candidates in candidateGroups where !candidates.isEmpty {
             let resolvedArgs = zip(args, refinedArgTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: candidates,

@@ -107,7 +107,7 @@ struct NativeEmitter {
         var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
         var ambiguousLinkNames: Set<String> = []
         for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
-            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+            guard let linkName = symbols?.externalLinkNameIfKnown(for: symbol.id),
                   !linkName.isEmpty,
                   !ambiguousLinkNames.contains(linkName)
             else {
@@ -869,14 +869,16 @@ struct NativeEmitter {
             }
         }
 
-        RuntimeReflectionMetadataEmitter.emitGlobals(
-            records: reflectionMetadataRecords,
-            bindings: bindings,
-            module: llvmModule,
-            context: context,
-            int64Type: int64Type,
-            symbolPrefix: reflectionMetadataSymbolPrefix
-        )
+        PhaseTimer.measureSubPhase("IR/reflection globals", timer: phaseTimer) {
+            RuntimeReflectionMetadataEmitter.emitGlobals(
+                records: reflectionMetadataRecords,
+                bindings: bindings,
+                module: llvmModule,
+                context: context,
+                int64Type: int64Type,
+                symbolPrefix: reflectionMetadataSymbolPrefix
+            )
+        }
 
         return (context: context, module: llvmModule)
     }
@@ -1048,9 +1050,6 @@ struct NativeEmitter {
     }
 
     func targetTripleString() -> String {
-        if let osVersion = target.osVersion, !osVersion.isEmpty {
-            return "\(target.arch)-\(target.vendor)-\(target.os)\(osVersion)"
-        }
-        return "\(target.arch)-\(target.vendor)-\(target.os)"
+        CodegenRuntimeSupport.targetTripleString(target)
     }
 }

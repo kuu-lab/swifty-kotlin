@@ -1,4 +1,5 @@
 import Foundation
+import Dispatch
 
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
@@ -13,6 +14,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         guard let ast = ctx.ast else {
             throw CompilerPipelineError.invalidInput("No AST available for semantic analysis.")
         }
+
+        let setupStart = ctx.phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
 
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -258,6 +261,11 @@ final class DataFlowSemaPhase: CompilerPhase {
         // while headers are collected for source-backed enum API skip guards.
         let previousBundledIndex = BundledSyntheticStubRegistration.bundledIndex
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        if let setupStart {
+            ctx.phaseTimer?.recordSubPhase(
+                "sema-setup", startTime: setupStart, endTime: DispatchTime.now().uptimeNanoseconds
+            )
+        }
         withSubPhaseTiming("collectAllHeaders", timer: ctx.phaseTimer) {
             collectAllHeaders(
                 ast: ast, fileScopes: fileScopes,

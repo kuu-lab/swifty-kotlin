@@ -169,6 +169,7 @@ extension DataFlowSemaPhase {
             inlineKIRDir: String?,
             isStdlibArtifact: Bool,
             materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil,
+            hasCompleteInitializerInfo: Bool = false,
             moduleFQN: InternedString?
         ) -> SymbolID? {
             guard !record.fqName.isEmpty else { return nil }
@@ -255,6 +256,12 @@ extension DataFlowSemaPhase {
                     ),
                     for: symbol
                 )
+            }
+            if hasCompleteInitializerInfo, isNominalLayoutTargetSymbol(record.kind),
+               record.objectInitializerLinkName?.isEmpty != false,
+               record.companionInitializerLinkName?.isEmpty != false,
+               record.enumStaticInitLinkName?.isEmpty != false {
+                symbols.recordImportedNominalWithoutInitializers(symbol)
             }
             let binding = ImportedLibraryBinding(
                 record: record,
@@ -399,6 +406,7 @@ extension DataFlowSemaPhase {
                                     nominalTypeParametersByFQName: nominalTypeParametersByFQName
                                 )
                             },
+                            hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
                             moduleFQN: libraryModuleFQN
                         )
                     }
@@ -489,6 +497,23 @@ extension DataFlowSemaPhase {
                 importedSymbolByFQName[fQName] = binding.symbol
             }
         }
+        // Register scan-safe routing information from the compact index only
+        // after all nominal shells exist, so metadata declaration order does
+        // not affect ownership. Full semantic getters still load body records.
+        for binding in importedBindings {
+            let record = binding.record
+            if let linkName = record.externalLinkName, !linkName.isEmpty {
+                symbols.setExternalLinkName(linkName, for: binding.symbol)
+            }
+            restoreImportedParentSymbol(record, symbol: binding.symbol, symbols: symbols)
+            if record.kind == .function, !record.isMemberExtension,
+               let receiverFQName = record.receiverOwnerFQName,
+               let receiver = symbols.lookupAll(fqName: receiverFQName)
+                .first(where: { symbols.symbol($0).map { isNominalLayoutTargetSymbol($0.kind) } == true }) {
+                symbols.setParentSymbol(receiver, for: binding.symbol)
+            }
+        }
+
         // A shadowed member contributes its external link names the same
         // way a duplicate does — aliased to the winning library's
         // same-FQName counterpart. Members with no counterpart (loser-only

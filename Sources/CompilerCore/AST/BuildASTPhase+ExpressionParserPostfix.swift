@@ -79,7 +79,7 @@ extension BuildASTPhase.ExpressionParser {
                         let close = consumeIf(.symbol(.rParen))
                         var callEndRange = close?.range ?? open.range
                         if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
-                            args.append(CallArgument(expr: trailingLambda))
+                            args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
                             callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
                         }
                         let fallbackEnd = close?.range.end ?? open.range.end
@@ -96,7 +96,7 @@ extension BuildASTPhase.ExpressionParser {
                         expr = astArena.appendExpr(.call(
                             callee: expr,
                             typeArgs: typeArgs,
-                            args: [CallArgument(expr: trailingLambda)],
+                            args: [CallArgument(isTrailingLambda: true, expr: trailingLambda)],
                             range: range
                         ))
                         continue
@@ -111,7 +111,7 @@ extension BuildASTPhase.ExpressionParser {
                 let close = consumeIf(.symbol(.rParen))
                 var callEndRange = close?.range ?? open.range
                 if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
-                    args.append(CallArgument(expr: trailingLambda))
+                    args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
                     callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
                 }
                 let fallbackEnd = close?.range.end ?? open.range.end
@@ -129,7 +129,7 @@ extension BuildASTPhase.ExpressionParser {
                 expr = astArena.appendExpr(.call(
                     callee: expr,
                     typeArgs: [],
-                    args: [CallArgument(expr: trailingLambda)],
+                    args: [CallArgument(isTrailingLambda: true, expr: trailingLambda)],
                     range: range
                 ))
                 continue
@@ -204,7 +204,7 @@ extension BuildASTPhase.ExpressionParser {
                 memberEndRange = close?.range ?? open.range
             }
             if let trailingLambda = parseTrailingLambda(implicitLabel: memberName) {
-                args.append(CallArgument(expr: trailingLambda))
+                args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
                 memberEndRange = astArena.exprRange(trailingLambda) ?? memberEndRange
             }
             let range = mergeRanges(astArena.exprRange(expr), memberEndRange, fallback: dotToken.range)

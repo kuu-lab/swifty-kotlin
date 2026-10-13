@@ -60,11 +60,22 @@ extension CollectionLiteralConstructionLoweringPass {
     func isHashSetConstructor(
         callee: InternedString,
         symbol: SymbolID?,
+        arguments: [KIRExprID],
         result: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
+        // Delegated `super(...)` / `this(...)` calls initialize an existing
+        // receiver. Their source constructor bodies must run; a factory would
+        // allocate a different set and count `this` as a value argument.
+        if callee == ctx.interner.intern("<init>"),
+           let symbol,
+           let signature = ctx.sema?.symbols.functionSignature(for: symbol),
+           arguments.count == signature.parameterTypes.count + 1
+        {
+            return false
+        }
         if callee == lookup.hashSetName {
             return isStdlibCollectionConstructor(
                 symbol: symbol, className: lookup.hashSetName,

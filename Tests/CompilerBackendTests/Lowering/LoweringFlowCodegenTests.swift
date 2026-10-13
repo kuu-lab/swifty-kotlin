@@ -380,7 +380,8 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(
-                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump
+                inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump,
+                allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
 
