@@ -61,6 +61,25 @@ extension BuildASTPhase {
         }
 
         let funTokens = Array(statementTokens[startIndex...])
+        let typeParams: [TypeParamDecl]
+        if let funIndex = funTokens.firstIndex(where: { $0.kind == .keyword(.fun) }),
+           funIndex + 1 < funTokens.count,
+           funTokens[funIndex + 1].kind == .symbol(.lessThan)
+        {
+            let typeParamsEnd = skipBalancedBracket(
+                in: funTokens,
+                from: funIndex + 1,
+                open: .symbol(.lessThan),
+                close: .symbol(.greaterThan)
+            )
+            typeParams = parseTypeParamTokens(
+                Array(funTokens[(funIndex + 1)..<typeParamsEnd]),
+                interner: interner,
+                astArena: astArena
+            )
+        } else {
+            typeParams = []
+        }
 
         guard let lParenIndex = functionParameterOpenParenIndex(in: funTokens),
               let nameToken = funTokens[..<lParenIndex].last(where: { token in
@@ -164,7 +183,8 @@ extension BuildASTPhase {
             returnType: returnType,
             body: body,
             isSuspend: isSuspend,
-            range: range
+            range: range,
+            typeParams: typeParams
         ))
         if isInfix { astArena.markInfixFunction(declaration) }
         return declaration

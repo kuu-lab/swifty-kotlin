@@ -1,0 +1,8 @@
+stored:true
+first:true
+second:false
+stored-calls:2
+literal:true
+literal-calls:3
+reference:true
+late:true

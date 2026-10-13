@@ -190,8 +190,6 @@ extension CollectionLiteralLoweringSupport {
             count: Classification.allCases.count
         )
 
-        // MARK: - Named compatibility views
-
         var listExprIDs: Set<Int32> {
             get { memberships[Classification.list.rawValue] }
             set { memberships[Classification.list.rawValue] = newValue }
@@ -294,8 +292,6 @@ extension CollectionLiteralLoweringSupport {
             _modify { yield &memberships[Classification.ulongRangeIterator.rawValue] }
         }
 
-        // MARK: - Expression-keyed access
-
         /// Every classification known about `exprID`.
         ///
         /// Assigning replaces the expression's facts wholesale, so a fact the
@@ -347,8 +343,6 @@ extension CollectionLiteralLoweringSupport {
                 }
             }
         }
-
-        // MARK: - Result tagging
 
         mutating func tagResult(
             _ classification: Classification,

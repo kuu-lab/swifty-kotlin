@@ -19,7 +19,7 @@ final class ControlFlowTypeChecker {
             return sema.types.errorType
         }
         guard sema.types.nullability(of: iterableType) != .nullable else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0172",
                 "The for-loop cannot iterate over a nullable receiver.",
                 range: ctx.ast.arena.exprRange(iterableExpr) ?? range
@@ -39,7 +39,7 @@ final class ControlFlowTypeChecker {
         ) {
             return elementType
         }
-        ctx.semaCtx.diagnostics.error(
+        ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0172",
             "The for-loop must have an 'iterator()' method.",
             range: ctx.ast.arena.exprRange(iterableExpr) ?? range
@@ -89,11 +89,11 @@ final class ControlFlowTypeChecker {
                 call: CallExpr(range: range, calleeName: iteratorName, args: []),
                 expectedType: nil,
                 implicitReceiverType: nonNullIterableType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
 
             if let diagnostic = iteratorResolved.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
                 return sema.types.errorType
             }
 
@@ -168,18 +168,18 @@ final class ControlFlowTypeChecker {
             call: CallExpr(range: range, calleeName: hasNextName, args: []),
             expectedType: nil,
             implicitReceiverType: iteratorType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         let nextResolved = ctx.resolver.resolveCall(
             candidates: nextCandidates,
             call: CallExpr(range: range, calleeName: nextName, args: []),
             expectedType: nil,
             implicitReceiverType: iteratorType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
 
         if let diagnostic = hasNextResolved.diagnostic ?? nextResolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             return sema.types.errorType
         }
 
@@ -356,7 +356,7 @@ final class ControlFlowTypeChecker {
             range: ast.arena.exprRange(conditionExpr) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         // Smart cast: apply condition branching to the while body (P5-66)
         let branch = ctx.dataFlow.branchOnCondition(
@@ -400,7 +400,9 @@ final class ControlFlowTypeChecker {
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
         var bodyLocals = locals
+        let loopScope = BlockScope(parent: ctx.scope, symbols: sema.symbols)
         let bodyCtx = ctx.copying(
+            scope: loopScope,
             loopDepth: ctx.loopDepth + 1,
             loopLabelStack: newLabelStack,
             exportBlockLocalsForExpr: bodyExpr
@@ -412,14 +414,16 @@ final class ControlFlowTypeChecker {
             expectedType: nil,
             isStatementContext: true
         )
-        let conditionType = driver.inferExpr(conditionExpr, ctx: ctx, locals: &bodyLocals, expectedType: boolType)
+        let conditionType = driver.inferExpr(
+            conditionExpr, ctx: ctx.copying(scope: loopScope), locals: &bodyLocals, expectedType: boolType
+        )
         driver.emitSubtypeConstraint(
             left: conditionType,
             right: boolType,
             range: ast.arena.exprRange(conditionExpr) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         for (name, local) in locals {
             if !local.isInitialized,
@@ -437,8 +441,6 @@ final class ControlFlowTypeChecker {
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
     }
-
-    // MARK: - Infinite-loop helpers
 
     /// Loop-carried writes invalidate assignment facts on later iterations
     /// and break paths, regardless of the body's final type.
@@ -635,7 +637,7 @@ final class ControlFlowTypeChecker {
                 }
             }
             return false
-        case .lambdaLiteral, .localFunDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
+        case .lambdaLiteral, .localFunDecl, .localNominalDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
             return false
         case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
             return false
@@ -666,7 +668,7 @@ final class ControlFlowTypeChecker {
                 range: ast.arena.exprRange(condition),
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(
@@ -703,7 +705,7 @@ final class ControlFlowTypeChecker {
                thenType != sema.types.errorType, thenType != sema.types.nothingType,
                retriableBranchExpr(elseExpr)
             {
-                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
                 var retryLocals = locals
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &retryLocals, sema: sema)
                 let retried = driver.inferExpr(
@@ -717,17 +719,17 @@ final class ControlFlowTypeChecker {
                     elseType = retried
                     elseLocals = retryLocals
                     if let elseRange = ast.arena.exprRange(elseExpr) {
-                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
+                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
                     }
                 } else {
-                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
             if expectedType == nil, thenType == sema.types.errorType,
                elseType != sema.types.errorType, elseType != sema.types.nothingType,
                retriableBranchExpr(thenExpr)
             {
-                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
                 var retryLocals = locals
                 driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &retryLocals, sema: sema)
                 let retried = driver.inferExpr(
@@ -741,13 +743,21 @@ final class ControlFlowTypeChecker {
                     thenType = retried
                     thenLocals = retryLocals
                     if let thenRange = ast.arena.exprRange(thenExpr) {
-                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
+                        ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
                     }
                 } else {
-                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                 }
             }
-            resolvedType = sema.types.lub(contextualizeLongBranchLiterals(
+            let joinedRangeType = bindJoinedRangeExpressionMetadata(
+                id,
+                thenExpr: thenExpr,
+                thenType: thenType,
+                elseExpr: elseExpr,
+                elseType: elseType,
+                ctx: ctx
+            )
+            resolvedType = joinedRangeType ?? sema.types.lub(contextualizeLongBranchLiterals(
                 expressions: [thenExpr, elseExpr], types: [thenType, elseType], ctx: ctx
             ))
             // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
@@ -797,6 +807,83 @@ final class ControlFlowTypeChecker {
         }
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    private func bindJoinedRangeExpressionMetadata(
+        _ resultExpr: ExprID,
+        thenExpr: ExprID,
+        thenType: TypeID,
+        elseExpr: ExprID,
+        elseType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let branches: [(expr: ExprID, type: TypeID)] = [
+            (thenExpr, thenType),
+            (elseExpr, elseType),
+        ].filter { $0.type != sema.types.nothingType }
+        guard let first = branches.first,
+              branches.allSatisfy({ sema.bindings.isRangeExpr($0.expr) })
+        else {
+            return nil
+        }
+
+        // `rangeTo` keeps the scalar Sema type while `rangeUntil` returns a
+        // nominal range type. Normalize both through the call-argument view
+        // before joining so an if-expression can retain the common range type.
+        let sourceRangeTypes = branches.map {
+            driver.callChecker.sourceLevelRangeArgumentType(
+                $0.expr,
+                inferredType: $0.type,
+                ctx: ctx
+            )
+        }
+        guard let resultType = sourceRangeTypes.first,
+              sourceRangeTypes.allSatisfy({ $0 == resultType })
+        else {
+            return nil
+        }
+
+        let isCharRange = sema.bindings.isCharRangeExpr(first.expr)
+        let isUIntRange = sema.bindings.isUIntRangeExpr(first.expr)
+        let isULongRange = sema.bindings.isULongRangeExpr(first.expr)
+        let isFloatingPointRange = sema.bindings.isFloatingPointRangeExpr(first.expr)
+        guard branches.allSatisfy({
+            sema.bindings.isCharRangeExpr($0.expr) == isCharRange
+                && sema.bindings.isUIntRangeExpr($0.expr) == isUIntRange
+                && sema.bindings.isULongRangeExpr($0.expr) == isULongRange
+                && sema.bindings.isFloatingPointRangeExpr($0.expr) == isFloatingPointRange
+        }) else {
+            return nil
+        }
+
+        let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: first.expr)
+        let isOpenFloatingPointRange = sema.bindings.isOpenFloatingPointRangeExpr(first.expr)
+        guard !isFloatingPointRange || branches.allSatisfy({
+            sema.bindings.floatingPointRangeElementType(forExpr: $0.expr) == floatingPointElementType
+                && sema.bindings.isOpenFloatingPointRangeExpr($0.expr) == isOpenFloatingPointRange
+        }) else {
+            return nil
+        }
+
+        sema.bindings.markRangeExpr(resultExpr)
+        if isCharRange {
+            sema.bindings.markCharRangeExpr(resultExpr)
+        }
+        if isUIntRange {
+            sema.bindings.markUIntRangeExpr(resultExpr)
+        }
+        if isULongRange {
+            sema.bindings.markULongRangeExpr(resultExpr)
+        }
+        if isFloatingPointRange, let floatingPointElementType {
+            sema.bindings.bindFloatingPointRangeElementType(
+                floatingPointElementType,
+                forExpr: resultExpr,
+                endExclusive: isOpenFloatingPointRange
+            )
+        }
+        return resultType
     }
 
     func inferTryExpr(
@@ -922,7 +1009,7 @@ final class ControlFlowTypeChecker {
             resolved = sema.types.errorType
         }
         if resolved == sema.types.errorType {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0085",
                 "Unresolved exception type '\(catchParamTypeDisplayName(paramType, ctx: ctx))' in catch clause.",
                 range: range
@@ -931,7 +1018,7 @@ final class ControlFlowTypeChecker {
                   !sema.types.isSubtype(resolved, throwableType)
         {
             // KUU-1407: catch parameters must be subtypes of Throwable.
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0413",
                 "throwable type mismatch: actual type is '\(sema.types.renderType(resolved))'.",
                 range: range

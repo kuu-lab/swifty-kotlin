@@ -1,5 +1,3 @@
-
-// MARK: - Typed Exception Box Classes (STDLIB-LOG-149)
 //
 // Typed RuntimeThrowableBox subclasses for AssertionError, IllegalStateException,
 // IllegalArgumentException, NoWhenBranchMatchedException, and
@@ -527,7 +525,6 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
     }
 }
 
-// MARK: - Typed Allocators
 
 /// Allocates a `FreezingException` with Kotlin/Native's exact constructor message.
 func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int {
@@ -867,7 +864,6 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
     )
 }
 
-// MARK: - Explicit constructor entry points (catch-clause sibling-type discrimination fix)
 //
 // Each of these gives a user-facing `SomeBuiltinException(...)` constructor call its
 // own external symbol (instead of sharing the type-erased `__kk_throwable_new`/

@@ -91,7 +91,7 @@ extension BuildKIRRegressionTests {
         }
         """)
         try runToKIR(ctx)
-        let module = try #require(ctx.kir)
+        _ = try #require(ctx.kir)
         let lambda = try #require(findKIRLambdaFunctions(in: ctx).first)
         #expect(lambda.params.count == 2)
         let sema = try #require(ctx.sema)
@@ -112,7 +112,7 @@ extension BuildKIRRegressionTests {
         }
         """)
         try runToKIR(ctx)
-        let module = try #require(ctx.kir)
+        _ = try #require(ctx.kir)
         let lambda = try #require(findKIRLambdaFunctions(in: ctx).first)
         #expect(lambda.params.count == 2)
         let propertyReceivers = lambda.body.compactMap { instruction -> KIRExprID? in

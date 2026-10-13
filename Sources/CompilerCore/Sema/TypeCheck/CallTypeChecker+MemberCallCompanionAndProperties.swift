@@ -244,7 +244,7 @@ extension CallTypeChecker {
                     for: invisibleSymbol,
                     name: ctx.interner.resolve(calleeName),
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
@@ -270,7 +270,7 @@ extension CallTypeChecker {
             ),
             expectedType: expectedType,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         // A property can be used where a contravariant generic type is
         // expected (for example Comparator<String> passed to sortedWith's
@@ -289,7 +289,7 @@ extension CallTypeChecker {
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
         }
         if resolved.diagnostic != nil {
@@ -337,20 +337,20 @@ extension CallTypeChecker {
             sema: sema,
             interner: ctx.interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: deprecationCheckTarget,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         if let property = propertyForGetter[chosen], property != deprecationCheckTarget {
             driver.helpers.checkOptIn(
                 for: property,
                 ctx: ctx,
                 range: range,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
@@ -459,7 +459,7 @@ extension CallTypeChecker {
                     for: invisibleSymbol,
                     name: ctx.interner.resolve(calleeName),
                     range: range,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    diagnostics: ctx.sema.diagnostics
                 )
             }
             return nil
@@ -475,10 +475,10 @@ extension CallTypeChecker {
             ),
             expectedType: nil,
             implicitReceiverType: receiverType,
-            ctx: ctx.semaCtx
+            ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            ctx.semaCtx.diagnostics.emit(diagnostic)
+            ctx.sema.diagnostics.emit(diagnostic)
             return nil
         }
         guard let chosen = resolved.chosenCallee,
@@ -506,13 +506,13 @@ extension CallTypeChecker {
             sema: sema,
             interner: ctx.interner,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: propertySymbol,
             ctx: ctx,
             range: range,
-            diagnostics: ctx.semaCtx.diagnostics
+            diagnostics: ctx.sema.diagnostics
         )
         return propertySymbol
     }
@@ -534,7 +534,7 @@ extension CallTypeChecker {
             guard let variable = typeVariables[signature.typeParameterSymbols[index]],
                   let argument = arguments[variable] else { continue }
             if cannotBeReified(argument) {
-                ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0020", "This type cannot be used as a reified property type argument.", range: range)
+                ctx.sema.diagnostics.error("KSWIFTK-SEMA-0020", "This type cannot be used as a reified property type argument.", range: range)
             }
         }
     }

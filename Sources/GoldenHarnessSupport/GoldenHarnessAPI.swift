@@ -580,7 +580,7 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: ifaceScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: secScopeOrdinalRegex)
-        normalized = rewriteMultiValueOrdinalMatches(in: normalized, regex: tpMultiValueScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: tpMultiValueScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: objectLiteralOrdinalRegex)
@@ -643,52 +643,13 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         return mutable as String
     }
 
+    /// Renumbers the process-local IDs captured in group 2 of every `regex`
+    /// match to `0…n` in first-occurrence order (group 1 is preserved
+    /// verbatim). Group 2 may hold several underscore-joined process-local
+    /// IDs (e.g. `$tp123_456`) instead of a single one: every number shares
+    /// one ordinal counter across all matches of `regex`, so the same raw ID
+    /// always renumbers to the same small value wherever it appears.
     private static func rewriteOrdinalMatches(
-        in text: String,
-        regex: NSRegularExpression
-    ) -> String {
-        let nsText = text as NSString
-        let range = NSRange(location: 0, length: nsText.length)
-        let matches = regex.matches(in: text, range: range)
-        guard !matches.isEmpty else {
-            return text
-        }
-
-        var remappedIDs: [Int: Int] = [:]
-        for match in matches {
-            let idRange = match.range(at: 2)
-            guard idRange.location != NSNotFound,
-                  let oldID = Int(nsText.substring(with: idRange))
-            else {
-                continue
-            }
-            if remappedIDs[oldID] == nil {
-                remappedIDs[oldID] = remappedIDs.count
-            }
-        }
-
-        let mutable = NSMutableString(string: text)
-        for match in matches.reversed() {
-            let prefixRange = match.range(at: 1)
-            let idRange = match.range(at: 2)
-            guard prefixRange.location != NSNotFound,
-                  idRange.location != NSNotFound,
-                  let oldID = Int(nsText.substring(with: idRange)),
-                  let newID = remappedIDs[oldID]
-            else {
-                continue
-            }
-            let prefix = nsText.substring(with: prefixRange)
-            mutable.replaceCharacters(in: match.range, with: "\(prefix)\(newID)")
-        }
-        return mutable as String
-    }
-
-    /// Multi-value variant of `rewriteOrdinalMatches` for patterns where group 2 holds several
-    /// underscore-joined process-local IDs (e.g. `$tp123_456`) instead of a single one. Every
-    /// number shares one ordinal counter across all matches of `regex`, so the same raw ID always
-    /// renumbers to the same small value wherever it appears.
-    private static func rewriteMultiValueOrdinalMatches(
         in text: String,
         regex: NSRegularExpression
     ) -> String {

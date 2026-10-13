@@ -309,7 +309,6 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
     }
 }
 
-// MARK: - Iterator box itable registration
 
 // Runtime-backed iterator boxes are returned by `iterator()` calls resolved
 // through the synthetic collection fallback (e.g. `List.iterator()`). When a

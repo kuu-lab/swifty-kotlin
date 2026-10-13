@@ -283,6 +283,23 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     // MARK: - CoroutineContext fold traversal
 
+    /// Runtime Job itables can point at the split-callback bridge itself.
+    @Test func testContextFoldSkipsItsOwnJobBridge() {
+        let wrapper = runtimeRegisterObject(RuntimeObjectBox(length: 0, classID: 1))
+        _ = __kk_job_bind_wrapper(wrapper, kk_job_new(), runtimeNullSentinelInt)
+        let interfaceID = Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext"))
+        _ = kk_object_register_itable_iface(wrapper, interfaceID, 0)
+        _ = kk_object_register_itable_method(wrapper, 0, 1, runtimeCoroutineContextFoldBridgePointer)
+        let operation: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closure, acc, element, out in
+            out?.pointee = 0
+            return element == closure ? acc + 1 : -1
+        }
+        var thrown = 42
+        let result = kk_context_fold(wrapper, 7, unsafeBitCast(operation, to: Int.self), wrapper, &thrown)
+        #expect(result == 8)
+        #expect(thrown == 0)
+    }
+
     /// fold visits each context element exactly once.
     @Test func testContextFoldVisitsElements() {
         let nameBox = RuntimeStringBox("FoldTest")

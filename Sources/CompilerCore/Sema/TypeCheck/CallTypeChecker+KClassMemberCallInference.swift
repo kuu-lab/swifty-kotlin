@@ -1,7 +1,7 @@
 /// Inference for the KClass-receiver member-call expressions that remain
 /// compiler special cases after KSP-496:
 /// - `T::class.java / .js / .javaClass` platform interop properties, and
-/// - `T::class.findAnnotation<A>() / .findAssociatedObject<A>()`, which take
+/// - `T::class.findAssociatedObject<A>()`, which take
 ///   a reified type argument this compiler only supports via a small
 ///   compiler-side allowlist (like `typeOf<T>()`).
 ///
@@ -12,7 +12,7 @@
 ///
 /// Split out from `CallTypeChecker+MemberCallInference.swift`.
 extension CallTypeChecker {
-    /// Handles `T::class.java / .js / .javaClass / .findAnnotation<A>() /
+    /// Handles `T::class.java / .js / .javaClass /
     /// .findAssociatedObject<A>()` when the receiver is a compile-time class
     /// reference (callableRef with
     /// member "class").
@@ -104,16 +104,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: listType)
             return listType
         }
-        // STDLIB-REFLECT-065: findAnnotation<T>()
-        if calleeName == knownNames.findAnnotationName {
-            return bindKClassFindAnnotationCall(
-                id,
-                args: args,
-                explicitTypeArgs: explicitTypeArgs,
-                ctx: ctx,
-                locals: &locals
-            )
-        }
         // STDLIB-REFLECT-079: findAssociatedObject<T>()
         if calleeName == knownNames.findAssociatedObjectName {
             return bindKClassFindAssociatedObjectCall(
@@ -130,7 +120,7 @@ extension CallTypeChecker {
 
     /// Handles KClass member access when the receiver is a runtime KClass<T>
     /// expression (variable / property whose type is `kotlin.reflect.KClass<…>`):
-    /// `.java / .js / .javaClass / .findAnnotation<A>() / .findAssociatedObject<A>()`.
+    /// `.java / .js / .javaClass / .findAssociatedObject<A>()`.
     /// Returns the inferred type, or `nil` when the receiver isn't a runtime
     /// KClass or the calleeName doesn't match any handled member.
     func tryInferKClassReceiverMemberCall(
@@ -200,16 +190,6 @@ extension CallTypeChecker {
             sema.bindings.markCollectionExpr(id)
             sema.bindings.bindExprType(id, type: listType)
             return listType
-        }
-        // STDLIB-REFLECT-065: findAnnotation<T>()
-        if calleeName == knownNames.findAnnotationName {
-            return bindKClassFindAnnotationCall(
-                id,
-                args: args,
-                explicitTypeArgs: explicitTypeArgs,
-                ctx: ctx,
-                locals: &locals
-            )
         }
         // STDLIB-REFLECT-079: findAssociatedObject<T>()
         if calleeName == knownNames.findAssociatedObjectName {
