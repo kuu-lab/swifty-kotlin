@@ -110,6 +110,7 @@ public final class SymbolTable {
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
     private var moduleFQNames: [SymbolID: InternedString] = [:]
+    private var byModuleFQN: [InternedString: [SymbolID]] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
     /// BUG-inner-outer: the synthetic `$outer` field holding an `inner
@@ -939,11 +940,21 @@ public final class SymbolTable {
     }
 
     public func setModuleFQN(_ moduleFQN: InternedString, for symbol: SymbolID) {
+        guard moduleFQNames[symbol] != moduleFQN else { return }
+        if let previousModule = moduleFQNames[symbol] {
+            byModuleFQN[previousModule]?.removeAll { $0 == symbol }
+        }
         moduleFQNames[symbol] = moduleFQN
+        byModuleFQN[moduleFQN, default: []].append(symbol)
     }
 
     public func moduleFQN(for symbol: SymbolID) -> InternedString? {
         moduleFQNames[symbol]
+    }
+
+    /// Returns module members in assignment order without forcing imported metadata.
+    public func symbols(inModule moduleFQN: InternedString) -> [SymbolID] {
+        byModuleFQN[moduleFQN] ?? []
     }
 
     public func setAnnotations(_ annotations: [MetadataAnnotationRecord], for symbol: SymbolID) {

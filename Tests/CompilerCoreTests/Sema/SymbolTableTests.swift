@@ -503,13 +503,14 @@ struct SymbolTableTests {
         symbols.setLazyImportedMetadataLoader { _ in
             loaderRan = true
             _ = symbols.lookupAll(fqName: fqName)
+            // A plain-property collision reuses the shell. An extension
+            // property intentionally coexists with it as a separate symbol.
             let colliding = symbols.define(
                 kind: .property,
                 name: name,
                 fqName: fqName,
                 declSite: nil,
-                visibility: .public,
-                isExtensionProperty: true
+                visibility: .public
             )
             #expect(colliding == shell)
         }

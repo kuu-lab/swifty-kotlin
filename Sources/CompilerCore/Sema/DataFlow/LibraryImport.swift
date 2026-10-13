@@ -245,12 +245,15 @@ extension DataFlowSemaPhase {
                 symbols.setModuleFQN(moduleFQN, for: symbol)
             }
             if materializeBody != nil,
-               record.kind == .function || record.kind == .property || record.kind == .field
+               record.kind == .function || record.kind == .constructor || record.kind == .property || record.kind == .field
             {
+                // Constructor arity is also in the compact index. Bundled
+                // member-key scans must not decode signatures or nominal
+                // layouts just to suppress an existing constructor stub.
                 symbols.setImportedMemberIndexShape(
                     ImportedMemberIndexShape(
-                        arity: record.kind == .function ? record.arity : 0,
-                        receiverOwnerFQName: record.receiverOwnerFQName
+                        arity: record.kind == .function || record.kind == .constructor ? record.arity : 0,
+                        receiverOwnerFQName: record.kind == .constructor ? nil : record.receiverOwnerFQName
                     ),
                     for: symbol
                 )
