@@ -634,7 +634,24 @@ extension ExprLowerer {
                 let localSlot = arena.appendTemporary(type: declaredType)
                 driver.ctx.setLocalValue(localSlot, for: symbol)
             }
-            if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
+            if sema.symbols.symbol(symbol)?.flags.contains(.lateinitProperty) == true {
+                // Store the raw null sentinel. Creating a closure captures
+                // the shared cell without reading/checking its contents.
+                let sentinel = arena.appendExpr(.null, type: declaredType)
+                instructions.append(.constValue(result: sentinel, value: .null))
+                let storage = arena.appendTemporary(type: declaredType)
+                instructions.append(.copy(from: sentinel, to: storage))
+                driver.ctx.setLocalValue(storage, for: symbol)
+                if isMutable, isCapturedByLambda(symbol, sema: sema) {
+                    _ = ensureMutableCaptureCell(
+                        for: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
+            } else if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
                 let placeholder = arena.appendExpr(.null, type: declaredType)
                 instructions.append(.constValue(result: placeholder, value: .null))
                 driver.ctx.setLocalValue(placeholder, for: symbol)

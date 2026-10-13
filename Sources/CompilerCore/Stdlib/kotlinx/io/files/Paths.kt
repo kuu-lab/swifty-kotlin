@@ -8,10 +8,6 @@
 package kotlinx.io.files
 
 import kotlin.internal.KsSymbolName
-import kotlin.jvm.JvmName
-import kotlinx.io.Sink
-import kotlinx.io.Source
-import kotlinx.io.buffered
 
 /** A string path in the host's POSIX filesystem. */
 public class Path internal constructor(internal val path: String, @Suppress("UNUSED_PARAMETER") marker: Boolean) {
@@ -87,11 +83,3 @@ public fun Path(base: Path, vararg parts: String): Path {
     }
     return Path(result)
 }
-
-@Deprecated("Use FileSystem.source instead", level = DeprecationLevel.ERROR)
-@JvmName("sourceDeprecated")
-public fun Path.source(): Source = SystemFileSystem.source(this).buffered()
-
-@Deprecated("Use FileSystem.sink instead", level = DeprecationLevel.ERROR)
-@JvmName("sinkDeprecated")
-public fun Path.sink(): Sink = SystemFileSystem.sink(this).buffered()
