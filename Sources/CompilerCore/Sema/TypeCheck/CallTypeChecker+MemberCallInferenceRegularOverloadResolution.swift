@@ -240,6 +240,7 @@ extension CallTypeChecker {
             args: args,
             callRange: range,
             candidates: candidates,
+            preInferredArgumentTypes: cachedNonLambdaArgTypes,
             ctx: ctx,
             expectedTypeOverrides: &argumentExpectedTypeOverrides
         )

@@ -114,11 +114,21 @@ extension TypeArg {
 public struct TypeParamType: Hashable, Sendable {
     public let symbol: SymbolID
     public let nullability: Nullability
+    /// An existential parameter captured from a use-site projection. Its identity
+    /// is local to inference; the declaration symbol still supplies ABI erasure.
+    public let capture: CapturedTypeBounds?
 
-    public init(symbol: SymbolID, nullability: Nullability = .nonNull) {
+    public init(symbol: SymbolID, nullability: Nullability = .nonNull, capture: CapturedTypeBounds? = nil) {
         self.symbol = symbol
         self.nullability = nullability
+        self.capture = capture
     }
+}
+
+public struct CapturedTypeBounds: Hashable, Sendable {
+    public let identity: Int
+    public let lower: TypeID
+    public let upper: TypeID
 }
 
 public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
@@ -183,4 +193,32 @@ public enum TypeKind: Hashable {
     case functionType(FunctionType)
     case intersection([TypeID])
     case kClassType(KClassType)
+}
+
+extension TypeKind {
+    /// Rewrites nested TypeIDs while preserving nominal SymbolIDs.
+    func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeKind {
+        switch self {
+        case .error, .unit, .nullableUnit, .nothing, .any, .stringStruct, .primitive, .typeParam:
+            self
+        case let .classType(type):
+            .classType(ClassType(
+                classSymbol: type.classSymbol,
+                args: type.args.map { $0.mapTypes(transform) },
+                nullability: type.nullability
+            ))
+        case let .functionType(type):
+            .functionType(FunctionType(
+                contextReceivers: type.contextReceivers.map(transform),
+                receiver: type.receiver.map(transform), params: type.params.map(transform),
+                returnType: transform(type.returnType), isSuspend: type.isSuspend,
+                isCallableReference: type.isCallableReference, nullability: type.nullability,
+                throws: type.throws.map(transform)
+            ))
+        case let .intersection(parts):
+            .intersection(parts.map(transform))
+        case let .kClassType(type):
+            .kClassType(KClassType(argument: transform(type.argument), nullability: type.nullability))
+        }
+    }
 }
