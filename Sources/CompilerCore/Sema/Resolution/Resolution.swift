@@ -923,9 +923,21 @@ extension OverloadResolver {
                 continue
             }
 
+            // SAM adaptation is a call-site conversion, not nominal subtyping.
+            // Constrain the function value against the SAM method so generic
+            // interface arguments participate in ordinary candidate inference.
+            let constraintParameterType: TypeID
+            if !arg.isSpread,
+               case .functionType = typeSystem.kind(of: argType),
+               let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
+            {
+                constraintParameterType = typeSystem.make(.functionType(samFunction))
+            } else {
+                constraintParameterType = paramType
+            }
             let decomposed = decomposeSubtypeConstraint(
                 subtype: argType,
-                supertype: paramType,
+                supertype: constraintParameterType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: call.range
@@ -1297,6 +1309,22 @@ extension OverloadResolver {
         call: CallExpr,
         typeSystem: TypeSystem
     ) -> Bool {
+        // Between function and SAM parameters, Kotlin prefers the callable
+        // overload that accepts the function value without adaptation. Keep
+        // nominal overloads (for example SAM versus Any) on the usual rules.
+        var prefersFunctionParameter = false
+        for (index, pair) in zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).enumerated() {
+            guard case .functionType = typeSystem.kind(of: call.args[index].type) else { continue }
+            let lhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.0) { true } else { false }
+            let rhsIsFunction: Bool = if case .functionType = typeSystem.kind(of: pair.1) { true } else { false }
+            func isSam(_ type: TypeID) -> Bool {
+                guard case let .classType(nominal) = typeSystem.kind(of: type) else { return false }
+                return typeSystem.symbolTable?.symbol(nominal.classSymbol)?.flags.contains(.funInterface) == true
+            }
+            if lhsIsFunction, isSam(pair.1) { prefersFunctionParameter = true }
+            if rhsIsFunction, isSam(pair.0) { return false }
+        }
+        if prefersFunctionParameter { return true }
         if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, call: call, typeSystem: typeSystem) {
             return true
         }

@@ -202,6 +202,13 @@ extension MemberLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> KIRInstruction {
+        let dispatchReceiver: KIRExprID? = if let symbol,
+            sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil
+        {
+            driver.ctx.activeImplicitReceiverExprID()
+        } else {
+            nil
+        }
         if let symbol,
            let parentID = sema.symbols.parentSymbol(for: symbol),
            sema.symbols.symbol(parentID)?.kind == .interface,
@@ -213,8 +220,8 @@ extension MemberLowerer {
             return .virtualCall(
                 symbol: symbol,
                 callee: callee,
-                receiver: receiver,
-                arguments: extraArguments,
+                receiver: dispatchReceiver ?? receiver,
+                arguments: dispatchReceiver.map { _ in [receiver] + extraArguments } ?? extraArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil,
@@ -224,11 +231,26 @@ extension MemberLowerer {
         return .call(
             symbol: symbol,
             callee: callee,
-            arguments: [receiver] + extraArguments,
+            arguments: dispatchReceiver.map { [$0, receiver] + extraArguments }
+                ?? ([receiver] + extraArguments),
             result: result,
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    func prependingMemberExtensionDispatchReceiver(
+        to arguments: [KIRExprID],
+        for symbol: SymbolID?,
+        sema: SemaModule
+    ) -> [KIRExprID] {
+        guard let symbol,
+              sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil,
+              let dispatchReceiver = driver.ctx.activeImplicitReceiverExprID()
+        else {
+            return arguments
+        }
+        return [dispatchReceiver] + arguments
     }
 
     /// DEBT-KIR-008: reads the delegate handle (the `Lazy`/`ObservableProperty`/

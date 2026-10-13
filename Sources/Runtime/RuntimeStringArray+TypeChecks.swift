@@ -62,6 +62,11 @@ private struct RuntimePrimitiveNominalTypeIDs {
             }
             let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
             let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+            // Serializable is inherited through Number, independently of the
+            // direct-parent lists exposed by KClass.supertypes.
+            state.typeParents[number, default: []].insert(
+                runtimeStableNominalTypeID(fqName: "java.io.Serializable")
+            )
             for id in [byte, short, int, long, float, double] {
                 state.typeParents[id, default: []].insert(number)
                 state.typeParents[id, default: []].insert(comparable)

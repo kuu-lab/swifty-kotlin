@@ -19,9 +19,9 @@ final class LLVMBackend {
         phaseTimer: PhaseTimer? = nil,
         session: LLVMBackendSession = LLVMBackendSession()
     ) throws {
-        self.phaseTimer = phaseTimer
         self.target = target
         self.moduleName = moduleName
+        self.phaseTimer = phaseTimer
         self.optLevel = optLevel
         self.debugInfo = debugInfo
         self.diagnostics = diagnostics
@@ -52,7 +52,7 @@ final class LLVMBackend {
         try emitNative(
             context: "object",
             nativeEmit: { bindings in
-                let emitter = PhaseTimer.measureSubPhase("emitter setup", timer: phaseTimer) {
+                let emitter = withSubPhaseTiming("initEmitter", timer: phaseTimer) {
                     NativeEmitter(
                         target: target,
                         optLevel: optLevel,
@@ -66,9 +66,9 @@ final class LLVMBackend {
                         sourceManager: sourceManager,
                         fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                         reflectionMetadataRecords: reflectionMetadataRecords,
-                        phaseTimer: phaseTimer,
                         reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-                        linkOnceODRSymbols: linkOnceODRSymbols
+                        linkOnceODRSymbols: linkOnceODRSymbols,
+                        phaseTimer: phaseTimer
                     )
                 }
                 try emitter.emitObject(outputPath: outputObjectPath)
@@ -90,7 +90,7 @@ final class LLVMBackend {
         try emitNative(
             context: "LLVM IR",
             nativeEmit: { bindings in
-                let emitter = PhaseTimer.measureSubPhase("emitter setup", timer: phaseTimer) {
+                let emitter = withSubPhaseTiming("initEmitter", timer: phaseTimer) {
                     NativeEmitter(
                         target: target,
                         optLevel: optLevel,
@@ -104,8 +104,8 @@ final class LLVMBackend {
                         sourceManager: sourceManager,
                         fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                         reflectionMetadataRecords: reflectionMetadataRecords,
-                        phaseTimer: phaseTimer,
-                        reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix
+                        reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+                        phaseTimer: phaseTimer
                     )
                 }
                 try emitter.emitLLVMIR(outputPath: outputIRPath)

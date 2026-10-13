@@ -295,8 +295,15 @@ extension CoroutineLoweringPass {
                 continue
             }
 
-            if rewrite.ctx.interner.resolve(callee).hasPrefix("kk_suspend_function_invoke"),
-               callerContinuationSymbol == nil
+            // Inline expansion can leave an ordinary lambda body containing
+            // await even after its suspend caller has consumed the expansion.
+            // Keep that emitted body's runtime ABI valid using the blocking
+            // fallback, just as for suspend function-value invocations.
+            let awaitNeedsContinuation = callee == rewrite.ctx.interner.intern("kk_kxmini_async_await")
+                && arguments.count == 1
+            if callerContinuationSymbol == nil,
+               rewrite.ctx.interner.resolve(callee).hasPrefix("kk_suspend_function_invoke")
+                   || awaitNeedsContinuation
             {
                 let noContinuation = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
                 loweredBody.append(.call(

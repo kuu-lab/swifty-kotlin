@@ -87,6 +87,12 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
     return runtimeAnnotationList(metadata.annotations)
 }
 
+/// Distinguishes native KClass boxes from source implementations of KClass.
+@_cdecl("__kk_kclass_is_runtime")
+public func __kk_kclass_is_runtime(_ raw: Int) -> Int {
+    runtimeKClassBox(from: raw) == nil ? 0 : 1
+}
+
 func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord]) -> Int {
     var annotationHandles: [Int] = []
     for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {

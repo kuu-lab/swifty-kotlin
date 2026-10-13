@@ -858,6 +858,13 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    registers it and automatically changes the canonical `specVersion` hash.
    `__kk_*` increases by one. The POSIX test-only adapter reuses public
    `SystemFileSystem.exists` and adds no runtime export or CInterop bypass.
+
+   KUU-1973 adds one private bridge, `__kk_kclass_is_runtime` (reason: memory
+   representation). The source-backed `KAnnotatedElement.annotations` getter
+   must distinguish native KClass boxes from user implementations before
+   bypassing interface dispatch. `__kk_*` increases by one;
+   `RuntimeABISpec.operatorFunctions` registers the ABI and its canonical hash
+   updates `specVersion`.
    KUU-1941 adds one private bridge, `__kk_hash_map_storage` (reason: memory
    representation). HashMap's inherited Kotlin bodies need a stable native
    `RuntimeMapBox` handle, while the outer Kotlin object must retain interface

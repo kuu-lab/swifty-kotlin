@@ -47,71 +47,125 @@ final class MetadataDecoder {
                 continue
             }
 
-            records.append(MetadataRecord(
-                kind: kind,
-                visibility: rec.visibility,
-                mangledName: mangledName,
-                fqName: rec.fqName,
-                arity: rec.arity,
-                isSuspend: rec.isSuspend,
-                isInline: rec.isInline,
-                isOperator: rec.isOperator,
-                isInfix: rec.isInfix,
-                isOverride: rec.isOverride,
-                isMemberExtension: rec.isMemberExtension,
-                receiverOwnerFQName: rec.receiverOwnerFQName,
-                typeSignature: rec.typeSignature,
-                typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
-                callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
-                inputOnlyTypeParameterIndices: rec.inputOnlyTypeParameterIndices,
-                valueParameterIsVararg: rec.valueParameterIsVararg,
-                valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
-                valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
-                valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
-                contractImplicationEffects: rec.contractImplicationEffects,
-                canThrow: rec.canThrow,
-                valueParameterNames: rec.valueParameterNames,
-                reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
-                defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
-                externalLinkName: rec.externalLinkName,
-                declaredFieldCount: rec.declaredFieldCount,
-                declaredInstanceSizeWords: rec.declaredInstanceSizeWords,
-                declaredVtableSize: rec.declaredVtableSize,
-                declaredItableSize: rec.declaredItableSize,
-                superFQName: rec.superFQName,
-                companionObjectFQName: rec.companionObjectFQName,
-                fieldOffsets: rec.fieldOffsets,
-                vtableSlots: rec.vtableSlots,
-                itableSlots: rec.itableSlots,
-                objectInitializerLinkName: rec.objectInitializerLinkName,
-                companionInitializerLinkName: rec.companionInitializerLinkName,
-                objectLazyInitializerLinkName: rec.objectLazyInitializerLinkName,
-                enumStaticInitLinkName: rec.enumStaticInitLinkName,
-                isDataClass: rec.isDataClass,
-                isOpenClass: rec.isOpenClass,
-                isInnerClass: rec.isInnerClass,
-                modality: rec.modality,
-                isSealedClass: rec.isSealedClass,
-                isFunInterface: rec.isFunInterface,
-                annotations: rec.annotations,
-                isValueClass: rec.isValueClass,
-                valueClassUnderlyingTypeSig: rec.valueClassUnderlyingTypeSig,
-                sealedSubclassFQNames: rec.sealedSubclassFQNames,
-                isExpect: rec.isExpect,
-                isActual: rec.isActual,
-                propertyReceiverTypeSignature: rec.propertyReceiverTypeSignature,
-                propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
-                propertySetterExternalLinkName: rec.propertySetterExternalLinkName,
-                abiReturnTypeSignature: rec.abiReturnTypeSignature,
-                propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
-                isMutable: rec.isMutable,
-                nominalTypeParametersSignature: rec.nominalTypeParametersSignature,
-                nominalSupertypeSignatures: rec.nominalSupertypeSignatures,
-                constValueLiteral: rec.constValueLiteral,
-                nominalTypeParameters: rec.nominalTypeParameters
-            ))
+            records.append(makeRecord(kind: kind, mangledName: mangledName, rec: rec))
         }
         return records
+    }
+
+    /// Parse one compact index record directly from its UTF-8 storage. This
+    /// avoids a temporary header, Unicode line splitting, and a token array
+    /// for every declaration while sharing the legacy field/default semantics.
+    func decodeIndexRecordLine(_ bytes: UnsafeBufferPointer<UInt8>) -> MetadataRecord? {
+        var cursor = 0
+        var end = bytes.count
+        func isWhitespace(_ byte: UInt8) -> Bool {
+            byte == 0x20 || (0x09 ... 0x0D).contains(byte)
+        }
+        while cursor < end, isWhitespace(bytes[cursor]) { cursor += 1 }
+        while end > cursor, isWhitespace(bytes[end - 1]) { end -= 1 }
+        if cursor < end, bytes[cursor] >= 0x80 || bytes[end - 1] >= 0x80 {
+            // Preserve Unicode edge trimming for hand-written records.
+            return decode(String(decoding: UnsafeBufferPointer(rebasing: bytes[cursor ..< end]), as: UTF8.self)).first
+        }
+        func nextToken() -> Range<Int>? {
+            while cursor < end, bytes[cursor] == 0x20 { cursor += 1 }
+            guard cursor < end else { return nil }
+            let start = cursor
+            while cursor < end, bytes[cursor] != 0x20 { cursor += 1 }
+            return start ..< cursor
+        }
+        func string(_ range: Range<Int>) -> String {
+            String(decoding: UnsafeBufferPointer(rebasing: bytes[range]), as: UTF8.self)
+        }
+        guard let kindRange = nextToken(), let kind = symbolKindFromMetadata(string(kindRange)) else {
+            return nil
+        }
+        var mangledName = ""
+        var isFirstPart = true
+        var rec = MutableMetadataRecord()
+        while let range = nextToken() {
+            if isFirstPart {
+                mangledName = string(range)
+                isFirstPart = false
+            }
+            var separator = range.lowerBound
+            while separator < range.upperBound, bytes[separator] != 0x3D { separator += 1 }
+            guard separator < range.upperBound else { continue }
+            applyKeyValuePart(
+                key: string(range.lowerBound ..< separator),
+                value: string(separator + 1 ..< range.upperBound),
+                into: &rec
+            )
+        }
+        guard !rec.fqName.isEmpty, rec.schemaVersion == nil || rec.schemaVersion == "v1" else {
+            return nil
+        }
+        return makeRecord(kind: kind, mangledName: mangledName, rec: rec)
+    }
+
+    private func makeRecord(kind: SymbolKind, mangledName: String, rec: MutableMetadataRecord) -> MetadataRecord {
+        return MetadataRecord(
+            kind: kind,
+            visibility: rec.visibility,
+            mangledName: mangledName,
+            fqName: rec.fqName,
+            arity: rec.arity,
+            isSuspend: rec.isSuspend,
+            isInline: rec.isInline,
+            isOperator: rec.isOperator,
+            isInfix: rec.isInfix,
+            isOverride: rec.isOverride,
+            isMemberExtension: rec.isMemberExtension,
+            receiverOwnerFQName: rec.receiverOwnerFQName,
+            typeSignature: rec.typeSignature,
+            typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
+            callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
+            inputOnlyTypeParameterIndices: rec.inputOnlyTypeParameterIndices,
+            valueParameterIsVararg: rec.valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
+            valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
+            valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
+            contractImplicationEffects: rec.contractImplicationEffects,
+            canThrow: rec.canThrow,
+            valueParameterNames: rec.valueParameterNames,
+            reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
+            defaultStubExternalLinkName: rec.defaultStubExternalLinkName,
+            externalLinkName: rec.externalLinkName,
+            declaredFieldCount: rec.declaredFieldCount,
+            declaredInstanceSizeWords: rec.declaredInstanceSizeWords,
+            declaredVtableSize: rec.declaredVtableSize,
+            declaredItableSize: rec.declaredItableSize,
+            superFQName: rec.superFQName,
+            companionObjectFQName: rec.companionObjectFQName,
+            fieldOffsets: rec.fieldOffsets,
+            vtableSlots: rec.vtableSlots,
+            itableSlots: rec.itableSlots,
+            objectInitializerLinkName: rec.objectInitializerLinkName,
+            companionInitializerLinkName: rec.companionInitializerLinkName,
+            objectLazyInitializerLinkName: rec.objectLazyInitializerLinkName,
+            enumStaticInitLinkName: rec.enumStaticInitLinkName,
+            isDataClass: rec.isDataClass,
+            isOpenClass: rec.isOpenClass,
+            modality: rec.modality,
+            isSealedClass: rec.isSealedClass,
+            isFunInterface: rec.isFunInterface,
+            annotations: rec.annotations,
+            isValueClass: rec.isValueClass,
+            valueClassUnderlyingTypeSig: rec.valueClassUnderlyingTypeSig,
+            sealedSubclassFQNames: rec.sealedSubclassFQNames,
+            isExpect: rec.isExpect,
+            isActual: rec.isActual,
+            propertyReceiverTypeSignature: rec.propertyReceiverTypeSignature,
+            propertyGetterExternalLinkName: rec.propertyGetterExternalLinkName,
+            propertySetterExternalLinkName: rec.propertySetterExternalLinkName,
+            abiReturnTypeSignature: rec.abiReturnTypeSignature,
+            propertyGetterAbiReturnTypeSignature: rec.propertyGetterAbiReturnTypeSignature,
+            isMutable: rec.isMutable,
+            nominalTypeParametersSignature: rec.nominalTypeParametersSignature,
+            nominalSupertypeSignatures: rec.nominalSupertypeSignatures,
+            constValueLiteral: rec.constValueLiteral,
+            nominalTypeParameters: rec.nominalTypeParameters
+        )
     }
 
     /// Mutable accumulator used while parsing a single metadata line.

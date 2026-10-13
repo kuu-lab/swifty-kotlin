@@ -388,6 +388,11 @@ extension NativeEmitter.FunctionEmissionContext {
                 bindings.positionBuilder(builder, at: continueBlock)
 
             case let .constValue(result, value):
+                // Constants can emit runtime calls (for example, String
+                // literals), so they must respect block termination too.
+                guard !bindings.hasTerminator(currentBlock) else {
+                    continue
+                }
                 let constLLVMValue = valueForConstant(value, expressionRawID: result.rawValue)
                 storeResult(result, constLLVMValue)
 
@@ -459,6 +464,9 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
 
             case let .binary(op, lhs, rhs, result):
+                guard !bindings.hasTerminator(currentBlock) else {
+                    continue
+                }
                 let lhsValue = resolveValue(lhs)
                 let rhsValue = resolveValue(rhs)
                 let lowered: LLVMCAPIBindings.LLVMValueRef? = switch op {
@@ -497,9 +505,15 @@ extension NativeEmitter.FunctionEmissionContext {
                 storeResult(result, lowered)
 
             case let .unary(_, operand, result):
+                guard !bindings.hasTerminator(currentBlock) else {
+                    continue
+                }
                 storeResult(result, resolveValue(operand))
 
             case let .nullAssert(operand, result):
+                guard !bindings.hasTerminator(currentBlock) else {
+                    continue
+                }
                 let operandValue = resolveValue(operand)
                 if let notNullFunc = declareExternalFunction(
                     named: "kk_op_notnull",

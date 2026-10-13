@@ -13,6 +13,35 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        let value = lowerUnconvertedExpr(
+            exprID, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if sema.bindings.isSamConversion(exprID),
+           let type = sema.bindings.exprTypes[exprID],
+           case let .functionType(function) = sema.types.kind(of: type),
+           // Callable-reference lowering may already have produced a wrapper.
+           case .functionType = sema.types.kind(of: arena.exprType(value) ?? type),
+           let wrapper = driver.lambdaLowerer.lowerFunctionValueSamWrapper(
+               exprID, value: value, functionType: function, sema: sema,
+               arena: arena, interner: interner, instructions: &instructions
+           )
+        {
+            return wrapper
+        }
+        return value
+    }
+
+    private func lowerUnconvertedExpr(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))

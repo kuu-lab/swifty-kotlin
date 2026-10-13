@@ -34,6 +34,19 @@ struct CodegenBackendVirtualDispatchTests {
     }
 
     @Test(arguments: [true, false])
+    func testFunctionValuesAdaptToSamMemberParameters(allowDefaultStdlibLibrary: Bool) throws {
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("sam_function_value.kt"),
+                moduleName: "FunctionValueSamRuntime",
+                expected: "12\n12\n8\n8\n12\n14\n9\n8\nSAM!\ncaught\n14\n12\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test(arguments: [true, false])
     func testNestedRunForEachKeepsLabeledClassReceiverForGenericVisitor(
         allowDefaultStdlibLibrary: Bool
     ) throws {
