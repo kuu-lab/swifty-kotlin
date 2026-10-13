@@ -375,7 +375,6 @@ extension CallTypeChecker {
         at index: Int,
         args: [CallArgument],
         callRange: SourceRange,
-        callRange: SourceRange,
         in signature: FunctionSignature,
         ctx: TypeInferenceContext
     ) -> TypeID? {
