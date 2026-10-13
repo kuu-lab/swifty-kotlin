@@ -354,10 +354,37 @@ struct RuntimeKClassMetadataTests {
             | RuntimeTypeTokenEncoding.nominalBase)
         let kclass = __kk_kclass_create(token, makeRuntimeString("kotlin.Int"))
         let list = __kk_kclass_supertypes(kclass)
-        #expect(kk_list_size(list) == 3)
+        #expect(kk_list_size(list) == 2)
         #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "kotlin.Number")
         #expect(runtimeRenderAnyForPrint(kk_list_get(list, 1, nil)) == "kotlin.Comparable<kotlin.Int>")
-        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 2, nil)) == "java.io.Serializable")
+    }
+
+    @Test(arguments: ["Byte", "Short", "Int", "Long", "Float", "Double"])
+    func numericSupertypesIncludeOnlyDirectParents(name: String) {
+        let qualifiedName = "kotlin.\(name)"
+        let kclass = __kk_kclass_create(nominalTypeToken(for: qualifiedName), makeRuntimeString(qualifiedName))
+        let list = __kk_kclass_supertypes(kclass)
+        #expect(kk_list_size(list) == 2)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "kotlin.Number")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 1, nil)) == "kotlin.Comparable<\(qualifiedName)>")
+
+        let number = __kk_ktype_classifier(kk_list_get(list, 0, nil))
+        let numberSupertypes = __kk_kclass_supertypes(number)
+        #expect(kk_list_size(numberSupertypes) == 2)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(numberSupertypes, 0, nil)) == "kotlin.Any")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(numberSupertypes, 1, nil)) == "java.io.Serializable")
+        let serializable = __kk_ktype_classifier(kk_list_get(numberSupertypes, 1, nil))
+        #expect(__kk_kclass_isInstance(serializable, kk_box_int(42)) == 1)
+    }
+
+    @Test(arguments: ["Char", "Boolean"])
+    func nonNumericPrimitiveSupertypesIncludeOnlyDirectParents(name: String) {
+        let qualifiedName = "kotlin.\(name)"
+        let kclass = __kk_kclass_create(nominalTypeToken(for: qualifiedName), makeRuntimeString(qualifiedName))
+        let list = __kk_kclass_supertypes(kclass)
+        #expect(kk_list_size(list) == 2)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "kotlin.Comparable<\(qualifiedName)>")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 1, nil)) == "kotlin.Any")
     }
 
     @Test func supertypesRendersGenericSupertypeArguments() {
