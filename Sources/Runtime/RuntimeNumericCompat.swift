@@ -633,7 +633,7 @@ public func kk_int_to_float_bits(_ value: Int) -> Int {
 
 @_cdecl("kk_int_to_float")
 public func kk_int_to_float(_ value: Int) -> Int {
-    kk_float_to_bits(Float(kk_unbox_int(value)))
+    kk_int_to_float_bits(value)
 }
 
 @_cdecl("kk_int_to_byte")

@@ -54,7 +54,7 @@ extension CallTypeChecker {
               explicitTypeArgs.isEmpty,
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
-                  callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
+                  callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, isTrailingLambda: $0.isTrailingLambda, type: ctx.sema.types.anyType) },
                   symbols: ctx.sema.symbols,
                   typeSystem: ctx.sema.types,
                   isCallableArgument: { ctx.ast.arena.expr(args[$0].expr)?.isLambdaOrCallableRef == true }
@@ -174,7 +174,7 @@ extension CallTypeChecker {
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
             call: CallExpr(range: range, calleeName: calleeName, args: zip(args, argumentTypes).map {
-                CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                CallArg(label: $0.0.label, isSpread: $0.0.isSpread, isTrailingLambda: $0.0.isTrailingLambda, type: $0.1)
             }, explicitTypeArgs: signature.typeParameterSymbols.compactMap { symbol in
                 variables[symbol].flatMap { solution.substitution[$0] }
             }),
@@ -210,7 +210,7 @@ extension CallTypeChecker {
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
                   callArgs: zip(args, argTypes).map {
-                      CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                      CallArg(label: $0.0.label, isSpread: $0.0.isSpread, isTrailingLambda: $0.0.isTrailingLambda, type: $0.1)
                   },
                   symbols: ctx.sema.symbols, typeSystem: ctx.sema.types
               )

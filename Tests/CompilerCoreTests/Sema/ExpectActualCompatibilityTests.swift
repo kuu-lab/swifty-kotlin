@@ -5,8 +5,9 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
-    @Test func testImportedExpectLinksToLocalActual() throws {
-        let libraryDirectory = try makeImportedExpectLibrary()
+    @Test(arguments: [false, true])
+    func testImportedExpectLinksToLocalActual(indexed: Bool) throws {
+        let libraryDirectory = try makeImportedExpectLibrary(indexed: indexed)
         defer { try? FileManager.default.removeItem(at: libraryDirectory) }
 
         try withTemporaryFile(
@@ -39,8 +40,9 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
-    @Test func testImportedExpectWithoutLocalActualIsUnresolved() throws {
-        let libraryDirectory = try makeImportedExpectLibrary()
+    @Test(arguments: [false, true])
+    func testImportedExpectWithoutLocalActualIsUnresolved(indexed: Bool) throws {
+        let libraryDirectory = try makeImportedExpectLibrary(indexed: indexed)
         defer { try? FileManager.default.removeItem(at: libraryDirectory) }
 
         try withTemporaryFile(contents: "package sample.kmp\nfun main() = 0") { path in
@@ -707,7 +709,7 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
-    private func makeImportedExpectLibrary() throws -> URL {
+    private func makeImportedExpectLibrary(indexed: Bool) throws -> URL {
         let libraryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kklib")
         try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
@@ -723,7 +725,8 @@ struct ExpectActualCompatibilityTests {
             typeSignature: "F0<I>",
             isExpect: true
         )
-        let metadata = MetadataEncoder().serialize([record])
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed([record]) : encoder.serialize([record])
         try manifest.write(to: libraryDirectory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         return libraryDirectory

@@ -432,7 +432,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
             RuntimeJobHandle.current = taskKeyBox.outerJob
             _ = kk_coroutine_state_exit(continuation, 0)
@@ -459,7 +459,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
             RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
@@ -480,7 +480,7 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
             RuntimeJobHandle.current = taskKeyBox.outerJob
             if let onCompletion {
@@ -517,7 +517,7 @@ func runSuspendEntryLoopWithContinuation(
             // GCD thread.  Re-install the task key so the scope map lookup
             // still works.
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
-            RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
+            RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             // Resumed on a (possibly different) thread — capture that thread's
             // displaced ambient bindings so a burst ending here restores them.
             taskKeyBox.outerKey = RuntimeCoroutineScopeTaskKey.installedKey

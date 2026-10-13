@@ -401,11 +401,11 @@ struct TypeCheckScopeBuilder {
     ) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID),
               symbol.kind == .function,
-              let signature = sema.symbols.functionSignature(for: symbolID),
-              signature.receiverType != nil,
               symbol.flags.contains(.operatorFunction),
               symbol.flags.contains(.synthetic),
-              !sema.symbols.isSourceBackedSymbol(symbolID)
+              !sema.symbols.isSourceBackedSymbol(symbolID),
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              signature.receiverType != nil
         else {
             return false
         }

@@ -499,12 +499,15 @@ struct SymbolTableTests {
             declSite: nil,
             visibility: .public
         )
+        let ownerName = interner.intern("Owner")
+        let owner = symbols.define(kind: .class, name: ownerName, fqName: [ownerName], declSite: nil, visibility: .public)
         var loaderRan = false
         symbols.setLazyImportedMetadataLoader { _ in
             loaderRan = true
             _ = symbols.lookupAll(fqName: fqName)
-            // A plain-property collision reuses the shell. An extension
-            // property intentionally coexists with it as a separate symbol.
+            symbols.setParentSymbol(owner, for: shell)
+            // An extension property can coexist with an ordinary property.
+            // Repeat the same declaration shape to exercise duplicate reuse.
             let colliding = symbols.define(
                 kind: .property,
                 name: name,
@@ -517,5 +520,6 @@ struct SymbolTableTests {
 
         _ = symbols.extensionPropertyReceiverType(for: shell)
         #expect(loaderRan)
+        #expect(symbols.children(of: owner) == [shell])
     }
 }
