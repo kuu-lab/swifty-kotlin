@@ -125,6 +125,9 @@ final class TypeCheckDriver {
         }
         let ctx = ctx.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        if let expectedType {
+            recordPlatformNullAssertion(id, sourceType: type, targetType: expectedType)
+        }
         notePendingDeclarationDependency(at: id)
         if let callee = sema.bindings.callBinding(for: id)?.chosenCallee {
             diagnoseRecursiveInferredReturnType(for: callee)
@@ -134,6 +137,26 @@ final class TypeCheckDriver {
         }
         checkInlineCallVisibility(id, ctx: ctx)
         return type
+    }
+
+    /// Unbounded T can contain null even though its type-parameter node is
+    /// spelled non-null. Only concrete non-null targets or non-null bounds
+    /// need an assertion when accepting a flexible Java return.
+    func recordPlatformNullAssertion(_ id: ExprID, sourceType: TypeID, targetType: TypeID) {
+        guard sema.types.nullability(of: sourceType) == .platformType else { return }
+        var visited: Set<SymbolID> = []
+        func requiresNonNull(_ type: TypeID) -> Bool {
+            guard sema.types.nullability(of: type) == .nonNull else { return false }
+            if case let .typeParam(parameter) = sema.types.kind(of: type) {
+                guard visited.insert(parameter.symbol).inserted else { return false }
+                if let capture = parameter.capture { return requiresNonNull(capture.upper) }
+                return sema.symbols.typeParameterUpperBounds(for: parameter.symbol).contains(where: requiresNonNull)
+            }
+            return sema.types.isDefinitelyNonNull(type)
+        }
+        if requiresNonNull(targetType), sema.types.isSubtype(sourceType, targetType) {
+            sema.bindings.bindPlatformNullAssertion(id, targetType: targetType)
+        }
     }
 
     private func checkInlineCallVisibility(_ id: ExprID, ctx: TypeInferenceContext) {

@@ -63,8 +63,8 @@ public enum Nullability: Hashable, Sendable {
     case nullable
     case platformType // T! — nullability unknown (from external declarations)
 
-    /// Nullability used by metadata/signature encodings that only support
-    /// two states (non-null / nullable). Platform types are erased to nullable.
+    /// Nullability used by legacy link-name/signature encodings with two
+    /// states. Library metadata can separately preserve platform types as P<T>.
     public var erasedForMetadata: Nullability {
         switch self {
         case .nonNull:

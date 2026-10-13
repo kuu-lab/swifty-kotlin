@@ -985,6 +985,12 @@ extension DataFlowSemaPhase {
             depth += 1
             defer { depth -= 1 }
 
+            if consume(prefix: "P<") {
+                guard let inner = parseType(), consume(character: ">") else {
+                    return nil
+                }
+                return types.withNullability(.platformType, for: inner)
+            }
             if consume(prefix: "Q<") {
                 guard let inner = parseType(), consume(character: ">") else {
                     return nil

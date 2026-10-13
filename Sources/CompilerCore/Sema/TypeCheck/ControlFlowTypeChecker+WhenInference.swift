@@ -509,8 +509,8 @@ extension ControlFlowTypeChecker {
                 // the narrowing from prior conditions being false (short-circuit OR semantics).
                 var trueStates: [DataFlowState] = []
                 for cond in branch.conditions {
-                    let condType = driver.inferExpr(cond, ctx: condCtx, locals: &branchLocals)
-                    if condType != boolType, condType != sema.types.errorType {
+                    let condType = driver.inferExpr(cond, ctx: condCtx, locals: &branchLocals, expectedType: boolType)
+                    if !sema.types.isSubtype(condType, boolType), condType != sema.types.errorType {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0032",
                             "Subject-less when branch condition must be a Boolean expression.",

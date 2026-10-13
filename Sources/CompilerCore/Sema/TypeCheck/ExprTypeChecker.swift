@@ -353,10 +353,11 @@ final class ExprTypeChecker {
             let type: TypeID
             switch op {
             case .not:
-                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
+                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: boolType)
                 let operandType = sema.types.capturedOperatorReceiverType(
                     of: inferredOperand
                 )
+
                 if let overloadedType = inferUnaryOperatorExpr(
                     id,
                     op: op,
@@ -409,7 +410,12 @@ final class ExprTypeChecker {
                     ) {
                         return overloadedType
                     }
-                    type = operandType
+                    if case .primitive(_, .platformType) = sema.types.kind(of: operandType) {
+                        type = sema.types.makeNonNullable(operandType)
+                        driver.recordPlatformNullAssertion(operandID, sourceType: operandType, targetType: type)
+                    } else {
+                        type = operandType
+                    }
                 }
             }
             sema.bindings.bindExprType(id, type: type)

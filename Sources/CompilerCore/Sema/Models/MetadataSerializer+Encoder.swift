@@ -283,7 +283,8 @@ package final class MetadataEncoder {
             symbols: symbols,
             types: types,
             nameResolver: nameResolver,
-            unboxValueClasses: false
+            unboxValueClasses: false,
+            preservePlatformNullability: true
         )
     }
 
@@ -644,7 +645,8 @@ package final class MetadataEncoder {
                 symbols: symbols,
                 types: types,
                 nameResolver: { interner.resolve($0) },
-                unboxValueClasses: false
+                unboxValueClasses: false,
+                preservePlatformNullability: true
             )
             typeParameterUpperBoundsSignatures = signature.typeParameterUpperBoundsList.map { bounds in
                 bounds.map {

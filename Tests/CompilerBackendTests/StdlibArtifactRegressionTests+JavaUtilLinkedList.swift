@@ -6,6 +6,85 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-2022: retain the unchanged upstream generic return through both routes.
+    @Test
+    func testJavaLinkedListPlatformReturnsThroughSourceAndFreshArtifactAtO0AndO2() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/JavaLinkedListPlatformReturn")
+        let stack = try String(contentsOf: fixture.appendingPathComponent("Stack2.kt"), encoding: .utf8)
+        let main = try String(contentsOf: fixture.appendingPathComponent("Main.kt"), encoding: .utf8)
+        let reproducer = try diffCaseSource("java_util_linked_list_platform_return.kt", file: #filePath)
+        let expectedReproducer = """
+        7
+        int:8:1
+        unary:-7
+        bool:true:false:false
+        condition:false
+        when:false
+        long:2147483649
+        double:2.0
+        empty:null:0
+        null
+        null
+        concat:null
+        [1, null]
+        string:5:hello:1
+        clear:null:0
+        nullable-empty:null
+        nullable-value:9:1
+        nullable-null:null:null:2
+        npe:local
+        npe:return
+        npe:bound
+        npe:argument
+        npe:function
+        npe:unary
+        npe:boolean
+        npe:condition
+        npe:when
+        short-circuit:false:true
+        nullable-string:null:1
+
+        """
+        let expectedStack = """
+        peek:Stack is empty!
+        pop:Stack is empty!
+        stack:true:0
+
+        """
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            for stdlibLibraryPath in [nil, artifactPath] {
+                let output = try Self.runLinkedListSources(
+                    [stack,
+                     main.replacingOccurrences(of: "fun main() {", with: "fun runStackRegression() {"),
+                     reproducer.replacingOccurrences(of: "fun main() {", with: "fun runPlatformReturnRegression() {"),
+                     "fun main() { runPlatformReturnRegression(); runStackRegression() }"],
+                    optLevel: optLevel, stdlibLibraryPath: stdlibLibraryPath
+                )
+                #expect(output == expectedReproducer + expectedStack,
+                        "platform return and unchanged Stack2 at \(optLevel), artifact: \(stdlibLibraryPath != nil)")
+                try withTemporaryFiles(contents: ["""
+                import java.util.LinkedList
+                fun <T> bad(value: T?): T = value
+                fun badNullableElement(q: LinkedList<Int?>): Int = q.peekLast()
+                """]) { inputs in
+                    let options = CompilerOptions(
+                        moduleName: "KUU2022Negative", inputs: inputs,
+                        outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+                        emit: .kirDump, target: defaultTargetTriple(), optLevel: optLevel, includeStdlib: stdlibLibraryPath == nil,
+                        stdlibLibraryPath: stdlibLibraryPath, allowDefaultStdlibLibrary: false
+                    )
+                    let ctx = CompilationContext(options: options, sourceManager: SourceManager(),
+                        diagnostics: DiagnosticEngine(), interner: StringInterner())
+                    try runSema(ctx)
+                    let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                    #expect(errors.filter { $0.code == "KSWIFTK-TYPE-0001" }.count == 2, "\(errors)")
+                }
+            }
+        }
+    }
+
     /// KUU-2013: peekLast preserves element types, nullability, and contents.
     @Test
     func testJavaUtilLinkedListPeekLastThroughSourceAndFreshArtifactAtO0AndO2() throws {

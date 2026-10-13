@@ -20,6 +20,12 @@ public final class BindingTable {
     }
 
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    /// Contextual non-null targets requiring a Java platform-value null check.
+    public private(set) var platformNullAssertionTypes: [ExprID: TypeID] = [:]
+
+    public func bindPlatformNullAssertion(_ expr: ExprID, targetType: TypeID?) {
+        platformNullAssertionTypes[expr] = targetType
+    }
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     /// Actual lambda destination and the boundaries crossed to reach it.
@@ -275,6 +281,7 @@ public final class BindingTable {
     /// types and parameter references. Any other side-table write rejects the
     /// worker delta, including calls, captures and Worker.execute metadata.
     var hasOnlyIndependentScalarBindings: Bool {
+        if !platformNullAssertionTypes.isEmpty { return false }
         if !whenExhaustiveness.isEmpty { return false }
         if !lambdaReturnTargets.isEmpty { return false }
         if !lambdaReturnLambdaPaths.isEmpty { return false }
