@@ -187,6 +187,7 @@ extension BuildASTPhase {
             typeParams: typeParams
         ))
         if isInfix { astArena.markInfixFunction(declaration) }
+        if hasOperator { astArena.markOperatorFunction(declaration) }
         return declaration
     }
 

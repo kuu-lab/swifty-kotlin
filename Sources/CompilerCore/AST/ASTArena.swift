@@ -11,6 +11,7 @@ public struct ASTArenaSnapshot: Codable {
     public let callableRefReceiverTypeRefs: [ExprID: TypeRefID]
     public let infixCallExpressions: Set<ExprID>
     public let infixFunctionExpressions: Set<ExprID>
+    public let operatorFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
@@ -27,6 +28,7 @@ public struct ASTArenaSnapshot: Codable {
         case callableRefReceiverTypeRefs
         case infixCallExpressions
         case infixFunctionExpressions
+        case operatorFunctionExpressions
         case explicitCallExpressions
         case incrementDecrementExpressions
         case nonFunctionLambdaLabels
@@ -44,6 +46,7 @@ public struct ASTArenaSnapshot: Codable {
         callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:],
         infixCallExpressions: Set<ExprID> = [],
         infixFunctionExpressions: Set<ExprID> = [],
+        operatorFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
         nonFunctionLambdaLabels: Set<ExprID> = [],
@@ -59,6 +62,7 @@ public struct ASTArenaSnapshot: Codable {
         self.callableRefReceiverTypeRefs = callableRefReceiverTypeRefs
         self.infixCallExpressions = infixCallExpressions
         self.infixFunctionExpressions = infixFunctionExpressions
+        self.operatorFunctionExpressions = operatorFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
@@ -82,6 +86,7 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? [:]
         infixCallExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixCallExpressions) ?? []
         infixFunctionExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixFunctionExpressions) ?? []
+        operatorFunctionExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .operatorFunctionExpressions) ?? []
         explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -162,6 +167,7 @@ public final class ASTArena: @unchecked Sendable {
     /// Preserves infix syntax independently of ordinary member calls.
     private var _infixCallExpressions: Set<ExprID> = []
     private var _infixFunctionExpressions: Set<ExprID> = []
+    private var _operatorFunctionExpressions: Set<ExprID> = []
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
@@ -198,6 +204,7 @@ public final class ASTArena: @unchecked Sendable {
         _callableRefReceiverTypeRefs = snapshot.callableRefReceiverTypeRefs
         _infixCallExpressions = snapshot.infixCallExpressions
         _infixFunctionExpressions = snapshot.infixFunctionExpressions
+        _operatorFunctionExpressions = snapshot.operatorFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
@@ -218,6 +225,7 @@ public final class ASTArena: @unchecked Sendable {
             callableRefReceiverTypeRefs: _callableRefReceiverTypeRefs,
             infixCallExpressions: _infixCallExpressions,
             infixFunctionExpressions: _infixFunctionExpressions,
+            operatorFunctionExpressions: _operatorFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
@@ -450,6 +458,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _infixFunctionExpressions.contains(exprID)
+    }
+
+    public func markOperatorFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _operatorFunctionExpressions.insert(exprID)
+    }
+
+    public func isOperatorFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _operatorFunctionExpressions.contains(exprID)
     }
 
     public func markInfixCall(_ exprID: ExprID) {

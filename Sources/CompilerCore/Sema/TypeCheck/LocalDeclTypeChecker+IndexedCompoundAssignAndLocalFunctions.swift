@@ -618,6 +618,7 @@ extension LocalDeclTypeChecker {
 
         var functionFlags: SymbolFlags = [.localFunction]
         if ast.arena.isInfixFunction(id) { functionFlags.insert(.infixFunction) }
+        if ast.arena.isOperatorFunction(id) { functionFlags.insert(.operatorFunction) }
         if isSuspend {
             functionFlags.insert(.suspendFunction)
         }

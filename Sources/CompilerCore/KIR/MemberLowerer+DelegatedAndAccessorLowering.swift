@@ -228,11 +228,14 @@ extension MemberLowerer {
                 dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
             )
         }
+        let arguments = dispatchReceiver.map { [$0, receiver] + extraArguments }
+            ?? ([receiver] + extraArguments)
+        let captures = symbol.flatMap { driver.ctx.localValue(for: $0) }
+            .flatMap { driver.ctx.callableValueInfo(for: $0) }?.captureArguments ?? []
         return .call(
             symbol: symbol,
             callee: callee,
-            arguments: dispatchReceiver.map { [$0, receiver] + extraArguments }
-                ?? ([receiver] + extraArguments),
+            arguments: captures + arguments,
             result: result,
             canThrow: false,
             thrownResult: nil
