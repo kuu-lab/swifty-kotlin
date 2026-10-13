@@ -343,7 +343,10 @@ extension DeclTypeChecker {
         }
         let candidates = sema.symbols
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
-            .filter { sema.symbols.symbol($0)?.kind == .constructor }
+            .filter {
+                sema.symbols.symbol($0)?.kind == .constructor
+                    && sema.symbols.parentSymbol(for: $0) == superclassSymbol
+            }
         guard !candidates.isEmpty else { return }
         let resolved = inferConstructorDelegationArguments(
             objectDecl.superTypeConstructorArgs,
