@@ -484,6 +484,16 @@ extension CallTypeChecker {
             return inferred
         }
 
+        preferScopeCandidatesForInapplicableImplicitMembers(
+            args: args,
+            calleeName: calleeName,
+            scopeCandidates: implicitReceiverScopeCandidates,
+            candidates: &candidates,
+            receiverType: &callImplicitReceiverType,
+            ctx: ctx,
+            locals: locals
+        )
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         prepareCallExprArgumentContexts(
