@@ -13,20 +13,22 @@ extension NativeEmitter.FunctionEmissionContext {
         }
     }
 
+    @discardableResult
     func handleThrownSlot(
         _ thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?,
         thrownResult: KIRExprID?,
-        instructionIndex: Int
-    ) {
+        instructionIndex: Int,
+        namePrefix: String = ""
+    ) -> Bool {
         guard let thrownSlotPointer,
               let thrownValue = bindings.buildLoad(
                   builder,
                   type: int64Type,
                   pointer: thrownSlotPointer,
-                  name: "thrown_val_\(instructionIndex)"
+                  name: "\(namePrefix)thrown_val_\(instructionIndex)"
               )
         else {
-            return
+            return false
         }
         if let thrownResult {
             if let alloca = copyTargetAllocas[thrownResult.rawValue] {
@@ -36,17 +38,17 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         } else if let hasThrown = buildThrownSlotCondition(
             from: thrownValue,
-            name: "has_thrown_\(instructionIndex)"
+            name: "\(namePrefix)has_thrown_\(instructionIndex)"
         ),
             let thrownBlock = bindings.appendBasicBlock(
                 context: context,
                 function: llvmFunction.value,
-                name: "thrown_\(instructionIndex)"
+                name: "\(namePrefix)thrown_\(instructionIndex)"
             ),
             let continueBlock = bindings.appendBasicBlock(
                 context: context,
                 function: llvmFunction.value,
-                name: "call_cont_\(instructionIndex)"
+                name: "\(namePrefix)call_cont_\(instructionIndex)"
             )
         {
             _ = bindings.buildCondBr(
@@ -57,12 +59,13 @@ extension NativeEmitter.FunctionEmissionContext {
             )
 
             bindings.positionBuilder(builder, at: thrownBlock)
-            storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
+            storeOutThrownIfNonNull(thrownValue, suffix: "\(namePrefix)throw_\(instructionIndex)")
             _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             currentBlock = continueBlock
             bindings.positionBuilder(builder, at: continueBlock)
         }
+        return true
     }
 
     /// Does NOT call kk_unbox_bool;

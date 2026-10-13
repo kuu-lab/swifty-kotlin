@@ -8,11 +8,11 @@ import Testing
 //
 // CLEANUP-STUB-107 removed java.io.File's delete/writeText/bufferedReader
 // synthetic members. `File.useLines`/`File.forEachLine` themselves survive
-// (Kotlin-source extensions in Stdlib/kotlin/io/FileIO.kt that call the
-// runtime's `__kk_file_readText` directly, not the removed `readText()`
-// member), so the three File-based cases below keep their real Kotlin-side
-// assertions and only swap their now-dead `file.delete(); file.writeText(...)`
-// setup for a host-side fixture write. The two BufferedReader-based cases
+// (Kotlin-source extensions in Stdlib/kotlin/io/FileIO.kt that now share the
+// source-backed `File.readText()` extension and its runtime bridge), so the
+// three File-based cases below keep their real Kotlin-side assertions and
+// only swap their now-dead `file.delete(); file.writeText(...)` setup for a
+// host-side fixture write. The two BufferedReader-based cases
 // (`file.bufferedReader().useLines {}` / `.forEachLine {}`) were deleted
 // outright: their only path to a receiver was `File.bufferedReader()`, which
 // is dead, and `kotlin.io.path.Path` has no confirmed working substitute —

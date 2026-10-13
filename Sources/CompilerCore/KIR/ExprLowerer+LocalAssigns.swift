@@ -241,7 +241,18 @@ extension ExprLowerer {
                         driver.ctx.callableValueInfoByExprID.removeValue(forKey: storageID)
                     }
                 } else {
-                    driver.ctx.setLocalValue(valueID, for: symbol)
+                    // An initializer-less local has no storage until this
+                    // assignment. Bind it to a slot of its declared type
+                    // instead of aliasing the RHS register: later writes to
+                    // either variable update that register in place.
+                    let localSlot = arena.appendTemporary(
+                        type: driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                    )
+                    instructions.append(.copy(from: valueID, to: localSlot))
+                    driver.ctx.setLocalValue(localSlot, for: symbol)
+                    if let callableInfo = driver.ctx.callableValueInfo(for: valueID) {
+                        driver.ctx.callableValueInfoByExprID[localSlot] = callableInfo
+                    }
                 }
             }
         }

@@ -1,6 +1,5 @@
 
 extension ControlFlowLowerer {
-    // MARK: - Custom Iterator Resolution (STDLIB-OP-032)
 
     /// Restricts BUG-198 to the signed range/progression classes and direct
     /// signed range expressions. Unsigned ranges, OpenEndRange, custom classes,

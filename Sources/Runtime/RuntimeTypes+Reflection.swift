@@ -276,8 +276,6 @@ final class RuntimeKClassBox {
     }
 }
 
-// MARK: - kotlin.reflect.KType (REFL-005)
-
 /// Runtime box for `kotlin.reflect.KType`.
 /// Represents a Kotlin type at runtime, as returned by `typeOf<T>()`.
 final class RuntimeKTypeBox {
@@ -419,8 +417,6 @@ final class RuntimeKFunctionBox {
     }
 }
 
-// MARK: - kotlin.reflect.KConstructor (STDLIB-REFLECT-064)
-
 /// Runtime box for `kotlin.reflect.KFunction<T>` representing a constructor.
 /// Extends the basic KFunction box with constructor-specific metadata:
 /// isPrimary, visibility, and the declaring class reference.
@@ -459,8 +455,6 @@ final class RuntimeKConstructorBox {
         self.parameterNameRaws = parameterNameRaws
     }
 }
-
-// MARK: - Annotation Reflection (STDLIB-REFLECT-065)
 
 /// Runtime box for a Kotlin annotation instance.
 /// Represents a single annotation applied to a declaration, with its class

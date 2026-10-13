@@ -95,6 +95,7 @@ public final class SymbolTable {
     private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
+    private var childrenByParent: [SymbolID: Set<SymbolID>] = [:]
     private var parentSymbols: [SymbolID: SymbolID] = [:]
     private var backingFieldSymbols: [SymbolID: SymbolID] = [:]
     private var delegateStorageSymbols: [SymbolID: SymbolID] = [:]
@@ -138,6 +139,7 @@ public final class SymbolTable {
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
+    private var importedNominalsWithoutInitializers: Set<SymbolID> = []
     /// Index-shape hints for lazy shells, keyed by symbol. Consulted by
     /// arity-key builders so they never force body materialization.
     private var importedMemberIndexShapes: [SymbolID: ImportedMemberIndexShape] = [:]
@@ -199,6 +201,16 @@ public final class SymbolTable {
 
     func importedMemberIndexShape(for symbol: SymbolID) -> ImportedMemberIndexShape? {
         importedMemberIndexShapes[symbol]
+    }
+
+    func recordImportedNominalWithoutInitializers(_ symbol: SymbolID) {
+        importedNominalsWithoutInitializers.insert(symbol)
+    }
+
+    /// False only when a complete compact index proves there are no eager
+    /// initializer calls. Older indexes retain semantic-loader fallback.
+    public func mayHaveImportedInitializers(for symbol: SymbolID) -> Bool {
+        !importedNominalsWithoutInitializers.contains(symbol)
     }
 
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
@@ -448,18 +460,20 @@ public final class SymbolTable {
             if isExtensionProperty {
                 // Extension properties are disambiguated by receiver type at
                 // call sites, the same way overloaded extension functions
-                // are (e.g. `val Int.seconds` and `val Long.seconds`), so two
-                // extension properties sharing a short name may coexist as
-                // separate symbols. A non-extension property at the same FQ
-                // name is still a genuine clash: it has no receiver to
-                // disambiguate by. Mirrors the diagnostic-level check in
-                // HeaderHelpers.hasDeclarationConflict.
+                // are (e.g. `val Int.seconds` and `val Long.seconds`), and a
+                // same-named top-level property occupies a separate lookup
+                // path. Either kind of property can therefore coexist with
+                // an extension property. Mirrors the diagnostic-level check
+                // in HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || (existing.kind == .property && (existing.flags.contains(.synthetic) || hasExtensionPropertyReceiver(existing.id)))
+                        || existing.kind == .property
                 }
             }
-            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
+            return existingNonPackage.allSatisfy { existing in
+                isCallableLike(existing.kind)
+                    || (existing.kind == .property && hasExtensionPropertyReceiver(existing.id))
+            }
         }
         if isCallableLike(kind) {
             // Allow functions/constructors to coexist with nominal types and
@@ -554,6 +568,12 @@ public final class SymbolTable {
     /// `valueParameterSymbols`, if any signature has done so.
     public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
         valueParameterOwners[symbol]
+    }
+
+    /// Returns only a signature already registered in this compilation. A nil
+    /// result means unknown, not that an imported declaration has no signature.
+    public func functionSignatureIfKnown(for symbol: SymbolID) -> FunctionSignature? {
+        functionSignatures[symbol]
     }
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
@@ -750,6 +770,12 @@ public final class SymbolTable {
         externalLinkNames.removeValue(forKey: symbol)
     }
 
+    /// Import registration records compact-index link names before body decoding.
+    /// This query never invokes the imported metadata loader.
+    public func externalLinkNameIfKnown(for symbol: SymbolID) -> String? {
+        externalLinkNames[symbol]
+    }
+
     public func externalLinkName(for symbol: SymbolID) -> String? {
         ensureLazyImportedMetadataLoaded(for: symbol)
         return externalLinkNames[symbol]
@@ -810,7 +836,29 @@ public final class SymbolTable {
     }
 
     public func setParentSymbol(_ parent: SymbolID, for child: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let previous = parentSymbols[child], previous != parent {
+            childrenByParent[previous]?.remove(child)
+        }
         parentSymbols[child] = parent
+        childrenByParent[parent, default: []].insert(child)
+    }
+
+    /// Returns registered ownership without decoding imported metadata. Lazy
+    /// shells register compact-index ownership after all owners are defined.
+    public func parentSymbolIfKnown(for child: SymbolID) -> SymbolID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return parentSymbols[child]
+    }
+
+    /// Returns registered children in declaration order without loading bodies.
+    /// Reparenting an extension also updates this index.
+    public func children(of parent: SymbolID) -> [SymbolID] {
+        lock.lock()
+        defer { lock.unlock() }
+        return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
     }
 
     public func parentSymbol(for child: SymbolID) -> SymbolID? {

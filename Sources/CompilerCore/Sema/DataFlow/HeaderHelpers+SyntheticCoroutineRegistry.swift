@@ -52,7 +52,6 @@ struct SyntheticCoroutineRegistryContext {
     let interner: StringInterner
     let bundledIndex: BundledDeclarationIndex
 
-    // MARK: Package anchors
     var kotlinPkg: [InternedString] = []
     var kotlinCoroutinesPkg: [InternedString] = []
     var kotlinCoroutinesIntrinsicsPkg: [InternedString] = []
@@ -62,7 +61,6 @@ struct SyntheticCoroutineRegistryContext {
     var channelsPkg: [InternedString] = []
     var flowPkg: [InternedString] = []
 
-    // MARK: kotlin.coroutines core types
     var kotlinCoroutineContextSymbol: SymbolID!
     var kotlinCoroutineContextType: TypeID!
     var kotlinResultSymbol: SymbolID!
@@ -75,7 +73,6 @@ struct SyntheticCoroutineRegistryContext {
     var continuationFactoryTypeParamSymbol: SymbolID!
     var continuationFactoryTType: TypeID!
 
-    // MARK: kotlinx / nominal types
     var throwableSymbol: SymbolID!
     var throwableType: TypeID!
     var exceptionSymbol: SymbolID!
@@ -106,14 +103,12 @@ struct SyntheticCoroutineRegistryContext {
     var coroutineSuspendedType: TypeID!
     var hasBundledSuspendIntrinsic = false
 
-    // MARK: CoroutineContext hierarchy
     var coroutineContextSymbol: SymbolID!
     var coroutineContextType: TypeID!
     var coroutineContextFQName: [InternedString] = []
     var coroutineContextElementSymbol: SymbolID!
     var coroutineContextKeySymbol: SymbolID!
 
-    // MARK: Context elements
     var coroutineNameSymbol: SymbolID!
     var coroutineNameType: TypeID!
     var hasBundledCoroutineName = false

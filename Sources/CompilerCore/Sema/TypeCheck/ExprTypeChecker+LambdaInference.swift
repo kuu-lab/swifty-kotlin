@@ -172,7 +172,7 @@ extension ExprTypeChecker {
         let outerSymbols = Set(locals.values.map(\.symbol) + ctx.implicitReceiverStack.map(\.symbol))
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
         let inferredImplicitItType = params.isEmpty
-            ? inferItParameterType(ctx: ctx, id: id, sema: sema)
+            ? inferItParameterType(ctx: ctx, id: id, sema: sema, locals: locals)
             : nil
 
         // Implicit `it` parameter for no-arrow lambdas with single expected param.
@@ -387,6 +387,11 @@ extension ExprTypeChecker {
         let inferredBodyType = sema.types.lub(
             [fallthroughType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
         )
+        // Range expressions use a scalar Sema type plus a marker, while Kotlin
+        // lambdas expose their nominal range type to surrounding calls.
+        let sourceLevelInferredBodyType = driver.callChecker.sourceLevelRangeArgumentType(
+            body, inferredType: inferredBodyType, ctx: bodyCtx
+        )
         // STDLIB-592 definite assignment: record which outer-scope locals this
         // lambda body unconditionally initializes, mirroring the blockExpr merge
         // in ExprTypeChecker.swift. `locals` itself is never mutated here -- the
@@ -421,7 +426,7 @@ extension ExprTypeChecker {
             // ordinary Unit-returning lambdas (e.g. a Boolean-valued CAS call).
             if expectedFunctionType.returnType != sema.types.unitType {
                 driver.emitSubtypeConstraint(
-                    left: inferredBodyType,
+                    left: sourceLevelInferredBodyType,
                     right: expectedFunctionType.returnType,
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
@@ -443,7 +448,7 @@ extension ExprTypeChecker {
                session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
             {
                 session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
-                    subtype: inferredBodyType,
+                    subtype: sourceLevelInferredBodyType,
                     supertype: expectedFunctionType.returnType,
                     typeVarBySymbol: session.typeVarBySymbol,
                     typeSystem: sema.types,
@@ -455,9 +460,9 @@ extension ExprTypeChecker {
             }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = expectedTypeIsHintOnly
-                ? inferredBodyType
+                ? sourceLevelInferredBodyType
                 : inferOptimizedReturnType(
-                    inferredBodyType: inferredBodyType,
+                    inferredBodyType: sourceLevelInferredBodyType,
                     expectedReturnType: expectedFunctionType.returnType,
                     sema: sema
                 )
@@ -545,7 +550,7 @@ extension ExprTypeChecker {
 
         let inferredFunctionType = sema.types.make(.functionType(FunctionType(
             params: parameterTypes,
-            returnType: inferredBodyType,
+            returnType: sourceLevelInferredBodyType,
             isSuspend: false,
             nullability: .nonNull
         )))
@@ -594,9 +599,14 @@ extension ExprTypeChecker {
     }
 
     /// Infers the type for an implicit `it` parameter based on context
-    private func inferItParameterType(ctx: TypeInferenceContext, id: ExprID, sema: SemaModule) -> TypeID? {
+    private func inferItParameterType(
+        ctx: TypeInferenceContext,
+        id: ExprID,
+        sema: SemaModule,
+        locals: LocalBindings
+    ) -> TypeID? {
         if let parentCall = findParentCallContext(for: id, ctx: ctx, sema: sema) {
-            return inferTypeFromHOFContext(parentCall, ctx: ctx, sema: sema)
+            return inferTypeFromHOFContext(parentCall, ctx: ctx, sema: sema, locals: locals)
         }
 
         if let assignmentType = inferFromAssignmentContext() {
@@ -610,11 +620,13 @@ extension ExprTypeChecker {
     private func inferTypeFromHOFContext(
         _ callContext: ParentLambdaCallContext,
         ctx: TypeInferenceContext,
-        sema: SemaModule
+        sema: SemaModule,
+        locals: LocalBindings
     ) -> TypeID? {
-        let candidateSymbols: [SymbolID]
+        var candidateSymbols: [SymbolID]
         let argIndex: Int
         let explicitTypeArgRefs: [TypeRefID]
+        var memberReceiverType: TypeID? = nil
 
         switch callContext {
         case let .topLevel(calleeName, index, typeArgs):
@@ -633,12 +645,38 @@ extension ExprTypeChecker {
             }
             argIndex = index
             explicitTypeArgRefs = typeArgs
+            memberReceiverType = receiverType
             candidateSymbols = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: receiverType,
                 sema: sema,
                 interner: ctx.interner
             )
+            if !candidateSymbols.contains(where: { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      argIndex < signature.parameterTypes.count
+                else {
+                    return false
+                }
+                let parameterType = signature.parameterTypes[argIndex]
+                if case let .functionType(functionType) = sema.types.kind(of: parameterType) {
+                    return functionType.params.count == 1
+                }
+                return driver.helpers.samFunctionType(for: parameterType, sema: sema)?.params.count == 1
+            }) {
+                let extensionCandidates = driver.callChecker.collectExtensionCallCandidates(
+                    named: calleeName,
+                    memberLookupType: receiverType,
+                    isSuperCall: false,
+                    supertypeSymbols: [],
+                    ctx: ctx,
+                    locals: locals,
+                    sema: sema,
+                    interner: ctx.interner
+                )
+                var seen = Set(candidateSymbols)
+                candidateSymbols.append(contentsOf: extensionCandidates.filter { seen.insert($0).inserted })
+            }
         }
 
         let explicitTypeArgs = explicitTypeArgRefs.map { typeArgRef in
@@ -659,7 +697,14 @@ extension ExprTypeChecker {
             else {
                 continue
             }
-            let parameterType = signature.parameterTypes[argIndex]
+            var parameterType = signature.parameterTypes[argIndex]
+            parameterType = driver.callChecker.applyReceiverClassTypeArgs(
+                to: parameterType,
+                signature: signature,
+                candidate: candidate,
+                receiverType: memberReceiverType,
+                sema: sema
+            )
             if case let .functionType(functionType) = sema.types.kind(of: parameterType),
                functionType.params.count == 1
             {

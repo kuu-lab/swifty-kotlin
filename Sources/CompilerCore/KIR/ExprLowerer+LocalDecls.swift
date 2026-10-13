@@ -521,7 +521,10 @@ extension ExprLowerer {
                     // leave sentinel-equal bits in the `Long?` slot, which
                     // every null check then reads as `null` (KUU-854).
                     let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
-                    case .nullableUnit, .any, .classType, .functionType, .typeParam:
+                    // String has its own aggregate kind instead of `.classType`.
+                    // It still needs declared-type storage when a nullable local
+                    // starts as `null`, so later assignments update the local slot.
+                    case .nullableUnit, .any, .classType, .functionType, .stringStruct, .typeParam:
                         true
                     default:
                         false
@@ -612,15 +615,24 @@ extension ExprLowerer {
             // in lowerPropertyInitializer. Scoped this narrowly because a
             // primitive local's `.null` representation is a distinct
             // sentinel (see `declaredTypeIsReferenceLike` above), not a
-            // plain null constant, and every other uninitialized local
-            // never needs a placeholder at all -- its first real
-            // assignment is a plain `setLocalValue`, not a capture-cell
-            // store.
+            // plain null constant. Other uninitialized mutable locals retain
+            // their existing first-assignment and capture-cell paths;
+            // immutable locals receive a shared slot below so branch
+            // assignments survive joins.
             let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
             case .any, .classType, .functionType, .typeParam:
                 true
             default:
                 false
+            }
+            if !isMutable, !isDelegated {
+                // A definitely-assigned `val` may be written in mutually
+                // exclusive branches. Keep one stable slot so each branch
+                // stores to the same target and reads after the join observe
+                // the value from the branch that ran. Sema remains responsible
+                // for rejecting reads before the first assignment.
+                let localSlot = arena.appendTemporary(type: declaredType)
+                driver.ctx.setLocalValue(localSlot, for: symbol)
             }
             if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
                 let placeholder = arena.appendExpr(.null, type: declaredType)

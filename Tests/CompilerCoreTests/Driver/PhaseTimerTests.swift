@@ -86,15 +86,38 @@ struct PhaseTimerTests {
     // MARK: - totalNanos / totalMs
 
     @Test
+    func measuredSubPhasePreservesResultAndRecordsFailures() throws {
+        enum ProbeError: Error, Equatable { case expected }
+        let timer = PhaseTimer()
+        timer.beginPhase("Codegen")
+        let answer = PhaseTimer.measureSubPhase("success", timer: timer) { 42 }
+        #expect(answer == 42)
+        #expect(throws: ProbeError.expected) {
+            try PhaseTimer.measureSubPhase("failure", timer: timer) { throw ProbeError.expected }
+        }
+        timer.endPhase()
+        let phase = try #require(timer.phaseRecords.first)
+        #expect(phase.subRecords.map(\.name) == ["success", "failure"])
+        for record in phase.subRecords {
+            #expect(record.startTime >= phase.startTime)
+            #expect(record.endTime <= phase.endTime)
+        }
+        #expect(timer.totalNanos == phase.durationNanos)
+        #expect(PhaseTimer.measureSubPhase("disabled", timer: nil) { 7 } == 7)
+    }
+
+    @Test
     func testTotalNanosAndMs() {
         let timer = PhaseTimer()
         timer.beginPhase("A")
         timer.endPhase()
         timer.beginPhase("B")
         timer.endPhase()
-        // totalNanos should be sum of all durations
-        #expect(timer.totalNanos > 0)
-        #expect(timer.totalMs >= 0)
+        // Empty intervals may have zero duration at the clock's resolution.
+        #expect(timer.phaseRecords.count == 2)
+        let expectedNanos = timer.phaseRecords.reduce(UInt64(0)) { $0 + $1.durationNanos }
+        #expect(timer.totalNanos == expectedNanos)
+        #expect(timer.totalMs == Double(expectedNanos) / 1_000_000.0)
     }
 
     @Test

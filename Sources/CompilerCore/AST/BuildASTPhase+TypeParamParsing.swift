@@ -17,7 +17,7 @@ extension BuildASTPhase {
         return []
     }
 
-    private func parseTypeParamTokens(
+    func parseTypeParamTokens(
         _ tokens: [Token],
         interner: StringInterner,
         astArena: ASTArena?

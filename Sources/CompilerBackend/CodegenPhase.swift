@@ -5,22 +5,30 @@ import CompilerCore
 public final class CodegenPhase: CompilerPhase {
     public static let name = "Codegen"
 
-    public init() {}
+    private let session: LLVMBackendSession?
+
+    public init() { session = nil }
+
+    init(session: LLVMBackendSession) { self.session = session }
 
     public func run(_ ctx: CompilationContext) throws {
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }
-        let fileFacadeNamesByFileID = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        let backend = try makeBackend(ctx: ctx)
+        let fileFacadeNamesByFileID = PhaseTimer.measureSubPhase("file facades", timer: ctx.phaseTimer) {
+            CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
+        }
+        let backend = try PhaseTimer.measureSubPhase("backend init", timer: ctx.phaseTimer) {
+            try makeBackend(ctx: ctx)
+        }
         // Shared by the reflection records, inline-KIR artifacts, and library
         // metadata: the map is a pure function of module + interner + symbols.
-        let functionLinkInfo = makeFunctionLinkInfo(
-            module: kir,
-            ctx: ctx,
-            fileFacadeNamesByFileID: fileFacadeNamesByFileID
-        )
-        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
+        let functionLinkInfo = PhaseTimer.measureSubPhase("link info", timer: ctx.phaseTimer) {
+            makeFunctionLinkInfo(module: kir, ctx: ctx, fileFacadeNamesByFileID: fileFacadeNamesByFileID)
+        }
+        let reflectionRecords = PhaseTimer.measureSubPhase("reflection records", timer: ctx.phaseTimer) {
+            buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
+        }
 
         do {
             switch ctx.options.emit {
@@ -168,7 +176,9 @@ public final class CodegenPhase: CompilerPhase {
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
-        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
+        try PhaseTimer.measureSubPhase("inline-KIR artifacts", timer: ctx.phaseTimer) {
+            try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
+        }
 
         let manifestPath = outputDir + "/manifest.json"
         let metadataPath = outputDir + "/metadata.bin"
@@ -202,8 +212,10 @@ public final class CodegenPhase: CompilerPhase {
         manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
         try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
-        let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
-        try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
+        try PhaseTimer.measureSubPhase("library metadata", timer: ctx.phaseTimer) {
+            let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
+            try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
+        }
     }
 
     private func makeBackend(ctx: CompilationContext) throws -> LLVMBackend {
@@ -212,7 +224,9 @@ public final class CodegenPhase: CompilerPhase {
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
             diagnostics: ctx.diagnostics,
-            moduleName: ctx.options.moduleName
+            moduleName: ctx.options.moduleName,
+            phaseTimer: ctx.phaseTimer,
+            session: session ?? LLVMBackendSession()
         )
     }
 
@@ -292,11 +306,11 @@ public final class CodegenPhase: CompilerPhase {
             let inlineBody = module.inlineBodiesBeforeFinallyLowering[function.symbol]
                 ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                 ?? function.body
-            let readExpressions = Set(inlineBody.flatMap(inlineReadExpressions))
+            let referencedExpressions = Set(inlineBody.flatMap(inlineReferencedExpressions))
             let bodyLines = inlineBody.filter { instruction in
                 // Expanded lambdas need no address, and their standalone bodies may not be exported.
                 if case let .constValue(result, .symbolRef(_)) = instruction {
-                    return readExpressions.contains(result)
+                    return referencedExpressions.contains(result)
                 }
                 return true
             }.map { instruction in
@@ -323,7 +337,7 @@ public final class CodegenPhase: CompilerPhase {
         }
     }
 
-    private func inlineReadExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
+    private func inlineReferencedExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
         case let .jumpIfEqual(lhs, rhs, _), let .returnIfEqual(lhs, rhs), let .binary(_, lhs, rhs, _):
             [lhs, rhs]
@@ -333,7 +347,10 @@ public final class CodegenPhase: CompilerPhase {
             arguments
         case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
             [receiver] + arguments
-        case let .jumpIfNotNull(value, _), let .copy(value, _), let .storeGlobal(value, _),
+        case let .copy(from, to):
+            // Both operands can reference symbol-backed storage.
+            [from, to]
+        case let .jumpIfNotNull(value, _), let .storeGlobal(value, _),
              let .rethrow(value), let .returnValue(value), let .resumeNonLocalReturn(value):
             [value]
         case let .nonLocalReturn(value, _):
@@ -672,7 +689,8 @@ public final class CodegenPhase: CompilerPhase {
             interner: ctx.interner,
             functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
             inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
-            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata
+            includeNonPublic: ctx.options.includeNonPublicReflectionMetadata,
+            runtimeReflectionOnly: true
         )
     }
 

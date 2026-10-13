@@ -48,7 +48,13 @@ extension KotlinParser {
             // declaration after it is valid (e.g. `class A { class B { } class C }`).
             let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
             let precededByBlockClose = lastConsumedToken?.kind == .symbol(.rBrace)
-            if isDeclarationStart(token.kind), !isObjectExpressionStart(token),
+            let hasContextDeclarationPrefix: Bool
+            if case .softKeyword(.context) = token.kind {
+                hasContextDeclarationPrefix = declarationPrefixVerdict(at: 0) == .declaration
+            } else {
+                hasContextDeclarationPrefix = true
+            }
+            if isDeclarationStart(token.kind), hasContextDeclarationPrefix, !isObjectExpressionStart(token),
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
                 children.append(.node(parseDeclaration()))
@@ -95,9 +101,7 @@ extension KotlinParser {
         let startCount = stream.index
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
         // Whether this statement's own flat tokens (not a nested block's) have
         // included an `if` or `try` keyword. A newline-leading `else` /
         // `catch` / `finally` only continues *this* statement when one did —
@@ -120,8 +124,8 @@ extension KotlinParser {
             }
             if inBlock,
                !children.isEmpty,
-               parenDepth == 0,
-               bracketDepth == 0,
+               depth.paren == 0,
+               depth.bracket == 0,
                hasLeadingNewline(token),
                shouldSplitStatementOnNewline(token.kind),
                !canContinueWithSymbol,
@@ -137,7 +141,7 @@ extension KotlinParser {
                 sawIfOrTryKeyword = true
             }
             let closesTopLevelExpressionBrace: Bool = if case .symbol(.rBrace) = token.kind {
-                !inBlock && braceDepth > 0
+                !inBlock && depth.brace > 0
             } else {
                 false
             }
@@ -150,22 +154,7 @@ extension KotlinParser {
             }
 
             _ = consumeToken(into: &children, range: &range)
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
             if case .symbol(.semicolon) = token.kind {
                 break
             }
@@ -362,13 +351,11 @@ extension KotlinParser {
         stopBeforeCatchFinally: Bool,
         stopBeforeTopLevelComma: Bool
     ) {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
         let startChildCount = children.count
         while !stream.atEOF() {
             let token = stream.peek()
-            let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            let atTopLevel = depth.isTopLevel
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock) { break }
             if stopBeforeElse, atTopLevel,
                token.kind == .keyword(.else) { break }
@@ -395,18 +382,10 @@ extension KotlinParser {
             }
 
             _ = consumeToken(into: &children, range: &range)
-            switch token.kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            case .symbol(.semicolon): return
-            default: break
-            }
+            depth.track(token.kind)
+            if token.kind == .symbol(.semicolon) { return }
             if !inBlock, hasLeadingNewline(stream.peek()) {
-                let stillGrouped = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
+                let stillGrouped = !depth.isTopLevel
                 if stillGrouped {
                     continue
                 }
@@ -516,12 +495,11 @@ extension KotlinParser {
     private func parseWhenCondition() -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
-        var parenDepth = 0
-        var bracketDepth = 0
+        var depth = BracketDepth()
 
         while !stream.atEOF() {
             let token = stream.peek()
-            if parenDepth == 0, bracketDepth == 0 {
+            if depth.paren == 0, depth.bracket == 0 {
                 if token.kind == .symbol(.comma) || token.kind == .symbol(.arrow) || token.kind == .symbol(.rBrace) {
                     break
                 }
@@ -531,18 +509,7 @@ extension KotlinParser {
             }
 
             _ = consumeToken(into: &children, range: &range)
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
 
         if children.isEmpty {
@@ -665,13 +632,11 @@ extension KotlinParser {
 
         var bodyChildren: [SyntaxChild] = []
         var bodyRange = RangeAccumulator()
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
 
         while !stream.atEOF() {
             let token = stream.peek()
-            let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            let atTopLevel = depth.isTopLevel
             if atTopLevel, !bodyChildren.isEmpty,
                token.kind == .keyword(.while)
             {
@@ -689,22 +654,7 @@ extension KotlinParser {
             }
 
             _ = consumeToken(into: &bodyChildren, range: &bodyRange)
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
 
             if token.kind == .symbol(.semicolon), atTopLevel {
                 break
@@ -909,17 +859,46 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
+    private func isTrailingLambdaInfixContinuation(_ token: Token) -> Bool {
+        guard !hasLeadingNewline(token) else { return false }
+        switch token.kind {
+        case .identifier, .backtickedIdentifier:
+            return canStartInfixCallArgument(stream.peek(1).kind)
+        default:
+            return false
+        }
+    }
+
+    private func canStartInfixCallArgument(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .identifier, .backtickedIdentifier,
+             .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral,
+             .keyword(.true), .keyword(.false), .keyword(.null), .keyword(.if), .keyword(.when),
+             .keyword(.try), .keyword(.throw), .keyword(.return), .keyword(.for), .keyword(.while),
+             .keyword(.do), .keyword(.super), .keyword(.this), .keyword(.object),
+             .symbol(.lParen), .symbol(.lBrace), .symbol(.lBracket), .symbol(.minus), .symbol(.plus),
+             .symbol(.bang), .symbol(.doubleColon),
+             .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote,
+             .softKeyword:
+            return true
+        case let .keyword(keyword):
+            return Self.isDeclarationModifierKeyword(keyword)
+        default:
+            return false
+        }
+    }
+
     func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false) {
         var progress = false
         var sawAssignment = false
         var sawTryKeyword = false
         var sawIfKeyword = false
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
+        var templateExpressionDepth = 0
         while !stream.atEOF() {
             let token = stream.peek()
-            let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            let atTopLevel = depth.isTopLevel
+                && templateExpressionDepth == 0
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
@@ -956,6 +935,12 @@ extension KotlinParser {
                 {
                     continue
                 }
+                // A trailing-lambda call can be the receiver of an infix call,
+                // as in items.joinToString { it } to other. Keep the infix
+                // name and its operand in the same expression-bodied declaration.
+                if isTrailingLambdaInfixContinuation(nextAfterBlock) {
+                    continue
+                }
                 break
             }
             if case .keyword(.try) = token.kind {
@@ -966,19 +951,12 @@ extension KotlinParser {
             }
             _ = consumeToken(into: &children, range: &range)
             progress = true
+            depth.track(token.kind)
             switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart:
+                templateExpressionDepth += 1
+            case .templateExprEnd:
+                templateExpressionDepth = max(0, templateExpressionDepth - 1)
             default:
                 break
             }
@@ -986,7 +964,8 @@ extension KotlinParser {
                 break
             }
             if !inBlock, hasLeadingNewline(stream.peek()) {
-                let stillGrouped = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
+                let stillGrouped = !depth.isTopLevel
+                    || templateExpressionDepth > 0
                 if stillGrouped {
                     continue
                 }

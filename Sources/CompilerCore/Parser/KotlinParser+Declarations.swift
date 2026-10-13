@@ -163,7 +163,7 @@ extension KotlinParser {
             parseLeadingDeclarationPrefix(into: &children, range: &range)
             _ = consumeToken(into: &children, range: &range)
             let parameters = parseBalancedGroup(
-                opening: .lParen, closing: .rParen, allowsPrimaryConstructorParameters: true
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
             )
             children.append(.node(parameters))
             range.append(childRange(.node(parameters)))
@@ -471,7 +471,7 @@ extension KotlinParser {
             return !enumEntryStartsAfterLeadingAnnotations()
         }
         if case .softKeyword(.context) = kind {
-            return true
+            return declarationPrefixVerdict(at: 0) == .declaration
         }
         guard case let .keyword(keyword) = kind, isDeclarationKeyword(keyword) else {
             return false
@@ -531,14 +531,11 @@ extension KotlinParser {
         into children: inout [SyntaxChild],
         range: inout RangeAccumulator
     ) -> Bool {
-        var parenDepth = 0
-        var bracketDepth = 0
-        var angleDepth = 0
-        var braceDepth = 0
+        var depth = BracketDepth()
 
         while !stream.atEOF() {
             let token = stream.peek()
-            let atTopLevel = parenDepth == 0 && bracketDepth == 0 && angleDepth == 0 && braceDepth == 0
+            let atTopLevel = depth.isTopLevel && depth.angle == 0
             if atTopLevel, case .symbol(.lBrace) = token.kind {
                 let body = parseEnumBody()
                 children.append(.node(body))
@@ -556,26 +553,7 @@ extension KotlinParser {
             }
 
             _ = consumeToken(into: &children, range: &range)
-            switch token.kind {
-            case .symbol(.lParen):
-                parenDepth += 1
-            case .symbol(.rParen):
-                parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket):
-                bracketDepth += 1
-            case .symbol(.rBracket):
-                bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lessThan):
-                angleDepth += 1
-            case .symbol(.greaterThan):
-                angleDepth = max(0, angleDepth - 1)
-            case .symbol(.lBrace):
-                braceDepth += 1
-            case .symbol(.rBrace):
-                braceDepth = max(0, braceDepth - 1)
-            default:
-                break
-            }
+            depth.track(token.kind)
         }
         return false
     }
@@ -590,7 +568,9 @@ extension KotlinParser {
         _ = consumeToken(into: &children, range: &range)
 
         if case .symbol(.lParen) = stream.peek().kind {
-            children.append(.node(parseBalancedGroup(opening: .lParen, closing: .rParen)))
+            children.append(.node(parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
+            )))
             if let last = children.last {
                 range.append(childRange(last))
             }

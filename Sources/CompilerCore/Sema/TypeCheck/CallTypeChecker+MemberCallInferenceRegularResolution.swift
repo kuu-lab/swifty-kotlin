@@ -7,7 +7,7 @@ extension CallTypeChecker {
     /// Shared by member-call resolution paths that compare the resolved callee
     /// text; interned-String comparisons live on `KnownCompilerNames`.
     static let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toSortedMap", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear"]
-    static let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach"]
+    static let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach", "count"]
 
     func inferRegularMemberCall(
         _ request: MemberCallInferenceRequest,
@@ -109,14 +109,23 @@ extension CallTypeChecker {
                     expectedType: sema.types.ulongType
                 )
             }
-            // Speculative declaration checks can leave a name reference bound
-            // to a placeholder type. Read its current local/member type again.
+            // Speculative declaration checks can leave names bound to
+            // placeholder types and nested calls bound to ErrorType before an
+            // inferred member is available. Re-read names and retry inferable
+            // nested calls whose cached result still contains an error.
             let inferredType: TypeID
             if case .nameRef = ast.arena.expr(arg.expr) {
                 inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            } else if let boundType = sema.bindings.exprType(for: arg.expr) {
+                if typeContainsErrorType(boundType, sema: sema),
+                   isInferableNestedCallExpr(arg.expr, ast: ast)
+                {
+                    inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                } else {
+                    inferredType = boundType
+                }
             } else {
-                inferredType = sema.bindings.exprType(for: arg.expr)
-                    ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
             }
             if calleeName == knownNames.coerceIn,
                let rangeType = floatingPointRangeArgumentType(

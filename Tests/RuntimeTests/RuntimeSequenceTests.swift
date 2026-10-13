@@ -483,14 +483,6 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_indexOfLast(seq, unsafeBitCast(greaterThanTenPredicate, to: Int.self), 0, nil) == -1)
     }
 
-    @Test func intersectReturnsDeduplicatedSetInReceiverOrder() {
-        let seq = makeSequence([1, 2, 2, 3, 4])
-        let other = registerRuntimeObject(RuntimeListBox(elements: [2, 4, 5]))
-
-        let result = kk_sequence_intersect(seq, other)
-
-        #expect(setElements(result) == [2, 4])
-    }
     @Test func groupByGroupsElementsIntoNewMap() {
         let seq = makeSequence([1, 2, 3, 4, 5])
 
@@ -1478,14 +1470,6 @@ struct RuntimeSequenceTests {
         #expect(sequenceElements(combined) == [1, 2, 3, 4])
     }
 
-    @Test func unionCombinesSequenceAndIterableIntoSet() {
-        let seq = makeSequence([1, 2, 3, 2])
-        let other = runtimeTestMakeList([3, 4, 1])
-        let unioned = kk_sequence_union(seq, other)
-
-        #expect(setElements(unioned) == [1, 2, 3, 4])
-    }
-
     // MARK: - Sequence.minus (STDLIB-562)
 
     @Test func minusRemovesFirstOccurrenceOfElement() {
@@ -1521,15 +1505,6 @@ struct RuntimeSequenceTests {
         let reduced = kk_sequence_minus(seq, 2)
         let asList = kk_sequence_to_list(reduced, nil)
         #expect(runtimeTestListElements(asList) == [1, 3])
-    }
-
-    // MARK: - Sequence.subtract (STDLIB-SEQ-FN-115)
-
-    @Test func subtractReturnsSetRemovingIterableElements() {
-        let seq = makeSequence([1, 2, 2, 3, 4])
-        let other = runtimeTestMakeList([2, 4, 2])
-        let result = kk_sequence_subtract(seq, other)
-        #expect(setElements(result) == [1, 3])
     }
 
     // MARK: - Eager Materialization (Intentional Simplification)

@@ -1,4 +1,3 @@
-// MARK: - Sequence Factory Functions
 
 public func kk_sequence_from_list(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -8,7 +7,6 @@ public func kk_sequence_from_list(_ listRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-// MARK: - emptySequence (STDLIB-277)
 
 @_cdecl("__kk_empty_sequence")
 public func __kk_empty_sequence() -> Int {
@@ -16,7 +14,6 @@ public func __kk_empty_sequence() -> Int {
     return registerRuntimeObject(seq)
 }
 
-// MARK: - Sequence.ifEmpty (STDLIB-277)
 
 @_cdecl("kk_sequence_ifEmpty")
 public func kk_sequence_ifEmpty(

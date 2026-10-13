@@ -6,7 +6,6 @@ import Foundation
 //
 // Split out from `RuntimeCoroutine.swift`.
 
-// MARK: - CoroutineContext Elements (STDLIB-CORO-077)
 
 private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.CoroutineContext"
@@ -1305,7 +1304,6 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     return RuntimeCoroutineContext(dispatcher: raw)
 }
 
-// MARK: - Coroutine Dispatcher Scheduler (STDLIB-133)
 
 /// A coroutine dispatcher that schedules work on a specific GCD queue.
 /// Each dispatcher wraps a DispatchQueue and provides `dispatch(_:)` to execute

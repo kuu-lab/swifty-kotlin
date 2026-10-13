@@ -491,6 +491,27 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func contextParameterAndLocalMemberCallsAreNotParsedAsDeclarationPrefixes() {
+        let parsed = parse("""
+        class Box { fun put() {} }
+        interface Handler { fun write(context: Box) }
+        class Writer : Handler {
+            override fun write(context: Box) {
+                context.put()
+            }
+        }
+        val context = Box()
+        context.put()
+        context(Box) fun withContextReceiver() {}
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty, "\(parsed.diagnostics.diagnostics)")
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 4)
+        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .interfaceDecl) == 1)
+    }
+
+    @Test
     func longModifierPrefixLookaheadIsBoundedAndRecovers() {
         let modifiers = Array(repeating: "suspend", count: 4_200).joined(separator: "\n")
         let source = "val answer = 42\n\(modifiers)\nnotADeclaration"
