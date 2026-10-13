@@ -153,6 +153,17 @@ final class RuntimeIntBox {
     /// Kotlin type identity, independent of the shared payload/hash representation.
     let primitiveTypeBase: Int64
 
+    var renderedString: String {
+        if let enumEntryName {
+            return enumEntryName
+        }
+        // A UIntArray view may box a sign-extended signed backing word.
+        if primitiveTypeBase == RuntimeTypeTokenEncoding.uintBase {
+            return String(UInt32(truncatingIfNeeded: value))
+        }
+        return String(value)
+    }
+
     /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
     /// and UShort share this physical box with Int, but their hashCode() must
     /// reinterpret the zero-extended payload as the signed backing type.
