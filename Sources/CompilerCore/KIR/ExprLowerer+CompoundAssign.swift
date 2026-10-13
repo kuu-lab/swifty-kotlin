@@ -633,7 +633,11 @@ extension ExprLowerer {
                     // the value Kotlin's left-to-right evaluation order
                     // requires. Freeze it into a fresh temporary first.
                     let frozenLHS = arena.appendTemporary(type: symbolType)
-                    instructions.append(.copy(from: storageID, to: frozenLHS))
+                    let checkedValue = wrapLateinitReadIfNeeded(
+                        storageID, symbol: symbol, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
+                    instructions.append(.copy(from: checkedValue, to: frozenLHS))
                     let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {

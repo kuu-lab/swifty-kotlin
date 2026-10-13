@@ -605,7 +605,10 @@ extension ExprLowerer {
                     return delegateValue
                 }
                 if let localValue = driver.ctx.localValue(for: symbol) {
-                    return localValue
+                    return wrapLateinitReadIfNeeded(
+                        localValue, symbol: symbol, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
                 }
             }
         }
@@ -650,7 +653,10 @@ extension ExprLowerer {
                    instructions: &instructions
                )
             {
-                return loadedValue
+                return wrapLateinitReadIfNeeded(
+                    loadedValue, symbol: symbol, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions
+                )
             }
             if let delegateValue = readLocalDelegateValue(
                 symbol: symbol, sema: sema, arena: arena, interner: interner,
@@ -669,7 +675,10 @@ extension ExprLowerer {
                     instructions.append(.copy(from: localValue, to: narrowed))
                     return narrowed
                 }
-                return localValue
+                return wrapLateinitReadIfNeeded(
+                    localValue, symbol: symbol, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions
+                )
             }
             // A bare companion/object property reference can resolve
             // directly to the property symbol without being marked as an

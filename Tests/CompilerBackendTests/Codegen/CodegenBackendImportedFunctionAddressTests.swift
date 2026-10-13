@@ -7,6 +7,49 @@ import Testing
 
 @Suite
 struct CodegenBackendImportedFunctionAddressTests {
+    @Test(arguments: [0, 2])
+    func privateInlineAdapterAddressMatchesThrowingCall(optimization: Int) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let linkName = RuntimeABISpec.compilerGeneratedLinkNamePrefix + "private_empty_supplier"
+        let address = KIRExprKind.externSymbolAddress(interner.intern(linkName))
+        let addressExpr = arena.appendExpr(address, type: types.intType)
+        let parameter = SymbolID(rawValue: 4000)
+        let argument = arena.appendExpr(.symbolRef(parameter), type: types.intType)
+        let result = arena.appendTemporary(type: types.intType)
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 4001), name: interner.intern("caller"),
+            params: [KIRParameter(symbol: parameter, type: types.intType)],
+            returnType: types.intType,
+            body: [
+                .constValue(result: addressExpr, value: address),
+                .constValue(result: argument, value: .symbolRef(parameter)),
+                .call(symbol: nil, callee: interner.intern(linkName), arguments: [argument],
+                      result: result, canThrow: true, thrownResult: nil),
+                .returnValue(result),
+            ],
+            isSuspend: false, isInline: false
+        )
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [arena.appendDecl(.function(function))])],
+            arena: arena
+        )
+        let backend = try LLVMBackend(
+            target: TargetTriple.hostDefault(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            debugInfo: false, diagnostics: DiagnosticEngine()
+        )
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        try backend.emitLLVMIR(module: module, outputIRPath: path, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: path, encoding: .utf8)
+        let declaration = try #require(ir.split(separator: "\n").first {
+            $0.hasPrefix("declare ") && $0.contains("@\(linkName)(")
+        })
+        #expect(declaration.contains("(i64, ptr)") || declaration.contains("(i64, i64*)"))
+    }
+
     @Test(arguments: ["pair_new", "mutable_map_put"])
     func runtimeFunctionAddressUsesKnownArityAndThrownChannel(operation: String) throws {
         let runtime = try runtimeABIFunction(operation)
