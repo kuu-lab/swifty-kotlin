@@ -374,16 +374,7 @@ private func runtimeCoroutineIsThrowableResult(_ result: Int) -> Bool {
 }
 
 func runtimeCoroutineIsCancellationResult(_ result: Int) -> Bool {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: result) else {
-        return false
-    }
-    let isRegistered = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isRegistered else {
-        return false
-    }
-    return tryCast(pointer, to: RuntimeCancellationBox.self) != nil
+    kk_is_cancellation_exception(result) != 0
 }
 
 

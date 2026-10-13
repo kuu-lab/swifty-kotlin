@@ -193,6 +193,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private let defaultCancellationMessageFallback: String
     weak var continuationState: RuntimeContinuationState?
     var producerChannel: Int?
+    private var producerCompletionPending = false
     private var childJobHandles: [Int] = []
     private weak var parentJob: RuntimeJobHandle?
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
@@ -420,6 +421,15 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
     }
 
+    /// Structured completion also needs terminal children's exceptions: a
+    /// child can publish its value/state just before notifying its parent.
+    func registeredChildrenSnapshot() -> [Int] {
+        lock.lock()
+        let children = childJobHandles
+        lock.unlock()
+        return children.filter { runtimeJobHandle(from: $0) != nil || runtimeAsyncTask(from: $0) != nil }
+    }
+
     func markConsumedByUserCode() {
         lock.lock()
         isConsumedByUserCode = true
@@ -437,7 +447,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// already complete, the resumer runs immediately on the calling thread.
     func addJoinResumer(_ resumer: @escaping @Sendable (Int) -> Void) {
         lock.lock()
-        if state.isCompleted {
+        if state.isCompleted, !producerCompletionPending {
             let value = terminalValueLocked()
             lock.unlock()
             resumer(value)
@@ -456,7 +466,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         handler: @escaping @Sendable (Int) -> Void
     ) -> Int {
         lock.lock()
-        if state.isCompleted || (onCancelling && state == .cancelling) {
+        if (state.isCompleted && !producerCompletionPending) || (onCancelling && state == .cancelling) {
             let cause = completionCauseLocked()
             lock.unlock()
             if invokeImmediately {
@@ -497,7 +507,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         let cause = completionCauseLocked()
-        return (state.isCompleted, result, cause == runtimeNullSentinelInt ? 0 : cause)
+        return (state.isCompleted && !producerCompletionPending, result, cause == runtimeNullSentinelInt ? 0 : cause)
     }
 
     /// KUU-CORO-101: the value `invokeOnCompletion` handlers receive as
@@ -556,53 +566,53 @@ final class RuntimeJobHandle: @unchecked Sendable {
     func complete(with value: Int) -> Bool {
         lock.lock()
         let shouldSignal = completeLocked(successState: .completed, value: value)
-        let resumers = shouldSignal ? joinResumers : []
-        let handlers = shouldSignal ? completionHandlers : []
-        if shouldSignal {
-            joinResumers = []
-            completionHandlers = []
-        }
-        let terminal = shouldSignal ? terminalValueLocked() : 0
+        if shouldSignal { producerCompletionPending = producerChannel != nil }
         let cause = shouldSignal ? completionCauseLocked() : 0
         lock.unlock()
-        if shouldSignal {
-            completionSemaphore.signal()
-            for resumer in resumers {
-                resumer(terminal)
-            }
-            for entry in handlers {
-                entry.handler(cause)
-            }
-        }
+        if shouldSignal { publishCompletion(cause: cause) }
         return shouldSignal
     }
 
     func completeExceptionally(with exception: Int) -> Bool {
         lock.lock()
         let shouldSignal = completeLocked(successState: .failed, value: 0, failureValue: exception)
-        let resumers = shouldSignal ? joinResumers : []
-        let handlers = shouldSignal ? completionHandlers : []
-        if shouldSignal {
-            joinResumers = []
-            completionHandlers = []
-        }
-        let terminal = shouldSignal ? terminalValueLocked() : 0
+        if shouldSignal { producerCompletionPending = producerChannel != nil }
         let cause = shouldSignal ? completionCauseLocked() : 0
         let parent = shouldSignal && propagatesFailureToParent ? parentJob : nil
         lock.unlock()
         if shouldSignal {
-            if exception != 0, kk_is_cancellation_exception(exception) == 0 {
-                parent?.childFailed(with: exception)
-            }
-            completionSemaphore.signal()
-            for resumer in resumers {
-                resumer(terminal)
-            }
-            for entry in handlers {
-                entry.handler(cause)
+            publishCompletion(cause: cause) {
+                if exception != 0, kk_is_cancellation_exception(exception) == 0 {
+                    parent?.childFailed(with: exception)
+                }
             }
         }
         return shouldSignal
+    }
+
+    /// Producer close callbacks must finish before joiners, snapshots, or a
+    /// concurrently registered completion handler can observe completion.
+    private func publishCompletion(cause: Int, beforeNotification: () -> Void = {}) {
+        closeProducerChannel(cause: cause)
+        beforeNotification()
+        lock.lock()
+        producerCompletionPending = false
+        let terminal = terminalValueLocked()
+        let resumers = joinResumers
+        let handlers = completionHandlers
+        joinResumers = []
+        completionHandlers = []
+        lock.unlock()
+        completionSemaphore.signal()
+        for resumer in resumers { resumer(terminal) }
+        for entry in handlers { entry.handler(cause) }
+    }
+
+    private func closeProducerChannel(cause: Int) {
+        guard let producerChannel else { return }
+        _ = runtimeChannelHandleObject(from: producerChannel)?.close(
+            cause: cause == runtimeNullSentinelInt ? 0 : cause
+        )
     }
 
     /// Notify ancestors before waking awaiters, so caught await failures still
@@ -653,7 +663,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     @discardableResult
     private func cancel(message: String, cause: Int, usesDefaultMessage: Bool) -> Bool {
         let resolvedCause = cause != 0 && cause != runtimeNullSentinelInt
-            ? cause : runtimeAllocateCancellationException(message: message)
+            ? cause : runtimeAllocateCancellationException(message: message, cancellationJob: self)
         // If the dispatch work item has not begun executing, cancel it now so
         // the body never runs. The state update below is the authoritative
         // completion signal if cancellation already lost the race.
@@ -694,6 +704,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
             if state == .new || (state == .active && !hasStartedExecuting) {
                 state = .cancelled
                 shouldSignalCompletion = true
+                producerCompletionPending = producerChannel != nil
                 joinResumersToRun = joinResumers
                 joinResumers = []
                 terminalForJoin = terminalValueLocked()
@@ -721,6 +732,14 @@ final class RuntimeJobHandle: @unchecked Sendable {
             entry.handler(resolvedCause)
         }
         if shouldSignalCompletion {
+            closeProducerChannel(cause: resolvedCause)
+            lock.lock()
+            producerCompletionPending = false
+            joinResumersToRun.append(contentsOf: joinResumers)
+            allHandlersToRun.append(contentsOf: completionHandlers)
+            joinResumers = []
+            completionHandlers = []
+            lock.unlock()
             completionSemaphore.signal()
             for resumer in joinResumersToRun {
                 resumer(terminalForJoin)
@@ -744,7 +763,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         // never signal completionSemaphore.
         RuntimePendingLaunchQueue.flush()
         lock.lock()
-        if state.isCompleted {
+        if state.isCompleted, !producerCompletionPending {
             let value = terminalValueLocked()
             lock.unlock()
             return value
@@ -800,11 +819,17 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return state.isCancelled
     }
 
+    func isFinalizingProducerChannelSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return producerCompletionPending
+    }
+
     /// Thread-safe snapshot of the completion flag.
     func completedSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return state.isCompleted
+        return state.isCompleted && !producerCompletionPending
     }
 
     /// Thread-safe snapshot of the active state.

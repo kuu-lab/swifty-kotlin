@@ -954,7 +954,7 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
     if let job = state.jobHandle, job.cancellationSnapshot() {
         let cancellation = runtimeAllocateCancellationException(
             message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
-            cause: job.cancellationCauseSnapshot()
+            cause: job.cancellationCauseSnapshot(), cancellationJob: job
         )
         outThrown?.pointee = cancellation
         return 1
@@ -1010,7 +1010,14 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
         return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    return obj is RuntimeCancellationBox ? 1 : 0
+    if obj is RuntimeCancellationBox { return 1 }
+    // Bundled/user subclasses (including Flow's AbortFlowException) use
+    // ordinary source objects rather than the runtime cancellation box.
+    guard let object = obj as? RuntimeObjectBox else { return 0 }
+    return runtimeIsAssignable(
+        sourceTypeID: object.classID,
+        targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.coroutines.cancellation.CancellationException")
+    ) ? 1 : 0
 }
 
 /// Throws a CancellationException if the ambient job/scope has been cancelled.
@@ -1023,7 +1030,7 @@ public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if let job = RuntimeJobHandle.current, job.cancellationSnapshot() {
         outThrown?.pointee = runtimeAllocateCancellationException(
             message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
-            cause: job.cancellationCauseSnapshot()
+            cause: job.cancellationCauseSnapshot(), cancellationJob: job
         )
         return 0
     }

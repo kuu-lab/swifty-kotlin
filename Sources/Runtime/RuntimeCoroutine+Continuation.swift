@@ -442,7 +442,7 @@ public func kk_coroutine_state_get_thrown_exception(_ continuation: Int) -> Int 
     guard let state = runtimeContinuationState(from: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_state_get_thrown_exception received invalid continuation handle")
     }
-    return state.thrownException
+    return state.takeThrownException()
 }
 
 @_cdecl("kk_coroutine_continuation_context")

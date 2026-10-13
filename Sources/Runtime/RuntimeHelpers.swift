@@ -181,6 +181,16 @@ struct RuntimeFIFOQueue<Element> {
         head = 0
         return queued
     }
+
+    /// Remove one suspended operation without disturbing the other waiters.
+    /// Cancellation is rare; ordinary enqueue/dequeue remain amortized O(1).
+    mutating func removeFirst(where matches: (Element) -> Bool) -> Bool {
+        guard let index = elements.indices.dropFirst(head).first(where: {
+            elements[$0].map(matches) ?? false
+        }) else { return false }
+        elements.remove(at: index)
+        return true
+    }
 }
 
 func runtimeArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
@@ -442,8 +452,12 @@ func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targ
 /// Allocates a CancellationException as a RuntimeCancellationBox (CORO-002 / spec.md J17).
 /// The returned opaque pointer can be stored in `outThrown` and later detected via
 /// `kk_is_cancellation_exception`.
-func runtimeAllocateCancellationException(message: String? = "CancellationException", cause: Int = 0) -> Int {
-    runtimeRegisterThrowable(RuntimeCancellationBox(message: message, cause: cause))
+func runtimeAllocateCancellationException(
+    message: String? = "CancellationException", cause: Int = 0, cancellationJob: RuntimeJobHandle? = nil
+) -> Int {
+    let exception = RuntimeCancellationBox(message: message, cause: cause)
+    exception.cancellationJob = cancellationJob
+    return runtimeRegisterThrowable(exception)
 }
 
 /// Allocates a `kotlinx.coroutines.TimeoutCancellationException` for an expired

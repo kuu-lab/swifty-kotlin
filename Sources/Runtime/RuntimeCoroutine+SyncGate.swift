@@ -385,6 +385,16 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return true
     }
 
+    /// Generated resume labels receive an exception once. A surrounding catch
+    /// may handle it and then suspend again without a child call clearing it.
+    func takeThrownException() -> Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        let thrown = thrownException
+        thrownException = 0
+        return thrown
+    }
+
     func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
         stateLock.lock()
         cancellableDelivery = continuation
@@ -625,6 +635,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
         if pending {
             child.signalResume()
         }
+    }
+
+    /// Job cancellation already forwards through this chain. A driver's
+    /// supplemental handler must not wake the same child a second time after
+    /// it has caught cancellation and entered another suspension.
+    func containsSuspendedContinuation(_ target: RuntimeContinuationState) -> Bool {
+        if self === target { return true }
+        stateLock.lock()
+        let child = suspendedCallChild
+        stateLock.unlock()
+        return child?.containsSuspendedContinuation(target) ?? false
     }
 
     func unbindSuspendedCallChild(_ child: RuntimeContinuationState) {

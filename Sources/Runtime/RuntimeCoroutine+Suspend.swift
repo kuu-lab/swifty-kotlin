@@ -368,6 +368,16 @@ func runSuspendEntryLoopWithContinuation(
     // task-scope map so that child launches dispatched on this thread can
     // discover their parent scope without TLS.
     let contState = runtimeContinuationState(from: continuation)
+    let cancellationJob = contState?.jobHandle
+    let cancellationHandler = cancellationJob?.addCompletionHandler(onCancelling: true) { [weak contState, weak cancellationJob] _ in
+        guard let contState, let cancellationJob, cancellationJob.cancellationSnapshot() else { return }
+        // The launcher's primary state is already signalled by Job.cancel.
+        // A borrowed suspend-value loop has its own suspended continuation,
+        // including event-loop drivers that use an asynchronous callback.
+        if cancellationJob.continuationState?.containsSuspendedContinuation(contState) != true {
+            contState.signalResume(isCancellation: true)
+        }
+    } ?? 0
     // Bind this coroutine to the runBlocking event loop draining the current
     // thread, if any, so every later resumption hop is queued on it. A body
     // dispatched onto a real dispatcher queue (`withContext(Dispatchers.IO)`,
@@ -450,6 +460,7 @@ func runSuspendEntryLoopWithContinuation(
             // code on this thread can race a cancel() against them.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
+            cancellationJob?.removeCompletionHandler(id: cancellationHandler)
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
@@ -477,6 +488,7 @@ func runSuspendEntryLoopWithContinuation(
             // signalling completion for the same reason as the thrown path.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
+            cancellationJob?.removeCompletionHandler(id: cancellationHandler)
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
@@ -498,6 +510,7 @@ func runSuspendEntryLoopWithContinuation(
             // the other exit paths above.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
+            cancellationJob?.removeCompletionHandler(id: cancellationHandler)
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
@@ -544,8 +557,18 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
             // Resumed on a (possibly different) thread — capture that thread's
             // displaced ambient bindings so a burst ending here restores them.
-            taskKeyBox.outerKey = RuntimeCoroutineScopeTaskKey.installedKey
-            taskKeyBox.outerJob = RuntimeJobHandle.current
+            let displacedKey = RuntimeCoroutineScopeTaskKey.installedKey
+            let displacedJob = RuntimeJobHandle.current
+            taskKeyBox.outerKey = displacedKey
+            taskKeyBox.outerJob = displacedJob
+            // A resumed burst can suspend again without entering a terminal
+            // branch. Restore this worker's ambient bindings on that path too,
+            // using burst-local snapshots so nested inline resumes cannot
+            // replace the values this invocation must restore.
+            defer {
+                RuntimeCoroutineScopeTaskKey.restoreKey(displacedKey)
+                RuntimeJobHandle.current = displacedJob
+            }
             let freshKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
             taskKeyBox.key = freshKey
             RuntimeCoroutineScope.installScope(state.scope, forTask: freshKey)

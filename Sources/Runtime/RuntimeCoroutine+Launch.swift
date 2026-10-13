@@ -645,10 +645,13 @@ private func runtimeProducerContext(
 func runtimeKxMiniProduceWithCont(
     _ entryPointRaw: Int,
     _ continuation: Int,
-    channelCapacity: Int
+    channelCapacity: Int,
+    failureDeliveredByCollector: Bool = false,
+    collectorJob: RuntimeJobHandle? = nil
 ) -> Int {
     let channelHandle = kk_channel_create(channelCapacity)
     let job = RuntimeJobHandle()
+    job.propagatesFailureToParent = !failureDeliveredByCollector || collectorJob != nil
     job.producerChannel = channelHandle
     job.debugName = "ProducerCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
@@ -669,8 +672,14 @@ func runtimeKxMiniProduceWithCont(
     }
 
     let callerScope = RuntimeCoroutineScope.current
-    if let callerScope {
-        callerScope.registerChild(Int(bitPattern: jobPtr))
+    if failureDeliveredByCollector {
+        // Like coroutineScope, a Flow collect boundary reports its failure
+        // through its caller rather than failing the ambient scope again.
+        // Retain the runtime job for escaped coroutineContext.job values,
+        // following RuntimeCoroutineScope.installJob's lifetime convention.
+        (collectorJob ?? RuntimeJobHandle.current ?? callerScope?.job)?.registerChild(Int(bitPattern: jobPtr))
+    } else {
+        callerScope?.registerChild(Int(bitPattern: jobPtr))
     }
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
@@ -682,23 +691,52 @@ func runtimeKxMiniProduceWithCont(
         )
     }
 
+    let producerScope = runtimeProducerScopeForChannelHandle(channelHandle)
+    let executionScope = failureDeliveredByCollector ? producerScope : callerScope
+    if failureDeliveredByCollector {
+        runtimeContinuationState(from: continuation)?.scope = executionScope
+    }
+
     KxMiniRuntime.launch {
         // Same cancel-before-start guard as `__kk_produce_launch*`: a cancel()
         // racing ahead of the dispatched body already moved the job to
         // cancelling/cancelled, so skip the body and settle the channel.
         if job.cancellationSnapshot() {
-            _ = kk_channel_close(channelHandle)
             _ = job.complete(with: 0)
             return
         }
         runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
-            scope: callerScope,
+            scope: executionScope,
             job: nil
-        ) { result, _ in
-            _ = kk_channel_close(channelHandle)
-            _ = job.complete(with: result)
+        ) { result, thrown in
+            var failure = thrown
+            if failureDeliveredByCollector, let producerScope {
+                let priorChildFailure = producerScope.childFailureSnapshot()
+                if thrown != 0 {
+                    producerScope.recordBodyFailure(thrown)
+                    let rootCause = priorChildFailure != 0 ? priorChildFailure : thrown
+                    if kk_is_cancellation_exception(rootCause) == 0 {
+                        // Interrupt a collector before waiting for child finally
+                        // blocks that may themselves await collector cleanup.
+                        _ = collectorJob?.cancel(cause: rootCause)
+                    }
+                    // Cancelling each child's Job wakes its own pending send.
+                    // The enclosing collection Job receives non-cancellation
+                    // failure after this structured producer finishes.
+                    producerScope.cancel(message: "Flow producer failed", cause: thrown)
+                }
+                let childFailure = producerScope.waitForChildren(releaseOriginalHandles: false)
+                failure = priorChildFailure != 0 ? priorChildFailure
+                    : (childFailure != 0 && (thrown == 0 || runtimeCoroutineIsCancellationResult(thrown))
+                        ? childFailure : thrown)
+            }
+            if failure != 0 {
+                _ = job.completeExceptionally(with: failure)
+            } else {
+                _ = job.complete(with: result)
+            }
         }
     }
     return channelHandle
@@ -930,7 +968,6 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
             captures: captures,
             outThrown: &thrown
         )
-        _ = kk_channel_close(channelHandle)
         if thrown != 0 {
             _ = job.completeExceptionally(with: thrown)
         } else {
@@ -1017,7 +1054,6 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
             scope: callerScope,
             job: nil
         ) { result, thrown in
-            _ = kk_channel_close(channelHandle)
             if thrown != 0 {
                 _ = job.completeExceptionally(with: thrown)
             } else {
