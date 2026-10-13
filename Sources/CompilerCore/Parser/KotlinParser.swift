@@ -122,6 +122,12 @@ final class KotlinParser {
                         // iteratively through the statement parser.
                         node = parseTopLevelStatement()
                     }
+                } else if isAmbiguousDeclarationPrefix(token),
+                          declarationPrefixVerdict(at: 0) == .overBudget {
+                    // Check modifier-starting prefixes too, but keep their
+                    // existing declaration/expression fallback below the limit.
+                    // Statement recovery consumes an over-budget run iteratively.
+                    node = parseTopLevelStatement()
                 } else {
                     node = parseDeclaration()
                 }
