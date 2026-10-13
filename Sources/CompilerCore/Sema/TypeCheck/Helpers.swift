@@ -874,7 +874,20 @@ struct TypeCheckHelpers {
                 } else if !nestedCandidates.isEmpty {
                     nestedCandidates
                 } else {
-                    sema.symbols.lookupByShortName(shortName).filter(isTypeLikeSymbol)
+                    sema.symbols.lookupByShortName(shortName).filter { candidate in
+                        guard isTypeLikeSymbol(candidate), let symbol = sema.symbols.symbol(candidate) else {
+                            return false
+                        }
+                        // Local classes resolve only through their lexical scope,
+                        // including self-references while collecting their headers.
+                        if symbol.kind == .class, symbol.flags.contains(.synthetic),
+                           let root = symbol.fqName.first,
+                           interner.resolve(root).hasPrefix("__localdecl_")
+                        {
+                            return false
+                        }
+                        return true
+                    }
                         .sorted(by: { $0.rawValue < $1.rawValue })
                 }
                 if let symbolID = candidates.first {
