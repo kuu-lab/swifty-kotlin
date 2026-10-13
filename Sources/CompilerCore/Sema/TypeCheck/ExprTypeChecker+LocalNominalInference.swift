@@ -303,7 +303,7 @@ extension ExprTypeChecker {
         }
         DataFlowSemaPhase().registerPrimaryConstructorPropertyAnnotations(
             for: classDecl, ast: ast, symbols: sema.symbols, types: sema.types, bindings: sema.bindings,
-            sourceManager: ctx.visibilityChecker.sourceManager, diagnostics: ctx.semaCtx.diagnostics, interner: interner,
+            sourceManager: ctx.visibilityChecker.sourceManager, diagnostics: ctx.sema.diagnostics, interner: interner,
             lexicalEnclosingFQNames: lexicalEnclosingFQNames
         )
         if classDecl.modifiers.contains(.data) {
