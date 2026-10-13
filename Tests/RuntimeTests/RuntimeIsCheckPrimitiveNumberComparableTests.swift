@@ -14,6 +14,19 @@ struct RuntimeIsCheckPrimitiveNumberComparableTests {
     private var comparableToken: Int { nominalTypeToken(for: "kotlin.Comparable") }
 
     @Test
+    func signedNumericBoxesInheritSerializableThroughNumber() {
+        let serializableToken = nominalTypeToken(for: "java.io.Serializable")
+        let boxes = [
+            kk_box_byte(3), kk_box_short(3), kk_box_int(3), kk_box_long_nonnull(3),
+            kk_box_float(kk_float_to_bits(3.0)), kk_box_double_nonnull(kk_double_to_bits(3.0)),
+        ]
+        for boxed in boxes {
+            #expect(kk_op_is(boxed, serializableToken) == 1)
+        }
+        #expect(kk_op_is(kk_box_uint(3), serializableToken) == 0)
+    }
+
+    @Test
     func signedNumericBoxesAreNumberAndComparable() {
         let boxedDouble = kk_box_double_nonnull(kk_double_to_bits(3.0))
         let boxedFloat = kk_box_float(kk_float_to_bits(3.0))

@@ -1,8 +1,6 @@
 /// `RuntimeABISpec.fileIOFunctions` (STDLIB-320/321/322/323) extracted from
 /// `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
-    // MARK: - File I/O (STDLIB-320/321/322/323)
-
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
         // File must stay constructible for kotlin.io.FileSystemException (KSP-619)
         // and Files.kt's resolveSibling/normalize (KSP-483); see CLEANUP-STUB-107.
@@ -36,6 +34,7 @@ public extension RuntimeABISpec {
             name: "__kk_file_readText",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
+                RuntimeABIParameter(name: "charsetTag", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

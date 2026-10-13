@@ -56,6 +56,11 @@ enum ImportedInlineKIRMaterializer {
             types: types,
             interner: interner
         )
+        var symbolReferencesBySource: [KIRExprID: SymbolID] = [:]
+        for instruction in function.body {
+            guard case let .constValue(result, .symbolRef(symbol)) = instruction else { continue }
+            symbolReferencesBySource[result] = symbol
+        }
         var sourceToConsumer: [KIRExprID: KIRExprID] = [:]
 
         func remap(_ source: KIRExprID) -> KIRExprID {
@@ -67,7 +72,11 @@ enum ImportedInlineKIRMaterializer {
             // instruction in the lowered body.  Keep their historical
             // unresolved-value fallback at zero while still giving every
             // ID a consumer-arena entry for type recovery and remapping.
-            let consumer = arena.appendExpr(.temporary(0))
+            // Preserve symbol identity for destinations such as imported
+            // global writes; codegen uses the arena expression to distinguish
+            // a storage reference from a temporary value.
+            let expression = symbolReferencesBySource[source].map(KIRExprKind.symbolRef) ?? .temporary(0)
+            let consumer = arena.appendExpr(expression)
             sourceToConsumer[source] = consumer
             return consumer
         }

@@ -140,10 +140,14 @@ extension CallTypeChecker {
                     {
                         continue
                     }
-                    if case .typeParam = sema.types.kind(of: actual) {
-                        continue
-                    }
-                    if case .typeParam = sema.types.kind(of: expected) {
+                    // Lambda argument types may have been inferred before a
+                    // generic extension receiver is substituted. A function
+                    // parameter such as `(T) -> Boolean` cannot be compared
+                    // against `(Int) -> Boolean` yet; let overload resolution
+                    // solve T from the receiver and check the lambda then.
+                    if sema.types.typeContainsAnyTypeParam(actual)
+                        || sema.types.typeContainsAnyTypeParam(expected)
+                    {
                         continue
                     }
                     guard sema.types.isSubtype(actual, expected) else {
@@ -168,8 +172,11 @@ extension CallTypeChecker {
             interner.intern("Iterable"),
         ]
         var remainingCandidates = candidates
-        let hasCollectionReceiver = receiverTypes.contains { _, receiver in
-            driver.helpers.nominalSymbol(of: receiver, types: sema.types)
+        let hasCollectionReceiver = receiverTypes.contains { candidate, receiver in
+            // An inapplicable Collection overload must not hide an Iterable
+            // overload, such as count() competing with count(predicate).
+            guard specificityCandidates.contains(candidate) else { return false }
+            return driver.helpers.nominalSymbol(of: receiver, types: sema.types)
                 .flatMap { sema.symbols.symbol($0)?.fqName } == collectionFQName
         }
         if hasCollectionReceiver,
@@ -520,6 +527,14 @@ extension CallTypeChecker {
             return true
         }
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
+           case let .classType(actualClass) = sema.types.kind(of: actual),
+           actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
+           actualClass.args.count == 1,
+           case let .out(argument) = actualClass.args[0]
+        {
+            return typeArgumentLikeMatch(actual: argument, declared: declaredKClass.argument)
+        }
+        if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
            case let .kClassType(actualKClass) = sema.types.kind(of: actual)
         {
             return typeArgumentLikeMatch(actual: actualKClass.argument, declared: declaredKClass.argument)
@@ -782,7 +797,7 @@ extension CallTypeChecker {
             return nil
         }
         guard args.count == 1 else {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
                 "No viable overload found for call.",
                 range: range

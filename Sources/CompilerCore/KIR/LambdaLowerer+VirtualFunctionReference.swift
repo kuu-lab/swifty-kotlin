@@ -33,12 +33,33 @@ extension LambdaLowerer {
             return nil
         }
         let dispatchReceiverType = receiverStaticType ?? ownerType
-        guard let dispatch = driver.callLowerer.resolveVirtualDispatch(
-            callee: targetSymbol,
-            receiverTypeID: dispatchReceiverType,
-            sema: sema,
-            interner: interner
-        ) else {
+        // Runtime-backed MutableList boxes have no Kotlin itable. Match the
+        // direct-call lowering for MutableList.add so a bound reference uses
+        // the runtime bridge instead of looking up a missing interface slot.
+        let runtimeBackedListCallee: InternedString? = receiverStaticType.flatMap { receiverType in
+            guard interner.resolve(targetInfo.name) == "add",
+                  signature.parameterTypes.count == 1,
+                  signature.returnType == sema.types.booleanType
+            else {
+                return nil
+            }
+            return driver.callLowerer.runtimeBackedListMemberCallee(
+                memberName: "add",
+                receiverType: receiverType,
+                chosenCallee: targetSymbol,
+                sema: sema,
+                interner: interner
+            )
+        }
+        let dispatch = runtimeBackedListCallee == nil
+            ? driver.callLowerer.resolveVirtualDispatch(
+                callee: targetSymbol,
+                receiverTypeID: dispatchReceiverType,
+                sema: sema,
+                interner: interner
+            )
+            : nil
+        guard runtimeBackedListCallee != nil || dispatch != nil else {
             return nil
         }
 
@@ -85,37 +106,66 @@ extension LambdaLowerer {
             body.append(.constValue(result: argExpr, value: .symbolRef(paramSymbol)))
             argExprs.append(argExpr)
         }
-        // The dispatch thunk mirrors the callee's physical packed storage.
-        // Scalar adaptation occurs in the ordinary reference wrapper outside it.
-        let result = arena.appendTemporary(type: signature.returnType)
-        let probeEndLabel = driver.callLowerer.emitFloatingPointRangeMemberProbe(
-            chosenCallee: targetSymbol,
-            receiverID: receiverExpr,
-            arguments: argExprs,
-            result: result,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &body
-        )
-        body.append(.virtualCall(
-            symbol: targetSymbol,
-            callee: name,
-            receiver: receiverExpr,
-            arguments: argExprs,
-            result: result,
-            canThrow: false,
-            thrownResult: nil,
-            dispatch: dispatch
-        ))
-        if let probeEndLabel {
-            body.append(.label(probeEndLabel))
-        }
-        switch sema.types.kind(of: signature.returnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable):
-            body.append(.returnUnit)
-        default:
+        if let runtimeBackedListCallee {
+            let boxedResult = arena.appendTemporary(type: sema.types.anyType)
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+            body.append(.constValue(result: thrownResult, value: .null))
+            body.append(.call(
+                symbol: nil,
+                callee: runtimeBackedListCallee,
+                arguments: [receiverExpr] + argExprs,
+                result: boxedResult,
+                canThrow: true,
+                thrownResult: thrownResult
+            ))
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            let continuationLabel = driver.ctx.makeLoopLabel()
+            body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+            let result = arena.appendTemporary(type: signature.returnType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_unbox_bool_static"),
+                arguments: [boxedResult],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.jump(continuationLabel))
+            body.append(.label(rethrowLabel))
+            body.append(.rethrow(value: thrownResult))
+            body.append(.label(continuationLabel))
             body.append(.returnValue(result))
+        } else if let dispatch {
+            let result = arena.appendTemporary(type: signature.returnType)
+            let probeEndLabel = driver.callLowerer.emitFloatingPointRangeMemberProbe(
+                chosenCallee: targetSymbol,
+                receiverID: receiverExpr,
+                arguments: argExprs,
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body
+            )
+            body.append(.virtualCall(
+                symbol: targetSymbol,
+                callee: name,
+                receiver: receiverExpr,
+                arguments: argExprs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+            if let probeEndLabel {
+                body.append(.label(probeEndLabel))
+            }
+            switch sema.types.kind(of: signature.returnType) {
+            case .unit, .nothing(.nonNull), .nothing(.nullable):
+                body.append(.returnUnit)
+            default:
+                body.append(.returnValue(result))
+            }
         }
         body.append(.endBlock)
         sema.symbols.setFunctionSignature(

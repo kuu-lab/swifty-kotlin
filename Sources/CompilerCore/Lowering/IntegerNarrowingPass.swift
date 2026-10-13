@@ -114,6 +114,11 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         let ulongShiftRenameIDs: [InternedString: InternedString] = Dictionary(
             uniqueKeysWithValues: Self.ulongShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
         )
+        let shiftRenameIDsByResultKind: [PrimitiveType: [InternedString: InternedString]] = [
+            .int: intShiftRenameIDs,
+            .long: longShiftRenameIDs,
+            .ulong: ulongShiftRenameIDs,
+        ]
 
         func resultPrimitive(_ result: KIRExprID?) -> PrimitiveType? {
             guard let result, let typeID = arena.exprType(result),
@@ -139,110 +144,64 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
 
                 let resultKind = resultPrimitive(result)
 
-                if callee == invCallee, let result, let resultKind,
-                   let narrowCallee = smallUnsignedInvNarrowCallees[resultKind]
-                {
-                    let rawResult = arena.appendTemporary(type: arena.exprType(result))
+                // Re-emit the matched call with a different callee/result,
+                // forwarding every other field unchanged.
+                func appendCall(callee newCallee: InternedString, result newResult: KIRExprID?) {
                     newBody.append(.call(
-                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        symbol: symbol, callee: newCallee, arguments: arguments, result: newResult,
                         canThrow: canThrow, thrownResult: thrownResult,
                         isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
                     ))
+                }
+
+                // Emit the operation into a fresh temporary, then wrap it with
+                // the narrow builtin into the original result.
+                func appendWrappedCall(opCallee: InternedString, wrapCallee: InternedString, result: KIRExprID, fallbackType: TypeID? = nil) {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? fallbackType)
+                    appendCall(callee: opCallee, result: rawResult)
                     newBody.append(.call(
-                        symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
+                        symbol: nil, callee: wrapCallee, arguments: [rawResult], result: result,
                         canThrow: false, thrownResult: nil
                     ))
+                }
+
+                if callee == invCallee, let result, let resultKind,
+                   let wrapCallee = smallUnsignedInvNarrowCallees[resultKind]
+                {
+                    appendWrappedCall(opCallee: callee, wrapCallee: wrapCallee, result: result)
                     continue
                 }
 
                 // Shift operators: route shifts through width-aware variants that
                 // mask the shift distance (5 bits for Int/UInt, 6 bits for
                 // Long/ULong) and, for Int/UInt, narrow the result to 32 bits.
-                if resultKind == .int, let renamed = intShiftRenameIDs[callee] {
-                    newBody.append(.call(
-                        symbol: symbol, callee: renamed, arguments: arguments, result: result,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
-                    continue
-                }
-                if resultKind == .long, let renamed = longShiftRenameIDs[callee] {
-                    newBody.append(.call(
-                        symbol: symbol, callee: renamed, arguments: arguments, result: result,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
-                    continue
-                }
-                if resultKind == .ulong, let renamed = ulongShiftRenameIDs[callee] {
-                    newBody.append(.call(
-                        symbol: symbol, callee: renamed, arguments: arguments, result: result,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
+                if let resultKind, let renamed = shiftRenameIDsByResultKind[resultKind]?[callee] {
+                    appendCall(callee: renamed, result: result)
                     continue
                 }
                 // The 32-bit variants sign-extend their result; masking the low
                 // 32 bits afterwards yields the zero-extended `UInt` slot value.
                 if resultKind == .uint, let result, let renamed = uintShiftRenameIDs[callee] {
-                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? types.uintType)
-                    newBody.append(.call(
-                        symbol: symbol, callee: renamed, arguments: arguments, result: rawResult,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
-                    newBody.append(.call(
-                        symbol: nil, callee: unarrowCallee, arguments: [rawResult], result: result,
-                        canThrow: false, thrownResult: nil
-                    ))
+                    appendWrappedCall(opCallee: renamed, wrapCallee: unarrowCallee, result: result, fallbackType: types.uintType)
                     continue
                 }
 
                 // Arithmetic / bitwise / unary builtins: keep the operation but
                 // wrap its Int result to 32 bits via kk_int_narrow.
                 if narrowingIDs.contains(callee), let result, resultKind == .int {
-                    let resultType = arena.exprType(result) ?? types.intType
-                    let rawResult = arena.appendTemporary(type: resultType)
-                    newBody.append(.call(
-                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
-                    newBody.append(.call(
-                        symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
-                        canThrow: false, thrownResult: nil
-                    ))
+                    appendWrappedCall(opCallee: callee, wrapCallee: narrowCallee, result: result, fallbackType: types.intType)
                     continue
                 }
 
                 // Char results (`Char + Int` / `Char - Int`): wrap to 16 bits.
                 if callee == charArithmeticAdd || callee == charArithmeticSub, let result, resultKind == .char {
-                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? types.charType)
-                    newBody.append(.call(
-                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
-                    newBody.append(.call(
-                        symbol: nil, callee: charWrapCallee, arguments: [rawResult], result: result,
-                        canThrow: false, thrownResult: nil
-                    ))
+                    appendWrappedCall(opCallee: callee, wrapCallee: charWrapCallee, result: result, fallbackType: types.charType)
                     continue
                 }
 
                 // UInt results: mask to 32 bits via kk_uint_narrow (zero-extend low 32 bits).
                 if narrowingIDs.contains(callee), let result, resultKind == .uint {
-                    let resultType = arena.exprType(result) ?? types.uintType
-                    let rawResult = arena.appendTemporary(type: resultType)
-                    newBody.append(.call(
-                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
-                        canThrow: canThrow, thrownResult: thrownResult,
-                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
-                    ))
-                    newBody.append(.call(
-                        symbol: nil, callee: unarrowCallee, arguments: [rawResult], result: result,
-                        canThrow: false, thrownResult: nil
-                    ))
+                    appendWrappedCall(opCallee: callee, wrapCallee: unarrowCallee, result: result, fallbackType: types.uintType)
                     continue
                 }
 

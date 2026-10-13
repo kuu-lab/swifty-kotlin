@@ -198,6 +198,10 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullValue, to: nullableResult))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
+                // Unbox the nullable receiver before passing it to the Boolean
+                // intrinsic, which expects a non-null primitive value.
+                let nonNullReceiver = arena.appendTemporary(type: sema.types.booleanType)
+                instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
                 let nonNullResult = arena.appendTemporary(type: sema.types.booleanType)
                 let argumentIDs: [KIRExprID]
                 if args.isEmpty {
@@ -213,7 +217,7 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: boolCallee,
-                    arguments: [loweredReceiverID] + argumentIDs,
+                    arguments: [nonNullReceiver] + argumentIDs,
                     result: nonNullResult,
                     canThrow: false,
                     thrownResult: nil
@@ -229,17 +233,9 @@ extension CallLowerer {
            args.isEmpty,
            sema.bindings.callBinding(for: exprID) == nil
         {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let uintType = sema.types.make(.primitive(.uint, .nonNull))
-            let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
-            let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
-            let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
+            if sema.types.isSigned(nonNullReceiverType) || sema.types.isUnsigned(nonNullReceiverType) {
                 let nonNullLabel = driver.ctx.makeLoopLabel()
                 let endLabel = driver.ctx.makeLoopLabel()
                 instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
@@ -338,6 +334,63 @@ extension CallLowerer {
             }
         }
 
+        // Char/Float/Double arithmetic member calls share the same primitive
+        // lowering as operator syntax. Keep the argument behind the safe-call
+        // null check, then feed a non-null receiver to operator lowering so
+        // nullable boxing is removed before the intrinsic reads its bits.
+        let chosenArithmeticCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+        let isSourceArithmeticExtension = chosenArithmeticCallee.map {
+            sema.symbols.isSourceBackedSymbol($0)
+                && sema.symbols.functionSignature(for: $0)?.receiverType != nil
+        } == true
+        if !isSourceArithmeticExtension,
+           args.count == 1,
+           let binaryOp = explicitFloatingOrCharArithmeticOp(calleeStr),
+           isNumericPrimitiveOperand(args[0].expr, sema: sema),
+           !(sema.bindings.isRangeExpr(receiverExpr)
+               || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
+        {
+            let floatType = sema.types.make(.primitive(.float, .nonNull))
+            let doubleType = sema.types.make(.primitive(.double, .nonNull))
+            let receiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            )
+            if receiverType == sema.types.charType
+                || receiverType == floatType
+                || receiverType == doubleType
+            {
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.anyType)
+                let nullableResultType = sema.types.makeNullable(callResultType)
+                let nullValue = arena.appendExpr(.unit, type: nullableResultType)
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+                instructions.append(.constValue(result: nullValue, value: .null))
+                let nullableResult = arena.appendTemporary(type: nullableResultType)
+                instructions.append(.copy(from: nullValue, to: nullableResult))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+
+                let nonNullReceiver = arena.appendTemporary(type: receiverType)
+                instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
+                let loweredArgument = driver.lowerExpr(
+                    args[0].expr,
+                    shared: shared,
+                    emit: &instructions
+                )
+                let nonNullResult = arena.appendTemporary(type: callResultType)
+                instructions.append(.binary(
+                    op: binaryOp,
+                    lhs: nonNullReceiver,
+                    rhs: loweredArgument,
+                    result: nonNullResult
+                ))
+                instructions.append(.copy(from: nonNullResult, to: nullableResult))
+                instructions.append(.label(endLabel))
+                return nullableResult
+            }
+        }
+
         // Primitive arithmetic/infix member functions on numeric receivers.
         if args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -346,16 +399,14 @@ extension CallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType || nonNullReceiverType == byteType || nonNullReceiverType == shortType {
+            if sema.types.isSigned(nonNullReceiverType) || sema.types.isUnsigned(nonNullReceiverType) {
                 let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
                 let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
                 let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
                 let isBitwiseReceiver = isShiftReceiver || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
-                let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
+                let isUnsignedReceiver = sema.types.isUnsigned(nonNullReceiverType)
                 let primitiveCallee: InternedString? = switch calleeStr {
                 case "plus":
                     interner.intern("kk_op_add")
@@ -953,6 +1004,25 @@ extension CallLowerer {
         let memberResult = arena.exprType(result) == memberResultType
             ? result : arena.appendTemporary(type: memberResultType)
 
+        // Enum.name/ordinal use ordinal helpers, not constructor-property
+        // storage. Keep the primitive ordinal result non-null until the merge.
+        if let enumProperty = tryLowerEnumEntryPropertyRead(
+            exprID,
+            loweredReceiverID: loweredReceiverID,
+            receiverExpr: receiverExpr,
+            calleeName: effectiveCalleeName,
+            args: args,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            resultTypeOverride: memberResultType,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.copy(from: enumProperty, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         // External member property read (e.g. Duration?.inWholeNanoseconds →
         // kk_duration_inWholeNanoseconds).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
@@ -1137,6 +1207,25 @@ extension CallLowerer {
            let callable = driver.ctx.callableValueInfo(for: localValue)
         {
             finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+
+        if tryEmitEnumEntryDispatchCall(
+            defaultMask: safeNormalized.defaultMask,
+            isSuperCall: isSuperCall,
+            chosenCallee: chosen,
+            receiver: MemberCallReceiver(expr: receiverExpr, loweredID: loweredReceiverID,
+                                         typeOverride: nonNullSafeReceiverType),
+            result: memberResult,
+            sema: sema,
+            interner: interner,
+            arguments: finalArguments,
+            instructions: &instructions.instructions
+        ) {
+            if memberResult != result {
+                instructions.append(.copy(from: memberResult, to: result))
+            }
+            instructions.append(.label(endLabel))
+            return result
         }
 
         // Safe-call collection fallback can resolve the source-backed

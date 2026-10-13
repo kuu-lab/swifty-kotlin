@@ -168,6 +168,11 @@ package enum CommandRunner {
         timeout: TimeInterval = 120
     ) throws -> CommandResult {
         let startTime: UInt64 = (phaseTimer != nil && subPhaseName != nil) ? DispatchTime.now().uptimeNanoseconds : 0
+        defer {
+            if let timer = phaseTimer, let label = subPhaseName {
+                timer.recordSubPhase(label, startTime: startTime, endTime: DispatchTime.now().uptimeNanoseconds)
+            }
+        }
         let process = Process()
         let output = LockedCommandOutput()
         let drainGroup = DispatchGroup()
@@ -300,12 +305,6 @@ package enum CommandRunner {
             }
             // Process failed with non-zero exit code - fall through to throw nonZeroExit below
         }
-        // Record subprocess wall-clock time when a timer is active.
-        if let timer = phaseTimer, let label = subPhaseName {
-            let endTime = DispatchTime.now().uptimeNanoseconds
-            timer.recordSubPhase(label, startTime: startTime, endTime: endTime)
-        }
-
         if result.exitCode != 0 {
             throw CommandRunnerError.nonZeroExit(result)
         }

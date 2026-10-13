@@ -155,13 +155,15 @@ struct Hex1767ArtifactSnapshot {
 
 func hex1767ArtifactHashes(_ directory: URL) throws -> [String: String] {
     let canonicalDirectory = directory.resolvingSymlinksInPath().standardizedFileURL
-    let enumerator = try #require(FileManager.default.enumerator(at: canonicalDirectory,
-                                                                includingPropertiesForKeys: [.isRegularFileKey]))
+    // FileManager's URL enumerator can return `/private/var/...` URLs for a
+    // `/var/...` temporary directory on macOS. Keep relative paths from the
+    // path-based enumerator instead of slicing those differently rooted paths.
+    let enumerator = try #require(FileManager.default.enumerator(atPath: canonicalDirectory.path))
     var hashes: [String: String] = [:]
-    for case let file as URL in enumerator {
+    for case let relativePath as String in enumerator {
+        let file = canonicalDirectory.appendingPathComponent(relativePath)
         guard try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { continue }
-        let relative = String(file.path.dropFirst(canonicalDirectory.path.count + 1))
-        hashes[relative] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
+        hashes[relativePath] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
     }
     return hashes
 }

@@ -221,7 +221,7 @@ struct ConstantCollector {
             guard let interner, canFoldMemberCall?(exprID) != false else { return nil }
             return literalConstantMemberCall(receiver: receiver, callee: callee, args: args, ast: ast, interner: interner)
         case let .stringTemplate(parts, _):
-            return literalConstantStringTemplate(parts, ast: ast)
+            return literalConstantStringTemplate(parts)
         default:
             return nil
         }
@@ -426,7 +426,7 @@ struct ConstantCollector {
 
     /// A string template with no interpolated parts (e.g. produced by macro
     /// expansion of a plain string literal) folds to its literal text.
-    private func literalConstantStringTemplate(_ parts: [StringTemplatePart], ast: ASTModule) -> KIRExprKind? {
+    private func literalConstantStringTemplate(_ parts: [StringTemplatePart]) -> KIRExprKind? {
         guard parts.count == 1, case let .literal(text) = parts[0] else {
             return nil
         }
@@ -460,7 +460,7 @@ struct ConstantCollector {
             // nested `+` bound to a user-declared operator returning String
             // (e.g. `Int.plus(String)`) is not concat text — folding it would
             // drop the resolved call, so the subtree is not a constant.
-            guard isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+            guard Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
                   let lhsText = constantStringConcatOperandText(lhs, ast: ast, sema: sema, interner: interner),
                   let rhsText = constantStringConcatOperandText(rhs, ast: ast, sema: sema, interner: interner)
             else {
@@ -493,8 +493,9 @@ struct ConstantCollector {
     /// concatenation for constant-folding purposes: true only when Sema left
     /// it unbound (the lenient built-in concat path) or bound it to the
     /// stdlib `String.plus` member or the `kotlin.text.String?.plus` facade.
-    /// Mirrors `CallLowerer.isBuiltinStringPlusCallee`.
-    private func isBuiltinStringPlusCallee(
+    /// A user-declared operator that merely returns String keeps its resolved
+    /// call. Shared by `ConstantCollector` and `CallLowerer`.
+    static func isBuiltinStringPlusCallee(
         _ exprID: ExprID,
         sema: SemaModule,
         interner: StringInterner

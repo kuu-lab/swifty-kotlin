@@ -1,7 +1,3 @@
-/// Walks the given fully-qualified package path and registers a synthetic
-/// `kind: .package` symbol for every prefix that does not already exist.
-/// Returns the input path unchanged for callers that chain into further
-/// definitions.
 func ensureSyntheticPackageHierarchy(
     fqName path: [InternedString],
     symbols: SymbolTable

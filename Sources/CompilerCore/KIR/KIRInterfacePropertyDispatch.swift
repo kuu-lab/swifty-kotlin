@@ -257,18 +257,16 @@ private func kirFindOverridePropertyGetter(
 /// runtime bridges, non-Kotlin-declared synthetic members) so a property
 /// only gets a setter slot when it already has a getter slot — every `var`
 /// is also a `val`-shaped read, so this is not an additional restriction.
-private struct KIRInterfacePropertySetterSlot {
+struct KIRInterfacePropertySetterSlot {
     let propertySymbol: SymbolID
     let propertyName: InternedString
     let slot: Int
 }
 
-private func kirInterfacePropertySetterSlots(
-    interfaceSymbol: SymbolID,
-    sema: SemaModule,
-    interner: StringInterner
+func kirInterfacePropertySetterSlots(
+    from getterSlots: [KIRInterfacePropertyGetterSlot],
+    sema: SemaModule
 ) -> [KIRInterfacePropertySetterSlot] {
-    let getterSlots = kirInterfacePropertyGetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
     guard !getterSlots.isEmpty else {
         return []
     }
@@ -293,11 +291,15 @@ func kirInterfacePropertySetterSlot(
     interfaceProperty: SymbolID,
     interfaceSymbol: SymbolID,
     sema: SemaModule,
-    interner: StringInterner
+    interner: StringInterner,
+    cache: KIRNominalDispatchCache
 ) -> Int? {
-    kirInterfacePropertySetterSlots(interfaceSymbol: interfaceSymbol, sema: sema, interner: interner)
-        .first { $0.propertySymbol == interfaceProperty }?
-        .slot
+    cache.interfacePropertySetterSlot(
+        for: interfaceProperty,
+        in: interfaceSymbol,
+        sema: sema,
+        interner: interner
+    )
 }
 
 /// The implementing setter accessor symbol for `interfaceProperty` in
@@ -510,8 +512,8 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
 
     for interfaceSymbol in interfaceSupertypes {
         if let interfaceFilter, interfaceSymbol != interfaceFilter { continue }
-        let setterSlots = kirInterfacePropertySetterSlots(
-            interfaceSymbol: interfaceSymbol,
+        let setterSlots = cache.interfacePropertySetterSlots(
+            for: interfaceSymbol,
             sema: sema,
             interner: interner
         )

@@ -5,8 +5,6 @@
     import Glibc
 #endif
 
-// MARK: - STDLIB-MATH-112: Math constants complete implementation
-//
 // Runtime entry points for Kotlin math constants. These are the complete set of
 // numeric constants exposed by Kotlin's standard library:
 //   - kotlin.math.PI, kotlin.math.E  (top-level math package constants)
@@ -17,8 +15,6 @@
 // resolved at compile time as inline literals in CallTypeChecker+MemberCallInference.swift
 // and never require a runtime call. The functions below serve as fallback runtime
 // entry points and explicit documentation of all constant values.
-
-// MARK: - Double special-value constants
 
 /// Returns the Double representation of positive infinity.
 /// Kotlin: Double.POSITIVE_INFINITY

@@ -7,7 +7,6 @@ import Testing
 
 @Suite
 struct CodegenBackendSequenceLastIndexOfTests {
-    private let pipelineHelper = CodegenBackendTestSupport()
 
     @Test
     func testCodegenSequenceLastIndexOfReturnsFinalMatchingIndexOrMinusOne() throws {
@@ -53,26 +52,5 @@ struct CodegenBackendSequenceLastIndexOfTests {
         }
     }
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 }
 #endif

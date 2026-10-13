@@ -167,8 +167,7 @@ public func __kk_string_encodeToByteArray_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { Int(Int8(bitPattern: $0)) })
+    __kk_string_toByteArray_flat(data, length, byteCount, hash)
 }
 
 // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)

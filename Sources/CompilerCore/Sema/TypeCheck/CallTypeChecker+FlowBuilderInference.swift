@@ -55,7 +55,7 @@ extension CallTypeChecker {
             driver.emitSubtypeConstraint(
                 left: type, right: expectedType, range: range,
                 solver: ConstraintSolver(), sema: ctx.sema,
-                diagnostics: ctx.semaCtx.diagnostics
+                diagnostics: ctx.sema.diagnostics
             )
         }
     }

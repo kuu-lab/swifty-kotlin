@@ -55,9 +55,7 @@ public enum LazyDelegateThreadSafetyMode: Int, Equatable {
     case publication = 2
 }
 
-/// Format for diagnostic output.
 public enum DiagnosticsFormat: String, Equatable {
-    /// Default human-readable text format.
     case text
     /// JSON format conforming to the LSP diagnostic schema.
     case json
@@ -87,14 +85,13 @@ public struct CompilerOptions: Equatable {
         emit == .library || frontendFlags.contains("common-module")
     }
 
-    /// Additional search paths for Kotlin stdlib sources.
     public var stdlibSearchPaths: [String]
-    /// Whether to include stdlib search paths during compilation.
     public var includeStdlib: Bool
 
     /// Path to the incremental compilation cache directory, if any.
     /// Incremental compilation is enabled when either this is non-nil or the
-    /// `incremental` frontend flag is set; without an explicit path the cache
+    /// `incremental` frontend flag is set, unless `no-incremental` is set.
+    /// Without an explicit path the cache
     /// lives in the compiler-managed per-user cache directory, never in the
     /// workspace. When enabled and an authenticated cache is available, exact
     /// no-op builds restore the previous output artifact.
@@ -130,9 +127,9 @@ public struct CompilerOptions: Equatable {
     nonisolated(unsafe) public static var defaultStdlibLibraryPath: String? = nil
 
     /// Returns whether the process default stdlib artifact applies to a run.
-    /// Keep the executable-only boundary: other emit modes are used by
-    /// source/introspection tests and by the LSP until their own architecture
-    /// tasks opt into artifact-backed analysis.
+    /// All emit modes share the artifact-backed default. Source/introspection
+    /// callers opt out with `allowDefaultStdlibLibrary: false`; building the
+    /// stdlib itself must always use its sources.
     public static func shouldUseDefaultStdlib(
         allowDefaultStdlibLibrary: Bool,
         includeStdlib: Bool,
@@ -141,7 +138,7 @@ public struct CompilerOptions: Equatable {
         emit: EmitMode
     ) -> Bool {
         allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
-            && stdlibLibraryPath == nil && emit == .executable
+            && stdlibLibraryPath == nil
     }
 
     public init(
@@ -315,7 +312,6 @@ public struct CompilerOptions: Equatable {
             || frontendFlags.contains("unrestricted-builder-inference")
     }
 
-    /// Enables proper type inference constraints processing.
     public var useProperTypeInferenceConstraintsProcessing: Bool {
         frontendFlags.contains("ProperTypeInferenceConstraintsProcessing")
             || frontendFlags.contains("proper-type-inference-constraints-processing")

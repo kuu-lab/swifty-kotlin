@@ -5,8 +5,6 @@
 /// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`
 /// to keep each rewrite source scoped to a single receiver kind.
 extension CollectionVirtualCallRewriteLoweringPass {
-    // MARK: - Sequence operations
-
     func rewriteSequenceVirtualCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -507,6 +505,4 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         return false
     }
-
-    // MARK: - List higher-order function operations
 }

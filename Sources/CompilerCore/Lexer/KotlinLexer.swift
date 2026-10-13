@@ -189,7 +189,6 @@ final class KotlinLexer {
             return scanString(leadingTrivia: leadingTrivia, start: start)
         }
 
-        // Multi-dollar string prefix: $$"...", $$$"...", etc.
         if ch == 0x24 {
             let dollarCount = countConsecutiveDollars(at: offset)
             if dollarCount >= 2 {

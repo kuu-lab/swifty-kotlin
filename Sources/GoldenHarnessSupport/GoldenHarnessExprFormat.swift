@@ -31,8 +31,7 @@ enum GoldenHarnessExprFormat {
 
         // Control flow
         case let .forExpr(loopVariable, iterable, body, label, _):
-            return renderLoopExpr("for", loopVariable, iterable, body, label, ctx,
-                variableKey: "var", iterableKey: "iterable", bodyKey: "body")
+            return renderLoopExpr(loopVariable, iterable, body, label, ctx)
         case let .whileExpr(condition, body, label, _):
             return renderWhileLoop(condition, body, label, ctx)
         case let .doWhileExpr(body, condition, label, _):
@@ -48,8 +47,7 @@ enum GoldenHarnessExprFormat {
         case let .localAssign(name, value, _):
             return "localAssign \(interner.resolve(name)) value=\(ctx.exprKey(value))"
         case let .indexedAssign(receiver, indices, value, _):
-            let idxStr = indices.map { ctx.exprKey($0) }.joined(separator: ",")
-            return "indexedAssign receiver=\(ctx.exprKey(receiver)) indices=[\(idxStr)] value=\(ctx.exprKey(value))"
+            return "indexedAssign receiver=\(ctx.exprKey(receiver)) \(renderIndexList(indices, ctx)) value=\(ctx.exprKey(value))"
 
         // Calls and member access
         case let .call(callee, _, args, _):
@@ -59,8 +57,7 @@ enum GoldenHarnessExprFormat {
         case let .safeMemberCall(receiver, callee, _, args, _):
             return renderMemberCall("safeMemberCall", receiver: receiver, callee: callee, args: args, ctx: ctx)
         case let .indexedAccess(receiver, indices, _):
-            let idxStr = indices.map { ctx.exprKey($0) }.joined(separator: ",")
-            return "indexedAccess receiver=\(ctx.exprKey(receiver)) indices=[\(idxStr)]"
+            return "indexedAccess receiver=\(ctx.exprKey(receiver)) \(renderIndexList(indices, ctx))"
 
         // Binary and unary operations
         case let .binary(oper, lhs, rhs, _):
@@ -82,22 +79,17 @@ enum GoldenHarnessExprFormat {
         case let .whenExpr(subject, branches, elseExpr, _):
             return renderWhenExpr(subject: subject, branches: branches, elseExpr: elseExpr, ctx: ctx)
         case let .returnExpr(value, label, _):
-            let renderedValue = value.map { ctx.exprKey($0) } ?? "_"
             let labelStr = label.map { "@\(interner.resolve($0))" } ?? ""
-            return "return\(labelStr) value=\(renderedValue)"
+            return "return\(labelStr) value=\(renderExprKey(value, ctx))"
         case let .ifExpr(condition, thenExpr, elseExpr, _):
-            let renderedElse = elseExpr.map { ctx.exprKey($0) } ?? "_"
-            return "if cond=\(ctx.exprKey(condition)) then=\(ctx.exprKey(thenExpr)) else=\(renderedElse)"
+            return "if cond=\(ctx.exprKey(condition)) then=\(ctx.exprKey(thenExpr)) else=\(renderExprKey(elseExpr, ctx))"
         case let .tryExpr(body, catchClauses, finallyExpr, _):
             let catches = catchClauses.map { ctx.exprKey($0.body) }.joined(separator: ",")
-            let renderedFinally = finallyExpr.map { ctx.exprKey($0) } ?? "_"
-            return "try body=\(ctx.exprKey(body)) catches=[\(catches)] finally=\(renderedFinally)"
+            return "try body=\(ctx.exprKey(body)) catches=[\(catches)] finally=\(renderExprKey(finallyExpr, ctx))"
         case let .compoundAssign(oper, name, value, _):
             return "compoundAssign(\(oper)) name=\(interner.resolve(name)) value=\(ctx.exprKey(value))"
         case let .indexedCompoundAssign(oper, receiver, indices, value, _):
-            let idxStr = indices.map { ctx.exprKey($0) }.joined(separator: ",")
-            let recv = "receiver=\(ctx.exprKey(receiver))"
-            return "indexedCompoundAssign(\(oper)) \(recv) indices=[\(idxStr)] value=\(ctx.exprKey(value))"
+            return "indexedCompoundAssign(\(oper)) receiver=\(ctx.exprKey(receiver)) \(renderIndexList(indices, ctx)) value=\(ctx.exprKey(value))"
         case let .stringTemplate(parts, _):
             let rendered = parts.map { part -> String in
                 switch part {
@@ -112,15 +104,13 @@ enum GoldenHarnessExprFormat {
             return "throw value=\(ctx.exprKey(value))"
         case let .lambdaLiteral(params, body, label, _):
             let renderedParams = params.map { interner.resolve($0) }.joined(separator: ",")
-            let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
-            return "lambda params=[\(renderedParams)] body=\(ctx.exprKey(body))\(labelStr)"
+            return "lambda params=[\(renderedParams)] body=\(ctx.exprKey(body))\(renderLabelSuffix(label, ctx))"
         case let .objectLiteral(superTypes, _, _):
             let renderedSuperTypes = superTypes.map { ctx.renderTypeRef($0) }.joined(separator: ",")
             return "objectLiteral supers=[\(renderedSuperTypes)]"
         case let .callableRef(receiver, member, _):
-            let renderedReceiver = receiver.map { ctx.exprKey($0) } ?? "_"
-            return "callableRef recv=\(renderedReceiver) member=\(interner.resolve(member))"
-        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, _):
+            return "callableRef recv=\(renderExprKey(receiver, ctx)) member=\(interner.resolve(member))"
+        case let .localFunDecl(name, receiverType, valueParams, returnType, body, isSuspend, _, typeParams):
             let params = valueParams.map { interner.resolve($0.name) }.joined(separator: ",")
             let bodyStr = switch body {
             case let .block(exprs, _):
@@ -132,13 +122,17 @@ enum GoldenHarnessExprFormat {
             }
             let retStr = returnType.map { ctx.renderTypeRef($0) } ?? "nil"
             let receiverStr = receiverType.map { " receiver=\(ctx.renderTypeRef($0))" } ?? ""
-            return "localFunDecl \(interner.resolve(name))\(receiverStr)\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
+            let typeParamDescriptions = typeParams.map { typeParam in
+                let bounds = typeParam.upperBounds.map { ctx.renderTypeRef($0) }.joined(separator: " & ")
+                return interner.resolve(typeParam.name) + (bounds.isEmpty ? "" : " : \(bounds)")
+            }.joined(separator: ",")
+            let typeParamsStr = typeParamDescriptions.isEmpty ? "" : " typeParams=[\(typeParamDescriptions)]"
+            return "localFunDecl \(interner.resolve(name))\(typeParamsStr)\(receiverStr)\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
         case let .localNominalDecl(declID, _):
             return "localNominalDecl decl=\(declID.rawValue)"
         case let .blockExpr(statements, trailingExpr, _):
             let stmts = statements.map { ctx.exprKey($0) }.joined(separator: ",")
-            let trailing = trailingExpr.map { ctx.exprKey($0) } ?? "_"
-            return "blockExpr stmts=[\(stmts)] trailing=\(trailing)"
+            return "blockExpr stmts=[\(stmts)] trailing=\(renderExprKey(trailingExpr, ctx))"
         case let .superRef(qualifier, _):
             if let qualifier {
                 return "super<\(interner.resolve(qualifier))>"
@@ -154,14 +148,10 @@ enum GoldenHarnessExprFormat {
         case let .notInExpr(lhs, rhs, _):
             return "notInExpr lhs=\(ctx.exprKey(lhs)) rhs=\(ctx.exprKey(rhs))"
         case let .destructuringDecl(names, isMutable, initializer, _):
-            let renderedNames = names.map { $0.map { interner.resolve($0) } ?? "_" }
-                .joined(separator: ",")
             let mutStr = "mutable=\(isMutable ? 1 : 0)"
-            return "destructuringDecl names=[\(renderedNames)] \(mutStr) init=\(ctx.exprKey(initializer))"
+            return "destructuringDecl \(renderNameList(names, ctx)) \(mutStr) init=\(ctx.exprKey(initializer))"
         case let .forDestructuringExpr(names, iterable, body, _):
-            let renderedNames = names.map { $0.map { interner.resolve($0) } ?? "_" }
-                .joined(separator: ",")
-            return "forDestructuring names=[\(renderedNames)] iterable=\(ctx.exprKey(iterable)) body=\(ctx.exprKey(body))"
+            return "forDestructuring \(renderNameList(names, ctx)) iterable=\(ctx.exprKey(iterable)) body=\(ctx.exprKey(body))"
         case let .memberAssign(receiver, callee, value, _):
             return "memberAssign recv=\(ctx.exprKey(receiver)) callee=\(interner.resolve(callee)) value=\(ctx.exprKey(value))"
         case let .memberCompoundAssign(oper, receiver, callee, value, _):
@@ -169,36 +159,51 @@ enum GoldenHarnessExprFormat {
         }
     }
 
-    // MARK: - Helper methods
-
     private static func renderLiteral<T>(_ type: String, _ value: T) -> String {
         return "\(type)(\(value))"
     }
 
+    private static func renderExprKey(_ id: ExprID?, _ ctx: StableRenderContext) -> String {
+        return id.map { ctx.exprKey($0) } ?? "_"
+    }
+
+    private static func renderLabelSuffix(_ label: InternedString?, _ ctx: StableRenderContext) -> String {
+        return label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
+    }
+
+    private static func renderArgumentList(_ args: [CallArgument], _ ctx: StableRenderContext) -> String {
+        let rendered = args.map { arg in
+            let label = arg.label.map { ctx.interner.resolve($0) } ?? "_"
+            return "\(label):\(ctx.exprKey(arg.expr))"
+        }.joined(separator: ",")
+        return "args=[\(rendered)]"
+    }
+
+    private static func renderIndexList(_ indices: [ExprID], _ ctx: StableRenderContext) -> String {
+        return "indices=[\(indices.map { ctx.exprKey($0) }.joined(separator: ","))]"
+    }
+
+    private static func renderNameList(_ names: [InternedString?], _ ctx: StableRenderContext) -> String {
+        return "names=[\(names.map { $0.map { ctx.interner.resolve($0) } ?? "_" }.joined(separator: ","))]"
+    }
+
     private static func renderLoopExpr(
-        _ loopType: String,
         _ loopVariable: InternedString?,
         _ iterable: ExprID,
         _ body: ExprID,
         _ label: InternedString?,
-        _ ctx: StableRenderContext,
-        variableKey: String,
-        iterableKey: String,
-        bodyKey: String
+        _ ctx: StableRenderContext
     ) -> String {
         let variable = loopVariable.map { ctx.interner.resolve($0) } ?? "_"
-        let labelStr = label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
-        return "\(loopType) \(variableKey)=\(variable) \(iterableKey)=\(ctx.exprKey(iterable)) \(bodyKey)=\(ctx.exprKey(body))\(labelStr)"
+        return "for var=\(variable) iterable=\(ctx.exprKey(iterable)) body=\(ctx.exprKey(body))\(renderLabelSuffix(label, ctx))"
     }
 
     private static func renderWhileLoop(_ condition: ExprID, _ body: ExprID, _ label: InternedString?, _ ctx: StableRenderContext) -> String {
-        let labelStr = label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
-        return "while cond=\(ctx.exprKey(condition)) body=\(ctx.exprKey(body))\(labelStr)"
+        return "while cond=\(ctx.exprKey(condition)) body=\(ctx.exprKey(body))\(renderLabelSuffix(label, ctx))"
     }
 
     private static func renderDoWhileLoop(_ body: ExprID, _ condition: ExprID, _ label: InternedString?, _ ctx: StableRenderContext) -> String {
-        let labelStr = label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
-        return "doWhile body=\(ctx.exprKey(body)) cond=\(ctx.exprKey(condition))\(labelStr)"
+        return "doWhile body=\(ctx.exprKey(body)) cond=\(ctx.exprKey(condition))\(renderLabelSuffix(label, ctx))"
     }
 
     private static func renderJumpExpr(_ jumpType: String, _ label: InternedString?, _ ctx: StableRenderContext) -> String {
@@ -216,18 +221,13 @@ enum GoldenHarnessExprFormat {
         _ ctx: StableRenderContext
     ) -> String {
         let typeStr = typeAnnotation.map { ctx.renderTypeRef($0) } ?? "_"
-        let initStr = initializer.map { ctx.exprKey($0) } ?? "_"
         let delegatedStr = isDelegated ? " delegated=1" : ""
         let lateinitStr = isLateinit ? " lateinit=1" : ""
-        return "localDecl \(ctx.interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(initStr)\(delegatedStr)\(lateinitStr)"
+        return "localDecl \(ctx.interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(renderExprKey(initializer, ctx))\(delegatedStr)\(lateinitStr)"
     }
 
     private static func renderCall(_ callType: String, callee: ExprID, args: [CallArgument], ctx: StableRenderContext) -> String {
-        let renderedArgs = args.map { arg in
-            let label = arg.label.map { ctx.interner.resolve($0) } ?? "_"
-            return "\(label):\(ctx.exprKey(arg.expr))"
-        }.joined(separator: ",")
-        return "\(callType) callee=\(ctx.exprKey(callee)) args=[\(renderedArgs)]"
+        return "\(callType) callee=\(ctx.exprKey(callee)) \(renderArgumentList(args, ctx))"
     }
 
     private static func renderMemberCall(
@@ -237,11 +237,7 @@ enum GoldenHarnessExprFormat {
         args: [CallArgument],
         ctx: StableRenderContext
     ) -> String {
-        let renderedArgs = args.map { arg in
-            let label = arg.label.map { ctx.interner.resolve($0) } ?? "_"
-            return "\(label):\(ctx.exprKey(arg.expr))"
-        }.joined(separator: ",")
-        return "\(callType) recv=\(ctx.exprKey(receiver)) callee=\(ctx.interner.resolve(callee)) args=[\(renderedArgs)]"
+        return "\(callType) recv=\(ctx.exprKey(receiver)) callee=\(ctx.interner.resolve(callee)) \(renderArgumentList(args, ctx))"
     }
 
     private static func renderWhenExpr(
@@ -259,8 +255,6 @@ enum GoldenHarnessExprFormat {
             let guardPart = branch.guard_.map { " if \(ctx.exprKey($0))" } ?? ""
             return "\(conditions)\(guardPart)->\(ctx.exprKey(branch.body))"
         }.joined(separator: ",")
-        let renderedElse = elseExpr.map { ctx.exprKey($0) } ?? "_"
-        let renderedSubject = subject.map { ctx.exprKey($0) } ?? "_"
-        return "when subject=\(renderedSubject) branches=[\(renderedBranches)] else=\(renderedElse)"
+        return "when subject=\(renderExprKey(subject, ctx)) branches=[\(renderedBranches)] else=\(renderExprKey(elseExpr, ctx))"
     }
 }

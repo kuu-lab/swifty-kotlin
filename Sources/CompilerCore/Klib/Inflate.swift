@@ -84,8 +84,6 @@ package enum Inflater {
         return output
     }
 
-    // MARK: - Bit reader (LSB-first within each byte)
-
     private struct BitReader {
         let bytes: ArraySlice<UInt8>
         var index: ArraySlice<UInt8>.Index
@@ -138,8 +136,6 @@ package enum Inflater {
         }
     }
 
-    // MARK: - Stored block (btype 0)
-
     private static func inflateStored(reader: inout BitReader, into output: inout [UInt8]) throws {
         reader.alignToByte()
         let lenLo = Int(try reader.alignedByte())
@@ -155,8 +151,6 @@ package enum Inflater {
             output.append(try reader.alignedByte())
         }
     }
-
-    // MARK: - Huffman tables
 
     /// Canonical-Huffman decoding table: counts per code length plus the
     /// symbols sorted by (code length, symbol order). Decoding walks lengths
@@ -297,8 +291,6 @@ package enum Inflater {
         let distanceTable = try HuffmanTable(codeLengths: Array(lengths.suffix(distanceCount)))
         return (literalTable, distanceTable)
     }
-
-    // MARK: - Compressed block body
 
     private static let lengthBase: [Int] = [
         3, 4, 5, 6, 7, 8, 9, 10,

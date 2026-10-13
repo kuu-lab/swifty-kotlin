@@ -104,21 +104,7 @@ public final class DiagnosticEngine: @unchecked Sendable {
     /// that re-infer an expression and keep the original diagnostic when the
     /// retry fails.
     public func rollback(to checkpoint: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        if _diagnostics.count > checkpoint {
-            let rolledBack = _diagnostics[checkpoint...]
-            for diagnostic in rolledBack {
-                let bucket = fileBucket(for: diagnostic)
-                if _truncationNoticeByFile[bucket] == diagnostic {
-                    _truncationNoticeByFile.removeValue(forKey: bucket)
-                } else {
-                    _diagnosticCountByFile[bucket, default: 0] -= 1
-                }
-            }
-            _emittedDiagnostics.subtract(rolledBack)
-            _diagnostics.removeSubrange(checkpoint...)
-        }
+        truncate(to: checkpoint)
     }
 
     public func emit(_ diagnostic: Diagnostic) {
@@ -483,8 +469,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
             3
         }
     }
-
-    // MARK: - JSON diagnostic output (LSP-compatible)
 
     /// LSP severity codes: 1 = Error, 2 = Warning, 3 = Information, 4 = Hint.
     private func lspSeverity(for severity: DiagnosticSeverity) -> Int {

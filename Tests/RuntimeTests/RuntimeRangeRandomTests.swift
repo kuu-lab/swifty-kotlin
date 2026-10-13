@@ -15,6 +15,32 @@ struct RuntimeRangeRandomTests {
     }
 
     @Test
+    func testAllRangeRandomTypesUseJvmEmptyRangeMessage() {
+        let intRange = kk_op_rangeTo(1, 0)
+        let longRange = kk_long_rangeTo(1, 0)
+        let charRange = kk_char_rangeTo(kk_box_char(98), kk_box_char(97))
+        let uintRange = __kk_uint_rangeTo(Int(UInt32.max), 0)
+        let ulongRange = __kk_ulong_rangeTo(Int(bitPattern: UInt.max), 0)
+        let cases: [(String, (UnsafeMutablePointer<Int>?) -> Int)] = [
+            ("Cannot get random in empty range: 1..0", { __kk_range_random(intRange, $0) }),
+            ("Cannot get random in empty range: 1..0", { __kk_long_range_random(longRange, $0) }),
+            ("bound must be greater than origin", { __kk_char_range_random(charRange, $0) }),
+            ("Cannot get random in empty range: 4294967295..0", { __kk_uint_range_random(uintRange, $0) }),
+            ("Cannot get random in empty range: 18446744073709551615..0", { __kk_ulong_range_random(ulongRange, $0) }),
+        ]
+
+        for (expectedMessage, random) in cases {
+            var thrown = 0
+            _ = random(&thrown)
+
+            let exception = UnsafeMutableRawPointer(bitPattern: thrown).flatMap {
+                tryCast($0, to: RuntimeNoSuchElementExceptionBox.self)
+            }
+            #expect(exception?.message == expectedMessage)
+        }
+    }
+
+    @Test
     func testIntRangeRandomHandlesFullSpan() {
         let range = kk_op_rangeTo(Int.min, Int.max)
         var thrown = 0
@@ -37,14 +63,6 @@ struct RuntimeRangeRandomTests {
         }
     }
 
-    // KSP-466: kk_random_create_seeded no longer exists — Random(seed) now
-    // constructs a real compiled Kotlin object that Swift test code cannot
-    // fabricate the way the old SeededRandomBox could. Additionally, a
-    // pre-existing bug (confirmed independent of this migration, present on
-    // the pre-KSP-466 baseline too) makes the shared range-random rejection
-    // sampling helpers these two tests exercised hang indefinitely for some
-    // inputs; removing rather than adapting them avoids landing a hanging
-    // test. Tracked separately for a follow-up fix.
     @Test
     func testRandomNextIntRangeObjectThrowsForEmptyRange() {
         let random = 0
