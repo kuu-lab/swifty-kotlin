@@ -158,6 +158,8 @@ extension ExprTypeChecker {
         )
         sema.bindings.bindDecl(declID, symbol: classSymbol)
         sema.symbols.setSourceFileID(ctx.currentFileID, for: classSymbol)
+        // Constructor and member headers can refer to the class itself.
+        ctx.scope.insert(classSymbol)
 
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)
@@ -172,6 +174,14 @@ extension ExprTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
             if case let .classType(classType) = sema.types.kind(of: resolved) {
+                if classType.classSymbol == classSymbol {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-SUPER-CYCLE",
+                        "Cyclic supertype reference involving \(interner.resolve(classDecl.name)); the edge is ignored.",
+                        range: classDecl.range
+                    )
+                    continue
+                }
                 directSuperSymbols.append(classType.classSymbol)
                 directSuperTypeArgs[classType.classSymbol] = classType.args
             }

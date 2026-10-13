@@ -133,3 +133,4 @@ final class ClassMemberScope: BaseScope {
 }
 
 final class FunctionScope: BaseScope {}
+final class BlockScope: BaseScope {}
