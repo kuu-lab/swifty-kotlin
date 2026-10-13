@@ -336,8 +336,11 @@ extension LocalDeclTypeChecker {
         )
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-            let scopedCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(setName)).visible
-            setCandidates = scopedCandidates.filter { candidate in
+            // An unrelated nearer extension must not hide an applicable set
+            // from an outer scope (e.g. the default-imported MutableMap.set).
+            // Stop at the first scope with receiver-compatible operators so
+            // applicable user extensions retain their normal priority.
+            let scopedCandidates = ctx.scope.lookup(setName, matching: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
@@ -346,12 +349,19 @@ extension LocalDeclTypeChecker {
                 else {
                     return false
                 }
+                // Preserve cachedScopeLookup's expect/actual filtering.
+                if symbol.flags.contains(.expectDeclaration),
+                   sema.symbols.actualSymbol(for: candidate) != nil
+                {
+                    return false
+                }
                 return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
                     callSiteReceiver: nonNullReceiver,
                     declaredReceiver: declaredReceiver,
                     sema: sema
                 )
-            }
+            })
+            setCandidates = ctx.filterByVisibility(scopedCandidates).visible
         }
         if setCandidates.isEmpty {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
