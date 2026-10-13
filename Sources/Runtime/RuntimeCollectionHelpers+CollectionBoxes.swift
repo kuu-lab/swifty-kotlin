@@ -192,8 +192,11 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
             registerSortedCollectionTypeEdgesOnce()
             if runtimeIsAssignable(
                 sourceTypeID: objectTypeID,
-                targetTypeID: linkedHashSetRuntimeTypeID
+                targetTypeID: hashSetRuntimeTypeID
             ) {
+                // KUU-1940: HashSet is open. Attach storage to all source
+                // subclasses, including LinkedHashSet subclasses whose init
+                // bridge was not emitted.
                 let backingSetBox = RuntimeSetBox(elements: [])
                 objectBox.backingSetBox = backingSetBox
                 return backingSetBox
