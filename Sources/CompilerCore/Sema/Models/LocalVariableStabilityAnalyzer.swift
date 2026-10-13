@@ -124,7 +124,7 @@ final class LocalVariableStabilityAnalyzer {
             for expression in expressions { visit(expression, ast: ast, locals: &locals) }
         }
         switch expression {
-        case let .localDecl(name, _, _, initializer, _, _):
+        case let .localDecl(name, _, _, initializer, _, _, _):
             if let initializer { children([initializer]) }
             declarations.insert(id)
             declarationDepths[id] = closureScopes.count
