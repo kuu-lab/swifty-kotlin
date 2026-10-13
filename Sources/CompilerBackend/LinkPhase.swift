@@ -34,7 +34,9 @@ final class LinkPhase: CompilerPhase {
     private let stubLock = NSLock()
     private var stubDirectory: URL?
 
-    init() {}
+    private let session: LLVMBackendSession?
+
+    init(session: LLVMBackendSession? = nil) { self.session = session }
 
     func run(_ ctx: CompilationContext) throws {
         guard ctx.options.emit == .executable else { return }
@@ -86,7 +88,7 @@ final class LinkPhase: CompilerPhase {
                 target: ctx.options.target,
                 configuration: .release
             )
-            let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target)
+            let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target, phaseTimer: ctx.phaseTimer, session: session ?? LLVMBackendSession())
                 .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
             let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
                 .deletingLastPathComponent()
