@@ -685,16 +685,15 @@ extension OverloadResolver {
             }
         }
 
-        // KClass<T> is covariant in T. Decompose receiver constraints like
-        // KClass<String> <: KClass<T> so extension properties can infer T.
+        // Invariant KClass arguments constrain T in both directions.
         if case let .kClassType(superKClass) = supertypeKind,
            containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
            case let .kClassType(subKClass) = typeSystem.kind(of: subtype),
            subKClass.nullability == superKClass.nullability || superKClass.nullability == .nullable
         {
-            return decomposeSubtypeConstraintImpl(
-                subtype: subKClass.argument,
-                supertype: superKClass.argument,
+            return decomposeTypeArgConstraintImpl(
+                subArg: .invariant(subKClass.argument),
+                superArg: .invariant(superKClass.argument),
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: blameRange,
@@ -839,9 +838,9 @@ extension OverloadResolver {
            case let .kClassType(superKClass) = supertypeKind,
            subKClass.nullability == superKClass.nullability || superKClass.nullability == .nullable
         {
-            return decomposeSubtypeConstraintImpl(
-                subtype: subKClass.argument,
-                supertype: superKClass.argument,
+            return decomposeTypeArgConstraintImpl(
+                subArg: .invariant(subKClass.argument),
+                superArg: .invariant(superKClass.argument),
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: blameRange,

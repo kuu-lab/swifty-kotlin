@@ -506,7 +506,7 @@ extension ExprTypeChecker {
             // or `box.run2 { myValue }` fails to infer `R`). Substitute the
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
-            // `Any`/`Any?` expected returns are placeholders the same way:
+            // Synthesized `Any`/`Any?` expected returns are placeholders too:
             // `inferCallExpr` synthesizes `() -> Any` as the contextual type
             // when a lambda literal is invoked directly (`{ ... }()`) with no
             // caller-supplied expected type. Adopting it verbatim would type
@@ -521,11 +521,14 @@ extension ExprTypeChecker {
             // return, though: the emitted thunk's declared return drives
             // boxing at the erased ABI boundary, and a concrete
             // `Boolean`/`Char` would be stored raw into `List<R>` and print
-            // as `1`/`97`.
+            // as `1`/`97`. Source-declared Any returns also drive ABI boxing:
+            // `check(block: () -> Any) { text.toULong() }` must return an
+            // unsigned box rather than a raw word (KUU-1982).
             let expectedReturnIsErasedNonHOFPlaceholder =
                 (expectedFunctionType.returnType == sema.types.anyType
                     || expectedFunctionType.returnType == sema.types.nullableAnyType)
                 && !sema.bindings.isCollectionHOFLambdaExpr(id)
+                && !expectedTypeIsSourceDeclared
             let shouldReturnResolvedFunctionType = expectedTypeIsHintOnly
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
