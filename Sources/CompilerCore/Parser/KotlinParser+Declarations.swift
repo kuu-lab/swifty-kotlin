@@ -622,5 +622,19 @@ extension KotlinParser {
             return
         }
         parseTail(inBlock: false, into: &children, range: &range, allowsClassHeaderColon: allowsClassHeaderColon)
+        // Header scanning may stop at a newline after constructor parameters or
+        // supertypes. The following brace still belongs to this declaration,
+        // unless a terminator or an already parsed body has ended it.
+        if includeBlock, stream.peek().kind == .symbol(.lBrace),
+           lastConsumedToken?.kind != .symbol(.semicolon),
+           !children.contains(where: { child in
+               guard case let .node(id) = child else { return false }
+               return arena.node(id).kind == .block
+           })
+        {
+            let body = parseBlock()
+            children.append(.node(body))
+            range.append(childRange(.node(body)))
+        }
     }
 }
