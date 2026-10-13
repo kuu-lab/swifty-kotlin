@@ -32,11 +32,10 @@ private external fun __kk_random_nextUInt_uintRange(random: Random, range: UIntR
 @KsSymbolName("__kk_random_nextULong_ulongRange")
 private external fun __kk_random_nextULong_ulongRange(random: Random, range: ULongRange): ULong
 
-// Interfaces exposing the Random methods that native runtime helpers need to
-// call through itable dispatch. Single-method interfaces keep the itable
-// methodSlot at 0 and independent of source-ordering symbol IDs. They are
-// public so they can be exported in library metadata and resolved by downstream
-// modules that load the compiled Random class from a .kklib.
+// Single-method interfaces expose the Random methods that native runtime
+// helpers call through itable dispatch. Keeping each interface to one method
+// fixes its runtime slot at zero, independent of symbol ordering. They are
+// public so downstream modules can resolve them from compiled .kklib metadata.
 public interface RandomSource {
     public fun nextIntBelow(until: Int): Int
 }
@@ -45,7 +44,19 @@ public interface RandomLongSource {
     public fun nextLongBits(): Long
 }
 
-public abstract class Random : RandomSource, RandomLongSource {
+public interface RandomIntBitsSource {
+    public fun nextIntBits(): Int
+}
+
+public interface RandomIntRangeSource {
+    public fun nextIntRange(from: Int, until: Int): Int
+}
+
+public interface RandomLongRangeSource {
+    public fun nextLongRange(from: Long, until: Long): Long
+}
+
+public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSource, RandomIntRangeSource, RandomLongRangeSource {
     public abstract fun nextBits(bitCount: Int): Int
 
     public open fun nextInt(): Int = nextBits(32)
@@ -124,7 +135,13 @@ public abstract class Random : RandomSource, RandomLongSource {
     // collection/range helpers for deterministic seeded random values.
     public open override fun nextIntBelow(until: Int): Int = nextInt(until)
 
+    public open override fun nextIntBits(): Int = nextInt()
+
+    public open override fun nextIntRange(from: Int, until: Int): Int = nextInt(from, until)
+
     public open override fun nextLongBits(): Long = nextLong()
+
+    public open override fun nextLongRange(from: Long, until: Long): Long = nextLong(from, until)
 
     public open fun nextBoolean(): Boolean = nextBits(1) != 0
 

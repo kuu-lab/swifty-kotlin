@@ -975,6 +975,21 @@ extension CallLowerer {
         )
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let result = arena.appendTemporary(type: resultType)
+        let annotationEndLabel = emitRuntimeKAnnotatedElementAnnotationsFastPath(
+            propertyInfo: propertyInfo, ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID, result: result,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
+        if emitRuntimeKClassConstructorsFastPath(
+            propertyInfo: propertyInfo,
+            ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return result
+        }
         let runtimeNameEndLabel = emitRuntimeKCallableNameFastPath(
             propertyInfo: propertyInfo,
             ownerInfo: ownerInfo,
@@ -1007,7 +1022,79 @@ extension CallLowerer {
         if let rangeEndLabel {
             instructions.append(.label(rangeEndLabel))
         }
+        if let annotationEndLabel {
+            instructions.append(.label(annotationEndLabel))
+        }
         return result
+    }
+
+    /// KAnnotatedElement also admits user implementations. Only native
+    /// reflection boxes bypass the source interface getter.
+    private func emitRuntimeKAnnotatedElementAnnotationsFastPath(
+        propertyInfo: SemanticSymbol, ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID, result: KIRExprID,
+        sema: SemaModule, arena: KIRArena, interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Int32? {
+        guard ownerInfo.fqName == ["kotlin", "reflect", "KAnnotatedElement"].map(interner.intern),
+              interner.resolve(propertyInfo.name) == "annotations" else { return nil }
+        let isClass = emitNonThrowingCall(
+            callee: interner.intern("__kk_kclass_is_runtime"), arg: loweredReceiverID,
+            resultType: sema.types.intType, arena: arena, into: &instructions
+        )
+        let one = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
+        instructions.append(.constValue(result: one, value: .intLiteral(1)))
+        let classLabel = driver.ctx.makeLoopLabel()
+        let callableLabel = driver.ctx.makeLoopLabel()
+        let interfaceLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfEqual(lhs: isClass, rhs: one, target: classLabel))
+        let isCallable = emitNonThrowingCall(
+            callee: interner.intern("__kk_kcallable_is_runtime"), arg: loweredReceiverID,
+            resultType: sema.types.intType, arena: arena, into: &instructions
+        )
+        instructions.append(.jumpIfEqual(lhs: isCallable, rhs: one, target: callableLabel))
+        instructions.append(.jump(interfaceLabel))
+        instructions.append(.label(classLabel))
+        emitNonThrowingCall(callee: interner.intern("__kk_kclass_get_annotations"),
+                            arg: loweredReceiverID, result: result, into: &instructions)
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(callableLabel))
+        // KCallable's existing metadata ABI assigns annotations ordinal 12.
+        let ordinal = arena.appendExpr(.intLiteral(12), type: sema.types.intType)
+        instructions.append(.constValue(result: ordinal, value: .intLiteral(12)))
+        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_get_metadata"),
+                                  arguments: [loweredReceiverID, ordinal], result: result,
+                                  canThrow: false, thrownResult: nil))
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(interfaceLabel))
+        return endLabel
+    }
+
+    /// KClass handles are runtime boxes and do not have compiler-emitted
+    /// interface tables. Read the constructor registry through its runtime
+    /// bridge instead of dispatching the source-backed interface getter.
+    private func emitRuntimeKClassConstructorsFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        guard ownerInfo.fqName == ["kotlin", "reflect", "KClass"].map(interner.intern),
+              interner.resolve(propertyInfo.name) == "constructors"
+        else {
+            return false
+        }
+
+        emitNonThrowingCall(
+            callee: interner.intern("__kk_kclass_constructors"),
+            arg: loweredReceiverID,
+            result: result,
+            into: &instructions
+        )
+        return true
     }
 
     private func emitRuntimeFloatingPointEndpointFastPath(
@@ -1264,12 +1351,13 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        resultTypeOverride: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty else { return nil }
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "name" || calleeStr == "ordinal" else { return nil }
-        let resultType = sema.bindings.exprTypes[exprID]
+        let resultType = resultTypeOverride ?? sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
                 ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))

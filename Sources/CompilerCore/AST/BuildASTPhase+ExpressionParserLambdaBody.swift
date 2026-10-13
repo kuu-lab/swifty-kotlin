@@ -53,7 +53,9 @@ extension BuildASTPhase.ExpressionParser {
                 return false
             }
         }
-        if ranges.count == 1, !hasStatementOnlyBody {
+        // A leading empty statement is omitted from `ranges`, so a single
+        // expression after it must stay a block body with a trailing value.
+        if ranges.count == 1, !hasStatementOnlyBody, ranges[0].0 == 0 {
             return nil
         }
 

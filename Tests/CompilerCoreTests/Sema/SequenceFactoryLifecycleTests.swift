@@ -73,7 +73,7 @@ struct SequenceFactoryLifecycleTests {
                 return name == names.sequence
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
-            let chosen = try #require(binding.chosenCallee)
+            let chosen = binding.chosenCallee
             let symbol = try #require(sema.symbols.symbol(chosen))
             let signature = try #require(sema.symbols.functionSignature(for: chosen))
             let file = try #require(sema.symbols.sourceFileID(for: chosen))
@@ -112,7 +112,7 @@ struct SequenceFactoryLifecycleTests {
                 return name == generateSequence
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
-            let chosen = try #require(binding.chosenCallee)
+            let chosen = binding.chosenCallee
             let file = try #require(sema.symbols.sourceFileID(for: chosen))
             let signature = try #require(sema.symbols.functionSignature(for: chosen))
             #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/sequences/SequenceFactories.kt")

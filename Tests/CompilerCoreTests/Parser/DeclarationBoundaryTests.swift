@@ -8,6 +8,23 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test(arguments: ["Simple()", "(Simple())", "create()"])
+    func classDelegationContinuesAfterNewline(expression: String) {
+        let parsed = parse("""
+        interface Value { val number: Int }
+        class Simple : Value { override val number = 42 }
+        fun create(): Value = Simple()
+        class Delegated : Value by
+            \(expression) {
+            val other = 7
+        }
+        fun after() = 3
+        """)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
     @Test(arguments: [
         "var count = 0\ncount = count + 1\ncount",
         "val count = 1\ncount",
@@ -471,6 +488,27 @@ struct DeclarationBoundaryTests {
         let parsed = parse(source)
         #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
         #expect(nodeCount(source, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func contextParameterAndLocalMemberCallsAreNotParsedAsDeclarationPrefixes() {
+        let parsed = parse("""
+        class Box { fun put() {} }
+        interface Handler { fun write(context: Box) }
+        class Writer : Handler {
+            override fun write(context: Box) {
+                context.put()
+            }
+        }
+        val context = Box()
+        context.put()
+        context(Box) fun withContextReceiver() {}
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty, "\(parsed.diagnostics.diagnostics)")
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 4)
+        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .interfaceDecl) == 1)
     }
 
     @Test

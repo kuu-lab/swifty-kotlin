@@ -23,24 +23,9 @@ public enum DiagnosticsFeature {
                 lspRange = LSPRange(start: origin, end: origin)
             }
 
-            result.append(LSPDiagnostic(
-                range: lspRange,
-                severity: severity(for: diagnostic.severity).rawValue,
-                code: diagnostic.code,
-                source: "kswiftk",
-                message: diagnostic.message
-            ))
+            result.append(LSPConvert.diagnostic(diagnostic, range: lspRange))
         }
 
         return result
-    }
-
-    private static func severity(for severity: DiagnosticSeverity) -> LSPDiagnosticSeverity {
-        switch severity {
-        case .error: .error
-        case .warning: .warning
-        case .note: .information
-        case .info: .hint
-        }
     }
 }

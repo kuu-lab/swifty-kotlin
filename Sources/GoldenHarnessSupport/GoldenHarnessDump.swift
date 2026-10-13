@@ -167,8 +167,6 @@ enum GoldenHarnessDump {
         }
     }
 
-    // MARK: - Stable sema rendering
-
     static func renderSemaOutput(
         ast: ASTModule,
         sema: SemaModule,

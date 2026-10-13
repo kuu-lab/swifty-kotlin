@@ -9,28 +9,7 @@
 
 import Foundation
 
-private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
-    var length = 0
-    var byteCount = 0
-    var hash = 0
-    let data = runtimeRegisterFlatString(
-        value,
-        outLength: &length,
-        outByteCount: &byteCount,
-        outHash: &hash
-    )
-    guard let data else {
-        return RuntimeValue(raw: 0)
-    }
-    return RuntimeValue(
-        stringData: Int(bitPattern: data),
-        length: length,
-        byteCount: byteCount,
-        hash: hash
-    )
-}
 
-// MARK: - STDLIB-192: equals(other)
 // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt).
 

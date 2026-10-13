@@ -3,8 +3,6 @@
 ///
 /// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`.
 extension CollectionVirtualCallRewriteLoweringPass {
-    // MARK: - IntRange operations (STDLIB-090/091/092/093)
-
     func rewriteRangeVirtualCall(
         callee: InternedString,
         receiver: KIRExprID,
@@ -540,8 +538,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         return false
     }
-
-    // MARK: - Static type fallback classification (LOWERING-001)
 
     /// Classify a receiver expression by its static type in the KIR arena.
     /// If the receiver is already in one of the tracking sets, this is a no-op.

@@ -109,7 +109,6 @@ func runtimeSortedWithComparatorInvoke(
     }
 }
 
-// MARK: - Closeable.use {} (STDLIB-250)
 
 private final class RuntimeAutoCloseableBox {
     let fnPtr: Int
@@ -260,7 +259,6 @@ public func kk_iterable_all(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 
 
-// MARK: - STDLIB-535/536/537: associateByTo / associateWithTo / groupByTo
 
 /// Builds a key-index dictionary from existing map keys for O(1) lookups.
 /// Shared helper to avoid duplicating key-index precomputation across *To functions.
@@ -272,7 +270,6 @@ public func kk_iterable_all(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 
 
-// MARK: - ListWindowChunk private bridges (KSP-307)
 
 @_cdecl("__kk_list_zip")
 public func kk_list_bridge_zip(_ listRaw: Int, _ otherRaw: Int) -> Int {
@@ -488,7 +485,6 @@ public func kk_list_bridge_zipWithNextTransform(_ listRaw: Int, _ fnPtr: Int, _ 
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
-// MARK: - IndexingIterable iterator (for destructuring `for ((i, v) in list.withIndex())`)
 
 @_cdecl("kk_indexing_iterable_iterator")
 public func kk_indexing_iterable_iterator(_ iterableRaw: Int) -> Int {
@@ -562,7 +558,6 @@ public func kk_list_randomOrNull(_ listRaw: Int) -> Int {
 }
 
 
-// MARK: - Collection sorting compatibility
 
 // `sortedBy` is source-backed for List receivers, but Iterable/Collection/Set
 // receivers (for example Map.entries) still use this ABI-compatible bridge.

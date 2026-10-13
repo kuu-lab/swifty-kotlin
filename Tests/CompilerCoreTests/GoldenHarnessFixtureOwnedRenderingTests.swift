@@ -203,7 +203,7 @@ struct GoldenHarnessFixtureOwnedRenderingTests {
 
     @Test
     func rowFilterFollowsClassifierNotDeclSite() throws {
-        let (sema, symbols, types, interner) = makeSemaModule()
+        let (sema, symbols, _, interner) = makeSemaModule()
         let sourceManager = SourceManager()
         let bundledFile = sourceManager.addFile(
             path: "bundled/Api.kt",

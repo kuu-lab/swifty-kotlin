@@ -516,7 +516,7 @@ struct BundledDeclarationIndex: Sendable {
             return isRuntimeBackedIterableSyntheticRetainedOverlap(key, interner: interner)
         }
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
-            return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
+            return isRuntimeBackedSequenceSyntheticRetainedOverlap()
         }
         if ownerFQName == ["kotlin", "collections", "MutableSet"] {
             // MutableSet.addAll(Collection) is now a source-backed default
@@ -578,10 +578,7 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(
-        _ key: BundledMemberKey,
-        interner: StringInterner
-    ) -> Bool {
+    private static func isRuntimeBackedSequenceSyntheticRetainedOverlap() -> Bool {
         // KSP-441〜447: Sequence/Iterator パイプラインを Kotlin source 化するため、
         // Sequence 上の合成スタブは source 実装に委譲する。合成外部リンクは残留しない。
         return false

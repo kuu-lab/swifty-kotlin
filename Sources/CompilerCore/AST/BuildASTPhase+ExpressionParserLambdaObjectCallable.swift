@@ -22,17 +22,20 @@ extension BuildASTPhase.ExpressionParser {
             let paramTokens = Array(bodyTokens[..<arrowIndex])
             let lambdaBodySlice = bodyTokens[(arrowIndex + 1)...]
 
-            if let names = extractDestructuringNames(from: paramTokens) {
-                let range = SourceRange(start: start ?? openBrace.range.start, end: end)
-                return buildDestructuringLambda(
-                    names: names, bodySlice: lambdaBodySlice,
-                    fallbackStart: openBrace.range.end, range: range, label: label
-                )
-            }
-
-            let parsedParams = parseLambdaParams(from: paramTokens)
-            let bodyExpr = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
+            let bodyStart = astArena.exprs.count
+            let parsedBody = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
+            // Include callable references and names inside string templates so
+            // generated parameters cannot shadow a user binding or lookup.
+            var bodyNames = Set(lambdaBodySlice.compactMap { tokenText($0) })
+            bodyNames.formUnion(astArena.exprs.dropFirst(bodyStart).compactMap { expr -> InternedString? in
+                switch expr {
+                case let .nameRef(name, _), let .callableRef(_, name, _): name
+                default: nil
+                }
+            })
+            let parsedParams = parseLambdaParams(from: paramTokens, avoidingNames: bodyNames)
             let range = SourceRange(start: start ?? openBrace.range.start, end: end)
+            let bodyExpr = wrapLambdaDestructuring(params: parsedParams, body: parsedBody, range: range)
             let lambdaID = astArena.appendExpr(.lambdaLiteral(
                 params: parsedParams.map(\.name), body: bodyExpr, label: label, range: range
             ))
@@ -248,18 +251,21 @@ extension BuildASTPhase.ExpressionParser {
     struct LambdaParam {
         let name: InternedString
         let typeRef: TypeRefID?
+        let destructuringNames: [InternedString?]?
     }
 
-    private func parseLambdaParams(from tokens: [Token]) -> [LambdaParam] {
-        let normalized = stripEnclosingParentheses(from: tokens)
-        guard !normalized.isEmpty else {
+    private func parseLambdaParams(
+        from tokens: [Token],
+        avoidingNames: Set<InternedString>
+    ) -> [LambdaParam] {
+        guard !tokens.isEmpty else {
             return []
         }
 
         var segments: [[Token]] = []
         var currentSegment: [Token] = []
         var depth = BuildASTPhase.BracketDepth()
-        for token in normalized {
+        for token in tokens {
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
                 if !currentSegment.isEmpty {
                     segments.append(currentSegment)
@@ -275,7 +281,24 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         var params: [LambdaParam] = []
-        for segment in segments {
+        var usedNames = avoidingNames.union(tokens.compactMap { tokenText($0) })
+        for (index, segment) in segments.enumerated() {
+            if segment.first?.kind == .symbol(.lParen),
+               let closeIndex = segment.firstIndex(where: { $0.kind == .symbol(.rParen) }),
+               let names = extractDestructuringNames(from: Array(segment[...closeIndex]))
+            {
+                var parameterName = interner.intern("__destructured_\(index)")
+                while usedNames.contains(parameterName) {
+                    parameterName = interner.intern(interner.resolve(parameterName) + "_")
+                }
+                usedNames.insert(parameterName)
+                params.append(LambdaParam(
+                    name: parameterName,
+                    typeRef: parseLambdaParamTypeAnnotation(in: segment, after: closeIndex),
+                    destructuringNames: names
+                ))
+                continue
+            }
             guard let nameIndex = segment.firstIndex(where: { token in
                 switch token.kind {
                 case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
@@ -283,12 +306,13 @@ extension BuildASTPhase.ExpressionParser {
                 default:
                     false
                 }
-            }), let name = lambdaParameterName(from: segment[nameIndex]) else {
+            }), let name = tokenText( segment[nameIndex]) else {
                 continue
             }
             params.append(LambdaParam(
                 name: name,
-                typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex)
+                typeRef: parseLambdaParamTypeAnnotation(in: segment, after: nameIndex),
+                destructuringNames: nil
             ))
         }
         return params
@@ -353,7 +377,7 @@ extension BuildASTPhase.ExpressionParser {
                 idx += 1
                 continue
             case .identifier, .backtickedIdentifier, .keyword, .softKeyword:
-                guard let name = lambdaParameterName(from: token) else {
+                guard let name = tokenText( token) else {
                     idx += 1
                     continue
                 }
@@ -383,24 +407,23 @@ extension BuildASTPhase.ExpressionParser {
         return idx
     }
 
-    private func buildDestructuringLambda(
-        names: [InternedString?],
-        bodySlice: ArraySlice<Token>,
-        fallbackStart: SourceLocation,
-        range: SourceRange,
-        label: InternedString?
+    private func wrapLambdaDestructuring(
+        params: [LambdaParam],
+        body: ExprID,
+        range: SourceRange
     ) -> ExprID {
-        let parsedBody = parseLambdaBody(bodySlice: bodySlice, fallbackStart: fallbackStart)
-        let syntheticParam = interner.intern("__destructured_0")
-        let nameRefExpr = astArena.appendExpr(.nameRef(syntheticParam, range))
-        let destructuringExpr = astArena.appendExpr(.destructuringDecl(
-            names: names, isMutable: false, initializer: nameRefExpr, range: range
-        ))
-        let wrappedBody = astArena.appendExpr(.blockExpr(
-            statements: [destructuringExpr], trailingExpr: parsedBody, range: range
-        ))
-        return astArena.appendExpr(.lambdaLiteral(
-            params: [syntheticParam], body: wrappedBody, label: label, range: range
+        // Keep one parameter per argument; component declarations use the
+        // expected type of their own parameter, including in mixed lists.
+        let declarations = params.compactMap { param -> ExprID? in
+            guard let names = param.destructuringNames else { return nil }
+            let initializer = astArena.appendExpr(.nameRef(param.name, range))
+            return astArena.appendExpr(.destructuringDecl(
+                names: names, isMutable: false, initializer: initializer, range: range
+            ))
+        }
+        guard !declarations.isEmpty else { return body }
+        return astArena.appendExpr(.blockExpr(
+            statements: declarations, trailingExpr: body, range: range
         ))
     }
 
@@ -465,7 +488,7 @@ extension BuildASTPhase.ExpressionParser {
             }
             idx = closeIndex + 1
         } else {
-            guard lambdaParameterName(from: segment[idx]) != nil else {
+            guard tokenText( segment[idx]) != nil else {
                 return false
             }
             idx += 1
@@ -494,7 +517,7 @@ extension BuildASTPhase.ExpressionParser {
         var sawComma = false
         for token in inner {
             if expectName {
-                guard lambdaParameterName(from: token) != nil else {
+                guard tokenText( token) != nil else {
                     return false
                 }
                 expectName = false
@@ -509,16 +532,4 @@ extension BuildASTPhase.ExpressionParser {
         return sawComma && !expectName
     }
 
-    private func lambdaParameterName(from token: Token) -> InternedString? {
-        switch token.kind {
-        case let .identifier(name), let .backtickedIdentifier(name):
-            name
-        case let .keyword(keyword):
-            interner.intern(keyword.rawValue)
-        case let .softKeyword(keyword):
-            interner.intern(keyword.rawValue)
-        default:
-            nil
-        }
-    }
 }

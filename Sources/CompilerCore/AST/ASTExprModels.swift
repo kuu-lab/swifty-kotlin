@@ -120,11 +120,14 @@ public struct WhenBranch: Equatable, Codable {
 public struct CallArgument: Equatable, Codable {
     public let label: InternedString?
     public let isSpread: Bool
+    /// True only for a lambda written outside the call parentheses.
+    public let isTrailingLambda: Bool
     public let expr: ExprID
 
-    public init(label: InternedString? = nil, isSpread: Bool = false, expr: ExprID) {
+    public init(label: InternedString? = nil, isSpread: Bool = false, isTrailingLambda: Bool = false, expr: ExprID) {
         self.label = label
         self.isSpread = isSpread
+        self.isTrailingLambda = isTrailingLambda
         self.expr = expr
     }
 }
@@ -190,7 +193,7 @@ public enum Expr: Equatable, Codable {
     case lambdaLiteral(params: [InternedString], body: ExprID, label: InternedString? = nil, range: SourceRange)
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
-    case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
+    case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange, typeParams: [TypeParamDecl] = [])
     /// Unlike a top-level nominal decl the name is only visible to statements
     /// after it inside the same block scope, mirroring `localFunDecl`.
     case localNominalDecl(declID: DeclID, range: SourceRange)

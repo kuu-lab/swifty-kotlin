@@ -6,7 +6,9 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
+| `js_annotations/run_ci.py` | ✓ | JVM-independent annotation/view/reflection source/artifact O0/O2 matrix, runner regressions, and KUU-1480 evidence; see [handoff](../docs/js-annotations-ci-evidence.md) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
+| `real_programs/run.py` | – | Run the [23 pinned public Kotlin consumers](real_programs/round1/README.md) against Kotlin 2.3.10 and native O0/O2 with one fresh shared stdlib; compare exit code, stdout, and stderr |
 | `run_candidate_only.sh` | ✓ | Compile one Kotlin case without a JVM reference and compare stdout with its `.expected` file |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
@@ -249,6 +251,21 @@ cases. Run a candidate-only file directly to verify it without JVM tooling:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_ThreadLocal_n_n.kt
 ```
 
+For the audited `js_annotations.kt` migration, use the dedicated native lane:
+
+```bash
+KSWIFTK_OPTIMIZE_COMPILER_CORE=1 swift build --product kswiftc
+KOTLINC=/not-used JAVA_BIN=/not-used python3 Scripts/js_annotations/run_ci.py
+```
+
+Pass `--kswiftc .build/out/Products/Debug/kswiftc` for the Xcode build layout.
+This runs all 27 native fixtures across source injection/fresh `.kklib` and
+O0/O2, preserving failures, timeouts, and unexecuted cases in evidence artifacts.
+PR CI owns the fast runner regressions; `nightly-full.yml` owns the real matrix
+in `verify-js-annotations`. See [runner commands](js_annotations/README.md) and
+[coverage and SKIP-removal handoff](../docs/js-annotations-ci-evidence.md). The current
+SKIP remains until the full evidence is ready; this does not run the JVM diff.
+
 `diff_kotlinc.sh` detects imports in the target file or recursively in a target
 directory and downloads JVM reference jars from Maven Central:
 
@@ -307,6 +324,10 @@ diff -u Scripts/reference_cases/atomicfu_scalar.expected /tmp/atomicfu-reference
 This reference fixture is outside `diff_cases`: candidate-side atomicfu support
 has its own implementation tickets. A reference pass does not establish
 KSwiftK atomic behavior or Kotlin/Native compatibility.
+
+For the separately pinned Kotlin/Native 2.3.10 / atomicfu 0.33.0 Linux/x64
+reference, including Native Trace no-op, lock aliases, parking and exception
+differences, see [atomicfu_native_reference/README.md](atomicfu_native_reference/README.md).
 
 The separate [`serialization_reference`](serialization_reference/README.md)
 directory pins serialization 1.10.0 API dumps and all eight modules' real JVM
@@ -495,6 +516,23 @@ bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTes
 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
   --target-prefix RuntimeTests
 ```
+
+## Sema interval benchmark
+
+Build `kswiftc`, then measure Sema independently of the earlier frontend phases:
+
+```bash
+python3 Scripts/benchmark_sema.py --files 10 50 100 --jobs 1 4 --runs 3 > /tmp/sema-user.tsv
+python3 Scripts/benchmark_sema.py --stdlib source --files 1 --jobs 1 4 --runs 3 > /tmp/sema-source.tsv
+```
+
+Each configuration gets one unreported warmup. TSV rows retain all measured
+samples for Sema and its setup, header collection, declaration validation, body checks,
+and type checking intervals. Sema currently runs serially for every jobs value;
+these measurements are a baseline, not evidence of parallel Sema speedup.
+Use `--stdlib artifact --stdlib-library <path>` to measure a compatible artifact
+separately. See [the parallelization audit](../docs/sema-parallelization.md) for
+interval boundaries, shared-state constraints, and the proposed implementation gates.
 
 ## Refactoring guard metrics
 

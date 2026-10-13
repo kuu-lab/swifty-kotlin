@@ -31,26 +31,6 @@ struct CodegenBackendCustomCollectionIsEmptyTests {
         return ctx
     }
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runExecutablePipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
-
     // A user-defined AbstractCollection subclass has no runtime list/set box,
     // so a Collection<T>-typed receiver's isEmpty()/size dispatch through the
     // Collection interface's itable getter slot (kk_itable_lookup_dynamic +

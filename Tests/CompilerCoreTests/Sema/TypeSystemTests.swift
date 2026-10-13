@@ -342,6 +342,51 @@ struct TypeSystemTests {
     }
 
     @Test
+    func testLubCombinesCovariantNominalArgumentsUsingTheirCommonSupertype() {
+        let ts = TypeSystem()
+        let pairSymbol = SymbolID(rawValue: 100)
+        let moduleSymbol = SymbolID(rawValue: 101)
+        let aSymbol = SymbolID(rawValue: 102)
+        let bSymbol = SymbolID(rawValue: 103)
+        let unrelatedSymbol = SymbolID(rawValue: 104)
+        ts.setNominalTypeParameterVariances([.out, .out], for: pairSymbol)
+        ts.setNominalDirectSupertypes([moduleSymbol], for: aSymbol)
+        ts.setNominalDirectSupertypes([moduleSymbol], for: bSymbol)
+
+        func nominalType(_ symbol: SymbolID) -> TypeID {
+            ts.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        }
+
+        let moduleType = nominalType(moduleSymbol)
+        let aType = nominalType(aSymbol)
+        let bType = nominalType(bSymbol)
+        let unrelatedType = nominalType(unrelatedSymbol)
+        let pairA = ts.make(.classType(ClassType(
+            classSymbol: pairSymbol,
+            args: [.invariant(ts.stringType), .invariant(aType)],
+            nullability: .nonNull
+        )))
+        let pairB = ts.make(.classType(ClassType(
+            classSymbol: pairSymbol,
+            args: [.invariant(ts.stringType), .invariant(bType)],
+            nullability: .nonNull
+        )))
+
+        #expect(ts.lub([aType, bType]) == moduleType)
+        #expect(ts.lub([aType, unrelatedType]) == ts.anyType)
+
+        let pairLub = ts.lub([pairA, pairB])
+        guard case let .classType(pairType) = ts.kind(of: pairLub) else {
+            Issue.record("Expected a Pair type for the LUB, got \(ts.renderType(pairLub))")
+            return
+        }
+        #expect(pairType.classSymbol == pairSymbol)
+        #expect(pairType.args == [.invariant(ts.stringType), .out(moduleType)])
+        #expect(ts.isSubtype(pairA, pairLub))
+        #expect(ts.isSubtype(pairB, pairLub))
+    }
+
+    @Test
     func testLubFiltersNothingAndError() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
