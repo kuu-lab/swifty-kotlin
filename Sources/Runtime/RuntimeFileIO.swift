@@ -659,6 +659,7 @@ public func __kk_input_stream_bufferedReader(
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_bufferedReader received invalid InputStream handle")
     }
     let remaining = stream.drainRemaining()
+    runtimePropagateInputStreamError(stream, outThrown)
     return registerRuntimeObject(RuntimeBufferedReaderBox(data: remaining))
 }
 
@@ -841,7 +842,9 @@ public func __kk_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutableP
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read received invalid InputStream handle")
     }
-    return stream.readByte()
+    let result = stream.readByte()
+    runtimePropagateInputStreamError(stream, outThrown)
+    return result
 }
 
 @_cdecl("__kk_input_stream_available")
@@ -858,7 +861,9 @@ public func __kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrow
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_skip received invalid InputStream handle")
     }
-    return stream.skip(countRaw)
+    let result = stream.skip(countRaw)
+    runtimePropagateInputStreamError(stream, outThrown)
+    return result
 }
 
 @_cdecl("__kk_input_stream_read_bytes")
@@ -871,7 +876,9 @@ public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ ou
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return -1
     }
-    return stream.read(into: list)
+    let result = stream.read(into: list)
+    runtimePropagateInputStreamError(stream, outThrown)
+    return result
 }
 
 //
@@ -894,6 +901,7 @@ public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: Unsafe
     // Try a plain InputStream first.
     if let stream = runtimeInputStreamBox(from: streamRaw) {
         let bytes = stream.readAllBytes()
+        runtimePropagateInputStreamError(stream, outThrown)
         return registerRuntimeObject(RuntimeListBox(elements: bytes))
     }
     // Fall back to a SequenceInputStream chain.
@@ -974,6 +982,7 @@ public func __kk_input_stream_copyTo(
     let buffer = RuntimeListBox(elements: Array(repeating: 0, count: bufferSize))
     while true {
         let bytesRead = inputStream.read(into: buffer)
+        runtimePropagateInputStreamError(inputStream, outThrown)
         if bytesRead <= 0 { break }
         let chunk = Array(buffer.elements.prefix(bytesRead))
         do {

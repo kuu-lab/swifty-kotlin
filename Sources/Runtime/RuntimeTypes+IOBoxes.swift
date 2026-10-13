@@ -216,7 +216,10 @@ final class RuntimeBufferedReaderBox {
     }
 }
 
-final class RuntimeInputStreamBox {
+class RuntimeInputStreamBox {
+    /// Native stream implementations report I/O failures through the existing ABI.
+    var readError: String? { nil }
+
     private let data: Data
     private var offset: Int
     private var closed: Bool

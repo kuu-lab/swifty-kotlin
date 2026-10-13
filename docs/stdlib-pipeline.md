@@ -867,6 +867,13 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    `RuntimeABISpec.systemFunctions` records the nonthrowing int32/pointer/handle
    ABI; its canonical hash automatically updates `specVersion`.
 
+   KUU-2017 adds one private bridge, `__kk_system_in` (reason: syscall).
+   The source-backed `java.lang.System.in` property stores a native standard-input
+   stream object without reading stdin during initialization; the default-import
+   `kotlin.system.System` compatibility object delegates to that same stream. Byte reads share
+   stdio's cursor with console input. `__kk_*` increases by one;
+   `RuntimeABISpec.systemFunctions` registers the ABI and its canonical hash
+   updates `specVersion`.
    KUU-1973 adds one private bridge, `__kk_kclass_is_runtime` (reason: memory
    representation). The source-backed `KAnnotatedElement.annotations` getter
    must distinguish native KClass boxes from user implementations before

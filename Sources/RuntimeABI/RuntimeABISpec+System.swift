@@ -12,6 +12,14 @@ public extension RuntimeABISpec {
     )
 
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
+        // KUU-2017: syscall bridge to a native standard-input stream object.
+        RuntimeABIFunctionSpec(
+            name: "__kk_system_in",
+            parameters: [],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
         // Compiler-only startup bridge: argc is the C int32 ABI and argv is
         // a borrowed pointer to a null-terminated C-string pointer vector.
         RuntimeABIFunctionSpec(
