@@ -6,6 +6,55 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-2013: peekLast preserves element types, nullability, and contents.
+    @Test
+    func testJavaUtilLinkedListPeekLastThroughSourceAndFreshArtifactAtO0AndO2() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = try diffCaseSource("java_util_linked_list_peek_last.kt", file: #filePath)
+        let expectedOutput = """
+        null
+        b
+        2
+        null
+        string-empty:null:0
+        string-single:head:1
+        string-tail:4:tail:2:head
+        string-pop:tail:head:1
+        string-clear:null:0
+        int-empty:null:0
+        int-single:8:1
+        int-tail:43:42:2:7
+        int-pop:42:7:1
+        int-clear:null:0
+        nullable-int-empty:null:0
+        nullable-int-single:null:1
+        nullable-int-value:10:2
+        nullable-int-tail:null:null:3
+        nullable-int-pop:null:9:2
+        nullable-int-clear:null:0
+        nullable-string-empty:null:0
+        nullable-string-single:1:1
+        nullable-string-tail:null:null:2:a
+        nullable-string-clear:null:0
+        stack-peek:Stack is empty!
+        stack-pop:Stack is empty!
+        stack:true:0
+
+        """
+
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            for stdlibLibraryPath in [nil, artifactPath] {
+                let output = try Self.runLinkedListSources(
+                    [source],
+                    optLevel: optLevel,
+                    stdlibLibraryPath: stdlibLibraryPath
+                )
+                #expect(output == expectedOutput,
+                        "peekLast at \(optLevel), artifact: \(stdlibLibraryPath != nil)")
+            }
+        }
+    }
+
     /// KUU-1858: run the reported LinkedList reproducer and pinned Queue
     /// consumer against source stdlib and one freshly emitted artifact at O0/O2.
     /// Queue.kt and Graph.kt provenance is pinned in the diff-case fixture; the
@@ -167,6 +216,7 @@ extension StdlibArtifactRegressionTests {
                     description: "KUU-1858 executable failed at \(optLevel): \(result.stderr)"
                 )
             }
+            #expect(result.stderr.isEmpty, "LinkedList executable stderr: \(result.stderr)")
             normalizedOutput = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
         }
         guard let normalizedOutput else {
