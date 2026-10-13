@@ -1010,6 +1010,7 @@ extension DataFlowSemaPhase {
         let name: InternedString
         let parameterTypes: [TypeID]
         let methodTypeParameters: [SymbolID]
+        let methodUpperBounds: [[TypeID]]
         let isSuspend: Bool
 
         func matches(_ other: DelegationDispatchKey, types: TypeSystem) -> Bool {
@@ -1017,31 +1018,27 @@ extension DataFlowSemaPhase {
                   parameterTypes.count == other.parameterTypes.count,
                   methodTypeParameters.count == other.methodTypeParameters.count
             else { return false }
-            // Compare alpha-equivalent method parameters after the interface's
-            // class parameters have been substituted. Arity alone loses overloads.
-            let typeVarBySymbol = types.makeTypeVarBySymbol(methodTypeParameters)
-            var substitution: [TypeVarID: TypeID] = [:]
-            for (parameter, otherParameter) in zip(methodTypeParameters, other.methodTypeParameters) {
-                guard let typeVar = typeVarBySymbol[parameter] else { continue }
-                substitution[typeVar] = types.make(.typeParam(TypeParamType(
-                    symbol: otherParameter, nullability: .nonNull
-                )))
+            func aligned(_ type: TypeID) -> TypeID {
+                alphaAlignedMethodType(type, sourceParameters: methodTypeParameters,
+                                       targetParameters: other.methodTypeParameters, types: types)
             }
-            return parameterTypes.map {
-                types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
-            } == other.parameterTypes
+            return methodIdentityParameterTypesMatch(candidateParameterTypes: other.parameterTypes,
+                                                     interfaceParameterTypes: parameterTypes.map(aligned), types: types)
+                && methodUpperBoundSetsMatch(methodUpperBounds.map { $0.map(aligned) }, other.methodUpperBounds, types: types)
         }
     }
 
     private func delegationDispatchKey(
         for method: SemanticSymbol,
         signature: FunctionSignature,
-        parameterTypes: [TypeID]? = nil
+        parameterTypes: [TypeID]? = nil,
+        methodUpperBounds: [[TypeID]]
     ) -> DelegationDispatchKey {
         return DelegationDispatchKey(
             name: method.name,
             parameterTypes: parameterTypes ?? signature.parameterTypes,
             methodTypeParameters: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)),
+            methodUpperBounds: methodUpperBounds,
             isSuspend: signature.isSuspend
         )
     }
@@ -1102,7 +1099,8 @@ extension DataFlowSemaPhase {
                   let method = symbols.symbol(funSymbol),
                   let signature = symbols.functionSignature(for: funSymbol)
             else { continue }
-            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature))
+            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature,
+                                                         methodUpperBounds: methodTypeParameterBounds(signature, types: types)))
         }
         var classPropertyNames: Set<InternedString> = []
         for propDeclID in memberProperties {
@@ -1167,6 +1165,13 @@ extension DataFlowSemaPhase {
                                 substituteDelegationType(
                                     $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
                                 )
+                            },
+                            methodUpperBounds: methodTypeParameterBounds(ifaceSig, types: types).map { bounds in
+                                bounds.map {
+                                    substituteDelegationType(
+                                        $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                                    )
+                                }
                             }
                         )
                         guard !seenMethodKeys.contains(where: { key.matches($0, types: types) }) else { continue }
