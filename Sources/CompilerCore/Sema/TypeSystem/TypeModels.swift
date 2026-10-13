@@ -184,3 +184,31 @@ public enum TypeKind: Hashable {
     case intersection([TypeID])
     case kClassType(KClassType)
 }
+
+extension TypeKind {
+    /// Rewrites nested TypeIDs while preserving nominal SymbolIDs.
+    func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeKind {
+        switch self {
+        case .error, .unit, .nullableUnit, .nothing, .any, .stringStruct, .primitive, .typeParam:
+            self
+        case let .classType(type):
+            .classType(ClassType(
+                classSymbol: type.classSymbol,
+                args: type.args.map { $0.mapTypes(transform) },
+                nullability: type.nullability
+            ))
+        case let .functionType(type):
+            .functionType(FunctionType(
+                contextReceivers: type.contextReceivers.map(transform),
+                receiver: type.receiver.map(transform), params: type.params.map(transform),
+                returnType: transform(type.returnType), isSuspend: type.isSuspend,
+                isCallableReference: type.isCallableReference, nullability: type.nullability,
+                throws: type.throws.map(transform)
+            ))
+        case let .intersection(parts):
+            .intersection(parts.map(transform))
+        case let .kClassType(type):
+            .kClassType(KClassType(argument: transform(type.argument), nullability: type.nullability))
+        }
+    }
+}

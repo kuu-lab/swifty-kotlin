@@ -93,6 +93,55 @@ public final class TypeSystem {
     public let byteType: TypeID
     public let shortType: TypeID
 
+    /// Copy-on-write snapshot taken at the module barrier. Nominal metadata
+    /// is frozen while independent scalar bodies run; new worker TypeIDs never
+    /// escape without canonicalization on the module thread.
+    func makeSemaWorkerTypes() -> TypeSystem {
+        let worker = TypeSystem()
+        worker.kindToID = kindToID
+        worker.idToKind = idToKind
+        worker.nominalDirectSupertypes = nominalDirectSupertypes
+        worker.nominalTypeParameterVariancesMap = nominalTypeParameterVariancesMap
+        worker.nominalTypeParameterSymbolsMap = nominalTypeParameterSymbolsMap
+        worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
+        worker.comparableInterfaceSymbol = comparableInterfaceSymbol
+        worker.annotationInterfaceSymbol = annotationInterfaceSymbol
+        worker.closeableInterfaceSymbol = closeableInterfaceSymbol
+        worker.ioCloseableInterfaceSymbol = ioCloseableInterfaceSymbol
+        worker.charSequenceInterfaceSymbol = charSequenceInterfaceSymbol
+        worker.closeableTypeID = closeableTypeID
+        worker.kFunctionInterfaceSymbol = kFunctionInterfaceSymbol
+        worker.kCallableInterfaceSymbol = kCallableInterfaceSymbol
+        worker.functionInterfaceSymbol = functionInterfaceSymbol
+        worker.functionNInterfaceSymbols = functionNInterfaceSymbols
+        worker.kClassInterfaceSymbol = kClassInterfaceSymbol
+        worker.numberClassSymbol = numberClassSymbol
+        worker.stringClassSymbol = stringClassSymbol
+        worker.charClassSymbol = charClassSymbol
+        worker.anyClassSymbol = anyClassSymbol
+        worker.unitClassSymbol = unitClassSymbol
+        worker.symbolTable = symbolTable
+        return worker
+    }
+
+    var internedTypeCount: Int { idToKind.count }
+
+    func workerTypeKinds(since count: Int) -> [TypeKind] {
+        Array(idToKind.dropFirst(count))
+    }
+
+    /// The worker snapshot prefix is identical to the module prefix. Replay
+    /// only its appended kinds, mapping references to preceding local kinds.
+    /// Calling this at each declaration's source position preserves ID order.
+    func mergeWorkerTypes(_ kinds: [TypeKind], startingAt count: Int) -> [TypeID: TypeID] {
+        var mapping: [TypeID: TypeID] = [:]
+        for (offset, kind) in kinds.enumerated() {
+            let local = TypeID(rawValue: Int32(count + offset))
+            mapping[local] = make(kind.mapTypes { mapping[$0] ?? $0 })
+        }
+        return mapping
+    }
+
     public init() {
         errorType = TypeID(rawValue: 0)
         unitType = TypeID(rawValue: 1)

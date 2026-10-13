@@ -42,6 +42,18 @@ public final class StringInterner: @unchecked Sendable {
 
     public init() {}
 
+    /// Preserves AST name IDs without allowing worker-local utility names to
+    /// perturb the module's interning order. No worker-created names escape.
+    func makeSemaWorkerInterner() -> StringInterner {
+        lock.lock()
+        defer { lock.unlock() }
+        let worker = StringInterner()
+        worker.nextID = nextID
+        worker.map = map
+        worker.values = values
+        return worker
+    }
+
     /// Keep compiler-name IDs local to this interner and initialize them only
     /// when first requested. Use a separate lock because creation calls intern().
     func cachedCompilerNames(create: () -> KnownCompilerNames) -> KnownCompilerNames {
