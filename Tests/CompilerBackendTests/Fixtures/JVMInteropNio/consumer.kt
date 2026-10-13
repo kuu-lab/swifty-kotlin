@@ -1,0 +1,1 @@
+fun main() { runNioInteropProbe(); runNioClosureProbe(); runSharedInteropProbe(); runBufferCharsetClosureProbe(); runCharsetEmptyMalformedProbe(); runNativeModelPrerequisitesProbe(); runStreamStorageProbe(); runStreamDescriptionProbe(); runSequenceCompositionProbe(); runSequenceEdgeProbe(); runSequenceCopyProbe() }

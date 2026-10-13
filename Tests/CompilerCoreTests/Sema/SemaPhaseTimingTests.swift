@@ -62,16 +62,42 @@ struct SemaPhaseTimingTests {
         let phase = try #require(timer.phaseRecords.first)
         #expect(phase.name == "Sema")
         #expect(phase.subRecords.map(\.name) == [
-            "sema-setup", "header-collection", "declaration-validation", "body-checks", "type-check",
+            "DataFlowSema", "TypeCheckSema",
         ])
-        for interval in phase.subRecords {
-            #expect(interval.startTime >= phase.startTime)
-            #expect(interval.endTime <= phase.endTime)
-            #expect(interval.startTime <= interval.endTime)
+        let dataFlow = try #require(phase.subRecords.first { $0.name == "DataFlowSema" })
+        #expect(dataFlow.subRecords.map(\.name) == [
+            "buildBundledIndex", "loadImports", "predeclareBundledHeaders",
+            "mergeImportedStdlibSymbolsIntoBundledIndex", "registerSyntheticDelegateStubs",
+            "applyImportedLibraryDeferredWork", "sema-setup", "collectAllHeaders",
+            "runValidationPasses", "runBodyAnalysis",
+        ])
+        let validation = try #require(dataFlow.subRecords.first { $0.name == "runValidationPasses" })
+        #expect(validation.subRecords.first?.name == "bindInheritanceEdges")
+        #expect(validation.subRecords.last?.name == "attachCompilerMetadataAnnotations")
+        let typeCheck = try #require(phase.subRecords.first { $0.name == "TypeCheckSema" })
+        #expect(typeCheck.subRecords.map(\.name) == ["type-check"])
+
+        func expectContainedIntervals(_ parent: PhaseTimer.PhaseRecord) {
+            for interval in parent.subRecords {
+                #expect(interval.startTime >= parent.startTime)
+                #expect(interval.endTime <= parent.endTime)
+                #expect(interval.startTime <= interval.endTime)
+                expectContainedIntervals(interval)
+            }
         }
+        expectContainedIntervals(phase)
         for (previous, next) in zip(phase.subRecords, phase.subRecords.dropFirst()) {
             #expect(previous.endTime <= next.startTime)
         }
+        // sema-setup includes the earlier preparation scopes, so it overlaps
+        // those siblings but finishes before header collection starts.
+        let setup = try #require(dataFlow.subRecords.first { $0.name == "sema-setup" })
+        for preparation in dataFlow.subRecords.prefix(while: { $0.name != "sema-setup" }) {
+            #expect(preparation.startTime >= setup.startTime)
+            #expect(preparation.endTime <= setup.endTime)
+        }
+        let headers = try #require(dataFlow.subRecords.first { $0.name == "collectAllHeaders" })
+        #expect(setup.endTime <= headers.startTime)
     }
 
     @Test

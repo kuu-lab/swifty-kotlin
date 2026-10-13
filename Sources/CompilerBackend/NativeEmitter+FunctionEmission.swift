@@ -304,6 +304,17 @@ extension NativeEmitter.FunctionEmissionContext {
         emitStackOverflowGuard()
 
         for (instructionIndex, instruction) in function.body.enumerated() {
+            // Lowering may leave dead expression tails after an unconditional
+            // terminator (for example, a synthesized Unit return after rethrow).
+            // Only a label can start a new reachable insertion block; emitting any
+            // other instruction here would place LLVM instructions after the
+            // current block's terminator.
+            if bindings.hasTerminator(currentBlock) {
+                guard case .label = instruction else {
+                    continue
+                }
+            }
+
             if let diContext,
                let subprogram = diContext.subprograms[function.symbol],
                bindings.debugLocationAvailable

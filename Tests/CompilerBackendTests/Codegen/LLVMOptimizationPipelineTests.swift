@@ -41,6 +41,52 @@ struct LLVMOptimizationPipelineTests {
     }
 
     @Test
+    func instructionsAfterRethrowAreSkippedUntilTheNextLabel() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let condition = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let thrown = arena.appendExpr(.intLiteral(7), type: types.intType)
+        let deadTail = arena.appendExpr(.temporary(0), type: types.intType)
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 45_000),
+            name: interner.intern("rethrowWithDeadTail"),
+            params: [],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: condition, value: .intLiteral(1)),
+                .constValue(result: thrown, value: .intLiteral(7)),
+                .jumpIfEqual(lhs: condition, rhs: condition, target: 1),
+                .rethrow(value: thrown),
+                // Finally/catch lowering can leave expression work after a
+                // rethrow. This arithmetic must not be emitted after the ret.
+                .binary(op: .add, lhs: condition, rhs: thrown, result: deadTail),
+                .label(1),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [arena.appendDecl(.function(function))])],
+            arena: arena
+        )
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O2,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".ll").path
+        defer { try? FileManager.default.removeItem(atPath: irPath) }
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+        #expect(!ir.isEmpty)
+    }
+
+    @Test
     func invalidIRIsRejectedBeforeRunningOptimization() throws {
         let bindings = try #require(LLVMCAPIBindings.loadUsable())
         let context = try #require(bindings.createContext())

@@ -1,4 +1,7 @@
 public final class SemaModule {
+    /// Number of independent bodies joined by the opt-in Sema runner.
+    var independentBodyCount = 0
+
     public let symbols: SymbolTable
     public let types: TypeSystem
     public let bindings: BindingTable

@@ -4,6 +4,70 @@ import Testing
 @Suite
 struct LambdaDestructuringInferenceTests {
     @Test
+    func singleComponentBindsExpectedType() throws {
+        let sources = [
+            """
+            package singleList
+            fun main() {
+                val transform: (List<Int>) -> Int = { (a) -> a }
+                println(transform(listOf(7, 8)))
+            }
+            """,
+            """
+            package singleCustom
+            class Box(val value: Int) { operator fun component1(): Int = value }
+            fun main() {
+                val transform: (Box) -> Int = { (a) -> a }
+                println(transform(Box(7)))
+            }
+            """,
+            """
+            package singleIgnored
+            fun main() {
+                val transform: (List<Int>) -> Int = { (_) -> 7 }
+                println(transform(listOf(7, 8)))
+            }
+            """,
+            """
+            package singleMixed
+            fun main() {
+                val transform: (Int, List<Int>) -> Int = { acc, (a) -> acc + a }
+                val reverse: (List<Int>, Int) -> Int = { (a), acc -> a + acc }
+                println(transform(1, listOf(7)))
+                println(reverse(listOf(7), 1))
+            }
+            """,
+            """
+            package singleAnnotated
+            fun main() {
+                val transform = { (a): List<Int> -> a }
+                val mixed = { acc: Int, (a): List<Int> -> acc + a }
+                println(transform(listOf(7)))
+                println(mixed(1, listOf(7)))
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            for (index, path) in paths.enumerated() {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "\(sources[index]): \(errors)")
+                if index == 2 { continue }
+                let refs = allExprIDs(in: ast, path: path, ctx: ctx) { _, expression in
+                    guard case let .nameRef(name, _) = expression else { return false }
+                    return ctx.interner.resolve(name) == "a"
+                }
+                let types = refs.compactMap { sema.bindings.exprType(for: $0) }
+                #expect(!types.isEmpty)
+                #expect(types.allSatisfy { $0 == sema.types.intType })
+            }
+        }
+    }
+
+    @Test
     func runningFoldBindsSecondParameterComponents() throws {
         let source = """
         data class Point(val x:Int){operator fun plus(p:Point)=Point(x+p.x);operator fun times(n:Int)=Point(x*n)}
@@ -75,6 +139,8 @@ struct LambdaDestructuringInferenceTests {
     @Test
     func rejectsInvalidComponents() throws {
         let cases = [
+            ("listOf(2).forEach { (first) -> println(first) }", ["KSWIFTK-SEMA-0086"]),
+            ("listOf(listOf(2)).forEach { (first): List<String> -> println(first) }", ["KSWIFTK-SEMA-0025"]),
             ("listOf(2 to 3).fold(0) { acc, (first, second, third) -> acc + third }", ["KSWIFTK-SEMA-0086"]),
             ("listOf(2).fold(0) { acc, (first, second) -> acc + first }", ["KSWIFTK-SEMA-0086"]),
             ("listOf(2 to 3).fold(0) { acc, (first, _) -> acc + second }", ["KSWIFTK-SEMA-0022"]),
