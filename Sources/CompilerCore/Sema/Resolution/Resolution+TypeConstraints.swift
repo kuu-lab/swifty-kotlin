@@ -79,8 +79,8 @@ extension OverloadResolver {
             return callArgs.isEmpty ? [:] : nil
         }
 
-        let hasDefaultValues = normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
-        let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
+        let hasDefaultValues = Self.normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
+        let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
         let paramNames = parameterNames(
             for: signature,
             symbols: symbols,
@@ -95,6 +95,7 @@ extension OverloadResolver {
         func trailingLambdaParameterIndex(for argIndex: Int) -> Int? {
             let argumentIsCallable = isCallableArgument?(argIndex) ?? isCallableLike(callArgs[argIndex].type)
             guard argIndex == callArgs.count - 1,
+                  callArgs[argIndex].isTrailingLambda,
                   argumentIsCallable
             else {
                 return nil
@@ -162,6 +163,7 @@ extension OverloadResolver {
         var boundNonVarargParams: Set<Int> = []
         var boundNamedVarargParams: Set<Int> = []
         var sawNamedArgument = false
+        var sawOutOfOrderNamedArgument = false
         var positionalCursor = 0
         // Highest parameter index bound so far by any argument (named or
         // positional). Kotlin only allows a positional argument after a named
@@ -176,6 +178,9 @@ extension OverloadResolver {
                 sawNamedArgument = true
                 guard let paramIndex = paramNames.firstIndex(where: { $0 == label }) else {
                     return nil
+                }
+                if paramIndex != positionalCursor {
+                    sawOutOfOrderNamedArgument = true
                 }
                 if arg.isSpread, !isVararg[paramIndex] {
                     return nil
@@ -200,8 +205,8 @@ extension OverloadResolver {
             }
 
             if sawNamedArgument {
-                // In Kotlin, positional arguments after named arguments
-                // are allowed only when they bind to a vararg parameter.
+                // Positional arguments after named arguments must retain
+                // declaration order, including ordinary callable arguments.
                 // Trailing lambdas are also allowed after named arguments when
                 // they map to the final function-typed parameter.
                 if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex),
@@ -218,14 +223,20 @@ extension OverloadResolver {
                     }
                     continue
                 }
-                // Advance the cursor past already-bound non-vararg params.
                 advancePositionalCursor(for: argIndex)
-                if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
+                if sawOutOfOrderNamedArgument || positionalCursor >= paramCount || positionalCursor < maxBoundParamIndex {
+                    return nil
+                }
+                if arg.isSpread, !isVararg[positionalCursor] {
                     return nil
                 }
                 guard !boundNamedVarargParams.contains(positionalCursor) else { return nil }
                 maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
+                if !isVararg[positionalCursor] {
+                    boundNonVarargParams.insert(positionalCursor)
+                    positionalCursor += 1
+                }
                 continue
             }
 
@@ -234,7 +245,7 @@ extension OverloadResolver {
                 return nil
             }
 
-            // Trailing lambda: a callable last argument can be bound to a later
+            // Trailing lambda: a lambda outside parentheses can be bound to a later
             // function-typed parameter when the intervening parameters have
             // default values.
             let paramIndex: Int
@@ -275,7 +286,7 @@ extension OverloadResolver {
         return mapping
     }
 
-    func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
+    static func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
         if flags.count == count {
             return flags
         }
@@ -317,7 +328,6 @@ extension OverloadResolver {
         return seen.sorted(by: { $0.rawValue < $1.rawValue })
     }
 
-    /// Checks whether a type contains any type parameters mapped in `typeVarBySymbol`.
     func containsTypeVariable(
         _ type: TypeID,
         typeVarBySymbol: [SymbolID: TypeVarID],
@@ -410,8 +420,6 @@ extension OverloadResolver {
             )]
         }
         let supertypeKind = typeSystem.kind(of: supertype)
-
-        // Case 1: supertype is a direct type parameter → single variable constraint.
         if case let .typeParam(typeParam) = supertypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
@@ -675,8 +683,6 @@ extension OverloadResolver {
                     depth: depth + 1
                 )
             }
-            // Different class symbols or mismatched arity – fall through to
-            // simple constraint which will use isSubtype.
         }
 
         // KClass<T> is covariant in T. Decompose receiver constraints like
@@ -753,7 +759,6 @@ extension OverloadResolver {
                         depth: depth + 1
                     ))
                 }
-                // Covariant in return type.
                 result.append(contentsOf: decomposeSubtypeConstraintImpl(
                     subtype: subFunc.returnType,
                     supertype: superFunc.returnType,
@@ -766,7 +771,6 @@ extension OverloadResolver {
             }
         }
 
-        // Case 4: subtype contains type variables (e.g. return type T or List<T>).
         let subtypeKind = typeSystem.kind(of: subtype)
         if case let .typeParam(typeParam) = subtypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
@@ -845,7 +849,6 @@ extension OverloadResolver {
             )
         }
 
-        // Default: simple type-to-type constraint.
         return [VariableConstraint(
             kind: .subtype,
             left: .type(subtype),
@@ -943,7 +946,6 @@ extension OverloadResolver {
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
-            // Invariant: both directions (equality).
             var result = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -958,7 +960,6 @@ extension OverloadResolver {
 
         case let (.invariant(subInner), .out(superInner)),
              let (.out(subInner), .out(superInner)):
-            // Covariant: sub <: super.
             return decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -967,7 +968,6 @@ extension OverloadResolver {
 
         case let (.invariant(subInner), .in(superInner)),
              let (.in(subInner), .in(superInner)):
-            // Contravariant: super <: sub.
             return decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -1064,8 +1064,4 @@ extension OverloadResolver {
             return typeSystem.isSubtype(rhs, lhs)
         }
     }
-
-    // Returns a diagnostic when the solver resolved a type variable to `errorType`,
-    // meaning no constraints existed to determine it.  The caller should require
-    // explicit type arguments in that case.
 }

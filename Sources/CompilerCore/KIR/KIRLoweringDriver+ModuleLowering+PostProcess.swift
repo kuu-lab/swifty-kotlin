@@ -70,7 +70,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Top-Level Init Injection
 
     private func injectTopLevelInits(
         body: [KIRInstruction],
@@ -105,7 +104,6 @@ extension KIRLoweringDriver {
         return newBody
     }
 
-    // MARK: - Delegate Access Rewriting
 
     /// Rewrites top-level delegated-property access sites (read/write, outside
     /// the property's own module) to call the synthesized `get`/`set`

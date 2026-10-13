@@ -137,6 +137,49 @@ extension TypeSystemTests {
         #expect(!ts.isSubtype(unitToInt, kMutableProperty0Int))
     }
 
+    @Test func testInheritedFunctionNClassTypePreservesFIFOForDiamondAndCycle() {
+        let ts = TypeSystem()
+        let function0Sym = SymbolID(rawValue: 100)
+        ts.functionNInterfaceSymbols[0] = function0Sym
+
+        let childSym = SymbolID(rawValue: 200)
+        let leftSym = SymbolID(rawValue: 201)
+        let rightSym = SymbolID(rawValue: 202)
+        let leftParam = SymbolID(rawValue: 210)
+        let rightParam = SymbolID(rawValue: 211)
+        ts.setNominalTypeParameterSymbols([leftParam], for: leftSym)
+        ts.setNominalTypeParameterSymbols([rightParam], for: rightSym)
+        ts.setNominalDirectSupertypes([leftSym, rightSym], for: childSym)
+        ts.setNominalSupertypeTypeArgs([.invariant(ts.intType)], for: childSym, supertype: leftSym)
+        ts.setNominalSupertypeTypeArgs([.invariant(ts.stringType)], for: childSym, supertype: rightSym)
+        ts.setNominalDirectSupertypes([function0Sym], for: leftSym)
+        ts.setNominalDirectSupertypes([function0Sym, childSym], for: rightSym)
+        ts.setNominalSupertypeTypeArgs([
+            .out(ts.make(.typeParam(TypeParamType(symbol: leftParam))))
+        ], for: leftSym, supertype: function0Sym)
+        ts.setNominalSupertypeTypeArgs([
+            .out(ts.make(.typeParam(TypeParamType(symbol: rightParam))))
+        ], for: rightSym, supertype: function0Sym)
+
+        let childType = ClassType(classSymbol: childSym, nullability: .nullable)
+        #expect(ts.inheritedFunctionNClassType(of: childType, arity: 0) == ClassType(
+            classSymbol: function0Sym,
+            args: [.out(ts.intType)],
+            nullability: .nullable
+        ))
+
+        let cycleRoot = SymbolID(rawValue: 300)
+        let cycleLeft = SymbolID(rawValue: 301)
+        let cycleRight = SymbolID(rawValue: 302)
+        ts.setNominalDirectSupertypes([cycleLeft], for: cycleRoot)
+        ts.setNominalDirectSupertypes([cycleRight], for: cycleLeft)
+        ts.setNominalDirectSupertypes([cycleLeft, cycleRoot], for: cycleRight)
+        #expect(ts.inheritedFunctionNClassType(
+            of: ClassType(classSymbol: cycleRoot),
+            arity: 0
+        ) == nil)
+    }
+
     @Test
     func testRenderTypeForBuiltIns() {
         let ts = TypeSystem()
@@ -483,6 +526,22 @@ extension TypeSystemTests {
         let ts = TypeSystem()
         let sym = SymbolID(rawValue: 0)
         #expect(ts.isNominalSubtypeSymbol(sym, of: sym))
+    }
+
+    @Test func testIsNominalSubtypeSymbolPreservesFIFOForWideDiamondAndCycle() {
+        let ts = TypeSystem()
+        let candidate = SymbolID(rawValue: 10_000)
+        let base = SymbolID(rawValue: 20_000)
+        let unrelated = SymbolID(rawValue: 30_000)
+        let shared = SymbolID(rawValue: 40_000)
+        let branches = (0 ..< 1_024).map { SymbolID(rawValue: Int32($0)) }
+        ts.setNominalDirectSupertypes(branches, for: candidate)
+        ts.setNominalDirectSupertypes([shared], for: branches[0])
+        ts.setNominalDirectSupertypes([shared], for: branches[1])
+        ts.setNominalDirectSupertypes([branches[0], branches[1], base], for: shared)
+
+        #expect(ts.isNominalSubtypeSymbol(candidate, of: base))
+        #expect(!ts.isNominalSubtypeSymbol(candidate, of: unrelated))
     }
 
     // MARK: - normalizedNominalVariances

@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "upstream": {
+    "version": "0.33.0",
+    "commit": "fc175fc575419ca9eae0d3c14cefe9c5cd7ca351",
+    "url": "https://github.com/Kotlin/kotlinx-atomicfu/tree/fc175fc575419ca9eae0d3c14cefe9c5cd7ca351"
+  },
+  "kotlin_version": "2.3.10",
+  "target": "linux_x64",
+  "native_home": "kotlin-native-prebuilt-linux-x86_64-2.3.10",
+  "konan_properties_sha256": "d9a5082b2a595e5a8e2e72dbc3442a1038590887d0cd5288a49f7ae7647144aa",
+  "artifacts": [
+    {
+      "role": "native_compiler",
+      "filename": "kotlin-native-prebuilt-linux-x86_64-2.3.10.tar.gz",
+      "url": "https://github.com/JetBrains/kotlin/releases/download/v2.3.10/kotlin-native-prebuilt-linux-x86_64-2.3.10.tar.gz",
+      "size": 212568930,
+      "sha256": "f78db338f8126d63a4ccb572aa62e8557aa243e672a668fb545b920e913550c5",
+      "extract_root": "kotlin-native-prebuilt-linux-x86_64-2.3.10"
+    },
+    {
+      "filename": "libffi-3.2.1-2-linux-x86-64.tar.gz",
+      "url": "https://download.jetbrains.com/kotlin/native/libffi-3.2.1-2-linux-x86-64.tar.gz",
+      "size": 56412,
+      "sha256": "9d817bbca098a2fa0f1d5a8b9e57674c30d100bb4c6aeceff18d8acc5b9f382c",
+      "role": "dependency_libffi",
+      "extract_root": "libffi-3.2.1-2-linux-x86-64"
+    },
+    {
+      "filename": "lldb-4-linux.tar.gz",
+      "url": "https://download.jetbrains.com/kotlin/native/lldb-4-linux.tar.gz",
+      "size": 52150087,
+      "sha256": "b1e145c859f44071f66231cfc98c8c16a480cbf47139fcd5dd2df4bf041fdfda",
+      "role": "dependency_lldb",
+      "extract_root": "lldb-4-linux"
+    },
+    {
+      "filename": "llvm-19-x86_64-linux-essentials-103.tar.gz",
+      "url": "https://download.jetbrains.com/kotlin/native/resources/llvm/19-x86_64-linux/llvm-19-x86_64-linux-essentials-103.tar.gz",
+      "size": 174370260,
+      "sha256": "c4567001682a937d4898c52991173cd705aba52113ed758a1901986c42b560b2",
+      "role": "dependency_llvm",
+      "extract_root": "llvm-19-x86_64-linux-essentials-103"
+    },
+    {
+      "filename": "x86_64-unknown-linux-gnu-gcc-8.3.0-glibc-2.19-kernel-4.9-2.tar.gz",
+      "url": "https://download.jetbrains.com/kotlin/native/x86_64-unknown-linux-gnu-gcc-8.3.0-glibc-2.19-kernel-4.9-2.tar.gz",
+      "size": 101793914,
+      "sha256": "a048397d50fb5a2bd6cc0f89d5a30e0b8ff0373ebff9c1d78ce1f1fb7f185a50",
+      "role": "dependency_x86_64",
+      "extract_root": "x86_64-unknown-linux-gnu-gcc-8.3.0-glibc-2.19-kernel-4.9-2"
+    },
+    {
+      "role": "atomicfu_native",
+      "filename": "atomicfu-linuxx64-0.33.0.klib",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-linuxx64/0.33.0/atomicfu-linuxx64-0.33.0.klib",
+      "size": 83792,
+      "sha256": "6e5916a1d492f14ed257c7f4977c94179a141e00da67c08ff492b058848044be"
+    },
+    {
+      "role": "atomicfu_cinterop",
+      "filename": "atomicfu-linuxx64-0.33.0-cinterop-interop.klib",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-linuxx64/0.33.0/atomicfu-linuxx64-0.33.0-cinterop-interop.klib",
+      "size": 3523,
+      "sha256": "69a60e899f17d3ec9f2b734199e74e54cda2d1ceea28d918608830bc6c3916c8"
+    },
+    {
+      "role": "atomicfu_sources",
+      "filename": "atomicfu-linuxx64-0.33.0-sources.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-linuxx64/0.33.0/atomicfu-linuxx64-0.33.0-sources.jar",
+      "size": 24751,
+      "sha256": "c42fc0a74388a147e40ab03b2c084c8e84f7a3620f58b19bb3b72ff417396a25"
+    },
+    {
+      "role": "atomicfu_jvm",
+      "filename": "atomicfu-jvm-0.33.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/atomicfu-jvm/0.33.0/atomicfu-jvm-0.33.0.jar",
+      "size": 61996,
+      "sha256": "cdc94bfe4f739a0121860e61977d5c1e6a3d53c21f2471493393ba9e900d394e"
+    }
+  ],
+  "klib_manifests": {
+    "atomicfu_native": {
+      "compiler_version": "2.2.21",
+      "abi_version": "2.2.0",
+      "native_targets": "linux_x64",
+      "unique_name": "org.jetbrains.kotlinx\\:atomicfu"
+    },
+    "atomicfu_cinterop": {
+      "compiler_version": "2.2.21",
+      "abi_version": "2.2.0",
+      "native_targets": "linux_x64",
+      "unique_name": "org.jetbrains.kotlinx\\:atomicfu-cinterop-interop"
+    }
+  },
+  "fixtures": {
+    "native_probe.kt": "90b0ad56265040ce7ebf22654824e4e40a1db770de71c481e071fe31bc7df687",
+    "jvm_probe.kt": "17240e26030510b13f37aa5c3dc2d2de165fe50fa23467ddff47ec1212c99fb2",
+    "native.expected": "404fb7466fcd250b85d0fa70f8cfbb97b553dc429e41636fc35d1bb494cc15ac",
+    "jvm.expected": "3bc0057a2ca4fe8711f96f6c95b8feaf3be6a9b6be7924c6cee90bf2d68b1014"
+  }
+}

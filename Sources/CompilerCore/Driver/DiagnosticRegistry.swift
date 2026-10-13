@@ -139,7 +139,6 @@ enum DiagnosticRegistry {
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
     ]
 
-    // MARK: - Lexer pass (LEX)
 
     static let lexDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -182,7 +181,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Parser pass (PARSE)
 
     static let parseDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -271,6 +269,12 @@ enum DiagnosticRegistry {
             summary: "Imports are only allowed in the beginning of file."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0018",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Unexpected token after expression."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -278,7 +282,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Semantic analysis pass (SEMA)
 
     static let semaDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -388,6 +391,12 @@ enum DiagnosticRegistry {
             summary: "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0027",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot import on demand from an object."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0031",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -412,6 +421,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Cannot access protected member.",
             codeActions: [DiagnosticCodeAction(title: "Change visibility to 'public'")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0430",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Worker.execute requires a non-capturing job."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0042",
@@ -952,7 +967,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Type resolution pass (TYPE)
 
     static let typeDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -963,7 +977,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Library import pass (LIB)
 
     static let libDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1088,7 +1101,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - KIR generation pass (KIR)
 
     static let kirDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1111,7 +1123,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Coroutine lowering pass (CORO)
 
     static let coroDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1134,7 +1145,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Inline lowering pass (INL)
 
     static let inlDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1145,7 +1155,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Backend pass (BACKEND)
 
     static let backendDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1162,7 +1171,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Link pass (LINK)
 
     static let linkDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1185,7 +1193,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Pipeline / driver pass (PIPELINE)
 
     static let pipelineDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1220,7 +1227,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Internal compiler error (ICE)
 
     static let iceDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1231,7 +1237,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Source loading pass (SOURCE)
 
     static let sourceDescriptors: [DiagnosticDescriptor] = [
         DiagnosticDescriptor(
@@ -1260,7 +1265,6 @@ enum DiagnosticRegistry {
         ),
     ]
 
-    // MARK: - Aggregate
 
     static let allDescriptors: [DiagnosticDescriptor] =
         lexDescriptors

@@ -131,8 +131,8 @@ extension CallTypeChecker {
                 return false
             }
         }) else { return .deferred }
-        let checkpoint = ctx.semaCtx.diagnostics.checkpoint()
-        defer { ctx.semaCtx.diagnostics.rollback(to: checkpoint) }
+        let checkpoint = ctx.sema.diagnostics.checkpoint()
+        defer { ctx.sema.diagnostics.rollback(to: checkpoint) }
         var probeLocals = locals
         let prepared = prepareCallArguments(
             args: args, candidates: arityCompatible, explicitTypeArgs: explicitTypeArgs,
@@ -140,7 +140,7 @@ extension CallTypeChecker {
         )
         guard !prepared.argTypes.contains(sema.types.errorType),
               prepared.argTypes.allSatisfy({ isClosedMemberInputType($0, sema: sema) }),
-              !ctx.semaCtx.diagnostics.diagnostics.dropFirst(checkpoint).contains(where: { $0.severity == .error })
+              !ctx.sema.diagnostics.diagnostics.dropFirst(checkpoint).contains(where: { $0.severity == .error })
         else { return .deferred }
         let resolved = resolveCallRespectingLambdaReturnType(
             candidates: arityCompatible, args: args, argTypes: prepared.argTypes,

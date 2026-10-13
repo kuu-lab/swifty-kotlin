@@ -4,6 +4,9 @@
 成果物は本書と [`fixtures/js_annotations/`](fixtures/js_annotations/)。
 製品実装は [KUU-1605〜1611](https://linear.app/kuu/issue/KUU-1602)、
 candidate-only runner は [KUU-1612](https://linear.app/kuu/issue/KUU-1612) が担当する。
+
+7検証子チケットの進捗と残る失敗、source/artifact の保存結果は
+[独立検証の集約](js-annotations-validation-status.md) を参照。
 元ケースの振り分け・移設・削除・SKIP 解除は [KUU-1480](https://linear.app/kuu/issue/KUU-1480) の担当である。
 
 ## 1. Oracle と監査範囲
@@ -166,12 +169,19 @@ requirement は `kotlin.js.ExperimentalJsReflectionCreateInstance`。
 後者は呼出し時に `KClass<ExportedBox>` を渡す参照である。
 `.name` の期待値は `createInstance`。
 
-`ExportedBox(val value: Int = 7)` の direct call と bound reference call は value=7 を返す。
-`reflection.kt` は既定値評価が各生成で行われること、引数ゼロ constructor、
-必須引数だけを持つ constructor の `IllegalArgumentException` を観測する。
-JS 本体は constructor metadata の `defaultConstructor` を使う。
-複数 constructor、可視性、全種類の失敗 matrix は KUU-1611 / 1615 の追加回帰範囲であり、
-本書は未採取の診断/例外を採取済みとして扱わない。
+`ExportedBox(val value: Int = 7)` の direct call は value=7 を返す。
+`reflection.kt` は、引数ゼロ constructor、既定値だけを持つ constructor、既定値式の評価回数、
+必須引数だけを持つ失敗、選択可能な constructor が複数ある失敗を固定する。
+Kotlin/JS 本体は constructor metadata の `defaultConstructor` を使い、候補が0個または複数なら
+`IllegalArgumentException("Class \"<simpleName>\" should have a single no-arg constructor")`
+を投げる。後者は primary `val value: Int = 7` と secondary `constructor() : this(42)` を持つ
+形で 2.3.10 にコンパイル・実行し、複数候補として拒否されることを確認する。
+KSwiftK native の期待出力は `expectations.json` の `nativeContract` に別記し、JS の例外文言と
+同一だと仮定しない。native の文言は `Class should have a single no-arg constructor: class <SimpleName>`。
+両 target とも `IllegalArgumentException` で拒否する。元ケースの bound callable reference の `.name` は
+`native_observations.kt` の `ExportedBox:createInstance:7` に残す。
+bound/unbound reference の呼出し結果に対する `.kklib` generic metadata は KUU-1616 に渡す。
+可視性など、このケースで使っていない形状へ結果を一般化しない。
 
 ## 5. Native 互換契約と JS emission
 

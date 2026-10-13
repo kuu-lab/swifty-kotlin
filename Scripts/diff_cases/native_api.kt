@@ -1,10 +1,11 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* and kotlinx.cinterop.* APIs are only available on Kotlin/Native targets.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: native_api.expected.stdout
+@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.CName
 import kotlin.native.Platform
 import kotlin.native.CpuArchitecture
 import kotlin.native.OsFamily
-import kotlin.native.ref.Pinned
 import kotlin.native.concurrent.Worker
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.COpaquePointer
@@ -40,16 +41,6 @@ fun demonstrateMemScoped() {
     }
 }
 
-// ── freeze / isFrozen (legacy Kotlin/Native immutability) ────────────────────
-
-@ExperimentalNativeApi
-fun demonstrateFreeze() {
-    val list = mutableListOf(1, 2, 3)
-    // freeze() marks an object as immutable in Kotlin/Native legacy MM
-    list.freeze()
-    println("list_frozen=${list.isFrozen}")
-}
-
 // ── Worker API ────────────────────────────────────────────────────────────────
 
 fun demonstrateWorker() {
@@ -57,7 +48,7 @@ fun demonstrateWorker() {
     val future = worker.execute(TransferMode.SAFE, { 21 }) { input -> input * 2 }
     val result = future.result
     println("worker_result=${result}")
-    worker.requestTermination(processScheduled = false).result
+    worker.requestTermination(processScheduledJobs = false).result
 }
 
 // ── Platform.cpuArchitecture / Platform.osFamily ─────────────────────────────
@@ -73,8 +64,6 @@ fun demonstratePlatform() {
 fun main() {
     demonstrateCPointers()
     demonstrateMemScoped()
-    @OptIn(ExperimentalNativeApi::class)
-    demonstrateFreeze()
     demonstratePlatform()
     // Worker demo is omitted from main() as it requires Kotlin/Native runtime
     println("native_api_ok=true")

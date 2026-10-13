@@ -187,7 +187,6 @@ extension DataFlowSemaPhase {
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isOpenClass: metadataRecord.isOpenClass,
-                isInnerClass: metadataRecord.isInnerClass,
                 modality: metadataRecord.modality,
                 isSealedClass: metadataRecord.isSealedClass,
                 isFunInterface: metadataRecord.isFunInterface,
@@ -207,6 +206,7 @@ extension DataFlowSemaPhase {
                 ownerNominalTypeParametersSignature: ownerNominalTypeParametersSignature,
                 nominalSupertypeSignatures: metadataRecord.nominalSupertypeSignatures,
                 constValueLiteral: metadataRecord.constValueLiteral,
+                isInnerClass: metadataRecord.isInnerClass,
                 nominalTypeParameters: metadataRecord.nominalTypeParameters
             )
     }

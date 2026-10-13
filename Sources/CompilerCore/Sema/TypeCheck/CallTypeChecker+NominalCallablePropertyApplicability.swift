@@ -16,7 +16,7 @@ extension CallTypeChecker {
                 && ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
         }
         let callArgs = zip(request.args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg(label: argument.label, isSpread: argument.isSpread, isTrailingLambda: argument.isTrailingLambda, type: type)
         }
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
@@ -63,7 +63,7 @@ extension CallTypeChecker {
                 candidates: [candidate],
                 call: CallExpr(range: request.range, calleeName: invoke, args: callArgs, explicitTypeArgs: request.explicitTypeArgs),
                 expectedType: nil, implicitReceiverType: type,
-                candidateArgumentTypes: [candidate: replacements], ctx: ctx.semaCtx
+                candidateArgumentTypes: [candidate: replacements], ctx: ctx.sema
             )
             if !probe.viableCandidates.isEmpty { return true }
         }

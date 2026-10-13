@@ -10,17 +10,10 @@
  *   is identical.
  * - the `-Util.kt` helpers (`reverseBytes`, `hexNumberLength`) are bundled separately and
  *   used as upstream does.
- * - `writeDecimalLong`'s `Long.MIN_VALUE` shortcut calls `Sink.writeString` upstream; the
- *   UTF-8 codec (`Utf8.kt`) is not bundled yet, so the same ASCII bytes are written directly.
- * - `writeToInternalBuffer` keeps `inline` + `contract`, but the upstream opt-in annotations
- *   (`@DelicateIoApi`, `@OptIn(InternalIoApi::class, UnsafeIoApi::class)`) are dropped —
- *   `Annotations.kt` is not bundled yet.
+ * - `writeDecimalLong` emits the fixed `Long.MIN_VALUE` ASCII bytes directly rather than
+ *   allocating the temporary UTF-8 array used by upstream's `Sink.writeString` shortcut.
  * - upstream's `HEX_DIGIT_BYTES` byte array is the `-Util.kt` `HEX_DIGIT_CHARS` string
  *   here; `Char.code.toByte()` adapts its elements to `Byte`.
- * - `Sink.write(ByteArray)` / `Sink.write(ByteArray, Int)` are separate `Sink` members
- *   (upstream folds them into `write(ByteArray, Int, Int)`'s default parameter values —
- *   see the note in Sink.kt): an extension named `write` would be shadowed by the `write`
- *   members on `Buffer`/`RealSink`, and interface-method bodies are not lowered correctly.
  */
 package kotlinx.io
 
@@ -355,6 +348,7 @@ public fun Sink.writeDoubleLe(double: Double) {
  * @throws IllegalStateException when the sink is closed.
  * @throws IOException when some I/O error occurs.
  */
+@DelicateIoApi
 @OptIn(InternalIoApi::class, ExperimentalContracts::class)
 public inline fun Sink.writeToInternalBuffer(lambda: (Buffer) -> Unit) {
     contract {

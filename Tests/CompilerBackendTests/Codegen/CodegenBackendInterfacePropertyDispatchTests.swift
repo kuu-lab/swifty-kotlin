@@ -12,52 +12,9 @@ import Testing
 // undefined `<propertyName>` symbol and the program failed to link
 // (`KSWIFTK-LINK-0001`); the object-side getters were never registered in the
 // itable either.
-private func runInterfacePropertyDispatchCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    outputPath: String
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: .executable,
-        target: defaultTargetTriple()
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    try CodegenPhase().run(ctx)
-    return ctx
-}
 
 @Suite
 struct CodegenBackendInterfacePropertyDispatchTests {
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runInterfacePropertyDispatchCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testObjectExpressionStoredPropertyReadThroughInterface() throws {
@@ -296,6 +253,109 @@ struct CodegenBackendInterfacePropertyDispatchTests {
                 childDefault
                 """ + "\n"
         )
+    }
+
+    @Test
+    func testRepeatedInterfacePropertySetterDispatchAcrossImplementations() throws {
+        let source = """
+        package fixture
+
+        interface Counter {
+            val name: String
+            var value: Int
+        }
+
+        class First(override val name: String, override var value: Int) : Counter
+        class Second(override val name: String, override var value: Int) : Counter
+
+        fun incrementTwice(counter: Counter) {
+            counter.value = counter.value + 1
+            counter.value = counter.value + 1
+        }
+
+        fun main() {
+            val first: Counter = First("first", 1)
+            val second: Counter = Second("second", 2)
+            repeat(3) {
+                incrementTwice(first)
+                incrementTwice(second)
+            }
+            first.value = 7
+            second.value = 8
+            println("${first.name}:${first.value}")
+            println("${second.name}:${second.value}")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "InterfacePropertySetterDispatch",
+            expected: "first:7\nsecond:8\n"
+        )
+    }
+
+    @Test
+    func testInterfacePropertySetterDispatchAcrossKlibBoundary() throws {
+        let librarySource = """
+        package fixture
+
+        interface Counter {
+            val name: String
+            var value: Int
+        }
+
+        class First(override val name: String, override var value: Int) : Counter
+        class Second(override val name: String, override var value: Int) : Counter
+        """
+        let consumerSource = """
+        package consumer
+
+        import fixture.Counter
+        import fixture.First
+        import fixture.Second
+
+        fun incrementTwice(counter: Counter) {
+            counter.value = counter.value + 1
+            counter.value = counter.value + 1
+        }
+
+        fun main() {
+            val first: Counter = First("first", 1)
+            val second: Counter = Second("second", 2)
+            repeat(3) {
+                incrementTwice(first)
+                incrementTwice(second)
+            }
+            first.value = 7
+            second.value = 8
+            println("${first.name}:${first.value}")
+            println("${second.name}:${second.value}")
+        }
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "InterfaceSetterLibrary") { libraryPath in
+            try withTemporaryFile(contents: consumerSource) { consumerPath in
+                let outputBase = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: outputBase) }
+
+                let consumer = try makeArtifactCompilationContext(
+                    inputs: [consumerPath],
+                    moduleName: "InterfaceSetterConsumer",
+                    emit: .executable,
+                    outputPath: outputBase,
+                    searchPaths: [libraryPath]
+                )
+                try runToLowering(consumer)
+                try assertNoDiagnosticErrors(consumer)
+                try CodegenPhase().run(consumer)
+                try LinkPhase().run(consumer)
+
+                let result = try CommandRunner.run(executable: outputBase, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout == "first:7\nsecond:8\n")
+            }
+        }
     }
 }
 #endif

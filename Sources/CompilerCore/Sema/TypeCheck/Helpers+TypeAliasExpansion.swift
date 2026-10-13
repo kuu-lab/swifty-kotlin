@@ -1,6 +1,4 @@
 
-// Typealias expansion and substitution helpers.
-
 extension TypeCheckHelpers {
     /// Maximum depth for recursive typealias expansion to prevent infinite loops.
     static let maxAliasExpansionDepth = 32
@@ -15,7 +13,6 @@ extension TypeCheckHelpers {
         depth: Int,
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID? {
-        // Cycle detection
         guard !visited.contains(symbolID) else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-ALIAS-CYCLE",
@@ -24,7 +21,6 @@ extension TypeCheckHelpers {
             )
             return nil
         }
-        // Depth limit
         guard depth < TypeCheckHelpers.maxAliasExpansionDepth else {
             diagnostics?.error(
                 "KSWIFTK-SEMA-ALIAS-DEPTH",
@@ -36,7 +32,6 @@ extension TypeCheckHelpers {
         guard let underlying = sema.symbols.typeAliasUnderlyingType(for: symbolID) else {
             return nil
         }
-        // Substitute type parameters
         let expanded = substituteTypeAliasParamsForTypeCheck(
             underlying,
             aliasSymbol: symbolID,
@@ -44,12 +39,10 @@ extension TypeCheckHelpers {
             sema: sema,
             diagnostics: diagnostics
         )
-        // Validate variance constraints after expansion
         validateVarianceAfterExpansion(
             expanded, aliasSymbol: symbolID, typeArgs: typeArgs,
             sema: sema, diagnostics: diagnostics
         )
-        // If expanded type is itself a typealias, continue expansion
         if case let .classType(classType) = sema.types.kind(of: expanded),
            let targetSymbol = sema.symbols.symbol(classType.classSymbol),
            targetSymbol.kind == .typeAlias
