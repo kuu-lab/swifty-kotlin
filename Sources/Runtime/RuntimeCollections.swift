@@ -697,7 +697,7 @@ func runtimeListIteratorSet(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMuta
         runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
         return runtimeExceptionCaughtSentinel
     }
-    guard iter.setLastReturned(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem)) else {
+    guard iter.setLastReturned(runtimeValueFromCollectionABI(elem)) else {
         runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
         return runtimeExceptionCaughtSentinel
     }
@@ -713,7 +713,7 @@ func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMuta
         runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
         return runtimeExceptionCaughtSentinel
     }
-    iter.addBeforeNext(runtimeMutableListInsertedValue(for: iter.values, rawValue: elem))
+    iter.addBeforeNext(runtimeValueFromCollectionABI(elem))
     return 0
 }
 
@@ -818,7 +818,7 @@ public func kk_mutable_collection_add_throwing(
     guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
     if let list = runtimeListBox(from: collectionRaw) {
         list.withMutableValues { values in
-            values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+            values.append(runtimeValueFromCollectionABI(elem))
         }
         return kk_box_bool(1)
     }
@@ -1010,19 +1010,6 @@ public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
     return destRaw
 }
 
-private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
-    let value = runtimeValueFromCollectionABI(rawValue)
-    if value.tag == RuntimeValue.charTag {
-        return value
-    }
-    if !currentValues.isEmpty,
-       currentValues.allSatisfy({ $0.tag == RuntimeValue.charTag })
-    {
-        return RuntimeValue(charScalar: maybeUnbox(rawValue))
-    }
-    return value
-}
-
 @_cdecl("__kk_mutable_list_add")
 public func kk_mutable_list_add(
     _ listRaw: Int,
@@ -1045,7 +1032,7 @@ public func kk_mutable_list_add(
     guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
     guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
     list.withMutableValues { values in
-        values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+        values.append(runtimeValueFromCollectionABI(elem))
     }
     return kk_box_bool(1)
 }
@@ -1201,7 +1188,7 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
     }
     guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     list.withMutableValues { values in
-        values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
+        values.insert(runtimeValueFromCollectionABI(element), at: index)
     }
     return 0
 }
@@ -1272,7 +1259,7 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
     guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
     let values = list.values
     let old = values[index]
-    let replacement = runtimeMutableListInsertedValue(for: values, rawValue: element)
+    let replacement = runtimeValueFromCollectionABI(element)
     list.setValue(replacement, at: index)
     return old.legacyRawValue
 }

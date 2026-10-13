@@ -1010,6 +1010,7 @@ extension DataFlowSemaPhase {
         let name: InternedString
         let parameterTypes: [TypeID]
         let methodTypeParameters: [SymbolID]
+        let methodUpperBounds: [[TypeID]]
         let isSuspend: Bool
 
         func matches(_ other: DelegationDispatchKey, types: TypeSystem) -> Bool {
@@ -1017,31 +1018,27 @@ extension DataFlowSemaPhase {
                   parameterTypes.count == other.parameterTypes.count,
                   methodTypeParameters.count == other.methodTypeParameters.count
             else { return false }
-            // Compare alpha-equivalent method parameters after the interface's
-            // class parameters have been substituted. Arity alone loses overloads.
-            let typeVarBySymbol = types.makeTypeVarBySymbol(methodTypeParameters)
-            var substitution: [TypeVarID: TypeID] = [:]
-            for (parameter, otherParameter) in zip(methodTypeParameters, other.methodTypeParameters) {
-                guard let typeVar = typeVarBySymbol[parameter] else { continue }
-                substitution[typeVar] = types.make(.typeParam(TypeParamType(
-                    symbol: otherParameter, nullability: .nonNull
-                )))
+            func aligned(_ type: TypeID) -> TypeID {
+                alphaAlignedMethodType(type, sourceParameters: methodTypeParameters,
+                                       targetParameters: other.methodTypeParameters, types: types)
             }
-            return parameterTypes.map {
-                types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
-            } == other.parameterTypes
+            return methodIdentityParameterTypesMatch(candidateParameterTypes: other.parameterTypes,
+                                                     interfaceParameterTypes: parameterTypes.map(aligned), types: types)
+                && methodUpperBoundSetsMatch(methodUpperBounds.map { $0.map(aligned) }, other.methodUpperBounds, types: types)
         }
     }
 
     private func delegationDispatchKey(
         for method: SemanticSymbol,
         signature: FunctionSignature,
-        parameterTypes: [TypeID]? = nil
+        parameterTypes: [TypeID]? = nil,
+        methodUpperBounds: [[TypeID]]
     ) -> DelegationDispatchKey {
         return DelegationDispatchKey(
             name: method.name,
             parameterTypes: parameterTypes ?? signature.parameterTypes,
             methodTypeParameters: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)),
+            methodUpperBounds: methodUpperBounds,
             isSuspend: signature.isSuspend
         )
     }
@@ -1102,7 +1099,8 @@ extension DataFlowSemaPhase {
                   let method = symbols.symbol(funSymbol),
                   let signature = symbols.functionSignature(for: funSymbol)
             else { continue }
-            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature))
+            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature,
+                                                         methodUpperBounds: methodTypeParameterBounds(signature, types: types)))
         }
         var classPropertyNames: Set<InternedString> = []
         for propDeclID in memberProperties {
@@ -1167,6 +1165,13 @@ extension DataFlowSemaPhase {
                                 substituteDelegationType(
                                     $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
                                 )
+                            },
+                            methodUpperBounds: methodTypeParameterBounds(ifaceSig, types: types).map { bounds in
+                                bounds.map {
+                                    substituteDelegationType(
+                                        $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                                    )
+                                }
                             }
                         )
                         guard !seenMethodKeys.contains(where: { key.matches($0, types: types) }) else { continue }
@@ -1304,15 +1309,52 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol, args: classTypeArgs, nullability: .nonNull
         )))
 
-        let parameterTypes = ifaceSig.parameterTypes.map {
+        // Class parameters come from the delegating receiver; method parameters
+        // need fresh binders owned by this forwarder, including in their bounds.
+        let interfaceMethodParameters = Array(ifaceSig.typeParameterSymbols.dropFirst(ifaceSig.classTypeParameterCount))
+        let localNamespace = forwardingFQName + [interner.intern("$\(forwardingSymbol.rawValue)")]
+        let methodParameters = interfaceMethodParameters.map { original in
+            let name = symbols.symbol(original)?.name ?? interner.intern("T\(original.rawValue)")
+            let parameter = symbols.define(
+                kind: .typeParameter,
+                name: name,
+                fqName: localNamespace + [name],
+                declSite: range,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(forwardingSymbol, for: parameter)
+            symbols.setAnnotations(symbols.annotations(for: original), for: parameter)
+            return parameter
+        }
+        var forwardingSubstitution = substitution
+        var forwardingTypeVars = typeVarBySymbol
+        for (original, parameter) in zip(interfaceMethodParameters, methodParameters) {
+            let typeVar = TypeVarID(rawValue: Int32(forwardingTypeVars.count))
+            forwardingTypeVars[original] = typeVar
+            forwardingSubstitution[typeVar] = types.make(.typeParam(TypeParamType(
+                symbol: parameter, nullability: .nonNull
+            )))
+        }
+        func substitute(_ type: TypeID) -> TypeID {
             substituteDelegationType(
-                $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                type, substitution: forwardingSubstitution, typeVarBySymbol: forwardingTypeVars, types: types
             )
         }
-        let returnType = substituteDelegationType(
-            ifaceSig.returnType, substitution: substitution,
-            typeVarBySymbol: typeVarBySymbol, types: types
-        )
+        let methodBounds = interfaceMethodParameters.enumerated().map { index, original in
+            let signatureIndex = ifaceSig.classTypeParameterCount + index
+            let bounds = signatureIndex < ifaceSig.typeParameterUpperBoundsList.count
+                ? ifaceSig.typeParameterUpperBoundsList[signatureIndex]
+                : symbols.typeParameterUpperBounds(for: original)
+            let substitutedBounds = bounds.map(substitute)
+            symbols.setTypeParameterUpperBounds(substitutedBounds, for: methodParameters[index])
+            return substitutedBounds
+        }
+
+        let parameterTypes = ifaceSig.parameterTypes.map {
+            substitute($0)
+        }
+        let returnType = substitute(ifaceSig.returnType)
 
         var paramSymbols: [SymbolID] = []
         for (index, paramType) in parameterTypes.enumerated() {
@@ -1341,7 +1383,10 @@ extension DataFlowSemaPhase {
             valueParameterSymbols: paramSymbols,
             valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
             valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count),
-            typeParameterSymbols: classTypeParameterSymbols,
+            typeParameterSymbols: classTypeParameterSymbols + methodParameters,
+            typeParameterUpperBoundsList: classTypeParameterSymbols.map {
+                symbols.typeParameterUpperBounds(for: $0)
+            } + methodBounds,
             classTypeParameterCount: classTypeParameterSymbols.count
         )
         symbols.setFunctionSignature(forwardingSig, for: forwardingSymbol)

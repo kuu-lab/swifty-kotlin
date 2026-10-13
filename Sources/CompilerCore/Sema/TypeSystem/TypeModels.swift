@@ -156,7 +156,8 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Represents `kotlin.reflect.KClass<T>`, the type of `T::class` expressions.
+/// Represents invariant `kotlin.reflect.KClass<T>`, including `T::class`.
+/// Use-site projections remain nominal `ClassType` arguments.
 public struct KClassType: Hashable, Sendable {
     public let argument: TypeID
     public let nullability: Nullability
