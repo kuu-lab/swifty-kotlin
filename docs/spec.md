@@ -711,6 +711,16 @@ public struct FunctionType {
 
 `KClassType` は不変の `KClass<T : Any>` を表す。`out` / `in` / `*` の use-site projection は nominal `ClassType` の `TypeArg` に保持し、固定 receiver との適合判定やメタデータ保存で不変型へ消去しない。KClass 型の共通型は、入力型がすべての入力の上位型ならその型を保持し、それ以外では `KClass<out U>` に近似して `KClass<U>` の不変性を維持する。
 
+generic extension の `KClass<T>` receiver は不変の制約として分解し、projection から推論する
+`T` は `TypeParamType.capture` に呼び出し内の identity と下限・上限を持つ。
+`KClass<in Int>` の capture は `Int <: capture <: Any` であり、`Int` を消費できるが
+戻り値を `Int` に固定しない。上限のメンバーと builtin 演算は読み取り上限を使い、
+capture を含むプロパティへの代入は下限を含む subtype 制約を検査する。
+metadata の公開型シグネチャは capture identity を外へ出さず、読み取り上限と
+安全な use-site projection に近似し、反変位置と nullable を保持する。
+class literal の reflection target は nominal symbol を保持し、builtin の `KClass` 型引数は
+通常の値型と同じ canonical `TypeID` を使う。
+
 ## J8.2 TypeSystem API
 
 ```swift
