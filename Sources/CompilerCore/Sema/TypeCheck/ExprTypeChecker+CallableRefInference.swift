@@ -692,6 +692,42 @@ extension ExprTypeChecker {
         } else {
             nil
         }
+        if candidates.count == 1 {
+            driver.inferFunctionReturnTypesIfNeeded(for: candidates)
+        } else if let expectedFunctionType,
+                  case let .functionType(expectedFunction) = sema.types.kind(of: expectedFunctionType),
+                  candidates.contains(where: {
+                      driver.inferredReturnFunctions[$0] != nil
+                          && !driver.checkedInferredReturnFunctions.contains($0)
+                  })
+        {
+            // The inferred return is unavailable while choosing a dependency.
+            // Infer only an unambiguous input shape. A broader unselected
+            // overload must not introduce a dependency cycle.
+            let inputType = sema.types.make(.functionType(FunctionType(
+                contextReceivers: expectedFunction.contextReceivers,
+                receiver: expectedFunction.receiver,
+                params: expectedFunction.params,
+                returnType: sema.types.nullableAnyType,
+                isSuspend: expectedFunction.isSuspend,
+                isCallableReference: expectedFunction.isCallableReference,
+                nullability: expectedFunction.nullability,
+                throws: expectedFunction.throws
+            )))
+            let inputMatches = candidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                return driver.helpers.contextualCallableFunctionType(
+                    for: signature,
+                    bindReceiver: isBoundReceiver,
+                    boundReceiver: boundReceiverType.map { (candidate, $0) },
+                    expectedFunctionType: inputType,
+                    sema: sema
+                ) != nil
+            }
+            if inputMatches.count == 1 {
+                driver.inferFunctionReturnTypesIfNeeded(for: inputMatches)
+            }
+        }
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
