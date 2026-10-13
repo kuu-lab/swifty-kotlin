@@ -148,6 +148,17 @@ extension CallTypeChecker {
             }
         }
 
+        // Infer return types only for candidates compatible with the known
+        // arguments. A same-named but inapplicable overload must not create
+        // a spurious dependency cycle while checking an inferred body.
+        driver.inferFunctionReturnTypesIfNeeded(for: narrowedCallCandidates(
+            candidates: candidates,
+            args: args,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            receiverType: receiverType,
+            ctx: ctx
+        ))
+
         if lambdaLiteralIndices.count > 1 {
             blockedLambdaRefinement = true
         }

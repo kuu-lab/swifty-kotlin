@@ -987,15 +987,21 @@ extension DeclTypeChecker {
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: signature.receiverType,
+                    contextReceiverTypes: signature.contextReceiverTypes,
                     parameterTypes: signature.parameterTypes,
                     returnType: bodyType,
                     isSuspend: signature.isSuspend,
+                    canThrow: signature.canThrow,
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                    hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
                     typeParameterSymbols: signature.typeParameterSymbols,
-                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices
+                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                    typeParameterUpperBounds: signature.typeParameterUpperBounds,
+                    typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                    classTypeParameterCount: signature.classTypeParameterCount
                 ),
                 for: symbol
             )
