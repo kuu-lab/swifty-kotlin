@@ -46,7 +46,7 @@ struct GeneratedTestRunnerExecutionTests {
             @Case open fun test() { println("base.test") }
         }
         class Derived: Base() { override fun test() { println("derived.test") } }
-        class DerivedIgnore: Base() { @Ignore override fun test() { fail("must not run") } }
+        class DerivedIgnore: Base() { @Ignore override fun test() { println("ignore-only override") } }
         class Fresh(val number: Int = 7) {
             var local: Int = 0
             @BeforeTest @Ignore private fun setup() { local += 1 }
@@ -97,7 +97,10 @@ struct GeneratedTestRunnerExecutionTests {
         derived.test
         base.after
         PASS runner.Derived.test
-        SKIP runner.DerivedIgnore.test
+        base.before
+        ignore-only override
+        base.after
+        PASS runner.DerivedIgnore.test
         fresh.a
         fresh.after
         PASS runner.Fresh.a
@@ -122,7 +125,7 @@ struct GeneratedTestRunnerExecutionTests {
         unicode
         file.after
         PASS runner.日本語 [b.kt]
-        Tests: 11 passed, 0 failed, 3 skipped
+        Tests: 12 passed, 0 failed, 2 skipped
 
         """)
     }
@@ -200,6 +203,284 @@ struct GeneratedTestRunnerExecutionTests {
         Tests: 4 passed, 0 failed, 0 skipped
 
         """)
+    }
+
+    @Test(arguments: [false, true])
+    func runsClassHooksOnceWithInheritanceFreshInstancesAndIgnoredCases(fromSource: Bool) throws {
+        let result = try compileAndRun([("lifecycle.kt", """
+        package lifecycle
+        import kotlin.test.*
+        import kotlin.test.BeforeClass as BeforeSuite
+        import kotlin.test.AfterClass as AfterSuite
+        var starts: Int = 0
+        var finishes: Int = 0
+        var bodies: Int = 0
+        abstract class Base {
+            companion object {
+                @BeforeClass fun never() { fail("base companion is not inherited") }
+            }
+            @BeforeTest private fun before() { println("base.before") }
+            @AfterTest private fun after() { println("base.after") }
+            @Test open fun a() { println("base.test") }
+        }
+        class Derived: Base() {
+            var local: Int = 0
+            companion object Named {
+                @BeforeSuite @Ignore private fun setup() {
+                    starts += 1; assertEquals(1, starts); println("suite.before")
+                }
+                @AfterSuite private fun cleanup() {
+                    finishes += 1; assertEquals(1, finishes); assertEquals(2, bodies); println("suite.after")
+                }
+            }
+            @BeforeTest private fun before() { local += 1; println("derived.before") }
+            override fun a() { assertEquals(1, starts); assertEquals(0, finishes); assertEquals(1, local); bodies += 1; println("a") }
+            @Test fun b() { assertEquals(1, starts); assertEquals(0, finishes); assertEquals(1, local); bodies += 1; println("b") }
+            @Test @Ignore fun ignored() { fail("ignored") }
+            @AfterTest private fun after() { println("derived.after") }
+        }
+        object AllIgnored {
+            @BeforeClass fun setup() { fail("all ignored setup") }
+            @AfterClass fun cleanup() { fail("all ignored cleanup") }
+            @Test @Ignore fun test() { fail("all ignored test") }
+        }
+        object Empty { @BeforeClass fun setup() { fail("empty setup") }; @AfterClass fun cleanup() { fail("empty cleanup") } }
+        @Ignore class Skipped private constructor() {
+            companion object { @BeforeClass fun setup() { fail("ignored suite setup") }; @AfterClass fun cleanup() { fail("ignored suite cleanup") } }
+            @Test fun test() { fail("ignored suite test") }
+        }
+        object Singleton {
+            var starts: Int = 0
+            var bodies: Int = 0
+            @BeforeClass private fun setup() { starts += 1; println("object.before") }
+            @Test fun a() { assertEquals(1, starts); bodies += 1 }
+            @Test fun b() { assertEquals(1, starts); bodies += 1 }
+            @AfterClass private fun cleanup() { assertEquals(2, bodies); println("object.after") }
+        }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == """
+        SKIP lifecycle.AllIgnored.test
+        suite.before
+        base.before
+        derived.before
+        a
+        derived.after
+        base.after
+        PASS lifecycle.Derived.a
+        base.before
+        derived.before
+        b
+        derived.after
+        base.after
+        PASS lifecycle.Derived.b
+        SKIP lifecycle.Derived.ignored
+        suite.after
+        object.before
+        PASS lifecycle.Singleton.a
+        PASS lifecycle.Singleton.b
+        object.after
+        SKIP lifecycle.Skipped.test
+        Tests: 4 passed, 0 failed, 3 skipped
+
+        """)
+    }
+
+    @Test(arguments: [false, true])
+    func groupsFileSuitesAndImportsDefaultPackageClassHooks(fromSource: Bool) throws {
+        let result = try compileAndRun([("a.kt", """
+        import kotlin.test.*
+        var startsA: Int = 0
+        @BeforeClass private fun setupA() { startsA += 1; println("a.before") }
+        @AfterClass private fun cleanupA() { assertEquals(1, startsA); println("a.after") }
+        @BeforeTest private fun beforeA() { assertEquals(1, startsA) }
+        @Test private fun a() { println("a.a") }
+        @Test private fun z() { println("a.z") }
+        """), ("b.kt", """
+        import kotlin.test.*
+        var startsB: Int = 0
+        @BeforeClass private fun setupB() { startsB += 1; println("b.before") }
+        @AfterClass private fun cleanupB() { assertEquals(1, startsB); println("b.after") }
+        @Test private fun a() { assertEquals(1, startsB); println("b.a") }
+        @Test private fun m() { assertEquals(1, startsB); println("b.m") }
+        """), ("ignored.kt", """
+        import kotlin.test.*
+        @BeforeClass fun setup() { fail("ignored file setup") }
+        @AfterClass fun cleanup() { fail("ignored file cleanup") }
+        @Test @Ignore fun ignored() { fail("ignored file test") }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == """
+        a.before
+        a.a
+        PASS a [a.kt]
+        a.z
+        PASS z [a.kt]
+        a.after
+        b.before
+        b.a
+        PASS a [b.kt]
+        b.m
+        PASS m [b.kt]
+        b.after
+        SKIP ignored [ignored.kt]
+        Tests: 4 passed, 0 failed, 1 skipped
+
+        """)
+    }
+
+    @Test(arguments: [false, true])
+    func inheritsObjectHooksAndKeepsNativeRegistrationOrder(fromSource: Bool) throws {
+        let result = try compileAndRun([("objects.kt", """
+        import kotlin.test.*
+        open class Hooks {
+            @BeforeClass open fun zSetup() { println("base.zSetup") }
+            @BeforeClass open fun aSetup() { println("base.aSetup") }
+            @AfterClass open fun zCleanup() { println("base.zCleanup") }
+            @AfterClass open fun aCleanup() { println("base.aCleanup") }
+            @BeforeClass private fun privateSetup() { fail("private hook is not inherited") }
+        }
+        interface Unrelated { @BeforeClass fun setup() { fail("interface hook is not inherited") } }
+        object Suite: Hooks(), Unrelated {
+            @BeforeClass private fun ownSetup() { println("own.setup") }
+            override fun zSetup() { println("override.setup") }
+            @AfterClass private fun ownCleanup() { println("own.cleanup") }
+            @Test fun a() { println("a") }
+            @Test fun b() { println("b") }
+        }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == """
+        own.setup
+        override.setup
+        base.aSetup
+        a
+        PASS Suite.a
+        b
+        PASS Suite.b
+        own.cleanup
+        base.aCleanup
+        base.zCleanup
+        Tests: 2 passed, 0 failed, 0 skipped
+
+        """)
+    }
+
+    @Test(arguments: [false, true])
+    func resolvesInheritedIgnoreFromTheTestAnnotationOwner(fromSource: Bool) throws {
+        let result = try compileAndRun([("ignore-owner.kt", """
+        import kotlin.test.*
+        abstract class IgnoredBase { @Test @Ignore open fun test() { fail("ignored base") } }
+        abstract class ActiveBase { @Test open fun test() { println("inherited.test") } }
+        open class Hooks {
+            @BeforeClass open fun setup() { println("inherited.setup") }
+            @AfterClass open fun cleanup() { println("inherited.cleanup") }
+        }
+        class AExplicitTest: IgnoredBase() {
+            companion object: Hooks() {
+                override fun setup() { println("override.setup") }
+            }
+            @Test override fun test() { println("explicit.test") }
+        }
+        class BIgnoreOnly: ActiveBase() {
+            companion object {
+                @BeforeClass fun setup() { println("ignore-only.setup") }
+                @AfterClass fun cleanup() { println("ignore-only.cleanup") }
+            }
+            @Ignore override fun test() { println("ignore-only.test") }
+        }
+        class CInheritedIgnore: IgnoredBase() {
+            companion object { @BeforeClass fun setup() { fail("inherited ignored setup") } }
+            override fun test() { fail("inherited ignored test") }
+        }
+        class DExplicitIgnore: ActiveBase() {
+            companion object { @BeforeClass fun setup() { fail("explicit ignored setup") } }
+            @Test @Ignore override fun test() { fail("explicit ignored test") }
+        }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == """
+        override.setup
+        explicit.test
+        PASS AExplicitTest.test
+        inherited.cleanup
+        ignore-only.setup
+        ignore-only.test
+        PASS BIgnoreOnly.test
+        ignore-only.cleanup
+        SKIP CInheritedIgnore.test
+        SKIP DExplicitIgnore.test
+        Tests: 2 passed, 0 failed, 2 skipped
+
+        """)
+    }
+
+    @Test(arguments: [false, true])
+    func preservesHiddenCompanionVisibilityWithoutConstructingExtraInstances(fromSource: Bool) throws {
+        let result = try compileAndRun([("private-companions.kt", """
+        import kotlin.test.*
+        var instances: Int = 0
+        class AUnnamed {
+            init { instances += 1 }
+            private companion object {
+                @BeforeClass private fun setup() { assertEquals(0, instances); println("unnamed.before") }
+                @AfterClass private fun cleanup() { assertEquals(1, instances); println("unnamed.after") }
+            }
+            @Test fun test() { println("unnamed.test") }
+        }
+        class BNamed {
+            init { instances += 1 }
+            private companion object Hidden {
+                @BeforeClass private fun setup() { assertEquals(1, instances); println("named.before") }
+                @AfterClass private fun cleanup() { assertEquals(2, instances); println("named.after") }
+            }
+            @Test fun test() { println("named.test") }
+        }
+        class CProtected {
+            init { instances += 1 }
+            protected companion object Hidden {
+                @BeforeClass private fun setup() { assertEquals(2, instances); println("protected.before") }
+                @AfterClass private fun cleanup() { assertEquals(3, instances); println("protected.after") }
+            }
+            @Test fun test() { println("protected.test") }
+        }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == """
+        unnamed.before
+        unnamed.test
+        PASS AUnnamed.test
+        unnamed.after
+        named.before
+        named.test
+        PASS BNamed.test
+        named.after
+        protected.before
+        protected.test
+        PASS CProtected.test
+        protected.after
+        Tests: 3 passed, 0 failed, 0 skipped
+
+        """)
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func abortsOnClassHookFailures(fromSource: Bool, failBefore: Bool) throws {
+        let before = failBefore ? "throw IllegalStateException(\"before class\")" : "println(\"before\")"
+        let after = failBefore ? "println(\"NEVER AFTER\")" : "throw IllegalStateException(\"after class\")"
+        let result = try compileAndRun([("abort.kt", """
+        import kotlin.test.*
+        object ASuite {
+            @BeforeClass fun setup() { \(before) }
+            @Test fun a() { println("test"); fail("body failure") }
+            @AfterClass fun cleanup() { \(after) }
+            @AfterClass fun laterCleanup() { println("NEVER LATER CLEANUP") }
+        }
+        object BSuite { @Test fun test() { println("NEVER LATER SUITE") } }
+        """)], fromSource: fromSource)
+        #expect(result.exitCode != 0)
+        #expect(result.stdout == (failBefore ? "" : "before\ntest\nFAIL ASuite.a: body failure\n"))
+        #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
     }
 
     @Test

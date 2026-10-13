@@ -6,13 +6,13 @@ extension TypeCheckDriver {
     func inferFunctionReturnTypesIfNeeded(for candidates: [SymbolID]) {
         for symbol in candidates {
             guard let declaration = inferredReturnFunctions[symbol],
-                  !checkedInferredReturnFunctions.contains(symbol)
+                  !checkedInferredReturnFunctions.contains(symbol),
+                  !checkingInferredReturnFunctions.contains(symbol)
             else { continue }
-            guard checkingInferredReturnFunctions.insert(symbol).inserted else {
-                // A candidate is not necessarily the selected overload. Diagnose
-                // a cycle only after expression inference binds the actual call.
-                continue
-            }
+            // Use the declaration's file scope and receiver/parameter bindings,
+            // never the caller's lambda locals or expected return type.
+            let checkpoint = diagnostics.checkpoint()
+            let signature = sema.symbols.functionSignature(for: symbol)
             declChecker.typeCheckFunctionDecl(
                 declaration.function,
                 symbol: symbol,
@@ -20,8 +20,18 @@ extension TypeCheckDriver {
                 solver: solver,
                 diagnostics: diagnostics
             )
-            checkingInferredReturnFunctions.remove(symbol)
-            checkedInferredReturnFunctions.insert(symbol)
+            let errors = diagnostics.diagnostics.dropFirst(checkpoint).filter { $0.severity == .error }
+            if !errors.isEmpty,
+               !errors.contains(where: { $0.message.hasPrefix("Recursive ") })
+            {
+                // An untyped member dependency may become concrete during its
+                // owner's normal pass. Retry this declaration authoritatively;
+                // do not turn a speculative placeholder failure into a new error.
+                diagnostics.rollback(to: checkpoint)
+                if let signature { sema.symbols.setFunctionSignature(signature, for: symbol) }
+                checkedInferredReturnFunctions.remove(symbol)
+                deferredInferredReturnFunctions.insert(symbol)
+            }
         }
     }
 

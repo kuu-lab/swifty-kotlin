@@ -6,6 +6,7 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
+| `js_annotations/run_ci.py` | ✓ | JVM-independent annotation/view/reflection source/artifact O0/O2 matrix, runner regressions, and KUU-1480 evidence; see [handoff](../docs/js-annotations-ci-evidence.md) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
 | `real_programs/run.py` | – | Run the [23 pinned public Kotlin consumers](real_programs/round1/README.md) against Kotlin 2.3.10 and native O0/O2 with one fresh shared stdlib; compare exit code, stdout, and stderr |
 | `run_candidate_only.sh` | ✓ | Compile one Kotlin case without a JVM reference and compare stdout with its `.expected` file |
@@ -249,6 +250,21 @@ cases. Run a candidate-only file directly to verify it without JVM tooling:
 ```bash
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_ThreadLocal_n_n.kt
 ```
+
+For the audited `js_annotations.kt` migration, use the dedicated native lane:
+
+```bash
+KSWIFTK_OPTIMIZE_COMPILER_CORE=1 swift build --product kswiftc
+KOTLINC=/not-used JAVA_BIN=/not-used python3 Scripts/js_annotations/run_ci.py
+```
+
+Pass `--kswiftc .build/out/Products/Debug/kswiftc` for the Xcode build layout.
+This runs all 27 native fixtures across source injection/fresh `.kklib` and
+O0/O2, preserving failures, timeouts, and unexecuted cases in evidence artifacts.
+PR CI owns the fast runner regressions; `nightly-full.yml` owns the real matrix
+in `verify-js-annotations`. See [runner commands](js_annotations/README.md) and
+[coverage and SKIP-removal handoff](../docs/js-annotations-ci-evidence.md). The current
+SKIP remains until the full evidence is ready; this does not run the JVM diff.
 
 `diff_kotlinc.sh` detects imports in the target file or recursively in a target
 directory and downloads JVM reference jars from Maven Central:

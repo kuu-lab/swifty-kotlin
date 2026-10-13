@@ -1300,12 +1300,13 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        resultTypeOverride: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty else { return nil }
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "name" || calleeStr == "ordinal" else { return nil }
-        let resultType = sema.bindings.exprTypes[exprID]
+        let resultType = resultTypeOverride ?? sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
                 ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
