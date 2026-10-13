@@ -10,6 +10,8 @@ struct TestRunnerGeneratorTests {
     annotation class Ignore
     annotation class BeforeTest
     annotation class AfterTest
+    annotation class BeforeClass
+    annotation class AfterClass
     """
 
     private func discover(_ source: String) throws -> (CompilationContext, TestRunnerGenerator.Result?) {
@@ -65,6 +67,13 @@ struct TestRunnerGeneratorTests {
 
     @Test(arguments: [
         "@kotlin.test.Test fun invalid(value: Int) {}",
+        "@kotlin.test.BeforeClass fun invalid(value: Int) {}",
+        "@kotlin.test.AfterClass fun invalid(): Int = 1",
+        "@kotlin.test.BeforeClass suspend fun invalid() {}",
+        "@kotlin.test.AfterClass fun <T> invalid() {}",
+        "@kotlin.test.BeforeClass fun String.invalid() {}",
+        "class Invalid { companion object { @kotlin.test.BeforeClass fun invalid(value: Int) {} } }",
+        "@kotlin.test.Ignore object Invalid { @kotlin.test.AfterClass fun invalid(): Int = 1; @kotlin.test.Test fun test() {} }",
         "@kotlin.test.Test fun invalid(): Int = 1",
         "@kotlin.test.Test suspend fun invalid() {}",
         "@kotlin.test.Test fun <T> invalid() {}",
@@ -103,6 +112,107 @@ struct TestRunnerGeneratorTests {
         for path in options.inputs { _ = overlay.sourceManager.addFile(path: path, contents: result.sources[path]!) }
         try runFrontendSyntaxPhases(overlay)
         #expect(!overlay.diagnostics.hasError, "\(overlay.diagnostics.diagnostics)\n\(overlays)")
+    }
+
+    @Test
+    func resolvesSuiteHookAliasesAndWarnsOnInstancePlacement() throws {
+        let (context, generated) = try discover("""
+        import kotlin.test.*
+        import kotlin.test.BeforeClass as BeforeSuite
+        import kotlin.test.AfterClass as AfterSuite
+        annotation class BeforeClass
+        class Suite {
+            @kotlin.test.BeforeClass fun misplaced() {}
+            companion object Named {
+                @BeforeSuite private fun setup() {}
+                @AfterSuite private fun cleanup() {}
+                @BeforeClass fun unrelated() {}
+            }
+            @Test fun test() {}
+        }
+        """)
+        let result = try #require(generated)
+        let runner = String(decoding: try #require(result.sources[result.runnerPath]), as: UTF8.self)
+        #expect(runner.contains("__kswiftk_test_BeforeClass_suite_"))
+        #expect(runner.contains("__kswiftk_test_AfterClass_suite_"))
+        let overlays = result.sources.values.map { String(decoding: $0, as: UTF8.self) }.joined(separator: "\n")
+        #expect(overlays.contains("`Suite`.`Named`.__kswiftk_test_bridge_"))
+        #expect(overlays.contains("{ `setup`() }"))
+        #expect(overlays.contains("{ `cleanup`() }"))
+        #expect(!overlays.contains("{ `misplaced`() }"))
+        #expect(!overlays.contains("{ `unrelated`() }"))
+        let warnings = context.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-TEST-0002" }
+        #expect(warnings.count == 1)
+        #expect(warnings.first?.severity == .warning)
+        #expect(warnings.first?.primaryRange != nil)
+    }
+
+    @Test
+    func ignoredAndEmptySuitesDoNotGenerateClassHookCalls() throws {
+        let (_, generated) = try discover("""
+        import kotlin.test.*
+        @Ignore class Ignored private constructor() {
+            companion object { @BeforeClass fun setup() {}; @AfterClass fun cleanup() {} }
+            @Test fun test() {}
+        }
+        object AllIgnored {
+            @BeforeClass fun setup() {}
+            @AfterClass fun cleanup() {}
+            @Test @Ignore fun test() {}
+        }
+        object Empty { @BeforeClass fun setup() {}; @AfterClass fun cleanup() {} }
+        @BeforeClass fun setup() {}
+        @AfterClass fun cleanup() {}
+        @Test @Ignore fun ignoredFileTest() {}
+        """)
+        let result = try #require(generated)
+        let runner = String(decoding: try #require(result.sources[result.runnerPath]), as: UTF8.self)
+        #expect(!runner.contains("__kswiftk_test_BeforeClass_"))
+        #expect(!runner.contains("__kswiftk_test_AfterClass_"))
+        #expect(runner.components(separatedBy: "reporter.skip(").count - 1 == 3)
+    }
+
+    @Test(arguments: [
+        ("@Test @Ignore", "@Test", false),
+        ("@Test", "@Ignore", false),
+        ("@Test @Ignore", "", true),
+        ("@Test", "@Test @Ignore", true),
+    ])
+    func inheritedIgnoreUsesNearestTestDeclaration(baseTags: String, overrideTags: String, ignored: Bool) throws {
+        let (_, generated) = try discover("""
+        import kotlin.test.*
+        abstract class Base { \(baseTags) open fun test() {} }
+        class Derived: Base() {
+            companion object { @BeforeClass fun setup() {}; @AfterClass fun cleanup() {} }
+            \(overrideTags) override fun test() {}
+        }
+        """)
+        let result = try #require(generated)
+        let runner = String(decoding: try #require(result.sources[result.runnerPath]), as: UTF8.self)
+        #expect(runner.contains("reporter.skip(\"Derived.test\")") == ignored)
+        #expect(runner.contains("__kswiftk_test_BeforeClass_suite_") == !ignored)
+        #expect(runner.contains("__kswiftk_test_AfterClass_suite_") == !ignored)
+    }
+
+    @Test(arguments: ["", "Hidden"], ["private", "protected"])
+    func bridgesHiddenCompanionsFromTheirOriginalClassScope(companionName: String, visibility: String) throws {
+        let (_, generated) = try discover("""
+        import kotlin.test.*
+        class Suite {
+            \(visibility) companion object \(companionName) {
+                @BeforeClass private fun setup() {}
+                @AfterClass private fun cleanup() {}
+            }
+            @Test fun test() {}
+        }
+        """)
+        let result = try #require(generated)
+        let overlays = result.sources.values.map { String(decoding: $0, as: UTF8.self) }.joined(separator: "\n")
+        #expect(overlays.contains("\(visibility) companion object \(companionName)"))
+        #expect(overlays.contains("object __kswiftk_test_suite_hooks_suite_"))
+        #expect(overlays.contains("`Suite`.__kswiftk_test_suite_hooks_suite_"))
+        #expect(overlays.contains("fun before(): Unit"))
+        #expect(overlays.contains("fun after(): Unit"))
     }
 
     @Test

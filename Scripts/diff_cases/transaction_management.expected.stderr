@@ -1,0 +1,60 @@
+Scripts/diff_cases/transaction_management.kt:9:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getAutoCommit'.
+    println(connection.getAutoCommit())
+            ^
+Scripts/diff_cases/transaction_management.kt:10:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setAutoCommit'.
+    connection.setAutoCommit(false)
+    ^
+Scripts/diff_cases/transaction_management.kt:11:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getAutoCommit'.
+    println(connection.getAutoCommit())
+            ^
+Scripts/diff_cases/transaction_management.kt:13:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getTransactionIsolation'.
+    println(connection.getTransactionIsolation() == 2)
+            ^
+Scripts/diff_cases/transaction_management.kt:14:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setTransactionIsolation'.
+    connection.setTransactionIsolation(8)
+    ^
+Scripts/diff_cases/transaction_management.kt:15:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getTransactionIsolation'.
+    println(connection.getTransactionIsolation() == 8)
+            ^
+Scripts/diff_cases/transaction_management.kt:16:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setTransactionIsolation'.
+    connection.setTransactionIsolation(4)
+    ^
+Scripts/diff_cases/transaction_management.kt:17:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getTransactionIsolation'.
+    println(connection.getTransactionIsolation() == 4)
+            ^
+Scripts/diff_cases/transaction_management.kt:19:19: error KSWIFTK-SEMA-0024: Unresolved member function 'setSavepoint'.
+    val unnamed = connection.setSavepoint()
+                  ^
+Scripts/diff_cases/transaction_management.kt:22:17: error KSWIFTK-SEMA-0024: Unresolved member function 'setSavepoint'.
+    val named = connection.setSavepoint("beforeCommit")
+                ^
+Scripts/diff_cases/transaction_management.kt:25:5: error KSWIFTK-SEMA-0024: Unresolved member function 'rollback'.
+    connection.rollback(named)
+    ^
+Scripts/diff_cases/transaction_management.kt:26:5: error KSWIFTK-SEMA-0024: Unresolved member function 'releaseSavepoint'.
+    connection.releaseSavepoint(named)
+    ^
+Scripts/diff_cases/transaction_management.kt:27:5: error KSWIFTK-SEMA-0024: Unresolved member function 'commit'.
+    connection.commit()
+    ^
+Scripts/diff_cases/transaction_management.kt:28:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getAutoCommit'.
+    println(connection.getAutoCommit() == false)
+            ^
+Scripts/diff_cases/transaction_management.kt:30:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setAutoCommit'.
+    connection.setAutoCommit(false)
+    ^
+Scripts/diff_cases/transaction_management.kt:31:25: error KSWIFTK-SEMA-0024: Unresolved member function 'setSavepoint'.
+    val afterRollback = connection.setSavepoint("afterRollback")
+                        ^
+Scripts/diff_cases/transaction_management.kt:32:5: error KSWIFTK-SEMA-0024: Unresolved member function 'rollback'.
+    connection.rollback()
+    ^
+Scripts/diff_cases/transaction_management.kt:36:9: error KSWIFTK-SEMA-0024: Unresolved member function 'releaseSavepoint'.
+        connection.releaseSavepoint(afterRollback)
+        ^
+Scripts/diff_cases/transaction_management.kt:42:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setAutoCommit'.
+    connection.setAutoCommit(true)
+    ^
+Scripts/diff_cases/transaction_management.kt:45:9: error KSWIFTK-SEMA-0024: Unresolved member function 'commit'.
+        connection.commit()
+        ^

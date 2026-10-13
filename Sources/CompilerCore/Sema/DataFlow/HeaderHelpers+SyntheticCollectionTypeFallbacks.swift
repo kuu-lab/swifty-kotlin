@@ -292,8 +292,6 @@ extension DataFlowSemaPhase {
         return abstractCollectionSymbol
     }
 
-
-    /// Register a minimal `kotlin.collections.MutableCollection<E>` interface surface.
     func registerSyntheticMutableCollectionStub(
         symbols: SymbolTable,
         types: TypeSystem,

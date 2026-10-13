@@ -88,7 +88,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    // MARK: - Backing field
 
     private func emitBackingFieldIfNeeded(
         symbol: SymbolID,
@@ -107,7 +106,6 @@ extension KIRLoweringDriver {
         ))))
     }
 
-    // MARK: - Explicit Backing Field Initializer (Kotlin 2.0)
 
     /// Emits initialization instructions for an explicit backing field.
     /// The initializer expression comes from the `field = expr` declaration,
@@ -136,7 +134,6 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
-    // MARK: - Property Accessors
 
     private func lowerPropertyAccessors(
         _ propertyDecl: PropertyDecl,
@@ -170,7 +167,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Property Initializer
 
     private func lowerPropertyInitializer(
         _ propertyDecl: PropertyDecl,
@@ -232,7 +228,6 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
     }
 
-    // MARK: - Delegate Property
 
     private func lowerPropertyDelegate(
         _ propertyDecl: PropertyDecl,
@@ -322,7 +317,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    // MARK: - Delegate init instructions
 
     private func emitDelegateInitInstructions(
         delegateKind: StdlibDelegateKind,

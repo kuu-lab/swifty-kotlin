@@ -441,7 +441,7 @@ extension DeclTypeChecker {
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             guard !probe.viableCandidates.isEmpty else {
                 return nil
@@ -451,7 +451,7 @@ extension DeclTypeChecker {
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: receiverType,
-                ctx: ctx.semaCtx
+                ctx: ctx.sema
             )
             return PropertyDelegateFunctionResolution(
                 symbol: resolved.chosenCallee,
@@ -462,7 +462,7 @@ extension DeclTypeChecker {
 
         if let memberResolution = resolve(memberCandidates) {
             if let diagnostic = memberResolution.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
             }
             return memberResolution
         }
@@ -533,7 +533,7 @@ extension DeclTypeChecker {
         }
         if let extensionResolution = resolve(preferredExtensionCandidates) {
             if let diagnostic = extensionResolution.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
+                ctx.sema.diagnostics.emit(diagnostic)
             }
             return extensionResolution
         }

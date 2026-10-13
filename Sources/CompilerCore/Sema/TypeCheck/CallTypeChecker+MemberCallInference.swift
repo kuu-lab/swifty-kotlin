@@ -175,7 +175,7 @@ extension CallTypeChecker {
         if isBundledPropertyStyleFacadeFunction(chosen, ctx: request.ctx) {
             return result
         }
-        request.ctx.semaCtx.diagnostics.error(
+        request.ctx.sema.diagnostics.error(
             "KSWIFTK-SEMA-0309",
             "function invocation '\(request.ctx.interner.resolve(request.calleeName))()' expected.",
             range: request.range
@@ -409,7 +409,7 @@ extension CallTypeChecker {
 
         let candidates = concreteSupertypes.isEmpty ? memberSupertypes : concreteSupertypes
         if candidates.count > 1 {
-            ctx.semaCtx.diagnostics.error(
+            ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0056",
                 "Multiple supertypes available. Specify the intended supertype in angle brackets, e.g. 'super<Foo>'.",
                 range: range

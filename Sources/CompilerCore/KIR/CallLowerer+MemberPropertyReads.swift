@@ -975,6 +975,16 @@ extension CallLowerer {
         )
         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let result = arena.appendTemporary(type: resultType)
+        if emitRuntimeKClassConstructorsFastPath(
+            propertyInfo: propertyInfo,
+            ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return result
+        }
         let runtimeNameEndLabel = emitRuntimeKCallableNameFastPath(
             propertyInfo: propertyInfo,
             ownerInfo: ownerInfo,
@@ -1008,6 +1018,32 @@ extension CallLowerer {
             instructions.append(.label(rangeEndLabel))
         }
         return result
+    }
+
+    /// KClass handles are runtime boxes and do not have compiler-emitted
+    /// interface tables. Read the constructor registry through its runtime
+    /// bridge instead of dispatching the source-backed interface getter.
+    private func emitRuntimeKClassConstructorsFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        guard ownerInfo.fqName == ["kotlin", "reflect", "KClass"].map(interner.intern),
+              interner.resolve(propertyInfo.name) == "constructors"
+        else {
+            return false
+        }
+
+        emitNonThrowingCall(
+            callee: interner.intern("__kk_kclass_constructors"),
+            arg: loweredReceiverID,
+            result: result,
+            into: &instructions
+        )
+        return true
     }
 
     private func emitRuntimeFloatingPointEndpointFastPath(
@@ -1264,12 +1300,13 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        resultTypeOverride: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty else { return nil }
         let calleeStr = interner.resolve(calleeName)
         guard calleeStr == "name" || calleeStr == "ordinal" else { return nil }
-        let resultType = sema.bindings.exprTypes[exprID]
+        let resultType = resultTypeOverride ?? sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
                 ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))

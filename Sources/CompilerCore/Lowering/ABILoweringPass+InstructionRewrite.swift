@@ -19,6 +19,41 @@ extension ABILoweringPass {
         // Generic slots carry boxes even when their upper bound is primitive.
         // A concrete primitive extension receiver requires the unboxed payload.
         let receiverIndex = receiverOffset - 1
+        // Enum bodies require raw ordinals. Only unwrap an argument when
+        // the formal type is the same non-null enum; nullable enum / Any
+        // extensions keep their boxes. Default stubs carry their receiver as
+        // an ordinary parameter, so use this rule for both kinds of slot.
+        func unboxNullableEnum(_ argument: KIRExprID, to targetType: TypeID) -> KIRExprID? {
+            guard case let .classType(targetClass) = types.kind(of: targetType),
+                  targetClass.nullability == .nonNull,
+                  symbols?.symbol(targetClass.classSymbol)?.kind == .enumClass,
+                  let argType = intrinsicArgType(argument, arena: module.arena, types: types),
+                  case let .classType(argClass) = types.kind(of: argType),
+                  argClass.nullability == .nullable,
+                  argClass.classSymbol == targetClass.classSymbol,
+                  let unboxCallee = unboxingCallee(
+                      sourceKind: types.kind(of: argType),
+                      targetKind: types.kind(of: targetType),
+                      boxingCalleeTable: boxingCalleeTable,
+                      types: types,
+                      symbols: symbols,
+                      preferStaticPrimitive: true
+                  )
+            else { return nil }
+            return emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: argument,
+                resultType: targetType,
+                arena: module.arena,
+                into: &newBody
+            )
+        }
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           let receiverType = signature.receiverType,
+           let unboxed = unboxNullableEnum(arguments[receiverIndex], to: receiverType)
+        {
+            boxedArguments[receiverIndex] = unboxed
+        }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
@@ -87,6 +122,10 @@ extension ABILoweringPass {
             let paramType = parameterTypes[paramIndex]
             let argType = intrinsicArgType(arguments[argIndex], arena: module.arena, types: types)
             guard let argType else {
+                continue
+            }
+            if let unboxed = unboxNullableEnum(arguments[argIndex], to: paramType) {
+                boxedArguments[argIndex] = unboxed
                 continue
             }
             if let boxCallee = boxingCallee(
@@ -301,6 +340,16 @@ extension ABILoweringPass {
             return nil
         }
         if let returnType = symbols.functionSignature(for: callSymbol)?.returnType {
+            return returnType
+        }
+        // External property bridges are emitted as calls to the property symbol
+        // itself, rather than to a getter accessor. Preserve their declared
+        // generic result type so ABI lowering can unbox a concrete use site.
+        if symbols.symbol(callSymbol)?.kind == .property,
+           let linkName = symbols.externalLinkName(for: callSymbol),
+           !linkName.isEmpty,
+           let returnType = symbols.propertyType(for: callSymbol)
+        {
             return returnType
         }
         // An interface property's dynamic getter has a synthetic ID even

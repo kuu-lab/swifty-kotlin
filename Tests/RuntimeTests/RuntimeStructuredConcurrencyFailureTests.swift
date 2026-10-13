@@ -206,7 +206,7 @@ struct RuntimeStructuredConcurrencyFailureTests {
         defer {
             _ = kk_coroutine_scope_wait(scopeHandle)
             state.jobHandle = previousStateJob
-            RuntimeContinuationState.removeCurrent(forTask: taskKey)
+            RuntimeContinuationState.removeState(forTask: taskKey)
             RuntimeCoroutineScope.removeScope(forTask: taskKey)
             RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
             RuntimeJobHandle.current = outerJob
