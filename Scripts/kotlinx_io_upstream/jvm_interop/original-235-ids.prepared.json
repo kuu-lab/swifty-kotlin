@@ -1,0 +1,2784 @@
+{
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "count": 235,
+  "unique_count": 235,
+  "files_count": 18,
+  "IDs": [
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#appendArray",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "appendArray",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#appendByte",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "appendByte",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#appendByteString",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "appendByteString",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#appendBytes",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "appendBytes",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#appendMultipleValues",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "appendMultipleValues",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#appendUByte",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "appendUByte",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#resizeMultipleTimes",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "resizeMultipleTimes",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-6d7042d50e2eb728"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#testAppendByteArrayWithInvalidIndices",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "testAppendByteArrayWithInvalidIndices",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3f67722e2eb9cfc5"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#testCapacity",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "testCapacity",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d4f19a85152662aa"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringBuilderTest.kt#testSize",
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "method": "testSize",
+      "upstream_file_sha256": "ae29b06e49a8b17d2a5c84bd33fe4af290ce76dc3382b721f329af2ec31b9f72",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-6d7042d50e2eb728"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#compareTo",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "compareTo",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d6e171298552600b"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#endsWithByteString",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "endsWithByteString",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-ad6910e194951687",
+        "jvm-d7e40c6cd1a94933",
+        "jvm-f1214327955b8f5e"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#indexOfByte",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "indexOfByte",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-0a5972de7cfbf1ce",
+        "jvm-d49996f4a43448e9",
+        "jvm-f0c73d7133f5a588"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#indexOfByteArray",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "indexOfByteArray",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-0a5972de7cfbf1ce",
+        "jvm-d49996f4a43448e9",
+        "jvm-f0c73d7133f5a588"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#indexOfByteString",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "indexOfByteString",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-0a5972de7cfbf1ce",
+        "jvm-ad6910e194951687",
+        "jvm-d49996f4a43448e9",
+        "jvm-d7e40c6cd1a94933",
+        "jvm-f0c73d7133f5a588",
+        "jvm-f1214327955b8f5e"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#indices",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "indices",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-654e6fde2f3c3b0e"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#lastIndexOfByte",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "lastIndexOfByte",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-0a5972de7cfbf1ce",
+        "jvm-4acb56be62f8c547",
+        "jvm-57d6ca219cd3aaa0",
+        "jvm-810539f04f1dc7a9",
+        "jvm-d49996f4a43448e9",
+        "jvm-f0c73d7133f5a588"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#lastIndexOfByteArray",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "lastIndexOfByteArray",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-0a5972de7cfbf1ce",
+        "jvm-4acb56be62f8c547",
+        "jvm-57d6ca219cd3aaa0",
+        "jvm-810539f04f1dc7a9",
+        "jvm-d49996f4a43448e9",
+        "jvm-f0c73d7133f5a588"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#lastIndexOfByteString",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "lastIndexOfByteString",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-0a5972de7cfbf1ce",
+        "jvm-4acb56be62f8c547",
+        "jvm-57d6ca219cd3aaa0",
+        "jvm-810539f04f1dc7a9",
+        "jvm-ad6910e194951687",
+        "jvm-d49996f4a43448e9",
+        "jvm-d7e40c6cd1a94933",
+        "jvm-f0c73d7133f5a588",
+        "jvm-f1214327955b8f5e"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#size",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "size",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-26338a01ad8a71f8"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#startWithByteString",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "startWithByteString",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-ad6910e194951687",
+        "jvm-d7e40c6cd1a94933",
+        "jvm-f1214327955b8f5e"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#substring",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "substring",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-caddbfc2da0eaa02"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#substringWithInvalidArgs",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "substringWithInvalidArgs",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-caddbfc2da0eaa02"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#toByteArray",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "toByteArray",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-b6f447c2ba2daba9"
+      ]
+    },
+    {
+      "id": "bytestring/common/test/ByteStringTest.kt#toByteArrayWithInvalidIndex",
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "method": "toByteArrayWithInvalidIndex",
+      "upstream_file_sha256": "b965db3c64979223f339b417a72696a050be2259252954f46156a305001a0d2b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-b6f447c2ba2daba9"
+      ]
+    },
+    {
+      "id": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt#asReadOnlyByteBuffer",
+      "path": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+      "method": "asReadOnlyByteBuffer",
+      "upstream_file_sha256": "231cd70ba86a816d802d029ca5ff75f02a7bcfa7f327248e7181218045d752c4",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-e6b8e043e821fdd0"
+      ]
+    },
+    {
+      "id": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt#getByteString",
+      "path": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+      "method": "getByteString",
+      "upstream_file_sha256": "231cd70ba86a816d802d029ca5ff75f02a7bcfa7f327248e7181218045d752c4",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-029b860360198f31",
+        "jvm-5999d4854c8b8539"
+      ]
+    },
+    {
+      "id": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt#putString",
+      "path": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+      "method": "putString",
+      "upstream_file_sha256": "231cd70ba86a816d802d029ca5ff75f02a7bcfa7f327248e7181218045d752c4",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-6fc264760c97057e",
+        "jvm-dce75980a29a7986"
+      ]
+    },
+    {
+      "id": "bytestring/jvm/test/ByteStringJvmTest.kt#createFromString",
+      "path": "bytestring/jvm/test/ByteStringJvmTest.kt",
+      "method": "createFromString",
+      "upstream_file_sha256": "787ebe6d442eff9aff38af486d997c4cbdb274845c6697f002b4e7ae437c32dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-eecfbff816606455"
+      ]
+    },
+    {
+      "id": "bytestring/jvm/test/ByteStringJvmTest.kt#decodeToString",
+      "path": "bytestring/jvm/test/ByteStringJvmTest.kt",
+      "method": "decodeToString",
+      "upstream_file_sha256": "787ebe6d442eff9aff38af486d997c4cbdb274845c6697f002b4e7ae437c32dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7022588e1be6eff8"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#closeEmitsBufferedBytes",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "closeEmitsBufferedBytes",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-39cb321f548e7fe0"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeAll",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeAll",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeAllExhausted",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeAllExhausted",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeBufferThrowsIAE",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeBufferThrowsIAE",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-39cb321f548e7fe0",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeBufferWithNegativeBytesCount",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeBufferWithNegativeBytesCount",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-39cb321f548e7fe0",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeByte",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeByte",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeByteArray",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeByteArray",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeByteString",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeByteString",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeByteStringOffset",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeByteStringOffset",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeBytes",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeBytes",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromIndex",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeCharSequenceFromIndex",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceFromRange",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeCharSequenceFromRange",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeCharSequenceWithInvalidIndexes",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeCharSequenceWithInvalidIndexes",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeDouble",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeDouble",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeDoubleLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeDoubleLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeFloat",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeFloat",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeFloatLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeFloatLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeInt",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeInt",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeIntLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeIntLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeIntegerDoesNotQuiteFitInSegment",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeIntegerDoesNotQuiteFitInSegment",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-10b30352f0231b23",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeInts",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeInts",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeLastByteInSegment",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeLastByteInSegment",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-10b30352f0231b23",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeLastIntegerInSegment",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeLastIntegerInSegment",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-10b30352f0231b23",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeLong",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeLong",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeLongLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeLongLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeLongs",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeLongs",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeNothing",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeNothing",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeShort",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeShort",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeShortLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeShortLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeShorts",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeShorts",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeSource",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeSource",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeSourcePropagatesEof",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeSourcePropagatesEof",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeSourceReadsFully",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeSourceReadsFully",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeSourceWithNegativeBytesCount",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeSourceWithNegativeBytesCount",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeSourceWithZeroIsNoOp",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeSourceWithZeroIsNoOp",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUByte",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUByte",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-67bcb11a0a87d872",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUInt",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUInt",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-3792616a20c85e19",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUIntLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUIntLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-29cc07701ed1028a",
+        "jvm-3792616a20c85e19",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeULong",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeULong",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-a1e63446abcf06ff",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeULongLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeULongLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-4ae42935a225a9af",
+        "jvm-a1e63446abcf06ff",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUShort",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUShort",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-022f17493aed86e5",
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUShortLe",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUShortLe",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-022f17493aed86e5",
+        "jvm-03ad4cbeb43abc13",
+        "jvm-62cd0659e179dee5",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUtf8FromIndex",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUtf8FromIndex",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUtf8FromRange",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUtf8FromRange",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSinkTest.kt#writeUtf8WithInvalidIndexes",
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "method": "writeUtf8WithInvalidIndexes",
+      "upstream_file_sha256": "23574b6632808bf925f3906ff48d92eb11fe817e7ac2e8aa25b9d84ce53a744f",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-03ad4cbeb43abc13",
+        "jvm-ff3de7f8d455d172"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#factorySegmentSizes",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "factorySegmentSizes",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23",
+        "jvm-cad0e099d21c4740"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOf",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOf",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteInvalidBoundsThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteInvalidBoundsThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteString",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteString",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteStringAcrossSegmentBoundaries",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteStringAcrossSegmentBoundaries",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23",
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteStringAtSegmentBoundary",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteStringAtSegmentBoundary",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23",
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteStringSpanningAcrossMultipleSegments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteStringSpanningAcrossMultipleSegments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23",
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteStringWithOffset",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteStringWithOffset",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteWithFromIndex",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteWithFromIndex",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteWithIndices",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteWithIndices",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfByteWithStartOffset",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfByteWithStartOffset",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfDoesNotWrapAround",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfDoesNotWrapAround",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#indexOfEmptyByteString",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "indexOfEmptyByteString",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-29a01d1deaf3b966",
+        "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9",
+        "jvm-b88878973d5558f7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#longDecimalStringAcrossSegment",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "longDecimalStringAcrossSegment",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#longHexStringAcrossSegment",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "longHexStringAcrossSegment",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#peekDoesntReadTooMuch",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "peekDoesntReadTooMuch",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#peekSegmentThenInvalid",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "peekSegmentThenInvalid",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToBufferFromSourceWithFilledBuffer",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToBufferFromSourceWithFilledBuffer",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0",
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToByteArray",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToByteArray",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayFromOffset",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToByteArrayFromOffset",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayFromSourceWithFilledBuffer",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToByteArrayFromSourceWithFilledBuffer",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0",
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayNotEnough",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToByteArrayNotEnough",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayOffsetAndCount",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToByteArrayOffsetAndCount",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToByteArrayWithInvalidArguments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToByteArrayWithInvalidArguments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readAtMostToNonEmptyBufferFromSourceWithFilledBuffer",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readAtMostToNonEmptyBufferFromSourceWithFilledBuffer",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-281a58349eb012c0",
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readByteArrayWithNegativeSizeThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readByteArrayWithNegativeSizeThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-cad0e099d21c4740"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readIntSplitAcrossMultipleSegments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readIntSplitAcrossMultipleSegments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readLongSplitAcrossMultipleSegments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readLongSplitAcrossMultipleSegments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readShortSplitAcrossMultipleSegments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readShortSplitAcrossMultipleSegments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToByteArray",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToByteArray",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToByteArrayInvalidArguments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToByteArrayInvalidArguments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToByteArraySubrange",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToByteArraySubrange",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToByteArrayTooShortThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToByteArrayTooShortThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToSink",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToSink",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToSinkTooShortThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToSinkTooShortThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToSinkWithNegativeByteCount",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToSinkWithNegativeByteCount",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readToSinkZeroBytes",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readToSinkZeroBytes",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortDoubleLeThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortDoubleLeThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortDoubleThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortDoubleThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortFloatLeThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortFloatLeThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortFloatThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortFloatThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedByteThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedByteThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedIntLeThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedIntLeThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedIntThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedIntThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedLongLeThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedLongLeThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedLongThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedLongThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedShortLeThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedShortLeThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readTooShortUnsignedShortThrows",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readTooShortUnsignedShortThrows",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7ea1f3d4aa2ff9ba",
+        "jvm-d0a5256163899ef7"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readUtf8EntireBuffer",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readUtf8EntireBuffer",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readUtf8PartialBuffer",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readUtf8PartialBuffer",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readUtf8Segment",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readUtf8Segment",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/AbstractSourceTest.kt#readUtf8SpansSegments",
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "method": "readUtf8SpansSegments",
+      "upstream_file_sha256": "a47ad69747ed67f1cf961e479f293b6ee3cdfb078e42adb9e7871a919cf85282",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-10b30352f0231b23"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#bufferToString",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "bufferToString",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#completeSegmentByteCountOnBufferWithFullSegments",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "completeSegmentByteCountOnBufferWithFullSegments",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#completeSegmentByteCountOnBufferWithIncompleteTailSegment",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "completeSegmentByteCountOnBufferWithIncompleteTailSegment",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-678c2e7f3e2207c4",
+        "jvm-98c655eb11d86c76",
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#completeSegmentByteCountOnEmptyBuffer",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "completeSegmentByteCountOnEmptyBuffer",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#getByteOfEmptyBuffer",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "getByteOfEmptyBuffer",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#moveBytesBetweenBuffersMultipleSegments",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "moveBytesBetweenBuffersMultipleSegments",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#moveBytesBetweenBuffersReassignSegment",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "moveBytesBetweenBuffersReassignSegment",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#moveBytesBetweenBuffersShareSegment",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "moveBytesBetweenBuffersShareSegment",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#multipleSegmentBuffers",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "multipleSegmentBuffers",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#splitHead",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "splitHead",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3512e1f33bdd47ee",
+        "jvm-981db78a8157a797"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#writePrefixToEmptyBuffer",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "writePrefixToEmptyBuffer",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#writeSplitSourceBufferLeft",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "writeSplitSourceBufferLeft",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonBufferTest.kt#writeSplitSourceBufferRight",
+      "path": "core/common/test/CommonBufferTest.kt",
+      "method": "writeSplitSourceBufferRight",
+      "upstream_file_sha256": "90a3a027ef599bdaf69e9e94bd4d98455d73b9f100fad7862d3408962a8c625d",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonRealSinkTest.kt#bufferedSinkEmitMultipleSegments",
+      "path": "core/common/test/CommonRealSinkTest.kt",
+      "method": "bufferedSinkEmitMultipleSegments",
+      "upstream_file_sha256": "806d3fd49813a16920b9b604635ee86593825be360da4f4d35ada9811c133516",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-39cb321f548e7fe0"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonRealSinkTest.kt#bufferedSinkEmitsTailWhenItIsComplete",
+      "path": "core/common/test/CommonRealSinkTest.kt",
+      "method": "bufferedSinkEmitsTailWhenItIsComplete",
+      "upstream_file_sha256": "806d3fd49813a16920b9b604635ee86593825be360da4f4d35ada9811c133516",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-39cb321f548e7fe0"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonRealSinkTest.kt#bufferedSinkFlush",
+      "path": "core/common/test/CommonRealSinkTest.kt",
+      "method": "bufferedSinkFlush",
+      "upstream_file_sha256": "806d3fd49813a16920b9b604635ee86593825be360da4f4d35ada9811c133516",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-39cb321f548e7fe0"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonRealSourceTest.kt#requireIncludesBufferBytes",
+      "path": "core/common/test/CommonRealSourceTest.kt",
+      "method": "requireIncludesBufferBytes",
+      "upstream_file_sha256": "870e20ff48f7705d05ecad3b38ac7840e85b18d1e994b06708612a3bf3932b4b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonRealSourceTest.kt#requireTracksBufferFirst",
+      "path": "core/common/test/CommonRealSourceTest.kt",
+      "method": "requireTracksBufferFirst",
+      "upstream_file_sha256": "870e20ff48f7705d05ecad3b38ac7840e85b18d1e994b06708612a3bf3932b4b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/CommonRealSourceTest.kt#skipTracksBufferFirst",
+      "path": "core/common/test/CommonRealSourceTest.kt",
+      "method": "skipTracksBufferFirst",
+      "upstream_file_sha256": "870e20ff48f7705d05ecad3b38ac7840e85b18d1e994b06708612a3bf3932b4b",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-cadd2dc570822778"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#closeFileSinkTwice",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "closeFileSinkTwice",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-22f55505dcae0513"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#createAnEmptyFileUsingSink",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "createAnEmptyFileUsingSink",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-22f55505dcae0513"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#createDirectories",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "createDirectories",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-959e3de0168c91f8"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#deleteFile",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "deleteFile",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-258efe69986cf1fb"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#deleteNonEmptyDirectory",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "deleteNonEmptyDirectory",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-258efe69986cf1fb"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#fileMetadata",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "fileMetadata",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-89c4197097b4b6d3",
+        "jvm-8acfcceaf995d5fa"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#fileName",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "fileName",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-e6072d51480377ce"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#fileSize",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "fileSize",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-45067c0de5010493"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#isAbsolute",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "isAbsolute",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-4bc6eebea674f433"
+      ]
+    },
+    {
+      "id": "core/common/test/files/SmokeFileTest.kt#pathParent",
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "method": "pathParent",
+      "upstream_file_sha256": "f4093fbdcda4c2027788d824d67d356774ab13ccc0e272793380dc7640479662",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3d3e2c3894489dcf"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#outputStream",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "outputStream",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-2963caac68a96f39"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#outputStreamClosesSink",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "outputStreamClosesSink",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-2963caac68a96f39"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeLargeNioBufferWritesAllData",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeLargeNioBufferWritesAllData",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-8592e640ea83a724"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeNioBuffer",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeNioBuffer",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-8592e640ea83a724"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeNioBufferToClosedSink",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeNioBufferToClosedSink",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-8592e640ea83a724"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeStringWithCharset",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeStringWithCharset",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-dda61f0299dd8305"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeSubstringWithCharset",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeSubstringWithCharset",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-dda61f0299dd8305"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeToClosedOutputStream",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeToClosedOutputStream",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-2963caac68a96f39"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSinkTestJVM.kt#writeUtf8SubstringWithCharset",
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "method": "writeUtf8SubstringWithCharset",
+      "upstream_file_sha256": "0658632fa58be505eb3826b42910ee90fac69f1e212cc8ecc476a5652d203dca",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-dda61f0299dd8305"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#inputStream",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "inputStream",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-5c8f62b61ce2a00a"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamAvailable",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "inputStreamAvailable",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-5c8f62b61ce2a00a"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamClosesSource",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "inputStreamClosesSource",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-5c8f62b61ce2a00a"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#inputStreamForClosedSource",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "inputStreamForClosedSource",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-5c8f62b61ce2a00a"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#readLargeNioBufferOnlyReadsOneSegment",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "readLargeNioBufferOnlyReadsOneSegment",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-2cd93875bc5aede4"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#readNioBuffer",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "readNioBuffer",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-2cd93875bc5aede4"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#readNioBufferFromEmptySource",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "readNioBufferFromEmptySource",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-2cd93875bc5aede4"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#readSpecificCharset",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "readSpecificCharset",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7c34b65de478db79",
+        "jvm-f62b571639841c34"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#readSpecificCharsetPartial",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "readSpecificCharsetPartial",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7c34b65de478db79",
+        "jvm-f62b571639841c34"
+      ]
+    },
+    {
+      "id": "core/jvm/test/AbstractSourceTestJVM.kt#readStringTooShortThrows",
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "method": "readStringTooShortThrows",
+      "upstream_file_sha256": "5146615c9bd4da93913ae2fb673051be60f3a1d760920b53f955da74e4ba58d0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7c34b65de478db79",
+        "jvm-f62b571639841c34"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#bufferInputStreamBulkReads",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "bufferInputStreamBulkReads",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#bufferInputStreamByteByByte",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "bufferInputStreamByteByByte",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#copyToOutputStream",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "copyToOutputStream",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d141e7ebf2f19879"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithEmptyRange",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "copyToOutputStreamWithEmptyRange",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d141e7ebf2f19879"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#copyToOutputStreamWithIndices",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "copyToOutputStreamWithIndices",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-d141e7ebf2f19879"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readEmptyBufferToByteBuffer",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readEmptyBufferToByteBuffer",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-7bc6180f6f43bafe",
+        "jvm-d53cc9894b43d9de"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readFromDoesNotLeaveEmptyTailSegment",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readFromDoesNotLeaveEmptyTailSegment",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-678c2e7f3e2207c4",
+        "jvm-98c655eb11d86c76"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readFromSpanningSegments",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readFromSpanningSegments",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-40641508baa6fa7d"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readFromStream",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readFromStream",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-40641508baa6fa7d"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readFromStreamThrowsEOFOnExhaustion",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readFromStreamThrowsEOFOnExhaustion",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3dca21e87c304e48"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readFromStreamWithCount",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readFromStreamWithCount",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3dca21e87c304e48"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readFromStreamWithNegativeBytesCount",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readFromStreamWithNegativeBytesCount",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-3dca21e87c304e48"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readToOutputStream",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readToOutputStream",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-ae5599397293698a"
+      ]
+    },
+    {
+      "id": "core/jvm/test/BufferTest.kt#readToOutputStreamWithByteCount",
+      "path": "core/jvm/test/BufferTest.kt",
+      "method": "readToOutputStreamWithByteCount",
+      "upstream_file_sha256": "3cae35848be188077cf8824f4ccfadbb7b1884150fefba97b45a76c670bef202",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-ae5599397293698a"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#inputStreamSource",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "inputStreamSource",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-c657cf1f49306a0c"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#inputStreamSourceReadNegativeNumberOfBytes",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "inputStreamSourceReadNegativeNumberOfBytes",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-c657cf1f49306a0c"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#inputStreamSourceReadZeroBytes",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "inputStreamSourceReadZeroBytes",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-c657cf1f49306a0c"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#outputStreamSink",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "outputStreamSink",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-290052e137a32b72"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#outputStreamSinkWriteNegativeNumberOfBytes",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "outputStreamSinkWriteNegativeNumberOfBytes",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-290052e137a32b72"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#outputStreamSinkWritePartOfTheBuffer",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "outputStreamSinkWritePartOfTheBuffer",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-290052e137a32b72"
+      ]
+    },
+    {
+      "id": "core/jvm/test/JvmPlatformTest.kt#outputStreamSinkWriteZeroBytes",
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "method": "outputStreamSinkWriteZeroBytes",
+      "upstream_file_sha256": "29e36daf31dbf22ce7544a7acc02c4344f80d5b25cee58b7c584448ff14640f6",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-290052e137a32b72"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#readableChannelBuffer",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "readableChannelBuffer",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#readableChannelBufferedSource",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "readableChannelBufferedSource",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#readableChannelNioFile",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "readableChannelNioFile",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#sinkIsOpen",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "sinkIsOpen",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#sourceIsOpen",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "sourceIsOpen",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#writableChannelBuffer",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "writableChannelBuffer",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#writableChannelBufferedSink",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "writableChannelBufferedSink",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/NioTest.kt#writableChannelNioFile",
+      "path": "core/jvm/test/NioTest.kt",
+      "method": "writableChannelNioFile",
+      "upstream_file_sha256": "579efd4a544945e212eed55dd392f638b686d88b1ec01a662fb522416aea5d09",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-31b5c8ba447c95aa",
+        "jvm-89b18d68aac12a55",
+        "jvm-99ea86c5414931f4",
+        "jvm-ad4ebd5c3ae69d32"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#callsInPlaceContract",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "callsInPlaceContract",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#consumeBufferPartially",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "consumeBufferPartially",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#consumeMultiSegmentBufferPartially",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "consumeMultiSegmentBufferPartially",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#passShortArray",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "passShortArray",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#readAllFromEmptyBuffer",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "readAllFromEmptyBuffer",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#readMultipleSegments",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "readMultipleSegments",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#readMultipleSegmentsWithoutConsumingIt",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "readMultipleSegmentsWithoutConsumingIt",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#readSingleSegment",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "readSingleSegment",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#readSingleSegmentWithoutConsumingIt",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "readSingleSegmentWithoutConsumingIt",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#readUsingEmptyArray",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "readUsingEmptyArray",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#resetReadOnException",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "resetReadOnException",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt#returnIncorrectReadValue",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "method": "returnIncorrectReadValue",
+      "upstream_file_sha256": "50bf410e2c6adc2ee1d831a43b51a71d8b5d687a565ab99d3c2e6808fd15f78e",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-9d569550974b6a68"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#bufferCapacity",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "bufferCapacity",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#callsInPlaceContract",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "callsInPlaceContract",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#changeLimit",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "changeLimit",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#consumeByteByByte",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "consumeByteByByte",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#readEverything",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "readEverything",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#readFromEmptyBuffer",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "readFromEmptyBuffer",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#readFromTheSegmentEnd",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "readFromTheSegmentEnd",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#readNothing",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "readNothing",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#resetReadOnException",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "resetReadOnException",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt#writeIntoReadOnlyBuffer",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "method": "writeIntoReadOnlyBuffer",
+      "upstream_file_sha256": "643d62b53b45fadb4003bd592fefc3ac784575ff0d6a5a7c9e0d850a550124a0",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a2c8e64839c787ad"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#bufferCapacity",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "bufferCapacity",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#callsInPlaceContract",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "callsInPlaceContract",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#changeLimit",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "changeLimit",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#requireToManyBytes",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "requireToManyBytes",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#resetWriteOnException",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "resetWriteOnException",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#writeByteByByte",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "writeByteByByte",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#writeNothing",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "writeNothing",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#writeToTheEndOfABuffer",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "writeToTheEndOfABuffer",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    },
+    {
+      "id": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt#writeWholeBuffer",
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "method": "writeWholeBuffer",
+      "upstream_file_sha256": "444045ea4457e947fa28c5d033b4521b601e30413de5fab96b7b6e0936c709dc",
+      "source_body_policy": "Locked original body, constructors and helper methods retained. Port annotation/import/test-harness support only with explicit byte/body proof; no replacement by supplement.",
+      "candidate_execution": "NOT_RUN",
+      "row_ids": [
+        "jvm-a00905ccd34f6ff7"
+      ]
+    }
+  ],
+  "locked_test_index_sha256": "8b7be63016fee650c4f10d1e20241cf76de1b4100ceff70bae8abfe80967d219",
+  "originals_have_not_been_run_by_this_preparation": true,
+  "Native_supplement_does_not_replace_original_IDs": true
+}
