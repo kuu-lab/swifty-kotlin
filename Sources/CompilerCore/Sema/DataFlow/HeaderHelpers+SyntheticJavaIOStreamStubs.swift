@@ -1420,6 +1420,16 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let functionName = interner.intern(name)
+        // Match the shared registration path: a bundled source body owns
+        // its public extension even when a legacy synthetic type differs.
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: packageFQName, receiverType: receiverType,
+               name: functionName, arity: parameters.count, symbols: symbols,
+               types: types, interner: interner
+           ) {
+            return
+        }
         let functionFQName = packageFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
         let defaults = valueParameterHasDefaultValues
