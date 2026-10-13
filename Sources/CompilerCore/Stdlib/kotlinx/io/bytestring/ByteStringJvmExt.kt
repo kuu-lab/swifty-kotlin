@@ -32,13 +32,13 @@ public fun String.encodeToByteString(charset: Charset): ByteString = ByteString.
  */
 @OptIn(UnsafeByteStringApi::class)
 public fun ByteString.asReadOnlyByteBuffer(): ByteBuffer {
-    val data: ByteArray
+    var data: ByteArray? = null
 
     UnsafeByteStringOperations.withByteArrayUnsafe(this) {
         data = it
     }
 
-    return ByteBuffer.wrap(data).asReadOnlyBuffer()
+    return ByteBuffer.wrap(data!!).asReadOnlyBuffer()
 }
 
 /**

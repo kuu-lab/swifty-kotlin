@@ -14,7 +14,7 @@ import platform.Foundation.NSUnderlyingErrorKey
 internal fun Exception.toNSError() = NSError(
     domain = "Kotlin",
     code = 0,
-    userInfo = mapOf(
+    userInfo = mapOf<Any?, Any?>(
         NSLocalizedDescriptionKey to message,
         NSUnderlyingErrorKey to this
     )

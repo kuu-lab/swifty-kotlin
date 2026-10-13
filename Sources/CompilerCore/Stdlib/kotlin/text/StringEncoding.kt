@@ -122,4 +122,4 @@ public fun ByteArray.decodeToString(
     return this.__kk_bytearray_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
 }
 
-public fun ByteArray.toString(charset: Charset): String = String(this, charset)
+public fun ByteArray.toString(charset: Charset): String = decodeToString(charset)

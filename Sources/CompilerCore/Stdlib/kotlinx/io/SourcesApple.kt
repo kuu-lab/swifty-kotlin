@@ -39,7 +39,9 @@ private class SourceNSInputStream(
 ) : NSInputStream(), NSStreamDelegateProtocol {
 
     private val isClosed: () -> Boolean = when (source) {
-        is RealSource -> source::closed
+        is RealSource -> {
+            { (source as RealSource).closed }
+        }
         is Buffer -> {
             { false }
         }
@@ -82,7 +84,7 @@ private class SourceNSInputStream(
                 status = NSStreamStatusAtEnd
                 return 0
             }
-            val toRead = minOf(maxLength.toLong(), source.buffer.size, Int.MAX_VALUE.toLong()).toInt()
+            val toRead = minOf(maxLength.toLong(), minOf(source.buffer.size, Int.MAX_VALUE.toLong())).toInt()
             val read = source.buffer.readAtMostTo(buffer, toRead).convert<NSInteger>()
             status = NSStreamStatusOpen
             checkBytes()

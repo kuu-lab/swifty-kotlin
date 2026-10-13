@@ -23,7 +23,7 @@ public fun ByteString.toNSData(): NSData {
     }
     val data = getBackingArrayReference()
     return data.usePinned {
-        NSData.create(bytes = it.addressOf(0), length = data.size.convert())
+        NSData.create(bytes = it.addressOf(0), length = data.size.toULong())
     }
 }
 

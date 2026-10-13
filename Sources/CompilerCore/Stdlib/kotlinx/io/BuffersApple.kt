@@ -25,7 +25,7 @@ internal fun Buffer.write(source: CPointer<uint8_tVar>, maxLength: Int) {
         currentOffset += UnsafeBufferOperations.writeToTail(this, 1) { data, pos, limit ->
             val toCopy = minOf(maxLength - currentOffset, limit - pos)
             data.usePinned {
-                val _ = memcpy(it.addressOf(pos), source + currentOffset, toCopy.convert())
+                val _ = memcpy(it.addressOf(pos), source + currentOffset, toCopy.toULong())
             }
             toCopy
         }
@@ -39,7 +39,7 @@ internal fun Buffer.readAtMostTo(sink: CPointer<uint8_tVar>, maxLength: Int): In
     return UnsafeBufferOperations.readFromHead(this) { data, pos, limit ->
         val toCopy = minOf(maxLength, limit - pos)
         data.usePinned {
-            val _ = memcpy(sink, it.addressOf(pos), toCopy.convert())
+            val _ = memcpy(sink, it.addressOf(pos), toCopy.toULong())
         }
         toCopy
     }
@@ -51,7 +51,7 @@ internal fun Buffer.snapshotAsNSData(): NSData {
 
     check(size.toULong() <= NSUIntegerMax) { "Buffer is too long ($size) to be converted into NSData." }
 
-    val bytes = malloc(size.convert())?.reinterpret<uint8_tVar>()
+    val bytes = malloc(size.toULong())?.reinterpret<UByteVar>()
         ?: throw Error("malloc failed: ${strerror(errno)?.toKString()}")
 
     try {
@@ -60,14 +60,14 @@ internal fun Buffer.snapshotAsNSData(): NSData {
         ctx.withData(segment) { data, pos, limit ->
             val length = limit - pos
             data.usePinned {
-                val _ = memcpy(bytes + index, it.addressOf(pos), length.convert())
+                val _ = memcpy(bytes + index, it.addressOf(pos), length.toULong())
             }
             index += length
         }
     }
     // SDK copy initialization leaves temporary allocation caller-owned.
     // It also makes throwing Kotlin wrapper construction safe.
-    return NSData.create(bytes = bytes, length = size.convert())
+    return NSData.create(bytes = bytes, length = size.toULong())
     } finally {
         free(bytes)
     }

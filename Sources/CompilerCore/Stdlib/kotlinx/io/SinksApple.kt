@@ -39,7 +39,9 @@ private class SinkNSOutputStream(
 ) : NSOutputStream(toMemory = Unit), NSStreamDelegateProtocol {
 
     private val isClosed: () -> Boolean = when (sink) {
-        is RealSink -> sink::closed
+        is RealSink -> {
+            { (sink as RealSink).closed }
+        }
         is Buffer -> {
             { false }
         }
@@ -79,13 +81,13 @@ private class SinkNSOutputStream(
     override fun write(buffer: CPointer<uint8_tVar>?, maxLength: NSUInteger): NSInteger {
         if (streamStatus != NSStreamStatusOpen || buffer == null) return -1
         status = NSStreamStatusWriting
-        val toWrite = minOf(maxLength, Int.MAX_VALUE.convert()).toInt()
+        val toWrite = if (maxLength < 2147483647uL) maxLength.toInt() else Int.MAX_VALUE
         return try {
             sink.writeToInternalBuffer {
                 it.write(buffer, toWrite)
             }
             status = NSStreamStatusOpen
-            toWrite.convert()
+            toWrite.toLong()
         } catch (e: Exception) {
             error = e.toNSError()
             -1

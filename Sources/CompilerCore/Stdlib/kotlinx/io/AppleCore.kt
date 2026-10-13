@@ -22,9 +22,9 @@ import platform.posix.uint8_tVar
  *
  * @sample kotlinx.io.samples.KotlinxIoSamplesApple.outputStreamAsSink
  */
-public fun NSOutputStream.asSink(): RawSink = OutputStreamSink(this)
+public fun NSOutputStream.asSink(): RawSink = NSOutputStreamSink(this)
 
-private open class OutputStreamSink(
+private open class NSOutputStreamSink(
     private val out: NSOutputStream,
 ) : RawSink {
 
@@ -41,11 +41,11 @@ private open class OutputStreamSink(
         var bytesWritten = 0L
         while (remaining > 0) {
             val _ = UnsafeBufferOperations.readFromHead(source) { data, pos, limit ->
-                val toCopy = minOf(remaining, limit - pos).toInt()
+                val toCopy = minOf(remaining, (limit - pos).toLong()).toInt()
                 bytesWritten = data.usePinned {
-                    val bytes = it.addressOf(pos).reinterpret<uint8_tVar>()
+                    val bytes = it.addressOf(pos).reinterpret<UByteVar>()
                     @Suppress("REDUNDANT_CALL_OF_CONVERSION_METHOD") // https://youtrack.jetbrains.com/issue/KT-81896
-                    out.write(bytes, toCopy.convert()).toLong()
+                    out.write(bytes, toCopy.toULong()).toLong()
                 }
                 0
             }
@@ -92,11 +92,11 @@ private open class NSInputStreamSource(
         checkByteCount(byteCount)
 
         val bytesRead = UnsafeBufferOperations.writeToTail(sink, 1) { data, pos, limit ->
-            val maxToCopy = minOf(byteCount, limit - pos)
-            val read = data.usePinned { ba ->
-                val bytes = ba.addressOf(pos).reinterpret<uint8_tVar>()
+            val maxToCopy = minOf(byteCount, (limit - pos).toLong())
+            val read: Long = data.usePinned { ba ->
+                val bytes = ba.addressOf(pos).reinterpret<UByteVar>()
                 @Suppress("REDUNDANT_CALL_OF_CONVERSION_METHOD") // https://youtrack.jetbrains.com/issue/KT-81896
-                input.read(bytes, maxToCopy.convert()).toLong()
+                input.read(bytes, maxToCopy.toULong()).toLong()
             }
             maxOf(read.toInt(), 0)
         }

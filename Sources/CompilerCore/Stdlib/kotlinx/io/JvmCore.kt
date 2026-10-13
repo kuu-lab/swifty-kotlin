@@ -77,7 +77,7 @@ private open class InputStreamSource(
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
         if (byteCount == 0L) return 0L
         checkByteCount(byteCount)
-        var readTotal: Long
+        var readTotal: Long = -1L
         val _ = UnsafeBufferOperations.writeToTail(sink, 1) { data, pos, limit ->
             val maxToCopy = minOf(byteCount, limit - pos).toInt()
             readTotal = input.read(data, pos, maxToCopy).toLong()
