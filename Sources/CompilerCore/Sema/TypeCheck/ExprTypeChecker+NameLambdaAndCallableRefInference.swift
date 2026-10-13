@@ -493,6 +493,7 @@ extension ExprTypeChecker {
             return signature.returnType
         }
         if symbol.kind == .property || symbol.kind == .field {
+            driver.resolveInferredPropertyType(for: symbol.id)
             return sema.symbols.propertyType(for: symbol.id)
         }
         // Objects are singletons – always resolve to their nominal type so

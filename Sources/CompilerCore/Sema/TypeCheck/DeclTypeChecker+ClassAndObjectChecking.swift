@@ -1,13 +1,41 @@
 extension DeclTypeChecker {
     func typeCheckBoundPropertyDecl(
         _ property: PropertyDecl,
-        declID _: DeclID,
+        declID: DeclID,
         symbol: SymbolID,
         ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        let tracksInferredProperty = driver.inferredPropertyDeclarations[symbol] != nil
+        let tracksPendingProperty = driver.pendingPropertyTypes.contains(symbol)
+        if tracksPendingProperty {
+            driver.deferredInferredProperties.remove(symbol)
+        }
+        if tracksInferredProperty {
+            guard !driver.precheckedPropertyDecls.contains(declID),
+                  driver.checkingInferredProperties.insert(symbol).inserted
+            else { return }
+        }
+        defer {
+            if tracksPendingProperty, !diagnostics.hasError,
+               !driver.deferredInferredProperties.contains(symbol)
+            {
+                driver.pendingPropertyTypes.remove(symbol)
+            }
+            if tracksInferredProperty {
+                driver.checkingInferredProperties.remove(symbol)
+                if !diagnostics.hasError,
+                   !driver.deferredInferredProperties.contains(symbol),
+                   !diagnostics.diagnostics.contains(where: {
+                       $0.primaryRange.map(property.range.contains) ?? true
+                   })
+                {
+                    driver.precheckedPropertyDecls.insert(declID)
+                }
+            }
+        }
         let propertyCtx = propertyTypeParameterContext(property, symbol: symbol, ctx: ctx, diagnostics: diagnostics)
         validatePropertyHeaderOptInTypes(
             symbol,
