@@ -103,7 +103,11 @@ extension CallTypeChecker {
                     let pinnedFQName: [InternedString] = [
                         interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("Pinned"),
                     ]
-                    guard let pinnedClassSymbol = sema.symbols.lookup(fqName: pinnedFQName) else {
+                    guard let pinnedClassSymbol = sema.symbols.lookup(fqName: pinnedFQName),
+                          let usePinnedSymbol = sema.symbols.lookup(fqName: [
+                              interner.intern("kotlinx"), interner.intern("cinterop"), calleeName,
+                          ])
+                    else {
                         break
                     }
                     let pinnedOfReceiverType = sema.types.make(.classType(ClassType(
@@ -130,6 +134,13 @@ extension CallTypeChecker {
                         } ?? sema.types.nullableAnyType
                     }
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    // Interception still needs the inline parameter contract for
+                    // return-path validation and capturing-lambda KIR lowering.
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: usePinnedSymbol,
+                        substitutedTypeArguments: [nonNullReceiverType, returnType],
+                        parameterMapping: [0: 0]
+                    ))
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
                     // Force the capturing-lambda lowering path so try/finally exception
                     // propagation around the block call works correctly (mirrors scopeUse).
