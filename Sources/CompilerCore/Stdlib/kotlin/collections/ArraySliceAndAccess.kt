@@ -48,6 +48,17 @@ public inline fun <T> Array<out T>.elementAtOrElse(index: Int, defaultValue: (In
 public inline fun <T> Array<out T>.getOrElse(index: Int, defaultValue: (Int) -> T): T =
     if (index >= 0 && index < size) this[index] else defaultValue(index)
 
+public fun <T> Array<T>.fill(element: T, fromIndex: Int = 0, toIndex: Int = size) {
+    if (fromIndex > toIndex) throw IllegalArgumentException("fromIndex($fromIndex) > toIndex($toIndex)")
+    if (fromIndex < 0) throw ArrayIndexOutOfBoundsException("Array index out of range: $fromIndex")
+    if (toIndex > size) throw ArrayIndexOutOfBoundsException("Array index out of range: $toIndex")
+    var index = fromIndex
+    while (index < toIndex) {
+        this[index] = element
+        index++
+    }
+}
+
 public fun <T> Array<out T>.single(): T {
     if (size == 0) throw NoSuchElementException("Array is empty.")
     if (size != 1) throw IllegalArgumentException("Array has more than one element.")
