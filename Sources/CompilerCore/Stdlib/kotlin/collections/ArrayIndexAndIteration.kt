@@ -66,6 +66,34 @@ public operator fun LongArray.iterator(): LongIterator {
     }
 }
 
+public operator fun ByteArray.iterator(): ByteIterator {
+    val array = this
+    return object : ByteIterator() {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun nextByte(): Byte {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+public operator fun ShortArray.iterator(): ShortIterator {
+    val array = this
+    return object : ShortIterator() {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun nextShort(): Short {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
 public fun <T> Array<out T>.withIndex(): Iterable<IndexedValue<T>> {
     val array = this
     return object : Iterable<IndexedValue<T>> {
@@ -84,6 +112,20 @@ public fun LongArray.withIndex(): Iterable<IndexedValue<Long>> {
     val array = this
     return object : Iterable<IndexedValue<Long>> {
         override fun iterator(): Iterator<IndexedValue<Long>> = IndexingIterator(array.iterator())
+    }
+}
+
+public fun ByteArray.withIndex(): Iterable<IndexedValue<Byte>> {
+    val array = this
+    return object : Iterable<IndexedValue<Byte>> {
+        override fun iterator(): Iterator<IndexedValue<Byte>> = IndexingIterator(array.iterator())
+    }
+}
+
+public fun ShortArray.withIndex(): Iterable<IndexedValue<Short>> {
+    val array = this
+    return object : Iterable<IndexedValue<Short>> {
+        override fun iterator(): Iterator<IndexedValue<Short>> = IndexingIterator(array.iterator())
     }
 }
 
