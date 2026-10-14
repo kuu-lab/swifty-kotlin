@@ -1395,6 +1395,18 @@ while retaining the constructor's own markers. Explicit signature types still
 check the expanded class, even when the
 alias declaration opted in (KUU-2064; Kotlin 2.3.10).
 
+Property uses collect opt-in requirements from the declared property and its type,
+including nested type arguments and the extension receiver. Callable uses also
+collect requirements from return, receiver and parameter types. Consent on the
+producer permits its declaration and body; it does not remove requirements from
+these API types in consumers. Direct and type-derived occurrences of the same
+marker produce one diagnostic per usage, retaining each marker's severity.
+Signature-derived requirements are read from the current signature rather than
+cached with annotations, so inferred return types and imported metadata use the
+same checks (KUU-2143; Kotlin 2.3.10). Only explicit return types receive the
+function-header type check: an inferred type is checked at body usage sites,
+including after speculative inference is retried.
+
 Explicit descriptor annotation lists preserve the supplied objects and order.
 These APIs do not implement serializer generation, automatic wire-name changes,
 annotation inheritance or its conflict checks; those remain in KUU-1724.

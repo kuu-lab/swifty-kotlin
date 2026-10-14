@@ -34,7 +34,8 @@ final class DeclTypeChecker {
 
     func validateFunctionHeaderOptInTypes(
         _ symbol: SymbolID,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        hasExplicitReturnType: Bool
     ) {
         guard let signature = ctx.sema.symbols.functionSignature(for: symbol) else {
             return
@@ -46,7 +47,11 @@ final class DeclTypeChecker {
         for parameterType in signature.parameterTypes {
             validateOptInTypeUsage(parameterType, ctx: ctx, range: range)
         }
-        validateOptInTypeUsage(signature.returnType, ctx: ctx, range: range)
+        // An inferred return type is validated by its body usages. Rechecking
+        // the refined signature after speculative inference would duplicate them.
+        if hasExplicitReturnType {
+            validateOptInTypeUsage(signature.returnType, ctx: ctx, range: range)
+        }
     }
 
     func validatePropertyHeaderOptInTypes(
