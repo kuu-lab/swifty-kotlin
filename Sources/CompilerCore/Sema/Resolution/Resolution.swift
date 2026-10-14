@@ -18,7 +18,8 @@ private extension CallExpr {
             calleeName: calleeName,
             args: updatedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: dispatchReceiverTypes
+            dispatchReceiverTypes: dispatchReceiverTypes,
+            allowsImplicitObjectReceiver: allowsImplicitObjectReceiver
         )
     }
 }
@@ -291,6 +292,21 @@ extension OverloadResolver {
         }
 
         let typeVarBySymbol = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+
+        // Imported overloads can belong to different objects. Supply each
+        // candidate's own singleton, without inventing an extension receiver.
+        let implicitReceiverType: TypeID? = if call.allowsImplicitObjectReceiver,
+            let owner = ctx.symbols.parentSymbol(for: candidate),
+            ctx.symbols.symbol(owner)?.kind == .object,
+            ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+            let receiverType = signature.receiverType,
+            case let .classType(receiverClass) = ctx.types.kind(of: receiverType),
+            receiverClass.classSymbol == owner
+        {
+            receiverType
+        } else {
+            implicitReceiverType
+        }
 
         // Apply explicit type argument constraints if provided.
         // For constructors, explicit type args map to the class type params

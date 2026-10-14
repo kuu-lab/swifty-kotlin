@@ -472,6 +472,7 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        allowsImplicitObjectReceiver: Bool = false,
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
         blockedLambdaRefinement: Bool,
@@ -491,7 +492,8 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            allowsImplicitObjectReceiver: allowsImplicitObjectReceiver
         )
 
         if candidates.contains(where: {

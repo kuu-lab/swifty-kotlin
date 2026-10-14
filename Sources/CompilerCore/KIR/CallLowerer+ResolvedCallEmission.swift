@@ -520,9 +520,30 @@ extension CallLowerer {
             if implicitReceiver == nil,
                let owner = sema.symbols.parentSymbol(for: chosen),
                let ownerName = sema.symbols.symbol(owner)?.name,
-               let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName)
+               let qualifiedThis = driver.ctx.qualifiedThisReceiverExprID(for: ownerName),
+               let qualifiedType = arena.exprType(qualifiedThis),
+               case let .classType(qualifiedClass) = sema.types.kind(of: sema.types.makeNonNullable(qualifiedType)),
+               sema.types.isNominalSubtypeSymbol(qualifiedClass.classSymbol, of: owner)
             {
                 implicitReceiver = qualifiedThis
+            }
+            // Imported object members dispatch on the singleton before falling
+            // back to an unrelated caller receiver. Keep existing local/captured
+            // receivers, including those belonging to local object declarations.
+            if implicitReceiver == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               sema.symbols.symbol(owner)?.kind == .object,
+               memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
+               let receiverType = signature.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+               receiverClass.classSymbol == owner
+            {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: owner, arena: arena, sema: sema, interner: interner, instructions: &instructions
+                )
+                let receiver = arena.appendExpr(.symbolRef(owner), type: receiverType)
+                instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+                implicitReceiver = receiver
             }
             if implicitReceiver == nil {
                 implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
@@ -539,20 +560,6 @@ extension CallLowerer {
                 {
                     implicitReceiver = capturedReceiver
                 }
-            }
-            if let owner = sema.symbols.parentSymbol(for: chosen),
-               let containingClass = sema.symbols.parentSymbol(for: owner),
-               sema.symbols.companionObjectSymbol(for: containingClass) == owner,
-               let receiverType = signature.receiverType,
-               case let .classType(receiverClass) = sema.types.kind(of: receiverType),
-               receiverClass.classSymbol == owner
-            {
-                driver.emitObjectLazyInitGuardIfNeeded(
-                    objectSymbol: owner, arena: arena, sema: sema, interner: interner, instructions: &instructions
-                )
-                let receiver = arena.appendExpr(.symbolRef(owner), type: receiverType)
-                instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
-                implicitReceiver = receiver
             }
             if implicitReceiver == nil,
                sema.bindings.isCoroutineScopeImplicitReceiverCall(exprID)
