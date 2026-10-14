@@ -12,7 +12,7 @@ node kotlinFile f0:0..73
     tok identifier(Int) f0:14..17
     tok symbol(=) f0:18..19
     tok identifier(x) f0:20..21
-  node classDecl f0:22..31
+  node classDecl f0:22..35
     tok keyword(class) f0:22..27
     tok missing(identifier()) f0:28..28
     node typeArgs f0:28..31

@@ -1,15 +1,15 @@
-node kotlinFile f0:0..187
+node kotlinFile f0:0..218
   node packageHeader f0:0..21
     tok keyword(package) f0:0..7
     tok identifier(golden) f0:8..14
     tok symbol(.) f0:14..15
     tok identifier(parser) f0:15..21
-  node classDecl f0:23..34
+  node classDecl f0:23..82
     tok keyword(class) f0:23..28
     tok identifier(Outer) f0:29..34
     node block f0:35..82
       tok symbol({) f0:35..36
-      node classDecl f0:37..49
+      node classDecl f0:37..64
         tok keyword(class) f0:37..42
         tok identifier(Nested) f0:43..49
         node block f0:50..64
@@ -23,12 +23,12 @@ node kotlinFile f0:0..187
         tok keyword(class) f0:71..76
         tok identifier(Inn) f0:77..80
       tok symbol(}) f0:81..82
-  node classDecl f0:83..95
+  node classDecl f0:83..128
     tok keyword(class) f0:83..88
     tok identifier(WithFn) f0:89..95
     node block f0:96..128
       tok symbol({) f0:96..97
-      node classDecl f0:98..110
+      node classDecl f0:98..114
         tok keyword(class) f0:98..103
         tok identifier(Nested) f0:104..110
         node block f0:111..114
@@ -43,12 +43,12 @@ node kotlinFile f0:0..187
         tok symbol(=) f0:123..124
         tok intLiteral(1) f0:125..126
       tok symbol(}) f0:127..128
-  node classDecl f0:129..144
+  node classDecl f0:129..173
     tok keyword(class) f0:129..134
     tok identifier(WithClass) f0:135..144
     node block f0:145..173
       tok symbol({) f0:145..146
-      node classDecl f0:147..159
+      node classDecl f0:147..163
         tok keyword(class) f0:147..152
         tok identifier(Nested) f0:153..159
         node block f0:160..163
@@ -58,12 +58,12 @@ node kotlinFile f0:0..187
         tok keyword(class) f0:164..169
         tok identifier(C) f0:170..171
       tok symbol(}) f0:172..173
-  node classDecl f0:174..187
+  node classDecl f0:174..218
     tok keyword(class) f0:174..179
     tok identifier(WithVal) f0:180..187
     node block f0:188..218
       tok symbol({) f0:188..189
-      node classDecl f0:190..202
+      node classDecl f0:190..206
         tok keyword(class) f0:190..195
         tok identifier(Nested) f0:196..202
         node block f0:203..206
