@@ -12,6 +12,7 @@ public final class TypeSystem {
     private var idToKind: [TypeKind] = []
     private var nominalDirectSupertypes: [SymbolID: [SymbolID]] = [:]
     private var nominalTypeParameterVariancesMap: [SymbolID: [TypeVariance]] = [:]
+    private var nominalTypeParameterUpperBoundsMap: [SymbolID: [[TypeID]]] = [:]
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
@@ -409,6 +410,15 @@ public final class TypeSystem {
     public func nominalTypeParameterVariances(for symbol: SymbolID) -> [TypeVariance] {
         ensureImportedNominalMetadataLoaded(for: symbol)
         return nominalTypeParameterVariancesMap[symbol] ?? []
+    }
+
+    public func setNominalTypeParameterUpperBounds(_ bounds: [[TypeID]], for symbol: SymbolID) {
+        nominalTypeParameterUpperBoundsMap[symbol] = bounds
+    }
+
+    public func nominalTypeParameterUpperBounds(for symbol: SymbolID) -> [[TypeID]]? {
+        ensureImportedNominalMetadataLoaded(for: symbol)
+        return nominalTypeParameterUpperBoundsMap[symbol]
     }
 
     public func setNominalTypeParameterSymbols(_ symbols: [SymbolID], for nominal: SymbolID) {

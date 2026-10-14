@@ -168,56 +168,10 @@ final class ExprTypeChecker {
             return driver.localDeclChecker.inferLocalAssignExpr(id, name: name, value: value, range: range, ctx: ctx, locals: &locals)
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
-            let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
-            let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
-                receiverExpr, currentType: inferredReceiverType, ast: ast, sema: sema
-            ) ?? inferredReceiverType
-            let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
-            // Bind the property symbol so KIR lowering can emit a direct field
-            // store (kk_array_set) rather than falling back to a setter call.
-            // This is required when the receiver is an explicit `this` reference.
-            let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-            if let propResult = driver.helpers.lookupMemberProperty(
-                named: calleeName,
-                receiverType: nonNullReceiver,
-                sema: sema
-            ) {
-                sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
-                driver.helpers.checkDeprecation(
-                    for: propResult.symbol,
-                    sema: sema,
-                    interner: interner,
-                    range: range,
-                    diagnostics: ctx.sema.diagnostics
-                )
-                driver.helpers.checkOptIn(
-                    for: propResult.symbol,
-                    ctx: ctx,
-                    range: range,
-                    diagnostics: ctx.sema.diagnostics
-                )
-                if sema.types.containsCapturedTypes(propResult.type) {
-                    driver.emitSubtypeConstraint(
-                        left: valueType, right: propResult.type, range: range,
-                        solver: ConstraintSolver(), sema: sema, diagnostics: sema.diagnostics
-                    )
-                }
-            } else {
-                // Extension `var` properties (e.g. the bundled
-                // kotlin.native.concurrent.AtomicInt.value) are not members —
-                // resolve them through the extension-property setter path so
-                // lowering can call the real setter accessor.
-                _ = driver.callChecker.resolveExtensionPropertySetter(
-                    id: id,
-                    calleeName: calleeName,
-                    range: range,
-                    receiverType: receiverType,
-                    valueType: valueType,
-                    ctx: ctx
-                )
-            }
-            sema.bindings.bindExprType(id, type: sema.types.unitType)
-            return sema.types.unitType
+            return inferMemberAssignExpr(
+                id, receiver: receiverExpr, name: calleeName, value: valueExpr,
+                range: range, ctx: ctx, locals: &locals
+            )
 
         case let .indexedAccess(receiverExpr, indices, range):
             return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: ctx, locals: &locals)

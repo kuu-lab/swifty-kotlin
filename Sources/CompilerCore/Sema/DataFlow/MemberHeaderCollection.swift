@@ -653,6 +653,9 @@ extension DataFlowSemaPhase {
                 resolvedType = array
             }
             symbols.setPropertyType(resolvedType, for: memberSymbol)
+            if let setterVisibility = propertyDecl.setter?.visibility {
+                symbols.setPropertySetterVisibility(setterVisibility, for: memberSymbol)
+            }
 
             // Kotlin permits extension properties inside a companion object,
             // such as `val Int.seconds` in `Duration.Companion`. Keep these

@@ -81,6 +81,7 @@ extension DataFlowSemaPhase {
         let propertyReceiverTypeSignature: String?
         let propertyGetterExternalLinkName: String?
         let propertySetterExternalLinkName: String?
+        let propertySetterVisibility: Visibility?
         let abiReturnTypeSignature: String?
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
@@ -151,6 +152,7 @@ extension DataFlowSemaPhase {
             propertyReceiverTypeSignature: String? = nil,
             propertyGetterExternalLinkName: String? = nil,
             propertySetterExternalLinkName: String? = nil,
+            propertySetterVisibility: Visibility? = nil,
             abiReturnTypeSignature: String? = nil,
             propertyGetterAbiReturnTypeSignature: String? = nil,
             isMutable: Bool = false,
@@ -215,6 +217,7 @@ extension DataFlowSemaPhase {
             self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
             self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
             self.propertySetterExternalLinkName = propertySetterExternalLinkName
+            self.propertySetterVisibility = propertySetterVisibility
             self.abiReturnTypeSignature = abiReturnTypeSignature
             self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
             self.isMutable = isMutable

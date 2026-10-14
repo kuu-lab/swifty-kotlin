@@ -876,6 +876,14 @@ package final class MetadataEncoder {
                 interner: interner
             )
             nominalTypeParametersSignature = generics.selfSignature
+            let bounds = types.nominalTypeParameterUpperBounds(for: symbol.id)
+                ?? types.nominalTypeParameterSymbols(for: symbol.id).map { symbols.typeParameterUpperBounds(for: $0) }
+            typeParameterUpperBoundsSignatures = bounds.map { bounds in
+                bounds.map {
+                    metadataTypeSignature($0, symbols: symbols, types: types, mangler: mangler,
+                                          nameResolver: { interner.resolve($0) })
+                }
+            }
             nominalSupertypeSignatures = generics.supertypeSignatures
             if let layout = symbols.nominalLayout(for: symbol.id) {
                 declaredInstanceSizeWords = layout.instanceSizeWords
@@ -1022,6 +1030,7 @@ package final class MetadataEncoder {
             propertyReceiverTypeSignature: propertyReceiverTypeSignature,
             propertyGetterExternalLinkName: propertyGetterExternalLinkName,
             propertySetterExternalLinkName: propertySetterExternalLinkName,
+            propertySetterVisibility: symbols.propertySetterVisibility(for: symbol.id),
             abiReturnTypeSignature: abiReturnTypeSignature,
             propertyGetterAbiReturnTypeSignature: propertyGetterAbiReturnTypeSignature,
             isMutable: isMutable,
@@ -1318,6 +1327,9 @@ package final class MetadataEncoder {
                 if record.isMutable {
                     fields.append("mutable=1")
                 }
+                if let visibility = record.propertySetterVisibility {
+                    fields.append("setterVisibility=\(visibility)")
+                }
                 if let constValue = record.constValueLiteral, !constValue.isEmpty {
                     fields.append("const=\(constValue)")
                 }
@@ -1357,6 +1369,9 @@ package final class MetadataEncoder {
                 }
                 if let typeParamsSig = record.nominalTypeParametersSignature {
                     fields.append("typeParamsSig=\(typeParamsSig)")
+                }
+                if let bounds = encodeMetadataTypeParameterUpperBounds(record.typeParameterUpperBoundsSignatures) {
+                    fields.append("typeBounds=\(bounds)")
                 }
                 if !record.nominalSupertypeSignatures.isEmpty {
                     fields.append("superSigs=\(record.nominalSupertypeSignatures.joined(separator: "|"))")
@@ -1491,6 +1506,9 @@ package final class MetadataEncoder {
                 fields.append("getterLink=\(getterLink)")
             }
             if record.isMutable { fields.append("mutable=1") }
+            if let visibility = record.propertySetterVisibility {
+                fields.append("setterVisibility=\(visibility)")
+            }
         }
         if Self.nominalKinds.contains(record.kind),
            let typeParamsSig = record.nominalTypeParametersSignature

@@ -200,6 +200,7 @@ extension DataFlowSemaPhase {
                 propertyReceiverTypeSignature: metadataRecord.propertyReceiverTypeSignature,
                 propertyGetterExternalLinkName: metadataRecord.propertyGetterExternalLinkName,
                 propertySetterExternalLinkName: metadataRecord.propertySetterExternalLinkName,
+                propertySetterVisibility: metadataRecord.propertySetterVisibility,
                 abiReturnTypeSignature: metadataRecord.abiReturnTypeSignature,
                 propertyGetterAbiReturnTypeSignature: metadataRecord.propertyGetterAbiReturnTypeSignature,
                 isMutable: metadataRecord.isMutable,

@@ -825,5 +825,20 @@ extension DataFlowSemaPhase {
         }
         types.setNominalTypeParameterSymbols(typeParameterSymbols, for: binding.symbol)
         types.setNominalTypeParameterVariances(variances, for: binding.symbol)
+        let nominalBounds = typeParameterSymbols.indices.map { index -> [TypeID] in
+            guard binding.record.typeParameterUpperBoundsSignatures.indices.contains(index) else { return [] }
+            return binding.record.typeParameterUpperBoundsSignatures[index].compactMap {
+                decodeImportedTypeSignature(
+                    token: $0, symbols: symbols, types: types, interner: interner,
+                    diagnostics: diagnostics, metadataPath: binding.metadataPath,
+                    ownerFQName: binding.record.fqName, cache: cache, allowPlaceholders: isStdlibArtifact
+                )
+            }
+        }
+        // T indices are local to the producer. Keep nominal bounds on their
+        // owner so independent artifacts cannot overwrite each other's bounds.
+        if nominalBounds.contains(where: { !$0.isEmpty }) {
+            types.setNominalTypeParameterUpperBounds(nominalBounds, for: binding.symbol)
+        }
     }
 }

@@ -111,6 +111,7 @@ package struct MetadataRecord {
     let propertyReceiverTypeSignature: String?
     let propertyGetterExternalLinkName: String?
     let propertySetterExternalLinkName: String?
+    let propertySetterVisibility: Visibility?
     /// ABI return type signature for functions whose compiled return type differs
     /// from the source-level signature (e.g. raw `Int` string handles).
     let abiReturnTypeSignature: String?
@@ -190,6 +191,7 @@ package struct MetadataRecord {
         propertyReceiverTypeSignature: String? = nil,
         propertyGetterExternalLinkName: String? = nil,
         propertySetterExternalLinkName: String? = nil,
+        propertySetterVisibility: Visibility? = nil,
         abiReturnTypeSignature: String? = nil,
         propertyGetterAbiReturnTypeSignature: String? = nil,
         isMutable: Bool = false,
@@ -252,6 +254,7 @@ package struct MetadataRecord {
         self.propertyReceiverTypeSignature = propertyReceiverTypeSignature
         self.propertyGetterExternalLinkName = propertyGetterExternalLinkName
         self.propertySetterExternalLinkName = propertySetterExternalLinkName
+        self.propertySetterVisibility = propertySetterVisibility
         self.abiReturnTypeSignature = abiReturnTypeSignature
         self.propertyGetterAbiReturnTypeSignature = propertyGetterAbiReturnTypeSignature
         self.isMutable = isMutable
