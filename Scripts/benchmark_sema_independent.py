@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--jobs", type=positive, nargs="+", default=[1, 2, 4])
     parser.add_argument("--functions", type=positive, default=20)
     parser.add_argument("--terms", type=positive, default=16)
+    parser.add_argument("--body", choices=["scalar", "locals"], default="scalar")
     parser.add_argument("--runs", type=positive, default=3)
     parser.add_argument("--stdlib", choices=["none", "source", "artifact"], default="none")
     parser.add_argument("--stdlib-library", type=Path)
@@ -74,7 +75,7 @@ def main():
         "artifact": ["--no-stdlib", "--stdlib-library", str(args.stdlib_library)],
     }[args.stdlib]
     writer = csv.writer(sys.stdout, delimiter="\t", lineterminator="\n")
-    writer.writerow(["stdlib", "files", "functions_per_file", "terms", "jobs",
+    writer.writerow(["stdlib", "files", "functions_per_file", "terms", "body", "jobs",
                      "parallel_sema", "sample", "metric", "value"])
     with tempfile.TemporaryDirectory(prefix="kuu-2000-benchmark-") as directory:
         work = Path(directory)
@@ -83,8 +84,10 @@ def main():
             for file in range(count):
                 source = work / f"input{file}.kt"
                 expression = " + ".join(["x * x"] * args.terms)
+                body = (f"= {expression}" if args.body == "scalar" else
+                        f"{{ val y = {expression}; var z = y; z = z + 1; return z }}")
                 source.write_text("package independentbench\n" + "\n".join(
-                    f"fun f{file}_{function}(x: Int): Int = {expression}"
+                    f"fun f{file}_{function}(x: Int): Int {body}"
                     for function in range(args.functions)
                 ) + "\n", encoding="utf-8")
                 inputs.append(str(source))
@@ -114,7 +117,7 @@ def main():
                         raise RuntimeError(f"missing timing or RSS metrics:\n{result.stderr}")
                     if sample:
                         for metric in sorted(values):
-                            writer.writerow([args.stdlib, count, args.functions, args.terms, jobs,
+                            writer.writerow([args.stdlib, count, args.functions, args.terms, args.body, jobs,
                                              int(enabled), sample, metric, values[metric]])
                         sys.stdout.flush()
 
