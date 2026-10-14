@@ -10,6 +10,7 @@ package kotlinx.io.files
 
 import kotlin.internal.KsSymbolName
 import kotlinx.io.Buffer
+import kotlinx.io.IOException
 import kotlinx.io.RawSink
 import kotlinx.io.RawSource
 import kotlinx.io.UnsafeIoApi
@@ -79,7 +80,7 @@ public class FileMetadata(
 private class FileSource(private var fd: Int) : RawSource {
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
         if (byteCount < 0L) throw IllegalArgumentException("byteCount ($byteCount) < 0")
-        if (fd < 0) throw IllegalStateException("Stream Closed")
+        if (fd < 0) throw IOException("Stream Closed")
         if (byteCount == 0L) return 0L
         val written = UnsafeBufferOperations.writeToTail(sink, 1) { data, startIndex, endIndex ->
             val available = endIndex - startIndex
@@ -111,7 +112,7 @@ private class FileSink(private var fd: Int) : RawSink {
                 "offset (0) and byteCount ($byteCount) are not within the range [0..size(${source.size}))"
             )
         }
-        if (fd < 0) throw IllegalStateException("Stream Closed")
+        if (fd < 0) throw IOException("Stream Closed")
         var remaining = byteCount
         while (remaining > 0L) {
             val consumed = UnsafeBufferOperations.readFromHead(source) { data, startIndex, endIndex ->
@@ -126,7 +127,7 @@ private class FileSink(private var fd: Int) : RawSink {
     }
 
     override fun flush() {
-        if (fd < 0) throw IllegalStateException("Stream Closed")
+        if (fd < 0) throw IOException("Stream Closed")
     }
 
     override fun close() {

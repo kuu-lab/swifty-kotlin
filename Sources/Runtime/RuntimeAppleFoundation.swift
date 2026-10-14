@@ -122,13 +122,19 @@ final class RuntimeFoundationStreamDispatch: @unchecked Sendable {
 
 /// Real Foundation SDK subclass. All IO/state decisions enter the Kotlin
 /// controller. Foundation retains neither a fake NSData nor an array model.
-final class RuntimeFoundationInputStream: InputStream {
+final class RuntimeFoundationInputStream: InputStream, StreamDelegate {
     let dispatch: RuntimeFoundationStreamDispatch
+    private weak var assignedDelegate: (any StreamDelegate)?
+    override var delegate: (any StreamDelegate)? {
+        get { assignedDelegate ?? self }
+        set { assignedDelegate = newValue === self ? nil : newValue }
+    }
     init(_ dispatch: RuntimeFoundationStreamDispatch) {
         self.dispatch = dispatch
         super.init(data: Data())
     }
     required init?(coder: NSCoder) { return nil }
+    func stream(_ aStream: Stream, handle eventCode: Stream.Event) {}
     override func open() { _ = dispatch.invoke(0) }
     override func close() { _ = dispatch.invoke(1) }
     override var streamStatus: Stream.Status { Stream.Status(rawValue: UInt(maybeUnbox(dispatch.invoke(2)))) ?? .error }
@@ -160,10 +166,16 @@ final class RuntimeFoundationInputStream: InputStream {
     }
 }
 
-final class RuntimeFoundationOutputStream: OutputStream {
+final class RuntimeFoundationOutputStream: OutputStream, StreamDelegate {
     let dispatch: RuntimeFoundationStreamDispatch
+    private weak var assignedDelegate: (any StreamDelegate)?
+    override var delegate: (any StreamDelegate)? {
+        get { assignedDelegate ?? self }
+        set { assignedDelegate = newValue === self ? nil : newValue }
+    }
     init(_ dispatch: RuntimeFoundationStreamDispatch) { self.dispatch = dispatch; super.init(toMemory: ()) }
     required init?(coder: NSCoder) { return nil }
+    func stream(_ aStream: Stream, handle eventCode: Stream.Event) {}
     override func open() { _ = dispatch.invoke(0) }
     override func close() { _ = dispatch.invoke(1) }
     override var streamStatus: Stream.Status { Stream.Status(rawValue: UInt(maybeUnbox(dispatch.invoke(2)))) ?? .error }
