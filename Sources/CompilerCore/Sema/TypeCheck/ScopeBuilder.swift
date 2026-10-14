@@ -274,7 +274,7 @@ struct TypeCheckScopeBuilder {
 
                 if resolved.isEmpty {
                     diagnostics.error(
-                        "KSWIFTK-SEMA-0024",
+                        "KSWIFTK-SEMA-UNRESOLVED-IMPORT",
                         "Unresolved import path.",
                         range: importDecl.range
                     )
@@ -337,7 +337,7 @@ struct TypeCheckScopeBuilder {
                    !isSyntheticMemberExtensionImport(importDecl.path, sema: sema)
                 {
                     diagnostics.error(
-                        "KSWIFTK-SEMA-0024",
+                        "KSWIFTK-SEMA-UNRESOLVED-IMPORT",
                         "Unresolved import path.",
                         range: importDecl.range
                     )

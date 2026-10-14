@@ -379,6 +379,12 @@ enum DiagnosticRegistry {
             summary: "Unresolved member function call."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-UNRESOLVED-IMPORT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Unresolved import path."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0025",
             pass: "SEMA",
             defaultSeverity: .error,
