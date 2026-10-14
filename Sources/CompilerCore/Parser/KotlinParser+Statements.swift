@@ -718,6 +718,8 @@ extension KotlinParser {
             return Self.isDeclarationModifierKeyword(kw)
         case .softKeyword(.context):
             return true
+        case .symbol(.at):
+            return true
         default:
             return false
         }
@@ -754,6 +756,20 @@ extension KotlinParser {
             }
 
             let token = stream.peek(cursor)
+            if token.kind == .symbol(.at) {
+                prefixIndices.append(stream.index + cursor)
+                switch annotationPrefixEnd(from: cursor, work: &work) {
+                case let .complete(end):
+                    cursor = end
+                case .incomplete:
+                    cacheGenuineDeclarationLookahead(true, for: prefixIndices)
+                    return .declaration
+                case .overBudget:
+                    cacheGenuineDeclarationLookahead(true, for: prefixIndices)
+                    return .overBudget
+                }
+                continue
+            }
             if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
                 if kw == .value {
                     sawValueModifier = true
@@ -790,7 +806,10 @@ extension KotlinParser {
             // identifier in an expression. In `fun f() =\n value\n fun g() = 0`,
             // the next `fun` is a separate declaration, not one modified by
             // `value`; otherwise `f` loses its expression body.
-            let startsDeclaration = isDeclarationStart(token.kind)
+            let isAnonymousFunction = token.kind == .keyword(.fun) && stream.peek(cursor + 1).kind == .symbol(.lParen)
+            let isAnonymousObject = token.kind == .keyword(.object)
+                && (stream.peek(cursor + 1).kind == .symbol(.lBrace) || stream.peek(cursor + 1).kind == .symbol(.colon))
+            let startsDeclaration = isDeclarationStart(token.kind) && !isAnonymousFunction && !isAnonymousObject
             let result = startsDeclaration
                 && (!sawValueModifier || token.kind == .keyword(.class))
             if sawValueModifier, !result {
@@ -810,6 +829,52 @@ extension KotlinParser {
 
     func startsGenuineDeclaration(at offset: Int) -> Bool {
         declarationPrefixVerdict(at: offset) != .notDeclaration
+    }
+
+    private enum AnnotationPrefixEnd {
+        case complete(Int)
+        case incomplete
+        case overBudget
+    }
+
+    /// Bound annotation lookahead before scanning arguments, and preserve the
+    /// same declaration synchronization points as parseBalancedGroup.
+    private func annotationPrefixEnd(from offset: Int, work: inout Int) -> AnnotationPrefixEnd {
+        var cursor = offset + 1
+        if isAnnotationUseSiteTarget(stream.peek(cursor)),
+           stream.peek(cursor + 1).kind == .symbol(.colon) {
+            guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
+            cursor += 2
+        }
+        guard isIdentifierLike(stream.peek(cursor).kind) else { return .incomplete }
+        guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
+        cursor += 1
+        while stream.peek(cursor).kind == .symbol(.dot), isIdentifierLike(stream.peek(cursor + 1).kind) {
+            guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
+            cursor += 2
+        }
+        guard stream.peek(cursor).kind == .symbol(.lParen) else { return .complete(cursor) }
+        var closingSymbols: [Symbol] = [.rParen]
+        cursor += 1
+        while !closingSymbols.isEmpty {
+            guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
+            let token = stream.peek(cursor)
+            if token.kind == .eof { return .incomplete }
+            if closingSymbols.count == 1, hasLeadingNewline(token), isAnnotationArgumentRecoveryBoundary(at: cursor) {
+                return .incomplete
+            }
+            if case let .symbol(symbol) = token.kind {
+                switch symbol {
+                case .lParen: closingSymbols.append(.rParen)
+                case .lBracket: closingSymbols.append(.rBracket)
+                case .lBrace: closingSymbols.append(.rBrace)
+                default:
+                    if symbol == closingSymbols.last { closingSymbols.removeLast() }
+                }
+            }
+            cursor += 1
+        }
+        return .complete(cursor)
     }
 
     private static let declarationLookaheadWorkLimit = 4096
@@ -853,7 +918,8 @@ extension KotlinParser {
     /// Defers to `startsGenuineDeclaration` lookahead only for ambiguous modifier /
     /// `context` prefixes, trusting the caller's own check otherwise.
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
-        guard isAmbiguousDeclarationPrefix(token) else {
+        let isAnonymousFunction = token.kind == .keyword(.fun) && stream.peek(1).kind == .symbol(.lParen)
+        guard isAmbiguousDeclarationPrefix(token) || isAnonymousFunction else {
             return true
         }
         return startsGenuineDeclaration(at: 0)
@@ -907,6 +973,17 @@ extension KotlinParser {
                isGenuineDeclarationBoundary(token)
             {
                 break
+            }
+            // An annotation preceding an operand is part of the expression,
+            // including newlines after '=' or between prefixes and operands.
+            // Genuine annotated declarations remain recovery boundaries.
+            if atTopLevel, token.kind == .symbol(.at), !startsGenuineDeclaration(at: 0) {
+                var work = 0
+                if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
+                    for _ in 0..<end { _ = consumeToken(into: &children, range: &range) }
+                    progress = true
+                    continue
+                }
             }
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
                 let blockID = parseBlock()

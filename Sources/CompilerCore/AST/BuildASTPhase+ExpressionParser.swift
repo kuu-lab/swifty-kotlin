@@ -255,13 +255,15 @@ extension BuildASTPhase {
             return call
         }
 
-        private func parsePrefixUnary() -> ExprID? {
+        func parsePrefixUnary() -> ExprID? {
             defer { leaveRecursion() }
             guard enterRecursion() else { return nil }
             guard let token = current() else {
                 return nil
             }
             switch token.kind {
+            case .symbol(.at):
+                return parseAnnotatedExpression { self.parsePrefixUnary() }
             case .symbol(.bang):
                 if let next = peek(1), next.kind == .keyword(.is) || next.kind == .keyword(.in) {
                     return parsePostfixOrPrimary()

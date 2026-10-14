@@ -45,21 +45,56 @@ extension KotlinParser {
         }
 
         if stream.peek().kind == .symbol(.lParen) {
-            var depth = 0
-            while !stream.atEOF() {
+            _ = consumeToken(into: &children, range: &range)
+            var closingSymbols: [Symbol] = [.rParen]
+            while !stream.atEOF(), !closingSymbols.isEmpty {
+                if closingSymbols.count == 1, hasLeadingNewline(stream.peek()),
+                   isAnnotationArgumentRecoveryBoundary(at: 0) {
+                    let missingRange = zeroWidthRange(at: stream.peek())
+                    diagnostics.error(
+                        "KSWIFTK-PARSE-0001", "Expected ')' to close annotation arguments.",
+                        range: missingRange
+                    )
+                    let missing = Token(kind: .missing(expected: .symbol(.rParen)), range: missingRange)
+                    children.append(.token(arena.appendToken(missing)))
+                    range.append(missingRange)
+                    break
+                }
                 let token = consumeToken(into: &children, range: &range)
-                if token.kind == .symbol(.lParen) {
-                    depth += 1
-                } else if token.kind == .symbol(.rParen) {
-                    depth -= 1
-                    if depth <= 0 {
-                        break
+                if case let .symbol(symbol) = token.kind {
+                    switch symbol {
+                    case .lParen: closingSymbols.append(.rParen)
+                    case .lBracket: closingSymbols.append(.rBracket)
+                    case .lBrace: closingSymbols.append(.rBrace)
+                    default:
+                        if symbol == closingSymbols.last { closingSymbols.removeLast() }
                     }
                 }
             }
         }
 
         return true
+    }
+
+    /// Only named declaration keywords synchronize an unclosed annotation.
+    /// Soft keywords such as value/context and nested annotation expressions
+    /// remain valid arguments; anonymous functions and objects remain operands.
+    func isAnnotationArgumentRecoveryBoundary(at offset: Int) -> Bool {
+        let token = stream.peek(offset)
+        switch token.kind {
+        case .keyword(.fun):
+            return stream.peek(offset + 1).kind != .symbol(.lParen)
+        case .keyword(.object):
+            return stream.peek(offset + 1).kind != .symbol(.colon)
+                && stream.peek(offset + 1).kind != .symbol(.lBrace)
+        case .keyword(.class):
+            let previousKind = offset > 0 ? stream.peek(offset - 1).kind : lastConsumedToken?.kind
+            return previousKind != .symbol(.doubleColon) && isIdentifierLike(stream.peek(offset + 1).kind)
+        case .keyword(.interface), .keyword(.val), .keyword(.var), .keyword(.typealias):
+            return true
+        default:
+            return false
+        }
     }
 
     func isAnnotationUseSiteTarget(_ token: Token) -> Bool {

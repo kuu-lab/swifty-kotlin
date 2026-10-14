@@ -1299,7 +1299,16 @@ swift test --show-codecov-path
 
 `AnnotationNode.constructionTokens` preserves constructor tokens (including aliases,
 escaped strings, array literals, named arguments and defaults) through frontend
-snapshots. `IncrementalFrontendState.supportedVersion = 6` rejects older snapshots.
+snapshots. `IncrementalFrontendState.supportedVersion = 7` rejects older snapshots
+and preserves prefix annotations on their operand expression IDs. Expression
+annotations retain the operand's type/control flow, validate the EXPRESSION
+target (or FUNCTION for function literals), and scope diagnostic suppression
+to that operand. CST declaration-boundary lookahead keeps complete expression
+annotation prefixes across newlines after `=` and before the operand, within the
+shared 4096-token lookahead budget. An unclosed argument list recovers at the
+following named declaration with a missing `)` that AST token scans honor.
+Suppression names decode regular literal escapes and preserve raw literal contents.
+Concatenated names remain unsuppressed, matching Kotlin 2.3.10's literal-only lookup.
 After headers, annotation construction is resolved in the declaration's lexical
 scope. After all declaration bodies are bound, all retention kinds require constant arguments/defaults; only RUNTIME
 records receive a private producer-owned constructor factory. Constant primitive

@@ -1,6 +1,15 @@
 
 extension BuildASTPhase.ExpressionParser {
     private func parseControlFlowBodyExpression() -> ExprID? {
+        if matches(.symbol(.at)) {
+            guard let operand = parseAnnotatedExpression({
+                if self.matches(.symbol(.lBrace)) {
+                    return self.parseControlFlowBodyExpression()
+                }
+                return self.parsePrefixUnary()
+            }) else { return nil }
+            return parseInfixOperators(lhs: operand, minPrecedence: 0)
+        }
         if matches(.symbol(.lBrace)) {
             if braceGroupStartsLambdaLiteral(), let lambda = parseLambdaLiteral() {
                 return lambda
@@ -244,12 +253,8 @@ extension BuildASTPhase.ExpressionParser {
             diagnostics: diagnostics
         )
         var body: ExprID?
-        if branchTokens.first?.kind == .symbol(.lBrace) {
-            if parser.braceGroupStartsLambdaLiteral() {
-                body = parser.parseLambdaLiteral()
-            } else {
-                body = parser.parseBlockExpression()
-            }
+        if branchTokens.first?.kind == .symbol(.at) || branchTokens.first?.kind == .symbol(.lBrace) {
+            body = parser.parseControlFlowBodyExpression()
         } else {
             body = parser.parse()
         }

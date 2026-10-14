@@ -17,6 +17,8 @@ public struct ASTArenaSnapshot: Codable {
     public let callResultCompoundAssignmentBlocks: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
+    public let expressionAnnotations: [ExprID: [AnnotationNode]]
+    public let anonymousFunctionExpressions: Set<ExprID>
 
     private enum CodingKeys: String, CodingKey {
         case declarations
@@ -35,6 +37,8 @@ public struct ASTArenaSnapshot: Codable {
         case callResultCompoundAssignmentBlocks
         case nonFunctionLambdaLabels
         case incrementDecrementCachedValues
+        case expressionAnnotations
+        case anonymousFunctionExpressions
     }
 
     public init(
@@ -53,7 +57,9 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementExpressions: Set<ExprID> = [],
         callResultCompoundAssignmentBlocks: Set<ExprID> = [],
         nonFunctionLambdaLabels: Set<ExprID> = [],
-        incrementDecrementCachedValues: [ExprID: ExprID] = [:]
+        incrementDecrementCachedValues: [ExprID: ExprID] = [:],
+        expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
+        anonymousFunctionExpressions: Set<ExprID> = []
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -71,6 +77,8 @@ public struct ASTArenaSnapshot: Codable {
         self.callResultCompoundAssignmentBlocks = callResultCompoundAssignmentBlocks
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
+        self.expressionAnnotations = expressionAnnotations
+        self.anonymousFunctionExpressions = anonymousFunctionExpressions
     }
 
     public init(from decoder: Decoder) throws {
@@ -107,6 +115,12 @@ public struct ASTArenaSnapshot: Codable {
             [ExprID: ExprID].self,
             forKey: .incrementDecrementCachedValues
         ) ?? [:]
+        expressionAnnotations = try container.decodeIfPresent(
+            [ExprID: [AnnotationNode]].self, forKey: .expressionAnnotations
+        ) ?? [:]
+        anonymousFunctionExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .anonymousFunctionExpressions
+        ) ?? []
     }
 }
 
@@ -188,6 +202,9 @@ public final class ASTArena: @unchecked Sendable {
     /// a function and must be rejected.
     private var _nonFunctionLambdaLabels: Set<ExprID> = []
     private var _incrementDecrementCachedValues: [ExprID: ExprID] = [:]
+    // Prefix annotations belong to the operand without changing its AST shape.
+    private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
+    private var _anonymousFunctionExpressions: Set<ExprID> = []
 
     public var decls: [Decl] {
         lock.lock()
@@ -220,6 +237,8 @@ public final class ASTArena: @unchecked Sendable {
         _callResultCompoundAssignmentBlocks = snapshot.callResultCompoundAssignmentBlocks
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
+        _expressionAnnotations = snapshot.expressionAnnotations
+        _anonymousFunctionExpressions = snapshot.anonymousFunctionExpressions
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -241,7 +260,9 @@ public final class ASTArena: @unchecked Sendable {
             incrementDecrementExpressions: _incrementDecrementExpressions,
             callResultCompoundAssignmentBlocks: _callResultCompoundAssignmentBlocks,
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
-            incrementDecrementCachedValues: _incrementDecrementCachedValues
+            incrementDecrementCachedValues: _incrementDecrementCachedValues,
+            expressionAnnotations: _expressionAnnotations,
+            anonymousFunctionExpressions: _anonymousFunctionExpressions
         )
     }
 
@@ -251,6 +272,36 @@ public final class ASTArena: @unchecked Sendable {
         let id = Int32(_decls.count)
         _decls.append(decl)
         return DeclID(rawValue: id)
+    }
+
+    public func prependExpressionAnnotations(_ annotations: [AnnotationNode], for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _expressionAnnotations[exprID] = annotations + (_expressionAnnotations[exprID] ?? [])
+    }
+
+    public func expressionAnnotations(for exprID: ExprID) -> [AnnotationNode] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _expressionAnnotations[exprID] ?? []
+    }
+
+    public var annotatedExpressions: [ExprID: [AnnotationNode]] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _expressionAnnotations
+    }
+
+    public func markAnonymousFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _anonymousFunctionExpressions.insert(exprID)
+    }
+
+    public func isAnonymousFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _anonymousFunctionExpressions.contains(exprID)
     }
 
     public func setCallableRefReceiverTypeRef(_ exprID: ExprID, typeRef: TypeRefID) {

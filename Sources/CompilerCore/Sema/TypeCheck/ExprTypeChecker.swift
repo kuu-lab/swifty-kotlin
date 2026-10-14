@@ -22,6 +22,8 @@ final class ExprTypeChecker {
             return sema.types.errorType
         }
 
+        validateExpressionAnnotationVisibility(id, ctx: ctx)
+
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
         let longType = sema.types.longType

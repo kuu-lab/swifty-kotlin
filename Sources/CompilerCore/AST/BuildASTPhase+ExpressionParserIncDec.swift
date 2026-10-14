@@ -37,7 +37,7 @@ extension BuildASTPhase.ExpressionParser {
         }
         let savedIndex = index
         _ = consume()
-        guard let operand = parsePostfixOrPrimary(),
+        guard let operand = parsePrefixUnary(),
               let desugared = desugarIncrementDecrement(
                   operand: operand,
                   op: op,
@@ -67,7 +67,11 @@ extension BuildASTPhase.ExpressionParser {
     ) -> ExprID? {
         guard let operandExpr = astArena.expr(operand) else { return nil }
         let operandRange = astArena.exprRange(operand) ?? opRange
-        let range = SourceRange(start: operandRange.start, end: opRange.end)
+        let annotations = astArena.expressionAnnotations(for: operand)
+        let range = SourceRange(
+            start: isPrefix ? opRange.start : operandRange.start,
+            end: isPrefix ? operandRange.end : opRange.end
+        )
 
         let readExpr: ExprID
         let assignExpr: ExprID
@@ -125,13 +129,18 @@ extension BuildASTPhase.ExpressionParser {
         case let .indexedAccess(receiver, indices, _):
             return desugarIndexedIncrementDecrement(
                 receiver: receiver, indices: indices, op: op,
-                operandRange: operandRange, range: range, isPrefix: isPrefix
+                operandRange: operandRange, range: range, isPrefix: isPrefix,
+                annotations: annotations
             )
 
         default:
             // Unsupported target: leave the operator unparsed so
             // the existing behaviour is preserved.
             return nil
+        }
+
+        if !annotations.isEmpty {
+            astArena.prependExpressionAnnotations(annotations, for: readExpr)
         }
 
         if isPrefix {
@@ -174,7 +183,8 @@ extension BuildASTPhase.ExpressionParser {
         op: CompoundAssignOp,
         operandRange: SourceRange,
         range: SourceRange,
-        isPrefix: Bool
+        isPrefix: Bool,
+        annotations: [AnnotationNode]
     ) -> ExprID {
         var statements: [ExprID] = []
 
@@ -198,9 +208,15 @@ extension BuildASTPhase.ExpressionParser {
 
         let receiverRef = stabilized(receiver)
         let indexRefs = indices.map(stabilized)
-        let read = { self.astArena.appendExpr(.indexedAccess(
-            receiver: receiverRef(), indices: indexRefs.map { $0() }, range: operandRange
-        )) }
+        let read = {
+            let expression = self.astArena.appendExpr(.indexedAccess(
+                receiver: receiverRef(), indices: indexRefs.map { $0() }, range: operandRange
+            ))
+            if !annotations.isEmpty {
+                self.astArena.prependExpressionAnnotations(annotations, for: expression)
+            }
+            return expression
+        }
         let operatorName = interner.intern(op == .plusAssign ? "inc" : "dec")
         let applyOperator = { (operand: ExprID) in
             // The synthesized `inc()` / `dec()` call is an explicit invocation:
