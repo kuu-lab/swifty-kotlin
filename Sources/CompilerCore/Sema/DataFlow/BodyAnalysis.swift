@@ -747,7 +747,7 @@ extension DataFlowSemaPhase {
         return expanded
     }
 
-    private func substituteTypeAliasParams(
+    func substituteTypeAliasParams(
         _ typeID: TypeID,
         aliasSymbol: SymbolID,
         typeArgs: [TypeArg],
