@@ -686,13 +686,17 @@ extension DataFlowSemaPhase {
         requireDataTypeFlag: Bool,
         symbols: SymbolTable,
         types: TypeSystem,
-        scope: Scope,
+        scope: Scope?,
         interner: StringInterner
     ) {
         if requireDataTypeFlag {
             guard symbols.symbol(ownerSymbol)?.flags.contains(.dataType) == true else {
                 return
             }
+        }
+        if symbols.symbol(ownerSymbol)?.kind == .object,
+           hasInheritedFinalToString(ownerSymbol: ownerSymbol, symbols: symbols, types: types, interner: interner) {
+            return
         }
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
@@ -735,7 +739,76 @@ extension DataFlowSemaPhase {
             ),
             for: funcSymbol
         )
-        scope.insert(funcSymbol)
+        scope?.insert(funcSymbol)
+    }
+
+    func collectDataObjectToStringAfterInheritance(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        for rawDeclID in 0 ..< ast.arena.declCount {
+            let declID = DeclID(rawValue: Int32(rawDeclID))
+            guard case let .objectDecl(objectDecl)? = ast.arena.decl(declID),
+                  objectDecl.modifiers.contains(.data),
+                  let ownerSymbol = bindings.declSymbols[declID],
+                  let owner = symbols.symbol(ownerSymbol)
+            else {
+                continue
+            }
+            let ownerType = types.make(.classType(ClassType(
+                classSymbol: ownerSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            collectSyntheticToString(
+                ownerSymbol: ownerSymbol,
+                ownerFQName: owner.fqName,
+                ownerType: ownerType,
+                requireDataTypeFlag: false,
+                symbols: symbols,
+                types: types,
+                scope: nil,
+                interner: interner
+            )
+        }
+    }
+
+    /// Returns whether an object inherits a final `toString(): String` implementation.
+    private func hasInheritedFinalToString(
+        ownerSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let toStringName = interner.intern("toString")
+        var visited: Set<SymbolID> = [ownerSymbol]
+        var pending = symbols.directSupertypes(for: ownerSymbol)
+        while !pending.isEmpty {
+            let supertype = pending.removeFirst()
+            guard visited.insert(supertype).inserted,
+                  let supertypeSymbol = symbols.symbol(supertype)
+            else {
+                continue
+            }
+            for memberID in symbols.children(ofFQName: supertypeSymbol.fqName) {
+                guard let member = symbols.symbol(memberID),
+                      member.kind == .function,
+                      member.name == toStringName,
+                      member.flags.contains(.finalMember),
+                      let signature = symbols.functionSignature(for: memberID),
+                      signature.parameterTypes.isEmpty,
+                      signature.returnType == types.stringType || signature.returnType == types.anyType
+                else {
+                    continue
+                }
+                return true
+            }
+            pending.append(contentsOf: symbols.directSupertypes(for: supertype))
+        }
+        return false
     }
 
     func collectSyntheticEquals(

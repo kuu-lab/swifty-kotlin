@@ -1709,7 +1709,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         if nestedObject.modifiers.contains(.data) {
-            collectSyntheticToString(
+            collectSyntheticHashCode(
                 ownerSymbol: nestedSymbol,
                 ownerFQName: nestedFQName,
                 ownerType: nestedType,

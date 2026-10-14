@@ -394,6 +394,72 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
+    /// Synthesizes `hashCode(): Int` for a data object from its simple name.
+    func appendSyntheticDataObjectHashCodeIfNeeded(
+        owner: SemanticSymbol,
+        objectName: InternedString,
+        existingSymbol: SymbolID?,
+        module: KIRModule,
+        sema: SemaModule,
+        existingFunctionSymbols: Set<SymbolID>,
+        interner: StringInterner
+    ) {
+        guard owner.kind == .object, let functionSymbol = existingSymbol else {
+            return
+        }
+        if existingFunctionSymbols.contains(functionSymbol) {
+            return
+        }
+
+        let receiverType = sema.types.make(.classType(ClassType(
+            classSymbol: owner.id,
+            args: [],
+            nullability: .nonNull
+        )))
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let hashCodeName = interner.intern("hashCode")
+        let parameterName = interner.intern("$self")
+        let fqName = owner.fqName + [hashCodeName]
+        let parameterSymbol = sema.symbols.define(
+            kind: .valueParameter,
+            name: parameterName,
+            fqName: fqName + [parameterName],
+            declSite: owner.declSite,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        let parameter = KIRParameter(symbol: parameterSymbol, type: receiverType)
+
+        var hashCode: Int32 = 0
+        for codeUnit in interner.resolve(objectName).utf16 {
+            hashCode = 31 &* hashCode &+ Int32(codeUnit)
+        }
+        let resultExpr = module.arena.appendTemporary(type: intType)
+        let body: [KIRInstruction] = [
+            .constValue(result: resultExpr, value: .intLiteral(Int64(hashCode))),
+            .returnValue(resultExpr),
+        ]
+        let signature = FunctionSignature(
+            receiverType: receiverType,
+            parameterTypes: [],
+            returnType: intType,
+            isSuspend: false,
+            valueParameterSymbols: [],
+            valueParameterHasDefaultValues: [],
+            valueParameterIsVararg: [],
+            typeParameterSymbols: []
+        )
+        appendSyntheticFunctionWithSymbol(
+            functionSymbol: functionSymbol,
+            name: hashCodeName,
+            module: module,
+            sema: sema,
+            signature: signature,
+            params: [parameter],
+            body: body
+        )
+    }
+
     /// Synthesizes `toString(): String` for data object, returning the object name.
     /// Uses existingSymbol when provided (from Sema) so call resolution matches the KIR function.
     func appendSyntheticDataObjectToStringIfNeeded(

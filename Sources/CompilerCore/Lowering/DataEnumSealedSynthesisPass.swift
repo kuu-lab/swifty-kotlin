@@ -622,11 +622,18 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner,
             diagnostics: ctx.diagnostics
         )
-        if nominalSymbol.kind == .class {
-            let hashCodeName = ctx.interner.intern("hashCode")
-            let existingHashCodeSymbol = sema.symbols.lookupAll(fqName: nominalSymbol.fqName + [hashCodeName]).first {
-                sema.symbols.symbol($0).map { $0.flags.contains(.synthetic) } ?? false
-            }
+        let hashCodeName = ctx.interner.intern("hashCode")
+        let existingHashCodeSymbol = sema.symbols.lookupAll(fqName: nominalSymbol.fqName + [hashCodeName]).first {
+            sema.symbols.symbol($0).map { $0.flags.contains(.synthetic) } ?? false
+        }
+        if nominalSymbol.kind == .object {
+            appendSyntheticDataObjectHashCodeIfNeeded(
+                owner: nominalSymbol, objectName: nominalSymbol.name,
+                existingSymbol: existingHashCodeSymbol,
+                module: module, sema: sema,
+                existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
+            )
+        } else if nominalSymbol.kind == .class {
             appendSyntheticDataClassHashCodeIfNeeded(
                 owner: nominalSymbol, existingSymbol: existingHashCodeSymbol,
                 module: module, sema: sema,
