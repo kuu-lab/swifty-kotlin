@@ -11,7 +11,8 @@ public func kk_function_value_tag_arity(_ functionRaw: Int, _ arity: Int) -> Int
 
 @_cdecl("__kk_function_set_description")
 public func __kk_function_set_description(_ value: Int, _ descriptionRaw: Int, _ identity: Int) {
-    guard let description = extractString(from: UnsafeMutableRawPointer(bitPattern: descriptionRaw)) else {
+    guard value != 0,
+          let description = extractString(from: UnsafeMutableRawPointer(bitPattern: descriptionRaw)) else {
         return
     }
     let text = identity == 0 ? description : "\(description)@\(String(UInt(bitPattern: value), radix: 16))"
@@ -34,6 +35,7 @@ func runtimeFunctionDescription(_ value: Int) -> String? {
 
 @_cdecl("__kk_function_copy_description")
 public func __kk_function_copy_description(_ source: Int, _ target: Int) {
+    guard target != 0 else { return }
     let description = runtimeFunctionDescription(source)
     let metadata = runtimeStorage.withDelegateLock { state in
         if let description {

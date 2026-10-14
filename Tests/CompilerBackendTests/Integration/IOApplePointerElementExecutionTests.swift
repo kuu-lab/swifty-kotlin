@@ -24,6 +24,7 @@ struct IOApplePointerElementExecutionTests {
         import kotlinx.cinterop.convert
         import kotlinx.cinterop.get
         import kotlinx.cinterop.memScoped
+        import kotlinx.cinterop.readBytes
         import kotlinx.cinterop.usePinned
         import platform.posix.memset
         fun first(pointer: CPointer<ByteVar>): Byte = pointer[0]
@@ -58,6 +59,15 @@ struct IOApplePointerElementExecutionTests {
             }
             println(bytes.isNotEmpty())
             println(byteArrayOf().isNotEmpty())
+            val encoded = ("a" + "b".repeat(16384) + "c").encodeToByteArray()
+            encoded.usePinned {
+                println(it.addressOf(0)[0])
+                println(it.addressOf(encoded.size - 1)[0])
+            }
+            println(encoded.size)
+            val zeros = byteArrayOf(0, 1)
+            zeros.usePinned { println(it.addressOf(0).readBytes(2).joinToString()) }
+            println(zeros.joinToString())
         }
         """.write(to: source, atomically: true, encoding: .utf8)
         let executable = directory.appendingPathComponent("main")
@@ -70,7 +80,7 @@ struct IOApplePointerElementExecutionTests {
         let result = try CommandRunner.run(executable: executable.path, arguments: [])
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout == "-1\n7\n107\ntrue\n65\n66\n-1\n0\n65\ntrue\nfalse\n")
+        #expect(result.stdout == "-1\n7\n107\ntrue\n65\n66\n-1\n0\n65\ntrue\nfalse\n97\n99\n16386\n0, 1\n0, 1\n")
     }
 }
 #endif
