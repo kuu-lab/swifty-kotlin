@@ -46,6 +46,12 @@ public final class StringInterner: @unchecked Sendable {
     /// perturb the module's interning order. Escaping names must be remapped
     /// by replaying the declaration's ordered string delta at join.
     func makeSemaWorkerInterner() -> StringInterner {
+        makeWorkerInterner()
+    }
+
+    /// Copy-on-write baseline for frontend workers. The caller must remap any
+    /// worker-created strings before publishing them into the module namespace.
+    func makeWorkerInterner() -> StringInterner {
         lock.lock()
         defer { lock.unlock() }
         let worker = StringInterner()

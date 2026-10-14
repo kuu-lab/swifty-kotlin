@@ -352,6 +352,17 @@ extension KIRLoweringDriver {
             interner: interner,
             instructions: &body.instructions
         )
+        // The singleton can reach erased `value::class` queries before any
+        // class literal registers its name (e.g. a hidden object returned as
+        // `Any` across an independent .kklib boundary), so register it here.
+        callLowerer.emitKClassMetadataRegistration(
+            objectSymbol: objectSymbol,
+            typeID: classIDValue,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
 
         var declIDs: [KIRDeclID] = []
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())

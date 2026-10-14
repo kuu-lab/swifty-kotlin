@@ -468,10 +468,11 @@ return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: addres
 public func __kk_foundation_byte_pointer_add(_ pointer: Int, _ offset: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
 guard let box = resolveCPointerBox(from: pointer),
-      box.pointeeTypeID == runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar") || box.pointeeTypeID == runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.UByteVar") else { return foundationFailure("Expected a byte CPointer", outThrown) }
+      let kind = runtimeCInteropVarKind(forNominalTypeID: box.pointeeTypeID),
+      kind == .int8 || kind == .uint8 else { return foundationFailure("Expected a byte CPointer", outThrown) }
 let (address, overflow) = Int(bitPattern: box.address).addingReportingOverflow(offset)
 guard !overflow else { return foundationFailure("CPointer byte offset overflow", outThrown) }
-return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address), pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
+return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address), pointeeTypeID: box.pointeeTypeID))
 }
 
 @_cdecl("__kk_foundation_lock_create")

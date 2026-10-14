@@ -860,8 +860,9 @@ public extension SymbolTable {
 /// Returns a bridge symbol for `implementation` when its ABI (String aggregate
 /// vs raw pointer) does not match the erased dispatch signature used by the
 /// vtable or itable. The bridge has the dispatch ABI, forwards to the
-/// implementation, and relies on the backend's String bridging in `.call` and
-/// `returnValue` to convert across the boundary.
+/// implementation, checks narrowed erased reference arguments, and relies on
+/// the backend's String bridging in `.call` and `returnValue` to convert across
+/// the boundary.
 func itableBridgeSymbolForMethod(
     interfaceMethod: SymbolID,
     implementation: SymbolID,
@@ -924,7 +925,17 @@ func itableBridgeSymbolForMethod(
         return implementation
     }
 
-    var needsBridge = false
+    let receiverCount = interfaceReceiver == nil ? 0 : 1
+    let argumentCastTargets = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
+        guard index >= receiverCount else { return nil }
+        return kirErasedDispatchArgumentCastTarget(
+            implementationType: implType,
+            dispatchType: interfaceParamTypes[index],
+            sema: sema
+        )
+    }
+
+    var needsBridge = argumentCastTargets.contains { $0 != nil }
     if isStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
@@ -1029,6 +1040,38 @@ func itableBridgeSymbolForMethod(
     }
     let unboxingTable = BoxingCalleeTable(interner: interner)
     var forwardedArgExprs = bridgeParamExprs
+    var nextLocalLabel: Int32 = 0
+    func makeBridgeLabel() -> Int32 {
+        if let driver { return driver.ctx.makeLoopLabel() }
+        defer { nextLocalLabel += 1 }
+        return nextLocalLabel
+    }
+    for (index, target) in argumentCastTargets.enumerated() {
+        guard let target else { continue }
+        let token = RuntimeTypeCheckToken.encode(type: target, sema: sema, interner: interner)
+        let tokenExpr = arena.appendExpr(.intLiteral(token), type: sema.types.intType)
+        body.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+        // Keep the erased representation until the implementation call performs
+        // its ABI conversion (notably raw String handles to flat aggregates).
+        let checked = arena.appendTemporary(type: interfaceParamTypes[index])
+        let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_op_cast"),
+            arguments: [bridgeParamExprs[index], tokenExpr],
+            result: checked,
+            canThrow: true,
+            thrownResult: thrown
+        ))
+        let continueLabel = makeBridgeLabel()
+        let rethrowLabel = makeBridgeLabel()
+        body.append(.jumpIfNotNull(value: thrown, target: rethrowLabel))
+        body.append(.jump(continueLabel))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrown))
+        body.append(.label(continueLabel))
+        forwardedArgExprs[index] = checked
+    }
     if needsEnumReceiverUnboxing, let implReceiver = implementationParamTypes.first {
         let ordinal = arena.appendTemporary(type: implReceiver)
         body.append(.call(
@@ -1076,8 +1119,8 @@ func itableBridgeSymbolForMethod(
     ))
 
     if let thrownResult {
-        let continueLabel = driver?.ctx.makeLoopLabel() ?? 0
-        let rethrowLabel = driver?.ctx.makeLoopLabel() ?? 1
+        let continueLabel = makeBridgeLabel()
+        let rethrowLabel = makeBridgeLabel()
         body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
         body.append(.jump(continueLabel))
         body.append(.label(rethrowLabel))

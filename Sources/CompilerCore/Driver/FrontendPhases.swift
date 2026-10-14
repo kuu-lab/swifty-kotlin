@@ -333,81 +333,79 @@ public final class BuildASTPhase: CompilerPhase {
             }
         }
 
-        let jobs = ctx.frontendJobs
-        if jobs > 1 {
-            try runParallel(ctx, jobs: jobs)
-        } else {
-            runSequential(ctx)
-        }
+        buildAndMergeFiles(ctx, jobs: ctx.frontendJobs)
+        ctx.diagnostics.sortBySourceLocation()
     }
 
+    private struct WorkerASTResult {
+        let file: PerFileASTResult
+        let arena: ASTArenaSnapshot
+        let addedStrings: [String]
+    }
 
-    private func runSequential(_ ctx: CompilationContext) {
+    /// Every worker allocates in a private namespace. Publish only after all
+    /// workers finish, in syntax-tree order, for the same IDs at every jobs count.
+    private func buildAndMergeFiles(_ ctx: CompilationContext, jobs: Int) {
         let arena = makeArena(ctx)
-        let phase = BuildASTPhase(diagnostics: ctx.diagnostics)
-        let perFileResults: [PerFileASTResult] = ctx.syntaxTrees.map { fileID, cst, root in
-            phase.tokenCache.removeAll(keepingCapacity: true)
-            return phase.buildFileAST(
-                fileID: fileID,
-                cst: cst,
-                root: root,
-                interner: ctx.interner,
-                arena: arena
+        let baselineInterner = ctx.interner.makeWorkerInterner()
+        let sharedStringCount = baselineInterner.snapshotValues().count
+        let syntaxTrees = ctx.syntaxTrees
+        let results = LockedIndexedResults<WorkerASTResult>(count: syntaxTrees.count)
+        let buildFile: @Sendable (Int) -> Void = { index in
+            let (fileID, cst, root) = syntaxTrees[index]
+            let localArena = ASTArena()
+            let localInterner = baselineInterner.makeWorkerInterner()
+            let phase = BuildASTPhase(diagnostics: ctx.diagnostics)
+            let file = phase.buildFileAST(
+                fileID: fileID, cst: cst, root: root,
+                interner: localInterner, arena: localArena
+            )
+            results.store(WorkerASTResult(
+                file: file,
+                arena: localArena.snapshot(),
+                addedStrings: Array(localInterner.snapshotValues().dropFirst(sharedStringCount))
+            ), at: index)
+        }
+
+        if jobs <= 1 {
+            for index in syntaxTrees.indices {
+                buildFile(index)
+            }
+        } else {
+            let jobSemaphore = DispatchSemaphore(value: jobs)
+            let completionGroup = DispatchGroup()
+            for index in syntaxTrees.indices {
+                jobSemaphore.wait()
+                completionGroup.enter()
+                DispatchQueue.global().async {
+                    defer {
+                        completionGroup.leave()
+                        jobSemaphore.signal()
+                    }
+                    buildFile(index)
+                }
+            }
+            completionGroup.wait()
+        }
+
+        let orderedResults = results.orderedResults().map { worker in
+            let strings = worker.addedStrings.map(ctx.interner.intern)
+            let remapper = arena.appendFileSnapshot(
+                worker.arena, sharedStringCount: sharedStringCount, addedStrings: strings
+            )
+            let file = worker.file
+            return PerFileASTResult(
+                fileRawID: file.fileRawID,
+                packageFQName: file.packageFQName.map { remapper.remap($0) },
+                imports: file.imports.map { remapper.remap($0) },
+                topLevelDecls: file.topLevelDecls.map { remapper.remap($0) },
+                scriptBody: file.scriptBody.map { remapper.remap($0) },
+                annotations: file.annotations.map { remapper.remap($0) },
+                range: file.range,
+                allDecls: file.allDecls.map { remapper.remap($0) }
             )
         }
-
-        let merged = mergePerFileASTResults(perFileResults)
-
-        finalizeAST(
-            ctx: ctx,
-            arena: arena,
-            declarations: merged.declarations,
-            packageByFile: merged.packageByFile,
-            importsByFile: merged.importsByFile,
-            declarationsByFile: merged.declarationsByFile,
-            scriptExprsByFile: merged.scriptExprsByFile,
-            annotationsByFile: merged.annotationsByFile,
-            fileRangesByFile: merged.fileRangesByFile,
-            allDeclsByFile: merged.allDeclsByFile
-        )
-    }
-
-
-    private func runParallel(_ ctx: CompilationContext, jobs: Int) throws {
-        let arena = makeArena(ctx) // thread-safe with locks
-        let interner = ctx.interner
-        let syntaxTrees = ctx.syntaxTrees
-        let count = syntaxTrees.count
-        let perFileResults = LockedIndexedResults<PerFileASTResult>(count: count)
-        let jobSemaphore = DispatchSemaphore(value: jobs)
-        let completionGroup = DispatchGroup()
-
-        for index in 0 ..< count {
-            jobSemaphore.wait()
-            completionGroup.enter()
-            DispatchQueue.global().async {
-                defer {
-                    completionGroup.leave()
-                    jobSemaphore.signal()
-                }
-                let (fileID, cst, root) = syntaxTrees[index]
-                // Each task gets its own BuildASTPhase so that `tokenCache`
-                // is not shared across concurrent tasks.
-                let taskPhase = BuildASTPhase(diagnostics: ctx.diagnostics)
-                perFileResults.store(taskPhase.buildFileAST(
-                    fileID: fileID,
-                    cst: cst,
-                    root: root,
-                    interner: interner,
-                    arena: arena
-                ), at: index)
-            }
-        }
-        completionGroup.wait()
-        let orderedResults = perFileResults.orderedResults()
-
         let merged = mergePerFileASTResults(orderedResults)
-
         finalizeAST(
             ctx: ctx,
             arena: arena,

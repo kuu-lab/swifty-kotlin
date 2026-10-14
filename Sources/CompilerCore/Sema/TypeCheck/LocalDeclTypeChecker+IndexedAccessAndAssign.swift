@@ -93,7 +93,7 @@ extension LocalDeclTypeChecker {
             ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
         }
         if getCandidates.isEmpty {
-            getCandidates = collectIndexedGetExtensionCandidates(
+            getCandidates = collectIndexedOperatorExtensionCandidates(
                 named: getName, receiverType: receiverType, ctx: ctx
             )
         }
@@ -126,7 +126,7 @@ extension LocalDeclTypeChecker {
             candidates: getCandidates, call: getCall, expectedType: nil,
             implicitReceiverType: receiverType, ctx: sema
         ).viableCandidates.isEmpty {
-            let extensions = collectIndexedGetExtensionCandidates(
+            let extensions = collectIndexedOperatorExtensionCandidates(
                 named: getName, receiverType: receiverType, call: getCall, ctx: ctx
             )
             if !extensions.isEmpty { getCandidates = extensions }
@@ -427,23 +427,41 @@ extension LocalDeclTypeChecker {
 
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
 
+        let argumentExprs = indices + [valueExpr]
+        let setCall = CallExpr(
+            range: range,
+            calleeName: setName,
+            args: zip(argumentExprs, indexTypes + [valueType]).map { expr, type in
+                let literal = driver.callChecker.integerLiteralValues(expr, ast: ast)
+                return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+            }
+        )
+        // A single-index member cannot handle a multi-index assignment.
+        // Preserve applicable (including ambiguous) members, but try lexical
+        // operator extensions when none of the collected candidates applies.
+        if ctx.resolver.probeCall(
+            candidates: setCandidates, call: setCall, expectedType: nil,
+            implicitReceiverType: receiverType, ctx: sema
+        ).viableCandidates.isEmpty {
+            let extensions = collectIndexedOperatorExtensionCandidates(
+                named: setName, receiverType: receiverType, call: setCall, ctx: ctx
+            )
+            if !extensions.isEmpty { setCandidates = extensions }
+        }
+
         if !setCandidates.isEmpty {
             // Resolve via operator fun set
-            var callArgTypes = indexTypes
-            callArgTypes.append(valueType)
-            let callArgs = callArgTypes.map { CallArg(type: $0) }
             let resolved = ctx.resolver.resolveCall(
                 candidates: setCandidates,
-                call: CallExpr(
-                    range: range,
-                    calleeName: setName,
-                    args: callArgs
-                ),
+                call: setCall,
                 expectedType: nil,
                 implicitReceiverType: receiverType,
                 ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
+                driver.callChecker.contextualizeResolvedIntegerArguments(
+                    args: argumentExprs.map { CallArgument(expr: $0) }, resolved: resolved, ctx: ctx, locals: &locals
+                )
                 // Record the resolved call so KIR lowering can dispatch correctly
                 sema.bindings.bindCall(
                     id,

@@ -143,7 +143,9 @@ extension KotlinParser {
         })
 
         _ = consumeToken(into: &children, range: &range)
-        if isIdentifierLike(stream.peek().kind) {
+        let nameKind = stream.peek().kind
+        let hasName = isCompanionObject ? isCompanionObjectName(nameKind) : isIdentifierLike(nameKind)
+        if hasName {
             _ = consumeToken(into: &children, range: &range)
         } else if !isCompanionObject {
             // Companion objects may omit the name (defaults to "Companion"),
@@ -179,6 +181,31 @@ extension KotlinParser {
             kind: kind,
             range: range.value ?? invalidRange, children
         )
+    }
+
+    /// An optional companion name must be a simpleIdentifier. Leave hard
+    /// keywords for the next member declaration, while allowing names after
+    /// a newline and contextual or modifier keywords used as names.
+    private func isCompanionObjectName(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .identifier, .backtickedIdentifier:
+            true
+        case let .softKeyword(keyword):
+            keyword != .when
+        case let .keyword(keyword):
+            switch keyword {
+            case .abstract, .annotation, .catch, .companion, .constructor, .crossinline,
+                 .data, .dynamic, .enum, .external, .final, .finally, .import, .infix,
+                 .inline, .inner, .internal, .lateinit, .noinline, .open, .operator,
+                 .override, .private, .protected, .public, .reified, .sealed, .tailrec,
+                 .vararg, .expect, .actual, .const, .suspend, .value:
+                true
+            default:
+                false
+            }
+        default:
+            false
+        }
     }
 
     private func startsPrimaryConstructorHeader() -> Bool {

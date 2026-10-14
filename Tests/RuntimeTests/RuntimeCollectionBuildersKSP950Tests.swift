@@ -38,7 +38,7 @@ struct RuntimeCollectionBuildersKSP950Tests {
     }
 
     @Test
-    func testBuilderCapacityFactoriesReturnFreshReadOnlyCollections() {
+    func testBuilderCapacityFactoriesReturnFreshReadOnlyCollections() throws {
         let list = __kk_builder_list_new(4)
         let secondList = __kk_builder_list_new(4)
         #expect(list != secondList)
@@ -51,8 +51,14 @@ struct RuntimeCollectionBuildersKSP950Tests {
         #expect(kk_list_size(list) == 1)
 
         let set = __kk_builder_set_new(4)
+        let setTypeID = try #require(runtimeObjectTypeID(rawValue: set))
+        #expect(runtimeIsAssignable(
+            sourceTypeID: setTypeID,
+            targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
+        ))
         _ = kk_mutable_set_add(set, 1, nil)
         _ = __kk_builder_set_freeze(set)
+        #expect(runtimeObjectTypeID(rawValue: set) == setTypeID)
         var setThrown = 0
         _ = kk_mutable_set_add(set, 2, &setThrown)
         #expect(setThrown != 0)

@@ -266,6 +266,59 @@ public final class ASTArena: @unchecked Sendable {
         )
     }
 
+    /// Append one worker's arena after the existing incremental prefix. Internal
+    /// edges and side-table keys/values all receive the same namespace offsets.
+    /// Callers publish snapshots in input-file order, never completion order.
+    func appendFileSnapshot(
+        _ snapshot: ASTArenaSnapshot,
+        sharedStringCount: Int,
+        addedStrings: [InternedString]
+    ) -> ASTIDRemapper {
+        lock.lock()
+        defer { lock.unlock() }
+        let remapper = ASTIDRemapper(
+            declOffset: Int32(_decls.count),
+            exprOffset: Int32(_exprs.count),
+            typeRefOffset: Int32(_typeRefs.count),
+            sharedStringCount: sharedStringCount,
+            addedStrings: addedStrings
+        )
+        _decls.append(contentsOf: snapshot.declarations.map { remapper.remap($0) })
+        _exprs.append(contentsOf: snapshot.expressions.map { remapper.remap($0) })
+        _typeRefs.append(contentsOf: snapshot.typeRefs.map { remapper.remap($0) })
+        _expressionRangeIndex = nil
+        for (key, value) in snapshot.loopLabels {
+            _loopLabels[remapper.remap(key)] = remapper.remap(value)
+        }
+        for (key, value) in snapshot.whenSubjectVarNames {
+            _whenSubjectVarNames[remapper.remap(key)] = remapper.remap(value)
+        }
+        for (key, value) in snapshot.whenSubjectTypeRefs {
+            _whenSubjectTypeRefs[remapper.remap(key)] = remapper.remap(value)
+        }
+        for (key, value) in snapshot.lambdaParamTypeRefs {
+            _lambdaParamTypeRefs[remapper.remap(key)] = value.map { $0.map { remapper.remap($0) } }
+        }
+        for (key, value) in snapshot.callableRefReceiverTypeRefs {
+            _callableRefReceiverTypeRefs[remapper.remap(key)] = remapper.remap(value)
+        }
+        for (key, value) in snapshot.incrementDecrementCachedValues {
+            _incrementDecrementCachedValues[remapper.remap(key)] = remapper.remap(value)
+        }
+        for (key, value) in snapshot.expressionAnnotations {
+            _expressionAnnotations[remapper.remap(key)] = value.map { remapper.remap($0) }
+        }
+        _anonymousFunctionExpressions.formUnion(snapshot.anonymousFunctionExpressions.map { remapper.remap($0) })
+        _infixCallExpressions.formUnion(snapshot.infixCallExpressions.map { remapper.remap($0) })
+        _infixFunctionExpressions.formUnion(snapshot.infixFunctionExpressions.map { remapper.remap($0) })
+        _operatorFunctionExpressions.formUnion(snapshot.operatorFunctionExpressions.map { remapper.remap($0) })
+        _explicitCallExpressions.formUnion(snapshot.explicitCallExpressions.map { remapper.remap($0) })
+        _incrementDecrementExpressions.formUnion(snapshot.incrementDecrementExpressions.map { remapper.remap($0) })
+        _callResultCompoundAssignmentBlocks.formUnion(snapshot.callResultCompoundAssignmentBlocks.map { remapper.remap($0) })
+        _nonFunctionLambdaLabels.formUnion(snapshot.nonFunctionLambdaLabels.map { remapper.remap($0) })
+        return remapper
+    }
+
     public func appendDecl(_ decl: Decl) -> DeclID {
         lock.lock()
         defer { lock.unlock() }

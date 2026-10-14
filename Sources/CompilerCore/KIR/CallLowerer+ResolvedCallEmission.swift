@@ -540,9 +540,12 @@ extension CallLowerer {
                     implicitReceiver = capturedReceiver
                 }
             }
-            if let owner = sema.symbols.parentSymbol(for: chosen),
-               let containingClass = sema.symbols.parentSymbol(for: owner),
-               sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+            // Object member imports bind the singleton even in a scope with
+            // an unrelated active receiver. Match only ordinary members;
+            // member extensions keep their separately selected receivers.
+            if memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               sema.symbols.symbol(owner)?.kind == .object,
                let receiverType = signature.receiverType,
                case let .classType(receiverClass) = sema.types.kind(of: receiverType),
                receiverClass.classSymbol == owner
@@ -770,7 +773,7 @@ extension CallLowerer {
         // KUU-655: an override that inherits its defaults never has its own
         // stub; resolve to the base declaration's stub instead (see
         // `defaultStubOwnerSymbol`).
-        let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema) }
+        let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema, callBinding: callBinding) }
         if callNormalized.defaultMask != 0,
            let chosen,
            let defaultStubOwner,

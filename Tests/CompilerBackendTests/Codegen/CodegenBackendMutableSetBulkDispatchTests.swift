@@ -5,6 +5,37 @@ import Testing
 
 @Suite
 struct CodegenBackendMutableSetBulkDispatchTests {
+    @Test(arguments: [true, false], [true, false])
+    func iterableAndSequenceAddAllPreserveMutationsAndThrows(
+        artifact: Bool,
+        optimized: Bool
+    ) throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 4 { root.deleteLastPathComponent() }
+        let fixture = root.appendingPathComponent(
+            "Scripts/diff_cases/mutable_set_addall_source_dispatch"
+        )
+        let source = try String(contentsOf: fixture.appendingPathExtension("kt"), encoding: .utf8)
+        let expected = try String(contentsOf: fixture.appendingPathExtension("expected.stdout"), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableSetAddAllSourceDispatch",
+            expected: expected,
+            optLevel: optimized ? .O2 : .O0,
+            allowDefaultStdlibLibrary: artifact
+        )
+        let priorityFixture = root.appendingPathComponent(
+            "Scripts/diff_cases/mutable_set_addall_user_priority"
+        )
+        try assertKotlinOutput(
+            String(contentsOf: priorityFixture.appendingPathExtension("kt"), encoding: .utf8),
+            moduleName: "MutableSetAddAllUserPriority",
+            expected: String(contentsOf: priorityFixture.appendingPathExtension("expected.stdout"), encoding: .utf8),
+            optLevel: optimized ? .O2 : .O0,
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
     @Test(arguments: [true, false])
     func bulkMutationsDispatchToCustomSetAndPropagateThrows(artifact: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)

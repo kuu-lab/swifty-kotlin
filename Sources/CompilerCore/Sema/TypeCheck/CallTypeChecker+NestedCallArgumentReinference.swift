@@ -312,6 +312,7 @@ extension CallTypeChecker {
         signature: FunctionSignature,
         partialSubstitution: [TypeVarID: TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
+        allowPrimitiveErrorContext: Bool,
         ctx: TypeInferenceContext
     ) -> TypeID? {
         let sema = ctx.sema
@@ -325,6 +326,14 @@ extension CallTypeChecker {
             typeVarBySymbol: typeVarBySymbol,
             typeSystem: sema.types
         ) {
+            // Failed numeric conversions have no nominal head to reconstruct.
+            // A concrete primitive parameter still supplies their missing type.
+            if allowPrimitiveErrorContext,
+               argumentType == sema.types.errorType,
+               case .primitive = sema.types.kind(of: substitutedParameter)
+            {
+                return substitutedParameter
+            }
             return concreteNestedCallExpectedType(
                 originalArgumentType: argumentType,
                 boundType: substitutedParameter,
@@ -495,6 +504,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
+        bindsObjectDispatchReceiver: Bool = false,
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
         blockedLambdaRefinement: Bool,
@@ -519,6 +529,13 @@ extension CallTypeChecker {
         guard !deferredIndices.isEmpty else {
             return nil
         }
+        // A failed scalar call must not pick the first overload's primitive
+        // context and turn a genuine Long/ULong ambiguity into a success.
+        let contextualCandidates = candidates.filter { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+            return parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) != nil
+        }
+        let allowPrimitiveErrorContext = contextualCandidates.count == 1
         // Nested calls that failed their first pass carry no usable argument
         // type; probe their own arguments once per call so every candidate's
         // parameter position can still constrain the outer type variables
@@ -613,6 +630,7 @@ extension CallTypeChecker {
                        signature: signature,
                        partialSubstitution: partialSubstitution,
                        typeVarBySymbol: typeVarBySymbol,
+                       allowPrimitiveErrorContext: allowPrimitiveErrorContext,
                        ctx: ctx
                    )
                 else {
@@ -630,6 +648,16 @@ extension CallTypeChecker {
                 ctx.sema.diagnostics.rollback(to: diagnosticsCheckpoint)
                 continue
             }
+            // Do not erase a genuine nested-call failure just because the outer
+            // resolver accepts an error type while recovering from diagnostics.
+            guard !reinferredIndices.contains(where: {
+                typeContainsErrorType(retryArgTypes[$0], sema: sema)
+            }), !ctx.sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains(where: {
+                $0.severity == .error
+            }) else {
+                ctx.sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+                continue
+            }
             let retried = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -639,6 +667,7 @@ extension CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
+                bindsObjectDispatchReceiver: bindsObjectDispatchReceiver,
                 lambdaLiteralIndices: lambdaLiteralIndices,
                 inputOnlyLambdaIndices: inputOnlyLambdaIndices,
                 blockedLambdaRefinement: blockedLambdaRefinement,

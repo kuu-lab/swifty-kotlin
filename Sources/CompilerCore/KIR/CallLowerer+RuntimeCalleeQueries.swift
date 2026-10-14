@@ -85,6 +85,7 @@ extension CallLowerer {
             "__kk_mutable_list_set",
             "__kk_list_get",
             "__kk_mutable_set_add",
+            "__kk_mutable_collection_add_throwing",
             "__kk_mutable_collection_addAll_throwing",
             "__kk_mutable_set_remove",
             "__kk_mutable_set_clear",
@@ -187,6 +188,7 @@ extension CallLowerer {
             "__kk_mutable_list_set",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            "__kk_mutable_collection_add_throwing",
             "__kk_mutable_collection_addAll_throwing",
             // KUU-1404: thrown terminal statuses propagate through the regular
             // exception channel so try/catch can observe them.

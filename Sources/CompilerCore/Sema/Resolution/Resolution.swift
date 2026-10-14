@@ -18,7 +18,8 @@ private extension CallExpr {
             calleeName: calleeName,
             args: updatedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: dispatchReceiverTypes
+            dispatchReceiverTypes: dispatchReceiverTypes,
+            boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates
         )
     }
 }
@@ -208,12 +209,21 @@ extension OverloadResolver {
                 ctx: ctx
             )
         }
+        let defaultArgumentOwners: [SymbolID: SymbolID] = if let implicitReceiverType {
+            Dictionary(uniqueKeysWithValues: Set(candidates).compactMap { candidate in
+                ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable(implicitReceiverType))
+                    .map { (candidate, $0) }
+            })
+        } else {
+            [:]
+        }
         let key = SemaCacheContext.makeCallResolutionKey(
             candidates: candidates,
             call: call,
             expectedType: expectedType,
             implicitReceiverType: implicitReceiverType,
-            symbols: ctx.symbols
+            symbols: ctx.symbols,
+            defaultArgumentOwners: defaultArgumentOwners
         )
         if let cached = cache.cachedCallResolution(for: key) {
             cache.recordCallResolutionHit()
@@ -306,6 +316,23 @@ extension OverloadResolver {
               let signature = ctx.symbols.functionSignature(for: candidate)
         else {
             return .rejected
+        }
+
+        // An imported object member is already bound to its singleton dispatch
+        // receiver, including direct and aliased imports. Derive this per
+        // candidate so imports from different objects share an overload set.
+        // Member extensions still require their separate extension receiver.
+        let implicitReceiverType: TypeID? = if call.boundObjectDispatchReceiverCandidates.contains(candidate),
+            ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+            let owner = ctx.symbols.parentSymbol(for: candidate),
+            ctx.symbols.symbol(owner)?.kind == .object,
+            let receiverType = signature.receiverType,
+            case let .classType(receiverClass) = ctx.types.kind(of: receiverType),
+            receiverClass.classSymbol == owner
+        {
+            receiverType
+        } else {
+            implicitReceiverType
         }
 
         let javaMapArgument = javaCollectionsMapArgument(fqName: symbol.fqName, signature: signature, call: call, ctx: ctx)
@@ -466,11 +493,18 @@ extension OverloadResolver {
             }
         }
 
+        let defaultArgumentOwner = implicitReceiverType.flatMap {
+            ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable($0))
+        }
+        let inheritedDefaultValues = defaultArgumentOwner.flatMap {
+            ctx.symbols.functionSignature(for: $0)?.valueParameterHasDefaultValues
+        }
         guard let parameterMapping = buildParameterMapping(
             signature: signature,
             callArgs: call.args,
             symbols: ctx.symbols,
-            typeSystem: ctx.types
+            typeSystem: ctx.types,
+            inheritedDefaultValues: inheritedDefaultValues
         ) else {
             return .rejected
         }
@@ -548,6 +582,51 @@ extension OverloadResolver {
             return .rejected
         }
         var inputConstraints = constraints
+
+        // An annotated Unit callback constrains call variables from
+        // above. Include their concrete declaration bounds before solving:
+        // `(String) -> Unit` can satisfy `(T : Number) -> Unit` with an
+        // intersection, even though choosing String alone violates the bound.
+        var callbackInputUpperBounds: [TypeVarID: [TypeID]] = [:]
+        if !typeVarBySymbol.isEmpty {
+            for (argumentIndex, parameterIndex) in parameterMapping {
+                guard case let .functionType(parameter) = ctx.types.kind(of: signature.parameterTypes[parameterIndex]),
+                      case let .functionType(argument) = ctx.types.kind(of: call.args[argumentIndex].type),
+                      parameter.returnType == ctx.types.unitType || argument.returnType == ctx.types.unitType,
+                      parameter.params.count == argument.params.count
+                else { continue }
+                for (expectedInput, actualInput) in zip(parameter.params, argument.params) {
+                    let inputBounds = decomposeSubtypeConstraint(
+                        subtype: expectedInput, supertype: actualInput,
+                        typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types, blameRange: call.range
+                    )
+                    for constraint in inputBounds {
+                        guard constraint.kind == .subtype,
+                              case let .variable(variable) = constraint.left,
+                              case let .type(bound) = constraint.right,
+                              !containsTypeVariable(bound, typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types)
+                        else { continue }
+                        callbackInputUpperBounds[variable, default: []].append(bound)
+                    }
+                }
+            }
+            for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                guard let variable = typeVarBySymbol[symbol],
+                      let inputBounds = callbackInputUpperBounds[variable]
+                else { continue }
+                let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index] : []
+                let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: symbol)
+                for bound in signatureBounds + symbolBounds.filter({ !signatureBounds.contains($0) }) {
+                    guard !containsTypeVariable(bound, typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types),
+                          !inputBounds.contains(where: { ctx.types.isSubtype($0, bound) })
+                    else { continue }
+                    constraints.append(VariableConstraint(
+                        kind: .subtype, left: .variable(variable), right: .type(bound), blameRange: call.range
+                    ))
+                }
+            }
+        }
 
         // Upper bounds can relate two function type parameters (for example
         // `where C : Collection<*>, C : R`). Add those relationships to the
@@ -730,6 +809,8 @@ extension OverloadResolver {
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: substitution,
             parameterMapping: parameterMapping,
+            defaultArgumentOwner: defaultArgumentOwner,
+            effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
             usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
         ))
     }
@@ -1271,6 +1352,8 @@ extension OverloadResolver {
         let instantiatedParameterTypes: [TypeID]
         let substitutedTypeArguments: [TypeVarID: TypeID]
         let parameterMapping: [Int: Int]
+        let defaultArgumentOwner: SymbolID?
+        let effectiveDefaultValues: [Bool]
         let usesVararg: Bool
 
         func toResolvedCall() -> ResolvedCall {
@@ -1278,7 +1361,8 @@ extension OverloadResolver {
                 chosenCallee: symbol,
                 substitutedTypeArguments: substitutedTypeArguments,
                 parameterMapping: parameterMapping,
-                diagnostic: nil
+                diagnostic: nil,
+                defaultArgumentOwner: defaultArgumentOwner
             )
         }
 
@@ -1322,9 +1406,12 @@ extension OverloadResolver {
         // supertype paths — e.g. `IntRange` inherits `ClosedRange.contains` and
         // `OpenEndRange.contains` — so collapse them to one deterministic
         // winner instead of reporting the call as ambiguous. Scope extensions
-        // and mismatched-signature members stay genuinely ambiguous.
+        // and mismatched-signature members stay genuinely ambiguous. Imported
+        // singleton members are independently bound callables, not duplicate
+        // supertype paths, even when their value parameter types are equal.
         let tied = winners.isEmpty ? candidates : winners
         if tied.count > 1,
+           tied.allSatisfy({ !call.boundObjectDispatchReceiverCandidates.contains($0.symbol) }),
            tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
            tied.allSatisfy({ lhs in
                tied.allSatisfy { rhs in
@@ -1426,7 +1513,7 @@ extension OverloadResolver {
                 // parameters are not supplied by the call and are optional (default
                 // or vararg). If every extra parameter is bound, the smaller
                 // candidate (e.g. a vararg overload) is not preferred.
-                let rhsDefaults = Self.normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
+                let rhsDefaults = Self.normalizeFlags(rhs.effectiveDefaultValues, count: rhsCount)
                 let rhsVarargs = Self.normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
                 var unboundFound = false
                 var extraAreOptional = true

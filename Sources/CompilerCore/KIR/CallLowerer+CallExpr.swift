@@ -303,6 +303,17 @@ extension CallLowerer {
         }
 
         let boundType = sema.bindings.exprTypes[exprID]
+        if sema.bindings.scopeFunctionKind(for: exprID) == .scopeUsePinned,
+           let receiver = sema.bindings.implicitReceiverOuterReceiver(for: exprID)
+               .flatMap({ driver.ctx.localValue(for: $0) }) ?? driver.ctx.activeImplicitReceiverExprID(),
+           let lowered = tryScopeFunctionLowering(
+               exprID, receiverExpr: calleeExpr, args: args, ast: ast, sema: sema,
+               arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers,
+               instructions: &instructions, precomputedReceiver: receiver
+           )
+        {
+            return lowered
+        }
         let loweredCalleeExprID = driver.lowerExpr(
             calleeExpr,
             ast: ast,

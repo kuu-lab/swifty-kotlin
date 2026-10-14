@@ -20,6 +20,7 @@ enum CLIParser {
       --emit <mode>          executable|object|llvm|kir|library
       -O0|-O1|-O2|-O3        Optimization level
       -m <name>              Module name
+      --entry-point <fqname> Select the file-level executable entry function
       -I <path>              Search path
       -L <path>              Library path
       -l <name>              Link library
@@ -51,6 +52,7 @@ enum CLIParser {
         var inputPaths: [String] = []
         var outputPath = "./a.out"
         var moduleName = "Main"
+        var entryPointFQName: String?
         var emitMode: EmitMode = .executable
         var explicitEmitMode: EmitMode?
         var searchPaths: [String] = []
@@ -85,6 +87,8 @@ enum CLIParser {
                 outputPath = try requireValue(option: arg, args: args, index: &index)
             case "-m":
                 moduleName = try requireValue(option: arg, args: args, index: &index)
+            case "--entry-point":
+                entryPointFQName = try requireValue(option: arg, args: args, index: &index)
             case "--emit":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard let mode = parseEmitMode(value) else {
@@ -228,7 +232,8 @@ enum CLIParser {
             diagnosticsFormat: diagnosticsFormat,
             stdlibOnly: stdlibOnly,
             stdlibLibraryPath: stdlibLibraryPath,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+            entryPointFQName: entryPointFQName
         )
     }
 

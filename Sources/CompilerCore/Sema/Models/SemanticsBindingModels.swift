@@ -2,11 +2,14 @@ public struct CallBinding {
     public let chosenCallee: SymbolID
     public let substitutedTypeArguments: [TypeID]
     public let parameterMapping: [Int: Int]
+    /// The interface default source in an inherited class use-site scope.
+    public let defaultArgumentOwner: SymbolID?
 
-    public init(chosenCallee: SymbolID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int]) {
+    public init(chosenCallee: SymbolID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int], defaultArgumentOwner: SymbolID? = nil) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
+        self.defaultArgumentOwner = defaultArgumentOwner
     }
 }
 

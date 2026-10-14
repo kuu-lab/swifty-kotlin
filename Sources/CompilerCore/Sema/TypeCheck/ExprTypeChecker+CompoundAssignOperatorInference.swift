@@ -520,6 +520,9 @@ extension ExprTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
+            driver.helpers.checkOptIn(
+                for: propSymbol.id, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
+            )
             if implicitReceiverMember != nil {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
             }
@@ -748,6 +751,9 @@ extension ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        driver.helpers.checkOptIn(
+            for: propResult.symbol, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
+        )
         if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
             _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
         }

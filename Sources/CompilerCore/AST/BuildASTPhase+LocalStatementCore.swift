@@ -591,7 +591,8 @@ extension BuildASTPhase {
             range: SourceRange,
             context: LocalStatementCoreContext
         ) -> ExprID {
-            let name = context.interner.intern("$compound$\(range.start.offset)$\(lhsExpr.rawValue)")
+            // Source coordinates survive file-local arena merging unchanged.
+            let name = context.interner.intern("$compound$\(range.start.file.rawValue)$\(range.start.offset)$\(range.end.offset)")
             let temporary = context.astArena.appendExpr(.localDecl(
                 name: name,
                 isMutable: false,
