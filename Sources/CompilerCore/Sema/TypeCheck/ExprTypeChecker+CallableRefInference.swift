@@ -868,7 +868,15 @@ extension ExprTypeChecker {
                             range: range
                         )
                     }
-                    resultType = resultTypePreservingSuspendConversionSource(concreteResult)
+                    // Keep the selected reference's concrete function type.
+                    // `expectedFunctionType` may be an input-only placeholder
+                    // such as `(Char) -> Any?` synthesized while an overloaded
+                    // call compares HOF candidates. Widening the reference to
+                    // that placeholder hides its real return type from the
+                    // enclosing overload resolver.
+                    resultType = resultTypePreservingSuspendConversionSource(
+                        expectedSamInterfaceType ?? inferredType
+                    )
                 } else {
                     resultType = inferredType
                 }
