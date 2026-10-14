@@ -523,8 +523,11 @@ final class ExprTypeChecker {
                     )
                 }
             }
-            // Smart cast: after `x as T`, narrow x to intersection of original & T (P5-97/P5-100)
-            if !isSafe,
+            // A standalone `x as T` statement narrows later uses of x. When
+            // the cast value is consumed (for example, `val y = x as T`),
+            // only that expression has the target type; x keeps its flow type.
+            if isStatementContext,
+               !isSafe,
                let castSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(castVarName, _) = castSubjectExpr,
                let castLocal = locals[castVarName],
