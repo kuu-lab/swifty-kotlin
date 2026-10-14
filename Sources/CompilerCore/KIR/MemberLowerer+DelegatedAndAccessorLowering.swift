@@ -110,6 +110,18 @@ extension MemberLowerer {
         // is `symbol: customGetValueSymbol`/`customSetValueSymbol` below.
         let getValueName = interner.intern("getValue")
         let setValueName = interner.intern("setValue")
+        let getterReturnsTypeParameter = customGetValueSymbol
+            .flatMap { sema.symbols.functionSignature(for: $0)?.returnType }
+            .map { returnType in
+                if case .typeParam = sema.types.kind(of: returnType) { return true }
+                return false
+            } ?? false
+        let propertyTypeIsTypeParameter: Bool = if case .typeParam = sema.types.kind(of: propertyType) {
+            true
+        } else {
+            false
+        }
+        let needsErasedGetterResultCast = getterReturnsTypeParameter && !propertyTypeIsTypeParameter
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         if let dispatchReceiverBinding {
@@ -137,7 +149,8 @@ extension MemberLowerer {
                 body: &body
             )
             // call: $delegate_x.getValue(thisRef, kProperty) -> PropertyType
-            let resultExprID = arena.appendTemporary(type: propertyType
+            let resultExprID = arena.appendTemporary(
+                type: needsErasedGetterResultCast ? sema.types.anyType : propertyType
             )
             let getterExtraArgs = buildCustomDelegateGetterArgs(
                 propertySymbol: propertySymbol,
@@ -155,7 +168,28 @@ extension MemberLowerer {
                 sema: sema,
                 interner: interner
             ))
-            body.append(.returnValue(resultExprID))
+            if needsErasedGetterResultCast {
+                let typeToken = RuntimeTypeCheckToken.encode(
+                    type: propertyType, sema: sema, interner: interner
+                )
+                let typeTokenExprID = arena.appendExpr(.intLiteral(typeToken), type: sema.types.intType)
+                body.append(.constValue(
+                    result: typeTokenExprID,
+                    value: .intLiteral(typeToken)
+                ))
+                let checkedResultExprID = arena.appendTemporary(type: propertyType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_cast_erased_return"),
+                    arguments: [resultExprID, typeTokenExprID],
+                    result: checkedResultExprID,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                body.append(.returnValue(checkedResultExprID))
+            } else {
+                body.append(.returnValue(resultExprID))
+            }
 
         case .setter:
             returnType = sema.types.unitType
@@ -457,33 +491,13 @@ extension MemberLowerer {
         interner: StringInterner,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
-        let propertyNameExprID = arena.appendExpr(
-            .stringLiteral(propertyName),
-            type: sema.types.stringType
+        driver.emitKPropertyStubCreate(
+            propertySymbol: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            emit: &body
         )
-        body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
-        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
-        let returnTypeSig = interner.intern(
-            sema.types.displayName(of: propertyType, symbols: sema.symbols, interner: interner)
-        )
-        let returnTypeExprID = arena.appendExpr(
-            .stringLiteral(returnTypeSig),
-            type: sema.types.stringType
-        )
-        body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
-        let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType)
-        body.append(
-            .call(
-                symbol: nil,
-                callee: interner.intern("__kk_kproperty_stub_create"),
-                arguments: [propertyNameExprID, returnTypeExprID],
-                result: kPropertyExprID,
-                canThrow: false,
-                thrownResult: nil
-            )
-        )
-        return kPropertyExprID
     }
 
     /// Lower a property getter or setter body as a synthetic KIR function.

@@ -497,6 +497,26 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
     return 0
 }
 
+/// Checks an erased generic result at the delegated property boundary. A null
+/// result is accepted for nullable properties and rejected as a cast failure
+/// for non-null properties, without changing explicit `as` cast behavior.
+@_cdecl("kk_op_cast_erased_return")
+public func kk_op_cast_erased_return(
+    _ value: Int,
+    _ typeToken: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if kk_op_is(value, typeToken) != 0 {
+        return value
+    }
+    if value == runtimeNullSentinelInt {
+        outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
+        return 0
+    }
+    return kk_op_cast(value, typeToken, outThrown)
+}
+
 @_cdecl("kk_op_safe_cast")
 public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
     kk_op_is(value, typeToken) != 0 ? value : runtimeNullSentinelInt

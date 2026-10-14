@@ -13,6 +13,17 @@ public extension RuntimeABISpec {
             section: "Delegate",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kproperty_stub_create_cached",
+            parameters: [
+                RuntimeABIParameter(name: "nameStr", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeStr", type: .intptr),
+                RuntimeABIParameter(name: "identityStr", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
         // STDLIB-REFLECT-062: full create with visibility/isLateinit/isConst
         RuntimeABIFunctionSpec(
             name: "__kk_kproperty_stub_create_full",

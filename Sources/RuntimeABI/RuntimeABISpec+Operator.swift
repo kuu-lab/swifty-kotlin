@@ -646,6 +646,16 @@ public extension RuntimeABISpec {
             section: "TypeCheck"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_op_cast_erased_return",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_op_safe_cast",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
