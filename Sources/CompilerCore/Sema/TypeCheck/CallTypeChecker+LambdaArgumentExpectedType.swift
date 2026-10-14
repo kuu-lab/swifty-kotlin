@@ -242,29 +242,72 @@ extension CallTypeChecker {
     private func applyInferredArgumentTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
+        receiverType: TypeID? = nil,
+        fixesReceiverBoundInputs: Bool = false,
         inferredNonLambdaArgTypes: [Int: TypeID],
         resolver: OverloadResolver?,
         sema: SemaModule
     ) -> TypeID {
         guard let resolver,
-              !inferredNonLambdaArgTypes.isEmpty,
               !signature.typeParameterSymbols.isEmpty
         else {
             return parameterType
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        let substitution = resolver.probeArgumentTypeSubstitution(
-            signature: signature,
-            typeVarBySymbol: typeVarBySymbol,
-            knownArgumentTypes: inferredNonLambdaArgTypes,
-            typeSystem: sema.types
-        )
-        guard !substitution.isEmpty else { return parameterType }
-        return sema.types.substituteTypeParameters(
-            in: parameterType,
-            substitution: substitution,
-            typeVarBySymbol: typeVarBySymbol
-        )
+        var result = parameterType
+        if !inferredNonLambdaArgTypes.isEmpty {
+            let substitution = resolver.probeArgumentTypeSubstitution(
+                signature: signature,
+                typeVarBySymbol: typeVarBySymbol,
+                knownArgumentTypes: inferredNonLambdaArgTypes,
+                typeSystem: sema.types
+            )
+            if !substitution.isEmpty {
+                result = sema.types.substituteTypeParameters(
+                    in: result,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+            }
+        }
+        // `fun <S, T : S> Iterable<T>.op(f: (S, T) -> S)`: S is only determined
+        // through the receiver's T. Kotlin fixes the variables a lambda's input
+        // types mention before analysing it, but leaves output-only variables
+        // (e.g. `R` in `C.ifEmpty(() -> R) where C : R`) open, so the receiver-
+        // derived bindings are applied to the lambda's inputs only.
+        if fixesReceiverBoundInputs,
+           let receiverType,
+           hasTypeParameterBoundedByTypeParameter(signature, sema: sema),
+           case let .functionType(functionType) = sema.types.kind(of: result)
+        {
+            let receiverSubstitution = resolver.probeArgumentTypeSubstitution(
+                signature: signature,
+                typeVarBySymbol: typeVarBySymbol,
+                knownArgumentTypes: inferredNonLambdaArgTypes,
+                typeSystem: sema.types,
+                implicitReceiverType: receiverType
+            )
+            if !receiverSubstitution.isEmpty {
+                func substituted(_ type: TypeID) -> TypeID {
+                    sema.types.substituteTypeParameters(
+                        in: type,
+                        substitution: receiverSubstitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                }
+                result = sema.types.make(.functionType(FunctionType(
+                    contextReceivers: functionType.contextReceivers,
+                    receiver: functionType.receiver.map(substituted),
+                    params: functionType.params.map(substituted),
+                    returnType: functionType.returnType,
+                    isSuspend: functionType.isSuspend,
+                    isCallableReference: functionType.isCallableReference,
+                    nullability: functionType.nullability,
+                    throws: functionType.throws
+                )))
+            }
+        }
+        return result
     }
 
     /// Shares contextual input specialization between lambdas and references.
@@ -276,6 +319,7 @@ extension CallTypeChecker {
         candidate: SymbolID,
         explicitTypeArgs: [TypeID],
         receiverType: TypeID?,
+        fixesReceiverBoundInputs: Bool = false,
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
         resolver: OverloadResolver? = nil,
         sema: SemaModule
@@ -303,10 +347,45 @@ extension CallTypeChecker {
         return applyInferredArgumentTypeArgs(
             to: functionReceiverSubstituted,
             signature: signature,
+            receiverType: receiverType,
+            fixesReceiverBoundInputs: fixesReceiverBoundInputs,
             inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
             resolver: resolver,
             sema: sema
         )
+    }
+
+    /// Annotated lambda parameters or explicit type arguments already determine
+    /// the bounded variables themselves, so they must not be fixed from the receiver.
+    private func fixesReceiverBoundLambdaInputs(
+        at index: Int,
+        args: [CallArgument],
+        explicitTypeArgs: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        explicitTypeArgs.isEmpty
+            && index < args.count
+            && ctx.ast.arena.lambdaParamTypeRefs(for: args[index].expr)?.contains(where: { $0 != nil }) != true
+    }
+
+    private func hasTypeParameterBoundedByTypeParameter(
+        _ signature: FunctionSignature,
+        sema: SemaModule
+    ) -> Bool {
+        guard signature.receiverType != nil else { return false }
+        for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+            let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index]
+                : []
+            let bounds = signatureBounds + sema.symbols.typeParameterUpperBounds(for: symbol)
+            if bounds.contains(where: { bound in
+                if case .typeParam = sema.types.kind(of: bound) { return true }
+                return false
+            }) {
+                return true
+            }
+        }
+        return false
     }
 
     func callableReferenceExpectedType(
@@ -449,6 +528,9 @@ extension CallTypeChecker {
                 candidate: candidates[0],
                 explicitTypeArgs: explicitTypeArgs,
                 receiverType: receiverType,
+                fixesReceiverBoundInputs: fixesReceiverBoundLambdaInputs(
+                    at: index, args: args, explicitTypeArgs: explicitTypeArgs, ctx: ctx
+                ),
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 resolver: resolver,
                 sema: sema
@@ -579,12 +661,16 @@ extension CallTypeChecker {
             // generic receiver's arguments reach the lambda's expected type
             // (`Iterable<T>.f(transform: (T) -> R)` called on `List<Int>` must
             // expose `it: Int`, not the bare declaration type parameter `T`).
+            let fixesReceiverBoundInputs = fixesReceiverBoundLambdaInputs(
+                at: index, args: args, explicitTypeArgs: explicitTypeArgs, ctx: ctx
+            )
             let parameterType = contextualCallableParameterType(
                 rawParameterType,
                 signature: signature,
                 candidate: candidate,
                 explicitTypeArgs: explicitTypeArgs,
                 receiverType: receiverType,
+                fixesReceiverBoundInputs: fixesReceiverBoundInputs,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 resolver: resolver,
                 sema: sema
