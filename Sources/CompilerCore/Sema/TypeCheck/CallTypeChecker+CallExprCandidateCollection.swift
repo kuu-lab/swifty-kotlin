@@ -226,9 +226,11 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             var resolvedFromLocalShadow = false
-            if let local = locals[calleeName],
-               let sym = ctx.cachedSymbol(local.symbol)
-            {
+            // Lambda parameters carry synthetic (negative) symbol IDs with no
+            // symbol-table entry, so a missing symbol must not skip the shadow
+            // check: such a local is still a value that hides same-named functions.
+            if let local = locals[calleeName] {
+                let localSymbolKind = ctx.cachedSymbol(local.symbol)?.kind
                 let localIsCallableValue: Bool = {
                     if case .functionType = sema.types.kind(of: local.type) {
                         return true
@@ -252,8 +254,8 @@ extension CallTypeChecker {
                         sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
                     }
                 }()
-                if sym.kind == .function
-                    || (sym.kind != .class && localIsCallableValue)
+                if localSymbolKind == .function
+                    || (localSymbolKind != .class && localIsCallableValue)
                     || local.type == sema.types.errorType
                 {
                     // Callable local declarations shadow imported and top-level
@@ -263,7 +265,7 @@ extension CallTypeChecker {
                     // (KUU-555 named local class) is likewise not a callable
                     // value — `Local(...)` must reach its constructor through
                     // the KSP-CAP-006 merge below.
-                    candidates = sym.kind == .function ? [local.symbol] : []
+                    candidates = localSymbolKind == .function ? [local.symbol] : []
                     resolvedFromLocalShadow = true
                 }
             }
