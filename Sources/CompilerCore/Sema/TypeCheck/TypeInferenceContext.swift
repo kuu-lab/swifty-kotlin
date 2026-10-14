@@ -45,6 +45,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     var isCallableReferenceArgument = false
     var loopDepth: Int
     var loopLabelStack: [InternedString]
+    /// Loop scopes visible immediately before each enclosing lambda boundary.
+    /// A break/continue may cross these boundaries only when every intervening
+    /// lambda is an argument to an inline parameter that allows non-local jumps.
+    var lambdaLoopScopes: [(exprID: ExprID, loopDepth: Int, labels: [InternedString])] = []
     /// Stack of labels attached to enclosing lambda literals, paired with
     /// whether the label denotes a function. `return@label` uses it to verify
     /// that the label references a valid lambda. A label written on a lambda
@@ -173,17 +177,30 @@ struct TypeInferenceContext: CustomStringConvertible {
         copy.lambdaDepth += 1
         copy.enclosingLambdaExprIDs.append(exprID)
         copy.suspensionContext.lambdas.append(exprID)
-        // Lambda bodies open a new control-flow scope, like local function
-        // bodies do: a `break`/`continue` written directly in a lambda cannot
-        // reach a loop enclosing the lambda, because non-local break/continue
-        // is not implemented in Lowering (BUG-253) — the jump is dropped and a
-        // valid program silently becomes an infinite loop or a wrong result.
-        // Resetting the loop stacks makes KSWIFTK-SEMA-0018 / -0019 reject it.
-        // A loop *inside* the lambda re-increments `loopDepth`, so
-        // `run { while (true) { ... break } }` keeps compiling.
+        copy.lambdaLoopScopes.append((exprID: exprID, loopDepth: loopDepth, labels: loopLabelStack))
+        // Lambda-local loops start a fresh scope. Candidate jumps to enclosing
+        // loops are recorded and checked after overload resolution determines
+        // whether each lambda boundary is inline-permitted.
         copy.loopDepth = 0
         copy.loopLabelStack = []
         return copy
+    }
+
+    /// The lambda boundaries a non-local loop jump would cross, or nil when no
+    /// enclosing loop matches the requested target.
+    func lambdaPathForEnclosingLoopJump(label: InternedString?) -> [ExprID]? {
+        for index in lambdaLoopScopes.indices.reversed() {
+            let loopScope = lambdaLoopScopes[index]
+            let hasTarget = if let label {
+                loopScope.labels.contains(label)
+            } else {
+                loopScope.loopDepth > 0
+            }
+            if hasTarget {
+                return lambdaLoopScopes[index...].map(\.exprID)
+            }
+        }
+        return nil
     }
 
     /// The function-denoting status of the nearest enclosing label named
@@ -250,6 +267,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]? = nil,
         lambdaReturnScopes: [LambdaReturnInferenceScope]? = nil,
         lambdaDepth: Int? = nil,
+        lambdaLoopScopes: [(exprID: ExprID, loopDepth: Int, labels: [InternedString])]? = nil,
         enclosingFunctionReturnType: TypeID?? = nil,
         enclosingFunctionSymbol: SymbolID?? = nil,
         enclosingLambdaExprIDs: [ExprID]? = nil,
@@ -276,6 +294,11 @@ struct TypeInferenceContext: CustomStringConvertible {
         if let lambdaLabelStack { copy.lambdaLabelStack = lambdaLabelStack }
         if let lambdaReturnScopes { copy.lambdaReturnScopes = lambdaReturnScopes }
         if let lambdaDepth { copy.lambdaDepth = lambdaDepth }
+        if let lambdaLoopScopes {
+            copy.lambdaLoopScopes = lambdaLoopScopes
+        } else if let enclosingLambdaExprIDs, enclosingLambdaExprIDs.isEmpty {
+            copy.lambdaLoopScopes = []
+        }
         if let enclosingFunctionReturnType {
             copy.enclosingFunctionReturnType = enclosingFunctionReturnType
         }

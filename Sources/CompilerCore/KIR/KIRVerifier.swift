@@ -137,7 +137,13 @@ struct KIRVerifier {
                     report(.duplicateLabel, index, "duplicate label \(id)")
                 }
             case let .jump(target):
-                if !definedLabels.contains(target) {
+                // Inline-only lambda bodies may temporarily jump to a loop
+                // label owned by the function that will inline them. The
+                // marker is resolved during inline expansion, so it is not a
+                // same-function label reference at this stage.
+                let isExternalInlineLoopJump = function.isInlineOnly
+                    && KIRExternalLoopJump.label(for: target) != nil
+                if !isExternalInlineLoopJump, !definedLabels.contains(target) {
                     report(.undefinedJumpTarget, index, "jump to undefined label \(target)")
                 }
             case let .jumpIfEqual(lhs, rhs, target):

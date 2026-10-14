@@ -44,6 +44,9 @@ public final class BindingTable {
     public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
+    /// Lambda boundaries crossed by break/continue to an enclosing loop.
+    /// Inline parameter eligibility is known only after overload resolution.
+    public private(set) var loopJumpLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     /// Specializations of callable references are separate from ordinary calls.
     public private(set) var callableReferenceBindings: [ExprID: CallBinding] = [:]
@@ -307,6 +310,7 @@ public final class BindingTable {
         if !lambdaReturnTargets.isEmpty { return false }
         if !lambdaReturnLambdaPaths.isEmpty { return false }
         if !functionReturnLambdaPaths.isEmpty { return false }
+        if !loopJumpLambdaPaths.isEmpty { return false }
         if !callBindings.isEmpty { return false }
         if !workerExecuteCallees.isEmpty { return false }
         if !workerExecuteJobRanges.isEmpty { return false }
@@ -418,6 +422,7 @@ public final class BindingTable {
         worker.lambdaReturnTargets = lambdaReturnTargets
         worker.lambdaReturnLambdaPaths = lambdaReturnLambdaPaths
         worker.functionReturnLambdaPaths = functionReturnLambdaPaths
+        worker.loopJumpLambdaPaths = loopJumpLambdaPaths
         worker.callBindings = callBindings
         worker.callableReferenceBindings = callableReferenceBindings
         worker.pendingAnnotationTargets = pendingAnnotationTargets
@@ -525,6 +530,10 @@ public final class BindingTable {
     func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
         identifierSymbols[expr] = symbol
         functionReturnLambdaPaths[expr] = lambdaPath
+    }
+
+    func bindLoopJump(_ expr: ExprID, lambdaPath: [ExprID]) {
+        loopJumpLambdaPaths[expr] = lambdaPath
     }
 
     func bindLambdaReturn(_ expr: ExprID, target: ExprID, lambdaPath: [ExprID]) {
