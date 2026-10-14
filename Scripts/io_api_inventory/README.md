@@ -161,9 +161,9 @@ declaration-derived expected-output classification, rather than being described
 as new official Native reference runs. Other boundary/resource/annotation
 contracts and the parent's full upstream execution gate remain separate checks.
 
-### F02 acceptance snapshot, 2026-10-14
+### F02 pre-rebase acceptance snapshot, 2026-10-14
 
-KUU-1822 remains incomplete. The final run used retrieved master
+KUU-1822 remains incomplete. The full pre-rebase run used retrieved master
 `01544852e570d6bb1766e44b4e9fb47af88121f2` plus the uncommitted F02 changes,
 compiler SHA-256 `058faee4af259a74b65023f5721233b97d86b3ac2eb6928827b7fa525aee25e7`,
 and a new CLI stdlib build. Its 1,848 relative file/SHA-256 entries have digest
@@ -199,6 +199,13 @@ Local raw evidence is in `/private/tmp/kuu1822/final-master-matrix/` and
 `/private/tmp/kuu1822/final-master-auxiliary-probes/`: summaries, original streams,
 commands, deadlines, exits, file hashes, event checks and byte differences.
 Linear KUU-1822 records the immutable run details and blocker links.
+
+[Draft PR #8937](https://github.com/kuu-lab/swifty-kotlin/pull/8937) is based on
+retrieved master `d23b45f21ca8c6b4e90bc9d558c12d2bd0fe8692`, including the
+existing `usePinned` and `Mutex(locked)` fixes. It preserves compact indexed
+metadata and passes `swift build` after adapting the singleton initialization
+helper call. The PR and Linear issue record the subsequent focused gate and
+fresh-artifact matrix results separately from the pre-rebase evidence above.
 
 ## Recheck
 
