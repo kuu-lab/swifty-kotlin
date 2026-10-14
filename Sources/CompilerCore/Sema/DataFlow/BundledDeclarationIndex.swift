@@ -538,6 +538,11 @@ struct BundledDeclarationIndex: Sendable {
             // no synthetic `get` registration remains to overlap-warn about.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
+        if ownerFQName == ["kotlinx", "cinterop", "CPointer"] {
+            // The source Byte overload returns a primitive value; the generic
+            // native extension still returns variable boxes for other pointees.
+            return interner.resolve(key.name) == "get" && key.arity == 1
+        }
         return false
     }
 

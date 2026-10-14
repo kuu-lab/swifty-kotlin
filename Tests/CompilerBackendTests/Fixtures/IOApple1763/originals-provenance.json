@@ -9,7 +9,7 @@
     "SourceNSInputStreamTest.kt": "43a89b9da18660b41d6fc996937a2b9cb5bd5cb01128a8076ebd370e547ef7f0",
     "utilApple.kt": "0b47e570260b8b6a5ed83311af27a85a6c5b4f31ff534c877067060703c524e5",
     "SegmentHelpers.kt": "cb69f026857698fcaa5dc96049e43fdd063af38cef0d66ce2d7cb98c864dd588",
-    "TempFileHelper.kt": "472a2979514fdba96caace8cf36126bb577ae1312a97f46faef3d3ea4b12f7d7",
+    "TempFileHelper.kt": "f767a4eae0ca944002c797344f6c5be6ddb35f98705213ba398dedbd361f4a0c",
     "AtomicfuTestSupport.kt": "f963b265856af2f3da94f980f2ba4f65b63ef6c4a1580d837133ec03da5da71e",
     "AtomicfuLockTestSupport.kt": "c4ed61ecb3187d91185ecca554a7da5083cd633da041d8b8866bfc3c807a955b",
     "OriginalConsumer.kt": "9a377658e57496edbe856a5b032e9cf51551529e2b7f02ee9af88f824c9875e3"
@@ -24,20 +24,28 @@
     "SourceNSInputStreamTest.kt",
     "utilApple.kt",
     "SegmentHelpers.kt",
-    "TempFileHelper.kt",
-    "AtomicfuTestSupport.kt",
-    "AtomicfuLockTestSupport.kt"
+    "TempFileHelper.kt"
   ],
   "consumer": "OriginalConsumer.kt",
   "expected": "originals.expected.stdout",
   "entry": "kuu1763originalconsumer.main",
   "methods": 25,
   "original_body_changes": 0,
-  "atomicfu_adapter": "test-only delegates to real kotlin.concurrent.atomics.AtomicInt + Foundation NSRecursiveLock; no full Atomicfu coverage claim",
+  "atomicfu_adapter": "Actual bundled kotlinx.atomicfu atomic(Int), reentrantLock and withLock; retired same-name candidate test adapters are not producer inputs",
   "helper_whitespace_derivative": {
     "SegmentHelpers.kt": {
       "original_preparation_sha256": "c0245e2da0e4ae413c6b96729cdd3729ff8a896850f752eea388f10dbb64a8f4",
       "change": "One final blank line removed for strict whitespace validation; all helper statements and 25 original bodies unchanged"
+    }
+  },
+  "retired_candidate_adapters": [
+    "AtomicfuTestSupport.kt",
+    "AtomicfuLockTestSupport.kt"
+  ],
+  "helper_derivative": {
+    "TempFileHelper.kt": {
+      "original_preparation_sha256": "472a2979514fdba96caace8cf36126bb577ae1312a97f46faef3d3ea4b12f7d7",
+      "change": "Use public Path.toString() for the same temporary-directory path across the stdlib module boundary; all 25 original bodies unchanged"
     }
   }
 }

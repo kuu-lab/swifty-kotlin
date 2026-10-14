@@ -17,17 +17,23 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         expectedTypeOverrides: inout [Int: TypeID]
     ) {
-        guard candidates.count == 1,
-              let candidate = candidates.first,
-              let signature = ctx.sema.symbols.functionSignature(for: candidate)
+        // Argument labels and arity can leave a single contextual candidate
+        // even before the nested call's result type is known.
+        let mappedCandidates = candidates.compactMap { candidate -> (FunctionSignature, [Int: Int])? in
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
+            else { return nil }
+            return (signature, mapping)
+        }
+        guard mappedCandidates.count == 1,
+              let (signature, parameterMapping) = mappedCandidates.first
         else {
             return
         }
         let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
         for index in args.indices {
             guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast),
-                  let parameterIndex = parameterMapping?[index],
+                  let parameterIndex = parameterMapping[index],
                   parameterIndex < signature.parameterTypes.count,
                   let parameterType = contextualCallArgumentType(
                       args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
