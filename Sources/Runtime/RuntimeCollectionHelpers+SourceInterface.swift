@@ -4,6 +4,9 @@ private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
 private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
+private let runtimeSourceMapEntryInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Map.Entry"
+)
 // These slots are the generated interface property getter slots in the current
 // bundled layout: `size`'s slot is `Collection`/`Map`'s own vtableSize (its
 // method-slot count), since KIRInterfacePropertyDispatch.swift lays property
@@ -465,4 +468,22 @@ func runtimeSourceMutableMapClear(
         context: "MutableMap.clear dispatch",
         outThrown: outThrown
     )
+}
+
+
+/// Map.Entry declares no methods of its own; key/value getters occupy slots
+/// zero and one. Reading through the interface preserves equality symmetry
+/// between runtime-backed entries and source-backed unmodifiable wrappers.
+func runtimeSourceMapEntryValues(_ rawValue: Int) -> (key: Int, value: Int)? {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
+          runtimeIsObjectPointer(pointer), tryCast(pointer, to: RuntimeObjectBox.self) != nil,
+          let key = runtimeSourceInterfaceCall0(
+            rawValue, interfaceTypeID: runtimeSourceMapEntryInterfaceTypeID, methodSlot: 0,
+            context: "Map.Entry.key dispatch"
+          ),
+          let value = runtimeSourceInterfaceCall0(
+            rawValue, interfaceTypeID: runtimeSourceMapEntryInterfaceTypeID, methodSlot: 1,
+            context: "Map.Entry.value dispatch"
+          ) else { return nil }
+    return (key, value)
 }

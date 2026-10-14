@@ -13,7 +13,7 @@ extension DataFlowSemaPhase {
 
         registerMutableCollectionArrayAddAllMember(
             ownerName: "MutableSet",
-            externalLinkName: "__kk_mutable_set_addAll",
+            externalLinkName: "__kk_mutable_collection_addAll_throwing",
             flags: [.synthetic],
             symbols: symbols,
             types: types,
@@ -80,6 +80,7 @@ extension DataFlowSemaPhase {
                 receiverType: receiverType,
                 parameterTypes: [arrayType],
                 returnType: types.booleanType,
+                canThrow: true,
                 typeParameterSymbols: [typeParamSymbol],
                 classTypeParameterCount: 1
             ),

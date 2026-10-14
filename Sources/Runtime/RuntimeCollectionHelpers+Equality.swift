@@ -197,8 +197,8 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
                   let rhsEntry = runtimeIdentityMapEntryValues(rhs) else { return false }
             return lhsEntry.key == rhsEntry.key && lhsEntry.value == rhsEntry.value
         }
-        guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
-              let rhsEntry = runtimeMapEntryValues(rawValue: rhs)
+        guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs) ?? runtimeSourceMapEntryValues(lhs),
+              let rhsEntry = runtimeMapEntryValues(rawValue: rhs) ?? runtimeSourceMapEntryValues(rhs)
         else {
             return false
         }

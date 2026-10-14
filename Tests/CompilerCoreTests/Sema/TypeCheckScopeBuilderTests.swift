@@ -3,6 +3,55 @@ import Testing
 
 @Suite
 struct TypeCheckScopeBuilderTests {
+    private func importVisibilityContext(_ sources: [String]) -> CompilationContext {
+        let context = makeContextFromSources(sources)
+        var options = context.options
+        options.includeStdlib = false
+        return CompilationContext(
+            options: options, sourceManager: context.sourceManager,
+            diagnostics: context.diagnostics, interner: context.interner
+        )
+    }
+
+    @Test(arguments: [false, true])
+    func unusedPrivateImportsAreRejectedWithoutHidingPublicOverloads(aliases: Bool) throws {
+        let classAlias = aliases ? " as HiddenAlias" : ""
+        let functionAlias = aliases ? " as hiddenAlias" : ""
+        let ctx = importVisibilityContext([
+            """
+            package secret
+            private class Hidden
+            private fun hidden() {}
+            fun mixed() {}
+            private fun mixed(value: Int) {}
+            """,
+            """
+            package app
+            import secret.Hidden\(classAlias)
+            import secret.hidden\(functionAlias)
+            import secret.mixed
+            fun main() { mixed() }
+            """,
+        ])
+        do { try runSema(ctx) } catch {}
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 2, "\(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0040" }, "\(errors)")
+        let lines = Set(errors.compactMap { $0.primaryRange?.start }.map {
+            ctx.sourceManager.lineColumn(of: $0).line
+        })
+        #expect(lines == [2, 3])
+    }
+
+    @Test
+    func sameFilePrivateImportIsAllowed() throws {
+        let ctx = importVisibilityContext([
+            "package secret\nimport secret.hidden\nprivate fun hidden() {}\nfun main() {}",
+        ])
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func inaccessibleWildcardMemberDoesNotShadowDefaultImport() throws {
         let ctx = makeContextFromSources([

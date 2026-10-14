@@ -594,9 +594,13 @@ extension DataFlowSemaPhase {
         }
         return FunctionSignature(
             receiverType: functionType.receiver,
-            parameterTypes: functionType.params,
-            returnType: isStdlibArtifact ? javaThreadLocalReturnType(
-                functionType.returnType, fqName: record.fqName, types: types, interner: interner
+            parameterTypes: isStdlibArtifact ? javaCollectionsParameterTypes(
+                functionType.params, fqName: record.fqName, types: types, interner: interner
+            ) : functionType.params,
+            returnType: isStdlibArtifact ? javaCollectionsReturnType(
+                javaThreadLocalReturnType(
+                    functionType.returnType, fqName: record.fqName, types: types, interner: interner
+                ), fqName: record.fqName, types: types, interner: interner
             ) : functionType.returnType,
             isSuspend: functionType.isSuspend,
             canThrow: record.canThrow,
