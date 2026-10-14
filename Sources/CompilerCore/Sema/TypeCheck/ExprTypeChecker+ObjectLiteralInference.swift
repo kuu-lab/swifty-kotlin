@@ -71,7 +71,9 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        if let existing = sema.bindings.declSymbols[declID] {
+        if let existing = sema.bindings.declSymbols[declID],
+           driver.predeclaredObjectLiteralDecls.remove(declID) == nil
+        {
             return existing
         }
 
@@ -165,88 +167,17 @@ extension ExprTypeChecker {
         // capture set too, or `CaptureAnalyzer` never records it.
         captureOuterSymbols.formUnion(outerClassChain)
 
-        let objectSymbol = sema.symbols.define(
-            kind: symbolKind,
-            name: objectDecl.name,
-            fqName: fqNamePrefix + [objectDecl.name],
-            declSite: objectDecl.range,
-            visibility: .private,
-            flags: [.synthetic]
+        let objectSymbol = predeclareObjectLiteralSymbol(
+            declID: declID,
+            objectDecl: objectDecl,
+            superTypes: superTypes,
+            fqNamePrefix: fqNamePrefix,
+            symbolKind: symbolKind,
+            ctx: ctx
         )
-        sema.bindings.bindDecl(declID, symbol: objectSymbol)
-        var lexicalEnclosingFQNames: [[InternedString]] = []
-        var lexicalScope: Scope? = ctx.scope
-        while let scope = lexicalScope as? BaseScope {
-            if let memberScope = scope as? ClassMemberScope,
-               let owner = sema.symbols.symbol(memberScope.owner) {
-                lexicalEnclosingFQNames.append(owner.fqName)
-            }
-            lexicalScope = scope.parent
-        }
-        sema.bindings.deferLocalAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
-        // A literal declared inside a class shares its lexical private scope.
-        // Keep that nesting in the symbol graph so its members can read the
-        // enclosing class's private constructor properties.
-        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
-            sema.symbols.setParentSymbol(enclosingClassSymbol, for: objectSymbol)
-        }
-        sema.symbols.setSourceFileID(ctx.currentFileID, for: objectSymbol)
-
-        var directSuperSymbols: [SymbolID] = []
-        directSuperSymbols.reserveCapacity(superTypes.count)
-        var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
-        for superTypeRef in superTypes {
-            let resolved = driver.helpers.resolveTypeRef(
-                superTypeRef,
-                ast: ast,
-                sema: sema,
-                interner: interner,
-                scope: ctx.scope,
-                diagnostics: ctx.sema.diagnostics
-            )
-            if case let .classType(classType) = sema.types.kind(of: resolved),
-               !directSuperSymbols.contains(classType.classSymbol)
-            {
-                directSuperSymbols.append(classType.classSymbol)
-                directSuperTypeArgs[classType.classSymbol] = classType.args
-            }
-        }
-        let concreteClassSupers = directSuperSymbols.filter { symbolID in
-            guard let symbol = sema.symbols.symbol(symbolID) else {
-                return false
-            }
-            switch symbol.kind {
-            case .class, .enumClass, .object, .annotationClass:
-                return true
-            default:
-                return false
-            }
-        }
-        if concreteClassSupers.count > 1 {
-            let classNames = concreteClassSupers.compactMap { sema.symbols.symbol($0)?.fqName.last }
-                .map { interner.resolve($0) }
-                .joined(separator: ", ")
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0170",
-                "Object literal '\(interner.resolve(objectDecl.name))' cannot inherit from more than one class. Found: \(classNames).",
-                range: objectDecl.range
-            )
-        }
-        sema.symbols.setDirectSupertypes(directSuperSymbols, for: objectSymbol)
-        sema.types.setNominalDirectSupertypes(directSuperSymbols, for: objectSymbol)
-        for (superSymbol, args) in directSuperTypeArgs {
-            sema.symbols.setSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
-            sema.types.setNominalSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
-        }
-
+        driver.predeclaredObjectLiteralDecls.remove(declID)
+        let directSuperSymbols = sema.symbols.directSupertypes(for: objectSymbol)
         let inheritance = DataFlowSemaPhase()
-        inheritance.validateSupertypesAreOpen(
-            directSupertypes: directSuperSymbols,
-            declRange: objectDecl.range,
-            symbols: sema.symbols,
-            diagnostics: ctx.sema.diagnostics,
-            interner: interner
-        )
 
         // Delegate expressions run in the enclosing scope, before the anonymous
         // object's receiver and members become available.
