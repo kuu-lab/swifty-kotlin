@@ -178,7 +178,20 @@ extension ExprLowerer {
                 return localValue
             }
             let receiverExprID: KIRExprID
-            if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+            if let symbol = sema.bindings.identifierSymbols[exprID],
+               let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+               let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+               let activeReceiverType = arena.exprType(activeReceiver),
+               sema.types.isSubtype(
+                   sema.types.makeNonNullable(activeReceiverType),
+                   sema.types.makeNonNullable(extensionReceiverType)
+               )
+            {
+                // Member extension property references have two implicit
+                // receivers. The outer-receiver binding names the dispatch
+                // receiver; the active receiver supplies the extension value.
+                receiverExprID = activeReceiver
+            } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
             {
                 receiverExprID = capturedReceiver
