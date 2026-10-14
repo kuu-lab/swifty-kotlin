@@ -274,6 +274,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        normalizeNestedTypeAliasUnderlyingTypes(symbols: symbols, types: types)
         patchSourceBackedNativeUnhandledExceptionHookContract(
             symbols: symbols,
             interner: ctx.interner,
