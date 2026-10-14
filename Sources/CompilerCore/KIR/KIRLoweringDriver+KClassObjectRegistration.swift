@@ -14,8 +14,14 @@ extension KIRLoweringDriver {
         let tokenExpr = arena.appendExpr(.intLiteral(token), type: sema.types.intType)
         let objectExpr = arena.appendTemporary(type: objectType)
         let initializerExpr = arena.appendExpr(.symbolRef(ensureInitSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+        // Erased bound literals recover only the singleton's runtime type ID.
+        // Register its names eagerly, before any direct class literal is evaluated.
+        callLowerer.emitClassLiteralMetadataRegistration(
+            classRefTargetType: objectType, typeTokenExpr: tokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         instructions.append(contentsOf: [
-            .constValue(result: tokenExpr, value: .intLiteral(token)),
             .loadGlobal(result: objectExpr, symbol: objectSymbol),
             .constValue(result: initializerExpr, value: .symbolRef(ensureInitSymbol)),
             .call(symbol: nil, callee: interner.intern("__kk_kclass_register_object"),
