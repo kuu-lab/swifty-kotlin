@@ -784,9 +784,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        guard !classDecl.enumEntries.isEmpty,
-              !classDecl.primaryConstructorParams.isEmpty
-        else {
+        guard !classDecl.enumEntries.isEmpty else {
             return
         }
         let sema = ctx.sema
@@ -800,25 +798,24 @@ extension DeclTypeChecker {
         }
 
         let argCtx = ctx.copying(scope: ctx.scope, implicitReceiverType: nil)
-        let parameterNames = classDecl.primaryConstructorParams.map(\.name)
         for entry in classDecl.enumEntries {
-            // Named entry arguments (`X(g = 1, r = 2)`) bind by label, exactly
-            // like an ordinary constructor call; checking them positionally
-            // validated each argument against the wrong parameter type.
-            let (argumentIndexByParameter, unmatched) = entry.constructorArgumentMapping(
-                parameterNames: parameterNames
-            )
-            if !unmatched.isEmpty {
+            // Share ordinary constructor mapping, including varargs, named
+            // arrays, duplicate labels and omitted/default parameters.
+            guard let mapping = driver.callChecker.parameterMappingForCallArguments(
+                entry.constructorArgs, in: signature, callRange: entry.range, ctx: argCtx
+            ) else {
                 diagnostics.error(
                     "KSWIFTK-SEMA-0250",
-                    "Enum entry '\(ctx.interner.resolve(entry.name))' has too many constructor arguments",
+                    "Invalid constructor arguments for enum entry '\(ctx.interner.resolve(entry.name))'",
                     range: entry.range
                 )
+                continue
             }
-            for (paramIndex, argIndex) in argumentIndexByParameter.enumerated() {
-                guard let argIndex, paramIndex < signature.parameterTypes.count else { continue }
-                let arg = entry.constructorArgs[argIndex]
-                let paramType = signature.parameterTypes[paramIndex]
+            for (argIndex, arg) in entry.constructorArgs.enumerated() {
+                guard let paramIndex = mapping[argIndex],
+                      let paramType = driver.callChecker.contextualCallArgumentType(
+                          arg, parameterIndex: paramIndex, in: signature, ctx: argCtx
+                      ) else { continue }
                 var locals: LocalBindings = [:]
                 let argType = driver.inferExpr(arg.expr, ctx: argCtx, locals: &locals, expectedType: paramType)
                 driver.emitSubtypeConstraint(

@@ -299,20 +299,50 @@ public struct MetadataAnnotationRecord: Equatable {
     }
 }
 
-/// One entry in the v2 metadata index. Offsets and lengths are measured in
-/// UTF-8 bytes relative to the beginning of the body section.
+/// Keep the large legacy shape out of every compact entry's inline storage.
+private final class LegacyMetadataIndexRecord {
+    let record: MetadataRecord
+    init(_ record: MetadataRecord) { self.record = record }
+}
+
+/// Offsets and lengths are UTF-8 bytes relative to the body section.
 struct MetadataIndexEntry {
     let offset: Int
     let length: Int
-    let record: MetadataRecord
+    private let legacyRecord: LegacyMetadataIndexRecord?
+    let compactRecord: CompactMetadataIndexRecord?
+    var record: MetadataRecord { legacyRecord?.record ?? compactRecord!.record }
+    var fqName: String { compactRecord?.fqName ?? record.fqName }
+    var nominalTypeParametersSignature: String? {
+        if let compactRecord { return compactRecord.nominalTypeParametersSignature }
+        return record.nominalTypeParametersSignature
+    }
+
+    init(offset: Int, length: Int, record: MetadataRecord, hasCompleteInitializerInfo: Bool = false) {
+        self.offset = offset
+        self.length = length
+        legacyRecord = LegacyMetadataIndexRecord(record)
+        compactRecord = nil
+        self.hasCompleteInitializerInfo = hasCompleteInitializerInfo
+    }
+
+    init(offset: Int, length: Int, compactRecord: CompactMetadataIndexRecord) {
+        self.offset = offset
+        self.length = length
+        legacyRecord = nil
+        self.compactRecord = compactRecord
+        hasCompleteInitializerInfo = compactRecord.hasCompleteInitializerInfo
+    }
+
     /// Older v2 indexes omit initializer links; absence is unknown there.
     var hasCompleteInitializerInfo: Bool = false
 }
 
-/// Lazily reads v2 metadata records from the body section of `metadata.bin`.
+/// Lazily reads v2/v3 metadata records from the body section of `metadata.bin`.
 /// The index is parsed at library discovery time; the body is sliced only when
 /// a semantic query needs the corresponding declaration.
 final class IndexedMetadataFile {
+    let metadataVersion: Int
     let entries: [MetadataIndexEntry]
 
     private let data: Data
@@ -320,6 +350,14 @@ final class IndexedMetadataFile {
     private var decodedRecords: [Int: MetadataRecord] = [:]
 
     init?(data: Data) {
+        if data.starts(with: CompactMetadataIndex.magic) {
+            guard let parsed = CompactMetadataIndex.decode(data) else { return nil }
+            metadataVersion = 3
+            self.data = data
+            bodyStart = parsed.bodyStart
+            entries = parsed.entries
+            return
+        }
         let parsed = data.withUnsafeBytes { rawBytes -> (entries: [MetadataIndexEntry], bodyStart: Int)? in
             let bytes = rawBytes.bindMemory(to: UInt8.self)
             var cursor = 0
@@ -406,6 +444,7 @@ final class IndexedMetadataFile {
             return nil
         }
         guard let parsed else { return nil }
+        metadataVersion = 2
         self.data = data
         self.bodyStart = parsed.bodyStart
         self.entries = parsed.entries

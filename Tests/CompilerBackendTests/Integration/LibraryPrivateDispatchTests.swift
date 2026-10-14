@@ -66,7 +66,7 @@ struct LibraryPrivateDispatchTests {
         }
 
         let library = try compile(source: librarySource, module: "ParserLibrary", emit: .library)
-        let metadata = try String(contentsOfFile: library + "/metadata.bin", encoding: .utf8)
+        let metadata = try Data(contentsOf: URL(fileURLWithPath: library + "/metadata.bin"))
         #expect(!MetadataDecoder().decode(metadata).contains {
             $0.fqName == "fixture.ArgParser.inspectRequiredAndDefaultUsage"
                 || $0.fqName == "fixture.ArgParser.value"

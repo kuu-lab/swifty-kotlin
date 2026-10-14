@@ -48,8 +48,10 @@ struct LazySymbolScanTests {
         #expect(symbols.parentSymbolIfKnown(for: firstChild) == secondOwner)
     }
 
-    @Test(arguments: [false, true])
-    func indexedImportsAndLoweringKeepUnusedShellsLazy(oldInitializerIndex: Bool) throws {
+    @Test(arguments: ["v2", "old-v2", "v3"])
+    func indexedImportsAndLoweringKeepUnusedShellsLazy(format: String) throws {
+        let oldInitializerIndex = format == "old-v2"
+        let compact = format == "v3"
         let fm = FileManager.default
         let libDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
@@ -73,8 +75,9 @@ struct LazySymbolScanTests {
                 .replacingOccurrences(of: " objectInitLink=scan_object_init", with: "")
             metadata = oldIndex + "\nbody\n" + sections[1]
         }
-        try "{\"formatVersion\":1,\"moduleName\":\"Scan\",\"metadata\":\"metadata.bin\"}".write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try "{\"formatVersion\":\(compact ? 2 : 1),\"moduleName\":\"Scan\",\"metadata\":\"metadata.bin\"}".write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        let data = compact ? MetadataEncoder().serializeCompactIndexed(records) : Data(metadata.utf8)
+        try data.write(to: libDir.appendingPathComponent("metadata.bin"))
 
         try withTemporaryFile(contents: "fun main() {}") { path in
             let ctx = makeCompilationContext(inputs: [path], searchPaths: [libDir.path], includeStdlib: false)
@@ -188,6 +191,29 @@ struct LazySymbolScanTests {
         let symbols = SymbolTable()
         let interner = StringInterner()
         _ = symbols.define(kind: .function, name: interner.intern("unused"), fqName: [interner.intern("unused")], declSite: nil, visibility: .public, flags: [.synthetic, .importedLibrary])
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { loaded.append($0) }
+        let records = MetadataEncoder().buildRecords(
+            symbols: symbols, types: TypeSystem(), moduleName: "Scan",
+            interner: interner, functionLinkNames: [:], includeSynthetic: false
+        )
+        #expect(records.isEmpty)
+        #expect(loaded.isEmpty)
+    }
+
+    @Test func metadataExportVisibilityDoesNotLoadPrivateImportedOwner() {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let owner = symbols.define(
+            kind: .class, name: interner.intern("Hidden"), fqName: [interner.intern("Hidden")],
+            declSite: nil, visibility: .private, flags: [.importedLibrary]
+        )
+        let member = symbols.define(
+            kind: .function, name: interner.intern("member"),
+            fqName: [interner.intern("Hidden"), interner.intern("member")],
+            declSite: nil, visibility: .public, flags: [.importedLibrary]
+        )
+        symbols.setParentSymbol(owner, for: member)
         var loaded: [SymbolID] = []
         symbols.setLazyImportedMetadataLoader { loaded.append($0) }
         let records = MetadataEncoder().buildRecords(

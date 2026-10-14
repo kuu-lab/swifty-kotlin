@@ -5,6 +5,16 @@ import Foundation
 final class MetadataDecoder {
     init() {}
 
+    /// Binary v3 and legacy text share the same full-record body decoder.
+    func decode(_ data: Data) -> [MetadataRecord] {
+        if data.starts(with: CompactMetadataIndex.magic) {
+            guard let indexed = IndexedMetadataFile(data: data) else { return [] }
+            return indexed.entries.compactMap { indexed.record(for: $0) }
+        }
+        guard let content = String(data: data, encoding: .utf8) else { return [] }
+        return decode(content)
+    }
+
     /// Parse text content into metadata records.
     func decode(_ content: String) -> [MetadataRecord] {
         if content.hasPrefix("kklib-metadata-v2\n"),
@@ -146,6 +156,7 @@ final class MetadataDecoder {
             enumStaticInitLinkName: rec.enumStaticInitLinkName,
             isDataClass: rec.isDataClass,
             isOpenClass: rec.isOpenClass,
+            isInnerClass: rec.isInnerClass,
             modality: rec.modality,
             isSealedClass: rec.isSealedClass,
             isFunInterface: rec.isFunInterface,

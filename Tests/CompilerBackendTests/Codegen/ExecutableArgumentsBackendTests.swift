@@ -43,7 +43,7 @@ struct ExecutableArgumentsBackendTests {
             ) as? [String: Any]
             guard manifest?["moduleName"] as? String == "KSwiftKStdlib",
                   manifest?["kotlinLanguageVersion"] as? String == "2.3.10",
-                  manifest?["formatVersion"] as? Int == 1 else {
+                  manifest?["formatVersion"] as? Int == 2 else {
                 throw TestCompilationFailure(description: "Library mode requires the Kotlin 2.3.10 stdlib manifest")
             }
         } else if result.stdlibLibraryPath != nil || !result.includeStdlib {

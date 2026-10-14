@@ -8,7 +8,7 @@ node kotlinFile f0:0..57
     node block f0:12..15
       tok symbol({) f0:12..13
       tok symbol(}) f0:14..15
-  node classDecl f0:16..22
+  node classDecl f0:16..25
     tok keyword(class) f0:16..21
     tok missing(identifier()) f0:22..22
     node block f0:22..25

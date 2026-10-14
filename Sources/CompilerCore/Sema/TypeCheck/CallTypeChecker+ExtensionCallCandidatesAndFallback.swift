@@ -100,6 +100,9 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let recvType = signature.receiverType
                 else { return false }
+                guard isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
+                    return false
+                }
                 // Include bundled/user Kotlin source extensions, not only
                 // synthetic stubs, so source-backed Sequence transforms
                 // (map, filter, etc.) are visible as member-call candidates.

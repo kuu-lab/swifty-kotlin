@@ -90,7 +90,7 @@ import Testing
             _ = try runCodegenPipeline(inputPath: path, moduleName: "MetadataLib", emit: .library, outputPath: libBase, stdlibLibraryPath: try testStdlibArtifactPath())
 
             let metadataPath = libBase + ".kklib/metadata.bin"
-            let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
+            let metadata = MetadataEncoder().serialize(MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: metadataPath))))
             #expect(metadata.contains("kotlin.Metadata"))
             #expect(metadata.contains("fq=Plain"))
             #expect(metadata.contains("fq=Face"))

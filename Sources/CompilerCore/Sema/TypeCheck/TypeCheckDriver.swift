@@ -43,6 +43,8 @@ final class TypeCheckDriver {
     /// Properties whose types were inferred in a safe module pre-pass so earlier
     /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
+    /// Object headers published for forward references, with bodies still unchecked.
+    var predeclaredObjectLiteralDecls: Set<DeclID> = []
     /// Top-level expression bodies whose header return type is still a placeholder.
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
@@ -292,6 +294,34 @@ final class TypeCheckDriver {
                 default:
                     break
                 }
+            }
+        }
+
+        // A direct object initializer has a fixed nominal type even when its
+        // member bodies depend on declarations checked later. Publish only its
+        // header so forward callers see its parameterized supertypes. This
+        // pre-pass does not check initializers or bodies; existing demand
+        // inference and the authoritative declaration pass still own them.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declaration in file.topLevelDecls {
+                guard case let .propertyDecl(property)? = ast.arena.decl(declaration),
+                      property.type == nil, property.receiverType == nil,
+                      let initializer = property.initializer,
+                      case let .objectLiteral(superTypes, objectDeclID?, _)? = ast.arena.expr(initializer),
+                      case let .objectDecl(objectDecl)? = ast.arena.decl(objectDeclID),
+                      let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                let objectSymbol = exprChecker.predeclareObjectLiteralSymbol(
+                    declID: objectDeclID,
+                    objectDecl: objectDecl,
+                    superTypes: superTypes,
+                    ctx: inferCtx.with(currentDeclSymbol: symbol)
+                )
+                sema.symbols.setPropertyType(sema.types.make(.classType(ClassType(
+                    classSymbol: objectSymbol, args: [], nullability: .nonNull
+                ))), for: symbol)
+                pendingPropertyTypes.remove(symbol)
             }
         }
 

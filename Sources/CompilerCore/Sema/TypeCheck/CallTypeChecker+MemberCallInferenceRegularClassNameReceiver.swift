@@ -201,6 +201,9 @@ extension CallTypeChecker {
                         else {
                             return false
                         }
+                        guard isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
+                            return false
+                        }
                         guard sema.bundledIndex.contains(
                             ownerFQName: owner.fqName,
                             name: calleeName,

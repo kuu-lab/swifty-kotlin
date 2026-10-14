@@ -214,7 +214,7 @@ private func jvmInteropNioRequireLibrary(_ directory: URL, moduleName: String) t
     let data = try Data(contentsOf: directory.appendingPathComponent("manifest.json"))
     let manifest = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     try #require(manifest["moduleName"] as? String == moduleName)
-    try #require(manifest["formatVersion"] as? Int == 1)
+    try #require(manifest["formatVersion"] as? Int == 2)
     try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
     let objects = try #require(manifest["objects"] as? [String])
     try #require(!objects.isEmpty)

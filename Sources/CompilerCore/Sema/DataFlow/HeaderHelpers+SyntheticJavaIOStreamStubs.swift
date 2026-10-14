@@ -331,6 +331,16 @@ extension DataFlowSemaPhase {
             types.anyType
         }
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
+        // `readAllBytes`/`readBytes` bridges return real ByteArray storage
+        // (`RuntimeArrayBox`); declaring the Kotlin ByteArray type keeps
+        // `.size`/indexed access dispatching to array, not list, semantics.
+        let byteArrayReturnType: TypeID = if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
+            types.make(.classType(ClassType(
+                classSymbol: byteArraySymbol, args: [], nullability: .nonNull
+            )))
+        } else {
+            listOfIntType
+        }
 
         // `java.io.Reader` is the abstract supertype of `BufferedReader` and is
         // the receiver of `kotlin.io` extension functions such as
@@ -343,6 +353,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // Source-backed concrete readers inherit this Java abstract base.
+        symbols.insertFlags([.abstractType], for: readerSymbol)
         let bufferedReaderSymbol = ensureClassSymbol(
             named: "BufferedReader",
             in: javaIOPkg,
@@ -824,7 +836,7 @@ extension DataFlowSemaPhase {
         //   public fun InputStream.readBytes(): ByteArray
         //
         // Reads all remaining bytes from `this` and returns them as a freshly
-        // allocated ByteArray. We model ByteArray as List<Int>.
+        // allocated ByteArray.
         //
         // Note: this extension does NOT close the receiver — callers typically
         // wrap the call in `.use { it.readBytes() }`. Sema only needs to
@@ -835,7 +847,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
-            returnType: listOfIntType,
+            returnType: byteArrayReturnType,
             symbols: symbols,
             interner: interner
         )
@@ -916,7 +928,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: bufferedInputStreamSymbol,
             ownerType: bufferedInputStreamType,
             parameters: [],
-            returnType: listOfIntType,
+            returnType: byteArrayReturnType,
             symbols: symbols,
             interner: interner
         )

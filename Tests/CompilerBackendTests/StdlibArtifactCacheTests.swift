@@ -39,7 +39,7 @@ struct StdlibArtifactCacheTests {
         let data = try Data(contentsOf: manifestPath)
         let manifest = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        #expect(manifest["formatVersion"] as? Int == 1)
+        #expect(manifest["formatVersion"] as? Int == 2)
         #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
         #expect(manifest["libraryKind"] as? String == "stdlib")
         #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
@@ -52,8 +52,8 @@ struct StdlibArtifactCacheTests {
     /// A cached artifact whose manifest references an inline-KIR blob that is
     /// no longer on disk must be rebuilt instead of being handed to a compile
     /// that would then fail with KSWIFTK-LIB-0019 or missing link symbols.
-    @Test
-    func cachedArtifactMissingInlineKIRBlobIsRebuilt() throws {
+    @Test(arguments: [false, true])
+    func cachedArtifactMissingInlineKIRBlobIsRebuilt(compact: Bool) throws {
         let fm = FileManager.default
         let cacheDirectory = makeTemporaryCacheDirectory()
         defer { try? fm.removeItem(at: cacheDirectory) }
@@ -68,7 +68,7 @@ struct StdlibArtifactCacheTests {
             return try Self.writeFakeArtifact(
                 at: outputBase,
                 target: target,
-                inlineMangledNames: ["alpha_inline", "beta_inline"]
+                inlineMangledNames: ["alpha_inline", "beta_inline"], compact: compact
             )
         }
         #expect(buildCount == 1)
@@ -87,7 +87,7 @@ struct StdlibArtifactCacheTests {
             return try Self.writeFakeArtifact(
                 at: outputBase,
                 target: target,
-                inlineMangledNames: ["alpha_inline", "beta_inline"]
+                inlineMangledNames: ["alpha_inline", "beta_inline"], compact: compact
             )
         }
 
@@ -292,6 +292,36 @@ struct StdlibArtifactCacheTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func compactCacheChecksIndexButKeepsUnusedBodyLazy(corruptIndex: Bool) throws {
+        let fm = FileManager.default
+        let directory = makeTemporaryCacheDirectory()
+        defer { try? fm.removeItem(at: directory) }
+        let target = TargetTriple.hostDefault()
+        var builds = 0
+        func resolve() throws -> String {
+            try StdlibArtifactCache.resolveOrBuildCached(target: target, cacheDirectory: directory) { base in
+                builds += 1
+                return try Self.writeFakeArtifact(
+                    at: base, target: target, inlineMangledNames: ["test_inline"], compact: true
+                )
+            }
+        }
+        let artifact = try resolve()
+        let metadata = URL(fileURLWithPath: artifact + "/metadata.bin")
+        var data = try Data(contentsOf: metadata)
+        if corruptIndex {
+            // Corrupt the record count, leaving all blobs and the manifest intact.
+            let countOffset = "kklib-metadata-v3\n".utf8.count
+            data.replaceSubrange(countOffset ..< countOffset + 4, with: repeatElement(UInt8(0xFF), count: 4))
+        } else {
+            data[data.count - 2] = 0xFF
+        }
+        try data.write(to: metadata)
+        #expect(try resolve() == artifact)
+        #expect(builds == (corruptIndex ? 2 : 1))
+    }
+
     private func makeTemporaryCacheDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("kswiftk-cache-test-\(UUID().uuidString)", isDirectory: true)
@@ -304,7 +334,8 @@ struct StdlibArtifactCacheTests {
         at outputBase: String,
         target: TargetTriple,
         inlineMangledNames: [String],
-        omitBlobs: Set<String> = []
+        omitBlobs: Set<String> = [],
+        compact: Bool = false
     ) throws -> String {
         let fm = FileManager.default
         let artifactPath = outputBase + ".kklib"
@@ -329,11 +360,17 @@ struct StdlibArtifactCacheTests {
             )
         }
         lines.append("body")
-        try lines.joined(separator: "\n").write(
-            toFile: artifactPath + "/metadata.bin",
-            atomically: true,
-            encoding: .utf8
-        )
+        if compact {
+            let records = inlineMangledNames.map {
+                MetadataRecord(kind: .function, mangledName: $0, fqName: "test.\($0)", isInline: true)
+            }
+            try MetadataEncoder().serializeCompactIndexed(records)
+                .write(to: URL(fileURLWithPath: artifactPath + "/metadata.bin"))
+        } else {
+            try lines.joined(separator: "\n").write(
+                toFile: artifactPath + "/metadata.bin", atomically: true, encoding: .utf8
+            )
+        }
 
         for name in inlineMangledNames where !omitBlobs.contains(name) {
             try Data().write(
@@ -345,7 +382,7 @@ struct StdlibArtifactCacheTests {
         }
 
         let manifest: [String: Any] = [
-            "formatVersion": 1,
+            "formatVersion": compact ? 2 : 1,
             "moduleName": "KSwiftKStdlib",
             "libraryKind": "stdlib",
             "kotlinLanguageVersion": "2.3.10",

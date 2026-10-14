@@ -7,14 +7,43 @@
 
 package kotlin.random
 
-// KSP-466: nextUBytes, ported from kotlin-stdlib
-// (libraries/stdlib/src/kotlin/random/URandom.kt). nextUInt/nextULong (scalar
-// overloads) live as real members on Random itself (Random.kt) rather than as
-// package-level extensions here — see the comment above their declaration.
-//
-// Range-argument overloads (nextUInt(UIntRange) / nextULong(ULongRange) live as
-// source-backed members on Random.kt. Their retained runtime engines are
-// private __kk_random_* bridges, matching nextInt(IntRange)/nextLong(LongRange).
+import kotlin.internal.KsSymbolName
+
+// Unsigned random APIs are package extensions, matching kotlin-stdlib.
+// Keep the existing range engines behind private bridges.
+@KsSymbolName("__kk_random_nextUInt_uintRange")
+private external fun __kk_random_nextUInt_uintRange(random: Random, range: UIntRange): UInt
+
+@KsSymbolName("__kk_random_nextULong_ulongRange")
+private external fun __kk_random_nextULong_ulongRange(random: Random, range: ULongRange): ULong
+
+public fun Random.nextUInt(): UInt = nextInt().toUInt()
+
+public fun Random.nextUInt(until: UInt): UInt = nextUInt(0u, until)
+
+public fun Random.nextUInt(from: UInt, until: UInt): UInt {
+    checkUIntRangeBounds(from, until)
+    val signedFrom = from.toInt() xor Int.MIN_VALUE
+    val signedUntil = until.toInt() xor Int.MIN_VALUE
+    val signedResult = nextInt(signedFrom, signedUntil) xor Int.MIN_VALUE
+    return signedResult.toUInt()
+}
+
+public fun Random.nextUInt(range: UIntRange): UInt = __kk_random_nextUInt_uintRange(this, range)
+
+public fun Random.nextULong(): ULong = nextLong().toULong()
+
+public fun Random.nextULong(until: ULong): ULong = nextULong(0uL, until)
+
+public fun Random.nextULong(from: ULong, until: ULong): ULong {
+    checkULongRangeBounds(from, until)
+    val signedFrom = from.toLong() xor Long.MIN_VALUE
+    val signedUntil = until.toLong() xor Long.MIN_VALUE
+    val signedResult = nextLong(signedFrom, signedUntil) xor Long.MIN_VALUE
+    return signedResult.toULong()
+}
+
+public fun Random.nextULong(range: ULongRange): ULong = __kk_random_nextULong_ulongRange(this, range)
 
 @ExperimentalUnsignedTypes
 public fun Random.nextUBytes(array: UByteArray): UByteArray {

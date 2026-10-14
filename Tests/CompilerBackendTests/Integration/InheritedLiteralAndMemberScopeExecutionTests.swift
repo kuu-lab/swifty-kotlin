@@ -103,7 +103,7 @@ struct InheritedLiteralAndMemberScopeExecutionTests {
             with: Data(contentsOf: producerArtifact.appendingPathComponent("manifest.json"))
         ) as? [String: Any])
         try #require(manifest["moduleName"] as? String == "KUU1771Producer")
-        let metadata = try String(contentsOf: producerArtifact.appendingPathComponent("metadata.bin"), encoding: .utf8)
+        let metadata = try Data(contentsOf: producerArtifact.appendingPathComponent("metadata.bin"))
         try #require(MetadataDecoder().decode(metadata).contains { $0.fqName == "collisioncontract.BaseReader.read" })
         let input = directory.appendingPathComponent("Consumer.kt")
         try consumer.write(to: input)

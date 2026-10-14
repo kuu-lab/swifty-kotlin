@@ -34,7 +34,7 @@ extension StdlibArtifactRegressionTests {
         if let artifactPath {
             let metadataPath = URL(fileURLWithPath: artifactPath)
                 .appendingPathComponent("metadata.bin")
-            let metadata = try String(contentsOf: metadataPath, encoding: .utf8)
+            let metadata = try Data(contentsOf: metadataPath)
             let zipFunctions = MetadataDecoder().decode(metadata).filter {
                 $0.kind == .function && $0.fqName == "kotlin.collections.zip"
             }

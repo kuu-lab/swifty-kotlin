@@ -310,9 +310,9 @@ public enum StdlibArtifactCache {
         }
 
         guard let formatVersion = manifest["formatVersion"] as? Int,
-              formatVersion == 1
+              (formatVersion == 1 || formatVersion == 2)
         else {
-            return .invalid("manifest formatVersion must be 1")
+            return .invalid("manifest formatVersion must be 1 or 2")
         }
         guard manifest["moduleName"] as? String == "KSwiftKStdlib" else {
             return .invalid("manifest moduleName must be KSwiftKStdlib")
@@ -368,10 +368,22 @@ public enum StdlibArtifactCache {
         // keep the manifest while losing blobs, after which consumers fail
         // lazily with KSWIFTK-LIB-0019 or undefined link symbols. Verify every
         // referenced blob instead of trusting the directory layout.
-        guard let metadataText = try? String(contentsOf: metadataURL, encoding: .utf8) else {
+        guard let metadataData = try? Data(contentsOf: metadataURL) else {
             return .invalid("metadata file is unreadable")
         }
-        for mangledName in inlineKIRMangledNames(metadataText: metadataText) {
+        let inlineNames: Set<String>
+        if formatVersion == 2 {
+            guard let names = MetadataEncoder.compactInlineKIRMangledNames(in: metadataData) else {
+                return .invalid("compact metadata index is malformed")
+            }
+            inlineNames = Set(names)
+        } else {
+            guard let metadataText = String(data: metadataData, encoding: .utf8) else {
+                return .invalid("metadata file is unreadable")
+            }
+            inlineNames = inlineKIRMangledNames(metadataText: metadataText)
+        }
+        for mangledName in inlineNames {
             let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
             guard let blobURL = CompilerFileSystem.containedURL(relativePath: blobRelativePath, under: rootURL),
                   CompilerFileSystem.isRegularFile(at: blobURL, fileManager: fileManager)

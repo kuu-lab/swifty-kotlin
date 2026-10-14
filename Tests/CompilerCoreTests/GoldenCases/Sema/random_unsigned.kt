@@ -1,4 +1,4 @@
-import kotlin.random.Random
+import kotlin.random.*
 
 fun useRandomUnsigned() {
     val a = Random.nextUInt()

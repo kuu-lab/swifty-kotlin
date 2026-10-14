@@ -980,7 +980,7 @@ Foo.kklib/
 
 ```json
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "moduleName": "Foo",
   "kotlinLanguageVersion": "2.3.10",
   "compilerVersion": "0.1.0",
@@ -1009,6 +1009,37 @@ hard error; the compiler does not fall back to injecting bundled sources.
 * public API の “ヘッダ情報” を入れる（型・シグネチャ・vtable slot・field offsets）
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
 * inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
+
+新規 `.kklib` は manifest `formatVersion=2` と binary indexed metadata v3 を出力する。
+reader は manifest 1 と legacy v1 / text indexed v2 も引き続き受け付ける。
+旧 reader は manifest 2 を拒否するため、binary index を legacy text と誤認しない。
+
+v3 の byte layout（全整数は little-endian、alignment 非依存）:
+
+* magic: ASCII `kklib-metadata-v3\n`
+* header: UInt32 の record count / string count / string-section byte length / entry width（80）
+* string section: string ID 順に UInt32 UTF-8 byte length + UTF-8 bytes。ID 0 は空文字列で、optional field では nil を表す。
+* entry table: record ごとに UInt64 body offset / length、UInt32 arity / flags / kind ID / visibility ID、12 個の UInt32 string ID。
+* body: 従来の record text を UTF-8 で連結。offset / length は body の先頭を基準とする。
+
+string field 順序は fqName / mangledName / receiverOwnerFQName / defaultStubExternalLinkName /
+externalLinkName / propertyReceiverTypeSignature / propertyGetterExternalLinkName /
+nominalTypeParametersSignature / companionObjectFQName / objectInitializerLinkName /
+companionInitializerLinkName / enumStaticInitLinkName。
+kind ID は package / class / interface / object / enumClass / annotationClass / typeAlias /
+function / constructor / property / field / backingField / typeParameter / valueParameter /
+local / label の順（0..15）、visibility ID は public / private / internal / protected（0..3）。
+flags bit 0..15 は suspend / inline / operator / infix / override / memberExtension /
+mutable / dataClass / openClass / innerClass / sealedClass / funInterface / valueClass /
+expect / actual / completeInitializerInfo。bit 16..17 は modality（0=final, 1=open, 2=abstract）。bit 18..20 は setter visibility
+（0=未指定, 1=public, 2=private, 3=internal, 4=protected）。
+未知の flag、ID、entry width、範囲外の body slice、不正な string UTF-8 は読み込み時に拒否する。
+本文の UTF-8 / signature / layout / annotation は宣言への semantic query 時にだけ decode する。
+
+index は shell 登録に必要な shape 専用型を使い、全件の汎用 MetadataRecord を生成しない。
+名前による検索は登録済み SymbolTable に任せ、wire index に重複した name hash は持たせない。
+共有 string ID によって routing 用の文字列を再利用する。cache integrity check も本文を decode せず、
+index の inline flag / mangledName から必要な inline-KIR blob の存在を検証する。
 
 通常のライブラリを bundled stdlib ソースでコンパイルする場合、stdlib 本体も
 KIR・オブジェクトへ出力する。stdlib 宣言はライブラリの公開メタデータから除外し、

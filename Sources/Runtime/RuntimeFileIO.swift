@@ -417,6 +417,25 @@ private func runtimeInputStreamBox(from raw: Int) -> RuntimeInputStreamBox? {
     return tryCast(ptr, to: RuntimeInputStreamBox.self)
 }
 
+@_cdecl("__kk_input_stream_reader_new")
+public func __kk_input_stream_reader_new(_ streamRaw: Int) -> Int {
+    let stream = runtimeInputStreamBox(from: streamRaw).map { $0 as any RuntimeReaderInputStream }
+        ?? runtimeSequenceInputStreamBox(from: streamRaw).map { $0 as any RuntimeReaderInputStream }
+        ?? runtimeKotlinInputStream(from: streamRaw).map { $0 as any RuntimeReaderInputStream }
+    guard let stream else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reader_new received invalid InputStream handle")
+    }
+    return registerRuntimeObject(RuntimeBufferedReaderBox(inputStream: stream))
+}
+
+@_cdecl("__kk_buffered_reader_new")
+public func __kk_buffered_reader_new(_ readerRaw: Int) -> Int {
+    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_new received invalid Reader handle")
+    }
+    return registerRuntimeObject(RuntimeBufferedReaderBox(reader: reader))
+}
+
 private func runtimeByteArrayBytes(from raw: Int) -> [UInt8]? {
     if let array = runtimeArrayBox(from: raw) {
         return array.elements.map { UInt8(truncatingIfNeeded: $0) }

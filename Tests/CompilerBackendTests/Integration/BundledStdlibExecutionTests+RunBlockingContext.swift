@@ -77,7 +77,7 @@ private func runBlocking1765Artifact(_ path: URL, expectedModule: String) throws
     let manifest = try #require(JSONSerialization.jsonObject(with:
         Data(contentsOf: path.appendingPathComponent("manifest.json"))) as? [String: Any])
     try #require(manifest["moduleName"] as? String == expectedModule)
-    try #require(manifest["formatVersion"] as? Int == 1)
+    try #require(manifest["formatVersion"] as? Int == 2)
     try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
     let objects = try #require(manifest["objects"] as? [String])
     try #require(!objects.isEmpty, "An actual object-producing library is required")
@@ -107,7 +107,7 @@ private func runBlocking1765Executable(
         // Source-manifest integrity plus presence of the real private bridge
         // prevent an old one-argument synthetic stdlib artifact from passing.
         let metadata = try Data(contentsOf: stdlib!.directory.appendingPathComponent("metadata.bin"))
-        let records = MetadataDecoder().decode(String(decoding: metadata, as: UTF8.self))
+        let records = MetadataDecoder().decode(metadata)
         try #require(records.contains { $0.fqName == "kotlinx.coroutines.runBlocking" && $0.kind == .function })
         try #require(records.contains { $0.fqName == "kotlinx.coroutines.__kkRunBlockingContext" && $0.kind == .function })
     }

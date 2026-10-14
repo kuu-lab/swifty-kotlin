@@ -85,11 +85,11 @@ struct ByteStringAPIShapeTests {
             let manifestData = try Data(contentsOf: directory.appendingPathComponent("manifest.json"))
             let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
             #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
-            #expect(manifest["formatVersion"] as? Int == 1)
+            #expect(manifest["formatVersion"] as? Int == 2)
             #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
             #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
             #expect(!ctx.options.includeStdlib, "Library mode cannot inject bundled source")
-            let metadata = try String(contentsOf: directory.appendingPathComponent("metadata.bin"), encoding: .utf8)
+            let metadata = try Data(contentsOf: directory.appendingPathComponent("metadata.bin"))
             importedRecords = MetadataDecoder().decode(metadata)
             #expect(!importedRecords.isEmpty, "Cached artifact must contain decodable metadata")
         } else {

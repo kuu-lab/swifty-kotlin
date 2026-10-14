@@ -257,7 +257,7 @@ extension CallLowerer {
         // guard through metadata; compiler pseudo-objects such as
         // `Charsets` below remain no-ops.
         driver.emitObjectLazyInitGuardIfNeeded(
-            objectSymbol: parent, arena: arena, sema: sema, instructions: &instructions
+            objectSymbol: parent, arena: arena, sema: sema, interner: interner, instructions: &instructions
         )
         let knownNames = KnownCompilerNames(interner: interner)
         // STDLIB-581: Charsets.UTF_8 / ISO_8859_1 / US_ASCII / UTF_16 / ...
@@ -1728,7 +1728,7 @@ extension CallLowerer {
                     return result
                 }
                 driver.emitObjectLazyInitGuardIfNeeded(
-                    objectSymbol: valueSymbolID, arena: arena, sema: sema, instructions: &instructions
+                    objectSymbol: valueSymbolID, arena: arena, sema: sema, interner: interner, instructions: &instructions
                 )
             }
             let valueType = sema.bindings.exprTypes[exprID] ?? sema.types.make(.classType(ClassType(

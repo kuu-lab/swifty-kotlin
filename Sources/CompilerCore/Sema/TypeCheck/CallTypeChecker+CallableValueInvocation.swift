@@ -277,13 +277,11 @@ extension CallTypeChecker {
             if case .safeMemberCall = ast.arena.expr(id) {} else {
                 driver.recordPlatformNullAssertion(args[0].expr, sourceType: argumentType, targetType: receiverType)
             }
-            driver.emitSubtypeConstraint(
+            emitCallableValueArgumentConstraint(
                 left: argumentType,
                 right: receiverType,
                 range: ast.arena.exprRange(args[0].expr) ?? range,
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                ctx: ctx
             )
         }
         for paramIndex in functionType.params.indices {
@@ -294,13 +292,11 @@ extension CallTypeChecker {
             let argumentType = contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex])
             driver.recordPlatformNullAssertion(args[argIndex].expr, sourceType: argumentType,
                                                targetType: functionType.params[paramIndex])
-            driver.emitSubtypeConstraint(
+            emitCallableValueArgumentConstraint(
                 left: argumentType,
                 right: functionType.params[paramIndex],
                 range: ast.arena.exprRange(args[argIndex].expr) ?? range,
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                ctx: ctx
             )
         }
         if let expectedType {
@@ -346,6 +342,46 @@ extension CallTypeChecker {
         }
         sema.bindings.bindExprType(id, type: functionType.returnType)
         return functionType.returnType
+    }
+
+    private func emitCallableValueArgumentConstraint(
+        left: TypeID,
+        right: TypeID,
+        range: SourceRange?,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        var argumentType = left
+        var parameterType = right
+        if let session = ctx.builderInference, !session.isFinalized,
+           session.mentionsVariable(left, types: sema.types)
+               || session.mentionsVariable(right, types: sema.types)
+        {
+            // Function values have no candidate signature for the ordinary
+            // postponed-argument collector. Preserve constraints from their
+            // inputs too, including inherited contravariant nominal types.
+            session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                subtype: left, supertype: right,
+                typeVarBySymbol: session.typeVarBySymbol, typeSystem: sema.types,
+                blameRange: range
+            ))
+            let solution = ConstraintSolver().solve(
+                vars: ctx.resolver.usedTypeVariables(from: session.constraints),
+                constraints: session.constraints, typeSystem: sema.types
+            )
+            if solution.isSuccess {
+                argumentType = sema.types.substituteTypeParameters(
+                    in: left, substitution: solution.substitution, typeVarBySymbol: session.typeVarBySymbol
+                )
+                parameterType = sema.types.substituteTypeParameters(
+                    in: right, substitution: solution.substitution, typeVarBySymbol: session.typeVarBySymbol
+                )
+            }
+        }
+        driver.emitSubtypeConstraint(
+            left: argumentType, right: parameterType, range: range,
+            solver: ConstraintSolver(), sema: sema, diagnostics: sema.diagnostics
+        )
     }
 
     func inferFunctionTypeOrError(from type: TypeID, sema: SemaModule) -> TypeID? {

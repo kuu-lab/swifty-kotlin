@@ -12,7 +12,7 @@ extension StdlibArtifactRegressionTests {
     func testLinkedHashMapSubclassThroughSourceAndFreshArtifact(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         if let artifactPath {
-            let metadata = try String(contentsOfFile: artifactPath + "/metadata.bin", encoding: .utf8)
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: artifactPath + "/metadata.bin"))
             let linkedHashMap = try #require(MetadataDecoder().decode(metadata).first {
                 $0.kind == .class && $0.fqName == "kotlin.collections.LinkedHashMap"
             })
