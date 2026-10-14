@@ -921,6 +921,7 @@ InlineLowering
 
 * inline 関数の body を call site に複製
 * `reified` は runtime type token を hidden arg として渡す（Doc J16）
+* 関数型引数によって自動 inline 化された非 inline 宣言が、明示 inline wrapper を含む inline call cycle に到達する場合、展開前に通常の emitted body を保持して再帰呼び出しを残す。明示 inline 宣言・imported inline body・非局所 return を持つ lambda は復帰対象にせず、既存の mandatory expansion と INL-0001 診断を維持する。
 
 ---
 

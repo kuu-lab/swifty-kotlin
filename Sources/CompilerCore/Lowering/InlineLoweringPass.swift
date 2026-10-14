@@ -57,6 +57,7 @@ final class InlineLoweringPass: LoweringPass {
             importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore(),
             reifiedEnumValuesCallee: ctx.interner.intern("$reifiedEnumValues")
         )
+        index.retainRecursiveAutoInlineBodies(module: module, sema: ctx.sema)
 
         // An inline body — or a lambda body that gets spliced into its caller —
         // can itself call a bodyless function. The snapshots predate any
