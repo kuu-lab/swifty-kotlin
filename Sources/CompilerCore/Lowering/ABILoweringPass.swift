@@ -207,6 +207,15 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             }
         }
 
+        // Inline expansion can substitute a raw concrete enum ordinal into
+        // the compiler-owned abstract Enum.name bridge. Restore its erased
+        // receiver contract so normal enum boxing runs at this boundary.
+        if let types {
+            boundaryBridgeSignatureByLinkName[ctx.interner.intern("__kk_enum_name")] = FunctionSignature(
+                parameterTypes: [types.anyType], returnType: types.stringType
+            )
+        }
+
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
             var newBody = KIRLoweringEmitContext()

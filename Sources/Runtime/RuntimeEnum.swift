@@ -2,10 +2,39 @@
 struct RuntimeEnumValueDescriptor {
     let ordinal: Int
     let name: String
+    let declaredName: String
     let classID: Int64
 }
 
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
+
+/// Reads the declared entry name after the concrete enum type is erased.
+/// Display text can come from a toString override; the declared name is
+/// separate metadata and does not depend on enum initialization registration.
+@_cdecl("__kk_enum_name")
+public func kk_enum_name(_ valueRaw: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
+          let box = tryCast(pointer, to: RuntimeIntBox.self),
+          let name = box.enumDeclaredName
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Enum.name received an invalid enum entry")
+    }
+    return runtimeMakeStringRaw(name)
+}
+
+/// Boxes enums with custom rendering while preserving the final name property.
+@_cdecl("__kk_enum_box_with_declared_name")
+public func kk_enum_box_with_declared_name(_ ordinal: Int, _ displayName: Int, _ classID: Int, _ declaredName: Int) -> Int {
+    registerTaggedRuntimeObject(
+        RuntimeIntBox(
+            ordinal,
+            enumEntryName: extractString(from: UnsafeMutableRawPointer(bitPattern: displayName)),
+            enumClassID: Int64(classID),
+            enumDeclaredName: extractString(from: UnsafeMutableRawPointer(bitPattern: declaredName))
+        ),
+        typeID: Int64(classID)
+    )
+}
 
 @_cdecl("kk_enum_valueOf_throw")
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -71,11 +100,12 @@ public func kk_enum_register_values(_ typeToken: Int, _ valuesRaw: Int, _ count:
         guard let pointer = UnsafeMutableRawPointer(bitPattern: value.legacyRawValue),
               let box = tryCast(pointer, to: RuntimeIntBox.self),
               let name = box.enumEntryName,
+              let declaredName = box.enumDeclaredName,
               let classID = box.enumClassID
         else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_enum_register_values received an invalid enum entry")
         }
-        return RuntimeEnumValueDescriptor(ordinal: box.value, name: name, classID: classID)
+        return RuntimeEnumValueDescriptor(ordinal: box.value, name: name, declaredName: declaredName, classID: classID)
     }
     runtimeStorage.withMetadataLock { state in
         state.enumValuesByTypeToken[Int64(typeToken)] = descriptors
@@ -92,7 +122,10 @@ public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
     }
     let handles = values.map { value in
         registerTaggedRuntimeObject(
-            RuntimeIntBox(value.ordinal, enumEntryName: value.name, enumClassID: value.classID),
+            RuntimeIntBox(
+                value.ordinal, enumEntryName: value.name, enumClassID: value.classID,
+                enumDeclaredName: value.declaredName
+            ),
             typeID: value.classID
         )
     }

@@ -1388,6 +1388,17 @@ extension CallLowerer {
             ))
             return result
         }
+        if let result = tryLowerEnumBasePropertyRead(
+            propertySymbol: sema.bindings.identifierSymbol(for: exprID)
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+            receiver: loweredReceiverID,
+            receiverType: sema.bindings.exprTypes[receiverExpr],
+            resultType: resultType,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions
+        ) {
+            return result
+        }
         // The receiver isn't a compile-time-known entry (e.g. a reassigned
         // `var` or a function parameter) — fall back to a dynamic lookup
         // keyed off the receiver's own runtime value instead of returning

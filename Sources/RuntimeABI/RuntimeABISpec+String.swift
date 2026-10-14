@@ -1273,6 +1273,25 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_enum_name",
+            parameters: [RuntimeABIParameter(name: "valueRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_enum_box_with_declared_name",
+            parameters: [
+                RuntimeABIParameter(name: "ordinal", type: .intptr),
+                RuntimeABIParameter(name: "displayName", type: .intptr),
+                RuntimeABIParameter(name: "classID", type: .intptr),
+                RuntimeABIParameter(name: "declaredName", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
         // STDLIB-142: String.toBoolean
         RuntimeABIFunctionSpec(
             name: "__kk_string_toBoolean_flat",

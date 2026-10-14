@@ -76,7 +76,8 @@ func runtimeClonePrimitiveBox(_ raw: Int) -> AnyObject? {
             anyFallbackTag: box.anyFallbackTag,
             primitiveTypeBase: box.primitiveTypeBase,
             enumEntryName: box.enumEntryName,
-            enumClassID: box.enumClassID
+            enumClassID: box.enumClassID,
+            enumDeclaredName: box.enumDeclaredName
         )
     }
     if let box = tryCast(ptr, to: RuntimeBoolBox.self) {
