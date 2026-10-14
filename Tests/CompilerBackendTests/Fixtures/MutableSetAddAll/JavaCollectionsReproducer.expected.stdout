@@ -1,0 +1,4 @@
+frozen-sequence:UOE
+mutable-sequence:true:1
+frozen-iterable:UOE
+mutable-iterable:false:1
