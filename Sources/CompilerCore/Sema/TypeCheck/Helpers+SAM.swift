@@ -13,22 +13,91 @@ extension TypeCheckHelpers {
         else {
             return nil
         }
-        let children = sema.symbols.children(ofFQName: sym.fqName)
-        var abstractSignatures: [FunctionSignature] = []
-        for childID in children {
-            guard let childSym = sema.symbols.symbol(childID),
-                  childSym.kind == .function,
-                  childSym.flags.contains(.abstractType),
-                  let signature = sema.symbols.functionSignature(for: childID)
-            else {
-                continue
-            }
-            abstractSignatures.append(signature)
-        }
-        guard abstractSignatures.count == 1 else {
+        guard let method = effectiveSamAbstractMethod(for: interfaceSymbol, symbols: sema.symbols) else {
             return nil
         }
-        return abstractSignatures[0]
+        return sema.symbols.functionSignature(for: method)
+    }
+
+    /// The single abstract function a `fun interface` effectively requires,
+    /// counting abstract functions inherited from super-interfaces (unless the
+    /// interface overrides or implements them). Returns `nil` unless exactly one
+    /// such function exists. Abstract properties make the interface non-SAM.
+    func effectiveSamAbstractMethod(
+        for interfaceSymbol: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        guard let sym = symbols.symbol(interfaceSymbol) else { return nil }
+        var ownNames: Set<InternedString> = []
+        var candidates: [SymbolID] = []
+        for childID in symbols.children(ofFQName: sym.fqName) {
+            guard let child = symbols.symbol(childID),
+                  child.kind == .function || child.kind == .property
+            else { continue }
+            ownNames.insert(child.name)
+            if child.flags.contains(.abstractType) {
+                candidates.append(childID)
+            }
+        }
+        for inherited in collectInheritedAbstractMembers(for: interfaceSymbol, symbols: symbols) {
+            guard let member = symbols.symbol(inherited),
+                  !ownNames.contains(member.name)
+            else { continue }
+            candidates.append(inherited)
+        }
+        var functions: [SymbolID] = []
+        for candidate in candidates {
+            guard let member = symbols.symbol(candidate) else { continue }
+            if member.kind == .property { return nil }
+            if symbols.functionSignature(for: candidate) != nil {
+                functions.append(candidate)
+            }
+        }
+        guard functions.count == 1 else { return nil }
+        return functions[0]
+    }
+
+    /// Type arguments of `owner` as seen from `start<args>`, following supertype
+    /// type-argument mappings. `nil` when `owner` is not a supertype of `start`.
+    private func ancestorTypeArgs(
+        from start: SymbolID,
+        args: [TypeArg],
+        to owner: SymbolID,
+        sema: SemaModule
+    ) -> [TypeArg]? {
+        var visited: Set<SymbolID> = []
+        func walk(_ current: SymbolID, _ currentArgs: [TypeArg]) -> [TypeArg]? {
+            if current == owner { return currentArgs }
+            guard visited.insert(current).inserted else { return nil }
+            let params = sema.types.nominalTypeParameterSymbols(for: current)
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(params)
+            var substitution: [TypeVarID: TypeID] = [:]
+            if params.count == currentArgs.count {
+                for (index, arg) in currentArgs.enumerated() {
+                    guard let typeVar = typeVarBySymbol[params[index]] else { continue }
+                    switch arg {
+                    case let .invariant(type), let .out(type), let .in(type):
+                        substitution[typeVar] = type
+                    case .star:
+                        substitution[typeVar] = sema.types.nullableAnyType
+                    }
+                }
+            }
+            for supertype in sema.symbols.directSupertypes(for: current) {
+                let mapped = sema.symbols.supertypeTypeArgs(for: current, supertype: supertype).map { arg in
+                    arg.mapTypes {
+                        sema.types.substituteTypeParameters(
+                            in: $0,
+                            substitution: substitution,
+                            typeVarBySymbol: typeVarBySymbol
+                        )
+                    }
+                }
+                if let found = walk(supertype, mapped) { return found }
+            }
+            return nil
+        }
+        return walk(start, args)
     }
 
     /// Extracts the SAM function type from a functional interface type.
@@ -44,11 +113,26 @@ extension TypeCheckHelpers {
         guard let signature = samMethodSignature(for: classType.classSymbol, sema: sema) else {
             return nil
         }
-        let typeParamSymbols = sema.types.nominalTypeParameterSymbols(for: classType.classSymbol)
+        var ownerSymbol = classType.classSymbol
+        var ownerArgs = classType.args
+        if let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols),
+           let owner = sema.symbols.parentSymbol(for: method),
+           owner != classType.classSymbol
+        {
+            guard let args = ancestorTypeArgs(
+                from: classType.classSymbol,
+                args: classType.args,
+                to: owner,
+                sema: sema
+            ) else { return nil }
+            ownerSymbol = owner
+            ownerArgs = args
+        }
+        let typeParamSymbols = sema.types.nominalTypeParameterSymbols(for: ownerSymbol)
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
-        if typeParamSymbols.count == classType.args.count {
-            for (index, arg) in classType.args.enumerated() {
+        if typeParamSymbols.count == ownerArgs.count {
+            for (index, arg) in ownerArgs.enumerated() {
                 guard index < typeParamSymbols.count,
                       let typeVar = typeVarBySymbol[typeParamSymbols[index]]
                 else {

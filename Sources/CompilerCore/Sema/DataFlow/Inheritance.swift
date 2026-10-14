@@ -851,6 +851,13 @@ extension DataFlowSemaPhase {
     ) {
         for file in ast.sortedFiles {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
+                validateInheritedFunInterfaceContract(
+                    declID: declID,
+                    ast: ast,
+                    symbols: symbols,
+                    bindings: bindings,
+                    diagnostics: diagnostics
+                )
                 validateAbstractOverridesForDecl(
                     declID: declID,
                     ast: ast,
@@ -861,6 +868,32 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+    }
+
+    /// A `fun interface` with super-interfaces must still end up with exactly one
+    /// effective abstract function once inherited abstract members are counted
+    /// (the no-supertype case is checked earlier by `DeclarationPositionValidator`).
+    private func validateInheritedFunInterfaceContract(
+        declID: DeclID,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard let decl = ast.arena.decl(declID),
+              case let .interfaceDecl(interfaceDecl) = decl,
+              interfaceDecl.isFunInterface,
+              !interfaceDecl.superTypes.isEmpty,
+              let symbol = bindings.declSymbols[declID],
+              TypeCheckHelpers().effectiveSamAbstractMethod(for: symbol, symbols: symbols) == nil
+        else {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0406",
+            "functional interface must have exactly one abstract function.",
+            range: interfaceDecl.range
+        )
     }
 
     /// CLASS-008: Validate class delegation (`: Interface by expr`).
