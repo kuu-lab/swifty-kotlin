@@ -105,7 +105,15 @@ extension BuildASTPhase {
             // Strip only top-level semicolons; keep semicolons inside braces so
             // that nested block expressions (e.g. `if (c) { a; b }`) can still
             // split on them later in ExpressionParser.
-            let filtered = filterTopLevelSemicolons(rawTokens[...])
+            // A semicolon inside a loop statement can be its empty body (e.g.
+            // `while (condition);`), so loop tokens must reach ExpressionParser
+            // intact. Statement separators after a loop are sibling tokens and
+            // are not part of this syntax node.
+            let filtered = if node.kind == .loopStmt {
+                rawTokens
+            } else {
+                filterTopLevelSemicolons(rawTokens[...])
+            }
             guard !filtered.isEmpty else { continue }
 
             let shouldMergeWithPrevious: Bool
