@@ -145,7 +145,11 @@ extension CoroutineLoweringPass {
                 arguments: [entryPointExpr, childContinuationTemp, callerContinuationExpr],
                 result: call.result,
                 canThrow: false,
-                thrownResult: nil,
+                // The runtime wrapper reports child failures through the
+                // caller continuation rather than the native thrown channel.
+                // Keep the original slot as state-machine metadata so a
+                // resumed exception is routed through the enclosing try.
+                thrownResult: call.thrownResult,
                 isSuperCall: call.isSuperCall
             )
         )
