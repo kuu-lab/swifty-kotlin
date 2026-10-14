@@ -181,6 +181,23 @@ extension CallLowerer {
             objectValue: result, factoryName: callee,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
+        // Native reader constructors bypass kk_object_new. Register their
+        // source-backed Closeable/AutoCloseable methods for erased calls and use().
+        if let owner = sema.symbols.parentSymbol(for: constructorSymbol),
+           let fqName = sema.symbols.symbol(owner)?.fqName.map(interner.resolve),
+           fqName == ["java", "io", "InputStreamReader"]
+               || fqName == ["java", "io", "BufferedReader"]
+        {
+            appendObjectItableMethodRegistrations(
+                objectValue: result,
+                nominalSymbol: owner,
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         if let owner = sema.symbols.parentSymbol(for: constructorSymbol),
            sema.symbols.symbol(owner)?.fqName == ["kotlin", "collections", "ArrayDeque"].map(interner.intern)
         {
@@ -531,7 +548,7 @@ extension CallLowerer {
                receiverClass.classSymbol == owner
             {
                 driver.emitObjectLazyInitGuardIfNeeded(
-                    objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+                    objectSymbol: owner, arena: arena, sema: sema, interner: interner, instructions: &instructions
                 )
                 let receiver = arena.appendExpr(.symbolRef(owner), type: receiverType)
                 instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))

@@ -62,7 +62,7 @@ extension CallLowerer {
         // receiver even when no lexical receiver is active.
         if ownerInfo.kind == .object {
             driver.emitObjectLazyInitGuardIfNeeded(
-                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+                objectSymbol: owner, arena: arena, sema: sema, interner: interner, instructions: &instructions
             )
             let ownerType = sema.types.make(.classType(ClassType(
                 classSymbol: owner, args: [], nullability: .nonNull

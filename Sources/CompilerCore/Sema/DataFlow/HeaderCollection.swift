@@ -315,6 +315,9 @@ extension DataFlowSemaPhase {
         // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
         if resolvedFQName == ["kotlinx", "coroutines", "CoroutineName"]
+            // KUU-2016: the bundled constructor owns the BufferedReader
+            // nominal; early IO stubs retain only its existing member surface.
+            || resolvedFQName == ["java", "io", "BufferedReader"]
             || resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
             || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]

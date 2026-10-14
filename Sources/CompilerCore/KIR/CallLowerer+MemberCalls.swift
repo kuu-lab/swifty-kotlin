@@ -116,6 +116,7 @@ extension CallLowerer {
         {
             driver.emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                interner: interner,
                 instructions: &instructions.instructions
             )
         }
