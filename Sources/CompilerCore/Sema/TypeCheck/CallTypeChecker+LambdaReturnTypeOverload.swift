@@ -589,13 +589,17 @@ extension CallTypeChecker {
         let contextualExpectedType = overloadResolutionExpectedType(from: expectedType, sema: ctx.sema)
 
         guard !inputOnlyLambdaIndices.isEmpty else {
-            return ctx.resolver.resolveCall(
+            let resolved = ctx.resolver.resolveCall(
                 candidates: candidates,
                 call: call,
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.sema
+            )
+            return validateConstructorTypeInference(
+                resolved, args: args, argTypes: argTypes, explicitTypeArgs: explicitTypeArgs,
+                expectedType: contextualExpectedType, range: range, ctx: ctx
             )
         }
 

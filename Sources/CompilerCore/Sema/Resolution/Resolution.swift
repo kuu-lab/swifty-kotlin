@@ -544,6 +544,51 @@ extension OverloadResolver {
         }
         var inputConstraints = constraints
 
+        // An annotated Unit callback constrains call variables from
+        // above. Include their concrete declaration bounds before solving:
+        // `(String) -> Unit` can satisfy `(T : Number) -> Unit` with an
+        // intersection, even though choosing String alone violates the bound.
+        var callbackInputUpperBounds: [TypeVarID: [TypeID]] = [:]
+        if !typeVarBySymbol.isEmpty {
+            for (argumentIndex, parameterIndex) in parameterMapping {
+                guard case let .functionType(parameter) = ctx.types.kind(of: signature.parameterTypes[parameterIndex]),
+                      case let .functionType(argument) = ctx.types.kind(of: call.args[argumentIndex].type),
+                      parameter.returnType == ctx.types.unitType || argument.returnType == ctx.types.unitType,
+                      parameter.params.count == argument.params.count
+                else { continue }
+                for (expectedInput, actualInput) in zip(parameter.params, argument.params) {
+                    let inputBounds = decomposeSubtypeConstraint(
+                        subtype: expectedInput, supertype: actualInput,
+                        typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types, blameRange: call.range
+                    )
+                    for constraint in inputBounds {
+                        guard constraint.kind == .subtype,
+                              case let .variable(variable) = constraint.left,
+                              case let .type(bound) = constraint.right,
+                              !containsTypeVariable(bound, typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types)
+                        else { continue }
+                        callbackInputUpperBounds[variable, default: []].append(bound)
+                    }
+                }
+            }
+            for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                guard let variable = typeVarBySymbol[symbol],
+                      let inputBounds = callbackInputUpperBounds[variable]
+                else { continue }
+                let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index] : []
+                let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: symbol)
+                for bound in signatureBounds + symbolBounds.filter({ !signatureBounds.contains($0) }) {
+                    guard !containsTypeVariable(bound, typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types),
+                          !inputBounds.contains(where: { ctx.types.isSubtype($0, bound) })
+                    else { continue }
+                    constraints.append(VariableConstraint(
+                        kind: .subtype, left: .variable(variable), right: .type(bound), blameRange: call.range
+                    ))
+                }
+            }
+        }
+
         // Upper bounds can relate two function type parameters (for example
         // `where C : Collection<*>, C : R`). Add those relationships to the
         // inference graph before solving so a receiver lower bound can widen
