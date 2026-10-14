@@ -68,7 +68,7 @@ extension TypeCheckHelpers {
             return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
-        case .any, .unit, .nullableUnit, .nothing:
+        case .any, .unit, .nullableUnit, .platformUnit, .nothing:
             let nullable = types.makeNullable(typeID)
             if nullable == typeID {
                 return types.isSubtype(types.nullableNothingType, typeID) ? typeID : types.nullableAnyType
@@ -259,7 +259,7 @@ extension TypeCheckHelpers {
                     range: range
                 )
             }
-        case .error, .unit, .nullableUnit, .nothing, .any, .primitive, .stringStruct:
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }
@@ -345,7 +345,7 @@ extension TypeCheckHelpers {
 
     func nominalSymbol(of type: TypeID, types: TypeSystem) -> SymbolID? {
         switch types.kind(of: type) {
-        case .unit, .nullableUnit:
+        case .unit, .nullableUnit, .platformUnit:
             return types.unitClassSymbol
         case let .classType(classType):
             return classType.classSymbol
@@ -384,7 +384,7 @@ extension TypeCheckHelpers {
         visited: inout Set<SymbolID>
     ) -> [SymbolID] {
         switch types.kind(of: type) {
-        case .unit, .nullableUnit:
+        case .unit, .nullableUnit, .platformUnit:
             return types.unitClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]

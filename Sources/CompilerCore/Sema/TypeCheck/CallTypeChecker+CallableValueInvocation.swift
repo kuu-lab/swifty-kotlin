@@ -116,6 +116,20 @@ extension CallTypeChecker {
         let returnType: TypeID
         if let signature = sema.symbols.functionSignature(for: chosen) {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            if let receiverType = signature.receiverType,
+               case let .memberCall(receiver, _, _, _, _) = driver.ast.arena.expr(id),
+               let sourceType = sema.bindings.exprType(for: receiver),
+               sema.types.makeNonNullable(sourceType) == sema.types.unitType
+            {
+                let targetType = sema.types.substituteTypeParameters(
+                    in: receiverType, substitution: resolved.substitutedTypeArguments,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                driver.recordPlatformNullAssertion(
+                    receiver, sourceType: sourceType, targetType: targetType,
+                    declaredParameterType: receiverType
+                )
+            }
             let arguments: [CallArgument]
             switch driver.ast.arena.expr(id) {
             case let .call(_, _, args, _), let .memberCall(_, _, _, args, _),
@@ -136,7 +150,10 @@ extension CallTypeChecker {
                     substitution: resolved.substitutedTypeArguments,
                     typeVarBySymbol: typeVarBySymbol
                 )
-                driver.recordPlatformNullAssertion(argument.expr, sourceType: sourceType, targetType: targetType)
+                driver.recordPlatformNullAssertion(
+                    argument.expr, sourceType: sourceType, targetType: targetType,
+                    declaredParameterType: signature.parameterTypes[parameterIndex]
+                )
             }
             returnType = sema.types.substituteTypeParameters(
                 in: signature.returnType,
@@ -254,8 +271,14 @@ extension CallTypeChecker {
             return driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: parameterType)
         }
         if receiverArgOffset == 1, let receiverType = functionType.receiver {
+            let argumentType = contextualizedArgumentType(at: 0, parameterType: receiverType)
+            // Safe receiver invocation checks null before entering the call.
+            // An assertion on the receiver expression would run before that branch.
+            if case .safeMemberCall = ast.arena.expr(id) {} else {
+                driver.recordPlatformNullAssertion(args[0].expr, sourceType: argumentType, targetType: receiverType)
+            }
             emitCallableValueArgumentConstraint(
-                left: contextualizedArgumentType(at: 0, parameterType: receiverType),
+                left: argumentType,
                 right: receiverType,
                 range: ast.arena.exprRange(args[0].expr) ?? range,
                 ctx: ctx

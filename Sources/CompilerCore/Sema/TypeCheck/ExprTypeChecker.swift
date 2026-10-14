@@ -238,6 +238,12 @@ final class ExprTypeChecker {
             }
             if let value {
                 let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
+                if (!(label == nil || targetsFunction) || !ctx.isPropertyGetterReturn),
+                   returnExpectedType == sema.types.unitType,
+                   sema.types.makeNonNullable(resolved) == sema.types.unitType
+                {
+                    sema.bindings.markUnitReturnCoercion(value)
+                }
                 lambdaReturnScope?.returnValueTypes[id] = resolved
                 // Emit subtype constraint: return value must conform to expected (function) return type.
                 // Range expressions keep their runtime representation separate from the

@@ -690,6 +690,7 @@ public enum TypeKind {
     case error
     case unit
     case nullableUnit // Unit? carries a value or the null sentinel
+    case platformUnit // Unit! retains flexible bounds Unit..Unit?
     case nothing
     case any(Nullability)
 
@@ -927,7 +928,7 @@ _KK_<module>__<fqname>__<declkind>__<signature>__<hash>
 * `String` -> `Lkotlin_String;`
 * `T?` -> `Q<T>`
 * `.kklib` の型 signature は Java 境界の `T!` を `P<T>` として保存・復元する。link-name mangling は従来どおり `Q<T>` に消去する。
-* bundled `java.util.LinkedList.peekLast` は Kotlin 実装の `E?` 宣言を保ち、呼び出し signature に限って `E!` を公開する。ユーザーが同じ FQ name で宣言した Kotlin 関数には適用しない。`E!` を nullable 型引数で置換した場合は nullable を保持する（`LinkedList<Int?>.peekLast(): Int?`）。通常の Kotlin `T? → T` は許可しない。platform 値を具体的な非 nullable 型または非 nullable 上限を持つ型変数へ渡す際は KIR の `nullAssert` を挿入し、null なら NPE を投げる。上限なしの `T` への戻り値には挿入しない。具体型 `Unit!` の表現は [KUU-2035](https://linear.app/kuu/issue/KUU-2035) の別制約として未対応。
+* bundled `java.util.LinkedList.peekLast` は Kotlin 実装の `E?` 宣言を保ち、呼び出し signature に限って `E!` を公開する。ユーザーが同じ FQ name で宣言した Kotlin 関数には適用しない。`E!` を nullable 型引数で置換した場合は nullable を保持する（`LinkedList<Int?>.peekLast(): Int?`）。通常の Kotlin `T? → T` は許可しない。platform 値を具体的な非 nullable 型または非 nullable 上限を持つ型変数へ渡す際は KIR の `nullAssert` を挿入し、null なら NPE を投げる。上限なしの `T` への戻り値には挿入しない。具体型 `Unit!` は独立した `platformUnit` として `Unit` / `Unit?` の flexible 境界を保持する。Kotlin/JVM に合わせ、`Unit` ローカル代入は Java の値（null を含む）を保持し、`Unit` 戻り値は式を評価して singleton に変換し、非 nullable 関数引数は null 検査する。getter の参照 ABI は値を保持し、非 nullable `Unit` property の読み出しは singleton を生成する（safe call の null receiver 分岐は null を保持）。通常の `Unit? → Unit` は引き続き拒否する。
 * `print` / `println` に platform String を渡す場合は nullable `Any?` overload を選び、空 `peekLast` の null をそのまま表示する。
 * `Function2<A,B,R>` -> `F2<A,B,R>`
 * `suspend` 関数型 -> `SF…`

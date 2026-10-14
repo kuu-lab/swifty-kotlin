@@ -27,7 +27,7 @@ extension TypeSystem {
         if case .nothing(.nullable) = lhs {
             // Nothing? is subtype of all nullable and platform types, Any?, and Nothing? itself
             switch rhs {
-            case .nullableUnit:
+            case .nullableUnit, .platformUnit:
                 return true
             case .error:
                 return true
@@ -53,8 +53,10 @@ extension TypeSystem {
                 return false
             }
         }
-        if lhs == .unit, rhs == .nullableUnit {
-            return true
+        if [.unit, .nullableUnit, .platformUnit].contains(lhs),
+           [.unit, .nullableUnit, .platformUnit].contains(rhs)
+        {
+            return nullabilitySubtype(nullability(of: subtype), nullability(of: supertype))
         }
         // Subtype of intersection: C <: A & B if C <: all parts
         // (must come before LHS decomposition so that intersection-vs-intersection
@@ -81,7 +83,7 @@ extension TypeSystem {
         }
         if case .any(.nonNull) = rhs {
             switch lhs {
-            case .any(.nonNull), .any(.platformType), .unit, .nothing(.nonNull):
+            case .any(.nonNull), .any(.platformType), .unit, .platformUnit, .nothing(.nonNull):
                 return true
             case let .stringStruct(nullability):
                 return nullabilitySubtype(nullability, .nonNull)

@@ -1004,6 +1004,17 @@ extension CallLowerer {
         let memberResult = arena.exprType(result) == memberResultType
             ? result : arena.appendTemporary(type: memberResultType)
 
+        func coerceUnitPropertyRead(_ value: KIRExprID, emit: inout KIRLoweringEmitContext) -> KIRExprID {
+            guard let property = sema.bindings.identifierSymbol(for: exprID),
+                  sema.symbols.propertyType(for: property) == sema.types.unitType
+            else { return value }
+            // A successful Unit property access materializes the singleton;
+            // the null-receiver branch above must still yield null.
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            emit.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
         // Enum.name/ordinal use ordinal helpers, not constructor-property
         // storage. Keep the primitive ordinal result non-null until the merge.
         if let enumProperty = tryLowerEnumEntryPropertyRead(
@@ -1047,8 +1058,9 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            if memberResult != result {
-                instructions.append(.copy(from: memberResult, to: result))
+            let value = coerceUnitPropertyRead(memberResult, emit: &instructions)
+            if value != result {
+                instructions.append(.copy(from: value, to: result))
             }
             instructions.append(.label(endLabel))
             return result
@@ -1066,8 +1078,9 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions.instructions
         ) {
-            if accessorRead != result {
-                instructions.append(.copy(from: accessorRead, to: result))
+            let value = coerceUnitPropertyRead(accessorRead, emit: &instructions)
+            if value != result {
+                instructions.append(.copy(from: value, to: result))
             }
             instructions.append(.label(endLabel))
             return result
@@ -1092,7 +1105,8 @@ extension CallLowerer {
             resultTypeOverride: memberResultType,
             instructions: &instructions.instructions
         ) {
-            instructions.append(.copy(from: storedRead, to: result))
+            let value = coerceUnitPropertyRead(storedRead, emit: &instructions)
+            instructions.append(.copy(from: value, to: result))
             instructions.append(.label(endLabel))
             return result
         }
@@ -1221,8 +1235,9 @@ extension CallLowerer {
             arguments: finalArguments,
             instructions: &instructions.instructions
         ) {
-            if memberResult != result {
-                instructions.append(.copy(from: memberResult, to: result))
+            let value = coerceUnitPropertyRead(memberResult, emit: &instructions)
+            if value != result {
+                instructions.append(.copy(from: value, to: result))
             }
             instructions.append(.label(endLabel))
             return result
@@ -1470,8 +1485,9 @@ extension CallLowerer {
                 ))
             }
         }
-        if memberResult != result {
-            instructions.append(.copy(from: memberResult, to: result))
+        let value = coerceUnitPropertyRead(memberResult, emit: &instructions)
+        if value != result {
+            instructions.append(.copy(from: value, to: result))
         }
         instructions.append(.label(endLabel))
         return result
