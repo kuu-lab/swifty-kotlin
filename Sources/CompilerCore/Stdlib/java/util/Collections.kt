@@ -42,6 +42,7 @@ private class CollectionsUnmodifiableListIterator<E>(
     override fun set(element: E): Unit = collectionsRejectMutation()
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun <E> collectionsUnmodifiableList(backing: List<E>): MutableList<E> =
     if (backing is RandomAccess) CollectionsUnmodifiableRandomAccessList(backing as List<E>)
     else CollectionsUnmodifiableList(backing)
