@@ -798,9 +798,42 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
+    /// Finds the source-backed `contentToString` overload for an array type.
+    private func dataClassArrayContentToStringSymbol(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let (arrayType, arraySymbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(type), sema: sema
+        ),
+            arraySymbol.fqName == [interner.intern("kotlin"), arraySymbol.name],
+            KnownCompilerNames(interner: interner).isArrayLikeName(arraySymbol.name)
+        else {
+            return nil
+        }
+        let fqName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("contentToString"),
+        ]
+        return sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  let receiverType = signature.receiverType,
+                  let (receiverClass, _) = resolveClassTypeSymbol(
+                      sema.types.makeNonNullable(receiverType), sema: sema
+                  )
+            else {
+                return false
+            }
+            return receiverClass.classSymbol == arrayType.classSymbol
+        }
+    }
+
     /// Synthesizes `toString(): String` for data class with properties.
     /// Output format: "ClassName(prop1=val1, prop2=val2)"
-    /// Each property value is converted to string via `kk_any_to_string` and concatenated.
+    /// Each property is rendered according to its declared type, then concatenated.
     func dataClassExplicitSuperclass(
         owner: SemanticSymbol,
         sema: SemaModule,
@@ -957,6 +990,19 @@ extension DataEnumSealedSynthesisPass {
                 body.append(.call(
                     symbol: nil, callee: interner.intern("__kk_array_contentDeepToString"),
                     arguments: [propValue], result: propStr, canThrow: false, thrownResult: nil
+                ))
+            } else if let arrayToStringSymbol = dataClassArrayContentToStringSymbol(
+                for: propType, sema: sema, interner: interner
+            ) {
+                let callee = sema.symbols.externalLinkName(for: arrayToStringSymbol)
+                    .map(interner.intern) ?? interner.intern("contentToString")
+                body.append(.call(
+                    symbol: arrayToStringSymbol,
+                    callee: callee,
+                    arguments: [propValue],
+                    result: propStr,
+                    canThrow: false,
+                    thrownResult: nil
                 ))
             } else if let nameHelper = resolveEnumOrdinalToNameCallee(for: propType, sema: sema, interner: interner) {
                 body.append(.call(
