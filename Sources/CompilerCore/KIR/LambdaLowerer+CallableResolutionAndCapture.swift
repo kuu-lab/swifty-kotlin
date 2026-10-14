@@ -812,7 +812,11 @@ extension LambdaLowerer {
            !sema.symbols.propertyHasCustomGetter(for: symbol),
            let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
            sema.symbols.symbol(ownerSymbol)?.kind == .class,
-           let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(forProperty: symbol, sema: sema),
+           let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+               forProperty: symbol,
+               sema: sema,
+               arena: arena
+           ),
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
            ]
