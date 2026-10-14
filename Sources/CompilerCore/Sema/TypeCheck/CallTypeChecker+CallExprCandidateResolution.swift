@@ -16,6 +16,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
         candidates: [SymbolID],
+        constructorTypeAlias: SymbolID?,
         callImplicitReceiverType: TypeID?,
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
@@ -313,6 +314,7 @@ extension CallTypeChecker {
             )
             driver.helpers.checkOptIn(
                 for: chosen,
+                constructorTypeAlias: constructorTypeAlias,
                 ctx: ctx,
                 range: range,
                 diagnostics: ctx.sema.diagnostics

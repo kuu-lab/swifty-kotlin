@@ -481,7 +481,16 @@ final class TypeCheckDriver {
                         diagnostics: diagnostics
                     )
 
-                case .typeAliasDecl, .enumEntryDecl:
+                case let .typeAliasDecl(typeAlias):
+                    if let underlyingType = sema.symbols.typeAliasUnderlyingType(for: declSymbol) {
+                        declChecker.validateOptInTypeUsage(
+                            underlyingType,
+                            ctx: inferCtx.with(currentDeclSymbol: declSymbol),
+                            range: typeAlias.range
+                        )
+                    }
+
+                case .enumEntryDecl:
                     continue
                 }
             }
