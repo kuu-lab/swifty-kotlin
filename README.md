@@ -1,13 +1,13 @@
 # KSwiftK
 
-**KSwiftK** は Swift で書かれた Kotlin コンパイラです。Kotlin 2.3.10 stable の機能をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成します。
+**KSwiftK** は Swift で書かれた Kotlin コンパイラです。Kotlin 2.4.20 stable の機能をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成します。
 
 | 属性 | 値 |
 |---|---|
 | 実装言語 | Swift 6.2 (Swift language mode 6) / macOS 12+ |
 | ビルドシステム | SwiftPM |
 | 出力バイナリ | `kswiftc` |
-| ターゲット | Kotlin 2.3.10 stable, macOS arm64/x86_64 |
+| ターゲット | Kotlin 2.4.20 stable, macOS arm64/x86_64 |
 
 ---
 

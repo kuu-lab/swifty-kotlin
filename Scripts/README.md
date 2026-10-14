@@ -463,7 +463,7 @@ bash Scripts/diff_diagnostics.sh --report /tmp/diagnostics.tsv Scripts/diagnosti
 bash Scripts/diff_diagnostics.sh --self-test
 ```
 
-The harness requires JDK 21 or newer by default, matching the CI Kotlin 2.3.10
+The harness requires JDK 21 or newer by default, matching the CI Kotlin 2.4.20
 lane. For local toolchains that are intentionally different, set
 `DIFF_REQUIRE_JDK21=0` and record that limitation with the result.
 
