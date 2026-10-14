@@ -14,6 +14,33 @@ private struct ResolvedPropertyDelegateSignature {
 }
 
 extension DeclTypeChecker {
+    private func bindPropertyContextParameters(
+        _ property: PropertyDecl,
+        accessorSymbol: SymbolID,
+        sema: SemaModule,
+        locals: inout LocalBindings
+    ) -> [TypeID] {
+        guard let signature = sema.symbols.functionSignature(for: accessorSymbol) else {
+            return []
+        }
+        let declarations = property.contextReceivers.filter(\.isContextParameter)
+        for index in declarations.indices {
+            guard signature.contextParameterSymbols.indices.contains(index),
+                  signature.contextParameterTypes.indices.contains(index),
+                  let name = declarations[index].name
+            else {
+                continue
+            }
+            locals[name] = (
+                signature.contextParameterTypes[index],
+                signature.contextParameterSymbols[index],
+                false,
+                true
+            )
+        }
+        return signature.contextReceiverTypes
+    }
+
     /// - Parameter baseLocals: Seeds the accessor body's local-name resolution
     ///   with bindings from an enclosing scope, mirroring
     ///   `typeCheckFunctionDecl`'s parameter of the same name. Empty for
@@ -24,6 +51,7 @@ extension DeclTypeChecker {
     ///   (KSP-CAP-001/KSP-CAP-018).
     func typeCheckGetter(
         _ getter: PropertyAccessorDecl,
+        property: PropertyDecl,
         symbol: SymbolID,
         inferredPropertyType: TypeID?,
         accessorCtx: TypeInferenceContext,
@@ -41,18 +69,28 @@ extension DeclTypeChecker {
                 receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
             )
         }
+        let accessorSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+        let contextTypes = bindPropertyContextParameters(
+            property,
+            accessorSymbol: accessorSymbol,
+            sema: sema,
+            locals: &getterLocals
+        )
+        let getterContext = accessorCtx.with(
+            contextReceiverTypes: accessorCtx.contextReceiverTypes + contextTypes
+        )
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
         }
         let getterType = inferFunctionBodyType(
-            getter.body, ctx: accessorCtx.copying(
+            getter.body, ctx: getterContext.copying(
                 lambdaLabelStack: [],
                 lambdaReturnScopes: [],
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: inferredPropertyType,
-                enclosingFunctionSymbol: sema.symbols.extensionPropertyGetterAccessor(for: symbol)
-                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol),
+                enclosingFunctionSymbol: accessorSymbol,
                 enclosingLambdaExprIDs: []
             ), locals: &getterLocals,
             expectedType: inferredPropertyType
@@ -926,6 +964,17 @@ extension DeclTypeChecker {
                 receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
             )
         }
+        let accessorSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+        let contextTypes = bindPropertyContextParameters(
+            property,
+            accessorSymbol: accessorSymbol,
+            sema: sema,
+            locals: &setterLocals
+        )
+        let setterContext = accessorCtx.with(
+            contextReceiverTypes: accessorCtx.contextReceiverTypes + contextTypes
+        )
         let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
             ?? symbol
         setterLocals[interner.intern("field")] = (
@@ -939,13 +988,12 @@ extension DeclTypeChecker {
             finalPropertyType, setterValueSymbol, true, true
         )
         let setterType = inferFunctionBodyType(
-            setter.body, ctx: accessorCtx.copying(
+            setter.body, ctx: setterContext.copying(
                 lambdaLabelStack: [],
                 lambdaReturnScopes: [],
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: sema.types.unitType,
-                enclosingFunctionSymbol: sema.symbols.extensionPropertySetterAccessor(for: symbol)
-                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol),
+                enclosingFunctionSymbol: accessorSymbol,
                 enclosingLambdaExprIDs: []
             ), locals: &setterLocals,
             expectedType: sema.types.unitType

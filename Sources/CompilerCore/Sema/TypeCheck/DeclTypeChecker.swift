@@ -204,7 +204,7 @@ final class DeclTypeChecker {
 
         if let getter = property.getter {
             inferredPropertyType = typeCheckGetter(
-                getter, symbol: symbol,
+                getter, property: property, symbol: symbol,
                 inferredPropertyType: inferredPropertyType,
                 accessorCtx: accessorCtx, solver: solver,
                 diagnostics: diagnostics

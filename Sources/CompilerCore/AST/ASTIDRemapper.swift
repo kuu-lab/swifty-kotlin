@@ -168,7 +168,8 @@ struct ASTIDRemapper {
     func remap(_ value: ContextReceiverDecl) -> ContextReceiverDecl {
         ContextReceiverDecl(
             name: value.name.map { remap($0) },
-            type: remap(value.type)
+            type: remap(value.type),
+            isContextParameter: value.isContextParameter
         )
     }
 
@@ -207,6 +208,7 @@ struct ASTIDRemapper {
             delegateBody: value.delegateBody.map { remap($0) },
             delegateBodyParams: value.delegateBodyParams.map { remap($0) },
             receiverType: value.receiverType.map { remap($0) },
+            contextReceivers: value.contextReceivers.map { remap($0) },
             isSynthesizedPrimaryConstructorProperty: value.isSynthesizedPrimaryConstructorProperty,
             explicitBackingField: value.explicitBackingField.map { remap($0) }
         )

@@ -63,6 +63,9 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))
         case let .softKeyword(softKeyword):
+            if softKeyword == .context, hasContextParameterAnonymousFunctionPrefix() {
+                return parseAnonymousFunctionLiteral()
+            }
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(softKeyword.rawValue), token.range))
         case .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote:

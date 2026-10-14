@@ -712,6 +712,7 @@ extension ExprTypeChecker {
             if let getter = propertyDecl.getter, getter.body != .unit {
                 inferredType = driver.declChecker.typeCheckGetter(
                     getter,
+                    property: propertyDecl,
                     symbol: propertySymbol,
                     inferredPropertyType: declaredType ?? inferredType,
                     accessorCtx: accessorCtx,

@@ -594,6 +594,8 @@ extension DataFlowSemaPhase {
         }
         return FunctionSignature(
             receiverType: functionType.receiver,
+            contextReceiverTypes: functionType.contextReceivers,
+            contextParameterTypes: functionType.contextReceivers,
             parameterTypes: isStdlibArtifact ? javaCollectionsParameterTypes(
                 functionType.params, fqName: record.fqName, types: types, interner: interner
             ) : functionType.params,

@@ -21,6 +21,7 @@ extension ExprLowerer {
             let sig = sema.symbols.functionSignature(for: symbol)
             let funType: TypeID = if let sig {
                 sema.types.make(.functionType(FunctionType(
+                    contextReceivers: sig.contextParameterTypes,
                     receiver: sig.receiverType,
                     params: sig.parameterTypes,
                     returnType: sig.returnType,
@@ -38,6 +39,11 @@ extension ExprLowerer {
 
             // Emit the local function body as a KIRFunction declaration.
             let localFunValueParamList: [KIRParameter]
+            let localFunContextParamList = sig.map { signature in
+                zip(signature.contextParameterSymbols, signature.contextParameterTypes).map { symbol, type in
+                    KIRParameter(symbol: symbol, type: type)
+                }
+            } ?? []
             let localFunReceiverParam = sig?.receiverType.map {
                 KIRParameter(symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), type: $0)
             }
@@ -86,7 +92,10 @@ extension ExprLowerer {
                     seen: &seenSymbols
                 )
             }
-            let localFunParamSymbols = Set(((localFunReceiverParam.map { [$0] } ?? []) + localFunValueParamList).map(\.symbol))
+            let localFunParamSymbols = Set(
+                ((localFunReceiverParam.map { [$0] } ?? []) + localFunContextParamList + localFunValueParamList)
+                    .map(\.symbol)
+            )
             var captureSymbols = referencedSymbols.filter { sym in
                 if localFunParamSymbols.contains(sym) { return false }
                 if sym == symbol { return false }
@@ -236,6 +245,16 @@ extension ExprLowerer {
                 localFunBodyInstructions.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
                 driver.ctx.setLocalValue(paramExpr, for: param.symbol)
             }
+            var localContextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = []
+            for param in localFunContextParamList {
+                let contextExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+                localFunBodyInstructions.append(.constValue(result: contextExpr, value: .symbolRef(param.symbol)))
+                driver.ctx.setLocalDeclaredType(param.type, for: param.symbol)
+                driver.ctx.setLocalValue(contextExpr, for: param.symbol)
+                localContextReceiverValues.append(
+                    KIRLoweringContext.ContextReceiverValue(type: param.type, exprID: contextExpr)
+                )
+            }
             if let param = localFunReceiverParam {
                 let receiverExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
                 localFunBodyInstructions.append(.constValue(result: receiverExpr, value: .symbolRef(param.symbol)))
@@ -306,6 +325,7 @@ extension ExprLowerer {
                 captureArguments: recursiveCaptureArguments
             )
 
+            driver.ctx.withContextReceiverValues(localContextReceiverValues) {
             switch localFunBody {
             case let .block(bodyExprIDs, _):
                 var lastValue: KIRExprID?
@@ -382,6 +402,7 @@ extension ExprLowerer {
             case .unit:
                 localFunBodyInstructions.append(.returnUnit)
             }
+            }
             localFunBodyInstructions.append(.endBlock)
 
             let localFunDeclID = arena.appendDecl(
@@ -389,7 +410,8 @@ extension ExprLowerer {
                     KIRFunction(
                         symbol: symbol,
                         name: localFunName,
-                        params: captureBindings.map(\.param) + (localFunReceiverParam.map { [$0] } ?? []) + localFunValueParamList,
+                        params: captureBindings.map(\.param) + (localFunReceiverParam.map { [$0] } ?? [])
+                            + localFunContextParamList + localFunValueParamList,
                         returnType: localFunReturnType,
                         body: localFunBodyInstructions,
                         isSuspend: sig?.isSuspend ?? false,

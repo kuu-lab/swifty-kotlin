@@ -631,6 +631,12 @@ final class MemberLowerer {
                     driver.ctx.setLocalDeclaredType(receiverType, for: owner)
                 }
             }
+            for (contextSymbol, contextType) in zip(
+                signature.contextParameterSymbols,
+                signature.contextParameterTypes
+            ) {
+                params.append(KIRParameter(symbol: contextSymbol, type: contextType))
+            }
             let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
@@ -679,7 +685,16 @@ final class MemberLowerer {
             interner: interner,
             instructions: &body
         )
-        switch function.body {
+        let contextValues = signature.map { signature in
+            zip(signature.contextParameterSymbols, signature.contextParameterTypes).map { symbol, type in
+                KIRLoweringContext.ContextReceiverValue(
+                    type: type,
+                    exprID: arena.appendExpr(.symbolRef(symbol), type: type)
+                )
+            }
+        } ?? []
+        driver.ctx.withContextReceiverValues(contextValues) {
+            switch function.body {
         case let .block(exprIDs, _):
             var terminatedByReturn = false
             for exprID in exprIDs {
@@ -707,6 +722,7 @@ final class MemberLowerer {
             body.append(.returnValue(value))
         case .unit:
             body.append(.returnUnit)
+            }
         }
         body.append(.endBlock)
         let kirID = arena.appendDecl(.function(KIRFunction(
