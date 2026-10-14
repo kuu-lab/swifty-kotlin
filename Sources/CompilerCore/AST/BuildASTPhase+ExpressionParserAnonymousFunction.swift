@@ -77,7 +77,9 @@ extension BuildASTPhase.ExpressionParser {
 
         let range = SourceRange(start: funToken.range.start, end: tokens[endIndex - 1].range.end)
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))
-        return astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
+        let function = astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
+        astArena.markAnonymousFunction(function)
+        return function
     }
 
     private func skipBalancedBraceIfNeeded() {

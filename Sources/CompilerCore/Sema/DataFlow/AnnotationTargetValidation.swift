@@ -140,6 +140,92 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+
+        validateExpressionAnnotationTargets(
+            ast: ast, symbols: symbols, types: types, bindings: bindings,
+            diagnostics: diagnostics, interner: interner, filesByID: filesByID
+        )
+    }
+
+    private func validateExpressionAnnotationTargets(
+        ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
+        diagnostics: DiagnosticEngine, interner: StringInterner, filesByID: [Int32: ASTFile]
+    ) {
+        let annotationsByExpr = ast.arena.annotatedExpressions
+        guard !annotationsByExpr.isEmpty else { return }
+        let owners = ast.arena.decls.enumerated().compactMap { index, decl -> (SourceRange, [InternedString])? in
+            guard let symbol = bindings.declSymbols[DeclID(rawValue: Int32(index))],
+                  let owner = symbols.symbol(symbol) else { return nil }
+            return (decl.range, owner.fqName)
+        }
+        for exprID in annotationsByExpr.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let range = ast.arena.exprRange(exprID), let file = ast.file(for: range.start.file) else { continue }
+            let enclosingOwners = owners.filter { $0.0.contains(range) }.sorted {
+                ($0.0.end.offset - $0.0.start.offset) < ($1.0.end.offset - $1.0.start.offset)
+            }.map { $0.1 }
+            let resolutionContext = AnnotationTargetResolutionContext(
+                types: types,
+                enclosingFQName: enclosingOwners.first ?? [],
+                lexicalEnclosingFQNames: enclosingOwners
+            )
+            let isFunctionLiteral: Bool
+            if case .lambdaLiteral = ast.arena.expr(exprID) {
+                isFunctionLiteral = true
+            } else {
+                isFunctionLiteral = ast.arena.isAnonymousFunction(exprID)
+            }
+            for annotation in annotationsByExpr[exprID] ?? [] {
+                // Register before body inference and worker creation, retaining
+                // the existing diagnostic-name and severity suppression policy.
+                if let symbolID = resolveAnnotationSymbol(
+                    named: annotation.name, in: file, symbols: symbols, interner: interner,
+                    types: types, enclosingFQName: resolutionContext.enclosingFQName,
+                    lexicalEnclosingFQNames: enclosingOwners
+                ), let symbol = symbols.symbol(symbolID),
+                   symbol.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.Suppress" {
+                    let concatenatedArguments = concatenatedExpressionAnnotationArguments(annotation)
+                    for (index, argument) in annotation.arguments.enumerated() where !concatenatedArguments.contains(index) {
+                        guard let literal = extractKotlinStringLiteralContent(argument) else { continue }
+                        let code = literal.isRaw ? literal.content : decodeKotlinStringEscapes(literal.content)
+                        if !code.isEmpty { diagnostics.addSuppression(code: code, range: range) }
+                    }
+                }
+                validateAnnotationTarget(
+                    annotation: annotation, site: .expression(isFunctionLiteral: isFunctionLiteral), ownerRange: range,
+                    decl: nil, file: file, propertySymbol: nil, symbols: symbols,
+                    diagnostics: diagnostics, interner: interner, filesByID: filesByID,
+                    resolutionContext: resolutionContext
+                )
+            }
+        }
+    }
+
+    /// Kotlin 2.3.10 reads suppression names from literals, leaving string
+    /// concatenations unsuppressed even though annotation metadata folds them.
+    private func concatenatedExpressionAnnotationArguments(_ annotation: AnnotationNode) -> Set<Int> {
+        guard let tokens = annotation.constructionTokens,
+              let opening = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { return [] }
+        var concatenated: Set<Int> = []
+        var argument = 0
+        var paren = 1
+        var bracket = 0
+        var brace = 0
+        for token in tokens.dropFirst(opening + 1) {
+            switch token.kind {
+            case .symbol(.comma) where paren == 1 && bracket == 0 && brace == 0:
+                argument += 1
+            case .symbol(.plus): concatenated.insert(argument)
+            case .symbol(.lParen): paren += 1
+            case .symbol(.rParen): paren -= 1
+            case .symbol(.lBracket): bracket += 1
+            case .symbol(.rBracket): bracket -= 1
+            case .symbol(.lBrace): brace += 1
+            case .symbol(.rBrace): brace -= 1
+            default: break
+            }
+            if paren == 0 { break }
+        }
+        return concatenated
     }
 
     private func validateFileAnnotationTargets(
@@ -790,6 +876,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("FILE")
         case .type:
             return allowedTargets.contains("TYPE")
+        case let .expression(isFunctionLiteral):
+            return allowedTargets.contains("EXPRESSION") || (isFunctionLiteral && allowedTargets.contains("FUNCTION"))
         case .typeAlias:
             return allowedTargets.contains("TYPEALIAS")
         }
@@ -846,6 +934,8 @@ extension DataFlowSemaPhase {
             return "the file"
         case .type:
             return "a type usage"
+        case .expression:
+            return "an expression"
         case .typeAlias:
             return "a type alias declaration"
         }
@@ -901,6 +991,7 @@ extension DataFlowSemaPhase {
         case delegate
         case file
         case type
+        case expression(isFunctionLiteral: Bool)
         case typeAlias
     }
 }
