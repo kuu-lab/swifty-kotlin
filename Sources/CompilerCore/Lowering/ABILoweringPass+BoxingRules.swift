@@ -256,7 +256,7 @@ extension ABILoweringPass {
             case .intLiteral:
                 if let annotatedType = arena.exprType(argExprID),
                    case let .primitive(primitive, _) = types.kind(of: annotatedType),
-                   primitive == .byte || primitive == .short
+                   primitive == .byte || primitive == .short || primitive == .long
                 {
                     return types.make(.primitive(primitive, .nonNull))
                 }
