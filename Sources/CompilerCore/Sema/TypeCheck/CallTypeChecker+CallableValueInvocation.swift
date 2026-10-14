@@ -100,7 +100,8 @@ extension CallTypeChecker {
                 substitutedTypeArguments: resolved.substitutedTypeArguments
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                     .map(\.value),
-                parameterMapping: resolved.parameterMapping
+                parameterMapping: resolved.parameterMapping,
+                defaultArgumentOwner: resolved.defaultArgumentOwner
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

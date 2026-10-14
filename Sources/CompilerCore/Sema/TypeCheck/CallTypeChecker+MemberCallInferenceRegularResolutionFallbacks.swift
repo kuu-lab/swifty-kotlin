@@ -378,9 +378,12 @@ extension CallTypeChecker {
         if isSuperCall,
            let signature = sema.symbols.functionSignature(for: chosen)
         {
+            let defaultSignature = resolved.defaultArgumentOwner.flatMap {
+                sema.symbols.functionSignature(for: $0)
+            } ?? signature
             let suppliedParameterIndices = Set(resolved.parameterMapping.values)
-            let hasOmittedDefaultArgument = signature.valueParameterHasDefaultValues.indices.contains { index in
-                signature.valueParameterHasDefaultValues[index] && !suppliedParameterIndices.contains(index)
+            let hasOmittedDefaultArgument = defaultSignature.valueParameterHasDefaultValues.indices.contains { index in
+                defaultSignature.valueParameterHasDefaultValues[index] && !suppliedParameterIndices.contains(index)
             }
             if hasOmittedDefaultArgument {
                 let memberName = interner.resolve(calleeName)
@@ -446,7 +449,8 @@ extension CallTypeChecker {
                     substitutedTypeArguments: mergedSubstitution
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                         .map(\.value),
-                    parameterMapping: resolved.parameterMapping
+                    parameterMapping: resolved.parameterMapping,
+                    defaultArgumentOwner: resolved.defaultArgumentOwner
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

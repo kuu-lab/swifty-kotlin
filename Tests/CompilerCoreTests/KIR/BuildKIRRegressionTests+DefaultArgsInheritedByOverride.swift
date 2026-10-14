@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerTestSupport
+import Foundation
 import Testing
 
 /// KUU-655: KIR-level counterpart of `OverrideDefaultArgumentInheritanceTests`.
@@ -12,6 +13,33 @@ import Testing
 /// runtime type's override (see the virtual-dispatch attempt in
 /// `CallSupportLowerer.generateDefaultStubFunction`).
 extension BuildKIRRegressionTests {
+    @Test
+    func inheritedConcreteMemberUsesInterfaceDefaultStub() throws {
+        let source = """
+        interface Api { fun label(value: String = "ok"): String }
+        open class Impl { fun label(value: String): String = value }
+        class Leaf : Impl(), Api
+        fun probe(): String = Leaf().label()
+        """
+        let path = "/tmp/inherited-interface-default-kir.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let owner = try #require(sema.symbols.lookupAll(fqName: ["Api", "label"].map(ctx.interner.intern)).first)
+        let implementation = try #require(sema.symbols.lookupAll(fqName: ["Impl", "label"].map(ctx.interner.intern)).first)
+        let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
+        #expect(body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == SyntheticSymbolScheme.defaultStubSymbol(for: owner)
+        })
+        #expect(!findAllKIRFunctions(in: module).contains {
+            $0.symbol == SyntheticSymbolScheme.defaultStubSymbol(for: implementation)
+        })
+    }
+
     @Test
     func classOverrideOmittedArgumentRoutesThroughBaseStubOnly() throws {
         let source = KotlinSourceFixtures.classOverrideInheritedDefaultArgument

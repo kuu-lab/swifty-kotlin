@@ -773,7 +773,7 @@ extension CallLowerer {
         // KUU-655: an override that inherits its defaults never has its own
         // stub; resolve to the base declaration's stub instead (see
         // `defaultStubOwnerSymbol`).
-        let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema) }
+        let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema, callBinding: callBinding) }
         if callNormalized.defaultMask != 0,
            let chosen,
            let defaultStubOwner,

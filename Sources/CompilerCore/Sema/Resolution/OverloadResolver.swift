@@ -71,17 +71,20 @@ public struct ResolvedCall {
     public let substitutedTypeArguments: [TypeVarID: TypeID]
     public let parameterMapping: [Int: Int]
     public let diagnostic: Diagnostic?
+    public let defaultArgumentOwner: SymbolID?
 
     public init(
         chosenCallee: SymbolID?,
         substitutedTypeArguments: [TypeVarID: TypeID],
         parameterMapping: [Int: Int],
-        diagnostic: Diagnostic?
+        diagnostic: Diagnostic?,
+        defaultArgumentOwner: SymbolID? = nil
     ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
         self.diagnostic = diagnostic
+        self.defaultArgumentOwner = defaultArgumentOwner
     }
 }
 

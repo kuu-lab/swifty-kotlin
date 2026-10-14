@@ -172,6 +172,9 @@ public final class SymbolTable {
     /// override chain).
     private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
 
+    // Use-site defaults must never change the superclass declaration's signature.
+    private var inheritedDefaultsByReceiver: [TypeID: [SymbolID: SymbolID]] = [:]
+
     /// Thread safety lock for concurrent access. Recursive because the lazy
     /// imported-metadata loader re-enters this table (`define`, `lookupAll`,
     /// `setFunctionSignature`, ...) while materializing a symbol, and that
@@ -253,6 +256,7 @@ public final class SymbolTable {
         worker.delegatedInterfacesByClass = delegatedInterfacesByClass
         worker.klibDefinedGlobalSymbols = klibDefinedGlobalSymbols
         worker.overrideDefaultsBaseSymbols = overrideDefaultsBaseSymbols
+        worker.inheritedDefaultsByReceiver = inheritedDefaultsByReceiver
         return worker
     }
 
@@ -702,6 +706,14 @@ public final class SymbolTable {
 
     public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
         overrideDefaultsBaseSymbols[symbol]
+    }
+
+    func setInheritedDefaultsOwner(_ owner: SymbolID?, for implementation: SymbolID, receiver: TypeID) {
+        inheritedDefaultsByReceiver[receiver, default: [:]][implementation] = owner
+    }
+
+    func inheritedDefaultsOwner(for implementation: SymbolID, receiver: TypeID) -> SymbolID? {
+        inheritedDefaultsByReceiver[receiver]?[implementation]
     }
 
     public func setEnumEntryDispatchTargets(
