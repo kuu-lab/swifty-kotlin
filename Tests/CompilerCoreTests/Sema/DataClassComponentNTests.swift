@@ -119,6 +119,46 @@ struct DataClassComponentNTests {
         }
     }
 
+    @Test
+    func testForLoopDestructuringBracketSyntaxWithArrayListPairs() throws {
+        let source = """
+        interface ArrayListIterator<E> {
+            operator fun hasNext(): Boolean
+            operator fun next(): E
+        }
+
+        interface ArrayList<E> {
+            operator fun iterator(): ArrayListIterator<E>
+        }
+
+        interface Pair<A, B> {
+            operator fun component1(): A
+            operator fun component2(): B
+        }
+
+        fun probe(alist: ArrayList<Pair<Int, Int>>) {
+            var result = 0
+            for ([i: Int, z: Int] in alist) {
+                result += i + z
+            }
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Bracket destructuring over ArrayList<Pair<Int, Int>> should type-check: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
+
 }
 
 #endif
