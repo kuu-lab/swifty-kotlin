@@ -4,6 +4,20 @@ import Testing
 
 @Suite
 struct RuntimeFunctionStringTests {
+    @Test func absentInlineFunctionMetadataDoesNotChangeZeroRendering() {
+        let source = 0x1081_003
+        defer { removeRuntimeObjectMetadata(forObjectKey: UInt(bitPattern: source)) }
+        let text = Int(bitPattern: runtimeMakeStringPointer("kotlin.Function1"))
+        __kk_function_set_description(0, text, 1)
+        #expect(runtimeFunctionDescription(0) == nil)
+        #expect(runtimeElementToString(0) == "0")
+        __kk_function_set_description(source, text, 1)
+        __kk_function_copy_description(source, 0)
+        #expect(runtimeFunctionDescription(0) == nil)
+        #expect(runtimeElementToString(0) == "0")
+        #expect(runtimeElementToString(source) == "kotlin.Function1@1081003")
+    }
+
     @Test func rawFunctionUsesRegisteredSignatureInAllRenderers() {
         let raw = 0x1081_001
         defer { removeRuntimeObjectMetadata(forObjectKey: UInt(bitPattern: raw)) }

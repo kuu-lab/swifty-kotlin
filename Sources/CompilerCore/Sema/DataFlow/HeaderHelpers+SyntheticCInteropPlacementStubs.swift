@@ -138,44 +138,49 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // fun <reified T : CVariable> NativePlacement.allocArray(length: Long): CPointer<T>
-        let allocArrayTName = interner.intern("T")
-        let allocArrayFunctionFQName = cinteropPkg + [interner.intern("NativePlacement"), interner.intern("allocArray")]
-        let placementAllocArrayT: SymbolID = if let existing = symbols.lookup(fqName: allocArrayFunctionFQName + [allocArrayTName]) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: allocArrayTName,
-                fqName: allocArrayFunctionFQName + [allocArrayTName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
+        // Kotlin/Native accepts both Int and Long counts. Each overload owns
+        // its reified parameter so an Int variable preserves the element token.
+        for lengthType in [types.longType, types.intType] {
+            let allocArrayTName = interner.intern("T")
+            let allocArrayFunctionFQName = cinteropPkg + [interner.intern("NativePlacement"), interner.intern("allocArray")]
+                + (lengthType == types.intType ? [interner.intern("$intLength")] : [])
+            let placementAllocArrayT: SymbolID = if let existing = symbols.lookup(fqName: allocArrayFunctionFQName + [allocArrayTName]) {
+                existing
+            } else {
+                symbols.define(
+                    kind: .typeParameter,
+                    name: allocArrayTName,
+                    fqName: allocArrayFunctionFQName + [allocArrayTName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic, .reifiedTypeParameter]
+                )
+            }
+            symbols.setTypeParameterUpperBounds([cVariableType], for: placementAllocArrayT)
+            let placementAllocArrayTType = types.make(.typeParam(TypeParamType(
+                symbol: placementAllocArrayT,
+                nullability: .nonNull
+            )))
+            let allocArrayReturnType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(placementAllocArrayTType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeMemberFunction(
+                named: "allocArray",
+                ownerSymbol: nativePlacementSymbol,
+                receiverType: nativePlacementType,
+                parameters: [(name: "length", type: lengthType)],
+                returnType: allocArrayReturnType,
+                typeParameterSymbols: [placementAllocArrayT],
+                typeParameterUpperBoundsList: [[cVariableType]],
+                reifiedTypeParameterIndices: [0],
+                flags: [.synthetic, .inlineFunction],
+                externalLinkName: "kk_arena_alloc_array",
+                symbols: symbols,
+                interner: interner
             )
         }
-        symbols.setTypeParameterUpperBounds([cVariableType], for: placementAllocArrayT)
-        let placementAllocArrayTType = types.make(.typeParam(TypeParamType(
-            symbol: placementAllocArrayT,
-            nullability: .nonNull
-        )))
-        let allocArrayReturnType = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(placementAllocArrayTType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticNativeMemberFunction(
-            named: "allocArray",
-            ownerSymbol: nativePlacementSymbol,
-            receiverType: nativePlacementType,
-            parameters: [(name: "length", type: types.longType)],
-            returnType: allocArrayReturnType,
-            typeParameterSymbols: [placementAllocArrayT],
-            typeParameterUpperBoundsList: [[cVariableType]],
-            reifiedTypeParameterIndices: [0],
-            flags: [.synthetic, .inlineFunction],
-            externalLinkName: "kk_arena_alloc_array",
-            symbols: symbols,
-            interner: interner
-        )
         registerSyntheticNativeMemberFunction(
             named: "allocRaw",
             ownerSymbol: nativePlacementSymbol,

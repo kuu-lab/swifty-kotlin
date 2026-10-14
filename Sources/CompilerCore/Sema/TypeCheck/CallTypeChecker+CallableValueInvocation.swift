@@ -141,6 +141,17 @@ extension CallTypeChecker {
             default:
                 arguments = []
             }
+            // Unqualified extension calls need the same pin/finally lowering
+            // as explicit receiver calls. Match the resolved intrinsic so user
+            // functions with this name retain ordinary call semantics.
+            if arguments.count == 1,
+               let symbol = sema.symbols.symbol(chosen),
+               symbol.flags.contains(.synthetic),
+               symbol.fqName == ["kotlinx", "cinterop", "usePinned"].map(driver.interner.intern)
+            {
+                sema.bindings.markScopeFunctionExpr(id, kind: .scopeUsePinned)
+                sema.bindings.markCollectionHOFLambdaExpr(arguments[0].expr)
+            }
             for (index, argument) in arguments.enumerated() where !argument.isSpread {
                 guard let parameterIndex = resolved.parameterMapping[index],
                       signature.parameterTypes.indices.contains(parameterIndex),

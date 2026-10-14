@@ -5,7 +5,7 @@ import platform.posix.F_OK
 import platform.posix.access
 import kotlin.random.Random
 fun tempFileName(): String {
-    val tmpDir = SystemTemporaryDirectory.path
+    val tmpDir = SystemTemporaryDirectory.toString()
     for (i in 0 until 10) {
         val name = Random.nextBytes(32).toHexString()
         val path = "$tmpDir/$name"

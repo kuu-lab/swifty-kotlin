@@ -21,7 +21,7 @@ public const val NSStreamEventHasBytesAvailable: ULong = 2uL
 public const val NSStreamEventHasSpaceAvailable: ULong = 4uL
 public const val NSStreamEventErrorOccurred: ULong = 8uL
 public const val NSStreamEventEndEncountered: ULong = 16uL
-public const val NSStreamDataWrittenToMemoryStreamKey: String = "NSStreamDataWrittenToMemoryStreamKey"
+public const val NSStreamDataWrittenToMemoryStreamKey: String = "kCFStreamPropertyDataWritten"
 public const val NSDefaultRunLoopMode: String = "kCFRunLoopDefaultMode"
 public interface NSStreamDelegateProtocol {
     public fun stream(aStream: NSStream, handleEvent: NSStreamEvent)
