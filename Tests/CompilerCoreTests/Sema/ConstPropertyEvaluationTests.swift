@@ -69,6 +69,59 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsFloatingPointArithmeticAndDivisionByZero() throws {
+        let source = """
+        package floatingConstants
+        const val FLOAT_INFINITY = 1.0F / 0.0F
+        const val NEGATIVE_FLOAT_INFINITY = -1.0F / 0.0F
+        const val FLOAT_NAN = 0.0F / 0.0F
+        const val FLOAT_SUM = 1.5F + 0.5F
+        const val DOUBLE_INFINITY = 1.0 / 0.0
+        const val DOUBLE_NAN = 0.0 / 0.0
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+            let sema = try #require(ctx.sema)
+
+            for (name, expected) in [
+                ("FLOAT_INFINITY", Double.infinity),
+                ("NEGATIVE_FLOAT_INFINITY", -Double.infinity),
+                ("FLOAT_SUM", 2.0),
+            ] {
+                let symbol = try #require(sema.symbols.lookup(fqName: ["floatingConstants", name].map { ctx.interner.intern($0) }))
+                guard case let .floatLiteral(value) = sema.symbols.constValueExprKind(for: symbol) else {
+                    Issue.record("Missing Float constant for \(name)")
+                    continue
+                }
+                #expect(value == expected)
+            }
+
+            let doubleInfinity = try #require(sema.symbols.lookup(fqName: ["floatingConstants", "DOUBLE_INFINITY"].map { ctx.interner.intern($0) }))
+            guard case let .doubleLiteral(doubleInfinityValue) = sema.symbols.constValueExprKind(for: doubleInfinity) else {
+                Issue.record("Missing Double Infinity constant")
+                return
+            }
+            #expect(doubleInfinityValue == .infinity)
+
+            let floatNaN = try #require(sema.symbols.lookup(fqName: ["floatingConstants", "FLOAT_NAN"].map { ctx.interner.intern($0) }))
+            guard case let .floatLiteral(floatNaNValue) = sema.symbols.constValueExprKind(for: floatNaN) else {
+                Issue.record("Missing Float NaN constant")
+                return
+            }
+            #expect(floatNaNValue.isNaN)
+
+            let doubleNaN = try #require(sema.symbols.lookup(fqName: ["floatingConstants", "DOUBLE_NAN"].map { ctx.interner.intern($0) }))
+            guard case let .doubleLiteral(doubleNaNValue) = sema.symbols.constValueExprKind(for: doubleNaN) else {
+                Issue.record("Missing Double NaN constant")
+                return
+            }
+            #expect(doubleNaNValue.isNaN)
+        }
+    }
+
+    @Test
     func foldsResolvedReferencesAndBitwiseCalls() throws {
         let ctx = makeContextFromSources([
             """
