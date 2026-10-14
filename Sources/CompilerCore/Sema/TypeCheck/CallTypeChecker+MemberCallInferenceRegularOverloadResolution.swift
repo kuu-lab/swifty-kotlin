@@ -128,7 +128,49 @@ extension CallTypeChecker {
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
             || isListSourceBackedMember
-        let hasSourceBackedCandidate = isSourceBackedMemberName
+        // Keep user bulk overloads/extensions ahead of the bundled MutableSet
+        // fallback. Its source bodies only replace the old stdlib residuals.
+        let isMutableSetBulkCall = calleeName == knownNames.addAll
+            && sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableSetFQName).map { owner in
+                driver.helpers.allNominalSymbols(of: lookupReceiverType, types: sema.types, symbols: sema.symbols).contains {
+                    sema.types.isNominalSubtypeSymbol($0, of: owner)
+                }
+            } == true
+        // Ordinary lookup remains member-only until those members fail. Include
+        // visible extensions here so they reach the normal shadowed-extension
+        // resolver instead of being replaced by the stdlib fallback first.
+        let bulkExtensionCandidates = isMutableSetBulkCall ? collectExtensionCallCandidates(
+            named: calleeName,
+            memberLookupType: memberLookupType,
+            isSuperCall: isSuperCall,
+            supertypeSymbols: [],
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        ) : []
+        let (visibleBulkExtensions, _) = ctx.filterByVisibility(bulkExtensionCandidates)
+        let hasUserBulkCandidate = isMutableSetBulkCall && (candidates + visibleBulkExtensions).contains { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  !symbol.fqName.starts(with: knownNames.kotlinCollectionsPackage),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  let declaredReceiver = signature.receiverType
+            else { return false }
+            let receiverSymbols = driver.helpers.allNominalSymbols(
+                of: lookupReceiverType, types: sema.types, symbols: sema.symbols
+            )
+            let declaredReceiverSymbols = driver.helpers.allNominalSymbols(
+                of: declaredReceiver, types: sema.types, symbols: sema.symbols
+            )
+            return receiverSymbols.contains { actual in
+                declaredReceiverSymbols.contains { declared in
+                    sema.types.isNominalSubtypeSymbol(actual, of: declared)
+                }
+            }
+        }
+        let hasSourceBackedCandidate = hasUserBulkCandidate || isSourceBackedMemberName
             && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)

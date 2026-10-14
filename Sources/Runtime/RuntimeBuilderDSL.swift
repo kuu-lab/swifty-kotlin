@@ -2,6 +2,18 @@
 // receiver lambda, and freeze that same box before returning it as read-only.
 // The capacity is a reservation hint; the Kotlin layer validates negatives.
 
+// A frozen builder still implements MutableSet and rejects writes at runtime.
+// Keep that conformance without claiming HashSet or LinkedHashSet identity.
+private let runtimeSetBuilderTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKSetBuilder")
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
+    )
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: setRuntimeTypeID)
+    return id
+}()
+
 @_cdecl("__kk_builder_list_new")
 public func __kk_builder_list_new(_ capacity: Int) -> Int {
     registerRuntimeObject(RuntimeListBox(capacity: capacity), typeID: listRuntimeTypeID)
@@ -9,7 +21,7 @@ public func __kk_builder_list_new(_ capacity: Int) -> Int {
 
 @_cdecl("__kk_builder_set_new")
 public func __kk_builder_set_new(_ capacity: Int) -> Int {
-    registerRuntimeObject(RuntimeSetBox(capacity: capacity))
+    registerRuntimeObject(RuntimeSetBox(capacity: capacity), typeID: runtimeSetBuilderTypeID)
 }
 
 @_cdecl("__kk_builder_map_new")

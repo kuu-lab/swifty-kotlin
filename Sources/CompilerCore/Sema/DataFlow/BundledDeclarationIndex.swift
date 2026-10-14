@@ -520,7 +520,7 @@ struct BundledDeclarationIndex: Sendable {
         }
         if ownerFQName == ["kotlin", "collections", "MutableSet"] {
             // MutableSet.addAll(Collection) is now a source-backed default
-            // (KSP-704), while the retained Array/Iterable/Sequence overloads
+            // (KSP-704), while the retained Array overload
             // are registered as hidden runtime bridges. The bundled index is
             // arity-only, so these distinct overloads intentionally share one
             // key and must not emit KSWIFTK-SEMA-0102.
