@@ -1266,6 +1266,15 @@ KIR で `isSuspend = true` の関数。
      * if returned suspended -> return suspended
      * else result をローカルに入れて継続
 
+`Mutex.lock()` / `lock(owner)` は runtime suspend point として扱い、KIR の末尾の
+zero continuation を呼出元の continuation で置換する。owner 版の `outThrown` は
+独立した例外チャネルとして維持する。競合待機は cancellable continuation で通知し、
+所有権の移譲後でも delivery 前に取消された場合は mutex を返却する。同期取得と
+成功 delivery 後には汎用の取消検査を追加しない。continuation が zero の
+非 suspend 呼出しは引き続き blocking waiter を使う（KUU-2139）。
+ソース由来の `EmptyCoroutineContext` は空 context と解決し、既定の
+`runBlocking` と子 coroutine が同じ event loop を継承する。
+
 ## J17.3 non-suspend からの起動（KxMini）
 
 * `runBlocking`, `launch`, `async`, `delay` を Swift runtime 側で提供（GCD）。

@@ -1300,7 +1300,8 @@ private func runtimeSourceContextElementKey(_ raw: Int) -> Int? {
 /// Handles: RuntimeCoroutineContext, dispatcher tags, RuntimeCoroutineNameBox,
 /// RuntimeExceptionHandlerBox.
 func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
-    if raw == 0 {
+    // Source-backed EmptyCoroutineContext is a heap singleton, not a dispatcher.
+    if raw == 0 || runtimeObjectTypeID(rawValue: raw) == runtimeEmptyCoroutineContextTypeID {
         return RuntimeCoroutineContext()
     }
     if isDispatcherTag(raw) {
