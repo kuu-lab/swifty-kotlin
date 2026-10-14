@@ -1058,16 +1058,17 @@ extension CallLowerer {
         instructions.append(.jumpIfEqual(lhs: isCallable, rhs: one, target: callableLabel))
         instructions.append(.jump(interfaceLabel))
         instructions.append(.label(classLabel))
-        emitNonThrowingCall(callee: interner.intern("__kk_kclass_get_annotations"),
-                            arg: loweredReceiverID, result: result, into: &instructions)
+        // Native reads must materialize producer-owned annotation instances.
+        // The legacy entry points return metadata boxes and cannot satisfy
+        // typed casts, property getters, or annotation equality.
+        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kclass_get_annotations_typed"),
+                                  arguments: [loweredReceiverID], result: result,
+                                  canThrow: true, thrownResult: nil))
         instructions.append(.jump(endLabel))
         instructions.append(.label(callableLabel))
-        // KCallable's existing metadata ABI assigns annotations ordinal 12.
-        let ordinal = arena.appendExpr(.intLiteral(12), type: sema.types.intType)
-        instructions.append(.constValue(result: ordinal, value: .intLiteral(12)))
-        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_get_metadata"),
-                                  arguments: [loweredReceiverID, ordinal], result: result,
-                                  canThrow: false, thrownResult: nil))
+        instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_get_annotations_typed"),
+                                  arguments: [loweredReceiverID], result: result,
+                                  canThrow: true, thrownResult: nil))
         instructions.append(.jump(endLabel))
         instructions.append(.label(interfaceLabel))
         return endLabel

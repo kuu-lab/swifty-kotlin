@@ -17,6 +17,27 @@ struct TypedAnnotationReflectionTests {
     }
 
     @Test(arguments: [false, true], [0, 2])
+    func originalReproducerMatchesJVM(fromSource: Bool, optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try String(contentsOf: repository.appendingPathComponent(
+            "Scripts/diff_cases/kclass_annotations_typed.kt"
+        ), encoding: .utf8)
+        let input = directory.appendingPathComponent("reproducer.kt").path
+        let output = directory.appendingPathComponent("reproducer").path
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "KUU1753", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: fromSource ? nil : try testStdlibArtifactPath(), allowDefaultStdlibLibrary: !fromSource
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "1\nNamed\ntrue\n1\n")
+    }
+
+    @Test(arguments: [false, true], [0, 2])
     func runtimeAnnotationsMatchJVM(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -59,7 +80,7 @@ struct TypedAnnotationReflectionTests {
         }
         let input = directory.appendingPathComponent("consumer.kt").path
         let output = directory.appendingPathComponent("consumer").path
-        try ("import typedannotations.*\nimport kotlin.reflect.KClass\nimport kotlin.reflect.typeOf\nimport kotlin.reflect.full.findAnnotation\n" + String(source[boundary.lowerBound...]))
+        try ("import typedannotations.*\nimport kotlin.reflect.KClass\nimport kotlin.reflect.KAnnotatedElement\nimport kotlin.reflect.typeOf\nimport kotlin.reflect.full.findAnnotation\n" + String(source[boundary.lowerBound...]))
             .write(toFile: input, atomically: true, encoding: .utf8)
         try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
             moduleName: "AnnotationFactoryConsumer", inputs: [input], outputPath: output, emit: .executable,
