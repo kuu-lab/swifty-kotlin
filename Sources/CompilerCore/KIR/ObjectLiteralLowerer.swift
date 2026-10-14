@@ -117,12 +117,15 @@ final class ObjectLiteralLowerer {
                 break
             }
             let ownerFQName = sema.symbols.symbol(ownerSymbol)?.fqName ?? []
-            if !classDecl.memberFunctions.isEmpty {
+            if !classDecl.memberFunctions.isEmpty
+                || !classDecl.nestedClasses.isEmpty
+                || !classDecl.nestedObjects.isEmpty
+            {
                 let (_, allDecls) = driver.memberLowerer.lowerMemberDecls(
                     memberFunctions: classDecl.memberFunctions,
                     memberProperties: [],
-                    nestedClasses: [],
-                    nestedObjects: [],
+                    nestedClasses: classDecl.nestedClasses,
+                    nestedObjects: classDecl.nestedObjects,
                     ast: ast,
                     sema: sema,
                     arena: arena,

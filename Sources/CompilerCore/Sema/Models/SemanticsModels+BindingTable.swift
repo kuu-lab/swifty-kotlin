@@ -96,6 +96,8 @@ public final class BindingTable {
     public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// Free variables required by each lifted local function's direct-call ABI.
+    public private(set) var localFunctionCaptureSymbolsBySymbol: [SymbolID: [SymbolID]] = [:]
     /// STDLIB-592 definite assignment: outer-scope symbols a lambda literal's body
     /// unconditionally initializes, keyed by the lambda literal's own `ExprID`.
     /// Populated by `inferLambdaLiteralExpr` and consumed by `applyContractEffects`
@@ -318,6 +320,7 @@ public final class BindingTable {
         if !findAnnotationSearchTypes.isEmpty { return false }
         if !catchClauseBindings.isEmpty { return false }
         if !captureSymbolsByExpr.isEmpty { return false }
+        if !localFunctionCaptureSymbolsBySymbol.isEmpty { return false }
         if !contractCallsInPlaceInitializedSymbolsByExpr.isEmpty { return false }
         if cachedContractCallsInPlaceInitializedSymbolsUnion != nil { return false }
         if !declSymbols.isEmpty { return false }
@@ -429,6 +432,7 @@ public final class BindingTable {
         worker.findAnnotationSearchTypes = findAnnotationSearchTypes
         worker.catchClauseBindings = catchClauseBindings
         worker.captureSymbolsByExpr = captureSymbolsByExpr
+        worker.localFunctionCaptureSymbolsBySymbol = localFunctionCaptureSymbolsBySymbol
         worker.contractCallsInPlaceInitializedSymbolsByExpr = contractCallsInPlaceInitializedSymbolsByExpr
         worker.cachedContractCallsInPlaceInitializedSymbolsUnion = cachedContractCallsInPlaceInitializedSymbolsUnion
         worker.declSymbols = declSymbols
@@ -610,6 +614,14 @@ public final class BindingTable {
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {
         let unique = Array(Set(symbols)).sorted(by: { $0.rawValue < $1.rawValue })
         captureSymbolsByExpr[expr] = unique
+    }
+
+    public func bindLocalFunctionCaptureSymbols(_ symbol: SymbolID, symbols: [SymbolID]) {
+        localFunctionCaptureSymbolsBySymbol[symbol] = Array(Set(symbols)).sorted(by: { $0.rawValue < $1.rawValue })
+    }
+
+    public func localFunctionCaptureSymbols(for symbol: SymbolID) -> [SymbolID] {
+        localFunctionCaptureSymbolsBySymbol[symbol] ?? []
     }
 
     public func bindDecl(_ decl: DeclID, symbol: SymbolID) {

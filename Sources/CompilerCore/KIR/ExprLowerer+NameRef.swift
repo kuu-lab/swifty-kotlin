@@ -444,12 +444,20 @@ extension ExprLowerer {
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[symbol]
             {
+                let fieldReceiverExprID = resolveOuterChainValue(
+                    from: receiverExprID,
+                    to: ownerSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) ?? receiverExprID
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
-                    arguments: [receiverExprID, offsetExpr],
+                    arguments: [fieldReceiverExprID, offsetExpr],
                     result: result,
                     canThrow: false,
                     thrownResult: nil

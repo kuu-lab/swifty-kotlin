@@ -752,6 +752,23 @@ extension LocalDeclTypeChecker {
             nullability: .nonNull
         )))
 
+        var localFunctionOuterSymbols = Set(locals.values.map(\.symbol))
+        localFunctionOuterSymbols.formUnion(ctx.outerReceiverTypes.compactMap(\.symbol))
+        localFunctionOuterSymbols.formUnion(ctx.implicitReceiverStack.map(\.symbol))
+        localFunctionOuterSymbols.formUnion(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
+            sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
+        })
+        sema.bindings.bindLocalFunctionCaptureSymbols(
+            funSymbol,
+            symbols: driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inBody: body,
+                ast: ast,
+                sema: sema,
+                outerSymbols: localFunctionOuterSymbols,
+                skipNestedClosures: false
+            )
+        )
+
         locals[name] = (finalFunType, funSymbol, false, true)
         sema.bindings.bindIdentifier(id, symbol: funSymbol)
         sema.bindings.bindExprType(id, type: sema.types.unitType)

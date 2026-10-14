@@ -50,6 +50,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
         let driver = TypeCheckDriver(
             ast: ast,
             sema: sema,
+            compilationContext: ctx,
             sourceManager: ctx.sourceManager,
             solver: solver,
             resolver: resolver,
