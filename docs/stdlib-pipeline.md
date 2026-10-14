@@ -876,6 +876,15 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    `RuntimeABISpec.systemFunctions` records the nonthrowing int32/pointer/handle
    ABI; its canonical hash automatically updates `specVersion`.
 
+   KUU-2060 adds one private bridge, `__kk_identity_hash_map_init`
+   (reason: memory representation), attaching native reference-keyed Map storage
+   to the source-backed `java.util.IdentityHashMap` object. Generic constructors,
+   Map conformance, value identity checks, equality, and public members remain
+   in Kotlin. Existing Map/view bridges share the backing storage's equality policy;
+   ordinary HashMap storage keeps structural equality. `__kk_*` increases by one;
+   `RuntimeABISpec.collectionMapFunctions` registers the nonthrowing handle ABI
+   and automatically changes the canonical `specVersion` hash.
+
    KUU-2017 adds one private bridge, `__kk_system_in` (reason: syscall).
    The source-backed `java.lang.System.in` property stores a native standard-input
    stream object without reading stdin during initialization; the default-import

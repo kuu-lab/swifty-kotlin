@@ -208,7 +208,7 @@ private func runtimeStringHashCode(_ value: String) -> Int {
 private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
     var hash: Int32 = 0
     for element in set.values {
-        hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
+        hash = hash &+ Int32(truncatingIfNeeded: set.elementHash(element.legacyRawValue))
     }
     return Int(hash)
 }
@@ -277,6 +277,10 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     }
     guard isObjectPointer else {
         return runtimeUnboxedAnyHashCode(value, tag)
+    }
+    if runtimeIsIdentityMapEntry(value), let entry = runtimeMapEntryValues(rawValue: value) {
+        return Int(Int32(truncatingIfNeeded: kk_native_identityHashCode(entry.key))
+            ^ Int32(truncatingIfNeeded: kk_native_identityHashCode(entry.value)))
     }
     if let kTypeBox = tryCast(pointer, to: RuntimeKTypeBox.self) {
         var hash = Int32(truncatingIfNeeded: kk_any_hashCode(kTypeBox.classifierRaw, 0))

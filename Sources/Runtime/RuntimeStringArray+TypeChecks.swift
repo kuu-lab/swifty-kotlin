@@ -510,7 +510,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
+        return list.values.contains(where: { list.elementsEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {

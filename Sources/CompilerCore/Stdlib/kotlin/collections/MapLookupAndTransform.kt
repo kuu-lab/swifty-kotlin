@@ -53,19 +53,9 @@ internal external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key:
 // Kotlin 2.3.10 defines Map.contains as the key-membership operator.
 public inline operator fun <K, V> Map<out K, V>.contains(key: K): Boolean = containsKey(key)
 
-public fun <K, V> Map<K, V>.containsKey(key: K): Boolean {
-    for (entry in this.entries) {
-        if (entry.key == key) return true
-    }
-    return false
-}
+public fun <K, V> Map<K, V>.containsKey(key: K): Boolean = keys.contains(key)
 
-public fun <K, V> Map<K, V>.containsValue(value: V): Boolean {
-    for (entry in this.entries) {
-        if (entry.value == value) return true
-    }
-    return false
-}
+public fun <K, V> Map<K, V>.containsValue(value: V): Boolean = values.contains(value)
 
 @PublishedApi
 internal fun <K, V> Map<K, V>.getOrImplicitDefault(key: K): V {

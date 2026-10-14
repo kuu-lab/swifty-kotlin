@@ -6,7 +6,21 @@ final class RuntimeMapBox {
     private var keyStorage: [RuntimeValue]
     private var valueStorage: [RuntimeValue]
     private let backingMap: RuntimeMapBox?
-    private var keyIndex: [RuntimeElementKey: Int]
+    private enum Key: Hashable {
+        case structural(RuntimeElementKey)
+        case identity(Int)
+    }
+
+    private var keyIndex: [Key: Int]
+    let usesReferenceEquality: Bool
+
+    private func indexKey(_ value: RuntimeValue) -> Key {
+        usesReferenceEquality ? .identity(value.legacyRawValue) : .structural(RuntimeElementKey(runtimeValue: value))
+    }
+
+    func valuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
+        usesReferenceEquality ? lhs == rhs : runtimeValuesEqual(lhs, rhs)
+    }
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
     /// KUU-1361: java.util.TreeMap ordering — `sorted` selects comparator key
@@ -133,11 +147,13 @@ final class RuntimeMapBox {
         values: [Int],
         defaultValueFnPtr: Int = 0,
         defaultValueClosureRaw: Int = 0,
-        backingMap: RuntimeMapBox? = nil
+        backingMap: RuntimeMapBox? = nil,
+        usesReferenceEquality: Bool = false
     ) {
         self.keyStorage = keys.map { RuntimeValue(raw: $0) }
         self.valueStorage = values.map { RuntimeValue(raw: $0) }
         self.backingMap = backingMap
+        self.usesReferenceEquality = backingMap?.usesReferenceEquality ?? usesReferenceEquality
         self.keyIndex = [:]
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
@@ -153,6 +169,7 @@ final class RuntimeMapBox {
         self.keyStorage = []
         self.valueStorage = []
         self.backingMap = parent
+        self.usesReferenceEquality = parent.usesReferenceEquality
         self.keyIndex = [:]
         self.defaultValueFnPtr = 0
         self.defaultValueClosureRaw = 0
@@ -177,7 +194,7 @@ final class RuntimeMapBox {
             let position = sortedKeySearch(for: key)
             return position.found ? position.index : nil
         }
-        return keyIndex[RuntimeElementKey(value: key)]
+        return keyIndex[indexKey(RuntimeValue(raw: key))]
     }
 
     func rawValue(at index: Int) -> Int? {
@@ -241,7 +258,7 @@ final class RuntimeMapBox {
         let newIndex = keyStorage.count
         keyStorage.append(key)
         valueStorage.append(value)
-        let runtimeKey = RuntimeElementKey(runtimeValue: key)
+        let runtimeKey = indexKey(key)
         if keyIndex[runtimeKey] == nil {
             keyIndex[runtimeKey] = newIndex
         }
@@ -271,7 +288,7 @@ final class RuntimeMapBox {
             directModCount += 1
             return nil
         }
-        let runtimeKey = RuntimeElementKey(runtimeValue: key)
+        let runtimeKey = indexKey(key)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
             updateValue(at: index, value: value)
@@ -313,7 +330,7 @@ final class RuntimeMapBox {
         keyIndex.removeAll(keepingCapacity: true)
         keyIndex.reserveCapacity(keyStorage.count)
         for (offset, key) in keyStorage.enumerated() {
-            let runtimeKey = RuntimeElementKey(runtimeValue: key)
+            let runtimeKey = indexKey(key)
             // Keep the first position for malformed duplicate input, matching
             // the legacy linear lookup behavior.
             if keyIndex[runtimeKey] == nil {
@@ -326,6 +343,7 @@ final class RuntimeMapBox {
         self.keyStorage = []
         self.valueStorage = []
         self.backingMap = nil
+        self.usesReferenceEquality = false
         self.keyIndex = [:]
         self.keyStorage.reserveCapacity(max(0, capacity))
         self.valueStorage.reserveCapacity(max(0, capacity))

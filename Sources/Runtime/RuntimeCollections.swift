@@ -842,7 +842,7 @@ public func kk_mutable_collection_remove_throwing(
     outThrown?.pointee = 0
     guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
     if let list = runtimeListBox(from: collectionRaw) {
-        guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
+        guard let index = list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, elem) }) else {
             return kk_box_bool(0)
         }
         if list.isMapValuesView {
@@ -1065,7 +1065,7 @@ public func kk_mutable_list_remove_dispatch(
     }
     guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
     guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
-    guard let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) }) else {
+    guard let index = list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, elem) }) else {
         return kk_box_bool(0)
     }
     list.withMutableValues { $0.remove(at: index) }
@@ -1337,11 +1337,9 @@ public func kk_mutable_list_removeAll(_ listRaw: Int, _ collectionRaw: Int) -> I
     guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return kk_box_bool(0)
     }
-    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
     let originalCount = list.count
-    list.withMutableValues { values in
-        values.removeAll { members.contains(RuntimeElementKey(value: $0.legacyRawValue)) }
-    }
+    list.removeValues { contains($0.legacyRawValue) }
     return kk_box_bool(list.count != originalCount ? 1 : 0)
 }
 
@@ -1358,11 +1356,9 @@ public func kk_mutable_list_retainAll(_ listRaw: Int, _ collectionRaw: Int) -> I
     guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return kk_box_bool(0)
     }
-    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
     let originalCount = list.count
-    list.withMutableValues { values in
-        values.removeAll { !members.contains(RuntimeElementKey(value: $0.legacyRawValue)) }
-    }
+    list.removeValues { !contains($0.legacyRawValue) }
     return kk_box_bool(list.count != originalCount ? 1 : 0)
 }
 // KSP-428: Keep asReversed lazy so mutations of a MutableList are visible
