@@ -450,7 +450,10 @@ extension DataFlowSemaPhase {
                 )
                 let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
                 let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
-                return ResolvedSupertype(symbol: runtimeNominal, typeArgs: resolvedArgs)
+                return ResolvedSupertype(
+                    symbol: runtimeNominal,
+                    typeArgs: expandTypeAliasSupertypeArgs(symbol, writtenArgs: resolvedArgs, symbols: symbols, types: types)
+                )
             }
         }
 
@@ -475,13 +478,48 @@ extension DataFlowSemaPhase {
                         types: types,
                         interner: interner
                     )
-                    let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
+                let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
                     let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
-                    return ResolvedSupertype(symbol: runtimeNominal, typeArgs: resolvedArgs)
+                        return ResolvedSupertype(
+                        symbol: runtimeNominal,
+                        typeArgs: expandTypeAliasSupertypeArgs(symbol, writtenArgs: resolvedArgs, symbols: symbols, types: types)
+                    )
                 }
             }
         }
         return nil
+    }
+
+    /// A fixed type argument of an alias target (`typealias Base = Box<String>`) is part
+    /// of the supertype even though the header spells no arguments; expand the alias so
+    /// the inheritance edge keeps `Box<String>` instead of an argument-less `Box`.
+    private func expandTypeAliasSupertypeArgs(
+        _ symbol: SymbolID,
+        writtenArgs: [TypeArg],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [TypeArg] {
+        guard symbols.symbol(symbol)?.kind == .typeAlias,
+              let underlying = symbols.typeAliasUnderlyingType(for: symbol)
+        else {
+            return writtenArgs
+        }
+        let expanded = substituteTypeAliasParams(
+            underlying,
+            aliasSymbol: symbol,
+            typeArgs: writtenArgs,
+            symbols: symbols,
+            types: types
+        )
+        guard case let .classType(classType) = types.kind(of: expanded) else {
+            return writtenArgs
+        }
+        if symbols.symbol(classType.classSymbol)?.kind == .typeAlias, classType.classSymbol != symbol {
+            return expandTypeAliasSupertypeArgs(
+                classType.classSymbol, writtenArgs: classType.args, symbols: symbols, types: types
+            )
+        }
+        return classType.args
     }
 
     /// A supertype written through a type alias (e.g. `class R : AutoCloseable`, where
