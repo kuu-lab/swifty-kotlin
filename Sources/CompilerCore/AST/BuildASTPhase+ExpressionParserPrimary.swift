@@ -77,20 +77,26 @@ extension BuildASTPhase.ExpressionParser {
         case .symbol(.lBrace):
             return parseLambdaLiteral() ?? parseBlockExpression()
         case .symbol(.lBracket) where allowAnnotationArrayLiterals:
-            _ = consume()
-            var arguments: [CallArgument] = []
-            while current()?.kind != .symbol(.rBracket), current() != nil {
-                guard let value = parseExpression(minPrecedence: 0) else { return nil }
-                arguments.append(CallArgument(expr: value))
-                guard consumeIf(.symbol(.comma)) != nil else { break }
-            }
-            guard let closing = consumeIf(.symbol(.rBracket)) else { return nil }
-            let range = SourceRange(start: token.range.start, end: closing.range.end)
-            let callee = astArena.appendExpr(.nameRef(interner.intern("$annotationArrayLiteral"), range))
-            return astArena.appendExpr(.call(callee: callee, typeArgs: [], args: arguments, range: range))
+            return parseBracketLiteral(token, calleeName: "$annotationArrayLiteral")
+        case .symbol(.lBracket):
+            return parseBracketLiteral(token, calleeName: "listOf")
         default:
             return nil
         }
+    }
+
+    private func parseBracketLiteral(_ token: Token, calleeName: String) -> ExprID? {
+        _ = consume()
+        var arguments: [CallArgument] = []
+        while current()?.kind != .symbol(.rBracket), current() != nil {
+            guard let value = parseExpression(minPrecedence: 0) else { return nil }
+            arguments.append(CallArgument(expr: value))
+            guard consumeIf(.symbol(.comma)) != nil else { break }
+        }
+        guard let closing = consumeIf(.symbol(.rBracket)) else { return nil }
+        let range = SourceRange(start: token.range.start, end: closing.range.end)
+        let callee = astArena.appendExpr(.nameRef(interner.intern(calleeName), range))
+        return astArena.appendExpr(.call(callee: callee, typeArgs: [], args: arguments, range: range))
     }
 
     private func parsePrimaryNumericOrChar(_ token: Token) -> ExprID? {
