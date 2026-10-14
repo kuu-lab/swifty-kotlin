@@ -93,6 +93,8 @@ struct MetadataState {
     var coroutineDispatcherTypeEdgesRegistered = false
     /// `registerSortedCollectionTypeEdgesOnce` installs (KUU-1361).
     var sortedCollectionTypeEdgesRegistered = false
+    /// The runtime-backed MutableMap.MutableEntry boxes' edge to Map.Entry.
+    var mutableMapEntryTypeEdgesRegistered = false
     /// Same idea, for the kotlinx.cinterop MemScope/Arena/nativeHeap nominal
     /// edges `registerCInteropRuntimeTypeMetadata` installs (KUU-1375).
     var cinteropTypeEdgesRegistered = false
@@ -611,6 +613,7 @@ func kk_runtime_reset_metadata() {
         state.jobFamilyTypeEdgesRegistered = false
         state.coroutineDispatcherTypeEdgesRegistered = false
         state.sortedCollectionTypeEdgesRegistered = false
+        state.mutableMapEntryTypeEdgesRegistered = false
         state.cinteropTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.dataClassFieldMasks.removeAll(keepingCapacity: false)

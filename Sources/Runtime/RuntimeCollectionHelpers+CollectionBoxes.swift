@@ -13,6 +13,16 @@ private let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableMap.MutableEntry"
 )
 
+private func registerMutableMapEntryTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        if state.mutableMapEntryTypeEdgesRegistered {
+            return
+        }
+        state.typeParents[mutableMapEntryRuntimeTypeID, default: []].insert(mapEntryRuntimeTypeID)
+        state.mutableMapEntryTypeEdgesRegistered = true
+    }
+}
+
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
@@ -31,13 +41,14 @@ func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
 
 @inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
+    registerMutableMapEntryTypeEdgesOnce()
     let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key
     }
-    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterObjectType(rawValue: raw, classID: mutableMapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
     runtimeRegisterMutableMapEntryMethods(raw)
     return raw
@@ -45,13 +56,14 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
 
 @inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeValue) -> Int {
+    registerMutableMapEntryTypeEdgesOnce()
     let raw = registerRuntimeObject(RuntimePairBox(firstValue: key, secondValue: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key.legacyRawValue
     }
-    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    runtimeRegisterObjectType(rawValue: raw, classID: mutableMapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
     runtimeRegisterMutableMapEntryMethods(raw)
     return raw
@@ -88,7 +100,8 @@ private func runtimeRegisterMutableMapEntryMethods(_ raw: Int) {
 
 @inline(__always)
 func runtimeIsMapEntry(rawValue: Int) -> Bool {
-    runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
+    guard let typeID = runtimeObjectTypeID(rawValue: rawValue) else { return false }
+    return typeID == mapEntryRuntimeTypeID || typeID == mutableMapEntryRuntimeTypeID
 }
 
 /// Identity entry views accept arbitrary source Map.Entry implementations.
