@@ -929,6 +929,10 @@ extension DataEnumSealedSynthesisPass {
         )
         let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        appendEnumAnyToStringRegistration(
+            classSymbol: owner, sema: sema,
+            arena: module.arena, interner: interner, into: &body.instructions
+        )
         for (ordinal, entry) in entries.enumerated() {
             let ordinalExpr = module.arena.appendExpr(.intLiteral(Int64(ordinal)), type: intType)
             body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))

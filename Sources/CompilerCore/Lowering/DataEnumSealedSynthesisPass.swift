@@ -42,7 +42,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return nominal.symbol
         }
 
-        var enumStaticInitCallees: [(name: InternedString, symbol: SymbolID)] = []
+        var enumStaticInitCallees: [(name: InternedString, symbol: SymbolID, owner: SymbolID)] = []
 
         for nominalSymbolID in nominalSymbols {
             guard let nominalSymbol = sema.symbols.symbol(nominalSymbolID) else {
@@ -61,7 +61,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 )
                 let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
                 if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
-                    enumStaticInitCallees.append((initName, initSymbol))
+                    enumStaticInitCallees.append((initName, initSymbol, nominalSymbolID))
                 }
             }
             if nominalSymbol.flags.contains(.sealedType) {
@@ -98,22 +98,53 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
         }
 
-        // `__enum_static_init_<Class>` populates the global ordinal slots that
-        // equality comparisons and `when` branches read back. Nothing else
-        // ever calls it, so without this the globals stay at their
-        // zero-initialized default and every entry of a given enum class
-        // compares equal. Inject one call per enum class at the very start of
-        // `main`, mirroring how top-level property/companion initializers are
-        // threaded in by `postProcessTopLevelInitializersAndDelegates`.
+        // Enum ordinal slots and renderers must be initialized before use.
+        // Consumers initialize exported enums through their nominal metadata;
+        // hidden enums instead need the library's exported initializer, even
+        // when there are no stored top-level properties to create one.
         if !enumStaticInitCallees.isEmpty {
             let mainName = ctx.interner.intern("main")
             let unitType = sema.types.unitType
+            let libraryInitName = ctx.interner.intern("__kk_library_top_level_init_\(ctx.options.moduleName)")
+            let libraryCallees = enumStaticInitCallees.filter { callee in
+                guard ctx.options.emit == .library, !ctx.options.stdlibOnly else { return false }
+                var owner: SymbolID? = callee.owner
+                while let current = owner, let symbol = sema.symbols.symbol(current) {
+                    switch symbol.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass:
+                        if symbol.visibility != .public && symbol.visibility != .protected { return true }
+                    default:
+                        break
+                    }
+                    owner = sema.symbols.parentSymbol(for: current)
+                }
+                return false
+            }
+            if !libraryCallees.isEmpty,
+               !module.arena.declarations.contains(where: { declaration in
+                   if case let .function(function) = declaration { return function.name == libraryInitName }
+                   return false
+               }) {
+                let symbol = sema.symbols.define(
+                    kind: .function, name: libraryInitName, fqName: [libraryInitName],
+                    declSite: nil, visibility: .private, flags: [.synthetic, .static]
+                )
+                sema.symbols.setFunctionSignature(FunctionSignature(
+                    parameterTypes: [], returnType: unitType, isSuspend: false
+                ), for: symbol)
+                _ = module.arena.appendDecl(.function(KIRFunction(
+                    symbol: symbol, name: libraryInitName, params: [], returnType: unitType,
+                    body: [.beginBlock, .returnUnit, .endBlock], isSuspend: false, isInline: false
+                )))
+            }
             module.arena.transformFunctions { function in
-                guard function.name == mainName else {
+                let callees = function.name == mainName ? enumStaticInitCallees
+                    : function.name == libraryInitName ? libraryCallees : []
+                guard !callees.isEmpty else {
                     return function
                 }
                 var initInstructions: [KIRInstruction] = []
-                for callee in enumStaticInitCallees {
+                for callee in callees {
                     let result = module.arena.appendTemporary(type: unitType)
                     initInstructions.append(.call(
                         symbol: callee.symbol,

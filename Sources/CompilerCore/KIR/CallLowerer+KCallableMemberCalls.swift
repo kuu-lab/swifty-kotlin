@@ -297,7 +297,7 @@ extension CallLowerer {
             )
             argExprs.append(boxValueForAnySlot(
                 argExpr, sourceType: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType, types: sema.types,
-                symbols: sema.symbols, interner: interner, arena: arena, requireNonNull: true, into: &instructions
+                symbols: sema.symbols, interner: interner, arena: arena, requireNonNull: true, sema: sema, into: &instructions
             ))
         }
 

@@ -104,7 +104,7 @@ struct MetadataState {
     var objectEqualsOverrides: [UInt: Int] = [:]
     var objectHashCodeOverrides: [UInt: Int] = [:]
     var objectAnyToStringMethods: [UInt: Int] = [:]
-    var valueClassAnyToStringMethods: [Int64: Int] = [:]
+    var nominalAnyToStringMethods: [Int64: Int] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -618,7 +618,7 @@ func kk_runtime_reset_metadata() {
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
         state.objectHashCodeOverrides.removeAll(keepingCapacity: false)
         state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
-        state.valueClassAnyToStringMethods.removeAll(keepingCapacity: false)
+        state.nominalAnyToStringMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
         return boxes

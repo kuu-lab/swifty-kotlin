@@ -416,7 +416,7 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
 /// result, while Kotlin class methods use the flat String aggregate ABI.
 func anyToStringBridgeSymbolForImplementation(
     _ implementation: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     arena: KIRArena,
     sema: SemaModule,
     interner: StringInterner
@@ -433,18 +433,30 @@ func anyToStringBridgeSymbolForImplementation(
     let implementationReturnType = implementationFn?.returnType ?? implementationSig.returnType
     let receiverType = implementationFn?.params.first?.type ?? signatureReceiverType
 
-    if let cached = driver.ctx.anyToStringBridgeSymbolsByImplementation[implementation] {
+    if let cached = driver?.ctx.anyToStringBridgeSymbolsByImplementation[implementation] {
         return cached
     }
 
-    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-    driver.ctx.anyToStringBridgeSymbolsByImplementation[implementation] = bridgeSymbol
+    let bridgeFQName = [interner.intern("$anyToStringBridge"), interner.intern(String(implementation.rawValue))]
+    if driver == nil, let cached = sema.symbols.lookup(fqName: bridgeFQName),
+       arena.function(for: cached) != nil {
+        return cached
+    }
+    let bridgeSymbol = driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+        kind: .function, name: bridgeFQName[1], fqName: bridgeFQName,
+        declSite: nil, visibility: .private, flags: [.synthetic]
+    )
+    driver?.ctx.anyToStringBridgeSymbolsByImplementation[implementation] = bridgeSymbol
     let bridgeName = interner.intern(
         "kk_any_to_string_bridge_\(implementation.rawValue)_\(bridgeSymbol.rawValue)"
     )
 
     let receiverParam = KIRParameter(
-        symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+        symbol: driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+            kind: .valueParameter, name: interner.intern("receiver"),
+            fqName: bridgeFQName + [interner.intern("receiver")],
+            declSite: nil, visibility: .private, flags: [.synthetic]
+        ),
         type: receiverType
     )
     let receiverExpr = arena.appendExpr(
@@ -467,7 +479,17 @@ func anyToStringBridgeSymbolForImplementation(
     // `toString()` implementations that inspect their receiver recurse back
     // through the same Any override.
     let receiverForCall: KIRExprID
-    if rawReceiverKind != resolvedReceiverKind,
+    if case let .classType(receiverClass) = rawReceiverKind,
+       sema.symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass {
+        // Enum overrides consume ordinals; erased dispatch supplies a tagged box.
+        let ordinal = arena.appendTemporary(type: receiverType)
+        body.append(.call(
+            symbol: nil,
+            callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+            arguments: [receiverExpr], result: ordinal, canThrow: false, thrownResult: nil
+        ))
+        receiverForCall = ordinal
+    } else if rawReceiverKind != resolvedReceiverKind,
        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
            for: resolvedReceiverKind,
            requireNonNull: true
@@ -502,8 +524,8 @@ func anyToStringBridgeSymbolForImplementation(
     ))
 
     if let thrownResult {
-        let continueLabel = driver.ctx.makeLoopLabel()
-        let rethrowLabel = driver.ctx.makeLoopLabel()
+        let continueLabel = driver?.ctx.makeLoopLabel() ?? 0
+        let rethrowLabel = driver?.ctx.makeLoopLabel() ?? 1
         body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
         body.append(.jump(continueLabel))
         body.append(.label(rethrowLabel))
@@ -523,7 +545,13 @@ func anyToStringBridgeSymbolForImplementation(
         isSuspend: false,
         isInline: false
     )))
-    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    driver?.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    if driver == nil {
+        sema.symbols.setFunctionSignature(FunctionSignature(
+            receiverType: receiverType, parameterTypes: [], returnType: sema.types.intType,
+            isSuspend: false, canThrow: implementationSig.canThrow
+        ), for: bridgeSymbol)
+    }
     return bridgeSymbol
 }
 
