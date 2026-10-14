@@ -434,6 +434,7 @@ extension CallTypeChecker {
         var mergedImplicitReceiverMembers: [SymbolID] = []
         var callInvisible: [SemanticSymbol] = []
         var knownApplicableImplicitMembers: Set<SymbolID> = []
+        var typeAliasConstructor: TypeAliasConstructorContext?
 
         if let inferred = collectCallExprCandidates(
             id,
@@ -447,6 +448,7 @@ extension CallTypeChecker {
             calleePath: calleePath,
             candidates: &candidates,
             constructorTypeAlias: &constructorTypeAlias,
+            typeAliasConstructor: &typeAliasConstructor,
             implicitReceiverScopeCandidates: &implicitReceiverScopeCandidates,
             callImplicitReceiverType: &callImplicitReceiverType,
             memberExtensionReceiverMarks: &memberExtensionReceiverMarks,
@@ -526,12 +528,17 @@ extension CallTypeChecker {
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
         let originalArgumentLocals = locals
+        // Contextual argument inference uses the underlying owner's positions,
+        // while overload resolution consumes the alias's public type arguments.
+        let argumentContextTypeArgs = typeAliasConstructor.map {
+            aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
+        } ?? explicitTypeArgs
         let expectedTypeHintIndices = prepareCallExprArgumentContexts(
             args: args,
             callRange: range,
             ctx: ctx,
             expectedType: expectedType,
-            explicitTypeArgs: explicitTypeArgs,
+            explicitTypeArgs: argumentContextTypeArgs,
             calleeName: calleeName,
             candidates: candidates,
             withContextExpectedLambdaType: withContextExpectedLambdaType,
@@ -546,7 +553,7 @@ extension CallTypeChecker {
             expectedTypeOverrides: expectedTypeOverrides,
             expectedTypeHintIndices: expectedTypeHintIndices,
             contextualCallResultType: expectedType,
-            explicitTypeArgs: explicitTypeArgs,
+            explicitTypeArgs: argumentContextTypeArgs,
             receiverType: callImplicitReceiverType,
             boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
                 named: calleeName, candidates: candidates, ctx: ctx
@@ -588,6 +595,7 @@ extension CallTypeChecker {
             calleeName: calleeName,
             candidates: candidates,
             constructorTypeAlias: constructorTypeAlias,
+            typeAliasConstructor: typeAliasConstructor,
             callImplicitReceiverType: callImplicitReceiverType,
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,

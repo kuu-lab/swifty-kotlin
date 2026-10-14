@@ -17,6 +17,7 @@ extension CallTypeChecker {
         calleeName: InternedString?,
         candidates: [SymbolID],
         constructorTypeAlias: SymbolID?,
+        typeAliasConstructor: TypeAliasConstructorContext?,
         callImplicitReceiverType: TypeID?,
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
@@ -97,6 +98,7 @@ extension CallTypeChecker {
                 range: range,
                 calleeName: calleeName ?? InternedString(),
                 explicitTypeArgs: explicitTypeArgs,
+                typeAliasConstructor: typeAliasConstructor,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: callImplicitReceiverType,
                 bindsObjectDispatchReceiver: true,
@@ -117,7 +119,7 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            if resolved.diagnostic != nil {
+            if resolved.diagnostic != nil, typeAliasConstructor == nil {
                 if let calleeName,
                    let recovered = tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
                        id,
