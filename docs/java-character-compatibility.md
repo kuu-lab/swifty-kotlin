@@ -59,3 +59,14 @@ Verified on 2026-10-14 against base commit
 The full Swift, Golden, and diff suites were not run. These checks establish
 the facade's focused contracts, not complete xenocom execution or parity
 across all Unicode table versions.
+
+### Post-rebase PR gates
+
+The implementation was rebased onto `01544852e570d6bb1766e44b4e9fb47af88121f2`.
+Commit `fadcac969ee50ed71f6d913b08a74c67d0f57620` passed `swift build --jobs 4`,
+the three import/signature cases, and the backend source/fresh-artifact × O0/O2
+executable matrix. A regenerated CLI stdlib artifact with manifest hash
+`040ee990e75b9569` also passed the single diff case at O0 and O2, with no skips,
+using Kotlin/JVM 2.3.10 and the fixture's JDK API 17 directive.
+The minimum and original-closure measurements above remain initial-base
+measurements; they were not repeated after the rebase. Full suites remain unrun.
