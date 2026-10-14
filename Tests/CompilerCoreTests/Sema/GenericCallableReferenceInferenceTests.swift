@@ -61,11 +61,32 @@ struct GenericCallableReferenceInferenceTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors)")
     }
 
+    @Test func adaptsVarargAndTrailingDefaultArguments() throws {
+        let ctx = makeContextFromSource("""
+        fun useArray(factory: (Int, Int) -> Array<Int>): Array<Int> = factory(11, 22)
+        fun combine(first: Int = 3, second: Int = 4): Int = first * 10 + second
+        fun collect(vararg values: Int) {}
+        fun main() {
+            val values: Array<Int> = useArray(::arrayOf)
+            val noArguments: () -> Int = ::combine
+            val oneArgument: (Int) -> Int = ::combine
+            val packed: (IntArray) -> Unit = ::collect
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected vararg/default adaptations to type-check, got: \(errors)")
+        let sema = try #require(ctx.sema)
+        let bindings = sema.bindings.callableReferenceBindings.values
+        #expect(bindings.filter(\.isCallableReferenceAdapter).count == 3)
+    }
+
     @Test(arguments: [
         "fun <T> identity(value: T): T = value; val ref: (Int) -> String = ::identity",
         "fun <T : String> identity(value: T): T = value; val ref: (Int) -> Int = ::identity",
         "fun <T : Any> identity(value: T): T = value; val ref: (Int?) -> Int? = ::identity",
         "fun <T> identity(value: T): T = value; val ref: (Int, Int) -> Int = ::identity",
+        "fun combine(first: Int = 0, second: String = \"x\"): String = second; val ref: (String) -> String = ::combine",
         "suspend fun <T> identity(value: T): T = value; val ref: (Int) -> Int = ::identity",
         "fun <T> unused(value: Int): Int = value; val ref: (Int) -> Int = ::unused",
         "fun <T> T.echo(value: T): T = value; fun ref(value: String) { val f: (Int) -> Int = value::echo }",

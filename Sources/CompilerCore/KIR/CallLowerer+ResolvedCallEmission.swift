@@ -245,8 +245,13 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        sourceArgExprsOverride: [ExprID]? = nil,
+        explicitReceiverOverride: KIRExprID? = nil,
+        outerReceiverOverride: KIRExprID? = nil,
+        leadingArguments: [KIRExprID] = []
     ) -> KIRExprID {
+        let sourceArgExprs = sourceArgExprsOverride ?? args.map(\.expr)
         if let emptyArray = lowerEmptyArrayCallExpr(
             chosenCallee: chosen,
             boundType: boundType,
@@ -265,7 +270,7 @@ extension CallLowerer {
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),
                 argumentLabels: args.map(\.label),
-                sourceArgExprs: args.map(\.expr),
+                sourceArgExprs: sourceArgExprs,
                 ast: ast,
                 sema: sema,
                 arena: arena,
@@ -283,7 +288,7 @@ extension CallLowerer {
                 defaultMask: 0
             )
         }
-        var finalArgIDs = callNormalized.arguments
+        var finalArgIDs = leadingArguments + callNormalized.arguments
         var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
         var implicitReceiverRuntimeCallee: InternedString?
         // Compiler-generated lambdas/local functions use the compiler ABI
@@ -331,7 +336,7 @@ extension CallLowerer {
             // the constructor branch below), so index by position with no offset.
             materializeSourceBackedFunctionValueArguments(
                 chosenCallee: chosen,
-                sourceArgExprs: args.map(\.expr),
+                sourceArgExprs: sourceArgExprs,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -394,7 +399,7 @@ extension CallLowerer {
             let allocatedObj = allocateAndRegisterConstructedObject(
                 chosen: chosen,
                 boundType: boundType,
-                outerReceiver: driver.ctx.activeImplicitReceiverExprID(),
+                outerReceiver: outerReceiverOverride ?? driver.ctx.activeImplicitReceiverExprID(),
                 driver: driver,
                 sema: sema,
                 arena: arena,
@@ -590,6 +595,9 @@ extension CallLowerer {
             {
                 implicitReceiver = ownerReceiver
             }
+            if let explicitReceiverOverride {
+                implicitReceiver = explicitReceiverOverride
+            }
             if let extensionReceiver = implicitReceiver {
                 finalArgIDs.insert(extensionReceiver, at: 0)
                 if let dispatchReceiver = memberExtensionDispatchReceiver(
@@ -668,13 +676,13 @@ extension CallLowerer {
         if loweredCallable == nil {
             adaptCoroutineLauncherBlock(
                 chosenCallee: chosen,
-                sourceArgExprs: args.map(\.expr),
+                sourceArgExprs: sourceArgExprs,
                 sema: sema, arena: arena, interner: interner,
                 instructions: &instructions, arguments: &finalArgIDs
             )
             materializeSourceBackedFunctionValueArguments(
                 chosenCallee: chosen,
-                sourceArgExprs: args.map(\.expr),
+                sourceArgExprs: sourceArgExprs,
                 sema: sema,
                 arena: arena,
                 interner: interner,
