@@ -154,6 +154,9 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
     }
+    if let callableReferenceEquality = runtimeCallableReferenceValuesEqual(lhs, rhs) {
+        return callableReferenceEquality
+    }
     let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs)
     let lhsIsObjectPointer = runtimeStorage.withGCLock { state in

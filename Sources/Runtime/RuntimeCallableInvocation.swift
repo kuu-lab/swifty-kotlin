@@ -141,10 +141,29 @@ private func callableArguments(_ raw: Int) -> [Int]? {
     return runtimeArrayBox(from: raw)?.elements
 }
 
+@_cdecl("__kk_callable_ref_set_identity")
+public func __kk_callable_ref_set_identity(_ callable: Int, _ targetRaw: Int, _ capturesRaw: Int) {
+    guard targetRaw != 0 else { return }
+    let captures: [Int]
+    if capturesRaw == runtimeNullSentinelInt {
+        captures = []
+    } else if let values = callableArguments(capturesRaw) {
+        captures = values
+    } else {
+        return
+    }
+    runtimeStorage.withDelegateLock { state in
+        guard var metadata = state.callableRefMetadataByValue[callable], metadata.kind == .function else { return }
+        metadata.identityTargetRaw = targetRaw
+        metadata.identityCaptures = captures
+        state.callableRefMetadataByValue[callable] = metadata
+    }
+}
+
 func runtimeCallableReflectionRoots() -> [Int] {
     let entries = runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue }
     return entries.flatMap { raw, metadata in
-        [raw, metadata.property] + (callableArguments(metadata.environment) ?? [])
+        [raw, metadata.property] + metadata.identityCaptures + (callableArguments(metadata.environment) ?? [])
             + (callableArguments(metadata.typeParameters) ?? [])
     }
 }
