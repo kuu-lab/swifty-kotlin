@@ -463,16 +463,25 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        let destructuringClose: TokenKind?
         if matches(.symbol(.lParen)) {
+            destructuringClose = .symbol(.rParen)
+        } else if matches(.symbol(.lBracket)) {
+            destructuringClose = .symbol(.rBracket)
+        } else {
+            destructuringClose = nil
+        }
+
+        if let destructuringClose {
             let savedIndex = index
             _ = consume()
 
             var destructuringNames: [InternedString?] = []
-            var foundCloseParen = false
+            var foundCloseDelimiter = false
             while let token = current() {
-                if token.kind == .symbol(.rParen) {
+                if token.kind == destructuringClose {
                     _ = consume()
-                    foundCloseParen = true
+                    foundCloseDelimiter = true
                     break
                 }
                 if token.kind == .symbol(.comma) {
@@ -491,7 +500,7 @@ extension BuildASTPhase.ExpressionParser {
                         _ = consume()
                         while let t = current(),
                               t.kind != .symbol(.comma),
-                              t.kind != .symbol(.rParen)
+                              t.kind != destructuringClose
                         {
                             _ = consume()
                         }
@@ -501,7 +510,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
             }
 
-            if foundCloseParen, !destructuringNames.isEmpty {
+            if foundCloseDelimiter, !destructuringNames.isEmpty {
                 guard consumeIf(.keyword(.in)) != nil else {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
