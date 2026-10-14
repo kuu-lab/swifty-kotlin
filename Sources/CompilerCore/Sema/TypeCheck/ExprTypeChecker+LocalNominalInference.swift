@@ -237,6 +237,9 @@ extension ExprTypeChecker {
             var paramTypes: [TypeID] = []
             var paramSymbols: [SymbolID] = []
             for param in header.params {
+                let parameterCtx = driver.helpers.primaryConstructorParameterOptInContext(
+                    param, ctx: driver.helpers.localFunctionOptInContext(ctx).with(currentDeclSymbol: ctorSymbol)
+                )
                 let paramType: TypeID = if let typeRefID = param.type {
                     driver.helpers.resolveTypeRef(
                         typeRefID,
@@ -245,7 +248,7 @@ extension ExprTypeChecker {
                         interner: interner,
                         scope: ctx.scope,
                         diagnostics: ctx.sema.diagnostics,
-                        inferenceContext: ctx,
+                        inferenceContext: parameterCtx,
                         usageRange: header.range
                     )
                 } else {
@@ -288,6 +291,13 @@ extension ExprTypeChecker {
             ownerFQName: classFQName,
             ownerSymbol: classSymbol,
             markAsSynthetic: !classDecl.modifiers.contains(.data),
+            primaryConstructorParameters: Dictionary(uniqueKeysWithValues: zip(
+                classDecl.memberProperties.filter {
+                    guard case let .propertyDecl(property) = ast.arena.decl($0) else { return false }
+                    return property.isSynthesizedPrimaryConstructorProperty
+                },
+                classDecl.primaryConstructorParams.filter(\.isProperty)
+            )),
             ctx: ctx
         )
         for propertySymbol in propertySymbolsByDecl.values {

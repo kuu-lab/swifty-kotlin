@@ -27,11 +27,32 @@ extension DataFlowSemaPhase {
     ) {
         guard let file = ast.file(for: classDecl.range.start.file) else { return }
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
-        for parameter in classDecl.primaryConstructorParams where parameter.isProperty && !parameter.annotations.isEmpty {
-            guard let propertyID = classDecl.memberProperties.first(where: {
-                guard case let .propertyDecl(property) = ast.arena.decl($0) else { return false }
-                return property.isSynthesizedPrimaryConstructorProperty && property.name == parameter.name
-            }), let propertySymbol = bindings.declSymbols[propertyID],
+        // BuildAST emits these properties in parameter order. Pair declarations
+        // within this class, rather than looking up a same-named property.
+        let properties = classDecl.memberProperties.compactMap { declaration -> (DeclID, PropertyDecl)? in
+            guard case let .propertyDecl(property) = ast.arena.decl(declaration),
+                  property.isSynthesizedPrimaryConstructorProperty else { return nil }
+            return (declaration, property)
+        }
+        let propertyParameters = classDecl.primaryConstructorParams.enumerated().filter { $0.element.isProperty }
+        for ((index, parameter), (propertyID, property)) in zip(propertyParameters, properties) {
+            guard property.name == parameter.name,
+                  let propertySymbol = bindings.declSymbols[propertyID] else { continue }
+            if let owner = symbols.parentSymbol(for: propertySymbol),
+               let constructor = symbols.symbols(atDeclSite: classDecl.range).first(where: {
+                   symbols.symbol($0)?.kind == .constructor && symbols.parentSymbol(for: $0) == owner
+               }), let signature = symbols.functionSignature(for: constructor),
+               index < signature.parameterTypes.count {
+                // The call signature stores a vararg's element type, but its
+                // source parameter type is the same array as the property.
+                let parameterType = parameter.isVararg
+                    ? symbols.propertyType(for: propertySymbol) ?? signature.parameterTypes[index]
+                    : signature.parameterTypes[index]
+                bindings.primaryConstructorPropertyParameters[propertySymbol] = (
+                    parameter, parameterType, constructor
+                )
+            }
+            guard !parameter.annotations.isEmpty,
                   bindings.primaryConstructorPropertyAnnotations[propertySymbol] == nil
             else { continue }
             let enclosingName = Array((symbols.symbol(propertySymbol)?.fqName ?? []).dropLast())

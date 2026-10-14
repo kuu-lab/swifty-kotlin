@@ -456,6 +456,7 @@ extension ExprTypeChecker {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         markAsSynthetic: Bool = true,
+        primaryConstructorParameters: [DeclID: ValueParamDecl] = [:],
         ctx: TypeInferenceContext
     ) -> [DeclID: SymbolID] {
         let ast = ctx.ast
@@ -510,10 +511,18 @@ extension ExprTypeChecker {
                 parameters.append(symbol)
                 propertyScope.insert(symbol)
             }
+            let propertyHeaderCtx: TypeInferenceContext
+            if let parameter = primaryConstructorParameters[propertyDeclID] {
+                propertyHeaderCtx = driver.helpers.primaryConstructorParameterOptInContext(
+                    parameter, ctx: driver.helpers.localFunctionOptInContext(ctx).with(currentDeclSymbol: propertySymbol)
+                )
+            } else {
+                propertyHeaderCtx = ctx
+            }
             func resolvePropertyType(_ reference: TypeRefID) -> TypeID {
                 driver.helpers.resolveTypeRef(reference, ast: ast, sema: sema, interner: interner,
                                               scope: propertyScope, diagnostics: ctx.sema.diagnostics,
-                                              inferenceContext: ctx, usageRange: propertyDecl.range)
+                                              inferenceContext: propertyHeaderCtx, usageRange: propertyDecl.range)
             }
             for (parameter, symbol) in zip(propertyDecl.typeParams, parameters) {
                 let bounds = parameter.upperBounds.map(resolvePropertyType)
@@ -636,6 +645,12 @@ extension ExprTypeChecker {
                 continue
             }
 
+            if propertyDecl.isSynthesizedPrimaryConstructorProperty {
+                driver.declChecker.validatePropertyHeaderOptInTypes(
+                    propertySymbol,
+                    ctx: driver.helpers.localFunctionOptInContext(memberCtx).with(currentDeclSymbol: propertySymbol)
+                )
+            }
             driver.declChecker.typeCheckAnnotationFactories(
                 propertyDecl.annotations + (sema.bindings.primaryConstructorPropertyAnnotations[propertySymbol] ?? []),
                 symbol: propertySymbol, ctx: memberCtx
