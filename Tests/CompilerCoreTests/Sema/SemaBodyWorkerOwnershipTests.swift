@@ -165,19 +165,19 @@ struct SemaBodyWorkerOwnershipTests {
         parent.bindCallableReference(expr, binding: call)
         parent.bindCaptureSymbols(expr, symbols: [symbol])
         parent.bindCapturedLocalType(symbol, type: TypeID(rawValue: 8))
-        parent.deferLocalAnnotationTargets(decl, lexicalEnclosingFQNames: [[InternedString(rawValue: 4)]])
+        parent.deferAnnotationTargets(decl, lexicalEnclosingFQNames: [[InternedString(rawValue: 4)]])
         parent.recordValidatedAnnotationOptIn(usageID: "annotation", markers: [symbol])
         let worker = parent.makeSemaWorkerBindings()
         #expect(worker.callableReferenceBindings[expr]?.chosenCallee == symbol)
         #expect(worker.captureSymbolsByExpr[expr] == [symbol])
         #expect(worker.capturedLocalTypesBySymbol[symbol] == TypeID(rawValue: 8))
         #expect(worker.validatedAnnotationOptInMarkers["annotation"] == [symbol])
-        #expect(worker.takePendingLocalAnnotationTargets()[decl] == [[InternedString(rawValue: 4)]])
+        #expect(worker.takePendingAnnotationTargets()[decl] == [[InternedString(rawValue: 4)]])
         worker.bindCallableReference(expr, binding: nil)
         worker.bindCapturedLocalType(symbol, type: TypeID(rawValue: 9))
         #expect(parent.callableReferenceBindings[expr]?.chosenCallee == symbol)
         #expect(parent.capturedLocalTypesBySymbol[symbol] == TypeID(rawValue: 8))
-        #expect(parent.takePendingLocalAnnotationTargets()[decl] == [[InternedString(rawValue: 4)]])
+        #expect(parent.takePendingAnnotationTargets()[decl] == [[InternedString(rawValue: 4)]])
     }
 }
 #endif

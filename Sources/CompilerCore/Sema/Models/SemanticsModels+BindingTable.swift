@@ -52,18 +52,19 @@ public final class BindingTable {
         callableReferenceBindings[expression]
     }
 
-    /// Local nominal target checks run after speculative expression inference.
-    private var pendingLocalAnnotationTargets: [DeclID: [[InternedString]]] = [:]
+    /// Local nominal checks and field targets needing resolved accessor bindings
+    /// run after expression inference.
+    private var pendingAnnotationTargets: [DeclID: [[InternedString]]] = [:]
 
-    func deferLocalAnnotationTargets(_ declaration: DeclID, lexicalEnclosingFQNames: [[InternedString]]) {
-        if pendingLocalAnnotationTargets[declaration] == nil {
-            pendingLocalAnnotationTargets[declaration] = lexicalEnclosingFQNames
+    func deferAnnotationTargets(_ declaration: DeclID, lexicalEnclosingFQNames: [[InternedString]]) {
+        if pendingAnnotationTargets[declaration] == nil {
+            pendingAnnotationTargets[declaration] = lexicalEnclosingFQNames
         }
     }
 
-    func takePendingLocalAnnotationTargets() -> [DeclID: [[InternedString]]] {
-        let pending = pendingLocalAnnotationTargets
-        pendingLocalAnnotationTargets.removeAll(keepingCapacity: false)
+    func takePendingAnnotationTargets() -> [DeclID: [[InternedString]]] {
+        let pending = pendingAnnotationTargets
+        pendingAnnotationTargets.removeAll(keepingCapacity: false)
         return pending
     }
     /// Bundled Worker.execute entries whose jobs require a static environment.
@@ -290,7 +291,7 @@ public final class BindingTable {
         if !validatedAnnotationOptInMarkers.isEmpty { return false }
         if !annotationFactoryExpressions.isEmpty { return false }
         if !primaryConstructorPropertyAnnotations.isEmpty { return false }
-        if !pendingLocalAnnotationTargets.isEmpty { return false }
+        if !pendingAnnotationTargets.isEmpty { return false }
         if !callableReferenceBindings.isEmpty { return false }
         if !platformNullAssertionTypes.isEmpty { return false }
         if !unitReturnCoercionExprs.isEmpty { return false }
@@ -409,7 +410,7 @@ public final class BindingTable {
         worker.functionReturnLambdaPaths = functionReturnLambdaPaths
         worker.callBindings = callBindings
         worker.callableReferenceBindings = callableReferenceBindings
-        worker.pendingLocalAnnotationTargets = pendingLocalAnnotationTargets
+        worker.pendingAnnotationTargets = pendingAnnotationTargets
         worker.workerExecuteCallees = workerExecuteCallees
         worker.workerExecuteJobRanges = workerExecuteJobRanges
         worker.loopIterationBindings = loopIterationBindings
