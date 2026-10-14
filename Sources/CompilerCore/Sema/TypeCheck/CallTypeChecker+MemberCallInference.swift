@@ -293,6 +293,11 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID {
+        // Synthetic fast paths model ordinary calls. Infix calls must first
+        // select eligible members/extensions through the regular resolver.
+        if request.ctx.ast.arena.isInfixCall(request.id) {
+            return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
+        }
         if ["transform", "transformLatest"].contains(request.ctx.interner.resolve(request.calleeName)),
            case let .classType(receiverClass) = request.ctx.sema.types.kind(
                of: request.ctx.sema.types.makeNonNullable(receiverType)

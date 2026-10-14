@@ -25,22 +25,9 @@ extension CallTypeChecker {
         if let binding = ctx.sema.bindings.callBindings[id] {
             isInfix = ctx.sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.infixFunction) == true
         } else {
-            // Primitive intrinsics have no callable symbol. Only their bitwise
-            // and shift functions support infix notation.
-            let name = ctx.interner.resolve(calleeName)
-            let receiverType = ctx.sema.bindings.exprType(for: receiverID)
-            let primitive = receiverType.map { ctx.sema.types.kind(of: $0) }
-            switch primitive {
-            case .primitive(.int, .nonNull), .primitive(.long, .nonNull):
-                isInfix = ["and", "or", "xor", "shl", "shr", "ushr"].contains(name)
-            case .primitive(.boolean, .nonNull):
-                isInfix = ["and", "or", "xor"].contains(name)
-            case .primitive(.uint, .nonNull), .primitive(.ulong, .nonNull),
-                 .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
-                isInfix = ["and", "or", "xor", "shl", "shr"].contains(name)
-            default:
-                isInfix = false
-            }
+            isInfix = isInfixPrimitiveIntrinsic(
+                calleeName, receiverType: ctx.sema.bindings.exprType(for: receiverID), ctx: ctx
+            )
         }
         guard isInfix else {
             ctx.sema.diagnostics.error(
@@ -52,6 +39,25 @@ extension CallTypeChecker {
             return ctx.sema.types.errorType
         }
         return result
+    }
+
+    /// Primitive intrinsics have no callable symbol. Only bitwise/shift
+    /// members have infix eligibility; arithmetic names must resolve extensions.
+    func isInfixPrimitiveIntrinsic(
+        _ calleeName: InternedString, receiverType: TypeID?, ctx: TypeInferenceContext
+    ) -> Bool {
+        let name = ctx.interner.resolve(calleeName)
+        switch receiverType.map({ ctx.sema.types.kind(of: $0) }) {
+        case .primitive(.int, .nonNull), .primitive(.long, .nonNull):
+            return ["and", "or", "xor", "shl", "shr", "ushr"].contains(name)
+        case .primitive(.boolean, .nonNull):
+            return ["and", "or", "xor"].contains(name)
+        case .primitive(.uint, .nonNull), .primitive(.ulong, .nonNull),
+             .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
+            return ["and", "or", "xor", "shl", "shr"].contains(name)
+        default:
+            return false
+        }
     }
 
     func inferSafeMemberCallExpr(

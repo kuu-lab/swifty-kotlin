@@ -324,6 +324,7 @@ extension CallTypeChecker {
         if !isSuperCall,
            localExtensionMatchesCallShape,
            let local = locals[calleeName],
+           !ast.arena.isInfixCall(id) || sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
            let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
            extensionSyntheticFallbackReceiverMatches(
                callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema

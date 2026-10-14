@@ -410,6 +410,9 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID? {
         let ctx = request.ctx
+        // Function values have no infix modifier. Local infix declarations
+        // resolve as function symbols through the ordinary candidate path.
+        guard !ctx.ast.arena.isInfixCall(request.id) else { return nil }
         let sema = ctx.sema
         let name = request.calleeName
         let candidateType: TypeID?

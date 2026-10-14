@@ -17,10 +17,12 @@ extension CallTypeChecker {
         locals: LocalBindings,
         sema: SemaModule,
         interner: StringInterner,
-        callShapeMatches: ((SymbolID) -> Bool)? = nil
+        callShapeMatches: ((SymbolID) -> Bool)? = nil,
+        requiresInfix: Bool = false
     ) -> [SymbolID] {
         if !isSuperCall,
            let local = locals[calleeName],
+           !requiresInfix || sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
            callShapeMatches?(local.symbol) != false,
            let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
            extensionSyntheticFallbackReceiverMatches(
@@ -39,6 +41,7 @@ extension CallTypeChecker {
         func receiverMatches(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
+                  !requiresInfix || symbol.flags.contains(.infixFunction),
                   let signature = sema.symbols.functionSignature(for: candidate) else { return false }
             guard let recv = signature.receiverType else { return false }
             guard extensionSyntheticFallbackReceiverMatches(
@@ -75,7 +78,8 @@ extension CallTypeChecker {
             let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner
             ).filter { candidate in
-                guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                guard !requiresInfix || sema.symbols.symbol(candidate)?.flags.contains(.infixFunction) == true,
+                      let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                     return false
                 }
                 return extensionSyntheticFallbackReceiverMatches(
@@ -104,9 +108,9 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         )
-        if !arrayConversionSourceCandidates.isEmpty {
+        if !requiresInfix, !arrayConversionSourceCandidates.isEmpty {
             scopeCandidates = arrayConversionSourceCandidates
-        } else if !primitiveArraySourceCandidates.isEmpty {
+        } else if !requiresInfix, !primitiveArraySourceCandidates.isEmpty {
             scopeCandidates = primitiveArraySourceCandidates
         }
         // Extension functions are excluded from scope by the scope
@@ -119,6 +123,7 @@ extension CallTypeChecker {
             scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
+                      !requiresInfix || symbol.flags.contains(.infixFunction),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let recvType = signature.receiverType
                 else { return false }
@@ -227,6 +232,7 @@ extension CallTypeChecker {
             scopeCandidates = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
+                      !requiresInfix || symbol.flags.contains(.infixFunction),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let recv = signature.receiverType
                 else { return false }
@@ -257,7 +263,7 @@ extension CallTypeChecker {
                 sourceFile: ctx.currentASTFile,
                 sema: sema,
                 interner: interner
-            )
+            ).filter { !requiresInfix || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }
         }
         return scopeCandidates
     }
@@ -320,7 +326,8 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: locals,
             sema: sema,
-            interner: interner
+            interner: interner,
+            requiresInfix: ast.arena.isInfixCall(id)
         ).filter { candidate in
             !sema.symbols.isSourceBackedSymbol(candidate)
                 || scopedExtensionCandidates.contains(candidate)
