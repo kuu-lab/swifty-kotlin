@@ -385,6 +385,7 @@ extension CallTypeChecker {
 
         var memberSupertypes: [TypeID] = []
         var concreteSupertypes: [TypeID] = []
+        var implementationSupertypes: [TypeID] = []
         for superSymbol in sema.symbols.directSupertypes(for: currentClass.classSymbol) {
             let typeArgs = sema.types.liftedNominalSupertypeArgs(
                 from: currentClass.classSymbol,
@@ -402,12 +403,28 @@ extension CallTypeChecker {
             )
             guard !members.isEmpty else { continue }
             memberSupertypes.append(superType)
-            if members.contains(where: { sema.symbols.symbol($0)?.flags.contains(.abstractType) == false }) {
+            let concreteMembers = members.filter { sema.symbols.symbol($0)?.flags.contains(.abstractType) == false }
+            if !concreteMembers.isEmpty {
                 concreteSupertypes.append(superType)
+            }
+            if concreteMembers.contains(where: { member in
+                // Interface runtime bridges provide a fallback, not an independent
+                // Kotlin default competing with a concrete superclass implementation.
+                // The annotation survives library serialization; ordinary imported
+                // defaults also have link names, so a link name alone is insufficient.
+                guard let owner = sema.symbols.parentSymbol(for: member),
+                      sema.symbols.symbol(owner)?.kind == .interface
+                else { return true }
+                return !sema.symbols.annotations(for: member).contains {
+                    KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
+                }
+            }) {
+                implementationSupertypes.append(superType)
             }
         }
 
-        let candidates = concreteSupertypes.isEmpty ? memberSupertypes : concreteSupertypes
+        let fallbackCandidates = concreteSupertypes.isEmpty ? memberSupertypes : concreteSupertypes
+        let candidates = implementationSupertypes.isEmpty ? fallbackCandidates : implementationSupertypes
         if candidates.count > 1 {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0056",
