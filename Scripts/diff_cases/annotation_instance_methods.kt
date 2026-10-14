@@ -62,4 +62,6 @@ fun main() {
     val values = intArrayOf(1, 2)
     println(Data(values) == Data(values))
     println(Data(intArrayOf(1, 2)) == Data(intArrayOf(1, 2)))
+    // KUU-2084: imported stdlib annotation instances need their synthesized toString.
+    println(kotlin.SinceKotlin("1.6.0").toString())
 }

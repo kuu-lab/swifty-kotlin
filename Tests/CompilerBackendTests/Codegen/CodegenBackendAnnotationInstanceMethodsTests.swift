@@ -58,6 +58,7 @@ struct CodegenBackendAnnotationInstanceMethodsTests {
         true
         true
         false
+        @kotlin.SinceKotlin(version=1.6.0)
         """ + "\n"
         try assertKotlinOutput(
             source, moduleName: "AnnotationInstanceMethods", expected: expected,
