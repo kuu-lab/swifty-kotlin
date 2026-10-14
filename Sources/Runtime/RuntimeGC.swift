@@ -72,6 +72,8 @@ struct MetadataState {
     var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
     var enumValuesByTypeToken: [Int64: [RuntimeEnumValueDescriptor]] = [:]
+    // Enum Class handles outlive the boxed entry used to obtain javaClass.
+    var enumClassifierIDs: Set<Int64> = []
     var objectTypeByPointer: [UInt: Int64] = [:]
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]

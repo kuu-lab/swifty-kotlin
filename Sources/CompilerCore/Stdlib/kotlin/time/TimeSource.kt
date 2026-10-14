@@ -12,6 +12,7 @@ package kotlin.time
 
 import kotlin.internal.KsSymbolName
 import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.time.Duration.Companion.nanoseconds
 

@@ -5,6 +5,50 @@ import Testing
 
 @Suite
 struct CollectionLiteralLoweringTests {
+    @Test(arguments: ["empty", "capacity", "copy"])
+    func sourceArrayListConstructorsExcludeAllocatedReceiver(kind: String) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let ownerName = ["kotlin", "collections", "ArrayList"].map(interner.intern)
+        let owner = symbols.define(kind: .class, name: ownerName[2], fqName: ownerName,
+                                   declSite: nil, visibility: .public, flags: [])
+        let ownerType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+        let receiver = arena.appendTemporary(type: ownerType)
+        let result = arena.appendTemporary(type: ownerType)
+        let constructor = symbols.define(kind: .constructor, name: interner.intern("<init>"),
+                                         fqName: ownerName + [interner.intern("<init>")],
+                                         declSite: nil, visibility: .public, flags: [])
+        symbols.setParentSymbol(owner, for: constructor)
+        let argumentType: TypeID
+        if kind == "copy" {
+            let name = ["kotlin", "collections", "Collection"].map(interner.intern)
+            let collection = symbols.define(kind: .interface, name: name[2], fqName: name,
+                                            declSite: nil, visibility: .public, flags: [])
+            argumentType = types.make(.classType(ClassType(classSymbol: collection, args: [], nullability: .nonNull)))
+        } else { argumentType = types.intType }
+        let argument = arena.appendTemporary(type: argumentType)
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: kind == "empty" ? [] : [argumentType], returnType: ownerType
+        ), for: constructor)
+        let (module, declID) = makeModule(body: [
+            .call(symbol: constructor, callee: interner.intern("<init>"),
+                  arguments: kind == "empty" ? [receiver] : [receiver, argument],
+                  result: result, canThrow: true, thrownResult: nil),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: ctx)
+        let expected = kind == "copy" ? "__kk_collection_toArrayList"
+            : kind == "capacity" ? "__kk_array_list_new_checked" : "__kk_array_list_of"
+        let args = try #require(bodyInDecl(declID, module: module).compactMap { instruction -> [KIRExprID]? in
+            if case let .call(_, callee, args, _, _, _, _, _) = instruction,
+               interner.resolve(callee) == expected { return args }
+            return nil
+        }.first)
+        if kind != "empty" { #expect(args == [argument]) }
+        #expect(!args.contains(receiver))
+    }
+
     /// KUU-1939: known bare names must not replace a resolved user constructor.
     @Test(arguments: ["HashSet", "LinkedHashSet", "HashMap", "LinkedHashMap"], [false, true])
     func userCollectionConstructorsKeepTheirCalls(name: String, includeSymbol: Bool) throws {

@@ -1,6 +1,14 @@
 /// Set, LinkedHashSet, and toMutableList/toMutableSet ABI specs split out from `RuntimeABISpec+Collection.swift`.
 public extension RuntimeABISpec {
     static let collectionSetFunctions: [RuntimeABIFunctionSpec] = [
+        // Metadata conversion for the source-backed EnumSet factory.
+        RuntimeABIFunctionSpec(
+            name: "__kk_enum_set_class",
+            parameters: [RuntimeABIParameter(name: "classRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
         // Set
         RuntimeABIFunctionSpec(
             name: "__kk_set_of",

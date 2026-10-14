@@ -905,6 +905,17 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    reuses `kk_unbox_int`. Generic/implicit/safe reads and an overridden
    `toString()` are covered by `generic_enum_name_ordinal.kt` and the
    source/artifact O0/O2 backend regression.
+   KUU-2067 adds one private metadata bridge, `__kk_enum_set_class`, to
+   recover a classifier from the existing `java.lang.Class` handle forms.
+   Enum boxing records classifier IDs as metadata so the immutable Class
+   token remains valid after the original entry is released, without requiring
+   the optional full reflection records. No object handle is retained there.
+   Enum bounds, element checks, mutation, and declaration-order iteration
+   remain in bundled `java/util/EnumSet.kt`. The existing `kk_unbox_int`
+   bridge reads the boxed ordinal; no new collection storage bridge is added.
+   `__kk_*` increases by one, and its RuntimeABISpec registration updates the
+   canonical `specVersion` hash. The facade implements `noneOf` and the
+   MutableSet surface; the other EnumSet factories and clone are out of scope.
    KUU-1761 adds one private host-information bridge,
    `__kk_io_fs_temporary_directory` (reason: syscall). Kotlin cannot query the
    host environment or `NSTemporaryDirectory`; path construction and separator
