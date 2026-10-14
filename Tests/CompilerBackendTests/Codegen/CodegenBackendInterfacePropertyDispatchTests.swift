@@ -295,6 +295,17 @@ struct CodegenBackendInterfacePropertyDispatchTests {
     }
 
     @Test
+    func testGenericInterfacePropertySetterUsesErasureBridge() throws {
+        let source = try diffCaseSource("kuu_2090_generic_interface_property_setter.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericInterfacePropertySetterBridge",
+            expected: "direct\nOK\n"
+        )
+    }
+
+    @Test
     func testInterfacePropertySetterDispatchAcrossKlibBoundary() throws {
         let librarySource = """
         package fixture
