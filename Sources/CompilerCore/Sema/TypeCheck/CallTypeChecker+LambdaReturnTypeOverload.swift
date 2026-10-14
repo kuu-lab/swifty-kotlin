@@ -494,6 +494,7 @@ extension CallTypeChecker {
         range: SourceRange,
         calleeName: InternedString,
         explicitTypeArgs: [TypeID],
+        typeAliasConstructor: TypeAliasConstructorContext? = nil,
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         bindsObjectDispatchReceiver: Bool = false,
@@ -520,7 +521,8 @@ extension CallTypeChecker {
             dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
             boundObjectDispatchReceiverCandidates: bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
-                : []
+                : [],
+            typeAliasConstructor: typeAliasConstructor
         )
 
         if candidates.contains(where: {

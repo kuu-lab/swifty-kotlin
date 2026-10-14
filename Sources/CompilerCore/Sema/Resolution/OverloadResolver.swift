@@ -45,6 +45,17 @@ public struct CallArg {
     }
 }
 
+/// The alias's parameters remain inference variables until overload resolution.
+public struct TypeAliasConstructorContext {
+    public let typeParameterSymbols: [SymbolID]
+    public let expandedType: TypeID
+
+    public init(typeParameterSymbols: [SymbolID], expandedType: TypeID) {
+        self.typeParameterSymbols = typeParameterSymbols
+        self.expandedType = expandedType
+    }
+}
+
 public struct CallExpr {
     public let range: SourceRange
     public let calleeName: InternedString
@@ -55,14 +66,16 @@ public struct CallExpr {
     /// Direct imports bind these ordinary object members to their singleton.
     /// Explicit member calls must retain their actual receiver type.
     public let boundObjectDispatchReceiverCandidates: Set<SymbolID>
+    public let typeAliasConstructor: TypeAliasConstructorContext?
 
-    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = []) {
+    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil) {
         self.range = range
         self.calleeName = calleeName
         self.args = args
         self.explicitTypeArgs = explicitTypeArgs
         self.dispatchReceiverTypes = dispatchReceiverTypes
         self.boundObjectDispatchReceiverCandidates = boundObjectDispatchReceiverCandidates
+        self.typeAliasConstructor = typeAliasConstructor
     }
 }
 

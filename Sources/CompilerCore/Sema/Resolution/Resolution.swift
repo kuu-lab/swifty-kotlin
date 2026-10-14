@@ -19,7 +19,8 @@ private extension CallExpr {
             args: updatedArgs,
             explicitTypeArgs: explicitTypeArgs,
             dispatchReceiverTypes: dispatchReceiverTypes,
-            boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates
+            boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
+            typeAliasConstructor: typeAliasConstructor
         )
     }
 }
@@ -181,7 +182,7 @@ extension OverloadResolver {
     ) -> ResolvedCall {
         // --- cache lookup ---
         // Per-candidate argument overrides bypass the shared cache key.
-        guard candidateArgumentTypes.isEmpty, let cache = cacheContext else {
+        guard candidateArgumentTypes.isEmpty, call.typeAliasConstructor == nil, let cache = cacheContext else {
             return resolveCallUncached(
                 candidates: candidates,
                 call: call,
@@ -295,9 +296,19 @@ extension OverloadResolver {
     ) -> CandidateEvaluation {
         guard let symbol = ctx.symbols.symbol(candidate),
               symbol.kind == .function || symbol.kind == .constructor,
-              let signature = ctx.symbols.functionSignature(for: candidate)
+              let originalSignature = ctx.symbols.functionSignature(for: candidate)
         else {
             return .rejected
+        }
+
+        let aliasConstructor = symbol.kind == .constructor ? call.typeAliasConstructor : nil
+        let signature: FunctionSignature
+        if let aliasConstructor {
+            guard let specialized = typeAliasConstructorSignature(aliasConstructor, original: originalSignature, sema: ctx)
+            else { return .rejected }
+            signature = specialized
+        } else {
+            signature = originalSignature
         }
 
         // An imported object member is already bound to its singleton dispatch
@@ -316,7 +327,6 @@ extension OverloadResolver {
         } else {
             implicitReceiverType
         }
-
         let typeVarBySymbol = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
 
         // Apply explicit type argument constraints if provided.
@@ -328,7 +338,7 @@ extension OverloadResolver {
         let isConstructor = symbol.kind == .constructor
         if !call.explicitTypeArgs.isEmpty {
             let expectedTypeArgCount = isConstructor
-                ? signature.classTypeParameterCount
+                ? (aliasConstructor?.typeParameterSymbols.count ?? signature.classTypeParameterCount)
                 : funcOwnTypeParamCount
             guard call.explicitTypeArgs.count == expectedTypeArgCount else {
                 return .rejected
@@ -492,7 +502,8 @@ extension OverloadResolver {
         let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
         var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
-            let typeParamSymbol = signature.typeParameterSymbols[typeArgOffset + index]
+            let typeParamSymbol = aliasConstructor?.typeParameterSymbols[index]
+                ?? signature.typeParameterSymbols[typeArgOffset + index]
             if let typeVar = typeVarBySymbol[typeParamSymbol] {
                 explicitTypeSubstitution[typeVar] = explicitArg
                 constraints.append(
@@ -754,6 +765,25 @@ extension OverloadResolver {
             return .constraintFailure(boundViolation)
         }
 
+        let bindingSubstitution: [TypeVarID: TypeID]
+        if let aliasConstructor {
+            bindingSubstitution = typeAliasConstructorBindingArguments(
+                aliasConstructor, original: originalSignature, specialized: signature,
+                substitution: substitution, types: ctx.types
+            )
+            if let boundViolation = checkTypeParameterBounds(
+                signature: originalSignature,
+                substitution: bindingSubstitution,
+                typeVarBySymbol: ctx.types.makeTypeVarBySymbol(originalSignature.typeParameterSymbols),
+                range: call.range,
+                ctx: ctx
+            ) {
+                return .constraintFailure(boundViolation)
+            }
+        } else {
+            bindingSubstitution = substitution
+        }
+
         let instantiatedParameterTypes: [TypeID] = call.args.indices.compactMap { argIndex in
             guard let paramIndex = parameterMapping[argIndex],
                   paramIndex >= 0,
@@ -784,7 +814,7 @@ extension OverloadResolver {
             signature: signature,
             instantiatedReceiverType: instantiatedReceiverType,
             instantiatedParameterTypes: instantiatedParameterTypes,
-            substitutedTypeArguments: substitution,
+            substitutedTypeArguments: bindingSubstitution,
             parameterMapping: parameterMapping,
             defaultArgumentOwner: defaultArgumentOwner,
             effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
