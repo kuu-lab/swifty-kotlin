@@ -559,7 +559,12 @@ extension CallTypeChecker {
                         ctx: ctx,
                         locals: locals,
                         sema: sema,
-                        interner: interner
+                        interner: interner,
+                        callShapeMatches: {
+                            self.extensionCandidateMatchesCallShape(
+                                $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
+                            )
+                        }
                     )
                     if allCandidates.isEmpty, let callableReferenceFunctionType {
                         // Callable references are also function values. Keep KFunction as the
@@ -574,7 +579,13 @@ extension CallTypeChecker {
                             ctx: ctx,
                             locals: locals,
                             sema: sema,
-                            interner: interner
+                            interner: interner,
+                            callShapeMatches: {
+                                self.extensionCandidateMatchesCallShape(
+                                    $0, request: request, argumentTypes: argTypes,
+                                    receiverType: callableReferenceFunctionType
+                                )
+                            }
                         )
                     }
                 }
