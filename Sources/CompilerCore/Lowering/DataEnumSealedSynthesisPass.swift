@@ -20,6 +20,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
 
         rewriteExpectEnumEntryReferences(module: module, sema: sema)
 
+        appendEnumNominalsForReferencedNameHelpers(module: module, sema: sema, interner: ctx.interner)
+
         appendReferencedBundledEnumNominalsIfNeeded(
             module: module,
             sema: sema,
@@ -148,6 +150,53 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         rewriteSyntheticEnumEntryRefs(module: module, sema: sema)
 
         module.recordLowering(Self.name)
+    }
+
+    /// Boxing in generated annotation factories can call an enum name helper
+    /// even when the enum's bundled source nominal was omitted from KIR dumps.
+    /// Preserve that dependency using the emitted calls, including factories
+    /// that have no corresponding expression in the user's source AST.
+    private func appendEnumNominalsForReferencedNameHelpers(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        var referencedHelpers: Set<InternedString> = []
+        var definedFunctions: Set<InternedString> = []
+        var declaredNominals: Set<SymbolID> = []
+        for declaration in module.arena.declarations {
+            switch declaration {
+            case let .function(function):
+                definedFunctions.insert(function.name)
+                for instruction in function.body {
+                    if case let .call(_, callee, _, _, _, _, _, _) = instruction,
+                       interner.resolve(callee).hasPrefix("$enumOrdinalToName$") {
+                        referencedHelpers.insert(callee)
+                    }
+                }
+            case let .nominalType(nominal):
+                declaredNominals.insert(nominal.symbol)
+            default:
+                break
+            }
+        }
+        referencedHelpers.subtract(definedFunctions)
+        guard !referencedHelpers.isEmpty else { return }
+
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .enumClass {
+            guard !declaredNominals.contains(symbol.id),
+                  !symbol.flags.contains(.expectDeclaration),
+                  sema.symbols.isSourceBackedSymbol(symbol.id)
+            else { continue }
+            let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+            guard referencedHelpers.contains(helperName) else { continue }
+            // Imported helpers already have a body in the producer's object.
+            let hasExternalHelper = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).contains {
+                sema.symbols.externalLinkName(for: $0) != nil
+            }
+            guard !hasExternalHelper else { continue }
+            _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol.id)))
+        }
     }
 
     /// Describes a bundled enum nominal that is appended to consumer KIR only
