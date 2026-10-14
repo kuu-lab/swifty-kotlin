@@ -153,6 +153,28 @@ public fun <T : Comparable<T>> Array<out T>.minOrNull(): T? = asList().minOrNull
 
 public fun <T : Comparable<T>> Array<out T>.maxOrNull(): T? = asList().maxOrNull()
 
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxByOrThrow")
+public inline fun <T, R : Comparable<R>> Array<out T>.maxBy(selector: (T) -> R): T {
+    val sz = size
+    if (sz == 0) throw NoSuchElementException()
+    var bestElem = this[0]
+    // Kotlin skips the selector when there is only one element.
+    if (sz == 1) return bestElem
+    var bestKey = selector(bestElem)
+    var index = 1
+    while (index < sz) {
+        val elem = this[index]
+        val key = selector(elem)
+        if (bestKey < key) {
+            bestElem = elem
+            bestKey = key
+        }
+        index++
+    }
+    return bestElem
+}
+
 public inline fun <T, R> Array<out T>.foldRight(initial: R, operation: (T, R) -> R): R {
     var accumulator = initial
     var index = size - 1
