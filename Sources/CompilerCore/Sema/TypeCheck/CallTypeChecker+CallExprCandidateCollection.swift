@@ -150,7 +150,9 @@ extension CallTypeChecker {
                         interner: interner
                     )
                     let outerContext = ctx.copying(enclosingClassSymbol: outerClassSymbol)
-                    let visibleOuterCandidates = outerContext.filterByVisibility(outerCandidates).visible
+                    let visibleOuterCandidates = outerContext.filterByVisibility(
+                        outerCandidates.filter { !scopeSelection.excludedMembers.contains($0) }
+                    ).visible
                     guard !visibleOuterCandidates.isEmpty else {
                         continue
                     }
