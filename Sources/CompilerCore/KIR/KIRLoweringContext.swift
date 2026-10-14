@@ -120,6 +120,9 @@ final class KIRLoweringContext {
     /// live in `SymbolTable` after metadata restoration instead.
     private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
+    /// Guard calls for source objects whose declarations have not been lowered yet.
+    private(set) var deferredObjectLazyInitSymbols: [SymbolID: SymbolID] = [:]
+
     /// Tracks object allocation initializers synthesized during module
     /// lowering so recursive nested-object passes do not emit duplicates.
     private var objectInitializerSymbols: Set<SymbolID> = []
@@ -641,6 +644,13 @@ final class KIRLoweringContext {
         objectLazyInitBySymbol[objectSymbol]
     }
 
+    func deferredObjectLazyInitSymbol(for objectSymbol: SymbolID) -> SymbolID {
+        if let symbol = deferredObjectLazyInitSymbols[objectSymbol] { return symbol }
+        let symbol = allocateSyntheticGeneratedSymbol()
+        deferredObjectLazyInitSymbols[objectSymbol] = symbol
+        return symbol
+    }
+
     func registerObjectInitializer(for objectSymbol: SymbolID) {
         objectInitializerSymbols.insert(objectSymbol)
     }
@@ -664,6 +674,7 @@ final class KIRLoweringContext {
         throwableMessageBridgeSymbolsByGetter.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
         objectLazyInitBySymbol.removeAll(keepingCapacity: true)
+        deferredObjectLazyInitSymbols.removeAll(keepingCapacity: true)
         objectInitializerSymbols.removeAll(keepingCapacity: true)
         enumLazyInitByOwner.removeAll(keepingCapacity: true)
         enumEntryStorageSlots.removeAll(keepingCapacity: true)

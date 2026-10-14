@@ -65,6 +65,15 @@ stdlib 実装は 3 系統に分散している。
   性能上ネイティブ実装が必須なホットパス（実測で判断）
 - **Swift 残留（(c) 群）**: `Any`/プリミティブ型/`Nothing` など言語コアの組込宣言、GC・coroutine 機構
 
+### Native の既定 Charset
+
+`java.nio.charset.Charset.defaultCharset()` は `kotlin.text.Charsets.UTF_8` の
+Charset オブジェクトを返す。native の既定値は UTF-8 とし、ホストの locale や JVM の
+`file.encoding` による選択は行わない。既存の `String.toByteArray()`、
+`InputStream.bufferedReader()`、`OutputStream.bufferedWriter()` の UTF-8 既定値と整合する。
+codec の Int tag は引き続き private ブリッジ境界だけで使用する。
+Java SE 17 の既定 charset は環境依存なので、JVM との出力一致は UTF-8 既定の参照条件で検証する。
+
 ## 4. 読み込みフェーズ
 
 `LoadSourcesPhase`（実装済・RF-STDLIB-002）の仕様を確定する。

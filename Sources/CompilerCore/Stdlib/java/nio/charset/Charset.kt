@@ -9,6 +9,12 @@ public class Charset internal constructor(internal val tag: Int) {
     public override fun toString(): String = name()
 
     public companion object {
+        /**
+         * Native defaults to UTF-8, matching Kotlin String and stream encoding.
+         * The host locale and JVM file.encoding property do not select a codec.
+         */
+        public fun defaultCharset(): Charset = Charsets.UTF_8
+
         public fun forName(charsetName: String): Charset {
             if (charsetName.isEmpty()) throw IllegalCharsetNameException(charsetName)
             fun letterOrDigit(c: Char): Boolean = c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9'
