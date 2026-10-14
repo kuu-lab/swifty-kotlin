@@ -98,6 +98,15 @@ extension LambdaLowerer {
             ),
             for: methodSymbol
         )
+        // The SAM method may be inherited, in which case call sites dispatch
+        // through the declaring interface's itable rather than the fun
+        // interface's own.
+        var samItableSlots: [SymbolID: Int] = [interfaceSymbol: 0]
+        if let declaringInterface = sema.symbols.parentSymbol(for: samMethod.symbol),
+           declaringInterface != interfaceSymbol
+        {
+            samItableSlots[declaringInterface] = 1
+        }
         sema.symbols.setNominalLayout(
             NominalLayout(
                 objectHeaderWords: 2,
@@ -105,7 +114,7 @@ extension LambdaLowerer {
                 instanceSizeWords: max(2 + captureFieldSymbols.count, 1),
                 fieldOffsets: fieldOffsets,
                 vtableSlots: [methodSymbol: 0, samMethod.symbol: 0],
-                itableSlots: [interfaceSymbol: 0],
+                itableSlots: samItableSlots,
                 vtableSize: 1,
                 superClass: nil
             ),
@@ -240,21 +249,6 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
-        let ifaceSlot = Int64(sema.symbols.nominalLayout(for: wrapperSymbol)?.itableSlots[interfaceSymbol] ?? 0)
-        let methodSlot = Int64(sema.symbols.nominalLayout(for: interfaceSymbol)?.vtableSlots[samMethod.symbol] ?? 0)
-        let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: sema.types.intType)
-        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-        let registerIfaceResult = arena.appendTemporary(type: sema.types.intType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_object_register_itable_iface"),
-            arguments: [wrapperValue, interfaceTypeExpr, ifaceSlotExpr],
-            result: registerIfaceResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: sema.types.intType)
-        instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
         let registeredMethodSymbol = itableBridgeSymbolForMethod(
             interfaceMethod: samMethod.symbol,
             implementation: methodSymbol,
@@ -264,17 +258,46 @@ extension LambdaLowerer {
             sema: sema,
             interner: interner
         )
-        let methodFnExpr = arena.appendExpr(.symbolRef(registeredMethodSymbol), type: sema.types.intType)
-        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredMethodSymbol)))
-        let registerMethodResult = arena.appendTemporary(type: sema.types.intType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_object_register_itable_method"),
-            arguments: [wrapperValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
-            result: registerMethodResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        let declaringInterface = sema.symbols.parentSymbol(for: samMethod.symbol) ?? interfaceSymbol
+        var itableTargets = [interfaceSymbol]
+        if declaringInterface != interfaceSymbol { itableTargets.append(declaringInterface) }
+        for target in itableTargets {
+            let targetTypeID = target == interfaceSymbol
+                ? interfaceTypeID
+                : RuntimeTypeCheckToken.stableNominalTypeID(symbol: target, sema: sema, interner: interner)
+            let targetTypeExpr = arena.appendExpr(.intLiteral(targetTypeID), type: sema.types.intType)
+            instructions.append(.constValue(result: targetTypeExpr, value: .intLiteral(targetTypeID)))
+            let ifaceSlot = Int64(sema.symbols.nominalLayout(for: wrapperSymbol)?.itableSlots[target] ?? 0)
+            let methodSlot = Int64(
+                sema.symbols.nominalLayout(for: target)?.vtableSlots[samMethod.symbol]
+                    ?? sema.symbols.nominalLayout(for: declaringInterface)?.vtableSlots[samMethod.symbol]
+                    ?? 0
+            )
+            let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: sema.types.intType)
+            instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
+            let registerIfaceResult = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_object_register_itable_iface"),
+                arguments: [wrapperValue, targetTypeExpr, ifaceSlotExpr],
+                result: registerIfaceResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: sema.types.intType)
+            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(registeredMethodSymbol), type: sema.types.intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredMethodSymbol)))
+            let registerMethodResult = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_object_register_itable_method"),
+                arguments: [wrapperValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
+                result: registerMethodResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
 
         // Expose the SAM wrapper as an invokable comparator value so stdlib
         // comparison lowering can call `compare` directly when needed.
@@ -319,19 +342,12 @@ extension LambdaLowerer {
         else {
             return nil
         }
-        let abstractMethods = sema.symbols.children(ofFQName: interfaceInfo.fqName).compactMap { childID -> (SymbolID, SemanticSymbol, FunctionSignature)? in
-            guard let childInfo = sema.symbols.symbol(childID),
-                  childInfo.kind == .function,
-                  childInfo.flags.contains(.abstractType),
-                  let signature = sema.symbols.functionSignature(for: childID)
-            else {
-                return nil
-            }
-            return (childID, childInfo, signature)
-        }
-        guard abstractMethods.count == 1 else {
+        guard let method = TypeCheckHelpers().effectiveSamAbstractMethod(for: interfaceSymbol, symbols: sema.symbols),
+              let methodInfo = sema.symbols.symbol(method),
+              let signature = sema.symbols.functionSignature(for: method)
+        else {
             return nil
         }
-        return abstractMethods[0]
+        return (method, methodInfo, signature)
     }
 }

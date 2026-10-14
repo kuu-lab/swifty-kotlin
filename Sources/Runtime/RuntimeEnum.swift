@@ -7,6 +7,20 @@ struct RuntimeEnumValueDescriptor {
 
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 
+/// Reads the declared entry name after the concrete enum type is erased.
+/// Erased toString rendering is registered independently, so this metadata
+/// remains the declaration name even when the enum overrides toString.
+@_cdecl("__kk_enum_name")
+public func kk_enum_name(_ valueRaw: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
+          let box = tryCast(pointer, to: RuntimeIntBox.self),
+          let name = box.enumEntryName
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Enum.name received an invalid enum entry")
+    }
+    return runtimeMakeStringRaw(name)
+}
+
 @_cdecl("kk_enum_valueOf_throw")
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

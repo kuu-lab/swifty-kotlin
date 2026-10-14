@@ -309,7 +309,7 @@ struct SemaIndependentBodyTests {
     @Test
     func pendingAnnotationAndCallableReferenceWritesRejectWorkerDelta() {
         let pending = BindingTable()
-        pending.deferLocalAnnotationTargets(DeclID(rawValue: 0), lexicalEnclosingFQNames: [])
+        pending.deferAnnotationTargets(DeclID(rawValue: 0), lexicalEnclosingFQNames: [])
         #expect(!pending.hasOnlyIndependentScalarBindings)
         let callable = BindingTable()
         callable.bindCallableReference(ExprID(rawValue: 0), binding: CallBinding(

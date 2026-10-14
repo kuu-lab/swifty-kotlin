@@ -307,6 +307,64 @@ extension TypeCheckHelpers {
         }
     }
 
+    func primaryConstructorParameterOptInContext(
+        _ parameter: ValueParamDecl,
+        ctx: TypeInferenceContext
+    ) -> TypeInferenceContext {
+        var parameterCtx = ctx
+        if let file = currentFile(in: ctx) {
+            let annotations = parameter.annotations.compactMap { annotation -> MetadataAnnotationRecord? in
+                guard annotation.useSiteTarget == nil || annotation.useSiteTarget?.lowercased() == "param",
+                      let symbol = resolveAnnotationSymbol(
+                          named: annotation.name, in: file, symbols: ctx.sema.symbols,
+                          interner: ctx.interner, types: ctx.sema.types,
+                          enclosingSymbol: ctx.currentDeclSymbol
+                      ), let info = ctx.sema.symbols.symbol(symbol),
+                      info.fqName.map(ctx.interner.resolve).joined(separator: ".") == KnownCompilerAnnotation.optIn.qualifiedName
+                else { return nil }
+                return MetadataAnnotationRecord(
+                    annotationFQName: KnownCompilerAnnotation.optIn.qualifiedName,
+                    arguments: annotation.arguments
+                )
+            }
+            collectOptInMarkers(
+                from: annotations, file: file, ctx: ctx, into: &parameterCtx.inheritedOptInMarkers
+            )
+        }
+        return parameterCtx
+    }
+
+    func checkPrimaryConstructorPropertyHeaderOptIn(
+        parameter: ValueParamDecl,
+        parameterType: TypeID,
+        propertyType: TypeID,
+        constructor: SymbolID,
+        ctx: TypeInferenceContext,
+        range: SourceRange?
+    ) {
+        let parameterCtx = primaryConstructorParameterOptInContext(
+            parameter, ctx: ctx.with(currentDeclSymbol: constructor)
+        )
+        var propertyCtx = ctx
+        propertyCtx.inheritedOptInMarkers.formUnion(parameterCtx.inheritedOptInMarkers)
+        // A property-site opt-in cannot authorize the original parameter type.
+        // De-duplicate shared markers across this pair without merging their
+        // permission contexts. A vararg's implicit array belongs to its parameter.
+        let parameterRequirements = requiredOptInRequirements(
+            forTypes: [parameterType], ctx: parameterCtx
+        )
+        emitOptInRequirements(
+            parameterRequirements, ctx: parameterCtx, range: range, diagnostics: ctx.sema.diagnostics
+        )
+        let parameterMarkers = Set(parameterRequirements.map(\.markerSymbol))
+        let propertyRequirements = requiredOptInRequirements(
+            forTypes: [propertyType], ctx: propertyCtx
+        ).filter { !parameterMarkers.contains($0.markerSymbol) }
+        emitOptInRequirements(
+            propertyRequirements, ctx: propertyCtx, range: range, diagnostics: ctx.sema.diagnostics
+        )
+    }
+
     func accessorOptInContext(
         annotations: [AnnotationNode],
         ctx: TypeInferenceContext

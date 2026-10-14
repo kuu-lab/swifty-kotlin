@@ -196,6 +196,11 @@ extension DataFlowSemaPhase {
                         recursionDepth: recursionDepth,
                         diagnostics: diagnostics
                     ) {
+                        // The alias may have been resolved before an alias it
+                        // mentions (declared later) had an underlying type.
+                        let underlying = expandNestedTypeAliases(
+                            in: underlying, inProgress: [resolved.id], depth: 0, symbols: symbols, types: types
+                        )
                         if nullability == .nullable {
                             return applyNullability(underlying, types: types)
                         }
@@ -651,7 +656,7 @@ extension DataFlowSemaPhase {
         return result
     }
 
-    private func applyNullability(_ typeID: TypeID, types: TypeSystem) -> TypeID {
+    func applyNullability(_ typeID: TypeID, types: TypeSystem) -> TypeID {
         switch types.kind(of: typeID) {
         case let .primitive(p, _):
             return types.make(.primitive(p, .nullable))
@@ -684,7 +689,7 @@ extension DataFlowSemaPhase {
     /// still be parsed and rejected by Sema with the semantic depth diagnostic.
     static let maxStructuralRecursionDepth = TypeRefParserCore.maxRecursionDepth - 1
 
-    private func resolveTypeAliasUnderlying(
+    func resolveTypeAliasUnderlying(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,

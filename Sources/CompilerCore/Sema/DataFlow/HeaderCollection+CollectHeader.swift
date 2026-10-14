@@ -265,10 +265,13 @@ extension DataFlowSemaPhase {
 
             if isValueClassDeclaration(classDecl) {
                 let valParams = classDecl.primaryConstructorParams
-                if valParams.count != 1 {
+                if valParams.count > 1 {
+                    // Multi-field value class (Kotlin 2.x MFVC): lowered as a regular class.
+                    symbols.removeFlags(.valueType, for: symbol)
+                } else if valParams.isEmpty {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0070",
-                        "Value class must have exactly one primary constructor parameter.",
+                        "Value class must have at least one primary constructor parameter.",
                         range: classDecl.range
                     )
                 } else {

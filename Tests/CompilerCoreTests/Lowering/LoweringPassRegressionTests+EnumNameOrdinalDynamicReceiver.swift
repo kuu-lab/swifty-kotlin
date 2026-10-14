@@ -14,6 +14,38 @@ import Testing
 // prepend the receiver anyway.
 extension LoweringPassRegressionTests {
     @Test
+    func testGenericEnumPropertiesBypassStoredFieldReads() throws {
+        let source = """
+        fun <T : Enum<T>> enumName(value: T): String = value.name
+        fun <T : Enum<T>> enumOrdinal(value: T): Int = value.ordinal
+        fun <T : Enum<T>> T.implicitName(): String = name
+        fun baseName(value: Enum<*>): String = value.name
+        enum class E { A, B }
+        fun concreteName(value: E): String = value.name
+        fun concreteOrdinal(value: E): Int = value.ordinal
+        fun main() { println(enumName(E.A)) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "GenericEnumProperties", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let module = try #require(ctx.kir)
+            for name in ["enumName", "implicitName", "baseName", "enumOrdinal"] {
+                let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
+                let callees = extractCallees(from: body, interner: ctx.interner)
+                #expect(!callees.contains(RuntimeCall.arrayGetInbounds.name))
+                #expect(callees.contains(name == "enumOrdinal" ? RuntimeCall.unboxInt.name : "__kk_enum_name"))
+            }
+            let concreteName = try findKIRFunctionBody(named: "concreteName", in: module, interner: ctx.interner)
+            #expect(extractCallees(from: concreteName, interner: ctx.interner).contains {
+                $0.hasPrefix("$enumOrdinalToName$")
+            })
+            let concreteOrdinal = try findKIRFunctionBody(named: "concreteOrdinal", in: module, interner: ctx.interner)
+            #expect(extractCallees(from: concreteOrdinal, interner: ctx.interner).contains(RuntimeCall.unboxInt.name))
+        }
+    }
+
+    @Test
     func testEnumNameOnFunctionParameterLowersToHelperCallWithReceiver() throws {
         let source = """
         enum class Direction { NORTH, SOUTH }

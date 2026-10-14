@@ -230,6 +230,16 @@ extension ExprLowerer {
                 ))
                 return result
             }
+            if let enumProperty = driver.callLowerer.tryLowerEnumBasePropertyRead(
+                propertySymbol: sema.bindings.identifierSymbols[exprID]
+                    ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+                receiver: receiverExprID, receiverType: receiverType,
+                resultType: resultType,
+                sema: sema, arena: arena, interner: interner,
+                instructions: &instructions
+            ) {
+                return enumProperty
+            }
             // Enum entry body functions use the enum value itself as
             // their implicit receiver. Its runtime representation is the
             // entry ordinal, so the synthetic Enum.name property cannot

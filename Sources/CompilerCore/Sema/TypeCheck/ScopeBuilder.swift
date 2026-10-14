@@ -162,6 +162,31 @@ struct TypeCheckScopeBuilder {
         }
     }
 
+    /// Kotlin/Native declares some APIs (`NativePlacement.allocArray`,
+    /// `String.cstr`) as top-level extensions that are importable by package
+    /// path, while the compiler models them as synthetic member extensions of a
+    /// class in the same package. Such imports are valid; the declarations stay
+    /// reachable through their receiver, so nothing is added to the scope.
+    private func isSyntheticMemberExtensionImport(_ path: [InternedString], sema: SemaModule) -> Bool {
+        guard path.count >= 2, let name = path.last else { return false }
+        let package = Array(path.dropLast())
+        return sema.symbols.lookupByShortName(name).contains { id in
+            guard let symbol = sema.symbols.symbol(id),
+                  symbol.flags.contains(.synthetic),
+                  symbol.fqName.count == package.count + 2,
+                  Array(symbol.fqName.prefix(package.count)) == package
+            else { return false }
+            switch symbol.kind {
+            case .function:
+                return sema.symbols.functionSignature(for: id)?.receiverType != nil
+            case .property:
+                return symbol.flags.contains(.memberExtension)
+            default:
+                return false
+            }
+        }
+    }
+
     func populateImportScopes(
         for file: ASTFile,
         sema: SemaModule,
@@ -308,7 +333,9 @@ struct TypeCheckScopeBuilder {
             }
             if resolved.isEmpty {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
-                if packageSymbols.isEmpty, !importDecl.isWildcard, validatesImports {
+                if packageSymbols.isEmpty, !importDecl.isWildcard, validatesImports,
+                   !isSyntheticMemberExtensionImport(importDecl.path, sema: sema)
+                {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0024",
                         "Unresolved import path.",

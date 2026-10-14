@@ -18,6 +18,7 @@ extension CallTypeChecker {
         calleePath: [InternedString]?,
         candidates: inout [SymbolID],
         constructorTypeAlias: inout SymbolID?,
+        typeAliasConstructor: inout TypeAliasConstructorContext?,
         implicitReceiverScopeCandidates: inout [SymbolID],
         callImplicitReceiverType: inout TypeID?,
         memberExtensionReceiverMarks: inout [SymbolID: SymbolID],
@@ -226,9 +227,11 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             var resolvedFromLocalShadow = false
-            if let local = locals[calleeName],
-               let sym = ctx.cachedSymbol(local.symbol)
-            {
+            // Lambda parameters carry synthetic (negative) symbol IDs with no
+            // symbol-table entry, so a missing symbol must not skip the shadow
+            // check: such a local is still a value that hides same-named functions.
+            if let local = locals[calleeName] {
+                let localSymbolKind = ctx.cachedSymbol(local.symbol)?.kind
                 let localIsCallableValue: Bool = {
                     if case .functionType = sema.types.kind(of: local.type) {
                         return true
@@ -252,8 +255,8 @@ extension CallTypeChecker {
                         sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
                     }
                 }()
-                if sym.kind == .function
-                    || (sym.kind != .class && localIsCallableValue)
+                if localSymbolKind == .function
+                    || (localSymbolKind != .class && localIsCallableValue)
                     || local.type == sema.types.errorType
                 {
                     // Callable local declarations shadow imported and top-level
@@ -263,7 +266,7 @@ extension CallTypeChecker {
                     // (KUU-555 named local class) is likewise not a callable
                     // value — `Local(...)` must reach its constructor through
                     // the KSP-CAP-006 merge below.
-                    candidates = sym.kind == .function ? [local.symbol] : []
+                    candidates = localSymbolKind == .function ? [local.symbol] : []
                     resolvedFromLocalShadow = true
                 }
             }
@@ -383,17 +386,21 @@ extension CallTypeChecker {
                 }
                 if let aliasSym = aliasSymbols.first {
                     let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSym)
-                    let aliasTypeArgs: [TypeArg] = if !explicitTypeArgs.isEmpty {
-                        explicitTypeArgs.map { TypeArg.invariant($0) }
-                    } else if !aliasTypeParameters.isEmpty,
-                              let expectedType,
-                              case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
-                    {
-                        Array(expectedClassType.args.prefix(aliasTypeParameters.count))
-                    } else if !aliasTypeParameters.isEmpty {
-                        Array(repeating: TypeArg.invariant(sema.types.anyType), count: aliasTypeParameters.count)
+                    if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
+                        sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0062",
+                            "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
+                            range: range
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                    let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+                        aliasTypeParameters.map {
+                            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+                        }
                     } else {
-                        []
+                        explicitTypeArgs.map(TypeArg.invariant)
                     }
                     if let expanded = driver.helpers.expandTypeAlias(
                         aliasSym,
@@ -417,6 +424,12 @@ extension CallTypeChecker {
                                 let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
                                 candidates = vis
                                 constructorTypeAlias = aliasSym
+                                typeAliasConstructor = TypeAliasConstructorContext(
+                                    typeParameterSymbols: aliasTypeParameters,
+                                    expandedType: sema.types.make(.classType(ClassType(
+                                        classSymbol: constructorOwner, args: classType.args, nullability: .nonNull
+                                    )))
+                                )
                                 callInvisible.append(contentsOf: invis)
                             }
                         }
@@ -436,6 +449,28 @@ extension CallTypeChecker {
             candidates = []
         }
         return nil
+    }
+
+    func aliasConstructorArgumentContextTypes(
+        _ alias: TypeAliasConstructorContext,
+        explicitTypeArgs: [TypeID],
+        sema: SemaModule
+    ) -> [TypeID] {
+        guard !explicitTypeArgs.isEmpty || alias.typeParameterSymbols.isEmpty,
+              case let .classType(owner) = sema.types.kind(of: alias.expandedType)
+        else { return [] }
+        let variables = sema.types.makeTypeVarBySymbol(alias.typeParameterSymbols)
+        let substitution = Dictionary(uniqueKeysWithValues: zip(alias.typeParameterSymbols, explicitTypeArgs).compactMap {
+            symbol, type -> (TypeVarID, TypeID)? in
+            variables[symbol].map { ($0, type) }
+        })
+        return owner.args.compactMap { argument in
+            switch argument {
+            case let .invariant(type), let .out(type), let .in(type):
+                sema.types.substituteTypeParameters(in: type, substitution: substitution, typeVarBySymbol: variables)
+            case .star: nil
+            }
+        }
     }
 
     func applyImplicitReceiverPredicateCandidatePreference(

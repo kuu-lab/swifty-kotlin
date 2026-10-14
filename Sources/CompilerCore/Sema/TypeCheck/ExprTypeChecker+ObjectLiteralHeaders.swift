@@ -34,7 +34,7 @@ extension ExprTypeChecker {
             }
             lexicalScope = scope.parent
         }
-        sema.bindings.deferLocalAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
+        sema.bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
         // A literal declared inside a class shares its lexical private scope.
         // Keep that nesting in the symbol graph so its members can read the
         // enclosing class's private constructor properties.

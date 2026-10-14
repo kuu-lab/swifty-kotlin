@@ -409,28 +409,37 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
                      "emitEnumOrdinalBoxCall requires a non-synthetic enum class symbol or an imported enum with a serialized helper")
     }
 
-    // Keep declaration metadata independent of call-time display text. Boxing
-    // must not execute a stateful toString override or cache its result.
+    // Casts can retain a tagged box while exposing a concrete enum type.
+    // Normalize both raw and boxed inputs before reading or storing the
+    // ordinal, so a reboxed enum cannot contain another handle as its value.
+    let intType = types.make(.primitive(.int, .nonNull))
+    let normalizedOrdinal = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        symbol: nil, callee: interner.intern("kk_unbox_int"), arguments: [ordinal],
+        result: normalizedOrdinal, canThrow: false, thrownResult: nil
+    ))
+
+    // Master registers overridden toString implementations separately for
+    // erased rendering, while enum.name continues to use the declared entry name.
     let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
     let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
         symbols.symbol(id).map { $0.kind == .function } ?? false
     }
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
-        symbol: helperSymbol, callee: nameHelperCallee, arguments: [ordinal],
+        symbol: helperSymbol, callee: nameHelperCallee, arguments: [normalizedOrdinal],
         result: nameResult, canThrow: false, thrownResult: nil
     ))
 
     let classID = RuntimeTypeCheckToken.stableNominalTypeID(
         symbol: classSymbol, symbols: symbols, interner: interner
     )
-    let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
 
-    let boxCallee = interner.intern("kk_enum_box_ordinal")
     instructions.append(.call(
-        symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult, classIDExpr],
+        symbol: nil, callee: interner.intern("kk_enum_box_ordinal"),
+        arguments: [normalizedOrdinal, nameResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
 

@@ -2,6 +2,9 @@ import Foundation
 
 private struct AnnotationTargetResolutionContext {
     let types: TypeSystem
+    let propertyValidator: DeclarationPositionValidator
+    let bindings: BindingTable
+    var hasInferredBodies = false
     var enclosingFQName: [InternedString] = []
     var lexicalEnclosingFQNames: [[InternedString]] = []
 
@@ -27,11 +30,32 @@ extension DataFlowSemaPhase {
     ) {
         guard let file = ast.file(for: classDecl.range.start.file) else { return }
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
-        for parameter in classDecl.primaryConstructorParams where parameter.isProperty && !parameter.annotations.isEmpty {
-            guard let propertyID = classDecl.memberProperties.first(where: {
-                guard case let .propertyDecl(property) = ast.arena.decl($0) else { return false }
-                return property.isSynthesizedPrimaryConstructorProperty && property.name == parameter.name
-            }), let propertySymbol = bindings.declSymbols[propertyID],
+        // BuildAST emits these properties in parameter order. Pair declarations
+        // within this class, rather than looking up a same-named property.
+        let properties = classDecl.memberProperties.compactMap { declaration -> (DeclID, PropertyDecl)? in
+            guard case let .propertyDecl(property) = ast.arena.decl(declaration),
+                  property.isSynthesizedPrimaryConstructorProperty else { return nil }
+            return (declaration, property)
+        }
+        let propertyParameters = classDecl.primaryConstructorParams.enumerated().filter { $0.element.isProperty }
+        for ((index, parameter), (propertyID, property)) in zip(propertyParameters, properties) {
+            guard property.name == parameter.name,
+                  let propertySymbol = bindings.declSymbols[propertyID] else { continue }
+            if let owner = symbols.parentSymbol(for: propertySymbol),
+               let constructor = symbols.symbols(atDeclSite: classDecl.range).first(where: {
+                   symbols.symbol($0)?.kind == .constructor && symbols.parentSymbol(for: $0) == owner
+               }), let signature = symbols.functionSignature(for: constructor),
+               index < signature.parameterTypes.count {
+                // The call signature stores a vararg's element type, but its
+                // source parameter type is the same array as the property.
+                let parameterType = parameter.isVararg
+                    ? symbols.propertyType(for: propertySymbol) ?? signature.parameterTypes[index]
+                    : signature.parameterTypes[index]
+                bindings.primaryConstructorPropertyParameters[propertySymbol] = (
+                    parameter, parameterType, constructor
+                )
+            }
+            guard !parameter.annotations.isEmpty,
                   bindings.primaryConstructorPropertyAnnotations[propertySymbol] == nil
             else { continue }
             let enclosingName = Array((symbols.symbol(propertySymbol)?.fqName ?? []).dropLast())
@@ -84,22 +108,27 @@ extension DataFlowSemaPhase {
 
     /// Called after body inference so speculative diagnostics cannot discard
     /// target errors from a nominal that was already registered in that probe.
-    func validateDeferredLocalAnnotationTargets(
+    func validateDeferredAnnotationTargets(
         ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
         diagnostics: DiagnosticEngine, interner: StringInterner
     ) {
-        let pending = bindings.takePendingLocalAnnotationTargets()
+        let pending = bindings.takePendingAnnotationTargets()
         guard !pending.isEmpty else { return }
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
         for declID in pending.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let decl = ast.arena.decl(declID), let file = ast.file(for: decl.range.start.file) else { continue }
             let resolutionContext = AnnotationTargetResolutionContext(
-                types: types, lexicalEnclosingFQNames: pending[declID] ?? []
+                types: types,
+                propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
+                bindings: bindings,
+                hasInferredBodies: true,
+                lexicalEnclosingFQNames: pending[declID] ?? []
             )
             validateAnnotationTargets(
                 declID: declID, file: file, ast: ast, symbols: symbols, bindings: bindings,
                 diagnostics: diagnostics, interner: interner, filesByID: filesByID,
-                resolutionContext: resolutionContext
+                resolutionContext: resolutionContext,
+                isTopLevel: file.topLevelDecls.contains(declID)
             )
         }
     }
@@ -112,7 +141,11 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        let resolutionContext = AnnotationTargetResolutionContext(types: types)
+        let resolutionContext = AnnotationTargetResolutionContext(
+            types: types,
+            propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
+            bindings: bindings
+        )
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
 
         for file in ast.sortedFiles {
@@ -165,6 +198,8 @@ extension DataFlowSemaPhase {
             }.map { $0.1 }
             let resolutionContext = AnnotationTargetResolutionContext(
                 types: types,
+                propertyValidator: DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil),
+                bindings: bindings,
                 enclosingFQName: enclosingOwners.first ?? [],
                 lexicalEnclosingFQNames: enclosingOwners
             )
@@ -279,6 +314,20 @@ extension DataFlowSemaPhase {
             resolutionContext.enclosingFQName = Array(ownerSymbol.fqName.dropLast())
         }
         let memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
+
+        if !resolutionContext.hasInferredBodies, !decl.annotations.isEmpty,
+           case let .propertyDecl(property) = decl,
+           property.explicitBackingField == nil,
+           resolutionContext.propertyValidator.accessorHasBody(property.getter),
+           !property.isVar || resolutionContext.propertyValidator.accessorHasBody(property.setter),
+           resolutionContext.propertyValidator.accessorUsesBackingField(property.getter)
+               || resolutionContext.propertyValidator.accessorUsesBackingField(property.setter)
+        {
+            // A local named `field` can shadow the accessor's backing field.
+            // Reuse the post-inference target pass to inspect resolved bindings.
+            bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames)
+            return
+        }
 
         for annotation in decl.annotations {
             guard let site = annotationUsageSite(for: annotation, on: decl, ownerSymbol: ownerSymbol) else {
@@ -596,7 +645,9 @@ extension DataFlowSemaPhase {
             allowedTargets: allowedTargets,
             decl: decl,
             propertySymbol: propertySymbol,
-            symbols: symbols
+            symbols: symbols,
+            propertyValidator: resolutionContext.propertyValidator,
+            bindings: resolutionContext.bindings
         ) else {
             diagnostics.error(
                 "KSWIFTK-SEMA-ANNOTATION-TARGET",
@@ -821,7 +872,9 @@ extension DataFlowSemaPhase {
         allowedTargets: Set<String>,
         decl: Decl?,
         propertySymbol: SymbolID?,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        propertyValidator: DeclarationPositionValidator,
+        bindings: BindingTable
     ) -> Bool {
         switch site {
         case let .classLike(kind):
@@ -845,7 +898,8 @@ extension DataFlowSemaPhase {
             }
             guard !explicitUseSiteTarget,
                   let propertyDecl = decl.flatMap(propertyDecl(from:)),
-                  propertyAllowsFieldTarget(propertyDecl)
+                  propertyAllowsFieldTarget(propertyDecl, symbol: propertySymbol, symbols: symbols,
+                                            validator: propertyValidator, bindings: bindings)
             else {
                 return false
             }
@@ -856,7 +910,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("PROPERTY_SETTER")
         case .field:
             guard let propertyDecl = decl.flatMap(propertyDecl(from:)),
-                  propertyAllowsFieldTarget(propertyDecl)
+                  propertyAllowsFieldTarget(propertyDecl, symbol: propertySymbol, symbols: symbols,
+                                            validator: propertyValidator, bindings: bindings)
             else {
                 return false
             }
@@ -948,30 +1003,33 @@ extension DataFlowSemaPhase {
         return propertyDecl
     }
 
-    private func propertyAllowsFieldTarget(_ propertyDecl: PropertyDecl) -> Bool {
-        if propertyDecl.receiverType != nil {
-            return false
+    private func propertyAllowsFieldTarget(
+        _ propertyDecl: PropertyDecl,
+        symbol: SymbolID?,
+        symbols: SymbolTable,
+        validator: DeclarationPositionValidator,
+        bindings: BindingTable
+    ) -> Bool {
+        guard propertyDecl.receiverType == nil,
+              propertyDecl.delegateExpression == nil,
+              !propertyDecl.modifiers.contains(.abstract)
+        else { return false }
+        if let symbol {
+            if symbols.symbol(symbol)?.flags.contains(.abstractType) == true { return false }
+            if let owner = symbols.parentSymbol(for: symbol), symbols.symbol(owner)?.kind == .interface { return false }
         }
-        if propertyDecl.explicitBackingField != nil {
-            return true
+        if propertyDecl.explicitBackingField != nil { return true }
+        let backingField = symbol.map { symbols.backingFieldSymbol(for: $0) ?? $0 }
+        let usesBackingField: (ExprID) -> Bool = { expression in
+            guard let backingField else { return false }
+            return bindings.identifierSymbol(for: expression) == backingField
         }
-        if propertyDecl.delegateExpression != nil {
-            return false
-        }
-        if propertyDecl.modifiers.contains(.abstract) {
-            return false
-        }
-        let isGetterOnlyComputed = propertyDecl.getter != nil
-            && propertyDecl.setter == nil
-            && propertyDecl.initializer == nil
-            && !propertyDecl.isSynthesizedPrimaryConstructorProperty
-        if isGetterOnlyComputed {
-            return false
-        }
-        return propertyDecl.initializer != nil
-            || propertyDecl.getter != nil
-            || propertyDecl.setter != nil
-            || propertyDecl.isSynthesizedPrimaryConstructorProperty
+        // Storage follows accessor semantics, independently of whether the
+        // initializer appears here, in an init block, or in a constructor.
+        return !validator.accessorHasBody(propertyDecl.getter)
+            || (propertyDecl.isVar && !validator.accessorHasBody(propertyDecl.setter))
+            || validator.accessorUsesBackingField(propertyDecl.getter, isBackingFieldReference: usesBackingField)
+            || validator.accessorUsesBackingField(propertyDecl.setter, isBackingFieldReference: usesBackingField)
     }
 
     private enum AnnotationUsageSite {
