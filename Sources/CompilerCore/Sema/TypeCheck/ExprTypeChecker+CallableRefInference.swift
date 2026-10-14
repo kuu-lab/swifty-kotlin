@@ -787,6 +787,16 @@ extension ExprTypeChecker {
                 inferredType = unitCoercedType
             }
             let resultType: TypeID
+            func resultTypePreservingSuspendConversionSource(_ fallback: TypeID) -> TypeID {
+                guard ctx.isCallableReferenceArgument,
+                      expectedSamInterfaceType == nil,
+                      let expectedFunctionType,
+                      sema.types.suspendConversionType(from: inferredType, to: expectedFunctionType) != nil
+                else {
+                    return fallback
+                }
+                return inferredType
+            }
             // An expected type that still mentions type parameters belongs to a
             // generic signature whose type arguments are inferred from this very
             // argument (`fun <T> runCatching(block: () -> T)`). Checking against
@@ -813,7 +823,9 @@ extension ExprTypeChecker {
                             "KSWIFTK-SEMA-INFER", "Cannot infer type arguments for reified callable reference.", range: range
                         )
                     }
-                    resultType = postponedReturnParameter == nil ? concreteResult : inferredType
+                    resultType = resultTypePreservingSuspendConversionSource(
+                        postponedReturnParameter == nil ? concreteResult : inferredType
+                    )
                 } else if let postponedReturnParameter,
                           let specialization = driver.helpers.contextualCallableReferenceBinding(
                               for: signature, bindReceiver: isBoundReceiver,
@@ -840,7 +852,7 @@ extension ExprTypeChecker {
                             range: range
                         )
                     }
-                    resultType = concreteResult
+                    resultType = resultTypePreservingSuspendConversionSource(concreteResult)
                 } else {
                     resultType = inferredType
                 }
