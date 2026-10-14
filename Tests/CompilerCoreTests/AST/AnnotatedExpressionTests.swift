@@ -5,6 +5,65 @@ import Testing
 @Suite
 struct AnnotatedExpressionTests {
     @Test
+    func annotatedPropertyInitializerRetainsPropertyAndCall() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val foo = @Suppress("X") Foo(42, "OK")
+        """, includeStdlib: false)
+        let property = try #require(ast.arena.decls.compactMap { decl -> PropertyDecl? in
+            guard case let .propertyDecl(value) = decl,
+                  ctx.interner.resolve(value.name) == "foo" else { return nil }
+            return value
+        }.first)
+        let initializer = try #require(property.initializer)
+        guard case let .call(callee, _, arguments, _) = ast.arena.expr(initializer),
+              case let .nameRef(name, _) = ast.arena.expr(callee) else {
+            Issue.record("Expected the annotated constructor call as the property initializer")
+            return
+        }
+        #expect(ctx.interner.resolve(name) == "Foo")
+        #expect(arguments.count == 2)
+        #expect(ast.arena.expressionAnnotations(for: initializer).map(\.name) == ["Suppress"])
+    }
+
+    @Test
+    func annotatedLocalInitializerRetainsDeclarationAndBindsFollowingReference() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        annotation class Suppress(val name: String)
+        class Foo(val number: Int, val text: String)
+        fun probe() {
+            val foo = @Suppress("X") Foo(42, "OK")
+            foo.number
+        }
+        """.utf8))
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let localIndex = try #require(ast.arena.exprs.indices.first { index in
+            guard case let .localDecl(name, _, _, _, _, _, _) = ast.arena.exprs[index] else { return false }
+            return ctx.interner.resolve(name) == "foo"
+        })
+        guard case let .localDecl(_, _, _, initializer?, _, _, _) = ast.arena.exprs[localIndex],
+              case let .call(callee, _, arguments, _) = ast.arena.expr(initializer),
+              case let .nameRef(calleeName, _) = ast.arena.expr(callee) else {
+            Issue.record("Expected the annotated constructor call in the local initializer")
+            return
+        }
+        #expect(ctx.interner.resolve(calleeName) == "Foo")
+        #expect(arguments.count == 2)
+        #expect(ast.arena.expressionAnnotations(for: initializer).map(\.name) == ["Suppress"])
+
+        let referenceIndex = try #require(ast.arena.exprs.indices.first { index in
+            guard case let .nameRef(name, _) = ast.arena.exprs[index] else { return false }
+            return ctx.interner.resolve(name) == "foo"
+        })
+        let sema = try #require(ctx.sema)
+        #expect(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(referenceIndex))) != nil)
+    }
+
+    @Test
     func expressionBodyRetainsCallAndAnnotationAcrossSnapshot() throws {
         let (ast, ctx) = try buildASTModule(from: """
         class Bag {
