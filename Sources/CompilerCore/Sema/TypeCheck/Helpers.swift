@@ -554,6 +554,8 @@ struct TypeCheckHelpers {
         // and that walk can revisit the large synthetic collection graph.
         let isMutable: Bool
         let mapArgs: [TypeArg]
+        // `java.util.TreeMap`/`SortedMap`/`NavigableMap` also keep MutableMap's
+        // K/V argument order, so they iterate `MutableEntry<K, V>` too.
         switch concreteSymbol.name {
         case interner.intern("MutableMap"), interner.intern("HashMap"), interner.intern("LinkedHashMap"):
             isMutable = true
@@ -562,7 +564,11 @@ struct TypeCheckHelpers {
             isMutable = false
             mapArgs = classType.args
         default:
-            return nil
+            guard KnownCompilerNames(interner: interner).isMutableMapSymbol(concreteSymbol) else {
+                return nil
+            }
+            isMutable = true
+            mapArgs = classType.args
         }
 
         // MutableMap.iterator() returns MutableMap.MutableEntry, while Map.iterator()
