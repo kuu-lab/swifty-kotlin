@@ -656,6 +656,8 @@ public final class CodegenPhase: CompilerPhase {
         }
 
         let encoder = MetadataEncoder()
+        let requiredNonPublicSymbols = ctx.options.stdlibOnly ? []
+            : InlineMetadataDependencies.collect(module: module, sema: sema)
         let records = encoder.buildRecords(
             symbols: sema.symbols,
             types: sema.types,
@@ -664,6 +666,7 @@ public final class CodegenPhase: CompilerPhase {
             functionLinkNames: functionLinkNamesBySymbol,
             inlineFunctionSymbols: inlineFunctionSymbols,
             includeNonPublic: ctx.options.stdlibOnly,
+            requiredNonPublicSymbols: requiredNonPublicSymbols,
             includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,

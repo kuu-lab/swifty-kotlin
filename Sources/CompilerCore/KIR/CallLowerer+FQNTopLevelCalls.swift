@@ -81,11 +81,33 @@ extension CallLowerer {
         switch symbol.kind {
         case .class, .interface, .object, .enumClass, .annotationClass:
             let valueSymbol: SymbolID
-            if case let .classType(classType) = sema.types.kind(of: resultType) {
+            if (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass),
+               let companion = sema.symbols.companionObjectSymbol(for: symbolID)
+            {
+                valueSymbol = companion
+            } else if case let .classType(classType) = sema.types.kind(of: resultType) {
                 valueSymbol = classType.classSymbol
             } else {
                 valueSymbol = symbolID
             }
+            if sema.symbols.symbol(valueSymbol)?.kind == .object,
+               let externalLinkName = sema.symbols.externalLinkName(for: valueSymbol),
+               !externalLinkName.isEmpty
+            {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: valueSymbol, callee: interner.intern(externalLinkName),
+                    arguments: [], result: result, canThrow: false, thrownResult: nil
+                ))
+                return result
+            }
+            // Qualified singleton values have the same first-access semantics
+            // as bare names, including when passed to a package-owned extension.
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: valueSymbol, arena: arena, sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
             let result = arena.appendExpr(.symbolRef(valueSymbol), type: resultType)
             instructions.append(.constValue(result: result, value: .symbolRef(valueSymbol)))
             return result
