@@ -1,4 +1,41 @@
 
+/// Negative jump targets temporarily represent loops outside a lambda's KIR
+/// function. Inline expansion rewrites their IDs when the target loop belongs
+/// to an enclosing lambda body, then resolves them once the loop is in scope.
+enum KIRExternalLoopJump {
+    static func marker(for label: Int32) -> Int32 { -label }
+
+    static func label(for marker: Int32) -> Int32? {
+        marker < 0 ? -marker : nil
+    }
+
+    static func resolvingTargets(in instructions: [KIRInstruction]) -> [KIRInstruction] {
+        let definedLabels = Set(instructions.compactMap { instruction -> Int32? in
+            if case let .label(id) = instruction { return id }
+            return nil
+        })
+        return instructions.map { instruction in
+            guard case let .jump(marker) = instruction,
+                  let target = label(for: marker),
+                  definedLabels.contains(target)
+            else { return instruction }
+            return .jump(target)
+        }
+    }
+
+    static func remappingTargets(
+        in instructions: [KIRInstruction], mapping: [Int32: Int32]
+    ) -> [KIRInstruction] {
+        instructions.map { instruction in
+            guard case let .jump(marker) = instruction,
+                  let externalTarget = label(for: marker),
+                  let remappedTarget = mapping[externalTarget]
+            else { return instruction }
+            return .jump(Self.marker(for: remappedTarget))
+        }
+    }
+}
+
 /// Rewrites control-flow label IDs so that instruction streams lowered
 /// independently can be concatenated into a single function body.
 ///
@@ -32,8 +69,18 @@ enum KIRLabelRelocation {
         existingMaxLabelID: Int32?
     ) -> [KIRInstruction] {
         var labelIDs: Set<Int32> = []
+        let locallyDefinedLabels = Set(instructions.compactMap { instruction -> Int32? in
+            if case let .label(id) = instruction { return id }
+            return nil
+        })
         for instruction in instructions {
             labelIDs.formUnion(Self.labelIDs(of: instruction))
+            if case let .jump(target) = instruction,
+               let externalTarget = KIRExternalLoopJump.label(for: target),
+               locallyDefinedLabels.contains(externalTarget)
+            {
+                labelIDs.insert(externalTarget)
+            }
         }
         guard let lowestLabelID = labelIDs.min(),
               let existingMaxLabelID,
@@ -67,7 +114,7 @@ enum KIRLabelRelocation {
         case let .label(id):
             return [id]
         case let .jump(target):
-            return [target]
+            return KIRExternalLoopJump.label(for: target) == nil ? [target] : []
         case let .jumpIfEqual(_, _, target):
             return [target]
         case let .jumpIfNotNull(_, target):
@@ -89,6 +136,9 @@ enum KIRLabelRelocation {
         case let .label(id):
             return .label(mapping[id] ?? id)
         case let .jump(target):
+            if let externalTarget = KIRExternalLoopJump.label(for: target) {
+                return .jump(KIRExternalLoopJump.marker(for: mapping[externalTarget] ?? externalTarget))
+            }
             return .jump(mapping[target] ?? target)
         case let .jumpIfEqual(lhs, rhs, target):
             return .jumpIfEqual(lhs: lhs, rhs: rhs, target: mapping[target] ?? target)

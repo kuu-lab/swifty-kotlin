@@ -46,12 +46,17 @@ final class KIRLoweringContext {
     /// parameter of an inline function. A label-free return in that body exits
     /// the caller rather than the lambda.
     var currentLambdaAllowsNonLocalReturn = false
+    /// Inline lambdas may also jump to loops that enclose the inline call.
+    var currentLambdaAllowsNonLocalBreakContinue = false
     var nonLocalReturnTarget: SymbolID?
     /// One-shot allowance installed by CallLowerer for the lambda argument it
     /// is about to lower. This prevents nested lambdas from inheriting the
     /// enclosing lambda's non-local-return permission.
     var pendingLambdaNonLocalReturnAllowance = false
     var loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)] = []
+    /// Loops in the caller or enclosing inline lambda, visible to a lambda
+    /// body whose parameter allows non-local break/continue.
+    var enclosingLoopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)] = []
     /// Stack of enclosing finally block entries.
     /// Each entry records the finally block expression ID and the loop-control-stack
     /// depth at the time the try-finally scope was entered.  This depth is used to
@@ -153,9 +158,11 @@ final class KIRLoweringContext {
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
+        let currentLambdaAllowsNonLocalBreakContinue: Bool
         let nonLocalReturnTarget: SymbolID?
         let pendingLambdaNonLocalReturnAllowance: Bool
         let loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
+        let enclosingLoopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
         let finallyBlockStack: [(exprID: ExprID, loopDepth: Int)]
         let nextLoopLabel: Int32
     }
@@ -174,9 +181,11 @@ final class KIRLoweringContext {
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
+            currentLambdaAllowsNonLocalBreakContinue: currentLambdaAllowsNonLocalBreakContinue,
             nonLocalReturnTarget: nonLocalReturnTarget,
             pendingLambdaNonLocalReturnAllowance: pendingLambdaNonLocalReturnAllowance,
             loopControlStack: loopControlStack,
+            enclosingLoopControlStack: enclosingLoopControlStack,
             finallyBlockStack: finallyBlockStack,
             nextLoopLabel: nextLoopLabel
         )
@@ -195,9 +204,11 @@ final class KIRLoweringContext {
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
+        currentLambdaAllowsNonLocalBreakContinue = snapshot.currentLambdaAllowsNonLocalBreakContinue
         nonLocalReturnTarget = snapshot.nonLocalReturnTarget
         pendingLambdaNonLocalReturnAllowance = snapshot.pendingLambdaNonLocalReturnAllowance
         loopControlStack = snapshot.loopControlStack
+        enclosingLoopControlStack = snapshot.enclosingLoopControlStack
         finallyBlockStack = snapshot.finallyBlockStack
         nextLoopLabel = snapshot.nextLoopLabel
     }
@@ -229,9 +240,11 @@ final class KIRLoweringContext {
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
+        currentLambdaAllowsNonLocalBreakContinue = false
         nonLocalReturnTarget = nil
         pendingLambdaNonLocalReturnAllowance = false
         loopControlStack.removeAll(keepingCapacity: true)
+        enclosingLoopControlStack.removeAll(keepingCapacity: true)
         finallyBlockStack.removeAll(keepingCapacity: true)
         nextLoopLabel = 10000
     }
@@ -474,6 +487,17 @@ final class KIRLoweringContext {
             if let idx = loopControlStack.lastIndex(where: { $0.name == name }) {
                 return idx
             }
+            if currentLambdaAllowsNonLocalBreakContinue,
+               enclosingLoopControlStack.contains(where: { $0.name == name })
+            {
+                return -1
+            }
+        }
+        if loopControlStack.isEmpty,
+           currentLambdaAllowsNonLocalBreakContinue,
+           !enclosingLoopControlStack.isEmpty
+        {
+            return -1
         }
         return max(0, loopControlStack.count - 1)
     }
@@ -495,16 +519,40 @@ final class KIRLoweringContext {
 
     func breakLabel(for name: InternedString?) -> Int32? {
         if let name {
-            return loopControlStack.last(where: { $0.name == name })?.breakLabel
+            if let localTarget = loopControlStack.last(where: { $0.name == name })?.breakLabel {
+                return localTarget
+            }
+            guard currentLambdaAllowsNonLocalBreakContinue,
+                  let enclosingTarget = enclosingLoopControlStack.last(where: { $0.name == name })?.breakLabel
+            else { return nil }
+            return KIRExternalLoopJump.marker(for: enclosingTarget)
         }
-        return loopControlStack.last?.breakLabel
+        if let localTarget = loopControlStack.last?.breakLabel {
+            return localTarget
+        }
+        guard currentLambdaAllowsNonLocalBreakContinue,
+              let enclosingTarget = enclosingLoopControlStack.last?.breakLabel
+        else { return nil }
+        return KIRExternalLoopJump.marker(for: enclosingTarget)
     }
 
     func continueLabel(for name: InternedString?) -> Int32? {
         if let name {
-            return loopControlStack.last(where: { $0.name == name })?.continueLabel
+            if let localTarget = loopControlStack.last(where: { $0.name == name })?.continueLabel {
+                return localTarget
+            }
+            guard currentLambdaAllowsNonLocalBreakContinue,
+                  let enclosingTarget = enclosingLoopControlStack.last(where: { $0.name == name })?.continueLabel
+            else { return nil }
+            return KIRExternalLoopJump.marker(for: enclosingTarget)
         }
-        return loopControlStack.last?.continueLabel
+        if let localTarget = loopControlStack.last?.continueLabel {
+            return localTarget
+        }
+        guard currentLambdaAllowsNonLocalBreakContinue,
+              let enclosingTarget = enclosingLoopControlStack.last?.continueLabel
+        else { return nil }
+        return KIRExternalLoopJump.marker(for: enclosingTarget)
     }
 
 

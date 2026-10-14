@@ -120,34 +120,50 @@ final class ExprTypeChecker {
 
         case let .breakExpr(label, range):
             if ctx.loopDepth == 0 {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0018",
-                    "'break' is only allowed inside loop bodies.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0018",
+                        "'break' is only allowed inside loop bodies.",
+                        range: range
+                    )
+                }
             } else if let label, !ctx.loopLabelStack.contains(label) {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0097",
-                    "'break' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0097",
+                        "'break' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
+                        range: range
+                    )
+                }
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
 
         case let .continueExpr(label, range):
             if ctx.loopDepth == 0 {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0019",
-                    "'continue' is only allowed inside loop bodies.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0019",
+                        "'continue' is only allowed inside loop bodies.",
+                        range: range
+                    )
+                }
             } else if let label, !ctx.loopLabelStack.contains(label) {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0098",
-                    "'continue' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0098",
+                        "'continue' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
+                        range: range
+                    )
+                }
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
