@@ -141,16 +141,33 @@ manifest SHA256 は `4968c760ccd9d5699772443be1a8b1a4cda0d995b9b69d856d992167c8e
 実行環境は macOS 27 / Apple Swift 6.4 arm64。
 このrevisionには #9027 / #9041 の変更を積んでいる。#9038 は merge queue 待ちのため含めず、
 同PRが扱う unchecked cast warning は、このローカル実行では redundant cast の除去で回避している。
-GitHub hosted workflow は未実行（`workflowRunUrl: null`）であり、手順3の証拠は別途必要。
+
+2026-10-15 JST に同 revision `34858c2b01701c2f3caf8d12056779131de0c802` の hosted job を実行した。
+[workflow run 38624667409](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409) の
+[専用 job](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409/job/116067141702)
+は成功し、summary は `status=pass`, `case-runs=108`, `failed=0`, `inconsistent=0`, `excluded=3`。
+pass 108、fail / timeout / not-run はすべて0で、`SKIP removal ready: true`。
+source/artifact × O0/O2 の全27 native fixture が一致し、runner 回帰の
+`test_run_candidate`, `test_run_matrix`, `test_summarize_evidence` も exit 0 だった。
+除外された `original`, `js_dynamic_views`, `views_dynamic` は native lane 対象外として記録されている。
+matrix run ID は `20261014T195255.092494Z-1e003c9e`、hosted release compiler は Apple Swift 6.3.3。
+`KOTLINC` と `JAVA_BIN` はどちらも `/not-used-by-js-annotations` に設定され、JVM reference は起動していない。
+
+evidence artifact は [js-annotations-evidence-38624667409 (ID 11927057209)](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409/artifacts/11927057209)。
+upload SHA-256 は `f80c2901f652069c875aac97256cff064c38ed8c886cf479f76a110caa65d004`、
+size は 788982642 bytes。release compiler artifact `kswiftc-release-38624667409` は
+SHA-256 `0258ecc706cffebc9bc98cf63ff10e8c52926f0c3fe073fe1a4e47537487d6f1` を検証してから実行した。
+この hosted run では別 job `Build debug Swift test bundle once` の一般 candidate-only diff 検証が10件失敗し、
+通常の kotlinc diff shard job も失敗したため、nightly workflow 全体を green とは扱わない。
+専用 JS annotation job の成功はそれらの結果と分けて記録する。
 
 集約器は compile/runtime timeout を `timeout`、artifact build 失敗によって開始できなかった
 fixture を `not-run`、実行した契約不一致を `fail` とする。artifact build 自身の timeout は
 上位の `failureReasons` と stdlib-build process 記録に残す。期待した compile failure の後の
 runtime は `not_applicable` であり、未実行の肯定 runtime を PASS にするものではない。
 
-KSwiftK JS emission/consumer、全 Swift suite、全 diff corpus はこの専用コマンドでは未実行。
-CI の実 run URL はブランチを push して workflow を実行した後に追加する。
-workflow の静的接続と、実際にホストされた CI で実行された証拠は別である。
+KSwiftK JS emission/consumer、全 Swift suite、全 diff corpus はこの専用 job では未実行。
+run URL、summary、evidence artifact は上記 hosted job の記録を参照する。
 
 ## KUU-1480 が実行する解除手順
 
@@ -160,8 +177,10 @@ workflow の静的接続と、実際にホストされた CI で実行された�
    `evidence.json` の `skipRemovalReady: true` が必要。失敗/timeout/not-run が残れば解除しない。
 3. ブランチ上で `nightly-full.yml` の専用 job を実行し、run URL、summary、artifact を保存する。
    ローカル成功だけで「CI 実行済み」としない。
-4. 解除時点の `Scripts/diff_cases/js_annotations.kt` を独立した audit snapshot として保存し、
-   hash/provenance を記録する。歴史的 `diagnostics/original.kt` を上書きしない。
+4. 解除時点の `Scripts/diff_cases/js_annotations.kt` を独立した audit snapshot として
+   [`fixtures/js_annotations/evidence/kuu-1480-diff-case-before-removal.kt`](fixtures/js_annotations/evidence/kuu-1480-diff-case-before-removal.kt)
+   に保存する。45行、SHA-256 `c0907499c4fb7b25f062cf84e9763e673621a7ae8c0a1243a1cbc783713c4a03`。
+   歴史的 `diagnostics/original.kt` は上書きしない。
 5. native 肯定観測の owner を `valid/native_observations.kt` と専用 lane に確定し、
    無効 FQN/import/property/reference の各診断を対応表で確認する。JS emission の達成を主張しない。
 6. KUU-1480 の独立 PR で diff case を専用 fixture lane に移設し、旧 diff file を削除する。
