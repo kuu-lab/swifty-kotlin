@@ -41,6 +41,20 @@ public fun Char.toLong(): Long = this.code.toLong()
 // shl / shr / ushr は Kotlin 本家と同じくシフト量を Int で 5bit・Long で 6bit に
 // マスクするため、bitCount が 0・負値・幅超過でも本家と同じ結果になる。
 
+// KUU-2094: Source declarations expose primitive shift intrinsics to implicit
+// receiver calls such as `shr(bitCount)` inside an Int or Long extension.
+public infix fun Int.shl(bitCount: Int): Int = this shl bitCount
+
+public infix fun Int.shr(bitCount: Int): Int = this shr bitCount
+
+public infix fun Int.ushr(bitCount: Int): Int = this ushr bitCount
+
+public infix fun Long.shl(bitCount: Int): Long = this shl bitCount
+
+public infix fun Long.shr(bitCount: Int): Long = this shr bitCount
+
+public infix fun Long.ushr(bitCount: Int): Long = this ushr bitCount
+
 public fun Int.rotateLeft(bitCount: Int): Int =
     (this shl bitCount) or (this ushr (32 - bitCount))
 
