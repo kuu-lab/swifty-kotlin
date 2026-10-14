@@ -65,6 +65,16 @@ private let runtimeAnyEntryEqualsOverride: @convention(c) (
         && kk_array_get(receiver, 1, nil) == entry.value ? 1 : 0
 }
 
+private let runtimeCallableReferenceTarget: KKFunctionEntryPoint1 = { value, outThrown in
+    outThrown?.pointee = 0
+    return value
+}
+
+private let runtimeCallableReferenceOtherTarget: KKFunctionEntryPoint1 = { _, outThrown in
+    outThrown?.pointee = 0
+    return 0
+}
+
 @Suite
 struct RuntimeAnyEqualityTests {
     private func boolValue(_ raw: Int) -> Bool {
@@ -123,6 +133,47 @@ struct RuntimeAnyEqualityTests {
 
         #expect(boolValue(kk_any_equals(first, 0, first, 0)))
         #expect(!boolValue(kk_any_equals(first, 0, second, 0)))
+    }
+
+    @Test
+    func callableReferenceEqualityUsesTargetAndCaptures() {
+        func reference(target: Int, captures: [Int] = []) -> Int {
+            var thrown = 0
+            let value = kk_function_create_1(target, 0, &thrown)
+            _ = kk_callable_ref_tag_kfunction(
+                value,
+                runtimeMakeStringRaw("f"),
+                runtimeMakeStringRaw("kotlin.Int"),
+                1,
+                0
+            )
+            let capturesRaw = captures.isEmpty
+                ? runtimeNullSentinelInt
+                : registerRuntimeObject(RuntimeListBox(elements: captures))
+            __kk_callable_ref_set_identity(value, target, capturesRaw)
+            return value
+        }
+
+        let target = unsafeBitCast(runtimeCallableReferenceTarget, to: Int.self)
+        let otherTarget = unsafeBitCast(runtimeCallableReferenceOtherTarget, to: Int.self)
+        let first = reference(target: target)
+        let same = reference(target: target)
+        let other = reference(target: otherTarget)
+        let captured = reference(target: target, captures: [kk_box_int(7)])
+        let sameCapture = reference(target: target, captures: [kk_box_int(7)])
+        let otherCapture = reference(target: target, captures: [kk_box_int(8)])
+
+        #expect(boolValue(kk_any_equals(first, 0, same, 0)))
+        #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(same, 0))
+        #expect(!boolValue(kk_any_equals(first, 0, other, 0)))
+        #expect(boolValue(kk_any_equals(captured, 0, sameCapture, 0)))
+        #expect(kk_any_hashCode(captured, 0) == kk_any_hashCode(sameCapture, 0))
+        #expect(!boolValue(kk_any_equals(captured, 0, otherCapture, 0)))
+
+        var thrown = 0
+        let lambda = kk_function_create_1(target, 0, &thrown)
+        let otherLambda = kk_function_create_1(target, 0, &thrown)
+        #expect(!boolValue(kk_any_equals(lambda, 0, otherLambda, 0)))
     }
 
     @Test

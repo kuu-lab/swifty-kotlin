@@ -367,7 +367,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     }
 
     /// Returns true when the expression is a reference type that requires structural
-    /// equality (e.g. List, Set, Map, String, Any, class instances).
+    /// equality (e.g. List, Set, Map, String, function values, Any, class instances).
     /// String is a compiler aggregate, so pointer comparison is insufficient.
     private func isReferenceType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
@@ -376,7 +376,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return true
         case .primitive:
             return false
-        case .classType, .any:
+        case .classType, .any, .functionType:
             return true
         case .typeParam:
             // Type parameters have an Any? upper bound by default, so equality on them

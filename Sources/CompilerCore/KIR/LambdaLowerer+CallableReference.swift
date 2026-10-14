@@ -883,6 +883,7 @@ extension LambdaLowerer {
                 refKind: refKind,
                 memberName: memberName,
                 targetSymbol: targetSymbol,
+                identityCaptures: captureArguments,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -1145,6 +1146,7 @@ extension LambdaLowerer {
         refKind: CallableRefKind,
         memberName: InternedString,
         targetSymbol: SymbolID? = nil,
+        identityCaptures: [KIRExprID] = [],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -1229,6 +1231,45 @@ extension LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        if refKind == .functionRef, let targetSymbol {
+            let identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: sema.types.intType)
+            instructions.append(.constValue(result: identityTarget, value: .symbolRef(targetSymbol)))
+            let boxedCaptures = identityCaptures.map { capture in
+                let captureType = arena.exprType(capture) ?? sema.types.anyType
+                return boxValueForAnySlot(
+                    capture,
+                    sourceType: captureType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    requireNonNull: true,
+                    sema: sema,
+                    into: &instructions
+                )
+            }
+            let identityCapturesExpr: KIRExprID
+            if boxedCaptures.isEmpty {
+                identityCapturesExpr = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+                instructions.append(.constValue(result: identityCapturesExpr, value: .null))
+            } else {
+                identityCapturesExpr = makeReflectionArgumentList(
+                    boxedCaptures,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_callable_ref_set_identity"),
+                arguments: [taggedExpr, identityTarget, identityCapturesExpr],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
         if refKind == .functionRef {
             let anonymous = interner.resolve(memberName).hasPrefix("__AnonymousFunction_")
             emitFunctionDescription(
