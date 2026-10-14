@@ -888,6 +888,23 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    two boxed operands and `outThrown`; its computed `specVersion` changes with
    the new entry. The `__kk_*` export count increases by one; no public `kk_*`
    export is added. Source/fresh-artifact O0/O2 regression tests own the contract.
+   KUU-2037 adds one private bridge, `__kk_enum_name`
+   (reason: memory representation / metadata).
+   Abstract `Enum<*>` and enum-bounded type parameters carry tagged
+   `RuntimeIntBox` values; Kotlin cannot read their private entry-name metadata
+   as a stored field. The bridge reads the declaration name attached to the
+   tagged enum box; erased `toString()` rendering is registered separately.
+   Concrete enum receivers keep their per-enum helpers; ABI lowering boxes raw
+   enum arguments reaching this bridge after inline expansion.
+   Generic and base-Enum extension receiver slots use the same tagged boxing
+   boundary as generic value parameters, including imported enum classes.
+   Boxing normalizes existing tagged handles back to raw ordinals before
+   storing the payload, preserving enum equality after casts and reboxing.
+   `RuntimeABISpec` registers the nonthrowing bridge and its
+   derived specVersion changes. `__kk_*` count increases by one; `ordinal`
+   reuses `kk_unbox_int`. Generic/implicit/safe reads and an overridden
+   `toString()` are covered by `generic_enum_name_ordinal.kt` and the
+   source/artifact O0/O2 backend regression.
    KUU-1761 adds one private host-information bridge,
    `__kk_io_fs_temporary_directory` (reason: syscall). Kotlin cannot query the
    host environment or `NSTemporaryDirectory`; path construction and separator

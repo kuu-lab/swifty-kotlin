@@ -79,11 +79,22 @@ extension ABILoweringPass {
         {
             boxedArguments[receiverIndex] = unboxed
         }
-        // A statically called member whose receiver is an interface (an
-        // interface default method, or a callable-reference dispatch thunk)
-        // dispatches through `this`'s itable, so an enum receiver -- a raw
-        // ordinal until something widens it -- must arrive as its box, the
-        // same way an enum value argument for an interface parameter does.
+        // Interface dispatch and abstract Enum properties require a tagged
+        // enum box. Generic extension receivers have the same erased ABI as
+        // generic value parameters; substituting a raw ordinal here bypasses
+        // the enum metadata needed by the extension body.
+        func enumReceiverNeedsBoxing(_ type: TypeID) -> Bool {
+            switch types.kind(of: type) {
+            case .typeParam:
+                return boxTypeParamArguments
+            case let .classType(classType):
+                guard let info = symbols?.symbol(classType.classSymbol) else { return false }
+                return info.kind == .interface
+                    || info.fqName == ["kotlin", "Enum"].map(interner.intern)
+            default:
+                return false
+            }
+        }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
@@ -92,9 +103,7 @@ extension ABILoweringPass {
            argClass.nullability == .nonNull,
            let argInfo = symbols?.symbol(argClass.classSymbol),
            argInfo.kind == .enumClass,
-           !argInfo.flags.contains(.synthetic),
-           case let .classType(receiverClass) = types.kind(of: receiverType),
-           symbols?.symbol(receiverClass.classSymbol)?.kind == .interface
+           enumReceiverNeedsBoxing(receiverType)
         {
             boxedArguments[receiverIndex] = boxValueForAnySlot(
                 receiver,
