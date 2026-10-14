@@ -755,6 +755,38 @@ extension DeclTypeChecker {
             }
         }
 
+        // Inner classes declared in a supertype are inherited members, so
+        // `Inner(...)` resolves without qualification in a derived class.
+        // Own declarations shadow inherited ones of the same name.
+        var ownNames: Set<InternedString> = []
+        for declID in nestedClasses + nestedObjects {
+            if let symbol = sema.bindings.declSymbols[declID],
+               let name = sema.symbols.symbol(symbol)?.name
+            {
+                ownNames.insert(name)
+            }
+        }
+        var superQueue = sema.symbols.directSupertypes(for: ownerSymbol)
+        var visitedSupers: Set<SymbolID> = [ownerSymbol]
+        while !superQueue.isEmpty {
+            let superSymbol = superQueue.removeFirst()
+            guard visitedSupers.insert(superSymbol).inserted,
+                  let superInfo = sema.symbols.symbol(superSymbol)
+            else {
+                continue
+            }
+            for childSymbol in sema.symbols.children(ofFQName: superInfo.fqName) {
+                if let child = sema.symbols.symbol(childSymbol),
+                   child.kind == .class,
+                   child.flags.contains(.innerClass),
+                   !ownNames.contains(child.name)
+                {
+                    classScope.insert(childSymbol)
+                }
+            }
+            superQueue.append(contentsOf: sema.symbols.directSupertypes(for: superSymbol))
+        }
+
         // Enum entries are not in memberFunctions/memberProperties/nested*,
         // but they must be visible without qualification inside the enum class
         // and inside its companion object (e.g. `A` in `companion object { fun pick(): D = A }`).
