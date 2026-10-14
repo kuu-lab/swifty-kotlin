@@ -369,6 +369,34 @@ extension CallTypeChecker {
             }
         }
 
+        // Imported aliases are expanded during regular call candidate
+        // collection. Fully-qualified constructor calls need the same path so
+        // an alias like `java.io.IOException` does not fall back to resolving
+        // `java` as a value receiver.
+        if fqnCandidates.isEmpty,
+           let aliasID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
+               ctx.cachedSymbol($0)?.kind == .typeAlias
+           }),
+           sema.symbols.typeAliasTypeParameters(for: aliasID).isEmpty,
+           let expanded = driver.helpers.expandTypeAlias(
+               aliasID,
+               typeArgs: [],
+               sema: sema,
+               visited: [],
+               depth: 0
+           ),
+           case let .classType(aliasTarget) = sema.types.kind(of: expanded)
+        {
+            let ownerID = sema.symbols.actualSymbol(for: aliasTarget.classSymbol) ?? aliasTarget.classSymbol
+            if let owner = ctx.cachedSymbol(ownerID) {
+                let constructorPath = owner.fqName + [interner.intern("<init>")]
+                fqnCandidates.append(contentsOf: sema.symbols.lookupAll(fqName: constructorPath).filter {
+                    ctx.cachedSymbol($0)?.kind == .constructor
+                        && sema.symbols.parentSymbol(for: $0) == ownerID
+                })
+            }
+        }
+
         let (vis, _) = ctx.filterByVisibility(fqnCandidates)
         guard !vis.isEmpty else { return nil }
 
