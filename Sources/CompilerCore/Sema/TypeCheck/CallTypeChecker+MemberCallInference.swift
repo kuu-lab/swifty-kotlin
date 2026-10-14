@@ -130,7 +130,7 @@ extension CallTypeChecker {
     /// `l.first`). The only function bindings legal under property syntax
     /// are property accessors (extension-property reads bind the getter
     /// call) and the bundled-stdlib property facades (`lastIndex`,
-    /// `indices`, `javaClass`, and the synthetic `Char` member properties
+    /// `indices`, `javaClass`, `KClass.java`, and the synthetic `Char` member properties
     /// `code`/`category`/`directionality`) that model upstream properties
     /// the bundled surface cannot declare directly — the same contract
     /// KUU-1451 established on the implicit-receiver side.
@@ -186,7 +186,7 @@ extension CallTypeChecker {
 
     /// The bundled stdlib models a small, fixed set of upstream Kotlin
     /// properties as zero-argument package-level extension functions
-    /// (bundled-source `lastIndex`/`indices`/`javaClass` facades, and the
+    /// (bundled-source `lastIndex`/`indices`/`javaClass`/`KClass.java` facades, and the
     /// synthetic `Char` member-property stubs `code`/`category`/
     /// `directionality`). A function bound through property-access syntax
     /// is a facade only for those exact modeled properties — user,
@@ -211,7 +211,7 @@ extension CallTypeChecker {
         // Two facade families model upstream Kotlin properties as
         // zero-argument functions:
         // - Bundled source extension functions for the upstream extension
-        //   properties `lastIndex`, `indices` and `javaClass`, which the
+        //   properties `lastIndex`, `indices`, `javaClass` and `KClass.java`, which the
         //   bundled parser cannot declare on generic receivers (see
         //   `Stdlib/kotlin/collections/` and `Stdlib/kotlin/JavaClass.kt`).
         //   These must be bundled declarations.
@@ -225,6 +225,10 @@ extension CallTypeChecker {
         switch interner.resolve(symbol.name) {
         case "lastIndex", "indices", "javaClass":
             break
+        case "java":
+            guard symbol.fqName == [
+                interner.intern("kotlin"), interner.intern("jvm"), interner.intern("java"),
+            ] else { return false }
         case "code", "category", "directionality":
             guard signature.receiverType == sema.types.charType else {
                 return false
