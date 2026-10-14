@@ -47,6 +47,10 @@ extension CoroutineLoweringPass {
         let sourceDelayCallee = interner.intern("delay")
         let suspendCoroutineRuntimeCallee = interner.intern("kk_suspend_coroutine")
         let suspendCoroutineUninterceptedOrReturnCallee = interner.intern("suspendCoroutineUninterceptedOrReturn")
+        let mutexLockCallees: Set<InternedString> = [
+            interner.intern("kk_mutex_lock"),
+            interner.intern("__kk_mutex_lock_owner"),
+        ]
         // CORO-004: runtime suspend callees that take the caller continuation as a
         // trailing argument so they can resume the awaiting coroutine without blocking.
         let continuationConsumingRuntimeCallees: Set<InternedString> = [
@@ -191,18 +195,24 @@ extension CoroutineLoweringPass {
                 // If cancelled, kk_coroutine_check_cancellation writes a
                 // CancellationException into the original call's thrown slot so
                 // surrounding try/catch blocks can observe it.
-                let cancelCheckResult = module.arena.appendTemporary(type: intType
-                )
-                lowered.append(
-                    .call(
-                        symbol: nil,
-                        callee: checkCancellationCallee,
-                        arguments: [continuationExpr],
-                        result: cancelCheckResult,
-                        canThrow: true,
-                        thrownResult: transition.suspendingInstructionCallInfo?.thrownResult
+                // Mutex owns prompt cancellation until acquisition is delivered.
+                // A later generic check would throw after ownership was accepted.
+                let isMutexAcquisition = transition.suspendingInstructionCallInfo.map {
+                    mutexLockCallees.contains($0.callee)
+                } ?? false
+                if !isMutexAcquisition {
+                    let cancelCheckResult = module.arena.appendTemporary(type: intType)
+                    lowered.append(
+                        .call(
+                            symbol: nil,
+                            callee: checkCancellationCallee,
+                            arguments: [continuationExpr],
+                            result: cancelCheckResult,
+                            canThrow: true,
+                            thrownResult: transition.suspendingInstructionCallInfo?.thrownResult
+                        )
                     )
-                )
+                }
                 lowered.append(.jump(continueLabel))
                 lowered.append(.label(throwLabel))
                 if let thrownResultSlot = transition.suspendingInstructionCallInfo?.thrownResult {
@@ -361,7 +371,12 @@ extension CoroutineLoweringPass {
                             // reinterpret as a millisecond count.
                             loweredSuspendSymbol = nil
                         }
-                        if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
+                        if mutexLockCallees.contains(suspendCallInfo.callee) {
+                            // KIR supplies the blocking-path continuation slot.
+                            // Replace it rather than adding an extra ABI argument;
+                            // owner lock's outThrown stays in thrownResult.
+                            loweredSuspendArguments[loweredSuspendArguments.count - 1] = continuationExpr
+                        } else if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
                             // CORO-004: append the caller continuation so await / join can
                             // resume the coroutine via the runtime instead of blocking.
                             loweredSuspendArguments.append(continuationExpr)
@@ -431,14 +446,17 @@ extension CoroutineLoweringPass {
                     if let thrownResult = suspendCallInfo.thrownResult {
                         lowered.append(.jumpIfNotNull(value: thrownResult, target: synchronousContinueLabel))
                     }
-                    lowered.append(.call(
-                        symbol: nil,
-                        callee: checkCancellationCallee,
-                        arguments: [continuationExpr],
-                        result: nil,
-                        canThrow: true,
-                        thrownResult: suspendCallInfo.thrownResult
-                    ))
+                    // An uncontended Mutex acquisition does not check cancellation.
+                    if !mutexLockCallees.contains(suspendCallInfo.callee) {
+                        lowered.append(.call(
+                            symbol: nil,
+                            callee: checkCancellationCallee,
+                            arguments: [continuationExpr],
+                            result: nil,
+                            canThrow: true,
+                            thrownResult: suspendCallInfo.thrownResult
+                        ))
+                    }
                     lowered.append(.jump(synchronousContinueLabel))
                     continue
                 }

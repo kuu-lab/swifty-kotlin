@@ -3,8 +3,19 @@ import Foundation
 private struct RuntimeCancellationCallback: Sendable {
     let fnPtr: Int
     let closureRaw: Int
+    let native: (@Sendable (Int) -> Void)?
+
+    init(fnPtr: Int, closureRaw: Int, native: (@Sendable (Int) -> Void)? = nil) {
+        self.fnPtr = fnPtr
+        self.closureRaw = closureRaw
+        self.native = native
+    }
 
     func invoke(_ cause: Int) {
+        if let native {
+            native(cause)
+            return
+        }
         guard fnPtr != 0 else { return }
         var thrown = 0
         _ = runtimeInvokeCollectionLambda1MaybeWrapped(
@@ -68,6 +79,13 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     private func dispatchResult(_ result: Int) {
         let deliveredResult = runtimeContinuationState(from: delegate) == nil ? takeResultForDelivery() : result
         __kk_coroutine_continuation_resume_with(delegate, deliveredResult, nil)
+    }
+
+    /// Kernel resources must be returned if cancellation wins before delivery.
+    func resume(value: Int, onCancellation: @escaping @Sendable () -> Void) {
+        resume(runtimeResultSuccess(value), callback: RuntimeCancellationCallback(
+            fnPtr: 0, closureRaw: 0, native: { _ in onCancellation() }
+        ), outThrown: nil)
     }
 
     fileprivate func resume(_ proposed: Int, callback: RuntimeCancellationCallback, outThrown: UnsafeMutablePointer<Int>?) {
