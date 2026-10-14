@@ -89,6 +89,7 @@ extension CallTypeChecker {
                calleeName: calleeName,
                args: args,
                explicitTypeArgs: explicitTypeArgs,
+               expectedType: expectedType,
                ctx: ctx,
                locals: locals,
                interner: interner,
@@ -98,12 +99,12 @@ extension CallTypeChecker {
            )
         {
             switch enumSpecialKind {
-            case let .enumValues(_, arrayType, stubSymbol):
+            case let .enumValues(enumType, arrayType, stubSymbol):
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(
                         chosenCallee: stubSymbol,
-                        substitutedTypeArguments: explicitTypeArgs,
+                        substitutedTypeArguments: [enumType],
                         parameterMapping: [:]
                     )
                 )
