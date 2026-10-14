@@ -633,6 +633,21 @@ extension ExprLowerer {
                 // for rejecting reads before the first assignment.
                 let localSlot = arena.appendTemporary(type: declaredType)
                 driver.ctx.setLocalValue(localSlot, for: symbol)
+                if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol),
+                   isCapturedByLambda(symbol, sema: sema)
+                {
+                    // Sema approved deferred initialization inside a callback.
+                    // Allocate its shared cell before capture without reading an
+                    // undefined slot; Sema prevents observing the seed value.
+                    let seed = deferredLocalCaptureCellSeedValue(
+                        for: declaredType, sema: sema, arena: arena, instructions: &instructions
+                    )
+                    instructions.append(.copy(from: seed, to: localSlot))
+                    emitMutableCaptureCellInitialization(
+                        driver: driver, symbol: symbol, currentValue: localSlot,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
+                }
             }
             if sema.symbols.symbol(symbol)?.flags.contains(.lateinitProperty) == true {
                 // Store the raw null sentinel. Creating a closure captures

@@ -101,25 +101,43 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         // Enum ordinal slots and renderers must be initialized before use.
         // Consumers initialize exported enums through their nominal metadata;
         // hidden enums instead need the library's exported initializer, even
-        // when there are no stored top-level properties to create one.
-        if !enumStaticInitCallees.isEmpty {
-            let mainName = ctx.interner.intern("main")
-            let unitType = sema.types.unitType
-            let libraryInitName = ctx.interner.intern("__kk_library_top_level_init_\(ctx.options.moduleName)")
-            let libraryCallees = enumStaticInitCallees.filter { callee in
-                guard ctx.options.emit == .library, !ctx.options.stdlibOnly else { return false }
-                var owner: SymbolID? = callee.owner
-                while let current = owner, let symbol = sema.symbols.symbol(current) {
-                    switch symbol.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass:
-                        if symbol.visibility != .public && symbol.visibility != .protected { return true }
-                    default:
-                        break
-                    }
-                    owner = sema.symbols.parentSymbol(for: current)
+        // when there are no stored top-level properties to create one. Hidden
+        // (non-public) singleton objects are not in the metadata either, so
+        // their eager handle allocation is routed through the same entry point.
+        let mainName = ctx.interner.intern("main")
+        let unitType = sema.types.unitType
+        let libraryInitName = ctx.interner.intern("__kk_library_top_level_init_\(ctx.options.moduleName)")
+        let isHiddenLibraryOwner: (SymbolID) -> Bool = { ownerID in
+            guard ctx.options.emit == .library, !ctx.options.stdlibOnly else { return false }
+            var owner: SymbolID? = ownerID
+            while let current = owner, let symbol = sema.symbols.symbol(current) {
+                switch symbol.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    if symbol.visibility != .public && symbol.visibility != .protected { return true }
+                default:
+                    break
                 }
-                return false
+                owner = sema.symbols.parentSymbol(for: current)
             }
+            return false
+        }
+        let objectInitPrefix = "__object_init_"
+        let hiddenObjectInitCallees: [(name: InternedString, symbol: SymbolID, owner: SymbolID)] =
+            module.arena.declarations.compactMap { declaration in
+                guard case let .function(function) = declaration else { return nil }
+                let functionName = ctx.interner.resolve(function.name)
+                guard functionName.hasPrefix(objectInitPrefix),
+                      let rawOwner = Int32(functionName.dropFirst(objectInitPrefix.count))
+                else { return nil }
+                let owner = SymbolID(rawValue: rawOwner)
+                guard sema.symbols.symbol(owner)?.kind == .object, isHiddenLibraryOwner(owner) else {
+                    return nil
+                }
+                return (function.name, function.symbol, owner)
+            }
+        let libraryCallees = hiddenObjectInitCallees
+            + enumStaticInitCallees.filter { isHiddenLibraryOwner($0.owner) }
+        if !enumStaticInitCallees.isEmpty || !libraryCallees.isEmpty {
             if !libraryCallees.isEmpty,
                !module.arena.declarations.contains(where: { declaration in
                    if case let .function(function) = declaration { return function.name == libraryInitName }

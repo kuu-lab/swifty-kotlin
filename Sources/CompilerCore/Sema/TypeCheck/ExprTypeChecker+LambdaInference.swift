@@ -536,10 +536,22 @@ extension ExprTypeChecker {
                     || expectedFunctionType.returnType == sema.types.nullableAnyType)
                 && !sema.bindings.isCollectionHOFLambdaExpr(id)
                 && !expectedTypeIsSourceDeclared
+            // A Unit callback still supplies input constraints. Returning the
+            // contextual `(T) -> Unit` would erase an explicit String input and
+            // leave the constructor's T constrained only by itself. Preserve
+            // that input so the call resolver can collect `T <: String`, while
+            // keeping the body's value coerced to Unit.
+            let hasAnnotatedUnresolvedUnitInput =
+                expectedFunctionType.returnType == sema.types.unitType
+                && annotatedParameterTypes != nil
+                && zip(parameterTypes, expectedFunctionType.params).contains { actual, expected in
+                    actual != expected && typeMentionsTypeParameter(expected, sema: sema)
+                }
             let shouldReturnResolvedFunctionType = expectedTypeIsHintOnly
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
                 || expectedReturnIsErasedNonHOFPlaceholder
+                || hasAnnotatedUnresolvedUnitInput
                 || sema.bindings.isDirectlyInvokedLambdaExpr(id)
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(

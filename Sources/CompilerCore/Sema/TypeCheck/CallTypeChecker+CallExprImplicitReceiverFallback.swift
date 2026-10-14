@@ -22,6 +22,23 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
+        // KUU-2173: an unqualified `invoke(...)` inside a function-typed
+        // extension receiver (`((A) -> T).foo() = { invoke(x) }`) is the
+        // implicit-receiver form of `this.invoke(...)`.
+        if let calleeName,
+           interner.resolve(calleeName) == "invoke",
+           let receiverType = ctx.implicitReceiverType,
+           case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        {
+            let thisExpr = ctx.ast.arena.appendExpr(.thisRef(label: nil, range))
+            let returnType = inferMemberCallExpr(
+                id, receiverID: thisExpr, calleeName: calleeName,
+                args: args, range: range, ctx: ctx, locals: &locals,
+                expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+            )
+            return returnType
+        }
+
         // KUU-963: `emit` is also an ordinary member name (e.g. a user-defined
         // `Sink.emit`). The Flow builtin fallback must not shadow a real
         // member on an in-scope implicit receiver — when any receiver in the
@@ -240,7 +257,10 @@ extension CallTypeChecker {
                             calleeName: calleeName,
                             args: resolvedArgs,
                             explicitTypeArgs: explicitTypeArgs,
-                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                            boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
+                                named: calleeName, candidates: group.symbols, ctx: ctx
+                            )
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
@@ -264,7 +284,11 @@ extension CallTypeChecker {
                 }
                 if regularMemberCandidates.count == 1,
                    let bestCandidate = regularMemberCandidates.first,
-                   let sig = sema.symbols.functionSignature(for: bestCandidate)
+                   let sig = sema.symbols.functionSignature(for: bestCandidate),
+                   !(sema.symbols.parentSymbol(for: bestCandidate).flatMap {
+                       sema.symbols.symbol($0)?.kind
+                   } == .object
+                       && sig.receiverType.map { !sema.types.isSubtype(receiverType, $0) } == true)
                 {
                     if sig.classTypeParameterCount > 0 {
                         if let result = bindClassOnlyImplicitReceiverMemberFallback(

@@ -24,6 +24,12 @@ private func runtimeSignedByteValue(_ value: Int) -> Int {
     Int(Int8(bitPattern: UInt8(truncatingIfNeeded: value)))
 }
 
+private func runtimeMakeEncodedByteArray(_ values: [Int]) -> Int {
+    let raw = runtimeMakeArrayRaw(values)
+    runtimeRegisterArrayType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
+    return raw
+}
+
 @_cdecl("__kk_string_toByteArray_flat")
 public func __kk_string_toByteArray_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -32,7 +38,7 @@ public func __kk_string_toByteArray_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeEncodedByteArray(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { Int(Int8(bitPattern: $0)) })
 }
 @_cdecl("__kk_charset_utf_8")
 public func __kk_charset_utf_8() -> Int { CharsetTag.utf8.rawValue }
@@ -156,9 +162,9 @@ public func __kk_string_toByteArray_charset_flat(
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
-        return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { runtimeSignedByteValue(Int($0)) })
+        return runtimeMakeEncodedByteArray(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { runtimeSignedByteValue(Int($0)) })
     }
-    return runtimeMakeArrayRaw(runtimeCharsetEncodedBytes(source, tag: tag).map(runtimeSignedByteValue))
+    return runtimeMakeEncodedByteArray(runtimeCharsetEncodedBytes(source, tag: tag).map(runtimeSignedByteValue))
 }
 @_cdecl("__kk_string_encodeToByteArray_flat")
 public func __kk_string_encodeToByteArray_flat(
@@ -183,7 +189,7 @@ public func __kk_string_encodeToByteArray_range_flat(
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let slice = runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
-    return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(slice).utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeEncodedByteArray(KotlinStringSurrogateEncoding.unicodeString(slice).utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload.
@@ -202,7 +208,7 @@ public func __kk_string_encodeToByteArray_charset_flat(
     let raw = runtimeMakeStringRaw(source)
     let listHandle = __kk_string_toByteArray_charset(raw, charsetID)
     let elements = runtimeListBox(from: listHandle)?.elements ?? []
-    return runtimeMakeArrayRaw(elements)
+    return runtimeMakeEncodedByteArray(elements)
 }
 
 private func runtimeByteArrayElements(from raw: Int) -> [Int]? {

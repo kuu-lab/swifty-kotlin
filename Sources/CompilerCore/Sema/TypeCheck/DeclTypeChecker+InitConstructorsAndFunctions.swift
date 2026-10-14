@@ -757,7 +757,8 @@ extension DeclTypeChecker {
 
         validateFunctionHeaderOptInTypes(
             symbol,
-            ctx: ctx.with(currentDeclSymbol: symbol)
+            ctx: ctx.with(currentDeclSymbol: symbol),
+            hasExplicitReturnType: function.returnType != nil
         )
         let hasRuntimeBridge = function.modifiers.contains(.external)
             || function.annotations.contains {

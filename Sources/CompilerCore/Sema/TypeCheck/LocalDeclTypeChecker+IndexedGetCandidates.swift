@@ -1,7 +1,7 @@
 extension LocalDeclTypeChecker {
     /// Keep lexical priority among applicable operators. A nearer declaration
     /// that cannot accept the receiver or indices must not hide an outer one.
-    func collectIndexedGetExtensionCandidates(
+    func collectIndexedOperatorExtensionCandidates(
         named name: InternedString,
         receiverType: TypeID,
         call: CallExpr? = nil,

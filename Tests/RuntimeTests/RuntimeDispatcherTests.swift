@@ -43,7 +43,7 @@ struct RuntimeDispatcherTests {
     @Test func dispatcherNamesPreserveNumericValues() {
         for (kind, name, tag) in [
             (0, "Dispatchers.Default", kk_dispatcher_default()),
-            (1, "Dispatchers.IO", kk_dispatcher_default()),
+            (1, "Dispatchers.IO", kk_dispatcher_io()),
             (2, "Dispatchers.Unconfined", kk_dispatcher_default()),
         ] {
             let handle = kk_dispatcher_named(kind)
@@ -73,6 +73,21 @@ struct RuntimeDispatcherTests {
             let boxed = kk_box_int(number)
             #expect(runtimeElementToString(boxed) == String(number))
         }
+    }
+
+    @Test func sourceEmptyContextPreservesRunBlockingEventLoop() {
+        let empty = kk_object_new(0, Int(runtimeStableNominalTypeID(
+            fqName: "kotlin.coroutines.EmptyCoroutineContext"
+        )))
+        let context = resolveToCoroutineContext(empty)
+        #expect(context.dispatcherElementHandle == 0)
+        let loop = RuntimeEventLoop()
+        #expect(runtimeBlockingScheduler(context: context, fallbackLoop: loop).eventLoop === loop)
+
+        // A default child context must preserve its parent's event-loop element.
+        let parent = RuntimeCoroutineContext(dispatcherHandleRaw: loop.elementHandle())
+        let child = parent.plus(context)
+        #expect(runtimeBlockingScheduler(context: child, fallbackLoop: loop).eventLoop === loop)
     }
 
     // MARK: - Dispatcher tag identity

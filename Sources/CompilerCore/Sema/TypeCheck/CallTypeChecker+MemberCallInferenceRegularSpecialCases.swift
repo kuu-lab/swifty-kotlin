@@ -305,14 +305,24 @@ extension CallTypeChecker {
             ctx.cachedSymbol($0)?.flags.contains(.extensionMemberAlias) != true
                 && !driver.helpers.declaresExtensionReceiver($0, sema: sema, interner: interner)
         }
+        let localExtensionMatchesCallShape: Bool = {
+            guard let local = locals[calleeName],
+                  sema.symbols.functionSignature(for: local.symbol)?.receiverType != nil
+            else { return true }
+            return extensionCandidateMatchesCallShape(
+                local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
+            )
+        }()
         if !isSuperCall, ast.arena.isExplicitCall(id),
            !hasReceiverMember,
+           localExtensionMatchesCallShape,
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)
         {
             return result
         }
 
         if !isSuperCall,
+           localExtensionMatchesCallShape,
            let local = locals[calleeName],
            let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
            extensionSyntheticFallbackReceiverMatches(

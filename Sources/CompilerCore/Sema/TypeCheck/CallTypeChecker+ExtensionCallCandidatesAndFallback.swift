@@ -16,10 +16,12 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        callShapeMatches: ((SymbolID) -> Bool)? = nil
     ) -> [SymbolID] {
         if !isSuperCall,
            let local = locals[calleeName],
+           callShapeMatches?(local.symbol) != false,
            let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
            extensionSyntheticFallbackReceiverMatches(
                callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
@@ -34,7 +36,7 @@ extension CallTypeChecker {
             && ["and", "or", "xor", "inv", "shl", "shr", "ushr"].contains(interner.resolve(calleeName))
         // A nearer property is a separate callable namespace. Keep explicitly
         // imported function aliases available while comparing invocation tiers.
-        var scopeCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+        func receiverMatches(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   let signature = sema.symbols.functionSignature(for: candidate) else { return false }
@@ -48,7 +50,27 @@ extension CallTypeChecker {
                 return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
             }
             return true
-        })
+        }
+        var scopeCandidates = ctx.scope.lookup(calleeName, matching: receiverMatches)
+        if let callShapeMatches {
+            // Walk outward only when the nearer tier has no potentially
+            // applicable visible extension. Never merge tiers before comparing
+            // receiver specificity: an applicable local Iterable extension
+            // still takes precedence over an outer List extension.
+            let applicableScopeCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+                guard receiverMatches(candidate),
+                      let symbol = ctx.cachedSymbol(candidate),
+                      !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols),
+                      ctx.visibilityChecker.isAccessible(
+                          symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+                      )
+                else { return false }
+                return callShapeMatches(candidate)
+            })
+            if !applicableScopeCandidates.isEmpty {
+                scopeCandidates = applicableScopeCandidates
+            }
+        }
         if let dispatchReceiver = ctx.implicitReceiverType {
             let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner

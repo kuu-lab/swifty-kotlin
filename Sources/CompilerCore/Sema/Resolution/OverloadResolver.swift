@@ -52,16 +52,17 @@ public struct CallExpr {
     public let explicitTypeArgs: [TypeID]
     /// Lexical receivers, innermost first, independently of the extension receiver.
     public let dispatchReceiverTypes: [TypeID]
-    /// Scope-resolved bare calls may supply a named object's singleton receiver.
-    public let allowsImplicitObjectReceiver: Bool
+    /// Direct imports bind these ordinary object members to their singleton.
+    /// Explicit member calls must retain their actual receiver type.
+    public let boundObjectDispatchReceiverCandidates: Set<SymbolID>
 
-    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], allowsImplicitObjectReceiver: Bool = false) {
+    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = []) {
         self.range = range
         self.calleeName = calleeName
         self.args = args
         self.explicitTypeArgs = explicitTypeArgs
         self.dispatchReceiverTypes = dispatchReceiverTypes
-        self.allowsImplicitObjectReceiver = allowsImplicitObjectReceiver
+        self.boundObjectDispatchReceiverCandidates = boundObjectDispatchReceiverCandidates
     }
 }
 
@@ -70,17 +71,20 @@ public struct ResolvedCall {
     public let substitutedTypeArguments: [TypeVarID: TypeID]
     public let parameterMapping: [Int: Int]
     public let diagnostic: Diagnostic?
+    public let defaultArgumentOwner: SymbolID?
 
     public init(
         chosenCallee: SymbolID?,
         substitutedTypeArguments: [TypeVarID: TypeID],
         parameterMapping: [Int: Int],
-        diagnostic: Diagnostic?
+        diagnostic: Diagnostic?,
+        defaultArgumentOwner: SymbolID? = nil
     ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
         self.diagnostic = diagnostic
+        self.defaultArgumentOwner = defaultArgumentOwner
     }
 }
 

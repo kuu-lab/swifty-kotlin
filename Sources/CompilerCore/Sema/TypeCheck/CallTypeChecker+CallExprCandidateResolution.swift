@@ -70,7 +70,17 @@ extension CallTypeChecker {
                 return candidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? callImplicitReceiverType
+            }?.type ?? candidates.lazy.compactMap { candidate -> TypeID? in
+                guard let owner = sema.symbols.parentSymbol(for: candidate),
+                      let containingClass = sema.symbols.parentSymbol(for: owner),
+                      sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+                      let receiverType = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      resolveClassType(receiverType, sema: sema)?.classSymbol == owner
+                else {
+                    return nil
+                }
+                return receiverType
+            }.first ?? callImplicitReceiverType
             let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
                 candidates: candidates,
                 args: args,
@@ -89,8 +99,8 @@ extension CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: callImplicitReceiverType,
+                bindsObjectDispatchReceiver: true,
                 candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
-                allowsImplicitObjectReceiver: true,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -220,7 +230,7 @@ extension CallTypeChecker {
                        explicitTypeArgs: explicitTypeArgs,
                        expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                        implicitReceiverType: ctx.implicitReceiverType,
-                       allowsImplicitObjectReceiver: true,
+                       bindsObjectDispatchReceiver: true,
                        lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                        inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                        blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,

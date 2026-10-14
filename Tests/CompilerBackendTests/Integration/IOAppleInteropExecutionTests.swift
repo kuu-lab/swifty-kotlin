@@ -181,12 +181,14 @@ private struct IOAppleArtifactSnapshot {
     func expectUnchanged() { #expect((try? io1763ArtifactHashes(directory)) == hashes) }
 }
 
-private func io1763ArtifactHashes(_ directory: URL) throws -> [String: String] {
-    let canonical = directory.standardizedFileURL
+func io1763ArtifactHashes(_ directory: URL) throws -> [String: String] {
+    let canonical = directory.resolvingSymlinksInPath().standardizedFileURL
     let enumerator = try #require(FileManager.default.enumerator(at: canonical, includingPropertiesForKeys: [.isRegularFileKey]))
     var hashes: [String: String] = [:]
-    for case let file as URL in enumerator {
+    for case let entry as URL in enumerator {
+        let file = entry.resolvingSymlinksInPath().standardizedFileURL
         guard try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { continue }
+        try #require(file.path.hasPrefix(canonical.path + "/"))
         hashes[String(file.path.dropFirst(canonical.path.count + 1))] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
     }
     return hashes

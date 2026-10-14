@@ -21,10 +21,10 @@ struct RuntimeBoxingTests {
     }
 
     @Test
-    func testUnboxIntNullSentinelReturnsZero() {
+    func testUnboxIntPreservesNullSentinel() {
         let sentinel = Int(Int64.min)
         let result = kk_unbox_int(sentinel)
-        #expect(result == 0)
+        #expect(result == sentinel)
     }
 
     @Test
@@ -99,6 +99,28 @@ struct RuntimeBoxingTests {
 
     // MARK: - kk_box_bool / kk_unbox_bool
 
+    @Test(arguments: [0, 1])
+    func testBooleanBoxIdentityIsSharedAcrossBoxingEntryPoints(value: Int) {
+        let boxed = kk_box_bool(value)
+        #expect(kk_box_bool(value) == boxed)
+        #expect(kk_box_bool_static(value) == boxed)
+        #expect(kk_box_bool(boxed) == boxed)
+        #expect(kk_box_bool_static(boxed) == boxed)
+        #expect(kk_unbox_bool(boxed) == value)
+        #expect(kk_unbox_bool_static(boxed) == value)
+        #expect(kk_box_bool(1 - value) != boxed)
+        #expect(kk_box_int(value) != boxed)
+    }
+
+    @Test
+    func testBooleanBoxCacheNormalizesTruthyValuesAndPreservesNull() {
+        #expect(kk_box_bool(42) == kk_box_bool(1))
+        #expect(kk_box_bool_static(-1) == kk_box_bool(1))
+        #expect(kk_box_bool_static(runtimeNullSentinelInt) == runtimeNullSentinelInt)
+        #expect(kk_unbox_bool_static(runtimeNullSentinelInt) == runtimeNullSentinelInt)
+        #expect(kk_box_bool(0) != runtimeNullSentinelInt)
+    }
+
     @Test
     func testBoxAndUnboxBoolTrueRoundTrip() {
         let boxed = kk_box_bool(1)
@@ -121,10 +143,10 @@ struct RuntimeBoxingTests {
     }
 
     @Test
-    func testUnboxBoolNullSentinelReturnsZero() {
+    func testUnboxBoolPreservesNullSentinel() {
         let sentinel = Int(Int64.min)
         let result = kk_unbox_bool(sentinel)
-        #expect(result == 0)
+        #expect(result == sentinel)
     }
 
     @Test
@@ -210,9 +232,9 @@ struct RuntimeBoxingTests {
         #expect(kk_box_int_static(sentinel) == sentinel)
         #expect(kk_box_long_static(sentinel) == sentinel)
         #expect(kk_box_double_static(sentinel) == sentinel)
-        #expect(kk_unbox_int_static(sentinel) == 0)
+        #expect(kk_unbox_int_static(sentinel) == sentinel)
         #expect(kk_unbox_long_static(sentinel) == Int.min)
-        #expect(kk_unbox_double_static(sentinel) == 0)
+        #expect(kk_unbox_double_static(sentinel) == sentinel)
     }
 
     @Test

@@ -98,6 +98,27 @@ struct RuntimeEncodeDecodeTests {
 
     // MARK: - encodeToByteArray: basic ASCII round-trip
 
+    @Test func encodedArraysRetainByteArrayIdentity() {
+        for text in ["Aé", ""] {
+            withFlatString(text) { data, length, byteCount, hash in
+                let arrays = [
+                    __kk_string_toByteArray_flat(data, length, byteCount, hash),
+                    __kk_string_encodeToByteArray_flat(data, length, byteCount, hash),
+                    __kk_string_toByteArray_charset_flat(data, length, byteCount, hash, __kk_charset_utf_16be()),
+                    __kk_string_toByteArray_charset_flat(data, length, byteCount, hash, 999),
+                    __kk_string_encodeToByteArray_range_flat(data, length, byteCount, hash, 0, length),
+                    __kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, __kk_charset_utf_16le()),
+                    __kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, 999),
+                ]
+                for raw in arrays {
+                    #expect(runtimeArrayHasType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray")))
+                    #expect(!runtimeArrayHasType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.IntArray")))
+                    _ = runtimeReleaseObject(raw)
+                }
+            }
+        }
+    }
+
     @Test
     func testEncodeToByteArrayASCII() {
         withFlatString("Hello") { data, length, byteCount, hash in

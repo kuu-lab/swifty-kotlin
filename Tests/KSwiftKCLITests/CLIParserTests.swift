@@ -16,6 +16,19 @@ struct CLIParserTests {
         #expect(options.emit == .executable)
     }
     @Test
+    func selectsQualifiedExecutableEntryWithoutRewritingLibraryMains() throws {
+        let options = try CLIParser.parse(args: [
+            "--entry-point", "consumer.main", "--stdlib-from-source", "producer.kt", "consumer.kt",
+        ])
+        #expect(options.entryPointFQName == "consumer.main")
+        #expect(options.inputs == ["producer.kt", "consumer.kt"])
+        #expect(options.includeStdlib && !options.allowDefaultStdlibLibrary)
+        #expect(throws: CLIParseError.missingValue("--entry-point")) {
+            try CLIParser.parse(args: ["input.kt", "--entry-point"])
+        }
+    }
+
+    @Test
     func parsesMinimalInput() throws {
         let options = try CLIParser.parse(args: ["input.kt"])
         #expect(options.inputs == ["input.kt"])

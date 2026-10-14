@@ -142,19 +142,32 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // operator fun CPointer<T>.get(index: Int): T — element access scaled by
-        // the pointee layout inside kk_cpointer_get.
-        registerSyntheticNativeMemberFunction(
+        // The generic operator is an extension, allowing the more specific
+        // source Byte pointer operator to return its primitive value.
+        let getTypeParameterFQName = cinteropPkg + [interner.intern("get"), interner.intern("T")]
+        let getTypeParameter = symbols.lookup(fqName: getTypeParameterFQName) ?? symbols.define(
+            kind: .typeParameter,
+            name: interner.intern("T"),
+            fqName: getTypeParameterFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setTypeParameterUpperBounds([cPointedType], for: getTypeParameter)
+        let getElementType = types.make(.typeParam(TypeParamType(symbol: getTypeParameter, nullability: .nonNull)))
+        let getReceiverType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol, args: [.invariant(getElementType)], nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
             named: "get",
-            ownerSymbol: cPointerSymbol,
-            receiverType: cPointerGenericType,
+            packageFQName: cinteropPkg,
+            receiverType: getReceiverType,
             parameters: [(name: "index", type: types.intType)],
-            returnType: cPointerElementType,
-            typeParameterSymbols: types.nominalTypeParameterSymbols(for: cPointerSymbol),
+            returnType: getElementType,
+            typeParameterSymbols: [getTypeParameter],
             typeParameterUpperBoundsList: [[cPointedType]],
-            classTypeParameterCount: 1,
-            flags: [.synthetic, .operatorFunction],
             externalLinkName: "kk_cpointer_get",
+            flags: [.synthetic, .operatorFunction],
             symbols: symbols,
             interner: interner
         )

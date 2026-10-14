@@ -19,7 +19,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     private var owner: Int = 0
     private enum Waiter {
         case blocking(DispatchSemaphore, owner: Int)
-        case coroutine(Int, owner: Int)
+        case coroutine(RuntimeCancellableContinuation, owner: Int)
     }
     private var waiters = RuntimeFIFOQueue<Waiter>()
 
@@ -98,9 +98,14 @@ final class RuntimeMutexHandle: @unchecked Sendable {
             runtimeWaitDrainingEventLoop(sema)
             return 0
         }
-        waiters.enqueue(.coroutine(continuation, owner: owner))
+        // Install delivery before parent cancellation can wake the caller.
+        // A cancelled delivery returns any ownership transferred by unlock().
+        let waiter = RuntimeCancellableContinuation(delegate: continuation)
+        let result = waiter.getResult(nil)
+        waiters.enqueue(.coroutine(waiter, owner: owner))
+        waiter.initParent()
         lock.unlock()
-        return Int(bitPattern: kk_coroutine_suspended())
+        return result
     }
 
     /// Release the lock.  If there are pending waiters, the first one is
@@ -140,14 +145,16 @@ final class RuntimeMutexHandle: @unchecked Sendable {
                 sema.signal()
                 return 0
             case let .coroutine(continuation, owner):
-                if runtimeSyncContinuationIsCancelled(continuation) {
+                if continuation.stateValue == 2 {
                     continue
                 }
                 waiterOwner = owner
                 // Keep the mutex held — ownership transfers to the resumed waiter.
                 self.owner = waiterOwner
                 lock.unlock()
-                runtimeSyncResume(continuation)
+                continuation.resume(value: 0) { [self] in
+                    _ = unlock(expectedOwner: owner)
+                }
                 return 0
             }
         }

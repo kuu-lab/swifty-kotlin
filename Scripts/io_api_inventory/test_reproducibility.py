@@ -78,18 +78,30 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertTrue(all(row["_source_key"] == declaration["_source_key"] for row in paired))
 
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
+        index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)
         for api_id in (
             "kotlinx.io.bytestring/toByteString|toByteString@platform.Foundation.NSData(){}",
             "kotlinx.io/asSource|asSource@platform.Foundation.NSInputStream(){}",
         ):
             row = self.row(api_id)
-            self.assertEqual(row["local_candidate_refs"], "none")
-            self.assertEqual(row["status"], "missing")
+            matches = index.match("local", row["_source_key"])
+            self.assertTrue(matches, "The integrated Apple implementation must match its exact receiver")
+            exact_refs = {f"{declaration['path']}:{declaration['line']}" for declaration in matches}
+            self.assertEqual(set(row["local_candidate_refs"].split(";")), exact_refs)
+            self.assertEqual(row["status"], "unverified")
             self.assertEqual(row["owner_issue"], "KUU-1763")
+            wrong_refs = {f"{declaration['path']}:{declaration['line']}"
+                          for declaration in index.declarations if declaration["origin"] == "local"
+                          and declaration["name"] == row["name"] and index.declaration_key(declaration) != row["_source_key"]}
+            self.assertTrue(wrong_refs, "Keep same-name alternative receivers as negative controls")
+            self.assertFalse(exact_refs & wrong_refs)
         row = next(row for row in self.rows if row.get("_source_key") == (
             "function", "kotlinx.io.readAtMostTo", "kotlinx.io.Source", ("java.nio.ByteBuffer",)
         ))
-        self.assertEqual(row["local_candidate_refs"], "none")
+        matches = index.match("local", row["_source_key"])
+        self.assertTrue(matches)
+        self.assertEqual(set(row["local_candidate_refs"].split(";")),
+                         {f"{declaration['path']}:{declaration['line']}" for declaration in matches})
         self.assertEqual(row["owner_issue"], "KUU-1762")
 
     def test_jvm_name_is_scoped_and_internal_visibility_is_preserved(self):

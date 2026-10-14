@@ -1277,14 +1277,18 @@ extension CallLowerer {
             )
         }
 
+        let safeDefaultStubOwner = chosen.map {
+            driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema, callBinding: callBinding)
+        }
         if safeNormalized.defaultMask != 0,
            let chosen,
-           sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+           let stubOwner = safeDefaultStubOwner,
+           (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
+            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil)
         {
             // KUU-655: an override that inherits its defaults never has its
             // own stub; resolve to the base declaration's stub instead (see
             // `defaultStubOwnerSymbol`).
-            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosen, sema: sema)
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
                 callBinding: callBinding,

@@ -20,3 +20,4 @@ public operator fun CPointer<UByteVar>.plus(index: Int): CPointer<UByteVar> =
     platform.Foundation.__foundation_byte_pointer_add(this, index).reinterpret()
 public operator fun CPointer<ByteVar>.plus(index: Int): CPointer<ByteVar> =
     platform.Foundation.__foundation_byte_pointer_add(this, index)
+public operator fun CPointer<ByteVar>.get(index: Int): Byte = (this + index).pointed.value

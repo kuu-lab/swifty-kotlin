@@ -232,7 +232,7 @@ extension BuildASTPhase.ExpressionParser {
         let hasAt = peek(1).map { $0.kind == .symbol(.at) } ?? false
         if hasAt, let nextToken = peek(2) {
             switch nextToken.kind {
-            case .keyword(.for), .keyword(.while), .keyword(.do), .symbol(.lBrace):
+            case .keyword(.for), .keyword(.while), .keyword(.do), .keyword(.fun), .symbol(.lBrace):
                 let savedIndex = index
                 _ = consume()
                 _ = consume()
@@ -246,6 +246,11 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if matches(.keyword(.do)) {
                     return parseDoWhileExpression(label: name, start: start)
+                }
+                if matches(.keyword(.fun)) {
+                    if let function = parseAnonymousFunctionLiteral(label: name) {
+                        return function
+                    }
                 }
                 if matches(.symbol(.lBrace)) {
                     let labelBindsToPostfixExpression = labeledLambdaBindsToPostfixExpression()

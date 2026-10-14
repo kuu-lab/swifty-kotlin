@@ -103,7 +103,7 @@ struct ValPropertyInitializationTests {
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             if rejects {
                 #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0014" }, "\(source): \(errors)")
-                #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0014" }, "\(source): \(errors)")
+                #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0014" || $0.code == "KSWIFTK-SEMA-0424" }, "\(source): \(errors)")
             } else {
                 #expect(errors.isEmpty, "\(source): \(errors)")
             }

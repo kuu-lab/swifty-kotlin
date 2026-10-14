@@ -17,17 +17,23 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         expectedTypeOverrides: inout [Int: TypeID]
     ) {
-        guard candidates.count == 1,
-              let candidate = candidates.first,
-              let signature = ctx.sema.symbols.functionSignature(for: candidate)
+        // Argument labels and arity can leave a single contextual candidate
+        // even before the nested call's result type is known.
+        let mappedCandidates = candidates.compactMap { candidate -> (FunctionSignature, [Int: Int])? in
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
+            else { return nil }
+            return (signature, mapping)
+        }
+        guard mappedCandidates.count == 1,
+              let (signature, parameterMapping) = mappedCandidates.first
         else {
             return
         }
         let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
         for index in args.indices {
             guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast),
-                  let parameterIndex = parameterMapping?[index],
+                  let parameterIndex = parameterMapping[index],
                   parameterIndex < signature.parameterTypes.count,
                   let parameterType = contextualCallArgumentType(
                       args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
@@ -40,14 +46,16 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            // A concrete constructor cannot change its result type to match an
-            // inapplicable outer member. Keep its already inferred type so the
-            // member resolver can retry extensions without poisoning the call.
+            // Constructors and non-generic factories have fixed result types.
+            // Keep an incompatible result already inferred without context so
+            // an inapplicable member can fall through to an extension overload.
             if let argumentType = preInferredArgumentTypes[index],
                argumentType != ctx.sema.types.errorType,
-               let constructor = ctx.sema.bindings.callBinding(for: args[index].expr)?.chosenCallee,
-               ctx.sema.symbols.symbol(constructor)?.kind == .constructor,
-               ctx.sema.symbols.functionSignature(for: constructor)?.classTypeParameterCount == 0,
+               let nestedCallee = ctx.sema.bindings.callBinding(for: args[index].expr)?.chosenCallee,
+               let nestedSymbol = ctx.sema.symbols.symbol(nestedCallee),
+               let nestedSignature = ctx.sema.symbols.functionSignature(for: nestedCallee),
+               (nestedSymbol.kind == .constructor && nestedSignature.classTypeParameterCount == 0
+                || nestedSymbol.kind == .function && nestedSignature.typeParameterSymbols.isEmpty),
                !ctx.sema.types.isSubtype(argumentType, parameterType)
             {
                 continue

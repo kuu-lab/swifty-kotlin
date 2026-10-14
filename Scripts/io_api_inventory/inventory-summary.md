@@ -9,8 +9,8 @@ Kotlin compiler baseline: `2.3.10`.
 - JVM ABI dump rows: **369**, including **124** generated/accessor rows kept separate from Kotlin source callables.
 - KLIB rows backed by non-public implementation declarations: **34**; these are separate from public source APIs.
 - `@PublishedApi internal` implementation ABI rows: **19**.
-- Rows marked missing because no exact owner/receiver/parameter local declaration was found: **46**.
-- Rows with exact local declarations or generated ABI entries, without semantic verification: **660**.
+- Rows marked missing because no exact owner/receiver/parameter local declaration was found: **5**.
+- Rows with exact local declarations or generated ABI entries, without semantic verification: **701**.
 - Public JVM exception typealiases tracked separately: **3**.
 - Source exception contracts documented with `@throws`/`@Throws`: **241** rows.
 - Source deprecation levels found: ERROR=4
