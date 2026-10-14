@@ -13,6 +13,24 @@ import Testing
 /// treats the null sentinel correctly) instead of kk_op_eq/ne, while a
 /// non-null primitive comparison keeps using the cheaper kk_op_eq/ne path.
 extension LoweringPassRegressionTests {
+    @Test
+    func testGenericCallsBoxContextualLongIntegerLiteralsAsLong() throws {
+        let source = """
+        fun <T> eq(a: T, b: T): Boolean = a == b
+        fun longResult(): Long = 0L
+
+        fun main() {
+            eq(0, 0L)
+            eq(0, longResult())
+            val value: Long = 0
+            eq(0, value)
+        }
+        """
+        let callees = try loweredCallees(for: source, function: "main", includeStdlib: false)
+        #expect(callees.filter { $0 == RuntimeCall.boxLongNonnullStatic.name }.count == 6, "Every Long argument to eq must be boxed as Long: \(callees)")
+        #expect(!callees.contains(RuntimeCall.boxIntStatic.name), "A Long-context integer literal must not be boxed as Int: \(callees)")
+    }
+
     @Test(arguments: ["raw", "amount", "amount()"])
     func testNullableValueClassSafeAccessBoxesNonNullLongResult(member: String) throws {
         let source = """
