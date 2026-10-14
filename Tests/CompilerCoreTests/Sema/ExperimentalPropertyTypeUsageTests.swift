@@ -141,6 +141,34 @@ struct ExperimentalPropertyTypeUsageTests {
         #expect(diagnostics.allSatisfy { $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .error })
     }
 
+    @Test(arguments: [false, true])
+    func compoundAssignAndDiscardedPostfixRequireTypeMarkers(usingKklib: Bool) throws {
+        let source = """
+        @RequiresOptIn(level = RequiresOptIn.Level.ERROR) annotation class Gate
+        @Gate class Experimental {
+            operator fun plus(other: Experimental) = this
+            operator fun dec() = this
+        }
+        @OptIn(Gate::class) class Holder(var value: Experimental, var count: Int) {
+            fun implicit() { value-- }
+            @OptIn(Gate::class) fun accepted() { value-- }
+        }
+        fun compound(holder: Holder) { holder.value += holder.value }
+        fun postfix(holder: Holder) { holder.value-- }
+        fun plain(holder: Holder) { holder.count += 1; holder.count-- }
+        @OptIn(Gate::class) fun accepted(holder: Holder) { holder.value += holder.value; holder.value-- }
+        """
+        let context = try check(source, usingKklib: usingKklib)
+        let diagnostics = context.diagnostics.diagnostics
+        #expect(diagnostics.allSatisfy { $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .error })
+        let lines = try diagnostics.map { diagnostic -> Int in
+            let offset = try #require(diagnostic.primaryRange).start.offset
+            return source.utf8.prefix(offset).filter { $0 == UInt8(ascii: "\n") }.count + 1
+        }
+        // opted-in class body (7) is accepted; compound (10: write + read), postfix (11)
+        #expect(lines.sorted() == [10, 10, 11], "\(diagnostics)")
+    }
+
     private func diagnosticOffsets(_ diagnostics: [Diagnostic]) throws -> [Int] {
         try diagnostics.map { try #require($0.primaryRange).start.offset }
     }
