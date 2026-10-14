@@ -264,6 +264,17 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             && (isReferenceType(lhs, arena: arena, types: types) || isReferenceType(rhs, arena: arena, types: types)
                 || isNullablePrimitive(lhs, arena: arena, types: types) || isNullablePrimitive(rhs, arena: arena, types: types))
 
+        var effectiveLhs = lhs
+        var effectiveRhs = rhs
+        if needsStructuralEquality {
+            effectiveLhs = boxFloatingOperandForReferenceEquality(
+                lhs, peer: rhs, arena: arena, interner: interner, types: types, newBody: &newBody
+            )
+            effectiveRhs = boxFloatingOperandForReferenceEquality(
+                rhs, peer: lhs, arena: arena, interner: interner, types: types, newBody: &newBody
+            )
+        }
+
         let lhsRank = needsStructuralEquality ? 0 : primitiveRank(for: lhs, arena: arena, types: types)
         let rhsRank = needsStructuralEquality ? 0 : primitiveRank(for: rhs, arena: arena, types: types)
         let rank = max(lhsRank, rhsRank)
@@ -274,8 +285,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         case 1: "f"
         default: ""
         }
-        var effectiveLhs = lhs
-        var effectiveRhs = rhs
         if rank > 0 {
             let convertedType = widenedPrimitiveType(rank: rank, types: types)
             if lhsRank < rank {
@@ -311,6 +320,41 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         case .logicalOr: interner.intern("kk_op_or")
         }
         newBody.append(.call(symbol: nil, callee: callee, arguments: [effectiveLhs, effectiveRhs], result: result, canThrow: false, thrownResult: nil))
+    }
+
+    /// A raw Double/Float word has no runtime type tag. Box it before comparing
+    /// against a reference value so structural equality cannot mistake the
+    /// floating-point bits for an equal boxed integer value.
+    private func boxFloatingOperandForReferenceEquality(
+        _ operand: KIRExprID,
+        peer: KIRExprID,
+        arena: KIRArena,
+        interner: StringInterner,
+        types: TypeSystem?,
+        newBody: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard let types,
+              isReferenceType(peer, arena: arena, types: types),
+              let typeID = arena.exprType(operand),
+              case let .primitive(primitive, .nonNull) = types.kind(of: typeID),
+              primitive == .double || primitive == .float,
+              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: types.kind(of: typeID), requireNonNull: true, preferStaticPrimitive: true
+              )
+        else {
+            return operand
+        }
+
+        let boxed = arena.appendTemporary(type: types.nullableAnyType)
+        newBody.append(.call(
+            symbol: nil,
+            callee: boxCallee,
+            arguments: [operand],
+            result: boxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return boxed
     }
 
     /// Returns true when the expression's static type is a nullable primitive
