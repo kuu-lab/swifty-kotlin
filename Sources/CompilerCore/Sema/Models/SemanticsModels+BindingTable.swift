@@ -26,6 +26,12 @@ public final class BindingTable {
     public func bindPlatformNullAssertion(_ expr: ExprID, targetType: TypeID?) {
         platformNullAssertionTypes[expr] = targetType
     }
+    /// JVM Unit returns evaluate their expression, then produce the singleton.
+    public private(set) var unitReturnCoercionExprs: Set<ExprID> = []
+
+    public func markUnitReturnCoercion(_ expr: ExprID) {
+        unitReturnCoercionExprs.insert(expr)
+    }
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     /// Actual lambda destination and the boundaries crossed to reach it.
@@ -282,6 +288,7 @@ public final class BindingTable {
     /// worker delta, including calls, captures and Worker.execute metadata.
     var hasOnlyIndependentScalarBindings: Bool {
         if !platformNullAssertionTypes.isEmpty { return false }
+        if !unitReturnCoercionExprs.isEmpty { return false }
         if !whenExhaustiveness.isEmpty { return false }
         if !lambdaReturnTargets.isEmpty { return false }
         if !lambdaReturnLambdaPaths.isEmpty { return false }

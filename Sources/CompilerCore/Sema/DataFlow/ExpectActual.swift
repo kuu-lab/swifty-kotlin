@@ -583,7 +583,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem
     ) -> Bool {
         switch (types.kind(of: expectType), types.kind(of: actualType)) {
-        case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
+        case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit), (.platformUnit, .platformUnit):
             return true
 
         case let (.nothing(expectNullability), .nothing(actualNullability)):

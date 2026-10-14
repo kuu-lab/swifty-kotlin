@@ -722,7 +722,7 @@ extension DeclTypeChecker {
         switch ctx.sema.types.kind(of: type) {
         case .primitive, .stringStruct, .classType, .typeParam, .any(.nonNull):
             return true
-        case .error, .unit, .nullableUnit, .nothing, .any(.nullable), .any(.platformType),
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any(.nullable), .any(.platformType),
              .functionType, .intersection, .kClassType:
             return false
         }

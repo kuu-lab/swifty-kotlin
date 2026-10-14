@@ -404,7 +404,7 @@ package final class MetadataEncoder {
                 nullability: kClassType.nullability
             )))
 
-        case .typeParam, .stringStruct, .primitive, .any, .unit, .nullableUnit, .nothing, .error:
+        case .typeParam, .stringStruct, .primitive, .any, .unit, .nullableUnit, .platformUnit, .nothing, .error:
             return type
         }
     }

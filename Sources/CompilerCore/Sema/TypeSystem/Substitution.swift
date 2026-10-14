@@ -15,6 +15,8 @@ public extension TypeSystem {
             return "Unit"
         case .nullableUnit:
             return "Unit?"
+        case .platformUnit:
+            return "Unit!"
         case let .nothing(nullability):
             return "Nothing\(nullabilitySuffix(nullability))"
         case let .any(nullability):

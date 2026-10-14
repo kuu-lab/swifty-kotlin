@@ -524,7 +524,7 @@ extension ExprLowerer {
                     // String has its own aggregate kind instead of `.classType`.
                     // It still needs declared-type storage when a nullable local
                     // starts as `null`, so later assignments update the local slot.
-                    case .nullableUnit, .any, .classType, .functionType, .stringStruct, .typeParam:
+                    case .nullableUnit, .platformUnit, .any, .classType, .functionType, .stringStruct, .typeParam:
                         true
                     default:
                         false

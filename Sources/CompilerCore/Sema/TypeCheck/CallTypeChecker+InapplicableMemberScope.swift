@@ -166,7 +166,7 @@ extension CallTypeChecker {
             guard depth < 64, activeTypes.insert(current).inserted else { return false }
             defer { activeTypes.remove(current) }
             switch sema.types.kind(of: current) {
-            case .unit, .nullableUnit, .nothing, .any, .stringStruct, .primitive:
+            case .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive:
                 return true
             case let .classType(classType):
                 guard sema.symbols.symbol(classType.classSymbol) != nil else { return false }

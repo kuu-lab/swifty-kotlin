@@ -718,6 +718,11 @@ extension LocalDeclTypeChecker {
                 locals: &bodyLocals,
                 expectedType: returnTypeRef != nil ? resolvedReturnType : nil
             )
+            if returnTypeRef != nil, resolvedReturnType == sema.types.unitType,
+               sema.types.makeNonNullable(inferredBodyType) == sema.types.unitType
+            {
+                sema.bindings.markUnitReturnCoercion(exprID)
+            }
         case .unit:
             inferredBodyType = sema.types.unitType
         }

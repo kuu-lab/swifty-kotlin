@@ -574,6 +574,8 @@ private func callableReflectionTypeName(
         return "kotlin.Unit"
     case .nullableUnit:
         return "kotlin.Unit?"
+    case .platformUnit:
+        return "kotlin.Unit!"
     case let .nothing(nullability):
         return "kotlin.Nothing\(nullabilitySuffix(nullability))"
     case let .any(nullability):

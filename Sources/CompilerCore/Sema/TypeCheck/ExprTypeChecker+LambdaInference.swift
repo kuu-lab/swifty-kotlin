@@ -386,6 +386,11 @@ extension ExprTypeChecker {
             expectedType: bodyExpectedType,
             isStatementContext: expectedFunctionType?.returnType == sema.types.unitType
         )
+        if expectedLambdaReturnType == sema.types.unitType,
+           sema.types.makeNonNullable(fallthroughType) == sema.types.unitType
+        {
+            sema.bindings.markUnitReturnCoercion(body)
+        }
         let inferredBodyType = sema.types.lub(
             [fallthroughType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
         )

@@ -228,7 +228,7 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error:
             false
-        case .nullableUnit:
+        case .nullableUnit, .platformUnit:
             false
         case .unit:
             true
@@ -262,6 +262,8 @@ public final class TypeSystem {
             .nonNull
         case .nullableUnit:
             .nullable
+        case .platformUnit:
+            .platformType
         case let .nothing(n), let .any(n), let .stringStruct(n), let .primitive(_, n):
             n
         case let .classType(ct):
@@ -299,9 +301,12 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error:
             return type
-        case .unit, .nullableUnit:
-            // Unit has two states; platform nullability is conservatively nullable.
-            return nullability == .nonNull ? unitType : make(.nullableUnit)
+        case .unit, .nullableUnit, .platformUnit:
+            switch nullability {
+            case .nonNull: return unitType
+            case .nullable: return make(.nullableUnit)
+            case .platformType: return make(.platformUnit)
+            }
         case let .intersection(parts):
             if nullability == .nonNull {
                 if parts.contains(where: { isDefinitelyNonNull($0) }) {
