@@ -212,6 +212,24 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 選択する。`--no-stdlib`、`--stdlib-only`、明示的な `--stdlib-library` は既定解決の対象外。
 ソースを introspect する API 呼び出しは `allowDefaultStdlibLibrary: false` を指定する。
 
+### Native の `java.lang.Class.desiredAssertionStatus()` 契約
+
+JVM-shaped `Class<T>` facade の `desiredAssertionStatus(): Boolean` は、既存の
+`__kk_assertions_enabled` を通じて `kotlin.assert` と同じプロセス共通の状態を返す。
+class token の生成と `Any.javaClass` の表現は既存の経路を使う。`KClass.java` は
+型引数を維持する source-backed extension として宣言し、既存の opaque Class facade に
+class token を格納する。Sema の java view binding はこの宣言の実体へ接続する。
+Native は JVM の ClassLoader・クラス別・パッケージ別の assertion policy を持たない。
+このメソッドを呼び出した時点の共通状態を返し、consumer が初期化時に保存した値は
+consumer の Kotlin ソースどおりに保持される。
+
+既定は **有効**。起動時に `KK_ASSERTIONS_ENABLED`、`KOTLIN_ASSERTIONS_ENABLED` の順で
+空でない認識可能な値を探す。前後の空白と大文字小文字を無視し、`0/false/no/off` は無効、
+`1/true/yes/on` は有効とする。認識できない値は次の変数に進み、どちらも指定がなければ
+有効になる。JVM の無効な既定値とは異なるため、出力・例外の比較には Native の既定値と
+`java -ea`、Native の `KK_ASSERTIONS_ENABLED=0` と `java -da` をそれぞれ対応させる。
+O0/O2 および source/artifact によってこの契約は変わらない。
+
 Golden ハーネスはケースの `stdlib-profile` を優先する。`source` はソース注入、`artifact` は
 渡された artifact、`no-stdlib` は stdlib なしで実行する。spec 無しケースもテストハーネスが
 共有 artifact を渡す既存経路を利用するが、artifact が渡されない直接実行の source fallback は
