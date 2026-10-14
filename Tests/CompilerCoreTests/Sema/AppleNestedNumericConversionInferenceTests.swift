@@ -81,6 +81,19 @@ struct AppleNestedNumericConversionInferenceTests {
     }
 
     @Test(arguments: [false, true])
+    func invalidArrayAllocationCountsAndElementsRemainRejected(library: Bool) throws {
+        for call in ["allocArray<ByteVar>(2.5)", "allocArray<String>(3)"] {
+            let ctx = try context("""
+            @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+            import kotlinx.cinterop.*
+            fun main() = memScoped { \(call) }
+            """, library: library)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(!errors.isEmpty, "\(call) must remain invalid")
+        }
+    }
+
+    @Test(arguments: [false, true])
     func bytePointersReturnValuesAndGenericPointersKeepVariables(library: Bool) throws {
         let ctx = try context("""
         @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)

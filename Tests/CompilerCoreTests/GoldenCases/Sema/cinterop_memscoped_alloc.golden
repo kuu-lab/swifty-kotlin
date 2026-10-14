@@ -23,8 +23,8 @@ expr e@16:5 localDecl intVar mutable=0 type=_ init=e@16:18 type=Unit ref=__local
 expr e@17:5 name(intVar) type=kotlinx.cinterop.IntVar ref=__local_0.intVar[kind=local;type=kotlinx.cinterop.IntVar;origin=fixture]
 expr e@17:20 int(42) type=Int
 expr e@17:5#1 memberAssign recv=e@17:5 callee=value value=e@17:20 type=Unit ref=kotlinx.cinterop.IntVar.value[kind=prop;type=Int;mutable]
-expr e@18:34 int(2) type=Long
-expr e@18:15 call callee=e@18:15#1 args=[_:e@18:34] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> call=kotlinx.cinterop.NativePlacement.allocArray[kind=fun;recv=kotlinx.cinterop.NativePlacement;params=Long;ret=kotlinx.cinterop.CPointer<T0>;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];names=[length]] targs=[kotlinx.cinterop.IntVar]
+expr e@18:34 int(2) type=Int
+expr e@18:15 call callee=e@18:15#1 args=[_:e@18:34] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> call=kotlinx.cinterop.NativePlacement.allocArray[kind=fun;recv=kotlinx.cinterop.NativePlacement;params=Int;ret=kotlinx.cinterop.CPointer<T0>;gen=1;bounds=[kotlinx.cinterop.CVariable];reified=[0];names=[length]] targs=[kotlinx.cinterop.IntVar]
 expr e@18:5 localDecl arr mutable=0 type=_ init=e@18:15 type=Unit ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
 expr e@19:5 name(arr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=__local_1.arr[kind=local;type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>;origin=fixture]
 expr e@19:9 int(0) type=Int

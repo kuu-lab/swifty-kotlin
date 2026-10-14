@@ -382,8 +382,10 @@ enum InlineErasedLambdaABI {
         ctx: KIRContext,
         into body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        guard usesErasedLambdaABI(inlineTarget, ctx: ctx),
-              isErasedType(inlineTarget.returnType, ctx: ctx),
+        // A reified conversion can return a boxed R without any callback.
+        // Restore a scalar call result whenever the expansion remains erased;
+        // already specialized primitive expressions retain their raw ABI.
+        guard isErasedType(inlineTarget.returnType, ctx: ctx),
               let resultType = module.arena.exprType(result),
               let primitive = nonNullPrimitiveKind(of: resultType, ctx: ctx),
               nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx) == nil
