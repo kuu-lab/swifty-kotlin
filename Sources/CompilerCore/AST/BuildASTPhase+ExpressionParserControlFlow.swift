@@ -1,6 +1,12 @@
 
 extension BuildASTPhase.ExpressionParser {
     private func parseControlFlowBodyExpression() -> ExprID? {
+        if let token = current(), token.kind == .symbol(.semicolon) {
+            _ = consume()
+            return astArena.appendExpr(
+                .blockExpr(statements: [], trailingExpr: nil, range: token.range)
+            )
+        }
         if matches(.symbol(.at)) {
             guard let operand = parseAnnotatedExpression({
                 if self.matches(.symbol(.lBrace)) {
@@ -585,7 +591,16 @@ extension BuildASTPhase.ExpressionParser {
         }
         let bodyStartIndex = index
 
-        var body = parseControlFlowBodyExpression()
+        // In `do while (condition);`, the condition keyword immediately
+        // follows `do`; parsing it as a nested while expression would lose
+        // the do-while loop and skip its condition entirely.
+        var body: ExprID?
+        if matches(.keyword(.while)) {
+            let emptyRange = SourceRange(start: doToken.range.end, end: doToken.range.end)
+            body = astArena.appendExpr(.blockExpr(statements: [], trailingExpr: nil, range: emptyRange))
+        } else {
+            body = parseControlFlowBodyExpression()
+        }
 
         if !matches(.keyword(.while)),
            let whileIndex = findDoWhileConditionKeyword(startingAt: bodyStartIndex),
