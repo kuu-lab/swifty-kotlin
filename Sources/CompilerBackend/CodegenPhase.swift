@@ -185,7 +185,7 @@ public final class CodegenPhase: CompilerPhase {
 
         let targetString = "\(ctx.options.target.arch)-\(ctx.options.target.vendor)-\(ctx.options.target.os)"
         var manifestDict: [String: Any] = [
-            "formatVersion": 1,
+            "formatVersion": 2,
             "moduleName": ctx.options.moduleName,
             "kotlinLanguageVersion": "2.3.10",
             "compilerVersion": CompilerBuildInfo.version,
@@ -215,7 +215,7 @@ public final class CodegenPhase: CompilerPhase {
 
         try withSubPhaseTiming("libraryMetadata", timer: ctx.phaseTimer) {
             let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
-            try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
+            try metadata.write(to: URL(fileURLWithPath: metadataPath), options: .atomic)
         }
     }
 
@@ -611,9 +611,9 @@ public final class CodegenPhase: CompilerPhase {
         ctx: CompilationContext,
         module: KIRModule,
         functionLinkInfo: FunctionLinkInfo
-    ) -> String {
+    ) -> Data {
         guard let sema = ctx.sema else {
-            return "symbols=0\n"
+            return MetadataEncoder().serializeCompactIndexed([])
         }
         let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
         let inlineFunctionSymbols = functionLinkInfo.inlineFunctionSymbols
@@ -673,7 +673,7 @@ public final class CodegenPhase: CompilerPhase {
             objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
-        return encoder.serializeIndexed(records)
+        return encoder.serializeCompactIndexed(records)
     }
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,

@@ -77,7 +77,7 @@ struct SerializationPropertyAnnotationTests {
             moduleName: "PropertyAnnotationProducer", inputs: [producer], outputPath: library, emit: .library,
             target: defaultTargetTriple(), optLevel: level, stdlibLibraryPath: stdlib
         )))
-        let records = MetadataDecoder().decode(try String(contentsOfFile: library + ".kklib/metadata.bin", encoding: .utf8))
+        let records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: library + ".kklib/metadata.bin")))
         for (field, annotation) in [("required", "Required"), ("temporary", "Transient"), ("optional", "EncodeDefault")] {
             let record = try #require(records.first { $0.fqName == "producer.FieldModel." + field })
             let stored = try #require(record.annotations.first { $0.annotationFQName == "kotlinx.serialization." + annotation })

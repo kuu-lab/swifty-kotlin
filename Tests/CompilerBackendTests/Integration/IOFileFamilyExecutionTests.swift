@@ -202,7 +202,7 @@ struct IOFileFamilyExecutionTests {
                     moduleName: "KUU1761FilesProducer")
         let library = output.appendingPathExtension("kklib")
         try io1761RequireLibrary(library, moduleName: "KUU1761FilesProducer")
-        let metadata = MetadataDecoder().decode(try String(contentsOf: library.appendingPathComponent("metadata.bin"), encoding: .utf8))
+        let metadata = MetadataDecoder().decode(try Data(contentsOf: library.appendingPathComponent("metadata.bin")))
         for name in ["metadata", "joined", "fileSystem", "separator"] {
             try #require(metadata.contains { $0.kind == .function && $0.fqName == "b06producer." + name && $0.visibility == .public })
         }
@@ -276,7 +276,7 @@ private func io1761RequireLibrary(_ directory: URL, moduleName: String) throws {
     let manifest = try #require(JSONSerialization.jsonObject(with: Data(contentsOf:
         directory.appendingPathComponent("manifest.json"))) as? [String: Any])
     try #require(manifest["moduleName"] as? String == moduleName)
-    try #require(manifest["formatVersion"] as? Int == 1)
+    try #require(manifest["formatVersion"] as? Int == 2)
     try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
     let objects = try #require(manifest["objects"] as? [String])
     try #require(!objects.isEmpty)

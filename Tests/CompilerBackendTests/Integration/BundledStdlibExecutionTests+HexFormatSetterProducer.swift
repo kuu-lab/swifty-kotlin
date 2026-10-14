@@ -76,7 +76,7 @@ private func hex1767UserLibrarySnapshot(_ directory: URL) throws -> Hex1767Artif
     let manifestData = try Data(contentsOf: directory.appendingPathComponent("manifest.json"))
     let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
     try #require(manifest["moduleName"] as? String == "KUU1767SetterProducer")
-    try #require(manifest["formatVersion"] as? Int == 1)
+    try #require(manifest["formatVersion"] as? Int == 2)
     try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
     let objects = try #require(manifest["objects"] as? [String])
     try #require(!objects.isEmpty)
@@ -85,7 +85,7 @@ private func hex1767UserLibrarySnapshot(_ directory: URL) throws -> Hex1767Artif
         try #require(!data.isEmpty, "The producer must emit actual object code")
     }
     let metadata = try Data(contentsOf: directory.appendingPathComponent("metadata.bin"))
-    let records = MetadataDecoder().decode(String(decoding: metadata, as: UTF8.self))
+    let records = MetadataDecoder().decode(metadata)
     let owner = "settercontrol1767.SetterBox"
     let box = try #require(records.first { $0.kind == .class && $0.fqName == owner })
     let offsets = try hex1767FieldOffsets(box)

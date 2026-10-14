@@ -112,8 +112,8 @@ struct JVMInteropNioSourceContractsTests {
         }
         let records: [MetadataRecord]
         if let path = ctx.options.stdlibLibraryPath {
-            records = MetadataDecoder().decode(try String(contentsOf: URL(fileURLWithPath: path)
-                .appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin")))
         } else { records = [] }
         for row in index.rows {
             let matches = sema.symbols.lookupAll(fqName: row.fqName.split(separator: ".").map { ctx.interner.intern(String($0)) })
@@ -155,8 +155,8 @@ struct JVMInteropNioSourceContractsTests {
         let symbols = sema.symbols
         var records: [MetadataRecord] = []
         if let path = ctx.options.stdlibLibraryPath {
-            records = MetadataDecoder().decode(try String(contentsOf: URL(fileURLWithPath: path)
-                .appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin")))
         }
         let encode: (TypeID) -> String = { NameMangler().encodeType($0, symbols: symbols, types: sema.types,
             nameResolver: ctx.interner.resolve, unboxValueClasses: false) }
@@ -470,8 +470,8 @@ struct JVMInteropNioSourceContractsTests {
         ]
         var records: [MetadataRecord] = []
         if let path = ctx.options.stdlibLibraryPath {
-            records = MetadataDecoder().decode(try String(contentsOf: URL(fileURLWithPath: path)
-                .appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin")))
         }
         for (name, annotation, targets) in propertyCases {
             let properties = sema.symbols.lookupAll(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) })

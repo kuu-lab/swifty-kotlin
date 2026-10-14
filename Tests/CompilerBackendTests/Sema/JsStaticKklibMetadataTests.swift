@@ -32,7 +32,7 @@
             }.map { "\($0.code):\($0.severity)" }.sorted()
 
             try withCompiledLibrary(source: librarySource, moduleName: "JsStaticMetadata") { libraryPath in
-                let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+                let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
                 let records = MetadataDecoder().decode(metadataText)
                 let functionRecord = try #require(records.first { $0.fqName.hasSuffix(".message") })
                 #expect(functionRecord.annotations.contains { $0.annotationFQName == "kotlin.js.JsStatic" })

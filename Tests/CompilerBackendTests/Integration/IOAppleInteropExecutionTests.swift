@@ -114,7 +114,7 @@ struct IOAppleInteropExecutionTests {
             let objects = try #require(manifest["objects"] as? [String])
             try #require(!objects.isEmpty)
             for object in objects { try #require(!Data(contentsOf: artifact.appendingPathComponent(object)).isEmpty) }
-            let records = MetadataDecoder().decode(try String(contentsOf: artifact.appendingPathComponent("metadata.bin"), encoding: .utf8))
+            let records = MetadataDecoder().decode(try Data(contentsOf: artifact.appendingPathComponent("metadata.bin")))
             for fqName in [publicContract ? "kuu1763publicproducer.copiedData" : "kotlinx.io.NSInputStreamSourceTest.nsInputStreamSource"] {
                 try #require(records.contains { $0.kind == .function && $0.fqName == fqName && $0.visibility == .public })
             }

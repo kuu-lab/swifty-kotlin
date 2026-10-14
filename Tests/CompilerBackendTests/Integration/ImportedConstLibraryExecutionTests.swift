@@ -46,8 +46,8 @@ struct ImportedConstLibraryExecutionTests {
         )
         try assertCompilationSucceeded(makeTestDriver().runForTesting(options: producerOptions))
         let artifact = output.appendingPathExtension("kklib")
-        let records = MetadataDecoder().decode(try String(
-            contentsOf: artifact.appendingPathComponent("metadata.bin"), encoding: .utf8
+        let records = MetadataDecoder().decode(try Data(
+            contentsOf: artifact.appendingPathComponent("metadata.bin")
         ))
         let constant = try #require(records.first { $0.fqName == "nativeconstantproducer.SIZE" })
         let enabled = try #require(records.first { $0.fqName == "nativeconstantproducer.ENABLED" })

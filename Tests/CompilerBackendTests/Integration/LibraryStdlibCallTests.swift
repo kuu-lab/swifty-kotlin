@@ -88,7 +88,7 @@ struct LibraryStdlibCallTests {
                 source: librarySource, module: "Library\(producerFromSource)",
                 emit: .library, fromSource: producerFromSource
             )
-            let metadata = try String(contentsOfFile: library + "/metadata.bin", encoding: .utf8)
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: library + "/metadata.bin"))
             #expect(!MetadataDecoder().decode(metadata).contains {
                 $0.kind != .package && $0.fqName.hasPrefix("kotlin.")
             }, "Bundled stdlib declarations must not be exported as user-library API")
