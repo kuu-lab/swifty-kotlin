@@ -15,6 +15,10 @@ public final class BindingTable {
     /// after annotation targets are resolved. Preserve tokens for factories.
     var primaryConstructorPropertyAnnotations: [SymbolID: [AnnotationNode]] = [:]
 
+    /// Source parameter corresponding to each synthesized property. Its consent
+    /// is available to header checks without changing property metadata.
+    var primaryConstructorPropertyParameters: [SymbolID: (parameter: ValueParamDecl, type: TypeID, constructor: SymbolID)] = [:]
+
     public func bindAnnotationFactory(_ symbol: SymbolID, expression: ExprID) {
         annotationFactoryExpressions[symbol] = expression
     }

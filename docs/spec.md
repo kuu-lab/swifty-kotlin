@@ -1451,6 +1451,17 @@ same checks (KUU-2143; Kotlin 2.3.10). Only explicit return types receive the
 function-header type check: an inferred type is checked at body usage sites,
 including after speculative inference is retried.
 
+For a synthesized primary-constructor property, declaration-type opt-in checks
+also consult the corresponding value parameter's default-site or `param`-site
+`OptIn` annotations (KUU-2070, Kotlin 2.3.10 compatibility). The correspondence
+is local to that class's synthesized property declarations. This consent is
+limited to the property header: it does not move annotations into property
+metadata, opt in sibling declarations or callers, or change SOURCE retention.
+Parameter and generated-property type checks share visitation for this pair;
+a property-site opt-in alone cannot authorize the original parameter's type.
+The implicit vararg array is also part of the source parameter's type, so a
+property-site opt-in alone does not authorize its unsigned-array requirement.
+
 Explicit descriptor annotation lists preserve the supplied objects and order.
 These APIs do not implement serializer generation, automatic wire-name changes,
 annotation inheritance or its conflict checks; those remain in KUU-1724.

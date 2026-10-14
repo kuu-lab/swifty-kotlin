@@ -59,6 +59,17 @@ final class DeclTypeChecker {
         ctx: TypeInferenceContext
     ) {
         let range = ctx.sema.symbols.symbol(symbol)?.declSite
+        if let binding = ctx.sema.bindings.primaryConstructorPropertyParameters[symbol],
+           let propertyType = ctx.sema.symbols.propertyType(for: symbol) {
+            // Kotlin 2.3.10 also accepts the corresponding parameter's consent
+            // for a generated property header. Keep it out of bodies and callers.
+            driver.helpers.checkPrimaryConstructorPropertyHeaderOptIn(
+                parameter: binding.parameter, parameterType: binding.type,
+                propertyType: propertyType, constructor: binding.constructor,
+                ctx: ctx, range: range
+            )
+            return
+        }
         if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbol) {
             validateOptInTypeUsage(receiverType, ctx: ctx, range: range)
         }
