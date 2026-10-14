@@ -368,6 +368,7 @@ extension CallTypeChecker {
                 scopeCandidates.filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate),
                           symbol.kind == .function,
+                          !ast.arena.isInfixCall(id) || symbol.flags.contains(.infixFunction),
                           let signature = sema.symbols.functionSignature(for: candidate),
                           let declaredReceiver = signature.receiverType,
                           !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols)

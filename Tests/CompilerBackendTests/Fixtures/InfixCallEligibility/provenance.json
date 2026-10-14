@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/JetBrains/kotlin",
+  "commit": "679366a83f99851b42f64795f10ed803ff011c73",
+  "path": "compiler/testData/codegen/box/operatorConventions/infixFunctionOverBuiltinMember.kt",
+  "license": "Apache-2.0",
+  "modifications": "None; the runtime consumer is supplied separately by the test.",
+  "sha256": "3013d3a759cfadf038ef7d990b807d2ef5abd9aab9bb3b7caa2a217a207ec5cc"
+}

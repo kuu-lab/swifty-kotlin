@@ -405,6 +405,17 @@ extension CallTypeChecker {
             return result
         }
         var allCandidates = collected.allCandidates
+        // With no eligible callable, type-check the ordinary primitive shape
+        // solely to preserve SEMA-0307 at the entry point (e.g. `2 plus 3`).
+        // Any infix extension, even an inapplicable one, prevents this fallback.
+        if ast.arena.isInfixCall(id), allCandidates.isEmpty,
+           let result = tryInferRegularMemberCallPrimitiveSpecials(
+               request, receiverType: receiverType, lookupReceiverType: lookupReceiverType,
+               argTypes: argTypes, locals: &locals, enforceInfixEligibility: false
+           )
+        {
+            return result
+        }
         let companionReceiverType = collected.companionReceiverType
 
         let isNullLiteralReceiver = if case .nullLiteral = ast.arena.expr(receiverID) {

@@ -521,12 +521,16 @@ extension CallTypeChecker {
             // owner. Keep one instance of the same symbol so overload
             // resolution does not report a self-ambiguity.
             var seenMemberCandidates: Set<SymbolID> = []
-            let memberCandidates = (sourceBackedOverloads + standardMemberCandidates).filter {
+            let unfilteredMemberCandidates = (sourceBackedOverloads + standardMemberCandidates).filter {
                 seenMemberCandidates.insert($0).inserted
                     && primitiveCompareToCandidateMatches(
                         $0, calleeName: calleeName, receiverType: memberLookupType,
                         argTypes: argTypes, sema: sema
                     )
+            }
+            // Infix eligibility precedes the member/extension priority decision.
+            let memberCandidates = unfilteredMemberCandidates.filter {
+                !ast.arena.isInfixCall(id) || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true
             }
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
@@ -564,7 +568,8 @@ extension CallTypeChecker {
                             self.extensionCandidateMatchesCallShape(
                                 $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
                             )
-                        }
+                        },
+                        requiresInfix: ast.arena.isInfixCall(id)
                     )
                     if allCandidates.isEmpty, let callableReferenceFunctionType {
                         // Callable references are also function values. Keep KFunction as the
@@ -585,10 +590,27 @@ extension CallTypeChecker {
                                     $0, request: request, argumentTypes: argTypes,
                                     receiverType: callableReferenceFunctionType
                                 )
-                            }
+                            },
+                            requiresInfix: ast.arena.isInfixCall(id)
                         )
                     }
                 }
+            }
+        }
+        // If no infix callable exists, retain the ordinary lookup only for the
+        // missing-modifier diagnostic enforced at the member-call entry point.
+        // An existing but inapplicable infix candidate must never take this path.
+        if ast.arena.isInfixCall(id), allCandidates.isEmpty {
+            allCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName, receiverType: memberLookupType,
+                sema: sema, interner: interner
+            )
+            if allCandidates.isEmpty {
+                allCandidates = collectExtensionCallCandidates(
+                    named: calleeName, memberLookupType: memberLookupType,
+                    isSuperCall: isSuperCall, supertypeSymbols: supertypeSymbols,
+                    ctx: ctx, locals: locals, sema: sema, interner: interner
+                )
             }
         }
         // MutableMap.remove(key) has a source-backed projected-key overload in

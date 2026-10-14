@@ -33,7 +33,8 @@ extension CallTypeChecker {
         receiverType: TypeID,
         lookupReceiverType: TypeID,
         argTypes: [TypeID],
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        enforceInfixEligibility: Bool = true
     ) -> TypeID? {
         let id = request.id
         let calleeName = request.calleeName
@@ -43,6 +44,11 @@ extension CallTypeChecker {
         let safeCall = request.safeCall
         let sema = ctx.sema
         let interner = ctx.interner
+        if enforceInfixEligibility, ctx.ast.arena.isInfixCall(id),
+           !isInfixPrimitiveIntrinsic(calleeName, receiverType: lookupReceiverType, ctx: ctx)
+        {
+            return nil
+        }
         if interner.resolve(calleeName) == "inv",
            args.isEmpty
         {
