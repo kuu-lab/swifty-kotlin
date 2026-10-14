@@ -72,6 +72,7 @@ final class SemaCacheContext {
     struct CallResolutionKey: Hashable, CustomStringConvertible {
         let candidates: [SymbolID]
         let candidateSignatures: [FunctionSignature?]
+        let candidateDefaultOwners: [SymbolID?]
         let calleeName: InternedString
         let argTypes: [TypeID]
         let argLabels: [InternedString?]
@@ -115,12 +116,14 @@ final class SemaCacheContext {
         call: CallExpr,
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        defaultArgumentOwners: [SymbolID: SymbolID] = [:]
     ) -> CallResolutionKey {
         let sorted = candidates.sorted(by: { $0.rawValue < $1.rawValue })
         return CallResolutionKey(
             candidates: sorted,
             candidateSignatures: sorted.map { symbols.functionSignature(for: $0) },
+            candidateDefaultOwners: sorted.map { defaultArgumentOwners[$0] },
             calleeName: call.calleeName,
             argTypes: call.args.map(\.type),
             argLabels: call.args.map(\.label),

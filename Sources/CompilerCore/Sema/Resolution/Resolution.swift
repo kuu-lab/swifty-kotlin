@@ -190,12 +190,21 @@ extension OverloadResolver {
                 ctx: ctx
             )
         }
+        let defaultArgumentOwners: [SymbolID: SymbolID] = if let implicitReceiverType {
+            Dictionary(uniqueKeysWithValues: Set(candidates).compactMap { candidate in
+                ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable(implicitReceiverType))
+                    .map { (candidate, $0) }
+            })
+        } else {
+            [:]
+        }
         let key = SemaCacheContext.makeCallResolutionKey(
             candidates: candidates,
             call: call,
             expectedType: expectedType,
             implicitReceiverType: implicitReceiverType,
-            symbols: ctx.symbols
+            symbols: ctx.symbols,
+            defaultArgumentOwners: defaultArgumentOwners
         )
         if let cached = cache.cachedCallResolution(for: key) {
             cache.recordCallResolutionHit()
@@ -443,11 +452,18 @@ extension OverloadResolver {
             }
         }
 
+        let defaultArgumentOwner = implicitReceiverType.flatMap {
+            ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable($0))
+        }
+        let inheritedDefaultValues = defaultArgumentOwner.flatMap {
+            ctx.symbols.functionSignature(for: $0)?.valueParameterHasDefaultValues
+        }
         guard let parameterMapping = buildParameterMapping(
             signature: signature,
             callArgs: call.args,
             symbols: ctx.symbols,
-            typeSystem: ctx.types
+            typeSystem: ctx.types,
+            inheritedDefaultValues: inheritedDefaultValues
         ) else {
             return .rejected
         }
@@ -707,6 +723,8 @@ extension OverloadResolver {
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: substitution,
             parameterMapping: parameterMapping,
+            defaultArgumentOwner: defaultArgumentOwner,
+            effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
             usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
         ))
     }
@@ -1248,6 +1266,8 @@ extension OverloadResolver {
         let instantiatedParameterTypes: [TypeID]
         let substitutedTypeArguments: [TypeVarID: TypeID]
         let parameterMapping: [Int: Int]
+        let defaultArgumentOwner: SymbolID?
+        let effectiveDefaultValues: [Bool]
         let usesVararg: Bool
 
         func toResolvedCall() -> ResolvedCall {
@@ -1255,7 +1275,8 @@ extension OverloadResolver {
                 chosenCallee: symbol,
                 substitutedTypeArguments: substitutedTypeArguments,
                 parameterMapping: parameterMapping,
-                diagnostic: nil
+                diagnostic: nil,
+                defaultArgumentOwner: defaultArgumentOwner
             )
         }
 
@@ -1403,7 +1424,7 @@ extension OverloadResolver {
                 // parameters are not supplied by the call and are optional (default
                 // or vararg). If every extra parameter is bound, the smaller
                 // candidate (e.g. a vararg overload) is not preferred.
-                let rhsDefaults = Self.normalizeFlags(rhs.signature.valueParameterHasDefaultValues, count: rhsCount)
+                let rhsDefaults = Self.normalizeFlags(rhs.effectiveDefaultValues, count: rhsCount)
                 let rhsVarargs = Self.normalizeFlags(rhs.signature.valueParameterIsVararg, count: rhsCount)
                 var unboundFound = false
                 var extraAreOptional = true

@@ -127,8 +127,8 @@ final class CallSupportLowerer {
     /// actually owns them does. Every call-site consumer of
     /// `defaultStubSymbol(for:)`/`externalLinkName(for:)` must resolve
     /// through this first, or it looks up a stub that was never emitted.
-    func defaultStubOwnerSymbol(for symbol: SymbolID, sema: SemaModule) -> SymbolID {
-        sema.symbols.overrideDefaultsBaseSymbol(for: symbol) ?? symbol
+    func defaultStubOwnerSymbol(for symbol: SymbolID, sema: SemaModule, callBinding: CallBinding? = nil) -> SymbolID {
+        callBinding?.defaultArgumentOwner ?? sema.symbols.overrideDefaultsBaseSymbol(for: symbol) ?? symbol
     }
 
     /// The default ABI receives the same packed storage as the original body.
@@ -639,7 +639,10 @@ final class CallSupportLowerer {
         {
             spreadFlags[argIndex] = true
         }
-        let hasDefaultValues = OverloadResolver.normalizeFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
+        let defaultSignature = callBinding.defaultArgumentOwner.flatMap {
+            sema.symbols.functionSignature(for: $0)
+        } ?? signature
+        let hasDefaultValues = OverloadResolver.normalizeFlags(defaultSignature.valueParameterHasDefaultValues, count: parameterCount)
         let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
             chosenCallee,
             sema: sema,
@@ -1000,7 +1003,7 @@ final class CallSupportLowerer {
         // stub before the ordinary call boundary applies its own boxing rules.
         if mask != 0 {
             for paramIndex in 0 ..< parameterCount {
-                let parameterKind = sema.types.kind(of: signature.parameterTypes[paramIndex])
+                let parameterKind = sema.types.kind(of: defaultSignature.parameterTypes[paramIndex])
                 guard mask & (Int64(1) << paramIndex) == 0,
                       paramIndex < normalized.count,
                       let sourceType = arena.exprType(normalized[paramIndex])

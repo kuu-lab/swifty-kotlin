@@ -72,6 +72,7 @@ extension OverloadResolver {
         callArgs: [CallArg],
         symbols: SymbolTable,
         typeSystem: TypeSystem,
+        inheritedDefaultValues: [Bool]? = nil,
         isCallableArgument: ((Int) -> Bool)? = nil
     ) -> [Int: Int]? {
         let paramCount = signature.parameterTypes.count
@@ -79,7 +80,7 @@ extension OverloadResolver {
             return callArgs.isEmpty ? [:] : nil
         }
 
-        let hasDefaultValues = Self.normalizeFlags(signature.valueParameterHasDefaultValues, count: paramCount)
+        let hasDefaultValues = Self.normalizeFlags(inheritedDefaultValues ?? signature.valueParameterHasDefaultValues, count: paramCount)
         let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: paramCount)
         let paramNames = parameterNames(
             for: signature,
