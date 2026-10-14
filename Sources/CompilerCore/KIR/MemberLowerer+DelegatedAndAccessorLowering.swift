@@ -487,6 +487,21 @@ extension MemberLowerer {
             )
         }
 
+        let contextParameters = zip(
+            semanticSignature?.contextParameterSymbols ?? [],
+            semanticSignature?.contextParameterTypes ?? []
+        ).map { symbol, type in
+            let parameter = KIRParameter(symbol: symbol, type: type)
+            let value = arena.appendExpr(.symbolRef(symbol), type: type)
+            driver.ctx.setLocalDeclaredType(type, for: symbol)
+            driver.ctx.setLocalValue(value, for: symbol)
+            return (parameter: parameter, value: value, type: type)
+        }
+        params.append(contentsOf: contextParameters.map(\.parameter))
+        let contextReceiverValues = contextParameters.map { parameter in
+            KIRLoweringContext.ContextReceiverValue(type: parameter.type, exprID: parameter.value)
+        }
+
         let returnType: TypeID
         let accessorName: InternedString
         switch accessorKind {
@@ -529,6 +544,9 @@ extension MemberLowerer {
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+        for parameter in contextParameters {
+            body.append(.constValue(result: parameter.value, value: .symbolRef(parameter.parameter.symbol)))
+        }
         // KSP-CAP-018: an accessor body is its own KIR function with its own
         // scope, so an outer local captured by an object literal has to be
         // read back out of the instance field it was stored into — the same
@@ -543,6 +561,7 @@ extension MemberLowerer {
             instructions: &body.instructions
         )
 
+        driver.ctx.withContextReceiverValues(contextReceiverValues) {
         switch accessorBody {
         case let .block(exprIDs, _):
             var lastValue: KIRExprID?
@@ -591,6 +610,7 @@ extension MemberLowerer {
         case .unit:
             body.append(.returnUnit)
         }
+        }
         body.append(.endBlock)
 
         // Use a synthetic symbol derived from the property symbol for the accessor.
@@ -620,6 +640,9 @@ extension MemberLowerer {
                         )))
                     }
                 },
+                contextReceiverTypes: semanticSignature?.contextReceiverTypes ?? [],
+                contextParameterSymbols: semanticSignature?.contextParameterSymbols ?? [],
+                contextParameterTypes: semanticSignature?.contextParameterTypes ?? [],
                 parameterTypes: accessorKind == .setter ? [propertyType] : [],
                 returnType: returnType,
                 canThrow: true,

@@ -405,9 +405,7 @@ final class KIRLoweringContext {
         for scopeValues in contextReceiverValueStack.reversed() {
             for value in scopeValues.reversed() {
                 let nonNullValueType = sema.types.makeNonNullable(value.type)
-                if sema.types.isSubtype(nonNullValueType, nonNullTargetType)
-                    || sema.types.isSubtype(nonNullTargetType, nonNullValueType)
-                {
+                if sema.types.isSubtype(nonNullValueType, nonNullTargetType) {
                     return value.exprID
                 }
             }

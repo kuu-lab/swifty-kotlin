@@ -115,6 +115,7 @@ extension TypeCheckHelpers {
             params.insert(boundReceiver?.receiverType ?? receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
+            contextReceivers: signature.contextParameterTypes,
             params: params,
             returnType: returnType,
             isSuspend: signature.isSuspend,

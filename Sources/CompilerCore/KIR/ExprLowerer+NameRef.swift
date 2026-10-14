@@ -971,7 +971,6 @@ extension ExprLowerer {
             // to the precompiled getter accessor instead.
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
-               sym.flags.contains(.importedLibrary),
                sema.symbols.propertyHasCustomGetter(for: symbol),
                sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
                let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),

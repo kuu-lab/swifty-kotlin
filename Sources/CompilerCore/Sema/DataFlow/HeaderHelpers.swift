@@ -6,6 +6,19 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    func contextParameterValueDeclarations(
+        _ contextReceivers: [ContextReceiverDecl],
+        interner: StringInterner
+    ) -> [ValueParamDecl] {
+        contextReceivers.enumerated().compactMap { index, contextReceiver in
+            guard contextReceiver.isContextParameter else { return nil }
+            return ValueParamDecl(
+                name: contextReceiver.name ?? interner.intern("$contextParameter\(index)"),
+                type: contextReceiver.type
+            )
+        }
+    }
+
     private func syntheticDataClassMemberTypeParameterSymbols(
         ownerSymbol: SymbolID,
         types: TypeSystem
