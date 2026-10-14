@@ -69,6 +69,7 @@ struct GCState {
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var primitiveJavaClassCache: [Int: Int] = [:]
+    var delegatedPropertyStubCache: [String: Int] = [:]
     var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
     var enumValuesByTypeToken: [Int64: [RuntimeEnumValueDescriptor]] = [:]
@@ -131,6 +132,7 @@ final class RuntimeStorageBox: @unchecked Sendable {
     private let flowLock = NSLock()
     private let threadLocalLock = NSLock()
     private let delegateLock = NSLock()
+    private let delegatedPropertyStubLock = NSLock()
 
     private var gcState = GCState()
     private var metadataState = MetadataState()
@@ -196,6 +198,14 @@ final class RuntimeStorageBox: @unchecked Sendable {
         delegateLock.lock()
         defer { delegateLock.unlock() }
         return body(&delegateState)
+    }
+
+    @discardableResult
+    @inline(__always)
+    func withDelegatedPropertyStubLock<R>(_ body: () -> R) -> R {
+        delegatedPropertyStubLock.lock()
+        defer { delegatedPropertyStubLock.unlock() }
+        return body()
     }
 }
 
@@ -592,36 +602,40 @@ func kk_runtime_reset_gc() {
 }
 
 func kk_runtime_reset_metadata() {
-    let cachedReflectionBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
-        var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
-        boxes += state.primitiveJavaClassCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
-        if let starRaw = state.kTypeProjectionStarRaw,
-           let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
-            boxes.append(pointer)
+    let cachedReflectionBoxes = runtimeStorage.withDelegatedPropertyStubLock {
+        runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
+            var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+            boxes += state.primitiveJavaClassCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+            boxes += state.delegatedPropertyStubCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+            if let starRaw = state.kTypeProjectionStarRaw,
+               let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
+                boxes.append(pointer)
+            }
+            state.kClassBoxCache.removeAll(keepingCapacity: false)
+            state.primitiveJavaClassCache.removeAll(keepingCapacity: false)
+            state.delegatedPropertyStubCache.removeAll(keepingCapacity: false)
+            state.kTypeProjectionStarRaw = nil
+            state.objectTypeByPointer.removeAll(keepingCapacity: false)
+            state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
+            state.typeParents.removeAll(keepingCapacity: false)
+            state.reflectionTypeEdgesRegistered = false
+            state.primitiveTypeEdgesRegistered = false
+            state.rangeTypeEdgesRegistered = false
+            state.jobFamilyTypeEdgesRegistered = false
+            state.coroutineDispatcherTypeEdgesRegistered = false
+            state.sortedCollectionTypeEdgesRegistered = false
+            state.cinteropTypeEdgesRegistered = false
+            state.dataClassIDs.removeAll(keepingCapacity: false)
+            state.dataClassFieldMasks.removeAll(keepingCapacity: false)
+            state.objectVtableMethods.removeAll(keepingCapacity: false)
+            state.objectEqualsOverrides.removeAll(keepingCapacity: false)
+            state.objectHashCodeOverrides.removeAll(keepingCapacity: false)
+            state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
+            state.nominalAnyToStringMethods.removeAll(keepingCapacity: false)
+            state.objectItableMethods.removeAll(keepingCapacity: false)
+            state.objectInterfaceSlots.removeAll(keepingCapacity: false)
+            return boxes
         }
-        state.kClassBoxCache.removeAll(keepingCapacity: false)
-        state.primitiveJavaClassCache.removeAll(keepingCapacity: false)
-        state.kTypeProjectionStarRaw = nil
-        state.objectTypeByPointer.removeAll(keepingCapacity: false)
-        state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
-        state.typeParents.removeAll(keepingCapacity: false)
-        state.reflectionTypeEdgesRegistered = false
-        state.primitiveTypeEdgesRegistered = false
-        state.rangeTypeEdgesRegistered = false
-        state.jobFamilyTypeEdgesRegistered = false
-        state.coroutineDispatcherTypeEdgesRegistered = false
-        state.sortedCollectionTypeEdgesRegistered = false
-        state.cinteropTypeEdgesRegistered = false
-        state.dataClassIDs.removeAll(keepingCapacity: false)
-        state.dataClassFieldMasks.removeAll(keepingCapacity: false)
-        state.objectVtableMethods.removeAll(keepingCapacity: false)
-        state.objectEqualsOverrides.removeAll(keepingCapacity: false)
-        state.objectHashCodeOverrides.removeAll(keepingCapacity: false)
-        state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
-        state.nominalAnyToStringMethods.removeAll(keepingCapacity: false)
-        state.objectItableMethods.removeAll(keepingCapacity: false)
-        state.objectInterfaceSlots.removeAll(keepingCapacity: false)
-        return boxes
     }
     releaseRegisteredRuntimeBoxes(cachedReflectionBoxes)
     runtimeKClassMetadataRegistry.reset()
