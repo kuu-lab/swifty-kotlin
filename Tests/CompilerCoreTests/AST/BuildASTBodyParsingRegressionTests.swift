@@ -334,7 +334,7 @@ struct BuildASTBodyParsingRegressionTests {
 
                 #expect(function.annotations.count == 1)
                 #expect(function.annotations[0].name == "Suppress")
-                #expect(function.annotations[0].arguments == ["\"\"UNCHECKED_CAST\"\""])
+                #expect(function.annotations[0].arguments == ["\"UNCHECKED_CAST\""])
             }
 
             do {
@@ -382,7 +382,7 @@ struct BuildASTBodyParsingRegressionTests {
                 #expect(functions.count == 2)
                 #expect(functions.map(\.name) == ["first", "second"].map(ctx.interner.intern))
                 #expect(functions.map { $0.annotations.first?.name } == ["RuntimeName", "RuntimeName"])
-                #expect(functions.map { $0.annotations.first?.arguments.first } == ["\"\"first\"\"", "\"\"second\"\""])
+                #expect(functions.map { $0.annotations.first?.arguments.first } == ["\"first\"", "\"second\""])
             }
         }
     }

@@ -1764,6 +1764,8 @@ package final class MetadataEncoder {
             parts.append("target:\(target)")
         }
         if !annotation.arguments.isEmpty {
+            // Keep literal provenance with the arguments in both wire formats.
+            parts.append("literalFormat:canonical")
             let argsB64 = annotation.arguments.map { Data($0.utf8).base64EncodedString() }
             parts.append("args:\(argsB64.joined(separator: ","))")
         }

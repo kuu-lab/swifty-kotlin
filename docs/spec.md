@@ -577,6 +577,20 @@ public struct FunDecl {
 * この段階では **解決しない**（識別子は raw のまま）
 * ただし “構文糖衣” は残してよい（desugar は KIR lowering）
 
+### Annotation の文字列引数
+
+`AnnotationNode.arguments` と export/import する annotation metadata は同じ canonical 表現を使う。
+単一 literal は regular / raw の区切り引用符を一組だけ保持し、内容の escape や引用符を変更しない。
+multi-dollar literal の `$` prefix は開き区切りだけに付く。空文字列も同じ規則で扱う。
+named 引数は `name=` を保持する。literal だけの連結は従来どおり、評価結果の UTF-16 code unit を
+`\uXXXX` で表す一個の regular literal に畳み込む。識別子や template を含む式は畳み込まない。
+
+literal decoder は canonical raw の内容に含まれる引用符を保存する。旧 token 再構成の追加引用符は
+raw の実際の引用符と区別できない場合があるため、旧表現の復号には明示的な representation 指定を使う。
+metadata の annotation entry は `literalFormat:canonical` を保持する。マーカーがない旧 artifact の
+文字列引数は decoder で旧 token 表現から canonical に変換し、通常・indexed import の双方へ渡す。
+frontend snapshot version 6 より前の保存済み AST / 出力 cache は再利用せず、再生成する。
+
 ---
 
 # Doc J7: シンボル・スコープ・解決（`KotlinSemantics`）
