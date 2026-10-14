@@ -380,9 +380,8 @@ final class ObjectLiteralLowerer {
             ))
         }
 
+        let initializerScopeSnapshot = driver.ctx.saveScope()
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
-        let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
-        let savedQualifiedThisReceivers = driver.ctx.saveQualifiedThisReceivers()
         if let savedReceiverExprID,
            let receiverType = arena.exprType(savedReceiverExprID),
            let receiverLabel = RuntimeTypeCheckToken.simpleName(
@@ -396,11 +395,21 @@ final class ObjectLiteralLowerer {
                 for: interner.intern(receiverLabel)
             )
         }
-        driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
-        defer {
-            driver.ctx.restoreQualifiedThisReceivers(savedQualifiedThisReceivers)
-            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
+        // KUU-2111: property initializers execute with the new object as the
+        // active receiver, but an unqualified member read can still belong to
+        // the enclosing class. Keep the construction-site receiver available
+        // during this inline initializer pass so field offsets are applied to
+        // the enclosing instance instead of the not-yet-initialized object.
+        if let savedReceiverExprID,
+           let receiverType = arena.exprType(savedReceiverExprID),
+           case let .classType(receiverClass) = sema.types.kind(
+               of: sema.types.makeNonNullable(receiverType)
+           )
+        {
+            driver.ctx.setCapturedOuterReceiver(savedReceiverExprID, for: receiverClass.classSymbol)
         }
+        driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
+        defer { driver.ctx.restoreScope(initializerScopeSnapshot) }
 
         // Property initializers and `init {}` blocks run interleaved in
         // declaration order. An object decl without a recorded order (no
