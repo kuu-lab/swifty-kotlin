@@ -13,6 +13,14 @@ private let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableMap.MutableEntry"
 )
 
+func registerMapEntryTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        guard !state.mapEntryTypeEdgesRegistered else { return }
+        state.typeParents[mutableMapEntryRuntimeTypeID, default: []].insert(mapEntryRuntimeTypeID)
+        state.mapEntryTypeEdgesRegistered = true
+    }
+}
+
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
@@ -37,7 +45,8 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key
     }
-    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    registerMapEntryTypeEdgesOnce()
+    runtimeRegisterObjectType(rawValue: raw, classID: mutableMapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
     runtimeRegisterMutableMapEntryMethods(raw)
     return raw
@@ -51,7 +60,8 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key.legacyRawValue
     }
-    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    registerMapEntryTypeEdgesOnce()
+    runtimeRegisterObjectType(rawValue: raw, classID: mutableMapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
     runtimeRegisterMutableMapEntryMethods(raw)
     return raw
@@ -88,7 +98,8 @@ private func runtimeRegisterMutableMapEntryMethods(_ raw: Int) {
 
 @inline(__always)
 func runtimeIsMapEntry(rawValue: Int) -> Bool {
-    runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
+    guard let typeID = runtimeObjectTypeID(rawValue: rawValue) else { return false }
+    return typeID == mapEntryRuntimeTypeID || typeID == mutableMapEntryRuntimeTypeID
 }
 
 /// Identity entry views accept arbitrary source Map.Entry implementations.
