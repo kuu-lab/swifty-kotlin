@@ -426,18 +426,20 @@ extension DataFlowSemaPhase {
             if let currentPackageFQName, current == currentPackageFQName {
                 break
             }
+            // Members of the enclosing declaration (nested types) are closer than
+            // the enclosing declaration's own name, so `A.A` wins over `A` (KUU-2172).
+            let nestedFQName = current + [shortName]
+            for symbolID in symbols.lookupAll(fqName: nestedFQName) where seen.insert(symbolID).inserted {
+                if let symbol = symbols.symbol(symbolID) {
+                    candidates.append(symbol)
+                }
+            }
+
             if current.last == shortName {
                 for symbolID in symbols.lookupAll(fqName: current) where seen.insert(symbolID).inserted {
                     if let symbol = symbols.symbol(symbolID) {
                         candidates.append(symbol)
                     }
-                }
-            }
-
-            let nestedFQName = current + [shortName]
-            for symbolID in symbols.lookupAll(fqName: nestedFQName) where seen.insert(symbolID).inserted {
-                if let symbol = symbols.symbol(symbolID) {
-                    candidates.append(symbol)
                 }
             }
 
