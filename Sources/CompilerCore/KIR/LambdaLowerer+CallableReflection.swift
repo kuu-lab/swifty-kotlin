@@ -105,7 +105,7 @@ extension LambdaLowerer {
         let captureTypes = captures.map { arena.exprType($0) ?? sema.types.anyType }
         let boxedCaptures = zip(captures, captureTypes).map { capture, type in
             boxValueForAnySlot(capture, sourceType: type, types: sema.types, symbols: sema.symbols,
-                              interner: interner, arena: arena, requireNonNull: true, into: &instructions)
+                              interner: interner, arena: arena, requireNonNull: true, sema: sema, into: &instructions)
         }
         let environment = list(boxedCaptures)
         // Ordinary ::Ctor values retain their existing invoke wrapper. Only
@@ -513,7 +513,7 @@ extension LambdaLowerer {
                                        resultType: sema.types.anyType, arena: arena, into: &body)
         } else {
             boxed = boxValueForAnySlot(result, sourceType: returnType, types: sema.types, symbols: sema.symbols,
-                                      interner: interner, arena: arena, requireNonNull: true, into: &body)
+                                      interner: interner, arena: arena, requireNonNull: true, sema: sema, into: &body)
         }
         body.append(.returnValue(boxed))
         body.append(.endBlock)

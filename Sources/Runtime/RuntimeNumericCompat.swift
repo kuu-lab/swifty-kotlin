@@ -59,7 +59,7 @@ func runtimeAnyToStringOverrideRaw(_ raw: Int, outThrown: UnsafeMutablePointer<I
     let objectKey = UInt(bitPattern: objectPtr)
     guard let functionRaw = runtimeStorage.withMetadataLock({ state in
         state.objectAnyToStringMethods[objectKey]
-            ?? state.objectTypeByPointer[objectKey].flatMap { state.valueClassAnyToStringMethods[$0] }
+            ?? state.objectTypeByPointer[objectKey].flatMap { state.nominalAnyToStringMethods[$0] }
     }) else {
         return nil
     }
