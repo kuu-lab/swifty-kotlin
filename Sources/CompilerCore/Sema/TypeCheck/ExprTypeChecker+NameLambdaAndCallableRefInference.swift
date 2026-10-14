@@ -271,7 +271,7 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        let preferredCandidate = candidates.first(where: { symbol in
+        let preferredCandidate0 = candidates.first(where: { symbol in
             switch symbol.kind {
             case .property, .field, .backingField, .object, .class, .interface, .enumClass:
                 true
@@ -279,6 +279,11 @@ extension ExprTypeChecker {
                 false
             }
         }) ?? candidates.first
+        // A typealias naming an object (or a class with a companion) is
+        // transparent in value/qualifier position: rebind to the target.
+        let preferredCandidate = preferredCandidate0.flatMap {
+            expandTypeAliasValueTarget($0, sema: sema)
+        } ?? preferredCandidate0
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
             if let receiverType = ctx.implicitReceiverType,
@@ -507,6 +512,32 @@ extension ExprTypeChecker {
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
+        }
+        return nil
+    }
+
+    /// Follows a (possibly chained) typealias to the object / companion-bearing
+    /// classifier it names, so the alias can be used as a value or qualifier.
+    func expandTypeAliasValueTarget(_ symbol: SemanticSymbol, sema: SemaModule) -> SemanticSymbol? {
+        guard symbol.kind == .typeAlias else { return nil }
+        var current = symbol.id
+        var visited: Set<SymbolID> = []
+        while visited.insert(current).inserted,
+              let underlying = sema.symbols.typeAliasUnderlyingType(for: current),
+              case let .classType(classType) = sema.types.kind(of: underlying),
+              classType.nullability == .nonNull,
+              let target = sema.symbols.symbol(classType.classSymbol)
+        {
+            switch target.kind {
+            case .typeAlias:
+                current = target.id
+            case .object:
+                return target
+            case .class, .interface, .enumClass:
+                return sema.symbols.companionObjectSymbol(for: target.id) != nil ? target : nil
+            default:
+                return nil
+            }
         }
         return nil
     }
