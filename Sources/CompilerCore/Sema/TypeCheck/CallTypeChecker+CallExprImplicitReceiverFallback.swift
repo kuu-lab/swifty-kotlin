@@ -240,7 +240,10 @@ extension CallTypeChecker {
                             calleeName: calleeName,
                             args: resolvedArgs,
                             explicitTypeArgs: explicitTypeArgs,
-                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                            boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
+                                named: calleeName, candidates: group.symbols, ctx: ctx
+                            )
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
@@ -264,7 +267,11 @@ extension CallTypeChecker {
                 }
                 if regularMemberCandidates.count == 1,
                    let bestCandidate = regularMemberCandidates.first,
-                   let sig = sema.symbols.functionSignature(for: bestCandidate)
+                   let sig = sema.symbols.functionSignature(for: bestCandidate),
+                   !(sema.symbols.parentSymbol(for: bestCandidate).flatMap {
+                       sema.symbols.symbol($0)?.kind
+                   } == .object
+                       && sig.receiverType.map { !sema.types.isSubtype(receiverType, $0) } == true)
                 {
                     if sig.classTypeParameterCount > 0 {
                         if let result = bindClassOnlyImplicitReceiverMemberFallback(
