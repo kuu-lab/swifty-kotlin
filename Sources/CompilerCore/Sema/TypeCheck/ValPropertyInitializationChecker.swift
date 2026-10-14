@@ -1,35 +1,64 @@
-/// Checks immutable field writes after receiver and constructor overload binding.
-/// Each path carries the union of fields that may already have been initialized;
-/// mutually exclusive branches start from independent snapshots.
+/// Checks field initialization after receiver and constructor overload binding.
+/// Paths retain both possible writes (union, for val reassignment) and definite
+/// writes (intersection, for initialization on every normal constructor exit).
 final class ValPropertyInitializationChecker {
     private enum Exit: Hashable {
         case normal, returned, thrown
         case broken(InternedString?), continued(InternedString?)
     }
-    private struct Flow {
-        var paths: [Exit: Set<SymbolID>] = [:]
+    private struct State: Hashable {
+        var possible: Set<SymbolID>
+        var definite: Set<SymbolID>
 
-        init(_ initialized: Set<SymbolID>? = []) {
+        init(_ initialized: Set<SymbolID> = []) {
+            possible = initialized
+            definite = initialized
+        }
+
+        mutating func merge(_ other: State) {
+            possible.formUnion(other.possible)
+            definite.formIntersection(other.definite)
+        }
+
+        mutating func insert(_ field: SymbolID) {
+            possible.insert(field)
+            definite.insert(field)
+        }
+    }
+
+    private struct Flow {
+        var paths: [Exit: State] = [:]
+
+        init(_ initialized: State? = State()) {
             paths[.normal] = initialized
         }
 
         mutating func merge(_ other: Flow) {
             for (exit, initialized) in other.paths {
-                paths[exit, default: []].formUnion(initialized)
+                merge(initialized, at: exit)
             }
+        }
+
+        mutating func merge(_ state: State, at exit: Exit) {
+            if paths[exit] != nil { paths[exit]?.merge(state) }
+            else { paths[exit] = state }
         }
 
         mutating func exit(_ exit: Exit) {
             guard let initialized = paths.removeValue(forKey: .normal) else { return }
-            paths[exit, default: []].formUnion(initialized)
+            merge(initialized, at: exit)
         }
     }
 
     private let ast: ASTModule
     private let sema: SemaModule
     private let declarationValidator: DeclarationPositionValidator
+    private var checkingConstructorBody = false
     private var owner: SymbolID?
     private var fields: Set<SymbolID> = []
+    private var customSetterFields: Set<SymbolID> = []
+    private var immutableFields: Set<SymbolID> = []
+    private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
 
     init(ast: ASTModule, sema: SemaModule, interner: StringInterner) {
@@ -48,10 +77,13 @@ final class ValPropertyInitializationChecker {
             case let .classDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: decl.secondaryConstructors,
-                           parameters: decl.primaryConstructorParams)
+                           parameters: decl.primaryConstructorParams,
+                           hasPrimaryConstructor: decl.hasPrimaryConstructorSyntax || decl.secondaryConstructors.isEmpty,
+                           checksDefiniteInitialization: !decl.modifiers.contains(.expect) && !decl.modifiers.contains(.annotationClass))
             case let .objectDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
-                           order: decl.classBodyInitOrder, constructors: [])
+                           order: decl.classBodyInitOrder, constructors: [],
+                           checksDefiniteInitialization: !decl.modifiers.contains(.expect))
             default:
                 break
             }
@@ -60,21 +92,43 @@ final class ValPropertyInitializationChecker {
 
     private func checkOwner(
         _ symbol: SymbolID, properties: [DeclID], blocks: [FunctionBody],
-        order: [ClassBodyInitMember], constructors: [ConstructorDecl], parameters: [ValueParamDecl] = []
+        order: [ClassBodyInitMember], constructors: [ConstructorDecl], parameters: [ValueParamDecl] = [],
+        hasPrimaryConstructor: Bool = true, checksDefiniteInitialization: Bool = true
     ) {
         owner = symbol
         fields = Set(sema.symbols.children(of: symbol).filter {
             guard let field = sema.symbols.symbol($0) else { return false }
-            return field.kind == .property && !field.flags.contains(.mutable)
+            return field.kind == .property
         })
         guard !fields.isEmpty else { return }
+        immutableFields = fields.filter { sema.symbols.symbol($0)?.flags.contains(.mutable) == false }
+        customSetterFields = Set(properties.compactMap { id in
+            guard case let .propertyDecl(property) = ast.arena.decl(id),
+                  declarationValidator.accessorHasBody(property.setter) else { return nil }
+            return sema.bindings.declSymbol(for: id)
+        })
+        // DeclarationPositionValidator handles owners without imperative initialization.
+        // Recheck only its deferred cases, avoiding duplicate declaration diagnostics.
+        let required = checksDefiniteInitialization && (!blocks.isEmpty || !constructors.isEmpty)
+            ? Set(properties.compactMap { id -> SymbolID? in
+                guard case let .propertyDecl(property) = ast.arena.decl(id),
+                      let field = sema.bindings.declSymbol(for: id),
+                      !property.isSynthesizedPrimaryConstructorProperty,
+                      !property.modifiers.contains(.abstract), !property.modifiers.contains(.lateinit),
+                      !property.modifiers.contains(.expect), !property.modifiers.contains(.const),
+                      property.receiverType == nil, property.initializer == nil,
+                      property.delegateExpression == nil, property.explicitBackingField == nil,
+                      !isFieldless(property, symbol: field)
+                else { return nil }
+                return field
+            }) : []
         let declaredFields = Set(properties.compactMap { sema.bindings.declSymbol(for: $0) })
         // Primary constructor property parameters have already been initialized.
         let parameterNames = Set(parameters.filter(\.isProperty).map(\.name))
         let parameterFields = fields.filter { field in
             sema.symbols.symbol(field).map { parameterNames.contains($0.name) } ?? false
         }
-        var initial = Flow(fields.subtracting(declaredFields).union(parameterFields))
+        var initial = Flow(State(fields.subtracting(declaredFields).union(parameterFields)))
         let order = order.isEmpty
             ? properties.indices.map(ClassBodyInitMember.property) + blocks.indices.map(ClassBodyInitMember.initBlock)
             : order
@@ -87,14 +141,11 @@ final class ValPropertyInitializationChecker {
                 else { continue }
                 if let initializer = property.initializer { walk(initializer, flow: &initial) }
                 if let delegate = property.delegateExpression { walk(delegate, flow: &initial) }
-                let backingField = sema.symbols.backingFieldSymbol(for: field) ?? field
-                let computed = declarationValidator.accessorHasBody(property.getter)
-                    && !declarationValidator.accessorUsesBackingField(property.getter, isBackingFieldReference: {
-                        self.sema.bindings.identifierSymbol(for: $0) == backingField
-                    })
-                if property.initializer != nil || property.delegateExpression != nil || computed,
+                if let explicit = property.explicitBackingField { walk(explicit.initializer, flow: &initial) }
+                if property.initializer != nil || property.delegateExpression != nil
+                    || property.explicitBackingField != nil || isFieldless(property, symbol: field),
                    fields.contains(field), initial.paths[.normal] != nil {
-                    initial.paths[.normal, default: []].insert(field)
+                    initial.paths[.normal]?.insert(field)
                 }
             case let .initBlock(index):
                 guard blocks.indices.contains(index) else { continue }
@@ -116,17 +167,44 @@ final class ValPropertyInitializationChecker {
                let target = sema.bindings.constructorDelegationCallBinding(for: symbol)?.chosenCallee {
                 flow = summary(target)
             }
+            // Constructor bodies run after every property declaration/init block,
+            // even when a constructor appears earlier in the source text.
+            checkingConstructorBody = true
             walk(ctor.body, flow: &flow)
+            checkingConstructorBody = false
             // A bare return completes this constructor and resumes its caller.
             if let returned = flow.paths.removeValue(forKey: .returned) {
-                flow.paths[.normal, default: []].formUnion(returned)
+                flow.merge(returned, at: .normal)
             }
             summaries[symbol] = flow
             visiting.remove(symbol)
             return flow
         }
+        if hasPrimaryConstructor { reportMissing(required, in: initial) }
         for ctor in constructors {
-            if let symbol = constructorSymbol(ctor) { _ = summary(symbol) }
+            if let symbol = constructorSymbol(ctor) { reportMissing(required, in: summary(symbol)) }
+        }
+    }
+
+    private func isFieldless(_ property: PropertyDecl, symbol: SymbolID) -> Bool {
+        let backingField = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+        let usesField = declarationValidator.accessorUsesBackingField(property.getter, isBackingFieldReference: {
+            self.sema.bindings.identifierSymbol(for: $0) == backingField
+        }) || declarationValidator.accessorUsesBackingField(property.setter, isBackingFieldReference: {
+            self.sema.bindings.identifierSymbol(for: $0) == backingField
+        })
+        return declarationValidator.accessorHasBody(property.getter)
+            && (!property.isVar || declarationValidator.accessorHasBody(property.setter)) && !usesField
+    }
+
+    private func reportMissing(_ required: Set<SymbolID>, in flow: Flow) {
+        // Kotlin also rejects deferred properties in a constructor that never
+        // completes, even if it writes them before throwing or looping forever.
+        let initialized = flow.paths[.normal]?.definite ?? []
+        for field in required.subtracting(initialized).sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard reportedMissing.insert(field).inserted else { continue }
+            sema.diagnostics.error("KSWIFTK-SEMA-0424", "property must be initialized or be abstract.",
+                                   range: sema.symbols.symbol(field)?.declSite)
         }
     }
 
@@ -161,16 +239,21 @@ final class ValPropertyInitializationChecker {
             ownReceiver = true
         }
         let range = ast.arena.exprRange(id)
-        let beforeDeclaration = sema.symbols.symbol(field)?.declSite.map { declaration in
+        let beforeDeclaration = !checkingConstructorBody && (sema.symbols.symbol(field)?.declSite.map { declaration in
             range.map { $0.start.file == declaration.start.file && $0.start.offset < declaration.start.offset } ?? false
-        } ?? false
-        if !permitsInitialization || !ownReceiver || initialized.contains(field) || beforeDeclaration {
+        } ?? false)
+        if immutableFields.contains(field),
+           !permitsInitialization || !ownReceiver || initialized.possible.contains(field) || beforeDeclaration {
             if reportedWrites.insert(id).inserted {
                 let message = beforeDeclaration ? "Variable cannot be initialized before declaration." : "Val cannot be reassigned."
                 sema.diagnostics.error("KSWIFTK-SEMA-0014", message, range: range)
             }
         }
-        flow.paths[.normal, default: []].insert(field)
+        if permitsInitialization && ownReceiver && !beforeDeclaration {
+            flow.paths[.normal]?.possible.insert(field)
+            // Calling a custom setter does not initialize the backing field.
+            if !customSetterFields.contains(field) { flow.paths[.normal]?.definite.insert(field) }
+        }
     }
 
     private func walk(_ id: ExprID, flow: inout Flow, permitsInitialization: Bool = true) {
@@ -179,13 +262,15 @@ final class ValPropertyInitializationChecker {
             // Kotlin still checks writes following return/throw, without letting
             // unreachable statements change the states reaching other branches.
             if flow.paths[.returned] != nil || flow.paths[.thrown] != nil {
-                var unreachable = Flow((flow.paths[.returned] ?? []).union(flow.paths[.thrown] ?? []))
+                var state = flow.paths[.returned] ?? flow.paths[.thrown] ?? State()
+                if let thrown = flow.paths[.thrown] { state.merge(thrown) }
+                var unreachable = Flow(state)
                 walk(id, flow: &unreachable, permitsInitialization: permitsInitialization)
             }
             return
         }
         func visit(_ child: ExprID) { walk(child, flow: &flow, permitsInitialization: permitsInitialization) }
-        func branch(_ child: ExprID?, from entry: Set<SymbolID>) -> Flow {
+        func branch(_ child: ExprID?, from entry: State) -> Flow {
             var result = Flow(entry)
             if let child { walk(child, flow: &result, permitsInitialization: permitsInitialization) }
             return result
@@ -239,18 +324,21 @@ final class ValPropertyInitializationChecker {
             walkLoop(body: body, condition: nil, label: nil, atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
         case let .tryExpr(body, catches, finallyExpr, _):
             var attempted = branch(body, from: entry)
-            let catchEntry = attempted.paths.values.reduce(entry) { $0.union($1) }
+            // Exceptions may happen before any write in the try body. Preserve
+            // possible writes for reassignment, but only entry writes are definite.
+            var catchEntry = entry
+            for state in attempted.paths.values { catchEntry.possible.formUnion(state.possible) }
             for clause in catches { attempted.merge(branch(clause.body, from: catchEntry)) }
             flow.paths[.normal] = nil
             if let finallyExpr {
                 var completed = Flow(nil)
-                var cleanups: [Set<SymbolID>: Flow] = [:]
+                var cleanups: [State: Flow] = [:]
                 for (exit, state) in attempted.paths {
                     let checked = cleanups[state] ?? branch(finallyExpr, from: state)
                     cleanups[state] = checked
                     var cleanup = checked
                     if let normal = cleanup.paths.removeValue(forKey: .normal) {
-                        cleanup.paths[exit, default: []].formUnion(normal)
+                        cleanup.merge(normal, at: exit)
                     }
                     completed.merge(cleanup)
                 }
@@ -315,7 +403,7 @@ final class ValPropertyInitializationChecker {
         let matchingLabels: Set<InternedString?> = [nil, label]
         for label in matchingLabels {
             if let continued = iteration.paths.removeValue(forKey: .continued(label)) {
-                iteration.paths[.normal, default: []].formUnion(continued)
+                iteration.merge(continued, at: .normal)
             }
         }
         if let condition { walk(condition, flow: &iteration, permitsInitialization: permitsInitialization) }
@@ -328,11 +416,11 @@ final class ValPropertyInitializationChecker {
         if constantCondition == true { iteration.paths[.normal] = nil }
         for label in matchingLabels {
             if let broken = iteration.paths.removeValue(forKey: .broken(label)) {
-                iteration.paths[.normal, default: []].formUnion(broken)
+                iteration.merge(broken, at: .normal)
             }
             iteration.paths[.continued(label)] = nil
         }
-        if !atLeastOnce, constantCondition != true { iteration.paths[.normal, default: []].formUnion(entry) }
+        if !atLeastOnce, constantCondition != true { iteration.merge(entry, at: .normal) }
         flow.merge(iteration)
     }
 

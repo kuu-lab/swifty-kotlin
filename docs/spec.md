@@ -675,6 +675,28 @@ public final class SemaModule {
 * `CallExpr -> CalleeSymbolID + chosen overload`
 * `DeclID -> SymbolID`
 
+## J7.5 Stored property initialization (KUU-2142)
+
+After receiver and constructor delegation binding, `ValPropertyInitializationChecker`
+tracks possible initialization with union and definite initialization with intersection.
+Possible writes retain the immutable-property reassignment check (SEMA-0014).
+Each primary/secondary constructor and object initialization must definitely initialize
+all deferred stored `val`/`var` properties; otherwise the declaration receives SEMA-0424.
+A bare constructor return is a normal exit, and `this(...)` delegation consumes the
+chosen constructor's summary after ordered property initializers and init blocks.
+Constructor bodies may initialize properties declared later in the source text;
+init blocks still cannot initialize a property before its declaration.
+Kotlin also rejects a deferred property in a constructor with no normal exit.
+
+Declaration initializers, delegates, explicit backing-field initializers, primary
+property parameters, abstract/lateinit/expect properties, and fieldless custom
+accessors do not require deferred initialization. Concrete stored properties in an
+abstract class still do. Fieldless mutable properties require both custom accessors
+and no bound backing-field use. A custom setter call does not prove initialization;
+only a direct write to this instance with the default setter counts. Deferred lambda
+and local-function writes, and writes to another receiver, do not initialize this
+instance. FIELD annotations do not alter this analysis.
+
 ---
 
 # Doc J8: 型システムと TypeID（`TypeSystem`）
