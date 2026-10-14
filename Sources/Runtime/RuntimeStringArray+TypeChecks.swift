@@ -502,6 +502,37 @@ public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
     kk_op_is(value, typeToken) != 0 ? value : runtimeNullSentinelInt
 }
 
+@_cdecl("kk_array_op_cast")
+public func kk_array_op_cast(
+    _ value: Int,
+    _ typeToken: Int,
+    _ componentType: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard kk_op_is(value, typeToken) != 0 else {
+        return kk_op_cast(value, typeToken, outThrown)
+    }
+    guard value == runtimeNullSentinelInt
+            || runtimeArrayHasAssignableComponent(rawValue: value, targetComponent: componentType)
+    else {
+        outThrown?.pointee = runtimeAllocateClassCastException(message: "ClassCastException")
+        return 0
+    }
+    return value
+}
+
+@_cdecl("kk_array_op_safe_cast")
+public func kk_array_op_safe_cast(_ value: Int, _ typeToken: Int, _ componentType: Int) -> Int {
+    guard kk_op_is(value, typeToken) != 0,
+          value == runtimeNullSentinelInt
+            || runtimeArrayHasAssignableComponent(rawValue: value, targetComponent: componentType)
+    else {
+        return runtimeNullSentinelInt
+    }
+    return value
+}
+
 @_cdecl("kk_op_contains")
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // Range check first

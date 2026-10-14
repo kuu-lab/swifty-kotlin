@@ -112,6 +112,18 @@ func runtimeArrayComponentIsAssignable(_ source: Int, to target: Int) -> Bool {
     return runtimeIsAssignable(sourceTypeID: sourceID, targetTypeID: payload(target.classifier))
 }
 
+func runtimeArrayHasAssignableComponent(rawValue: Int, targetComponent: Int) -> Bool {
+    guard let array = runtimeArrayBoxExcludingObjects(from: rawValue),
+          let target = runtimeArrayComponentTypes.descriptor(targetComponent)
+    else { return false }
+    // Missing metadata cannot prove a narrower component from the contents.
+    guard let sourceComponent = array.componentType else {
+        let targetBase = target.classifier & Int(RuntimeTypeTokenEncoding.baseMask)
+        return target.element == 0 && targetBase == Int(RuntimeTypeTokenEncoding.anyBase)
+    }
+    return runtimeArrayComponentIsAssignable(sourceComponent, to: targetComponent)
+}
+
 @_cdecl("__kk_array_new_same_component")
 public func __kk_array_new_same_component(_ sourceRaw: Int, _ size: Int) -> Int {
     guard let source = runtimeArrayBox(from: sourceRaw), size >= 0 else { return runtimeNullSentinelInt }

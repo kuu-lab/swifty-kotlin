@@ -169,14 +169,35 @@ extension ExprLowerer {
             instructions: &instructions
         )
         if let targetType = sema.bindings.castTargetType(for: exprID),
-           isRedundantGenericArrayCast(
-               from: sema.bindings.exprTypes[exprToCast],
-               to: targetType,
-               sema: sema,
-               interner: interner
-           )
+           let componentType = referenceArrayElementType(targetType, sema: sema, interner: interner)
         {
-            return operandID
+            // Reference arrays retain their allocation component type even
+            // though Kotlin's generic type arguments are otherwise erased.
+            let componentToken = runtimeArrayComponentTypeExpr(
+                for: componentType,
+                context: driver.ctx,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let typeToken = lowerTypeCheckTokenExpr(
+                targetType: targetType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(isSafe ? "kk_array_op_safe_cast" : "kk_array_op_cast"),
+                arguments: [operandID, typeToken, componentToken],
+                result: result,
+                canThrow: !isSafe,
+                thrownResult: nil
+            ))
+            return result
         }
         if let targetType = sema.bindings.castTargetType(for: exprID),
            isRedundantComparableCast(
