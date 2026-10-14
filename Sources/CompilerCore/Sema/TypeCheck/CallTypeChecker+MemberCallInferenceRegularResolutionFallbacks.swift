@@ -395,6 +395,16 @@ extension CallTypeChecker {
         // --- Use-site variance projection check ---
         // When the receiver has projected type arguments (e.g. MutableList<out Number>),
         // check that the member access respects variance constraints.
+        if arrayFillHasWriteForbiddenProjection(
+            chosenCallee: chosen, receiverType: lookupReceiverType, ctx: ctx
+        ) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-VAR-OUT",
+                "A type projection on the receiver prevents calling 'fill' because its element type cannot be written.",
+                range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
         if let signature = sema.symbols.functionSignature(for: chosen),
            let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
                receiverType: lookupReceiverType,
