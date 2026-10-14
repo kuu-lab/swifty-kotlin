@@ -22,6 +22,10 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
+    if let name = runtimeRangeClassQualifiedName(typeToken: typeToken),
+       let simpleName = name.split(separator: ".").last {
+        return runtimeMakeStringRaw(String(simpleName))
+    }
     // Class literals carry the qualified name so reflection works even when
     // no class metadata has been registered. Keep simpleName unqualified.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
@@ -121,6 +125,9 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
+    if let name = runtimeRangeClassQualifiedName(typeToken: typeToken) {
+        return runtimeMakeStringRaw(name)
+    }
     if base == RuntimeTypeTokenEncoding.nominalBase,
        let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
     {
@@ -192,6 +199,14 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     }
     if let ptr = UnsafeMutableRawPointer(bitPattern: value),
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }) {
+        // Range factories retain their classifier in the kind tag, not nominal
+        // object metadata. Supply its name even before reflection registration.
+        if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
+            let typeID = runtimeRangeBoxNominalTypeID(range.kind)
+            let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+                | RuntimeTypeTokenEncoding.nominalBase
+            return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(range.kind.qualifiedName))
+        }
         // Runtime-created throwables are boxes without nominal object tags.
         // Their declared exception identity must override the catch variable's type.
         if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
@@ -248,6 +263,10 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
+    if let name = runtimeRangeClassQualifiedName(typeToken: box.typeToken),
+       let simpleName = name.split(separator: ".").last {
+        return runtimeMakeStringRaw(String(simpleName))
+    }
     if let metadata = box.metadata {
         return runtimeMakeStringRaw(metadata.simpleName)
     }
@@ -258,6 +277,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
 public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
+    }
+    if let name = runtimeRangeClassQualifiedName(typeToken: box.typeToken) {
+        return runtimeMakeStringRaw(name)
     }
     if let metadata = box.metadata {
         return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
