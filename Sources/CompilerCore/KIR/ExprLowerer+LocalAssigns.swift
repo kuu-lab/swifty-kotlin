@@ -157,7 +157,8 @@ extension ExprLowerer {
             ) {
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
-                sema: sema
+                sema: sema,
+                arena: arena
             ),
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                       let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -202,7 +203,8 @@ extension ExprLowerer {
                 ))
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
-                sema: sema
+                sema: sema,
+                arena: arena
             ),
                       let symInfo = sema.symbols.symbol(symbol),
                       symInfo.kind == .property,
