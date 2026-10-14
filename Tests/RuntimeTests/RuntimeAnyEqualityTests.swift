@@ -178,6 +178,24 @@ struct RuntimeAnyEqualityTests {
         #expect(kk_structural_eq(first, second) == 1)
     }
 
+    @Test
+    func testResultBoxesUseValueEqualityAcrossErasedAnyPaths() {
+        let success = runtimeResultSuccess(42)
+        let sameSuccess = runtimeResultSuccess(42)
+        let otherSuccess = runtimeResultSuccess(43)
+        let exception = kk_illegal_state_exception_new()
+        let failure = runtimeResultFailure(exception)
+        let sameFailure = runtimeResultFailure(exception)
+        let otherFailure = runtimeResultFailure(kk_illegal_state_exception_new())
+
+        #expect(boolValue(kk_any_equals(success, 1, sameSuccess, 1)))
+        #expect(boolValue(__kk_objects_equals(success, sameSuccess, nil)))
+        #expect(!boolValue(kk_any_equals(success, 1, otherSuccess, 1)))
+        #expect(!boolValue(kk_any_equals(success, 1, failure, 1)))
+        #expect(boolValue(kk_any_equals(failure, 1, sameFailure, 1)))
+        #expect(!boolValue(kk_any_equals(failure, 1, otherFailure, 1)))
+    }
+
     // Tuples allocated for Kotlin's `Pair`/`Triple` carry a nominal type ID, so
     // they compare and hash by their components even when they reach the
     // runtime through `Any` (set membership, map keys) rather than the Kotlin
