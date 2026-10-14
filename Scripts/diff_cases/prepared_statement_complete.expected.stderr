@@ -109,6 +109,9 @@ Scripts/diff_cases/prepared_statement_complete.kt:102:5: error KSWIFTK-SEMA-0024
 Scripts/diff_cases/prepared_statement_complete.kt:105:24: error KSWIFTK-SEMA-0024: Unresolved member function 'executeBatch'.
     val batchResults = batchInsert.executeBatch()
                        ^
+Scripts/diff_cases/prepared_statement_complete.kt:106:13: error KSWIFTK-SEMA-0309: function invocation 'size()' expected.
+    println(batchResults.size == 3)
+            ^
 Scripts/diff_cases/prepared_statement_complete.kt:107:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
     println(batchResults.all { it == 1 }) // All should return 1 (1 row affected)
             ^
@@ -127,6 +130,9 @@ Scripts/diff_cases/prepared_statement_complete.kt:113:5: error KSWIFTK-SEMA-0024
 Scripts/diff_cases/prepared_statement_complete.kt:115:29: error KSWIFTK-SEMA-0024: Unresolved member function 'executeBatch'.
     val afterClearResults = batchInsert.executeBatch()
                             ^
+Scripts/diff_cases/prepared_statement_complete.kt:116:13: error KSWIFTK-SEMA-0309: function invocation 'size()' expected.
+    println(afterClearResults.size == 1)
+            ^
 Scripts/diff_cases/prepared_statement_complete.kt:119:22: error KSWIFTK-SEMA-0024: Unresolved member function 'getParameterCount'.
     val paramCount = batchInsert.getParameterCount()
                      ^
