@@ -387,13 +387,13 @@ extension CompilerCoreTests {
         let sources = [
             """
             package lib
-            fun foo(x: Int) = x
-            fun bar(x: Int) = x
+            class Foo
+            class Bar
             """,
             """
             package app
-            import lib.foo as X
-            import lib.bar as X
+            import lib.Foo as X
+            import lib.Bar as X
             fun use() = 1
             """,
         ]
@@ -401,6 +401,26 @@ extension CompilerCoreTests {
         try runSema(ctx)
 
         assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
+    }
+
+    @Test func testFunctionImportAliasSharedNameFormsOverloadSet() throws {
+        let sources = [
+            """
+            package lib
+            fun chooseInt(value: Int): Int = value + 1
+            fun chooseString(value: String): String = value
+            """,
+            """
+            package app
+            import lib.chooseInt as choose
+            import lib.chooseString as choose
+            fun use() = choose(1) + choose("a").length
+            """,
+        ]
+        let ctx = makeContextFromSources(sources)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
 
