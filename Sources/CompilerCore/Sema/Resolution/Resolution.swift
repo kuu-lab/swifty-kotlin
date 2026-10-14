@@ -18,7 +18,8 @@ private extension CallExpr {
             calleeName: calleeName,
             args: updatedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: dispatchReceiverTypes
+            dispatchReceiverTypes: dispatchReceiverTypes,
+            boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates
         )
     }
 }
@@ -288,6 +289,23 @@ extension OverloadResolver {
               let signature = ctx.symbols.functionSignature(for: candidate)
         else {
             return .rejected
+        }
+
+        // An imported object member is already bound to its singleton dispatch
+        // receiver, including direct and aliased imports. Derive this per
+        // candidate so imports from different objects share an overload set.
+        // Member extensions still require their separate extension receiver.
+        let implicitReceiverType: TypeID? = if call.boundObjectDispatchReceiverCandidates.contains(candidate),
+            ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+            let owner = ctx.symbols.parentSymbol(for: candidate),
+            ctx.symbols.symbol(owner)?.kind == .object,
+            let receiverType = signature.receiverType,
+            case let .classType(receiverClass) = ctx.types.kind(of: receiverType),
+            receiverClass.classSymbol == owner
+        {
+            receiverType
+        } else {
+            implicitReceiverType
         }
 
         let typeVarBySymbol = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
@@ -1299,9 +1317,12 @@ extension OverloadResolver {
         // supertype paths — e.g. `IntRange` inherits `ClosedRange.contains` and
         // `OpenEndRange.contains` — so collapse them to one deterministic
         // winner instead of reporting the call as ambiguous. Scope extensions
-        // and mismatched-signature members stay genuinely ambiguous.
+        // and mismatched-signature members stay genuinely ambiguous. Imported
+        // singleton members are independently bound callables, not duplicate
+        // supertype paths, even when their value parameter types are equal.
         let tied = winners.isEmpty ? candidates : winners
         if tied.count > 1,
+           tied.allSatisfy({ !call.boundObjectDispatchReceiverCandidates.contains($0.symbol) }),
            tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
            tied.allSatisfy({ lhs in
                tied.allSatisfy { rhs in

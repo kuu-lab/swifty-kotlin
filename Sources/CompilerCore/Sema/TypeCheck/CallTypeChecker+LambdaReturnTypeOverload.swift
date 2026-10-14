@@ -1,5 +1,27 @@
 
 extension CallTypeChecker {
+    /// A qualified member import binds the named singleton, whereas lookup
+    /// through a nullable implicit receiver must still check that receiver.
+    func importedObjectDispatchReceiverCandidates(
+        named name: InternedString?,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> Set<SymbolID> {
+        guard let name, let file = ctx.currentASTFile else { return [] }
+        let paths = Set(file.imports.filter {
+            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
+        }.map(\.path))
+        guard !paths.isEmpty else { return [] }
+        return Set(candidates.filter { candidate in
+            guard let symbol = ctx.sema.symbols.symbol(candidate),
+                  let owner = ctx.sema.symbols.parentSymbol(for: candidate),
+                  ctx.sema.symbols.symbol(owner)?.kind == .object,
+                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+            else { return false }
+            return paths.contains(symbol.fqName)
+        })
+    }
+
     struct PreparedCallArguments {
         let argTypes: [TypeID]
         let lambdaLiteralIndices: Set<Int>
@@ -26,6 +48,7 @@ extension CallTypeChecker {
         contextualCallResultType: TypeID? = nil,
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
+        boundObjectDispatchReceiverCandidates: Set<SymbolID> = [],
         lambdaContextOverrides: [Int: TypeInferenceContext] = [:],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -216,6 +239,7 @@ extension CallTypeChecker {
                 callRange: callRange,
                 inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                 receiverType: receiverType,
+                boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
                 ctx: ctx
             )
             if narrowed.count == 1 {
@@ -240,6 +264,7 @@ extension CallTypeChecker {
                     callRange: callRange,
                     inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                     receiverType: receiverType,
+                    boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
                     ctx: ctx
                 )
                 let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
@@ -471,6 +496,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
+        bindsObjectDispatchReceiver: Bool = false,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
@@ -491,7 +517,10 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            boundObjectDispatchReceiverCandidates: bindsObjectDispatchReceiver
+                ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
+                : []
         )
 
         if candidates.contains(where: {
@@ -686,14 +715,27 @@ extension CallTypeChecker {
         callRange: SourceRange,
         inferredNonLambdaArgTypes: [Int: TypeID],
         receiverType: TypeID?,
+        boundObjectDispatchReceiverCandidates: Set<SymbolID> = [],
         forImplicitMemberApplicability: Bool = false,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
 
-        // A candidate that declares an extension/member receiver can never be
-        // chosen when the call site has no receiver at all (explicit or
-        // implicit) -- Resolution.swift's buildReceiverConstraints rejects it
+        func boundObjectReceiverType(for candidate: SymbolID) -> TypeID? {
+            guard boundObjectDispatchReceiverCandidates.contains(candidate),
+                  sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                  let owner = sema.symbols.parentSymbol(for: candidate),
+                  sema.symbols.symbol(owner)?.kind == .object,
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  case let .classType(receiverClass) = sema.types.kind(of: receiver),
+                  receiverClass.classSymbol == owner
+            else { return nil }
+            return receiver
+        }
+
+        // Except for bound object members, a candidate that declares an
+        // extension/member receiver cannot be chosen without an explicit or
+        // implicit receiver -- buildReceiverConstraints rejects it
         // outright in that case. Without pruning it here too, an unqualified
         // call such as `measureTimedValue { ... }` still sees an unrelated
         // same-named extension (e.g. `TimeSource.measureTimedValue`) as a live
@@ -706,6 +748,7 @@ extension CallTypeChecker {
             : candidates.filter {
                 sema.symbols.symbol($0)?.kind == .constructor
                     || sema.symbols.functionSignature(for: $0)?.receiverType == nil
+                    || boundObjectReceiverType(for: $0) != nil
             }
 
         var narrowed = candidates.filter { candidate in
@@ -831,7 +874,7 @@ extension CallTypeChecker {
             }
             return receiverConstraintIsFeasible(
                 signature: signature,
-                receiverType: effectiveReceiverType,
+                receiverType: boundObjectReceiverType(for: candidate) ?? effectiveReceiverType,
                 sema: sema
             )
         }

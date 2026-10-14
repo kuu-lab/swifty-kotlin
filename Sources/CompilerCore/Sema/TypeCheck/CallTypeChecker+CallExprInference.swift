@@ -548,6 +548,9 @@ extension CallTypeChecker {
             contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: callImplicitReceiverType,
+            boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
+                named: calleeName, candidates: candidates, ctx: ctx
+            ),
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
