@@ -94,6 +94,66 @@ public operator fun ShortArray.iterator(): ShortIterator {
     }
 }
 
+@ExperimentalUnsignedTypes
+public operator fun UByteArray.iterator(): Iterator<UByte> {
+    val array = this
+    return object : Iterator<UByte> {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun next(): UByte {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UShortArray.iterator(): Iterator<UShort> {
+    val array = this
+    return object : Iterator<UShort> {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun next(): UShort {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UIntArray.iterator(): Iterator<UInt> {
+    val array = this
+    return object : Iterator<UInt> {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun next(): UInt {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+@ExperimentalUnsignedTypes
+public operator fun ULongArray.iterator(): Iterator<ULong> {
+    val array = this
+    return object : Iterator<ULong> {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun next(): ULong {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
 public fun <T> Array<out T>.withIndex(): Iterable<IndexedValue<T>> {
     val array = this
     return object : Iterable<IndexedValue<T>> {
@@ -126,6 +186,38 @@ public fun ShortArray.withIndex(): Iterable<IndexedValue<Short>> {
     val array = this
     return object : Iterable<IndexedValue<Short>> {
         override fun iterator(): Iterator<IndexedValue<Short>> = IndexingIterator(array.iterator())
+    }
+}
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.withIndex(): Iterable<IndexedValue<UByte>> {
+    val array = this
+    return object : Iterable<IndexedValue<UByte>> {
+        override fun iterator(): Iterator<IndexedValue<UByte>> = IndexingIterator(array.iterator())
+    }
+}
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.withIndex(): Iterable<IndexedValue<UShort>> {
+    val array = this
+    return object : Iterable<IndexedValue<UShort>> {
+        override fun iterator(): Iterator<IndexedValue<UShort>> = IndexingIterator(array.iterator())
+    }
+}
+
+@ExperimentalUnsignedTypes
+public fun UIntArray.withIndex(): Iterable<IndexedValue<UInt>> {
+    val array = this
+    return object : Iterable<IndexedValue<UInt>> {
+        override fun iterator(): Iterator<IndexedValue<UInt>> = IndexingIterator(array.iterator())
+    }
+}
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.withIndex(): Iterable<IndexedValue<ULong>> {
+    val array = this
+    return object : Iterable<IndexedValue<ULong>> {
+        override fun iterator(): Iterator<IndexedValue<ULong>> = IndexingIterator(array.iterator())
     }
 }
 
