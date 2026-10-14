@@ -337,9 +337,25 @@ extension ExprTypeChecker {
         var isImplicitlyBoundMember = false
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
+            // `Any` is represented by a builtin TypeID, while its compiler-provided
+            // `toString` member is hosted by a synthetic nominal `kotlin.Any` symbol.
+            // Bridge that representation gap so `value::toString` resolves through
+            // the same member target as other bound references.
+            let memberLookupReceiver: TypeID = if effectiveReceiverType == sema.types.anyType,
+                                                   member == interner.intern("toString"),
+                                                   let anyClassSymbol = sema.types.anyClassSymbol
+            {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: anyClassSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            } else {
+                nonNullReceiver
+            }
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: member,
-                receiverType: nonNullReceiver,
+                receiverType: memberLookupReceiver,
                 sema: sema,
                 includeUnattachedPackageExtensions: true,
                 interner: interner
