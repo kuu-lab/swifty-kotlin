@@ -1682,6 +1682,36 @@ private func resolveItableDispatchKind(
           let methodSlot = layout.vtableSlots[callee]
     else { return nil }
 
+    func containsNominalSubtype(
+        _ type: TypeID,
+        of owner: SymbolID,
+        visitedTypeParameters: Set<SymbolID> = []
+    ) -> Bool {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case let .classType(classType):
+            return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+        case let .intersection(parts):
+            return parts.contains {
+                containsNominalSubtype($0, of: owner, visitedTypeParameters: visitedTypeParameters)
+            }
+        case let .typeParam(typeParameter):
+            if let capture = typeParameter.capture {
+                return containsNominalSubtype(
+                    capture.upper,
+                    of: owner,
+                    visitedTypeParameters: visitedTypeParameters
+                )
+            }
+            guard !visitedTypeParameters.contains(typeParameter.symbol) else { return false }
+            let visited = visitedTypeParameters.union([typeParameter.symbol])
+            return sema.symbols.typeParameterUpperBounds(for: typeParameter.symbol).contains {
+                containsNominalSubtype($0, of: owner, visitedTypeParameters: visited)
+            }
+        default:
+            return false
+        }
+    }
+
     let nonNullReceiverType = sema.types.makeNonNullable(receiverTypeID)
     switch sema.types.kind(of: nonNullReceiverType) {
     case let .classType(classType):
@@ -1716,6 +1746,16 @@ private func resolveItableDispatchKind(
         // A generic receiver (e.g. `T : AutoCloseable` in `AutoCloseable.use`)
         // has an unknown concrete class at compile time, so the interface
         // itable must be resolved dynamically at runtime.
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: parentID, sema: sema, interner: interner
+        )
+        return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+    case .intersection:
+        // A smart-cast intersection can prove the member's interface through any
+        // one of its conjuncts, but the concrete runtime class is still unknown.
+        // Dispatch through the declaring interface's itable just like a direct
+        // interface or bounded type-parameter receiver.
+        guard containsNominalSubtype(nonNullReceiverType, of: parentID) else { return nil }
         let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: parentID, sema: sema, interner: interner
         )
