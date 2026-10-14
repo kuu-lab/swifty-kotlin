@@ -426,9 +426,14 @@ final class TypeCheckDriver {
                     continue
                 }
                 if let result = independentBodies[declID] {
+                    let stringMapping = interner.mergeWorkerStrings(result.newStrings, startingAt: result.initialStringCount)
                     let typeMapping = sema.types.mergeWorkerTypes(result.newTypes, startingAt: result.initialTypeCount)
+                    let symbolMapping = sema.symbols.mergeWorkerLocals(
+                        result.localSymbols, strings: stringMapping, types: typeMapping
+                    )
                     sema.bindings.mergeIndependentScalarExpressions(
-                        types: result.expressionTypes, identifiers: result.identifierSymbols, typeMapping: typeMapping
+                        types: result.expressionTypes, identifiers: result.identifierSymbols,
+                        typeMapping: typeMapping, symbolMapping: symbolMapping
                     )
                     for diagnostic in result.diagnostics { diagnostics.emit(diagnostic) }
                     sema.independentBodyCount += 1

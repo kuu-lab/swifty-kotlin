@@ -111,10 +111,12 @@ public final class TypeSystem {
     /// escape without canonicalization on the module thread.
     func makeSemaWorkerTypes() -> TypeSystem {
         let worker = TypeSystem()
+        worker.nextCaptureIdentity = nextCaptureIdentity
         worker.kindToID = kindToID
         worker.idToKind = idToKind
         worker.nominalDirectSupertypes = nominalDirectSupertypes
         worker.nominalTypeParameterVariancesMap = nominalTypeParameterVariancesMap
+        worker.nominalTypeParameterUpperBoundsMap = nominalTypeParameterUpperBoundsMap
         worker.nominalTypeParameterSymbolsMap = nominalTypeParameterSymbolsMap
         worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
         worker.comparableInterfaceSymbol = comparableInterfaceSymbol
