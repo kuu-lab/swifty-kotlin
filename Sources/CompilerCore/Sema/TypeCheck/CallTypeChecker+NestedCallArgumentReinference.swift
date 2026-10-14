@@ -90,6 +90,26 @@ extension CallTypeChecker {
         }
     }
 
+    /// Whether `type` carries a bare type parameter directly in a generic
+    /// argument position (e.g. `Holder<T>`), the residue of a nested
+    /// constructor/generic call whose type parameter no argument could fix
+    /// (`Holder { value -> Unit }` with an unannotated lambda parameter).
+    /// The leaked parameter would otherwise be read as a rigid outer type.
+    func typeContainsLeakedTypeParameterArgument(_ type: TypeID, sema: SemaModule) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: type) else {
+            return false
+        }
+        return classType.args.contains { arg in
+            switch arg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                if case .typeParam = sema.types.kind(of: inner) { return true }
+                return false
+            case .star:
+                return false
+            }
+        }
+    }
+
     /// Whether `expr` is a nested call whose type arguments were inferred
     /// (empty explicit type argument list), meaning it can still be steered
     /// by an expected type — unlike `mutableListOf<Nothing>()`, where the
@@ -509,7 +529,8 @@ extension CallTypeChecker {
             guard !lambdaLiteralIndices.contains(index),
                   index < argTypes.count,
                   typeContainsNothingType(argTypes[index], sema: sema)
-                      || typeContainsErrorType(argTypes[index], sema: sema),
+                      || typeContainsErrorType(argTypes[index], sema: sema)
+                      || typeContainsLeakedTypeParameterArgument(argTypes[index], sema: sema),
                   isInferableNestedCallExpr(argument.expr, ast: ast)
             else {
                 continue
