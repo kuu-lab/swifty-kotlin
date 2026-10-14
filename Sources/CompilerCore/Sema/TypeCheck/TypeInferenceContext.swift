@@ -39,6 +39,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     var builderInference: BuilderInferenceSession?
     /// Formal parameters of the surrounding call, not rigid lexical parameters.
     var callableReferenceInferenceParameters: Set<SymbolID> = []
+    /// True while inferring a callable reference directly against a call
+    /// parameter. Keep its source function type visible so call lowering can
+    /// emit a required suspend-conversion adapter.
+    var isCallableReferenceArgument = false
     var loopDepth: Int
     var loopLabelStack: [InternedString]
     /// Stack of labels attached to enclosing lambda literals, paired with
