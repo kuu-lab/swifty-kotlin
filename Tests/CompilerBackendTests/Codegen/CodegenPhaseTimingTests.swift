@@ -105,21 +105,24 @@ struct CodegenPhaseTimingTests {
             try CodegenPhase().run(ctx)
             timer.endPhase()
             let phase = try #require(timer.phaseRecords.first)
-            let names = phase.subRecords.map(\.name)
-            for name in ["backend init", "link info", "reflection records", "emitter setup", "IR emit", "IR/reflection globals"] {
+            func namesIn(_ records: [PhaseTimer.PhaseRecord]) -> [String] {
+                records.flatMap { [$0.name] + namesIn($0.subRecords) }
+            }
+            let names = namesIn(phase.subRecords)
+            for name in ["init", "linkInfo", "reflectionRecords", "initEmitter", "emit", "IR/reflection globals"] {
                 #expect(names.contains(name))
             }
             if mode != .llvmIR {
-                #expect(names.contains("target machine"))
-                #expect(names.contains("opt pipeline"))
-                #expect(names.contains("object write"))
+                #expect(names.contains("initTarget"))
+                #expect(names.contains("opt"))
+                #expect(names.contains("write"))
                 let objectPath = try #require(ctx.generatedObjectPath)
                 #expect(FileManager.default.fileExists(atPath: objectPath))
             } else if optimization != .O0 {
-                #expect(names.contains("opt pipeline"))
+                #expect(names.contains("opt"))
             }
             if mode == .library {
-                #expect(names.contains("inline-KIR artifacts"))
+                #expect(names.contains("inlineKIRArtifacts"))
             }
             for sub in phase.subRecords {
                 #expect(sub.startTime >= phase.startTime)
