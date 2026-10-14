@@ -621,7 +621,7 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
             if objectDecl.modifiers.contains(.data) {
-                collectSyntheticToString(
+                collectSyntheticHashCode(
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
                     ownerType: objectType,
