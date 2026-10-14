@@ -124,6 +124,13 @@ final class RuntimeFoundationStreamDispatch: @unchecked Sendable {
 /// controller. Foundation retains neither a fake NSData nor an array model.
 final class RuntimeFoundationInputStream: InputStream {
     let dispatch: RuntimeFoundationStreamDispatch
+    private weak var runtimeDelegate: StreamDelegate?
+    // NSStream's abstract setter traps on these concrete runtime adapters.
+    override var delegate: StreamDelegate? {
+        get { runtimeDelegate }
+        set { runtimeDelegate = newValue }
+    }
+
     init(_ dispatch: RuntimeFoundationStreamDispatch) {
         self.dispatch = dispatch
         super.init(data: Data())
@@ -162,6 +169,13 @@ final class RuntimeFoundationInputStream: InputStream {
 
 final class RuntimeFoundationOutputStream: OutputStream {
     let dispatch: RuntimeFoundationStreamDispatch
+    private weak var runtimeDelegate: StreamDelegate?
+    // NSStream's abstract setter traps on these concrete runtime adapters.
+    override var delegate: StreamDelegate? {
+        get { runtimeDelegate }
+        set { runtimeDelegate = newValue }
+    }
+
     init(_ dispatch: RuntimeFoundationStreamDispatch) { self.dispatch = dispatch; super.init(toMemory: ()) }
     required init?(coder: NSCoder) { return nil }
     override func open() { _ = dispatch.invoke(0) }
