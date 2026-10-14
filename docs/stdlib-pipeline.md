@@ -1201,3 +1201,17 @@ No KUU-1763 API/test state may become VERIFIED based on this draft. CF opaque
 pointee typing, general foreign-object ingress/subclass protocol import, and
 cross-GC/ARC cycles remain documented review dependencies. The prepared macOS
 workflow is PR-triggered and also permits manual dispatch; no candidate execution is claimed.
+
+### KUU-2062 JVM class mapping bridge admission
+
+KUU-2062 adds `Class<T : Any>.kotlin: KClass<T>` and
+`KClass<T : Any>.javaPrimitiveType: Class<T>?` in `kotlin/jvm/JvmClassMapping.kt`.
+The two private entries `__kk_class_kotlin` and `__kk_kclass_java_primitive_type`
+have the §13-2 reason **metadata / memory representation**: native Class boxes
+and interned KClass type tokens have no Kotlin object-slot representation.
+This increases `__kk_*` by two, leaves public `kk_*` unchanged, and updates the
+canonical ABI specVersion hash through RuntimeABISpec registration. Generic
+types, nullable results and getter selection remain source-backed. The bridges
+only translate runtime classifiers; Nothing maps to JVM void, while Unit,
+unsigned types and ordinary reference classes return null. Focused Sema, runtime
+and executable source/artifact O0/O2 regressions live in the JvmClassMapping tests.
