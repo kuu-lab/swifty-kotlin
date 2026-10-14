@@ -612,7 +612,10 @@ extension ExprTypeChecker {
             // in its own `$delegate_<name>` field; the property symbol itself
             // gets no storage slot.
             if propertyDecl.delegateExpression != nil {
-                let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                let extensionSuffix = propertyDecl.receiverType == nil ? "" : "_extension_\(propertySymbol.rawValue)"
+                let delegateStorageName = interner.intern(
+                    "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+                )
                 let delegateStorageSymbol = sema.symbols.define(
                     kind: .field,
                     name: delegateStorageName,

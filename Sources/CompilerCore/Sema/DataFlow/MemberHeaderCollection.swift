@@ -935,7 +935,10 @@ extension DataFlowSemaPhase {
             // synthesise getValue/setValue accessor calls.
             // STDLIB-CLASS-010: Abstract properties cannot have delegate expressions
             if propertyDecl.delegateExpression != nil && !propertyDecl.modifiers.contains(.abstract) {
-                let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                let extensionSuffix = propertyDecl.receiverType == nil ? "" : "_extension_\(memberSymbol.rawValue)"
+                let delegateStorageName = interner.intern(
+                    "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+                )
                 let delegateStorageFQName = ownerFQName + [delegateStorageName]
                 let delegateStorageSymbol = symbols.define(
                     kind: .field,
