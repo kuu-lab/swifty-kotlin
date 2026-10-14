@@ -17,9 +17,15 @@ extension LambdaLowerer {
         if driver.ctx.localValue(for: symbol) != nil {
             return true
         }
+        if driver.ctx.capturedOuterReceiverExprID(for: symbol) != nil {
+            return true
+        }
         if symbol == driver.ctx.activeImplicitReceiverSymbol(),
            driver.ctx.activeImplicitReceiverExprID() != nil
         {
+            return true
+        }
+        if activeImplicitReceiverValue(forCapturedReceiver: symbol, sema: sema) != nil {
             return true
         }
         guard let semanticSymbol = sema.symbols.symbol(symbol) else {
@@ -32,6 +38,26 @@ extension LambdaLowerer {
             return driver.ctx.localValue(for: tokenSymbol) != nil
         }
         return semanticSymbol.kind == .valueParameter || semanticSymbol.kind == .local
+    }
+
+    /// An object literal may key its enclosing `this` capture by the synthetic
+    /// receiver parameter of the declaration whose initializer contains it.
+    /// While lowering that initializer, the active receiver belongs to the
+    /// generated constructor instead, but both declarations share the same
+    /// class owner and therefore refer to the same instance.
+    func activeImplicitReceiverValue(
+        forCapturedReceiver symbol: SymbolID,
+        sema: SemaModule
+    ) -> KIRExprID? {
+        guard let capturedOwner = SyntheticSymbolScheme.receiverParameterOwner(for: symbol),
+              let activeReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+              let activeOwner = SyntheticSymbolScheme.receiverParameterOwner(for: activeReceiverSymbol),
+              let capturedDeclarationOwner = sema.symbols.parentSymbol(for: capturedOwner),
+              sema.symbols.parentSymbol(for: activeOwner) == capturedDeclarationOwner
+        else {
+            return nil
+        }
+        return driver.ctx.activeImplicitReceiverExprID()
     }
 
     /// The expression roots of an accessor body, for the capture traversals

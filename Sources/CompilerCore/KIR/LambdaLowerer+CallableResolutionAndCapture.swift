@@ -739,6 +739,9 @@ extension LambdaLowerer {
         if let receiver = driver.ctx.capturedOuterReceiverExprID(for: symbol) {
             return receiver
         }
+        if let receiver = activeImplicitReceiverValue(forCapturedReceiver: symbol, sema: sema) {
+            return receiver
+        }
         // KSP-491: a delegated local (`val x by lazy { ... }`/`by Prop()`) has
         // no `localValue` -- its storage is the delegate instance, tracked
         // separately (see ExprLowerer's `.localDecl` case) so getValue can be
