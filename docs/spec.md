@@ -533,6 +533,18 @@ public struct ASTFile {
 }
 ```
 
+### BuildAST の採番契約
+
+`DeclID` / `ExprID` / `TypeRefID` は、入力ファイルに対応する syntax tree の順序と、
+各ファイル内の arena 追加順で採番する。`jobs=1/2/4` および task の完了順に依存しない。
+BuildAST は各ファイルを private arena / interner で構築し、全 worker の完了後に入力順で
+module arena へ統合する。ノード内の参照、annotation の元 token、付随テーブルの key/value、
+file の宣言・script 参照を同時に remap し、負の invalid sentinel と SourceRange は維持する。
+compound assignment の一時名は FileID と SourceRange で識別し、file-local ID を文字列へ埋め込まない。
+既存の incremental arena は変更しない prefix として保持し、再コンパイルしたファイルだけを
+同じ順序で末尾へ追加する。同じキャッシュ状態・再コンパイル集合なら jobs 間で ID が一致する。
+clean build と incremental build の ID 一致は保証しない。
+
 ### 代表ノード（抜粋）
 
 ```swift
