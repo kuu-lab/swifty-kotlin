@@ -1,4 +1,4 @@
-node kotlinFile f0:0..61
+node kotlinFile f0:0..95
   node funDecl f0:0..20
     tok keyword(fun) f0:0..3
     tok identifier(good1) f0:4..9
@@ -28,7 +28,7 @@ node kotlinFile f0:0..61
     tok identifier(Int) f0:46..49
     tok symbol(=) f0:50..51
     tok intLiteral(2) f0:52..53
-  node classDecl f0:54..61
+  node classDecl f0:54..95
     tok keyword(class) f0:54..59
     tok identifier(C) f0:60..61
     node block f0:62..95
