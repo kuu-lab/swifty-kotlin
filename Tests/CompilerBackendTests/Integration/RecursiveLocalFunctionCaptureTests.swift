@@ -22,6 +22,14 @@ struct RecursiveLocalFunctionCaptureTests {
         )
     }
 
+    @Test(arguments: [0, 2])
+    func threeLevelLocalFunctionRecursionPreservesCaptureAndCalls(optimization: Int) throws {
+        try compileAndRun(
+            diffCaseSource("three_level_recursive_local_functions.kt", file: #filePath),
+            expectedOutput: "3\n", fromSource: false, optimization: optimization
+        )
+    }
+
     private func compileAndRun(
         _ source: String, expectedOutput: String, fromSource: Bool, optimization: Int
     ) throws {
