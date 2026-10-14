@@ -10,6 +10,7 @@ extension CallTypeChecker {
         calleeName: InternedString,
         args: [CallArgument],
         explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         interner: StringInterner,
@@ -36,14 +37,20 @@ extension CallTypeChecker {
             knownNames: knownNames,
             sema: sema
         )
-        let visibleCandidates: [SymbolID] = if explicitlyImportedCandidates.isEmpty {
-            ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        let visibleCandidates: [SymbolID]
+        if explicitlyImportedCandidates.isEmpty {
+            let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+            // An inaccessible declaration cannot hide a default-import
+            // intrinsic in an outer scope tier.
+            visibleCandidates = visible.isEmpty
+                ? ctx.filterByVisibility(ctx.scope.lookupMergingChain(calleeName)).visible
+                : visible
         } else {
             // The ordinary scope chain puts same-package declarations ahead of
             // explicit imports. Kotlin gives an explicit import priority here,
             // so use the imported intrinsic tier before checking for a user
             // declaration that would shadow the default-import intrinsic.
-            explicitlyImportedCandidates
+            visibleCandidates = explicitlyImportedCandidates
         }
         guard let intrinsic = visibleCandidates.compactMap({
             sema.wellKnownSymbols.enumIntrinsic(for: $0)
@@ -68,7 +75,30 @@ extension CallTypeChecker {
         if locals[calleeName] != nil || hasNonSyntheticUserCandidate {
             return nil
         }
-        guard explicitTypeArgs.count == 1 else {
+        let typeArg: TypeID
+        if explicitTypeArgs.isEmpty, intrinsic == .enumValues, args.isEmpty {
+            // Reuse generic return-type constraints, including use-site variance,
+            // rather than stripping a projection from the expected Array type.
+            let resolved = ctx.resolver.resolveCall(
+                candidates: [stubSymbol],
+                call: CallExpr(range: range, calleeName: calleeName, args: []),
+                expectedType: expectedType,
+                ctx: sema
+            )
+            guard resolved.chosenCallee == stubSymbol,
+                  let inferred = resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)]
+            else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Cannot infer enum type argument for `\(interner.resolve(calleeName))` from the expected type.",
+                    range: range
+                )
+                return nil
+            }
+            typeArg = inferred
+        } else if explicitTypeArgs.count == 1 {
+            typeArg = explicitTypeArgs[0]
+        } else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "Expected exactly one type argument for `\(interner.resolve(calleeName))`.",
@@ -76,7 +106,6 @@ extension CallTypeChecker {
             )
             return nil
         }
-        let typeArg = explicitTypeArgs[0]
         let enumType: TypeID
         if case let .classType(classType) = sema.types.kind(of: typeArg),
            classType.nullability == .nonNull,
