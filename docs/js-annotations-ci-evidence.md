@@ -62,7 +62,7 @@ SwiftPM sandbox の制約がある場合は通常の権限あるターミナル�
 
 ## 証拠と未達項目
 
-KUU-1616 の保存記録 `fixtures/js_annotations/evidence/native-matrix-results.json` は
+KUU-1616 の過去の保存記録 `fixtures/js_annotations/evidence/native-matrix-results.json` は
 **56 pass / 52 fail / 0 timeout / 0 not-run**。全27 fixture は四経路で同じ結果だったが、
 13 fixture の native 契約検証が成功していない。
 adapter 未対応による失敗と製品の契約不一致を、同じ「未実装」と判断しない。別の focused 記録の12/12成功で、
@@ -83,7 +83,8 @@ adapter 未対応による失敗と製品の契約不一致を、同じ「未実
 | `marker_no_opt_in` | OPT_IN_USAGE の warning 3件 | 同 warning 2件 | marker requirement の伝播・利用地点を照合 |
 | `collection_marker_fqn` | compile exit1、定数/参照 error 2件 | compile exit0、診断0件 | 無効 FQN の受理を照合 |
 
-これらが残る間、KUU-1480 の SKIP 解除は **needs attention**。
+これらは上記の過去 matrix で観測された不一致であり、その時点では KUU-1480 の SKIP 解除は
+**needs attention** だった。
 
 2026-10-13 JST の最初のローカル実行は Runtime の packaged SwiftPM build が
 `sandbox_apply: Operation not permitted` となったため中断した。stdlib artifact の生成は
@@ -124,6 +125,23 @@ manifest は `f9c359a32e34d9bbf5b8ea627d5de3bcbb718c8c7622c9a777ecb4f1c1242369`�
 compiler/source/artifact/manifest hash、期待値/map hash は `matrix-results.json`、正確な command、
 compile と run の stdout/stderr/終了コード/timeout は matrix directory の各 process 記録にある。
 過去の記録の集約だけを現在の compiler の再実行と呼ばない。
+
+2026-10-15 JST の統合後ローカル candidate-only 実行は `run_ci.py` の exit 0 で完了し、
+runner 回帰3本と native 27 fixture × source/artifact × O0/O2 の108セルがすべて PASS、
+fail / timeout / not-run は0、経路間不一致は0、`skipRemovalReady` は `true` だった。
+`KOTLINC=/__codex_missing_kotlinc JAVA_BIN=/__codex_missing_java` を指定しており、
+JVM reference は実行経路にない。run directory は
+`.artifacts/js_annotations_ci/20261014T191310.036137Z-b64c599e/`、matrix は
+`matrix/20261014T191321.536958Z-b13578d1/`。
+revision は `3c22b11e547b755dda56dd05e921e17bd8056084`、CompilerCore source tree hash は
+`5ac1f34132d6894abfbd7e58969cce62940c1e8f0e58352af5b54d4efd5ff427`、compiler SHA256 は
+`a0d9cac1239aa2ed6ab29c2ae3f57931ccbc9a02d6837b8243dccbcb97eed867`。
+fresh 1849-file artifact SHA256 は `cfdfd80867af93a15754f15ff30f2d563bbd605857b763169f7804d7096860b7`、
+manifest SHA256 は `4968c760ccd9d5699772443be1a8b1a4cda0d995b9b69d856d992167c8efda3d`。
+実行環境は macOS 27 / Apple Swift 6.4 arm64。
+このrevisionには #9027 / #9041 の変更を積んでいる。#9038 は merge queue 待ちのため含めず、
+同PRが扱う unchecked cast warning は、このローカル実行では redundant cast の除去で回避している。
+GitHub hosted workflow は未実行（`workflowRunUrl: null`）であり、手順3の証拠は別途必要。
 
 集約器は compile/runtime timeout を `timeout`、artifact build 失敗によって開始できなかった
 fixture を `not-run`、実行した契約不一致を `fail` とする。artifact build 自身の timeout は

@@ -43,7 +43,7 @@ private class CollectionsUnmodifiableListIterator<E>(
 }
 
 private fun <E> collectionsUnmodifiableList(backing: List<E>): MutableList<E> =
-    if (backing is RandomAccess) CollectionsUnmodifiableRandomAccessList(backing as List<E>)
+    if (backing is RandomAccess) CollectionsUnmodifiableRandomAccessList(backing)
     else CollectionsUnmodifiableList(backing)
 
 private class CollectionsUnmodifiableRandomAccessList<E>(
