@@ -100,6 +100,106 @@ combined compile. `consumer-manifest.json` records the ledger IDs and source
 scopes. Regeneration fails if a public source row is missing from the positive
 scope consumers or an invalid guard is missing from the negative consumer.
 
+## F02 executable and independent-process matrix
+
+F02 consumers turn the 235 JVM-paired common source rows into actual calls with
+fresh typed inputs. Both full and default calls have required completion events.
+Return values include primitive type identity and floating-point wire bits;
+ByteString/array/buffer/builder contents, exception types and callback counts are
+observed. Unsafe contexts remain inside their original callback scope, and all
+four unchecked-write widths are committed and checked. The producer exports
+typed probes; the independent consumer creates arguments and invokes those
+imported signatures. The compile-only F01 consumers are not execution evidence.
+
+```sh
+python3 Scripts/io_api_inventory/generate_f02_consumers.py --write
+python3 Scripts/io_api_inventory/generate_f02_consumers.py
+python3 Scripts/io_api_inventory/test_f02_matrix.py
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /tmp/new-f02-run \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars --compile-timeout 1800
+```
+
+The default selection also runs every `kotlinx_io*.kt` diff consumer in a batch,
+the existing compound Buffer/buffering/numeric/EOF fixtures, and the public Apple
+SDK fixture plus 25 original Apple bodies. Explicit `--case ledger-jvm` selects only that subset. Each selected
+case has source, explicit bundled stdlib and independent `.kklib` producer/consumer
+lanes at O0/O2. Selected cases are batched to avoid recompiling the whole bundled
+source stdlib for each small fixture; `--separate-cases` gives individual lanes.
+`--entry-point` selects the intended qualified consumer entry and
+preserves other fixture mains. Producer source paths are retired before the
+consumer process starts; producer/consumer cwd, temporary directories and
+incremental/stdlib caches are distinct.
+
+Every selected lane is attempted after a lane failure, and each failure retains
+its raw diagnostic or output difference. The original Apple test module is run
+separately: its test-only helpers occupy real stdlib packages and can conflict
+with ordinary bundled declarations. Its failed lanes remain required failures
+in the overall result; isolating it does not remove it from the selection.
+The batch driver catches an unexpected Kotlin exception per fixture/group,
+records an `UNHANDLED-*` event and continues the remaining consumers. Such an
+event differs from the reference bytes and fails the lane; it cannot become a
+passing result merely because the driver itself exits zero. Fatal native traps
+still stop the process and remain incomplete execution. Original fixture bodies
+are preserved.
+
+The boundary fixture additionally checks dependency initialization order/once,
+inline/default/accessor imports, thrown callbacks, and a retained callback and
+Java IO adapter after `System.gc()`. The matrix preserves raw output, commands,
+deadlines, exits, binary/stdlib/producer/source/resource hashes and workspace SHA.
+Only owned execution directory prefixes are normalized during comparison; all
+other bytes remain exact. Reference SDK files and IO jars must match the fixed
+lock. By default the stdlib is freshly built in this run; supplying an explicit
+`--stdlib-library` records that its freshness was not inferred from its path.
+
+`SELECTED_MATRIX_PASS` means only the selected scenarios passed. The manifest
+retains every unpaired source/platform/internal/JVM ABI row, and `issue_complete`
+remains false: compilation, native bridge behavior and JVM bytecode descriptor
+presence are different obligations. EOF and public Apple fixtures retain their
+declaration-derived expected-output classification, rather than being described
+as new official Native reference runs. Other boundary/resource/annotation
+contracts and the parent's full upstream execution gate remain separate checks.
+
+### F02 acceptance snapshot, 2026-10-14
+
+KUU-1822 remains incomplete. The final run used retrieved master
+`01544852e570d6bb1766e44b4e9fb47af88121f2` plus the uncommitted F02 changes,
+compiler SHA-256 `058faee4af259a74b65023f5721233b97d86b3ac2eb6928827b7fa525aee25e7`,
+and a new CLI stdlib build. Its 1,848 relative file/SHA-256 entries have digest
+`a60d5de95ccbfc647a65603faca90aa99c26e2da1f0b1f4e669c315eb222dad8`
+(SHA-256 of UTF-8 compact JSON with sorted keys); all file hashes and 439 Runtime
+object hashes are retained. The Runtime object cache was manifest-validated;
+this is not a claim of a clean Runtime rebuild.
+
+The complete selection attempted all 12 lanes: **0 PASS, 12 FAIL, no timeout**.
+The ordinary batch's six lanes compiled, linked and ran with all 235 ledger rows,
+275 full/default calls, 50 fixture endings and eight case endings. Five groups
+(library boundary, Buffer, buffering, EOF and numeric contracts) matched their
+classified reference bytes in all six lanes. The previous producer-only null
+results in 12 calls disappeared at O0/O2. All nine Base64 ledger rows now match
+in all six lanes, and the FQN Base64/object initialization probes match the fixed
+JVM reference at O0/O2. Those improvements do not make the full lanes pass.
+
+Remaining failures include unexpected fixture termination on closed raw streams,
+Apple partial writes, Any-based raw-bit/name observations and the original Apple
+module's Sema failures. JVM/Native closed-stream exception and temporary-directory
+differences require platform-specific reference classification. General compiler
+blockers are tracked as KUU-2055, KUU-2057, KUU-2069, KUU-2151 and KUU-2152;
+the existing Apple partial-write owner is KUU-2150. No official Kotlin/Native
+reference execution was performed, and no ledger row was promoted to verified.
+
+Validation was limited to `swift build`, the related Swift gate (59 tests before
+the additional FQN correction), the final singleton regression (one test with six
+source/artifact/producer O0/O2 cases), eight inventory reproducibility tests and
+ten runner tests. Whole Swift/Golden/diff suites were not run. The attempted broad
+LibraryStdlibCallTests run was interrupted and is not passing evidence.
+
+Local raw evidence is in `/private/tmp/kuu1822/final-master-matrix/` and
+`/private/tmp/kuu1822/final-master-auxiliary-probes/`: summaries, original streams,
+commands, deadlines, exits, file hashes, event checks and byte differences.
+Linear KUU-1822 records the immutable run details and blocker links.
+
 ## Recheck
 
 Requires Python 3.9+ and no third-party Python package:

@@ -40,14 +40,16 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            // A concrete constructor cannot change its result type to match an
-            // inapplicable outer member. Keep its already inferred type so the
-            // member resolver can retry extensions without poisoning the call.
+            // Constructors and non-generic factories have fixed result types.
+            // Keep an incompatible result already inferred without context so
+            // an inapplicable member can fall through to an extension overload.
             if let argumentType = preInferredArgumentTypes[index],
                argumentType != ctx.sema.types.errorType,
-               let constructor = ctx.sema.bindings.callBinding(for: args[index].expr)?.chosenCallee,
-               ctx.sema.symbols.symbol(constructor)?.kind == .constructor,
-               ctx.sema.symbols.functionSignature(for: constructor)?.classTypeParameterCount == 0,
+               let nestedCallee = ctx.sema.bindings.callBinding(for: args[index].expr)?.chosenCallee,
+               let nestedSymbol = ctx.sema.symbols.symbol(nestedCallee),
+               let nestedSignature = ctx.sema.symbols.functionSignature(for: nestedCallee),
+               (nestedSymbol.kind == .constructor && nestedSignature.classTypeParameterCount == 0
+                || nestedSymbol.kind == .function && nestedSignature.typeParameterSymbols.isEmpty),
                !ctx.sema.types.isSubtype(argumentType, parameterType)
             {
                 continue
