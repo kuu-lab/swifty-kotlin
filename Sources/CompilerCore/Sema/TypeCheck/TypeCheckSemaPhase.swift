@@ -201,6 +201,17 @@ final class TypeCheckSemaPhase: CompilerPhase {
             guard case let .indexedCompoundAssign(_, _, _, value, _) = ast.arena.expr(exprID) else { continue }
             recordLambdaArguments([value], binding: binding.call)
         }
+        // Intrinsic Array(size, init) calls have no selected function binding,
+        // but their initializer is inlined just like the bundled factory body.
+        for (callExprID, kind) in sema.bindings.stdlibSpecialCallKinds where kind == .arrayConstructor {
+            guard case let .call(_, _, args, _) = ast.arena.expr(callExprID),
+                  args.count == 2,
+                  case .lambdaLiteral = ast.arena.expr(args[1].expr)
+            else {
+                continue
+            }
+            inlineLambdaArguments.insert(args[1].expr)
+        }
         return (inlineLambdaArguments, suspendLambdaArguments)
     }
 
