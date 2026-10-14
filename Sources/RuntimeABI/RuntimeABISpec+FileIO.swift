@@ -2,6 +2,20 @@
 /// `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
+        RuntimeABIFunctionSpec(
+            name: "__kk_input_stream_reader_new",
+            parameters: [RuntimeABIParameter(name: "streamRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "FileIO",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_buffered_reader_new",
+            parameters: [RuntimeABIParameter(name: "readerRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "FileIO",
+            isThrowing: false
+        ),
         // File must stay constructible for kotlin.io.FileSystemException (KSP-619)
         // and Files.kt's resolveSibling/normalize (KSP-483); see CLEANUP-STUB-107.
         RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_new_default", parameters: [], returnType: .intptr, section: "FileIO"),

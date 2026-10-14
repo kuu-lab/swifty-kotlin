@@ -874,6 +874,20 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    stdio's cursor with console input. `__kk_*` increases by one;
    `RuntimeABISpec.systemFunctions` registers the ABI and its canonical hash
    updates `specVersion`.
+
+   KUU-2016 adds two private constructor bridges, `__kk_input_stream_reader_new`
+   and `__kk_buffered_reader_new` (reason: memory representation). The bundled
+   Java reader constructors produce native reader handles used by the existing
+   read/line/close ABI rather than Kotlin object fields. `__kk_*` increases by
+   two; `RuntimeABISpec.fileIOFunctions` registers both signatures and its
+   canonical hash updates `specVersion`. The native default decoder remains
+   UTF-8. BufferedReader reuses its bootstrap nominal shell and residual
+   members; its sole public constructor and close override are owned by the
+   bundled declaration, which reuses the existing close member symbol.
+   Factory lowering registers Closeable/AutoCloseable interface methods on
+   both native reader handles, preserving erased close calls and use cleanup.
+   The decoder accepts both existing byte-input box forms, including
+   SequenceInputStream; no additional public constructor overload is added.
    KUU-2018 adds four private `__kk_thread_local_*` storage bridges (reason:
    syscall and memory representation): allocation, initialized-state lookup,
    value lookup, and value storage use the native thread identity and GC root

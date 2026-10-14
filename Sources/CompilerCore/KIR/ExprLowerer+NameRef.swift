@@ -1038,6 +1038,7 @@ extension ExprLowerer {
                 let receiverSymbol = receiverClass.classSymbol
                 driver.emitObjectLazyInitGuardIfNeeded(
                     objectSymbol: receiverSymbol, arena: arena, sema: sema,
+                    interner: interner,
                     instructions: &instructions
                 )
                 let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
@@ -1084,6 +1085,7 @@ extension ExprLowerer {
                 {
                     driver.emitObjectLazyInitGuardIfNeeded(
                         objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                        interner: interner,
                         instructions: &instructions
                     )
                 }
@@ -1135,6 +1137,7 @@ extension ExprLowerer {
             if sema.symbols.symbol(symbol)?.kind == .object {
                 driver.emitObjectLazyInitGuardIfNeeded(
                     objectSymbol: symbol, arena: arena, sema: sema,
+                    interner: interner,
                     instructions: &instructions
                 )
             }

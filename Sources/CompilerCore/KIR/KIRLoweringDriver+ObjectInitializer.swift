@@ -41,12 +41,13 @@ extension KIRLoweringDriver {
         objectSymbol: SymbolID,
         arena: KIRArena,
         sema: SemaModule,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
         if sema.symbols.externalLinkName(for: objectSymbol) != nil {
             return
         }
-        let lazyInitSymbol: SymbolID
+        let lazyInitSymbol: SymbolID?
         let lazyInitName: InternedString
         if let lazyInit = ctx.objectLazyInit(for: objectSymbol) {
             lazyInitSymbol = lazyInit.ensureInitSymbol
@@ -57,7 +58,58 @@ extension KIRLoweringDriver {
             lazyInitSymbol = importedLazyInit
             lazyInitName = importedSymbol.name
         } else {
-            return
+            // A same-module object declared later than this use site -- its
+            // ensure-init function has not been synthesized yet, but its
+            // link name is deterministic and resolves at codegen. Decls
+            // that never synthesize a lazy init (imported/synthetic
+            // singletons, expect declarations, function-local objects)
+            // must not reach this path.
+            guard let objectInfo = sema.symbols.symbol(objectSymbol),
+                  objectInfo.kind == .object,
+                  !objectInfo.flags.contains(.importedLibrary),
+                  !objectInfo.flags.contains(.synthetic),
+                  !objectInfo.flags.contains(.expectDeclaration)
+            else { return }
+            let parentSymbol = sema.symbols.parentSymbol(for: objectSymbol)
+            // Only nominal/package ancestors produce a statically-emitted
+            // lazy init; a function or local ancestor means the object is
+            // function-local and never gets one.
+            var ancestorSymbol = parentSymbol
+            while let ancestorID = ancestorSymbol {
+                switch sema.symbols.symbol(ancestorID)?.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass, .package:
+                    ancestorSymbol = sema.symbols.parentSymbol(for: ancestorID)
+                default:
+                    return
+                }
+            }
+            let isCompanion = parentSymbol.map {
+                sema.symbols.companionObjectSymbol(for: $0) == objectSymbol
+            } ?? false
+            // Nested (non-companion) objects only synthesize a lazy init when
+            // they need runtime initialization -- the same gate
+            // `synthesizeNestedObjectInitializers` applies. Top-level objects
+            // and companions always get one.
+            let parentIsNominal = parentSymbol.map {
+                sema.symbols.symbol($0)?.kind != .package
+            } ?? false
+            if !isCompanion, parentIsNominal {
+                let needsRuntimeInitialization = sema.symbols.directSupertypes(for: objectSymbol).contains { superSymbol in
+                    let kind = sema.symbols.symbol(superSymbol)?.kind
+                    if kind == .interface {
+                        return true
+                    }
+                    return (kind == .class || kind == .enumClass)
+                        && superSymbol != sema.types.anyClassSymbol
+                }
+                guard needsRuntimeInitialization else { return }
+            }
+            lazyInitSymbol = nil
+            lazyInitName = interner.intern(
+                isCompanion
+                    ? "__companion_lazy_init_\(objectSymbol.rawValue)"
+                    : "__object_lazy_init_\(objectSymbol.rawValue)"
+            )
         }
         let result = arena.appendTemporary(type: sema.types.unitType)
         instructions.append(.call(
