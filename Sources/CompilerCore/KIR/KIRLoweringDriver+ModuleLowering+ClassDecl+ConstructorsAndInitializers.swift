@@ -91,6 +91,17 @@ extension KIRLoweringDriver {
     ) -> KIRLoweringEmitContext {
         let sema = shared.sema
         var body: KIRLoweringEmitContext = [.beginBlock]
+        // Constructing a class is an active use of that class on the JVM.
+        // Run its companion initializer before superclass or instance init code.
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol) {
+            emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: companionSymbol,
+                arena: shared.arena,
+                sema: sema,
+                interner: shared.interner,
+                instructions: &body.instructions
+            )
+        }
         if let receiverBinding = ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
