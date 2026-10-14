@@ -46,6 +46,7 @@ extension CoroutineLoweringPass {
         let checkCancellationCallee = interner.intern("kk_coroutine_check_cancellation")
         let sourceDelayCallee = interner.intern("delay")
         let suspendCoroutineRuntimeCallee = interner.intern("kk_suspend_coroutine")
+        let semaphoreAcquireCallee = interner.intern("kk_semaphore_acquire")
         let suspendCoroutineUninterceptedOrReturnCallee = interner.intern("suspendCoroutineUninterceptedOrReturn")
         // CORO-004: runtime suspend callees that take the caller continuation as a
         // trailing argument so they can resume the awaiting coroutine without blocking.
@@ -64,6 +65,7 @@ extension CoroutineLoweringPass {
             interner.intern("kk_kxmini_async_await"),
             interner.intern("kk_job_join"),
             interner.intern("kk_job_await_completion"),
+            interner.intern("kk_semaphore_acquire"),
             interner.intern("kk_await_cancellation"),
             interner.intern("__kk_deep_recursive_scope_callRecursive"),
             interner.intern("__kk_deep_recursive_function_callRecursive"),
@@ -364,6 +366,15 @@ extension CoroutineLoweringPass {
                         if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
                             // CORO-004: append the caller continuation so await / join can
                             // resume the coroutine via the runtime instead of blocking.
+                            // KUU-2161: KIR call lowering already appended a zero
+                            // continuation placeholder to Semaphore.acquire; swap it
+                            // for the real caller continuation instead of adding a
+                            // third argument.
+                            if suspendCallInfo.callee == semaphoreAcquireCallee,
+                               loweredSuspendArguments.count >= 2
+                            {
+                                loweredSuspendArguments.removeLast()
+                            }
                             loweredSuspendArguments.append(continuationExpr)
                         }
                     }

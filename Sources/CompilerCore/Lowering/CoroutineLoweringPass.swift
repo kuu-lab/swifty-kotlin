@@ -139,6 +139,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // KUU-2161: Semaphore.acquire parks the caller continuation when no
+            // permit is free so an UNDISPATCHED waiter does not block its starter.
+            ctx.interner.intern("kk_semaphore_acquire"),
             // awaitCancellation() parks a cancellable continuation.
             ctx.interner.intern("kk_await_cancellation"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
