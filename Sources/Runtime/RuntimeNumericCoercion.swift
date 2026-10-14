@@ -45,7 +45,9 @@ public func kk_int_to_ulong(_ value: Int) -> Int {
 
 @_cdecl("kk_long_to_ulong")
 public func kk_long_to_ulong(_ value: Int) -> Int {
-    value
+    // An Any-to-Long cast can retain a Long box. Convert its payload, not
+    // its handle, before the result is treated as an unsigned value.
+    kk_unbox_long(value)
 }
 
 @_cdecl("kk_ulong_to_long")
