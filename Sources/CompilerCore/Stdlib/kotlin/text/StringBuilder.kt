@@ -47,6 +47,19 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     fun append(value: Int): StringBuilder =
         __kk_string_builder_append_obj(value.toString())
 
+    fun appendCodePoint(codePoint: Int): StringBuilder {
+        if (codePoint < 0 || codePoint > 0x10FFFF) {
+            throw IllegalArgumentException()
+        }
+        // JVM accepts surrogate code points as individual UTF-16 code units.
+        if (codePoint < 0x10000) return append(codePoint.toChar())
+
+        val supplementary = codePoint - 0x10000
+        append((0xD800 + (supplementary shr 10)).toChar())
+        append((0xDC00 + (supplementary and 0x3FF)).toChar())
+        return this
+    }
+
     fun append(value: Long): StringBuilder =
         __kk_string_builder_append_obj(value.toString())
 
