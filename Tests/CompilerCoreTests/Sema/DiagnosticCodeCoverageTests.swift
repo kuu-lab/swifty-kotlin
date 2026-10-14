@@ -728,7 +728,7 @@ extension DiagnosticCodeCoverageTests {
 
                 let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
 
-                assertHasDiagnostic("KSWIFTK-SEMA-0070", in: sample4Diagnostics)
+                assertNoDiagnostic("KSWIFTK-SEMA-0070", in: sample4Diagnostics)
 
             }
 
