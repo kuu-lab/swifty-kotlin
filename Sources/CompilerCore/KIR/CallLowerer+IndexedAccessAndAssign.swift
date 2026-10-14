@@ -103,20 +103,22 @@ extension CallLowerer {
                     instructions: &instructions
                 )
             }
+            let normalized = driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredIndices,
+                callBinding: callBinding,
+                chosenCallee: chosenGet,
+                spreadFlags: Array(repeating: false, count: loweredIndices.count),
+                sourceArgExprs: indices,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             emitMemberCallInstruction(
-                normalized: driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredIndices,
-                    callBinding: callBinding,
-                    chosenCallee: chosenGet,
-                    spreadFlags: Array(repeating: false, count: loweredIndices.count),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                ),
+                normalized: normalized,
                 callBinding: callBinding,
                 chosenCallee: chosenGet,
                 calleeName: interner.intern("get"),
@@ -128,7 +130,8 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 instructions: &instructions,
-                arguments: [receiverID] + loweredIndices
+                arguments: [receiverID] + normalized.arguments,
+                sourceArgExprs: indices
             )
             return result
         }
