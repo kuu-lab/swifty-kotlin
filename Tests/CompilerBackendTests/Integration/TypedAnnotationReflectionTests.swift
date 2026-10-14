@@ -50,7 +50,7 @@ struct TypedAnnotationReflectionTests {
             moduleName: "AnnotationFactoryAPI", inputs: [libraryInput], outputPath: library, emit: .library,
             target: defaultTargetTriple(), optLevel: level, stdlibLibraryPath: stdlib
         )))
-        let records = MetadataDecoder().decode(try String(contentsOfFile: library + ".kklib/metadata.bin", encoding: .utf8))
+        let records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: library + ".kklib/metadata.bin")))
         for owner in ["typedannotations.Named", "typedannotations.Carrier.Tag"] {
             for name in ["equals", "hashCode", "toString"] {
                 #expect(records.contains { $0.fqName == owner + "." + name && $0.externalLinkName != nil })

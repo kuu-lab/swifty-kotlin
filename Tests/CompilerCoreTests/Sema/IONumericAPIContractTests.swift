@@ -73,8 +73,8 @@ struct IONumericAPIContractTests {
             try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
             try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
-            records = MetadataDecoder().decode(try String(
-                contentsOf: directory.appendingPathComponent("metadata.bin"), encoding: .utf8
+            records = MetadataDecoder().decode(try Data(
+                contentsOf: directory.appendingPathComponent("metadata.bin")
             ))
             try #require(!records.isEmpty)
         }

@@ -344,7 +344,7 @@ struct LibraryMetadataImportIntegrationTests {
         inline fun callDoubled(v: Int) = v.doubled
         """
         try withCompiledLibrary(source: librarySource, moduleName: "ExtDemo") { libraryPath in
-            let metadata = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let propertyRecord = try #require(MetadataDecoder().decode(metadata).first {
                 $0.fqName == "extdemo.doubled" && $0.kind == .property
             })
@@ -432,7 +432,7 @@ struct LibraryMetadataImportIntegrationTests {
         }
 
         try withCompiledLibrary(source: source, moduleName: "LayoutLib") { libraryPath in
-            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let records = MetadataDecoder().decode(metadataText)
             let derivedRecord = try #require(records.first { $0.fqName == "layoutdemo.Derived" })
             #expect(derivedRecord.declaredInstanceSizeWords != nil)
@@ -452,7 +452,7 @@ struct LibraryMetadataImportIntegrationTests {
         """
 
         try withCompiledLibrary(source: librarySource, moduleName: "ExtEnumOrder") { libraryPath in
-            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let records = MetadataDecoder().decode(metadataText)
             let enumRecord = try #require(records.first { $0.fqName == "extdemo.ExternalOsFamily" })
             #expect(enumRecord.kind == .enumClass)
@@ -651,7 +651,7 @@ struct LibraryMetadataImportIntegrationTests {
         val answer: Int = 42
         """
         try withCompiledLibrary(source: source, moduleName: "MetaExport") { libraryPath in
-            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let records = MetadataDecoder().decode(metadataText)
             let idRecord = try #require(records.first { $0.fqName == "metaexport.id" })
             let answerRecord = try #require(records.first { $0.fqName == "metaexport.answer" })
@@ -671,7 +671,7 @@ struct LibraryMetadataImportIntegrationTests {
         }
         """
         try withCompiledLibrary(source: source, moduleName: "GenericLib") { libraryPath in
-            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let records = MetadataDecoder().decode(metadataText)
             let holderRecord = try #require(records.first { $0.fqName == "genericlib.Holder" })
             #expect(holderRecord.nominalTypeParameters != nil)
@@ -767,7 +767,7 @@ struct LibraryMetadataImportIntegrationTests {
         val handler: Handler? = null
         """
         try withCompiledLibrary(source: source, moduleName: "MetaExportContext") { libraryPath in
-            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
             let records = MetadataDecoder().decode(metadataText)
             let handlerTypeAlias = try #require(records.first { $0.fqName == "metaexport.Handler" })
             let handlerProperty = try #require(records.first { $0.fqName == "metaexport.handler" })

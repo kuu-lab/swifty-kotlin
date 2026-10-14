@@ -66,7 +66,7 @@ struct IOFileAPIContractTests {
             let data = try Data(contentsOf: url.appendingPathComponent("manifest.json"))
             let manifest = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
             #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
-            #expect(manifest["formatVersion"] as? Int == 1)
+            #expect(manifest["formatVersion"] as? Int == 2)
             #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
             #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
         }
@@ -110,7 +110,7 @@ struct IOFileAPIContractTests {
         }
         var records: [MetadataRecord] = []
         if let path = ctx.options.stdlibLibraryPath {
-            records = MetadataDecoder().decode(try String(contentsOfFile: path + "/metadata.bin", encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path + "/metadata.bin")))
             #expect(!records.isEmpty)
         }
         var matched = Set<SymbolID>()

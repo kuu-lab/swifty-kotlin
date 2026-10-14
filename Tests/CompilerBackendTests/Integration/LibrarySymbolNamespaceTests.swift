@@ -27,7 +27,7 @@ struct LibrarySymbolNamespaceTests {
             try runToLowering(context)
             try assertNoDiagnosticErrors(context)
             try CodegenPhase().run(context)
-            let metadata = try String(contentsOfFile: output + ".kklib/metadata.bin", encoding: .utf8)
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: output + ".kklib/metadata.bin"))
             let record = try #require(MetadataDecoder().decode(metadata).first {
                 $0.fqName == "\(packageName).libraryValue"
             })
