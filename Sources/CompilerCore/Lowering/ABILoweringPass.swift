@@ -318,9 +318,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Handle returnValue: box primitive if function returns Any/Any?
+                // Normalize boxed and primitive return representations.
                 if case let .returnValue(value) = instruction, let types,
-                   let rewritten = rewriteReturnValueBoxing(
+                   let rewritten = rewriteReturnValueBoxingOrUnboxing(
                        value: value,
                        functionReturnKind: functionReturnKind,
                        returnType: function.returnType,
@@ -835,7 +835,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         module.recordLowering(Self.name)
     }
 
-    private func rewriteReturnValueBoxing(
+    private func rewriteReturnValueBoxingOrUnboxing(
         value: KIRExprID,
         functionReturnKind: TypeKind?,
         returnType: TypeID,
@@ -854,6 +854,24 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         }
         let rawValueKind = types.kind(of: valueType)
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
+        // A smart-cast name can still refer to its erased/nullable storage.
+        // Explicit returns have no copy instruction to normalize that boundary.
+        if valueType != returnType,
+           case .primitive(_, .nonNull) = functionReturnKind,
+           let unboxCallee = unboxingCallee(
+               sourceKind: rawValueKind, targetKind: functionReturnKind,
+               boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+               preferStaticPrimitive: true
+           )
+        {
+            var instructions: [KIRInstruction] = []
+            let unboxed = emitNonThrowingCall(
+                callee: unboxCallee, arg: value, resultType: returnType,
+                arena: module.arena, into: &instructions
+            )
+            instructions.append(.returnValue(unboxed))
+            return instructions
+        }
         // A non-null primitive returned from a `P?`-typed function must be
         // boxed — not passed through verbatim — because a `P?` slot holds
         // box-or-sentinel and a raw sentinel-equal scalar (Long.MIN_VALUE,
