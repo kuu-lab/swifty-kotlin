@@ -13,7 +13,7 @@ struct LocalFunctionOptInTests {
 
         class BRC { suspend fun go() {} }
 
-        @OptIn(InternalAPI::class, InternalIoApi::class)
+        @OptIn(InternalIoApi::class)
         private suspend fun BRC.outer() {
             fun Source.innerA(): Int = buffer.hashCode()
             suspend fun Source.innerB(): Int = buffer.hashCode()

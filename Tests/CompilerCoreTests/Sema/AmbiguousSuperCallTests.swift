@@ -138,5 +138,48 @@ import Testing
         #expect(owners.contains("Overloaded"))
         #expect(owners.contains("Qualified"))
     }
+
+    @Test func concreteIteratorImplementationBeatsRuntimeBridge() throws {
+        let source = """
+        open class Base : Iterator<Int> {
+            override fun hasNext(): Boolean = false
+            override fun next(): Int = 7
+        }
+        class Child : Base(), MutableIterator<Int> {
+            override fun next(): Int = super.next()
+            override fun remove() {}
+        }
+        class Reversed : MutableIterator<Int>, Base() {
+            override fun next(): Int = super.next()
+            override fun remove() {}
+        }
+        class Qualified : Base(), MutableIterator<Int> {
+            override fun next(): Int = super<Base>.next()
+            override fun remove() {}
+        }
+        class BridgeOnly : Iterator<Int> {
+            fun fallback(): Int = super.next()
+        }
+        """
+        let ctx = try semaContext(for: [source])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let owners = memberCallExprIDs(named: "next", in: ast, interner: ctx.interner).compactMap { call in
+            guard isUserSourceExpr(call, in: ctx),
+                  case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
+                  case .superRef = ast.arena.expr(receiver),
+                  let chosen = sema.bindings.callBinding(for: call)?.chosenCallee,
+                  let owner = sema.symbols.parentSymbol(for: chosen),
+                  let symbol = sema.symbols.symbol(owner)
+            else { return String?.none }
+            return ctx.interner.resolve(symbol.name)
+        }
+        #expect(owners.filter { $0 == "Base" }.count == 3)
+        #expect(owners.filter { $0 == "Iterator" }.count == 1)
+        let bridge = try #require(sema.symbols.lookup(fqName: ["kotlin", "collections", "Iterator", "next"].map(ctx.interner.intern)))
+        #expect(sema.symbols.symbol(bridge)?.flags.contains(.abstractType) == false)
+        #expect(sema.symbols.externalLinkName(for: bridge) == "kk_iterator_next")
+    }
 }
 #endif

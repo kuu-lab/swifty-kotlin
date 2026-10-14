@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
+
 import kotlin.native.RefinesInSwift
 import kotlin.native.ShouldRefineInSwift
 

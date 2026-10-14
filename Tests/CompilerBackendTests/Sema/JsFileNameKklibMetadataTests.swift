@@ -53,7 +53,7 @@
             })
 
             try withCompiledLibrary(source: librarySource, moduleName: "JsFileNameMetadata") { libraryPath in
-                let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+                let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
                 let records = MetadataDecoder().decode(metadataText)
                 let apiRecord = try #require(records.first { $0.fqName == "jscontract.ExperimentalApi" })
                 #expect(apiRecord.annotations.filter { $0.annotationFQName == "kotlin.js.ExperimentalJsFileName" } == sourceApiMarkerAnnotations)

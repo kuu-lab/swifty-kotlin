@@ -476,7 +476,9 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         // (kk_any_to_string -> runtimeElementToString), which already knows
         // how to render a RuntimeSetBox.
         let knownNames = KnownCompilerNames(interner: interner)
-        if classSymbol.fqName == knownNames.kotlinCollectionsHashSetFQName {
+        // Enum base receivers use tagged boxes and runtime Any override dispatch.
+        if classSymbol.fqName == knownNames.kotlinCollectionsHashSetFQName
+            || classSymbol.fqName == [interner.intern("kotlin"), interner.intern("Enum")] {
             return nil
         }
         if ["ULongRange", "ULongProgression"].contains(where: { name in

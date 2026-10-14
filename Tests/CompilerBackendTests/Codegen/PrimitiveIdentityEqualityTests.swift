@@ -5,6 +5,41 @@ import Testing
 
 @Suite(.serialized)
 struct PrimitiveIdentityEqualityTests {
+    @Test(arguments: [false, true], [0, 2])
+    func boxedBooleanSingletonIdentity(useArtifact: Bool, optimization: Int) throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 4 { root.deleteLastPathComponent() }
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/boxed_boolean_identity.kt"
+        ), encoding: .utf8)
+        if useArtifact {
+            _ = try testStdlibArtifactPath()
+        }
+        try assertKotlinOutput(
+            source,
+            moduleName: "BoxedBooleanIdentity",
+            expected: """
+            true
+            true
+            false
+            true
+            true
+            true
+            true
+            false
+            true
+            true
+            true
+            true
+            false
+            true
+            false
+            """ + "\n",
+            optLevel: optimization == 0 ? .O0 : .O2,
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
     @Test(arguments: [false, true])
     func matchesJVMPrimitiveAndBoxedIdentity(useArtifact: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)

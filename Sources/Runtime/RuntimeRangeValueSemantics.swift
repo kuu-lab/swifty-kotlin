@@ -3,7 +3,7 @@
 /// Range expressions are intentionally represented as their scalar element type
 /// in the compiler's type checker, so the runtime must retain this distinction
 /// for Any.equals/hashCode and collection keys.
-enum RuntimeRangeKind: Int32 {
+enum RuntimeRangeKind: Int32, CaseIterable {
     case intRange = 1
     case intProgression = 2
     case longRange = 3
@@ -14,6 +14,21 @@ enum RuntimeRangeKind: Int32 {
     case uintProgression = 8
     case ulongRange = 9
     case ulongProgression = 10
+
+    var qualifiedName: String {
+        switch self {
+        case .intRange: "kotlin.ranges.IntRange"
+        case .intProgression: "kotlin.ranges.IntProgression"
+        case .longRange: "kotlin.ranges.LongRange"
+        case .longProgression: "kotlin.ranges.LongProgression"
+        case .charRange: "kotlin.ranges.CharRange"
+        case .charProgression: "kotlin.ranges.CharProgression"
+        case .uintRange: "kotlin.ranges.UIntRange"
+        case .uintProgression: "kotlin.ranges.UIntProgression"
+        case .ulongRange: "kotlin.ranges.ULongRange"
+        case .ulongProgression: "kotlin.ranges.ULongProgression"
+        }
+    }
 
     var isProgression: Bool {
         switch self {
@@ -164,23 +179,28 @@ func runtimeRangesEqual(_ lhs: RuntimeRangeBox, _ rhs: RuntimeRangeBox) -> Bool 
 }
 
 /// Nominal type ID a `RuntimeRangeBox` kind stands in for during `is`/`as`
-/// checks. Range handles are allocated by the `__kk_*_rangeTo`/`downTo`/`until`
-/// factories and never carry `objectTypeByPointer` metadata, so `kk_op_is`
+/// checks and bound class literals. Range handles are allocated by the
+/// `__kk_*_rangeTo`/`downTo`/`until` factories and never carry
+/// `objectTypeByPointer` metadata, so `kk_op_is`
 /// recovers the nominal identity from the kind tag — mirroring
 /// `runtimePrimitiveBoxNominalTypeID` for primitive boxes.
 func runtimeRangeBoxNominalTypeID(_ kind: RuntimeRangeKind) -> Int64 {
-    switch kind {
-    case .intRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.IntRange")
-    case .intProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.IntProgression")
-    case .longRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.LongRange")
-    case .longProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.LongProgression")
-    case .charRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.CharRange")
-    case .charProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.CharProgression")
-    case .uintRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.UIntRange")
-    case .uintProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.UIntProgression")
-    case .ulongRange: runtimeStableNominalTypeID(fqName: "kotlin.ranges.ULongRange")
-    case .ulongProgression: runtimeStableNominalTypeID(fqName: "kotlin.ranges.ULongProgression")
+    runtimeStableNominalTypeID(fqName: kind.qualifiedName)
+}
+
+private let runtimeRangeQualifiedNamesByTypeID = Dictionary(uniqueKeysWithValues:
+    RuntimeRangeKind.allCases.map { (runtimeRangeBoxNominalTypeID($0), $0.qualifiedName) }
+)
+
+/// Built-in range classifier names do not depend on a cached short hint or
+/// the order in which source reflection metadata and class literals register.
+func runtimeRangeClassQualifiedName(typeToken: Int) -> String? {
+    let token = Int64(truncatingIfNeeded: typeToken)
+    guard token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase else {
+        return nil
     }
+    let typeID = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    return runtimeRangeQualifiedNamesByTypeID[typeID]
 }
 
 /// Installs the nominal supertype edges range classes have in Kotlin:

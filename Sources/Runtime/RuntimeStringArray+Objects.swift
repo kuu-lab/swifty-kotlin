@@ -147,8 +147,10 @@ public func kk_object_register_any_to_string(
     return 0
 }
 
-/// Registers the Any-erased toString bridge for a value class. Value classes
-/// are represented by boxed underlying primitives at reference boundaries, so
+/// Registers the Any-erased toString bridge for a value class or ordinal enum.
+/// The producer owns enum entry dispatch, including private implementations;
+/// consumers and reified token boxes reuse it through the stable nominal ID.
+/// Value classes use boxed underlying primitives at reference boundaries, so
 /// the nominal class ID is the stable dispatch key rather than an object
 /// pointer.
 @_cdecl("kk_value_class_register_any_to_string")
@@ -160,7 +162,7 @@ public func kk_value_class_register_any_to_string(
         return 0
     }
     runtimeStorage.withMetadataLock { state in
-        state.valueClassAnyToStringMethods[Int64(classID)] = functionRaw
+        state.nominalAnyToStringMethods[Int64(classID)] = functionRaw
     }
     return 0
 }

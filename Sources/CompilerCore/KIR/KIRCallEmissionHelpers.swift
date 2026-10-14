@@ -410,8 +410,8 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     }
 
     // Casts can retain a tagged box while exposing a concrete enum type.
-    // Normalize both raw and boxed inputs before rendering or storing the
-    // payload, so a reboxed enum cannot contain another handle as its ordinal.
+    // Normalize both raw and boxed inputs before reading or storing the
+    // ordinal, so a reboxed enum cannot contain another handle as its value.
     let intType = types.make(.primitive(.int, .nonNull))
     let normalizedOrdinal = arena.appendTemporary(type: intType)
     instructions.append(.call(
@@ -419,21 +419,11 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         result: normalizedOrdinal, canThrow: false, thrownResult: nil
     ))
 
-    // BUG-A: an Any-erased rendering of the box (println on a boxed
-    // value, list/collection elements, etc.) must honor a user `toString()`
-    // override the same way the direct, statically-typed path does --
-    // otherwise a boxed `Op.MUL` prints "MUL" instead of "times".
-    let nameHelperCallee: InternedString
-    let helperSymbol: SymbolID?
-    let renderingOverride = enumToStringOverrideHelper(for: classSym, symbols: symbols, interner: interner)
-    if let override = renderingOverride {
-        nameHelperCallee = override.name
-        helperSymbol = override.symbol
-    } else {
-        nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
-        helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
-            symbols.symbol(id).map { $0.kind == .function } ?? false
-        }
+    // Master registers overridden toString implementations separately for
+    // erased rendering, while enum.name continues to use the declared entry name.
+    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+    let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
+        symbols.symbol(id).map { $0.kind == .function } ?? false
     }
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
@@ -447,27 +437,18 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
 
-    var boxArguments = [normalizedOrdinal, nameResult, classIDExpr]
-    if renderingOverride != nil {
-        // The box's display name honors toString, but Enum.name must still
-        // expose the declaration name through abstract/generic receivers.
-        let declaredHelper = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
-        let declaredSymbol = symbols.lookupAll(fqName: classSym.fqName + [declaredHelper]).first { id in
-            symbols.symbol(id).map { $0.kind == .function } ?? false
-        }
-        let declaredName = arena.appendTemporary(type: types.stringType)
-        instructions.append(.call(
-            symbol: declaredSymbol, callee: declaredHelper, arguments: [normalizedOrdinal],
-            result: declaredName, canThrow: false, thrownResult: nil
-        ))
-        boxArguments.append(declaredName)
-    }
-    let boxCallee = interner.intern(renderingOverride == nil
-        ? "kk_enum_box_ordinal" : "__kk_enum_box_with_declared_name")
     instructions.append(.call(
-        symbol: nil, callee: boxCallee, arguments: boxArguments,
+        symbol: nil, callee: interner.intern("kk_enum_box_ordinal"),
+        arguments: [normalizedOrdinal, nameResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
+
+    if let sema {
+        appendEnumAnyToStringRegistration(
+            classSymbol: classSym, sema: sema,
+            arena: arena, interner: interner, into: &instructions
+        )
+    }
 
     // BUG-B: an enum value crossing into an interface-typed slot (e.g. `val
     // nm: Named = Dir.S`) is boxed here the same way it is for Any-erasure,
@@ -489,6 +470,39 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         cache: cache,
         into: &instructions
     )
+}
+
+/// Registers the producer-owned renderer for every box with this enum's nominal ID.
+/// Imported enums must retain the producer's private entry dispatcher.
+func appendEnumAnyToStringRegistration<C: RangeReplaceableCollection>(
+    classSymbol: SemanticSymbol,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    guard !classSymbol.flags.contains(.importedLibrary),
+          let override = enumToStringOverrideHelper(for: classSymbol, symbols: sema.symbols, interner: interner),
+          let bridge = anyToStringBridgeSymbolForImplementation(
+              override.symbol, arena: arena, sema: sema, interner: interner
+          )
+    else { return }
+    let intType = sema.types.intType
+    let bridgeExpr = arena.appendExpr(.symbolRef(bridge), type: intType)
+    instructions.append(.constValue(result: bridgeExpr, value: .symbolRef(bridge)))
+    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: classSymbol.id, symbols: sema.symbols, interner: interner
+    )
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        // This ABI registers raw-string renderers by nominal ID, independent
+        // of whether their payload is a value-class primitive or enum ordinal.
+        symbol: nil, callee: interner.intern("kk_value_class_register_any_to_string"),
+        arguments: [classIDExpr, bridgeExpr], result: registerResult,
+        canThrow: false, thrownResult: nil
+    ))
 }
 
 private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(

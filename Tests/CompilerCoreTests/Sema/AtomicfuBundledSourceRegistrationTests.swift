@@ -104,6 +104,7 @@ struct AtomicfuBundledSourceRegistrationTests {
         switch sema.types.kind(of: id) {
         case .unit: return "kotlin.Unit"
         case .nullableUnit: return "kotlin.Unit?"
+        case .platformUnit: return "kotlin.Unit!"
         case let .nothing(n): return "kotlin.Nothing" + suffix(n)
         case let .any(n): return "kotlin.Any" + suffix(n)
         case let .stringStruct(n): return "kotlin.String" + suffix(n)

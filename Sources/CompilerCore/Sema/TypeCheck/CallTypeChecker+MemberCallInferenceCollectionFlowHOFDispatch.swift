@@ -154,7 +154,17 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 // for these names: the receiver may be a plain Set or another
                 // Iterable, and the source-backed Iterable implementation is
                 // the canonical dispatch target.
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
+                if calleeStr == "reduce", isListReceiver,
+                   bindBundledIterableSourceFunction(
+                       typeArguments: [collectionElementType, collectionElementType],
+                       enforceTypeParameterCount: true,
+                       locals: &locals
+                   )
+                {
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                } else if bindBundledListSourceFunction(typeArguments: [collectionElementType], locals: &locals) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }

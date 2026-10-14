@@ -62,7 +62,7 @@ extension CallLowerer {
         // receiver even when no lexical receiver is active.
         if ownerInfo.kind == .object {
             driver.emitObjectLazyInitGuardIfNeeded(
-                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+                objectSymbol: owner, arena: arena, sema: sema, interner: interner, instructions: &instructions
             )
             let ownerType = sema.types.make(.classType(ClassType(
                 classSymbol: owner, args: [], nullability: .nonNull
@@ -469,6 +469,7 @@ extension CallLowerer {
                 symbols: sema.symbols,
                 interner: interner,
                 arena: arena,
+                sema: sema,
                 into: &instructions
             )
             finalArguments[0] = boxedReceiver
@@ -548,7 +549,7 @@ extension CallLowerer {
             // KUU-655: an override that inherits its defaults never has its
             // own stub; resolve to the base declaration's stub instead (see
             // `defaultStubOwnerSymbol`).
-            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema)
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema, callBinding: callBinding)
             if sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
                 sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
             {

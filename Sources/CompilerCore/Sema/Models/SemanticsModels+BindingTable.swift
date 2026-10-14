@@ -26,6 +26,12 @@ public final class BindingTable {
     public func bindPlatformNullAssertion(_ expr: ExprID, targetType: TypeID?) {
         platformNullAssertionTypes[expr] = targetType
     }
+    /// JVM Unit returns evaluate their expression, then produce the singleton.
+    public private(set) var unitReturnCoercionExprs: Set<ExprID> = []
+
+    public func markUnitReturnCoercion(_ expr: ExprID) {
+        unitReturnCoercionExprs.insert(expr)
+    }
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     /// Actual lambda destination and the boundaries crossed to reach it.
@@ -281,7 +287,13 @@ public final class BindingTable {
     /// types and parameter references. Any other side-table write rejects the
     /// worker delta, including calls, captures and Worker.execute metadata.
     var hasOnlyIndependentScalarBindings: Bool {
+        if !validatedAnnotationOptInMarkers.isEmpty { return false }
+        if !annotationFactoryExpressions.isEmpty { return false }
+        if !primaryConstructorPropertyAnnotations.isEmpty { return false }
+        if !pendingLocalAnnotationTargets.isEmpty { return false }
+        if !callableReferenceBindings.isEmpty { return false }
         if !platformNullAssertionTypes.isEmpty { return false }
+        if !unitReturnCoercionExprs.isEmpty { return false }
         if !whenExhaustiveness.isEmpty { return false }
         if !lambdaReturnTargets.isEmpty { return false }
         if !lambdaReturnLambdaPaths.isEmpty { return false }
@@ -372,10 +384,113 @@ public final class BindingTable {
 
     /// Joins the closed scalar delta at its original declaration position.
     func mergeIndependentScalarExpressions(
-        types: [ExprID: TypeID], identifiers: [ExprID: SymbolID], typeMapping: [TypeID: TypeID]
+        types: [ExprID: TypeID], identifiers: [ExprID: SymbolID], typeMapping: [TypeID: TypeID],
+        symbolMapping: [SymbolID: SymbolID] = [:]
     ) {
         exprTypes.merge(types.mapValues { typeMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
-        identifierSymbols.merge(identifiers, uniquingKeysWith: { _, new in new })
+        identifierSymbols.merge(identifiers.mapValues { symbolMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
+    }
+
+    /// Value-owned snapshot of every binding side table, including pending
+    /// annotation checks and cached unions. Mutating a worker never changes
+    /// the module's dictionary storage. General snapshots remain isolated;
+    /// only an explicitly supported delta may be joined.
+    func makeSemaWorkerBindings() -> BindingTable {
+        let worker = BindingTable()
+        worker.validatedAnnotationOptInMarkers = validatedAnnotationOptInMarkers
+        worker.annotationFactoryExpressions = annotationFactoryExpressions
+        worker.primaryConstructorPropertyAnnotations = primaryConstructorPropertyAnnotations
+        worker.exprTypes = exprTypes
+        worker.platformNullAssertionTypes = platformNullAssertionTypes
+        worker.whenExhaustiveness = whenExhaustiveness
+        worker.identifierSymbols = identifierSymbols
+        worker.lambdaReturnTargets = lambdaReturnTargets
+        worker.lambdaReturnLambdaPaths = lambdaReturnLambdaPaths
+        worker.functionReturnLambdaPaths = functionReturnLambdaPaths
+        worker.callBindings = callBindings
+        worker.callableReferenceBindings = callableReferenceBindings
+        worker.pendingLocalAnnotationTargets = pendingLocalAnnotationTargets
+        worker.workerExecuteCallees = workerExecuteCallees
+        worker.workerExecuteJobRanges = workerExecuteJobRanges
+        worker.loopIterationBindings = loopIterationBindings
+        worker.indexedCompoundAssignOperatorBindings = indexedCompoundAssignOperatorBindings
+        worker.indexedCompoundAssignElementOperatorBindings = indexedCompoundAssignElementOperatorBindings
+        worker.callableTargets = callableTargets
+        worker.constructorDelegationTargets = constructorDelegationTargets
+        worker.constructorDelegationCallBindings = constructorDelegationCallBindings
+        worker.callableValueCalls = callableValueCalls
+        worker.isCheckTargetTypes = isCheckTargetTypes
+        worker.castTargetTypes = castTargetTypes
+        worker.findAnnotationSearchTypes = findAnnotationSearchTypes
+        worker.catchClauseBindings = catchClauseBindings
+        worker.captureSymbolsByExpr = captureSymbolsByExpr
+        worker.contractCallsInPlaceInitializedSymbolsByExpr = contractCallsInPlaceInitializedSymbolsByExpr
+        worker.cachedContractCallsInPlaceInitializedSymbolsUnion = cachedContractCallsInPlaceInitializedSymbolsUnion
+        worker.declSymbols = declSymbols
+        worker.superCallExprs = superCallExprs
+        worker.invokeOperatorCallExprs = invokeOperatorCallExprs
+        worker.extensionPropertyGetterCalls = extensionPropertyGetterCalls
+        worker.invokeOperatorPropertyCalls = invokeOperatorPropertyCalls
+        worker.collectionExprIDs = collectionExprIDs
+        worker.rangeExprIDs = rangeExprIDs
+        worker.charRangeExprIDs = charRangeExprIDs
+        worker.uintRangeExprIDs = uintRangeExprIDs
+        worker.ulongRangeExprIDs = ulongRangeExprIDs
+        worker.floatingPointRangeExprIDs = floatingPointRangeExprIDs
+        worker.flowExprIDs = flowExprIDs
+        worker.collectionSymbolIDs = collectionSymbolIDs
+        worker.rangeSymbolIDs = rangeSymbolIDs
+        worker.charRangeSymbolIDs = charRangeSymbolIDs
+        worker.uintRangeSymbolIDs = uintRangeSymbolIDs
+        worker.ulongRangeSymbolIDs = ulongRangeSymbolIDs
+        worker.floatingPointRangeSymbolIDs = floatingPointRangeSymbolIDs
+        worker.flowSymbolIDs = flowSymbolIDs
+        worker.floatingPointRangeElementTypesByExpr = floatingPointRangeElementTypesByExpr
+        worker.floatingPointRangeElementTypesBySymbol = floatingPointRangeElementTypesBySymbol
+        worker.openFloatingPointRangeExprIDs = openFloatingPointRangeExprIDs
+        worker.openFloatingPointRangeSymbolIDs = openFloatingPointRangeSymbolIDs
+        worker.flowElementTypesByExpr = flowElementTypesByExpr
+        worker.flowElementTypesBySymbol = flowElementTypesBySymbol
+        worker.deferredElementTypesByExpr = deferredElementTypesByExpr
+        worker.deferredElementTypesBySymbol = deferredElementTypesBySymbol
+        worker.objectLiteralPropertySymbolIDs = objectLiteralPropertySymbolIDs
+        worker.classRefTargetTypes = classRefTargetTypes
+        worker.boundClassRefExprs = boundClassRefExprs
+        worker.constExprValues = constExprValues
+        worker.samConversionExprs = samConversionExprs
+        worker.samUnderlyingFunctionTypes = samUnderlyingFunctionTypes
+        worker.samInterfaceTypes = samInterfaceTypes
+        worker.builderDSLExprIDs = builderDSLExprIDs
+        worker.builderDSLKinds = builderDSLKinds
+        worker.scopeFunctionExprIDs = scopeFunctionExprIDs
+        worker.scopeFunctionKinds = scopeFunctionKinds
+        worker.collectionHOFLambdaExprIDs = collectionHOFLambdaExprIDs
+        worker.directlyInvokedLambdaExprIDs = directlyInvokedLambdaExprIDs
+        worker.fqnTopLevelCallExprIDs = fqnTopLevelCallExprIDs
+        worker.fqnQualifiedValueExprIDs = fqnQualifiedValueExprIDs
+        worker.typeQualifiedConstructorCallExprIDs = typeQualifiedConstructorCallExprIDs
+        worker.nonEscapingComparableCharLocals = nonEscapingComparableCharLocals
+        worker.coroutineLauncherLambdaExprIDs = coroutineLauncherLambdaExprIDs
+        worker.rawSuspendEntryLambdaExprIDs = rawSuspendEntryLambdaExprIDs
+        worker.coroutineScopeLambdaReceiverTypes = coroutineScopeLambdaReceiverTypes
+        worker.sourceDeclaredExpectedTypeExprIDs = sourceDeclaredExpectedTypeExprIDs
+        worker.nominalFunctionExpectedTypes = nominalFunctionExpectedTypes
+        worker.stdlibSpecialCallExprIDs = stdlibSpecialCallExprIDs
+        worker.stdlibSpecialCallKinds = stdlibSpecialCallKinds
+        worker.implicitReceiverMemberNames = implicitReceiverMemberNames
+        worker.implicitReceiverOuterReceiverSymbols = implicitReceiverOuterReceiverSymbols
+        worker.implicitExtensionReceiverSymbols = implicitExtensionReceiverSymbols
+        worker.coroutineScopeImplicitReceiverCallExprs = coroutineScopeImplicitReceiverCallExprs
+        worker.callableRefKinds = callableRefKinds
+        worker.inferredCallableReferenceSymbols = inferredCallableReferenceSymbols
+        worker.unboundCallableRefs = unboundCallableRefs
+        worker.primitiveOperatorCallableRefs = primitiveOperatorCallableRefs
+        worker.anyToStringCallableRefs = anyToStringCallableRefs
+        worker.objectLiteralCaptureSymbolsByOwner = objectLiteralCaptureSymbolsByOwner
+        worker.objectLiteralCapturedReceiversByOwner = objectLiteralCapturedReceiversByOwner
+        worker.capturedLocalTypesBySymbol = capturedLocalTypesBySymbol
+        worker.destructuringComponentCallees = destructuringComponentCallees
+        return worker
     }
 
     public init() {}

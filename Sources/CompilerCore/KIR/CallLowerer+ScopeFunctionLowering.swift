@@ -331,6 +331,22 @@ extension CallLowerer {
                 return nil
             }
 
+            // A nested block may own the non-local return before inline
+            // expansion exposes it in this block. Every literal usePinned
+            // block must expand into its caller together with its cleanup.
+            if case .lambdaLiteral = ast.arena.expr(args[0].expr) {
+                arena.transformFunctions { function in
+                    guard function.symbol == info.symbol else { return function }
+                    return KIRFunction(
+                        symbol: function.symbol, name: function.name, params: function.params,
+                        returnType: function.returnType, body: function.body,
+                        isSuspend: function.isSuspend, isInline: true, isInlineOnly: true,
+                        isTailrec: function.isTailrec, sourceRange: function.sourceRange,
+                        instructionLocations: function.instructionLocations
+                    )
+                }
+            }
+
             let pinFQName: [InternedString] = [
                 interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("pin"),
             ]
@@ -397,6 +413,16 @@ extension CallLowerer {
             let endLabel = driver.ctx.makeLoopLabel()
 
             // try: invoke the block lambda with the pinned handle.
+            // Inline expansion must route a non-local return through unpin,
+            // then resume it through any enclosing try/finally scopes.
+            let nonLocalReturnLabel = driver.ctx.makeLoopLabel()
+            let nonLocalReturnValue = arena.appendTemporary(type: nil)
+            let returningNonLocally = arena.appendTemporary(type: sema.types.booleanType)
+            let notReturning = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
+            instructions.append(.constValue(result: notReturning, value: .boolLiteral(false)))
+            instructions.append(.copy(from: notReturning, to: returningNonLocally))
+            instructions.append(.beginNonLocalReturnScope(value: nonLocalReturnValue, target: nonLocalReturnLabel))
+
             // Collection-HOF-marked lambdas take a leading closureRaw argument
             // (see scopeUse above).
             var closureRawArg: KIRExprID? = nil
@@ -454,6 +480,10 @@ extension CallLowerer {
 
             // finally: unpin() the handle. Concrete call — Pinned is a final
             // synthetic class, so no virtual dispatch is needed.
+            instructions.append(.endNonLocalReturnScope)
+            instructions.append(.label(nonLocalReturnLabel))
+            instructions.append(.constValue(result: returningNonLocally, value: .boolLiteral(true)))
+            instructions.append(.jump(finallyLabel))
             instructions.append(.label(finallyLabel))
             let unpinResult = arena.appendTemporary(type: sema.types.unitType
             )
@@ -474,6 +504,10 @@ extension CallLowerer {
             instructions.append(.rethrow(value: exceptionSlot))
 
             instructions.append(.label(endLabel))
+            let afterReturnLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfEqual(lhs: returningNonLocally, rhs: notReturning, target: afterReturnLabel))
+            instructions.append(.resumeNonLocalReturn(nonLocalReturnValue))
+            instructions.append(.label(afterReturnLabel))
             return result
 
         case .scopeContext, .scopeMemScoped:

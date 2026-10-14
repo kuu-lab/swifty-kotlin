@@ -4,6 +4,19 @@
     {
       "file": "opt_in_typealias.kt",
       "range": {
+        "start": { "line": 8, "character": 0 },
+        "end": { "line": 8, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OPT-IN",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.ExperimentalTypealiasApi' requires opt-in. Annotate the usage with '@golden.diagnostics.ExperimentalTypealiasApi' or '@OptIn(golden.diagnostics.ExperimentalTypealiasApi::class)'.",
+      "codeActions": []
+    },
+    {
+      "file": "opt_in_typealias.kt",
+      "range": {
         "start": { "line": 10, "character": 0 },
         "end": { "line": 10, "character": 61 }
       },

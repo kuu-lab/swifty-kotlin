@@ -15,7 +15,10 @@ extension BuildASTPhase.ExpressionParser {
     ///     { fun __AnonymousFunction_7_142(x: Int): Int { return x * 2 }; ::__AnonymousFunction_7_142 }
     ///
     /// Both block and expression bodies reuse local-function semantics.
-    func parseAnonymousFunctionLiteral() -> ExprID? {
+    ///
+    /// A `label@ fun(...)` prefix reuses the label as the synthetic function
+    /// name so `return@label` resolves like a function-name labeled return.
+    func parseAnonymousFunctionLiteral(label: InternedString? = nil) -> ExprID? {
         guard let funToken = current(), case .keyword(.fun) = funToken.kind else {
             return nil
         }
@@ -57,7 +60,7 @@ extension BuildASTPhase.ExpressionParser {
         }
         let endIndex = index
 
-        let syntheticName = interner.intern(
+        let syntheticName = label ?? interner.intern(
             "__AnonymousFunction_\(funToken.range.start.file.rawValue)_\(funToken.range.start.offset)"
         )
         let nameToken = Token(kind: .identifier(syntheticName), range: funToken.range)
@@ -77,7 +80,9 @@ extension BuildASTPhase.ExpressionParser {
 
         let range = SourceRange(start: funToken.range.start, end: tokens[endIndex - 1].range.end)
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))
-        return astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
+        let function = astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
+        astArena.markAnonymousFunction(function)
+        return function
     }
 
     private func skipBalancedBraceIfNeeded() {

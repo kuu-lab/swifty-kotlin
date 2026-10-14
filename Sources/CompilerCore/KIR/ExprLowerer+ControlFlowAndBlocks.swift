@@ -13,7 +13,7 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let value = lowerUnconvertedExpr(
+        var value = lowerUnconvertedExpr(
             exprID, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
@@ -29,6 +29,23 @@ extension ExprLowerer {
            )
         {
             return wrapper
+        }
+        // A call returning concrete Unit produces the singleton even when a
+        // generic implementation returns null through its erased ABI. Unit!
+        // calls and Unit local reads must retain their original value.
+        let isUnitCall: Bool = if sema.bindings.exprTypes[exprID] == sema.types.unitType {
+            switch ast.arena.expr(exprID) {
+            case .call, .memberCall, .safeMemberCall: true
+            case .nameRef:
+                sema.bindings.identifierSymbol(for: exprID)
+                    .flatMap { sema.symbols.symbol($0)?.kind } == .property
+            default: false
+            }
+        } else { false }
+        if isUnitCall || sema.bindings.unitReturnCoercionExprs.contains(exprID) {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            value = unit
         }
         if let targetType = sema.bindings.platformNullAssertionTypes[exprID] {
             let checked = arena.appendTemporary(type: targetType)

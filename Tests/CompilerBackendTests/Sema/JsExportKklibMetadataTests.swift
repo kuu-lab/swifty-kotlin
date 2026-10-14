@@ -31,7 +31,7 @@
             }.map { ($0.code, $0.severity) }
 
             try withCompiledLibrary(source: librarySource, moduleName: "JsExportMetadata") { libraryPath in
-                let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+                let metadataText = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
                 let records = MetadataDecoder().decode(metadataText)
                 let exportedRecord = try #require(records.first { $0.fqName == "jscontract.ExportedBox" })
                 #expect(exportedRecord.annotations.contains { $0.annotationFQName == "kotlin.js.JsExport" })

@@ -89,8 +89,16 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return ([], resultType)
         }
+        // Provisional lambda arguments are Any until preparation. A nearer
+        // receiver must not erase an overload before its callable shape and
+        // explicit type-argument count have been checked.
+        let shapeCompatible = visible.filter {
+            extensionCandidateMatchesCallShape(
+                $0, request: request, argumentTypes: argTypes, receiverType: lookupReceiverType
+            )
+        }
         var candidates = preferMostSpecificMemberReceiverCandidates(
-            visible,
+            shapeCompatible.isEmpty ? visible : shapeCompatible,
             receiverType: lookupReceiverType,
             argumentTypes: argTypes,
             sema: sema,

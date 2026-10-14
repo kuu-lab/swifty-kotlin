@@ -53,6 +53,12 @@ extension CallTypeChecker {
         let samArgIndices = args.enumerated().compactMap { index, argument in
             isSamConvertibleArgument(argument.expr, ast: ctx.ast) ? index : nil
         }
+        if samArgIndices.isEmpty {
+            return inferSamConstructorFromFunctionValue(
+                id, calleeName: calleeName, args: args, ctx: ctx, locals: &locals,
+                expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+            )
+        }
         guard samArgIndices.count == 1 else {
             return nil
         }
@@ -200,6 +206,38 @@ extension CallTypeChecker {
         }
 
         return nil
+    }
+
+    /// `Tr(f)` where `f` is a local of function type: the synthetic SAM
+    /// constructor accepts a function value, not only a lambda or reference.
+    /// Abstain when a same-named function could take precedence.
+    private func inferSamConstructorFromFunctionValue(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        guard args.count == 1,
+              args[0].label == nil, !args[0].isSpread,
+              case let .nameRef(argName, _)? = ctx.ast.arena.expr(args[0].expr),
+              let local = locals[argName],
+              case .functionType = ctx.sema.types.kind(of: local.type),
+              samConstructorInterface(named: calleeName, ctx: ctx) != nil
+        else { return nil }
+        let hasCallable = !ctx.filterByVisibility(
+            ctx.cachedScopeLookup(calleeName).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.kind == .function || symbol.kind == .constructor
+            }
+        ).visible.isEmpty
+        guard !hasCallable else { return nil }
+        return inferSamConstructorCallExpr(
+            id, calleeName: calleeName, argExpr: args[0].expr, ctx: ctx, locals: &locals,
+            expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+        )
     }
 
     func narrowSamCandidates(

@@ -172,6 +172,9 @@ public final class SymbolTable {
     /// override chain).
     private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
 
+    // Use-site defaults must never change the superclass declaration's signature.
+    private var inheritedDefaultsByReceiver: [TypeID: [SymbolID: SymbolID]] = [:]
+
     /// Thread safety lock for concurrent access. Recursive because the lazy
     /// imported-metadata loader re-enters this table (`define`, `lookupAll`,
     /// `setFunctionSignature`, ...) while materializing a symbol, and that
@@ -197,6 +200,7 @@ public final class SymbolTable {
         worker.valueParameterOwners = valueParameterOwners
         worker.propertyTypes = propertyTypes
         worker.propertyHasCustomGetter = propertyHasCustomGetter
+        worker.propertySetterVisibilities = propertySetterVisibilities
         worker.directSupertypes = directSupertypes
         worker.directSubtypesIndex = directSubtypesIndex
         worker.supertypeTypeArgsMap = supertypeTypeArgsMap
@@ -222,6 +226,7 @@ public final class SymbolTable {
         worker.typeParameterUpperBoundsMap = typeParameterUpperBoundsMap
         worker.pendingTypeParameterBoundConflictChecks = pendingTypeParameterBoundConflictChecks
         worker.sourceFileIDs = sourceFileIDs
+        worker.importedStdlibSymbolIDs = importedStdlibSymbolIDs
         worker.moduleFQNames = moduleFQNames
         worker.byModuleFQN = byModuleFQN
         worker.annotationsStorage = annotationsStorage
@@ -251,7 +256,41 @@ public final class SymbolTable {
         worker.delegatedInterfacesByClass = delegatedInterfacesByClass
         worker.klibDefinedGlobalSymbols = klibDefinedGlobalSymbols
         worker.overrideDefaultsBaseSymbols = overrideDefaultsBaseSymbols
+        worker.inheritedDefaultsByReceiver = inheritedDefaultsByReceiver
         return worker
+    }
+
+    /// The module and each worker are sole writers of their own table.
+    var symbolCount: Int { symbolsStorage.count }
+
+    func workerLocalSymbols(since count: Int) -> [SemaWorkerLocalSymbol]? {
+        var locals: [SemaWorkerLocalSymbol] = []
+        for symbol in symbolsStorage.dropFirst(count) {
+            guard symbol.kind == .local, let type = propertyTypes[symbol.id] else { return nil }
+            locals.append(SemaWorkerLocalSymbol(symbol: symbol, type: type))
+        }
+        return locals
+    }
+
+    /// Replay allocations at their original declaration position, after string
+    /// and type canonicalization. Earlier serial declarations may consume the
+    /// same worker ordinal; never publish that ordinal directly.
+    func mergeWorkerLocals(
+        _ locals: [SemaWorkerLocalSymbol],
+        strings: [InternedString: InternedString], types: [TypeID: TypeID]
+    ) -> [SymbolID: SymbolID] {
+        var mapping: [SymbolID: SymbolID] = [:]
+        for local in locals {
+            let symbol = local.symbol
+            let canonical = define(
+                kind: .local, name: strings[symbol.name] ?? symbol.name,
+                fqName: symbol.fqName.map { strings[$0] ?? $0 },
+                declSite: symbol.declSite, visibility: symbol.visibility, flags: symbol.flags
+            )
+            setPropertyType(types[local.type] ?? local.type, for: canonical)
+            mapping[symbol.id] = canonical
+        }
+        return mapping
     }
 
     public init() {}
@@ -667,6 +706,14 @@ public final class SymbolTable {
 
     public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
         overrideDefaultsBaseSymbols[symbol]
+    }
+
+    func setInheritedDefaultsOwner(_ owner: SymbolID?, for implementation: SymbolID, receiver: TypeID) {
+        inheritedDefaultsByReceiver[receiver, default: [:]][implementation] = owner
+    }
+
+    func inheritedDefaultsOwner(for implementation: SymbolID, receiver: TypeID) -> SymbolID? {
+        inheritedDefaultsByReceiver[receiver]?[implementation]
     }
 
     public func setEnumEntryDispatchTargets(

@@ -139,7 +139,7 @@ extension BundledStdlibExecutionTests {
             try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options), context: "Packed callBy producer")
             let artifact = base.appendingPathExtension("kklib")
             try packedCallByRequireLibrary(artifact, moduleName: moduleName)
-            let metadata = MetadataDecoder().decode(String(decoding: try Data(contentsOf: artifact.appendingPathComponent("metadata.bin")), as: UTF8.self))
+            let metadata = MetadataDecoder().decode(try Data(contentsOf: artifact.appendingPathComponent("metadata.bin")))
             let constructors = metadata.filter { $0.kind == .constructor && $0.valueParameterIsVararg.contains(true) }
             if fixture == "reified6" {
                 let reified = metadata.filter { $0.kind == .function && $0.isInline && !$0.reifiedTypeParameterIndices.isEmpty }
@@ -283,7 +283,7 @@ private func packedCallByRequireLibrary(_ directory: URL, moduleName: String) th
     let data = try Data(contentsOf: directory.appendingPathComponent("manifest.json"))
     let manifest = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     try #require(manifest["moduleName"] as? String == moduleName)
-    try #require(manifest["formatVersion"] as? Int == 1)
+    try #require(manifest["formatVersion"] as? Int == 2)
     try #require(manifest["sourceVarargStorageABI"] as? String == "array-v1")
     try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
     let objects = try #require(manifest["objects"] as? [String])

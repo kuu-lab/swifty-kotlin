@@ -1,10 +1,12 @@
 @testable import CompilerCore
+import TestStdlibCache
 import Testing
 
 @Suite
 struct ConstructorClassOptInTests {
     @Test(arguments: [false, true], ["WARNING", "ERROR"])
     func constructorsInheritTheirClassMarkerWithoutDuplicateDiagnostics(optedIn: Bool, level: String) throws {
+        TestStdlibCache.shared.prepare()
         let context = makeContextFromSource("""
         @RequiresOptIn(level = RequiresOptIn.Level.\(level))
         annotation class ConstructorMarker

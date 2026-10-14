@@ -3,6 +3,8 @@ extension TypeCheckHelpers {
     private struct MemberDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
         let parameterTypes: [TypeID]
+        let methodTypeParameterCount: Int
+        let methodUpperBounds: [[TypeID]]
         let isSuspend: Bool
 
         var description: String {
@@ -68,7 +70,7 @@ extension TypeCheckHelpers {
             return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
-        case .any, .unit, .nullableUnit, .nothing:
+        case .any, .unit, .nullableUnit, .platformUnit, .nothing:
             let nullable = types.makeNullable(typeID)
             if nullable == typeID {
                 return types.isSubtype(types.nullableNothingType, typeID) ? typeID : types.nullableAnyType
@@ -259,7 +261,7 @@ extension TypeCheckHelpers {
                     range: range
                 )
             }
-        case .error, .unit, .nullableUnit, .nothing, .any, .primitive, .stringStruct:
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }
@@ -345,7 +347,7 @@ extension TypeCheckHelpers {
 
     func nominalSymbol(of type: TypeID, types: TypeSystem) -> SymbolID? {
         switch types.kind(of: type) {
-        case .unit, .nullableUnit:
+        case .unit, .nullableUnit, .platformUnit:
             return types.unitClassSymbol
         case let .classType(classType):
             return classType.classSymbol
@@ -384,7 +386,7 @@ extension TypeCheckHelpers {
         visited: inout Set<SymbolID>
     ) -> [SymbolID] {
         switch types.kind(of: type) {
-        case .unit, .nullableUnit:
+        case .unit, .nullableUnit, .platformUnit:
             return types.unitClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]
@@ -442,6 +444,16 @@ extension TypeCheckHelpers {
         includeUnattachedPackageExtensions: Bool = false,
         interner: StringInterner
     ) -> [SymbolID] {
+        // Super lookup filters implementations, but defaults still belong to
+        // the receiver's inherited callable scope. Populate it even on a cold
+        // lookup so optional varargs cannot bypass the super-call prohibition.
+        if allowedOwnerSymbols != nil {
+            _ = collectMemberFunctionCandidates(
+                named: calleeName, receiverType: receiverType, sema: sema,
+                includeUnattachedPackageExtensions: includeUnattachedPackageExtensions,
+                interner: interner
+            )
+        }
         let nominalRoots = allNominalSymbols(
             of: receiverType,
             types: sema.types,
@@ -469,10 +481,11 @@ extension TypeCheckHelpers {
 
         var candidatesByKey: [MemberDispatchKey: [(symbol: SymbolID, owner: SymbolID, depth: Int)]] = [:]
         var keyOrder: [MemberDispatchKey] = []
+        var methodParametersByKey: [MemberDispatchKey: [SymbolID]] = [:]
         var seenCandidates: Set<SymbolID> = []
 
-        func dispatchParameterTypes(
-            for signature: FunctionSignature,
+        func dispatchTypes(
+            _ declaredTypes: [TypeID],
             owner: SymbolID
         ) -> [TypeID] {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
@@ -484,12 +497,12 @@ extension TypeCheckHelpers {
                       to: owner
                   )
             else {
-                return signature.parameterTypes
+                return declaredTypes
             }
 
             let ownerTypeParamSymbols = sema.types.nominalTypeParameterSymbols(for: owner)
             guard !ownerTypeParamSymbols.isEmpty else {
-                return signature.parameterTypes
+                return declaredTypes
             }
 
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(ownerTypeParamSymbols)
@@ -509,9 +522,9 @@ extension TypeCheckHelpers {
             }
 
             guard !substitution.isEmpty else {
-                return signature.parameterTypes
+                return declaredTypes
             }
-            return signature.parameterTypes.map {
+            return declaredTypes.map {
                 sema.types.substituteTypeParameters(
                     in: $0,
                     substitution: substitution,
@@ -558,13 +571,36 @@ extension TypeCheckHelpers {
                         continue
                     }
                 }
-                let key = MemberDispatchKey(
+                let methodParameters = Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+                let parameterTypes = dispatchTypes(signature.parameterTypes, owner: owner)
+                let upperBounds = methodTypeParameterBounds(signature, types: sema.types).map {
+                    dispatchTypes($0, owner: owner)
+                }
+                var key = MemberDispatchKey(
                     name: calleeName,
-                    parameterTypes: dispatchParameterTypes(for: signature, owner: owner),
+                    parameterTypes: parameterTypes,
+                    methodTypeParameterCount: methodParameters.count,
+                    methodUpperBounds: upperBounds,
                     isSuspend: signature.isSuspend
                 )
+                if !methodParameters.isEmpty, let alignedKey = keyOrder.first(where: { existing in
+                    guard existing.isSuspend == signature.isSuspend,
+                          existing.methodTypeParameterCount == methodParameters.count,
+                          let targetParameters = methodParametersByKey[existing]
+                    else { return false }
+                    func aligned(_ type: TypeID) -> TypeID {
+                        alphaAlignedMethodType(type, sourceParameters: methodParameters,
+                                               targetParameters: targetParameters, types: sema.types)
+                    }
+                    return methodIdentityParameterTypesMatch(candidateParameterTypes: existing.parameterTypes,
+                                                             interfaceParameterTypes: parameterTypes.map(aligned), types: sema.types)
+                        && methodUpperBoundSetsMatch(upperBounds.map { $0.map(aligned) }, existing.methodUpperBounds, types: sema.types)
+                }) {
+                    key = alignedKey
+                }
                 if candidatesByKey[key] == nil {
                     keyOrder.append(key)
+                    methodParametersByKey[key] = methodParameters
                 }
                 candidatesByKey[key, default: []].append((candidate, owner, depth))
             }
@@ -637,6 +673,34 @@ extension TypeCheckHelpers {
                 return ownerSymbol.kind == .class || ownerSymbol.kind == .enumClass || ownerSymbol.kind == .object
             }
             let winners = classBacked.isEmpty ? mostSpecificAtDepth : classBacked
+            // A superclass can implement an interface without a declaration in
+            // the leaf class. Keep its concrete candidate, but project the
+            // interface defaults into this receiver's use-site scope only.
+            if allowedOwnerSymbols == nil,
+               case .classType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+               winners.count == 1, let implementation = classBacked.first,
+               implementation.depth > 0,
+               sema.symbols.symbol(implementation.symbol)?.flags.contains(.abstractType) == false,
+               sema.symbols.memberExtensionOwnerSymbol(for: implementation.symbol) == nil,
+               let implementationSignature = sema.symbols.functionSignature(for: implementation.symbol),
+               !implementationSignature.valueParameterHasDefaultValues.contains(true)
+            {
+                let defaultOwners = Set(grouped.compactMap { candidate -> SymbolID? in
+                    guard sema.symbols.symbol(candidate.owner)?.kind == .interface,
+                          sema.symbols.memberExtensionOwnerSymbol(for: candidate.symbol) == nil,
+                          let signature = sema.symbols.functionSignature(for: candidate.symbol),
+                          signature.valueParameterHasDefaultValues.contains(true),
+                          OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: key.parameterTypes.count)
+                            == OverloadResolver.normalizeFlags(implementationSignature.valueParameterIsVararg, count: key.parameterTypes.count)
+                    else { return nil }
+                    return sema.symbols.overrideDefaultsBaseSymbol(for: candidate.symbol) ?? candidate.symbol
+                })
+                sema.symbols.setInheritedDefaultsOwner(
+                    defaultOwners.count == 1 ? defaultOwners.first : nil,
+                    for: implementation.symbol,
+                    receiver: sema.types.makeNonNullable(receiverType)
+                )
+            }
             candidates.append(contentsOf: winners.map(\.symbol))
         }
         return candidates

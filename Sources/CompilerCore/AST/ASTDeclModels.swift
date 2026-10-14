@@ -533,33 +533,6 @@ public struct EnumEntryDecl: Codable {
     }
 }
 
-public extension EnumEntryDecl {
-    func constructorArgumentMapping(
-        parameterNames: [InternedString]
-    ) -> (argumentIndexByParameter: [Int?], unmatched: [Int]) {
-        var mapping = [Int?](repeating: nil, count: parameterNames.count)
-        var unmatched: [Int] = []
-        var nextPositional = 0
-        for (argIndex, arg) in constructorArgs.enumerated() {
-            if let label = arg.label {
-                if let paramIndex = parameterNames.firstIndex(of: label), mapping[paramIndex] == nil {
-                    mapping[paramIndex] = argIndex
-                } else {
-                    unmatched.append(argIndex)
-                }
-                continue
-            }
-            if nextPositional < parameterNames.count {
-                mapping[nextPositional] = argIndex
-                nextPositional += 1
-            } else {
-                unmatched.append(argIndex)
-            }
-        }
-        return (mapping, unmatched)
-    }
-}
-
 public struct ImportDecl: Sendable, Codable {
     public let range: SourceRange
     public let path: [InternedString]

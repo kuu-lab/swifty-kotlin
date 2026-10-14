@@ -1,6 +1,7 @@
 package typedannotations
 
 import kotlin.reflect.KClass
+import kotlin.reflect.KAnnotatedElement
 import kotlin.reflect.full.findAnnotation
 
 enum class Level { LOW, HIGH }
@@ -36,6 +37,9 @@ private annotation class PrivateInlineTag
 @PrivateInlineTag inline fun inlineMarked() {}
 @Nested("callable") fun markedCallable() {}
 inline fun <reified T : Annotation> lookup(kind: KClass<*>): T? = kind.findAnnotation<T>()
+class Element(override val annotations: List<Annotation>) : KAnnotatedElement
+fun annotationsOf(element: KAnnotatedElement): List<Annotation> = element.annotations
+fun lookupElement(element: KAnnotatedElement): Nested? = element.findAnnotation<Nested>()
 
 fun main() {
     val tags = Record::class.annotations
@@ -48,6 +52,13 @@ fun main() {
     val direct = Named("wire.Record", 9, Level.HIGH, intArrayOf(3, 4), String::class, Nested("inside"))
     check(value == direct && value.hashCode() == direct.hashCode())
     check(value.annotationClass == Named::class)
+    val erased: Any = value
+    check(erased is Named)
+    val classElement: KAnnotatedElement = Record::class
+    val elementValue = annotationsOf(classElement).filterIsInstance<Named>().single()
+    check(elementValue.value == value.value && elementValue == direct)
+    check(elementValue.hashCode() == direct.hashCode() && elementValue.annotationClass == Named::class)
+    check(classElement.findAnnotation<Named>() == value)
     val found = Record::class.findAnnotation<Named>()!!
     check(found.value == value.value && found == value)
     val defaults = Defaults::class.findAnnotation<Named>()!!
@@ -77,6 +88,16 @@ fun main() {
     check(lookup<Named>(Record::class) == value)
     check(lookup<Annotation>(Record::class) is Named)
     check((::markedCallable).annotations.filterIsInstance<Nested>().single().text == "callable")
+    val callableElement: KAnnotatedElement = ::markedCallable
+    val callableValue = annotationsOf(callableElement).filterIsInstance<Nested>().single()
+    val erasedCallable: Any = callableValue
+    check(erasedCallable is Nested && callableValue == Nested("callable"))
+    check(callableValue.hashCode() == Nested("callable").hashCode())
+    check(callableValue.annotationClass == Nested::class && lookupElement(callableElement) == callableValue)
+    val sourceElement: KAnnotatedElement = Element(listOf(Nested("source")))
+    check(annotationsOf(sourceElement).filterIsInstance<Nested>().single().text == "source")
+    check(lookupElement(sourceElement) == Nested("source"))
+    check(annotationsOf(Element(emptyList())).isEmpty())
     inlineMarked()
     println("constants:object-class:vararg:inferred")
     println("typed:properties:constructor:wire.Record:9")

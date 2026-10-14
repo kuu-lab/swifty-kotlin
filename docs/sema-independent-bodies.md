@@ -6,6 +6,10 @@
 
 ## 分離した区間
 
+追記（2026-10-14）: [worker 所有権の続き](sema-worker-ownership.md) で通常 scalar local
+の block 本体を対象へ追加した。以下の限定文法・測定・検証は #8864 時点の記録である。
+lambda/object は独立 snapshot の所有権を検証し、本番 join は引き続き直列とする。
+
 ヘッダ準備は、凍結済み AST から宣言値と未解決 TypeRefID を保持する
 `UnresolvedHeader` を作り、alias とその他の宣言に分ける。worker は SymbolTable、
 型解決、合成登録、scope insert、bundled 登録の thread-local context に触れない。

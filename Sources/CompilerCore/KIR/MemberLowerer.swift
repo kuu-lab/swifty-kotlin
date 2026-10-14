@@ -42,7 +42,7 @@ final class MemberLowerer {
         return initializers
     }
 
-    /// Synthesize runtime-backed nested-object initializers before lowering
+    /// Synthesize nested-object initializers before lowering
     /// enclosing member bodies. Those bodies may read a nested object's
     /// properties or call its members, which need its lazy-init guard to
     /// already be registered.
@@ -83,16 +83,8 @@ final class MemberLowerer {
                 continue
             }
 
-            let needsRuntimeInitialization = shared.sema.symbols.directSupertypes(for: objectSymbol).contains { superSymbol in
-                let kind = shared.sema.symbols.symbol(superSymbol)?.kind
-                if kind == .interface {
-                    return true
-                }
-                return (kind == .class || kind == .enumClass)
-                    && superSymbol != shared.sema.types.anyClassSymbol
-            }
-            guard needsRuntimeInitialization else { continue }
-
+            // Every named object needs a singleton handle and lazy initializer,
+            // including objects with only the implicit Any supertype.
             let objectType = shared.sema.types.make(.classType(ClassType(
                 classSymbol: objectSymbol, args: [], nullability: .nonNull
             )))

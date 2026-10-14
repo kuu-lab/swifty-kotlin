@@ -6,6 +6,77 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-2035: preserve JVM Unit local, return, and argument boundaries.
+    @Test
+    func testJavaLinkedListPlatformUnitThroughSourceAndFreshArtifactAtO0AndO2() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = try diffCaseSource("java_util_linked_list_platform_unit.kt", file: #filePath)
+        let expected = """
+        kotlin.Unit
+        size:1
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        null
+        null
+        null
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        npe:argument
+        kotlin.Unit
+        null
+        npe:bounded-argument
+        npe:local-argument
+        npe:function
+        npe:receiver
+        npe:function-receiver
+        null
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        kotlin.Unit
+        null
+        null
+        null
+        null
+        kotlin.Unit
+        null
+
+        """
+        let negativeSource = """
+        import java.util.LinkedList
+        fun ordinary(value: Unit?): Unit = value
+        fun nullableElement(q: LinkedList<Unit?>): Unit = q.peekLast()
+        fun safeReceiver(q: LinkedList<Unit>?): Unit = q?.peekLast()
+        """
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            for stdlibLibraryPath in [nil, artifactPath] {
+                let output = try Self.runLinkedListSources([source], optLevel: optLevel,
+                                                          stdlibLibraryPath: stdlibLibraryPath)
+                #expect(output == expected, "Unit! at \(optLevel), artifact: \(stdlibLibraryPath != nil)")
+                try withTemporaryFiles(contents: [negativeSource]) { inputs in
+                    let options = CompilerOptions(
+                        moduleName: "PlatformUnitNegative", inputs: inputs,
+                        outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+                        emit: .kirDump, target: defaultTargetTriple(), optLevel: optLevel,
+                        includeStdlib: stdlibLibraryPath == nil, stdlibLibraryPath: stdlibLibraryPath,
+                        allowDefaultStdlibLibrary: false
+                    )
+                    let ctx = CompilationContext(options: options, sourceManager: SourceManager(),
+                        diagnostics: DiagnosticEngine(), interner: StringInterner())
+                    try runSema(ctx)
+                    let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+                    #expect(errors.count == 3 && errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors)")
+                }
+            }
+        }
+    }
+
     /// KUU-2022: retain the unchanged upstream generic return through both routes.
     @Test
     func testJavaLinkedListPlatformReturnsThroughSourceAndFreshArtifactAtO0AndO2() throws {

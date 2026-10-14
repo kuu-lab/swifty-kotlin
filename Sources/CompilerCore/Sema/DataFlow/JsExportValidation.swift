@@ -398,7 +398,7 @@ extension DataFlowSemaPhase {
         switch types.kind(of: type) {
         case .unit:
             return allowUnit
-        case .nullableUnit, .nothing, .error, .kClassType, .intersection:
+        case .nullableUnit, .platformUnit, .nothing, .error, .kClassType, .intersection:
             return false
         case .any, .stringStruct, .typeParam:
             return true
@@ -497,6 +497,7 @@ extension DataFlowSemaPhase {
         switch types.kind(of: type) {
         case .unit: "Unit"
         case .nullableUnit: "Unit?"
+        case .platformUnit: "Unit!"
         case .nothing: "Nothing"
         case .any: "Any"
         case .stringStruct: "String"

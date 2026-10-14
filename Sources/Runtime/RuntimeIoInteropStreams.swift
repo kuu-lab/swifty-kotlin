@@ -54,6 +54,12 @@ final class RuntimeKotlinInputStreamBox: RuntimeChildReferenceProviding {
     }
 }
 
+extension RuntimeKotlinInputStreamBox: RuntimeReaderInputStream {
+    func readByte() -> Int { read(nil) }
+    func available() -> Int { available(nil) }
+    func close() { close(nil) }
+}
+
 func runtimeKotlinInputStream(from raw: Int) -> RuntimeKotlinInputStreamBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(pointer, to: RuntimeKotlinInputStreamBox.self)

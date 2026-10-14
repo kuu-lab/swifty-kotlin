@@ -6,7 +6,7 @@
 /// imported inline store, then updated in place as nested bodyless calls are
 /// expanded. Which body a symbol maps to can change during scheduling; the
 /// classification (`origin`, `isBodyless`, membership in each table) is fixed
-/// at build time.
+/// after recursive auto-inline declarations regain their native bodies.
 ///
 /// Imported bodies are deferred: the store hands the index a descriptor
 /// (resolved artifact path, signature, declared name) per symbol instead of a
@@ -168,6 +168,43 @@ final class InlineExpansionIndex {
     /// `allFunctionsBySymbol`.
     func isExpansionTarget(_ symbol: SymbolID) -> Bool {
         inlineFunctionsBySymbol[symbol] != nil || importedStore.descriptors[symbol] != nil
+    }
+
+    /// Auto-inlining is optional for ordinary declarations. A bodyless call
+    /// cycle cannot be expanded, so retain native entry points for its
+    /// non-inline declarations before scheduling any snapshots. Explicit
+    /// inline templates, imported bodies and non-local-return lambdas keep
+    /// their mandatory-expansion contract.
+    func retainRecursiveAutoInlineBodies(module: KIRModule, sema: SemaModule?) {
+        guard let sema else { return }
+        let declaredSymbols = Set(sema.bindings.declSymbols.values)
+        let retained = recursiveBodylessCallees(includingEmittedInlineFunctions: true).filter { symbol in
+            guard origins[symbol] == .module,
+                  declaredSymbols.contains(symbol),
+                  let declaration = sema.symbols.symbol(symbol),
+                  declaration.kind == .function,
+                  !declaration.flags.contains(.inlineFunction)
+            else { return false }
+            return allFunctionsBySymbol[symbol]?.isInlineOnly == true
+        }
+        guard !retained.isEmpty else { return }
+        module.arena.transformFunctions { function in
+            guard retained.contains(function.symbol) else { return function }
+            let emitted = KIRFunction(
+                symbol: function.symbol, name: function.name, params: function.params,
+                returnType: function.returnType, body: function.body,
+                isSuspend: function.isSuspend, isInline: false, isInlineOnly: false,
+                isTailrec: function.isTailrec, sourceRange: function.sourceRange,
+                instructionLocations: function.instructionLocations
+            )
+            allFunctionsBySymbol[function.symbol] = emitted
+            originalBodies[function.symbol] = emitted
+            inlineFunctionsBySymbol[function.symbol] = nil
+            bodylessInlineSymbols.remove(function.symbol)
+            origins[function.symbol] = nil
+            return emitted
+        }
+        cachedInlineFunctionsByName = nil
     }
 
     /// The expansion target for a `.call` carrying `callSymbol` / `callee`.
@@ -364,16 +401,21 @@ final class InlineExpansionIndex {
     /// self-call is a one-node cycle. A caller whose residue callee is in
     /// this set cannot converge no matter how many rounds run; a callee
     /// outside it simply outgrew the round bounds.
-    func recursiveBodylessCallees() -> Set<SymbolID> {
+    /// Native-body recovery also follows emitted inline wrappers: expanding
+    /// such a wrapper can expose a recursive call to an auto-inline caller.
+    func recursiveBodylessCallees(includingEmittedInlineFunctions: Bool = false) -> Set<SymbolID> {
+        let graphSymbols = includingEmittedInlineFunctions
+            ? bodylessInlineSymbols.union(inlineFunctionsBySymbol.keys)
+            : bodylessInlineSymbols
         var edges: [SymbolID: Set<SymbolID>] = [:]
-        for symbol in bodylessInlineSymbols {
+        for symbol in graphSymbols {
             guard let body = (allFunctionsBySymbol[symbol] ?? inlineFunctionsBySymbol[symbol])?.body else {
                 continue
             }
             var targets: Set<SymbolID> = []
             for instruction in body {
                 guard case let .call(callee, _, _, _, _, _, _, _) = instruction,
-                      let callee, bodylessInlineSymbols.contains(callee)
+                      let callee, graphSymbols.contains(callee)
                 else {
                     continue
                 }

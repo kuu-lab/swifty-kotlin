@@ -238,3 +238,43 @@ The harness compiles each Kotlin source in `Scripts/benchmark_cases/` with `kswi
 | for_in_range | `for (i in 1..1000000) sum += i` | 1236 |
 
 These numbers are the reference for "performance reasons to keep Swift residuals". Any migration of stdlib internals to Swift must beat the relevant baseline.
+
+## Compact `.kklib` index observation (KUU-2051)
+
+2026-10-14, baseline master `d2e74c5d1136d94a32bd140f1cda32371800e506`,
+debug build, Apple Swift 6.4, macOS 27 arm64. Both compilers generated a fresh
+stdlib artifact. The artifacts each contain 31,457 records; their UTF-8 record
+bodies are byte-identical (SHA-256
+`e308907999daa449c8993a4b666e3b4b4f15a70413ddb43582314ac551ebf2b0`).
+The change replaces only the eager text index with the v3 fixed table/string
+pool described in Doc J14 of `spec.md`.
+
+After excluding the first runtime build and warming the filesystem/runtime
+cache, two alternating before/after `hello.kt` executable compilations gave:
+
+| Warm pair | v2 indexDecode (ms) | v3 indexDecode (ms) | Before TOTAL (ms) | After TOTAL (ms) |
+|---|---:|---:|---:|---:|
+| 1 | 2310.01 | 145.20 | 8889.06 | 6568.21 |
+| 2 | 2023.25 | 103.48 | 8361.79 | 5895.38 |
+| Median | 2166.63 | 124.34 | 8625.43 | 6231.80 |
+
+This is approximately 94% less index decode time and 28% less TOTAL in this
+small sample. Other builds/tests were active on the host; early contended runs
+varied substantially. These measurements do not establish an LSP latency or
+large-program compilation speedup. Every executable printed exactly `hello`.
+
+Reproduce with separate before/after compiler binaries and fresh artifacts:
+
+```bash
+<compiler> --stdlib-only --emit library -o /tmp/stdlib-<variant>
+<compiler> Scripts/diff_cases/hello.kt --stdlib-library /tmp/stdlib-<variant>.kklib \
+  -Xfrontend time-phases -o /tmp/hello-<variant>
+/tmp/hello-<variant>
+```
+
+The v3 string pool contains 69,242 strings. The indexed prefix grows from
+7,526,971 to 7,774,704 bytes (+3.3%); `metadata.bin` grows from 17,761,991 to
+18,009,724 bytes (+1.4%). This is the storage cost of fixed-width entries in
+this corpus. Compactness refers to the shell shape and positional fields;
+the format avoids per-record text tokenization, key/value dispatch, and full
+MetadataRecord construction at library discovery.

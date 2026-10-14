@@ -6,8 +6,8 @@ import Testing
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - ABI Boxing/Unboxing Tests
 
-    @Test(arguments: [PrimitiveType.int, .long, .uint, .ulong])
-    func testABILoweringUnboxesGenericPrimitiveReceiver(primitive: PrimitiveType) throws {
+    @Test(arguments: [PrimitiveType.int, .long, .uint, .ulong, .float, .double], [false, true])
+    func testABILoweringUnboxesErasedPrimitiveCallSlot(primitive: PrimitiveType, isReceiver: Bool) throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -16,8 +16,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let genericType = types.make(.typeParam(TypeParamType(symbol: typeParamSymbol)))
         symbols.setTypeParameterUpperBounds([primitiveType], for: typeParamSymbol)
 
-        let receiverTypes = [genericType, primitiveType]
-        let targetTypes = [primitiveType, genericType, types.makeNullable(primitiveType)]
+        let receiverTypes = [genericType, types.anyType, types.nullableAnyType,
+                             types.makeNullable(primitiveType), primitiveType]
+        let targetTypes = isReceiver
+            ? [primitiveType, genericType, types.makeNullable(primitiveType)] : [primitiveType]
         for receiverType in receiverTypes {
             for targetType in targetTypes {
                 let arena = KIRArena()
@@ -25,7 +27,11 @@ extension LoweringABIAndPropertyRegressionTests {
                 let targetSymbol = SymbolID(rawValue: 2902)
                 let targetName = interner.intern("receiverCall")
                 symbols.setFunctionSignature(
-                    FunctionSignature(receiverType: targetType, parameterTypes: [types.intType], returnType: types.unitType),
+                    FunctionSignature(
+                        receiverType: isReceiver ? targetType : nil,
+                        parameterTypes: isReceiver ? [types.intType] : [targetType, types.intType],
+                        returnType: types.unitType
+                    ),
                     for: targetSymbol
                 )
                 let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
@@ -47,7 +53,7 @@ extension LoweringABIAndPropertyRegressionTests {
                 try runLowering(module: module, interner: interner, moduleName: "ABIReceiver", sema: sema)
 
                 let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
-                let shouldUnbox = receiverType == genericType && targetType == primitiveType
+                let shouldUnbox = receiverType != primitiveType && targetType == primitiveType
                 let targetCallIndex = try #require(lowered.body.firstIndex { instruction in
                     if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                         return callee == targetName
@@ -73,7 +79,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[unboxIndex] else { continue }
                     #expect(callee == interner.intern(expectedUnbox.name))
                 } else {
-                    #expect(arguments[0] == receiver, "Raw, generic and nullable receivers must retain their representation")
+                    #expect(arguments[0] == receiver, "Raw, generic and nullable slots must retain their representation")
                     #expect(targetCallIndex == 0)
                 }
             }

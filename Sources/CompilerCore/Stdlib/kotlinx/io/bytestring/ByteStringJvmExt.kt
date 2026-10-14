@@ -6,6 +6,7 @@
 package kotlinx.io.bytestring
 
 import kotlinx.io.bytestring.unsafe.UnsafeByteStringApi
+import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 

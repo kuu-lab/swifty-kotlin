@@ -3,6 +3,40 @@
 ///
 /// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
+    // Array.fill consumes the invariant extension parameter rather than the
+    // Array class parameter, so the ordinary member variance check misses it.
+    func arrayFillHasWriteForbiddenProjection(
+        chosenCallee: SymbolID, receiverType: TypeID, ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let symbol = sema.symbols.symbol(chosenCallee),
+              sema.symbols.isSourceBackedSymbol(chosenCallee),
+              symbol.fqName == ["kotlin", "collections", "fill"].map(interner.intern)
+        else { return false }
+        // User extensions, including declarations in kotlin.collections, must
+        // retain their own receiver contract.
+        if let file = sema.symbols.sourceFileID(for: chosenCallee) ?? symbol.declSite?.start.file {
+            guard ctx.visibilityChecker.sourceManager?.origin(of: file)?.isBundledStdlib == true else { return false }
+        } else {
+            guard sema.symbols.isImportedStdlibSymbol(chosenCallee) else { return false }
+        }
+        guard
+              let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+              case let .classType(declared) = sema.types.kind(of: sema.types.makeNonNullable(declaredReceiver)),
+              case let .classType(actual) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              sema.symbols.symbol(declared.classSymbol)?.fqName == ["kotlin", "Array"].map(interner.intern),
+              sema.symbols.symbol(actual.classSymbol)?.fqName == ["kotlin", "Array"].map(interner.intern),
+              actual.args.count == 1
+        else { return false }
+        switch actual.args[0] {
+        case .out, .star:
+            return true
+        case .invariant, .in:
+            return false
+        }
+    }
+
     // Seed nested comparator factories before regular argument inference caches
     // their selector lambda without the Array receiver's element type (KUU-1248).
     func contextualizeArrayComparatorArgument(

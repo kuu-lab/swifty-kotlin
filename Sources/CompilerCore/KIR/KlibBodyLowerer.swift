@@ -1371,7 +1371,7 @@ final class KlibBodyLowerer {
         emitGlobal(for: ref, typeIndex: nil)
         driver.emitObjectLazyInitGuardIfNeeded(
             objectSymbol: objectSymbol, arena: arena,
-            sema: sema, instructions: &body.instructions
+            sema: sema, interner: interner, instructions: &body.instructions
         )
         let result = arena.appendTemporary(type: resultType)
         body.append(.loadGlobal(result: result, symbol: objectSymbol))

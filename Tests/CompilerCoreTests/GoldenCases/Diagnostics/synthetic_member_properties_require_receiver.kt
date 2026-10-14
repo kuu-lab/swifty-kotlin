@@ -1,3 +1,4 @@
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 
 fun main() {

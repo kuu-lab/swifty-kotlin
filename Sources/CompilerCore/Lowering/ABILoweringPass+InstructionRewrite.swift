@@ -16,8 +16,9 @@ extension ABILoweringPass {
         newBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         var boxedArguments = arguments
-        // Generic slots carry boxes even when their upper bound is primitive.
-        // A concrete primitive extension receiver requires the unboxed payload.
+        // Erased and nullable slots carry boxes even after a smart cast.
+        // Concrete primitive receivers and parameters require the raw payload;
+        // an already raw value must retain its bits (including -0.0).
         let receiverIndex = receiverOffset - 1
         // Enum bodies require raw ordinals. Only unwrap an argument when
         // the formal type is the same non-null enum; nullable enum / Any
@@ -48,6 +49,24 @@ extension ABILoweringPass {
                 into: &newBody
             )
         }
+        func unboxPrimitive(_ argument: KIRExprID, to targetType: TypeID) -> KIRExprID? {
+            guard case .primitive(_, .nonNull) = types.kind(of: targetType),
+                  let argType = intrinsicArgType(argument, arena: module.arena, types: types),
+                  argType != targetType,
+                  let unboxCallee = unboxingCallee(
+                      sourceKind: types.kind(of: argType),
+                      targetKind: types.kind(of: targetType),
+                      boxingCalleeTable: boxingCalleeTable,
+                      types: types,
+                      symbols: symbols,
+                      preferStaticPrimitive: true
+                  )
+            else { return nil }
+            return emitNonThrowingCall(
+                callee: unboxCallee, arg: argument, resultType: targetType,
+                arena: module.arena, into: &newBody
+            )
+        }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxNullableEnum(arguments[receiverIndex], to: receiverType)
@@ -55,27 +74,10 @@ extension ABILoweringPass {
             boxedArguments[receiverIndex] = unboxed
         }
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
-           case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
-           case .primitive(_, .nonNull) = types.kind(of: receiverType),
-           let argType = intrinsicArgType(receiver, arena: module.arena, types: types),
-           case .typeParam = types.kind(of: argType),
-           let unboxCallee = unboxingCallee(
-               sourceKind: types.kind(of: argType),
-               targetKind: types.kind(of: receiverType),
-               boxingCalleeTable: boxingCalleeTable,
-               types: types,
-               symbols: symbols,
-               preferStaticPrimitive: true
-           )
+           let unboxed = unboxPrimitive(arguments[receiverIndex], to: receiverType)
         {
-            boxedArguments[receiverIndex] = emitNonThrowingCall(
-                callee: unboxCallee,
-                arg: receiver,
-                resultType: receiverType,
-                arena: module.arena,
-                into: &newBody
-            )
+            boxedArguments[receiverIndex] = unboxed
         }
         // Interface dispatch and abstract Enum properties require a tagged
         // enum box. Generic extension receivers have the same erased ABI as
@@ -134,6 +136,10 @@ extension ABILoweringPass {
                 continue
             }
             if let unboxed = unboxNullableEnum(arguments[argIndex], to: paramType) {
+                boxedArguments[argIndex] = unboxed
+                continue
+            }
+            if let unboxed = unboxPrimitive(arguments[argIndex], to: paramType) {
                 boxedArguments[argIndex] = unboxed
                 continue
             }

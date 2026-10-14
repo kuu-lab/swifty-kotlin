@@ -26,12 +26,6 @@ private external fun __kk_random_nextInt_rangeObject(random: Random, range: IntR
 @KsSymbolName("__kk_random_nextLong_rangeObject")
 private external fun __kk_random_nextLong_rangeObject(random: Random, range: LongRange): Long
 
-@KsSymbolName("__kk_random_nextUInt_uintRange")
-private external fun __kk_random_nextUInt_uintRange(random: Random, range: UIntRange): UInt
-
-@KsSymbolName("__kk_random_nextULong_ulongRange")
-private external fun __kk_random_nextULong_ulongRange(random: Random, range: ULongRange): ULong
-
 // Single-method interfaces expose the Random methods that native runtime
 // helpers call through itable dispatch. Keeping each interface to one method
 // fixes its runtime slot at zero, independent of symbol ordering. They are
@@ -208,38 +202,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
 
     public open fun nextBytes(size: Int): ByteArray = nextBytes(ByteArray(size) { 0 })
 
-    // nextUInt/nextULong (scalar overloads; ported from kotlin-stdlib
-    // libraries/stdlib/src/main/kotlin/kotlin/random/URandom.kt) are declared
-    // as real members here rather than package-level extensions, matching the
-    // existing KSwiftK member-based Random surface.
-    public open fun nextUInt(): UInt = nextInt().toUInt()
-
-    public open fun nextUInt(until: UInt): UInt = nextUInt(0u, until)
-
-    public open fun nextUInt(from: UInt, until: UInt): UInt {
-        checkUIntRangeBounds(from, until)
-        val signedFrom = from.toInt() xor Int.MIN_VALUE
-        val signedUntil = until.toInt() xor Int.MIN_VALUE
-        val signedResult = nextInt(signedFrom, signedUntil) xor Int.MIN_VALUE
-        return signedResult.toUInt()
-    }
-
-    public open fun nextUInt(range: UIntRange): UInt = __kk_random_nextUInt_uintRange(this, range)
-
-    public open fun nextULong(): ULong = nextLong().toULong()
-
-    public open fun nextULong(until: ULong): ULong = nextULong(0uL, until)
-
-    public open fun nextULong(from: ULong, until: ULong): ULong {
-        checkULongRangeBounds(from, until)
-        val signedFrom = from.toLong() xor Long.MIN_VALUE
-        val signedUntil = until.toLong() xor Long.MIN_VALUE
-        val signedResult = nextLong(signedFrom, signedUntil) xor Long.MIN_VALUE
-        return signedResult.toULong()
-    }
-
-    public open fun nextULong(range: ULongRange): ULong = __kk_random_nextULong_ulongRange(this, range)
-
     public companion object Default : Random() {
         private val defaultRandom: Random
 
@@ -277,14 +239,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
             defaultRandom.nextBytes(array, fromIndex, toIndex)
         override fun nextBytes(array: ByteArray): ByteArray = defaultRandom.nextBytes(array)
         override fun nextBytes(size: Int): ByteArray = defaultRandom.nextBytes(size)
-        override fun nextUInt(): UInt = defaultRandom.nextUInt()
-        override fun nextUInt(until: UInt): UInt = defaultRandom.nextUInt(until)
-        override fun nextUInt(from: UInt, until: UInt): UInt = defaultRandom.nextUInt(from, until)
-        override fun nextUInt(range: UIntRange): UInt = defaultRandom.nextUInt(range)
-        override fun nextULong(): ULong = defaultRandom.nextULong()
-        override fun nextULong(until: ULong): ULong = defaultRandom.nextULong(until)
-        override fun nextULong(from: ULong, until: ULong): ULong = defaultRandom.nextULong(from, until)
-        override fun nextULong(range: ULongRange): ULong = defaultRandom.nextULong(range)
     }
 }
 

@@ -89,14 +89,15 @@ struct LibMetadataSerializationTests {
         #expect(decoded[2].companionObjectFQName == "demo.Owner.Companion")
     }
 
-    @Test func testIndexedLibraryImportDefersBodyUntilSignatureQuery() throws {
+    @Test(arguments: [false, true])
+    func testIndexedLibraryImportDefersBodyUntilSignatureQuery(compact: Bool) throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
         try """
         {
-          "formatVersion": 1,
+          "formatVersion": \(compact ? 2 : 1),
           "moduleName": "LazyMetadata",
           "metadata": "metadata.bin"
         }
@@ -114,8 +115,9 @@ struct LibMetadataSerializationTests {
             ),
             MetadataRecord(kind: .function, mangledName: "_kk_unused", fqName: "lazy.unused", arity: 1, typeSignature: "F1<I,I>"),
         ]
-        try MetadataEncoder().serializeIndexed(records)
-            .write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        let encoder = MetadataEncoder()
+        let metadata = compact ? encoder.serializeCompactIndexed(records) : Data(encoder.serializeIndexed(records).utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"))
 
         let ctx = makeCompilationContext(
             inputs: [],

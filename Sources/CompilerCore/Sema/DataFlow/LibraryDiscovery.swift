@@ -215,7 +215,8 @@ extension DataFlowSemaPhase {
             moduleName: manifest.moduleName,
             isValid: isValid,
             topLevelInitializerLinkName: manifest.topLevelInitializerLinkName,
-            sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1"
+            sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1",
+            formatVersion: manifest.formatVersion
         )
     }
 
@@ -230,10 +231,10 @@ extension DataFlowSemaPhase {
         var isValid = true
 
         if let formatVersion = manifest.formatVersion {
-            if formatVersion != 1 {
+            if formatVersion != 1 && formatVersion != 2 {
                 diagnostics.error(
                     "KSWIFTK-LIB-0010",
-                    "Unsupported formatVersion \(formatVersion) in \(libName)/manifest.json (expected 1)",
+                    "Unsupported formatVersion \(formatVersion) in \(libName)/manifest.json (expected 1 or 2)",
                     range: nil
                 )
                 isValid = false

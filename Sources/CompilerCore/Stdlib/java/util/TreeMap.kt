@@ -72,9 +72,10 @@ public open class TreeMap<K, V> : NavigableMap<K, V> {
         __treeMapClear()
     }
 
-    // `get` resolves keys through the map's comparator, matching
-    // `java.util.TreeMap.containsKey` (which does not use `equals`).
-    override fun containsKey(key: K): Boolean = __treeMapGet(key) != null
+    // Key membership resolves through the map's comparator, matching
+    // `java.util.TreeMap.containsKey` (which does not use `equals`) and
+    // staying true for keys mapped to null values.
+    override fun containsKey(key: K): Boolean = __treeMapKeys().contains(key)
 
     override fun containsValue(value: V): Boolean {
         for (entry in entries) {

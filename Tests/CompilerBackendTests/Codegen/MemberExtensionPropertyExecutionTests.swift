@@ -72,7 +72,7 @@ struct MemberExtensionPropertyExecutionTests {
                 set(value) { stored = value - this - off }
         }
         """, module: "PropertyLibrary", emit: .library)
-        let metadata = try String(contentsOfFile: library + "/metadata.bin", encoding: .utf8)
+        let metadata = try Data(contentsOf: URL(fileURLWithPath: library + "/metadata.bin"))
         let property = try #require(MetadataDecoder().decode(metadata).first {
             $0.fqName == "properties.Holder.total"
         })

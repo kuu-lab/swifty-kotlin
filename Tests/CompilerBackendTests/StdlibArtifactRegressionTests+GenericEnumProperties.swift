@@ -57,6 +57,7 @@ extension StdlibArtifactRegressionTests {
         enum class E { A, B }
         fun main() {
             println(exposed().name)
+            println(exposed())
             val display: Any = exposed()
             println(display)
             println(libraryName(E.A))
@@ -76,7 +77,7 @@ extension StdlibArtifactRegressionTests {
             try LinkPhase().run(consumer)
             let result = try CommandRunner.run(executable: output, arguments: [])
             #expect(result.exitCode == 0)
-            #expect(result.stdout == "A\nhidden-display\nA\nB\nQ\n")
+            #expect(result.stdout == "A\nhidden-display\nhidden-display\nA\nB\nQ\n")
         }
     }
 }

@@ -8,6 +8,8 @@ package final class MetadataEncoder {
     /// Build metadata records from the compiler's semantic state.
     /// Public and protected declarations form the cross-module API;
     /// `includeNonPublic` additionally includes internal and private declarations.
+    /// `requiredNonPublicSymbols` keeps inline implementation dependencies with
+    /// their original visibility without exporting unrelated hidden declarations.
     package func buildRecords(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -16,6 +18,7 @@ package final class MetadataEncoder {
         functionLinkNames: [SymbolID: String],
         inlineFunctionSymbols: Set<SymbolID> = [],
         includeNonPublic: Bool = false,
+        requiredNonPublicSymbols: Set<SymbolID> = [],
         includeSynthetic: Bool = true,
         includeSyntheticNominalAnchors: Bool = false,
         excludeSourceFileIDs: Set<Int32> = [],
@@ -28,21 +31,24 @@ package final class MetadataEncoder {
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
-                if !includeNonPublic && symbol.visibility != .public && symbol.visibility != .protected {
+                let includeNonPublicSymbol = includeNonPublic || requiredNonPublicSymbols.contains(symbol.id)
+                if !includeNonPublicSymbol && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
                 }
-                if !includeNonPublic {
+                if !includeNonPublicSymbol {
                     // A public member of a hidden class is not a module API.
                     // Exporting it without its nominal owner makes the decoder
                     // erase its receiver and creates spurious overloads.
-                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    // Owner visibility is shell information. Do not decode an
+                    // imported body before deciding whether to export it.
+                    var parentID = symbols.parentSymbolIfKnown(for: symbol.id)
                     while let parent = parentID, let owner = symbols.symbol(parent) {
                         if Self.nominalKinds.contains(owner.kind),
                            owner.visibility != .public, owner.visibility != .protected
                         {
                             return false
                         }
-                        parentID = symbols.parentSymbol(for: parent)
+                        parentID = symbols.parentSymbolIfKnown(for: parent)
                     }
                 }
                 // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
@@ -404,7 +410,7 @@ package final class MetadataEncoder {
                 nullability: kClassType.nullability
             )))
 
-        case .typeParam, .stringStruct, .primitive, .any, .unit, .nullableUnit, .nothing, .error:
+        case .typeParam, .stringStruct, .primitive, .any, .unit, .nullableUnit, .platformUnit, .nothing, .error:
             return type
         }
     }

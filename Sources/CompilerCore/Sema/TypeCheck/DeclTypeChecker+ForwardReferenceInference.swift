@@ -332,8 +332,22 @@ extension DeclTypeChecker {
         }
         let candidates = ctx.scope.lookup(name)
         guard candidates.count == 1,
-              let symbol = ctx.sema.symbols.symbol(candidates[0]),
-              symbol.kind == .property || symbol.kind == .field,
+              let symbol = ctx.sema.symbols.symbol(candidates[0])
+        else {
+            return nil
+        }
+        if symbol.kind == .object {
+            // Singleton receivers already have a nominal type from their header.
+            // Their member reads still wait for concrete property types below.
+            if symbol.id == ctx.sema.types.unitClassSymbol {
+                return ctx.sema.types.unitType
+            }
+            return ctx.sema.symbols.propertyType(for: symbol.id)
+                ?? ctx.sema.types.make(.classType(ClassType(
+                    classSymbol: symbol.id, args: [], nullability: .nonNull
+                )))
+        }
+        guard symbol.kind == .property || symbol.kind == .field,
               let declaredType = ctx.sema.symbols.propertyType(for: candidates[0])
         else {
             return nil
@@ -722,7 +736,7 @@ extension DeclTypeChecker {
         switch ctx.sema.types.kind(of: type) {
         case .primitive, .stringStruct, .classType, .typeParam, .any(.nonNull):
             return true
-        case .error, .unit, .nullableUnit, .nothing, .any(.nullable), .any(.platformType),
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any(.nullable), .any(.platformType),
              .functionType, .intersection, .kClassType:
             return false
         }

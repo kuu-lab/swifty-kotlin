@@ -110,13 +110,6 @@ extension DataFlowSemaPhase {
         // real nominal headers are predeclared before this residual registry
         // runs, so the remaining collection bridge registrations can reference
         // them without recreating the source-backed shell.
-        registerMutableCollectionIterableAddAllMembers(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
         registerSyntheticMapEntryResiduals(
             symbols: symbols,
             types: types,
@@ -130,31 +123,6 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             bundledIndex: bundledIndex
         )
-        // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions
-        if let mutableListSym = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]
-        ),
-        let mutableSetSym = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]
-        ) {
-            let sequenceSymbol = ensureSyntheticSequenceStub(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                kotlinCollectionsPkg: kotlinCollectionsPkg,
-                bundledIndex: bundledIndex
-            )
-            registerMutableCollectionSequenceAddAllMembers(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                mutableCollectionSymbol: mutableCollectionInterfaceSymbol,
-                mutableListSymbol: mutableListSym,
-                mutableSetSymbol: mutableSetSym,
-                sequenceSymbol: sequenceSymbol
-            )
-        }
-
         // KSP-625: ArrayDeque is provided by bundled Kotlin source
         // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
         // registered for it here.

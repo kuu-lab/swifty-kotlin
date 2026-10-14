@@ -4,7 +4,8 @@ public struct IncrementalFrontendState: Codable {
     // and trailing-lambda syntax on call arguments.
     // It also stores canonical annotation string arguments instead of
     // adding quotes around segments and dollar prefixes to closing quotes.
-    public static let supportedVersion = 6
+    // Version 7 preserves expression annotation prefixes in AST snapshots.
+    public static let supportedVersion = 7
 
     public let version: Int
     public let buildConfigurationHash: String

@@ -164,7 +164,6 @@ struct CompanionMemberExtensionImportTests {
             }
         }
         """
-        let atomicfu = KotlinSourceFixtures.atomicfuAtomicRefStub
         let byteChannel = """
         package io.ktor.utils.io
         import io.ktor.utils.io.CloseToken.Companion.throwOrNull
@@ -203,7 +202,7 @@ struct CompanionMemberExtensionImportTests {
             }
         }
         """
-        try withTemporaryFiles(contents: [byteChannel, closeToken, sinkByteWriteChannel, atomicfu]) { paths in
+        try withTemporaryFiles(contents: [byteChannel, closeToken, sinkByteWriteChannel]) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")

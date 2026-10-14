@@ -38,17 +38,24 @@ struct ImportedInnerClassMetadataTests {
         return try #require(result)
     }
 
-    private func writeMetadata(_ records: [MetadataRecord], indexed: Bool, directory: URL) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try "{\"formatVersion\":1,\"moduleName\":\"InnerProducer\",\"metadata\":\"metadata.bin\"}"
-            .write(to: directory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+    private func metadataData(_ records: [MetadataRecord], format: String) -> Data {
         let encoder = MetadataEncoder()
-        let text = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
-        try text.write(to: directory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        switch format {
+        case "v1": return Data(encoder.serialize(records).utf8)
+        case "v2": return Data(encoder.serializeIndexed(records).utf8)
+        default: return encoder.serializeCompactIndexed(records)
+        }
     }
 
-    @Test(arguments: [false, true])
-    func innerFlagPrivateStorageAndConstructorCallSurviveImport(indexed: Bool) throws {
+    private func writeMetadata(_ records: [MetadataRecord], format: String, directory: URL) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try "{\"formatVersion\":\(format == "v3" ? 2 : 1),\"moduleName\":\"InnerProducer\",\"metadata\":\"metadata.bin\"}"
+            .write(to: directory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadataData(records, format: format).write(to: directory.appendingPathComponent("metadata.bin"))
+    }
+
+    @Test(arguments: ["v1", "v2", "v3"])
+    func innerFlagPrivateStorageAndConstructorCallSurviveImport(format: String) throws {
         let producer = try producerRecords()
         let record = try #require(producer.records.first { $0.fqName == "importedinner.Outer.Inner" })
         try #require(record.isInnerClass)
@@ -56,17 +63,16 @@ struct ImportedInnerClassMetadataTests {
         try #require(!producer.records.contains { $0.fqName.hasSuffix(".$outer") || $0.fqName == "importedinner.Outer.hidden" })
         let ctor = try #require(producer.records.first { $0.fqName == "importedinner.Outer.Inner.<init>" })
         try #require(ctor.arity == 0 && ctor.valueParameterNames.isEmpty)
-        let encoder = MetadataEncoder()
-        let decoded = MetadataDecoder().decode(indexed ? encoder.serializeIndexed(producer.records) : encoder.serialize(producer.records))
+        let decoded = MetadataDecoder().decode(metadataData(producer.records, format: format))
         try #require(decoded.first { $0.fqName == record.fqName }?.isInnerClass == true)
-        if indexed {
-            let file = try #require(IndexedMetadataFile(data: Data(encoder.serializeIndexed(producer.records).utf8)))
+        if format != "v1" {
+            let file = try #require(IndexedMetadataFile(data: metadataData(producer.records, format: format)))
             // Member constructor discovery reads the compact symbol before its body.
             try #require(file.entries.first { $0.record.fqName == record.fqName }?.record.isInnerClass == true)
         }
         let library = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
         defer { try? FileManager.default.removeItem(at: library) }
-        try writeMetadata(producer.records, indexed: indexed, directory: library)
+        try writeMetadata(producer.records, format: format, directory: library)
         try withTemporaryFile(contents: "import importedinner.*\nfun main() { Outer().Inner() }\nfun fromEnum(value: EnumOuter): EnumOuter.Inner = value.Inner()") { path in
             let ctx = makeCompilationContext(inputs: [path], searchPaths: [library.path], includeStdlib: false)
             try runToKIR(ctx)
@@ -118,14 +124,14 @@ struct ImportedInnerClassMetadataTests {
         }
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func unmarkedNestedClassKeepsStaticConstruction(indexed: Bool, instanceReceiver: Bool) throws {
+    @Test(arguments: ["v1", "v2", "v3"], [false, true])
+    func unmarkedNestedClassKeepsStaticConstruction(format: String, instanceReceiver: Bool) throws {
         let producer = try producerRecords()
         let nested = try #require(producer.records.first { $0.fqName == "importedinner.Outer.Nested" })
         try #require(!nested.isInnerClass)
         let library = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
         defer { try? FileManager.default.removeItem(at: library) }
-        try writeMetadata(producer.records, indexed: indexed, directory: library)
+        try writeMetadata(producer.records, format: format, directory: library)
         let call = instanceReceiver ? "Outer().Nested()" : "Outer.Nested()"
         try withTemporaryFile(contents: "import importedinner.*\nfun main() { \(call) }") { path in
             let ctx = makeCompilationContext(inputs: [path], searchPaths: [library.path], includeStdlib: false)

@@ -6,6 +6,31 @@ import Testing
 
 @Suite(.serialized)
 struct TypedAnnotationMetadataTests {
+    @Test func annotatedElementReadsMaterializeTypedInstances() throws {
+        let context = makeContextFromSource("""
+        import kotlin.reflect.KAnnotatedElement
+        fun read(element: KAnnotatedElement): List<Annotation> = element.annotations
+        """)
+        try runToKIR(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let body = try findKIRFunctionBody(named: "read", in: #require(context.kir), interner: context.interner)
+        let calls = kirCalls(in: body)
+        for name in ["__kk_kclass_get_annotations_typed", "__kk_kcallable_get_annotations_typed"] {
+            let call = try #require(calls.first { context.interner.resolve($0.callee) == name })
+            #expect(call.arguments.count == 1)
+            #expect(call.canThrow)
+        }
+        #expect(!calls.contains {
+            ["__kk_kclass_get_annotations", "__kk_kcallable_get_metadata"].contains(context.interner.resolve($0.callee))
+        })
+        // Source implementations still dispatch through their interface getter.
+        #expect(body.contains {
+            guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = $0,
+                  case .itableDynamic = dispatch else { return false }
+            return true
+        })
+    }
+
     @Test func factoryLinkNamesRoundTripWithoutChangingLegacyMetadata() {
         let annotations = [MetadataAnnotationRecord(annotationFQName: "Legacy"),
                            MetadataAnnotationRecord(annotationFQName: "private.Named", arguments: ["value=1"],

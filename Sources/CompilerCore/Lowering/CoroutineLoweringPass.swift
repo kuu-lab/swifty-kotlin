@@ -32,6 +32,10 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_await_cancellation"),
+            // Mutex/Channel bridges already carry a placeholder continuation from KIR.
+            ctx.interner.intern("kk_channel_send"),
+            ctx.interner.intern("kk_mutex_lock"),
+            ctx.interner.intern("__kk_mutex_lock_owner"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
@@ -139,8 +143,15 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // KUU-2161: Semaphore.acquire parks the caller continuation when no
+            // permit is free so an UNDISPATCHED waiter does not block its starter.
+            ctx.interner.intern("kk_semaphore_acquire"),
             // awaitCancellation() parks a cancellable continuation.
             ctx.interner.intern("kk_await_cancellation"),
+            // Channel send / Mutex lock must suspend instead of blocking UNDISPATCHED callers.
+            ctx.interner.intern("kk_channel_send"),
+            ctx.interner.intern("kk_mutex_lock"),
+            ctx.interner.intern("__kk_mutex_lock_owner"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
             // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
             // start the next recursive step without growing the native stack.

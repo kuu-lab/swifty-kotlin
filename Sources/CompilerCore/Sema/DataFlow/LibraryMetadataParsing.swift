@@ -1,3 +1,4 @@
+import Foundation
 
 enum ImportedLibraryLimits {
     /// Keep imported callable shapes small enough that malformed metadata cannot
@@ -11,12 +12,38 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) -> [ImportedLibrarySymbolRecord]? {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
             diagnostics.warning(
                 "KSWIFTK-LIB-0001",
                 "Unable to read library metadata: \(path)",
                 range: nil
             )
+            return nil
+        }
+
+        if data.starts(with: CompactMetadataIndex.magic) {
+            guard let file = IndexedMetadataFile(data: data) else {
+                diagnostics.error("KSWIFTK-LIB-0024", "Malformed compact metadata index at \(path)", range: nil)
+                return nil
+            }
+            var signatures: [String: String] = [:]
+            for entry in file.entries {
+                guard let signature = entry.nominalTypeParametersSignature else { continue }
+                guard signatures.updateValue(signature, forKey: entry.fqName) == nil else {
+                    diagnostics.error("KSWIFTK-LIB-0024", "Duplicate nominal type metadata at \(path)", range: nil)
+                    return nil
+                }
+            }
+            return file.entries.compactMap { entry in
+                guard let record = file.record(for: entry) else { return nil }
+                return makeImportedLibraryRecord(
+                    record, path: path, diagnostics: diagnostics, interner: interner,
+                    nominalTypeParametersByFQName: signatures
+                )
+            }
+        }
+        guard let content = String(data: data, encoding: .utf8) else {
+            diagnostics.warning("KSWIFTK-LIB-0001", "Unable to read library metadata: \(path)", range: nil)
             return nil
         }
 
@@ -671,7 +698,7 @@ extension DataFlowSemaPhase {
                 visit(kc.argument)
             case let .intersection(parts):
                 for part in parts { visit(part) }
-            case .nothing, .any, .primitive, .unit, .nullableUnit, .error, .stringStruct:
+            case .nothing, .any, .primitive, .unit, .nullableUnit, .platformUnit, .error, .stringStruct:
                 break
             }
         }
@@ -1280,7 +1307,7 @@ extension DataFlowSemaPhase {
                 types.nullableAnyType
             case let .primitive(primitive, _):
                 types.make(.primitive(primitive, .nullable))
-            case .unit, .nullableUnit, .stringStruct:
+            case .unit, .nullableUnit, .platformUnit, .stringStruct:
                 types.makeNullable(type)
             case let .classType(classType):
                 types.make(.classType(ClassType(

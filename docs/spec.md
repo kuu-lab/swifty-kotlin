@@ -533,6 +533,18 @@ public struct ASTFile {
 }
 ```
 
+### BuildAST の採番契約
+
+`DeclID` / `ExprID` / `TypeRefID` は、入力ファイルに対応する syntax tree の順序と、
+各ファイル内の arena 追加順で採番する。`jobs=1/2/4` および task の完了順に依存しない。
+BuildAST は各ファイルを private arena / interner で構築し、全 worker の完了後に入力順で
+module arena へ統合する。ノード内の参照、annotation の元 token、付随テーブルの key/value、
+file の宣言・script 参照を同時に remap し、負の invalid sentinel と SourceRange は維持する。
+compound assignment の一時名は FileID と SourceRange で識別し、file-local ID を文字列へ埋め込まない。
+既存の incremental arena は変更しない prefix として保持し、再コンパイルしたファイルだけを
+同じ順序で末尾へ追加する。同じキャッシュ状態・再コンパイル集合なら jobs 間で ID が一致する。
+clean build と incremental build の ID 一致は保証しない。
+
 ### 代表ノード（抜粋）
 
 ```swift
@@ -675,6 +687,28 @@ public final class SemaModule {
 * `CallExpr -> CalleeSymbolID + chosen overload`
 * `DeclID -> SymbolID`
 
+## J7.5 Stored property initialization (KUU-2142)
+
+After receiver and constructor delegation binding, `ValPropertyInitializationChecker`
+tracks possible initialization with union and definite initialization with intersection.
+Possible writes retain the immutable-property reassignment check (SEMA-0014).
+Each primary/secondary constructor and object initialization must definitely initialize
+all deferred stored `val`/`var` properties; otherwise the declaration receives SEMA-0424.
+A bare constructor return is a normal exit, and `this(...)` delegation consumes the
+chosen constructor's summary after ordered property initializers and init blocks.
+Constructor bodies may initialize properties declared later in the source text;
+init blocks still cannot initialize a property before its declaration.
+Kotlin also rejects a deferred property in a constructor with no normal exit.
+
+Declaration initializers, delegates, explicit backing-field initializers, primary
+property parameters, abstract/lateinit/expect properties, and fieldless custom
+accessors do not require deferred initialization. Concrete stored properties in an
+abstract class still do. Fieldless mutable properties require both custom accessors
+and no bound backing-field use. A custom setter call does not prove initialization;
+only a direct write to this instance with the default setter counts. Deferred lambda
+and local-function writes, and writes to another receiver, do not initialize this
+instance. FIELD annotations do not alter this analysis.
+
 ---
 
 # Doc J8: 型システムと TypeID（`TypeSystem`）
@@ -690,6 +724,7 @@ public enum TypeKind {
     case error
     case unit
     case nullableUnit // Unit? carries a value or the null sentinel
+    case platformUnit // Unit! retains flexible bounds Unit..Unit?
     case nothing
     case any(Nullability)
 
@@ -898,6 +933,7 @@ InlineLowering
 
 * inline 関数の body を call site に複製
 * `reified` は runtime type token を hidden arg として渡す（Doc J16）
+* 関数型引数によって自動 inline 化された非 inline 宣言が、明示 inline wrapper を含む inline call cycle に到達する場合、展開前に通常の emitted body を保持して再帰呼び出しを残す。明示 inline 宣言・imported inline body・非局所 return を持つ lambda は復帰対象にせず、既存の mandatory expansion と INL-0001 診断を維持する。
 
 ---
 
@@ -927,7 +963,7 @@ _KK_<module>__<fqname>__<declkind>__<signature>__<hash>
 * `String` -> `Lkotlin_String;`
 * `T?` -> `Q<T>`
 * `.kklib` の型 signature は Java 境界の `T!` を `P<T>` として保存・復元する。link-name mangling は従来どおり `Q<T>` に消去する。
-* bundled `java.util.LinkedList.peekLast` は Kotlin 実装の `E?` 宣言を保ち、呼び出し signature に限って `E!` を公開する。ユーザーが同じ FQ name で宣言した Kotlin 関数には適用しない。`E!` を nullable 型引数で置換した場合は nullable を保持する（`LinkedList<Int?>.peekLast(): Int?`）。通常の Kotlin `T? → T` は許可しない。platform 値を具体的な非 nullable 型または非 nullable 上限を持つ型変数へ渡す際は KIR の `nullAssert` を挿入し、null なら NPE を投げる。上限なしの `T` への戻り値には挿入しない。具体型 `Unit!` の表現は [KUU-2035](https://linear.app/kuu/issue/KUU-2035) の別制約として未対応。
+* bundled `java.util.LinkedList.peekLast` は Kotlin 実装の `E?` 宣言を保ち、呼び出し signature に限って `E!` を公開する。ユーザーが同じ FQ name で宣言した Kotlin 関数には適用しない。`E!` を nullable 型引数で置換した場合は nullable を保持する（`LinkedList<Int?>.peekLast(): Int?`）。通常の Kotlin `T? → T` は許可しない。platform 値を具体的な非 nullable 型または非 nullable 上限を持つ型変数へ渡す際は KIR の `nullAssert` を挿入し、null なら NPE を投げる。上限なしの `T` への戻り値には挿入しない。具体型 `Unit!` は独立した `platformUnit` として `Unit` / `Unit?` の flexible 境界を保持する。Kotlin/JVM に合わせ、`Unit` ローカル代入は Java の値（null を含む）を保持し、`Unit` 戻り値は式を評価して singleton に変換し、非 nullable 関数引数は null 検査する。getter の参照 ABI は値を保持し、非 nullable `Unit` property の読み出しは singleton を生成する（safe call の null receiver 分岐は null を保持）。通常の `Unit? → Unit` は引き続き拒否する。
 * `print` / `println` に platform String を渡す場合は nullable `Any?` overload を選び、空 `peekLast` の null をそのまま表示する。
 * `Function2<A,B,R>` -> `F2<A,B,R>`
 * `suspend` 関数型 -> `SF…`
@@ -979,7 +1015,7 @@ Foo.kklib/
 
 ```json
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "moduleName": "Foo",
   "kotlinLanguageVersion": "2.3.10",
   "compilerVersion": "0.1.0",
@@ -1008,6 +1044,37 @@ hard error; the compiler does not fall back to injecting bundled sources.
 * public API の “ヘッダ情報” を入れる（型・シグネチャ・vtable slot・field offsets）
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
 * inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
+
+新規 `.kklib` は manifest `formatVersion=2` と binary indexed metadata v3 を出力する。
+reader は manifest 1 と legacy v1 / text indexed v2 も引き続き受け付ける。
+旧 reader は manifest 2 を拒否するため、binary index を legacy text と誤認しない。
+
+v3 の byte layout（全整数は little-endian、alignment 非依存）:
+
+* magic: ASCII `kklib-metadata-v3\n`
+* header: UInt32 の record count / string count / string-section byte length / entry width（80）
+* string section: string ID 順に UInt32 UTF-8 byte length + UTF-8 bytes。ID 0 は空文字列で、optional field では nil を表す。
+* entry table: record ごとに UInt64 body offset / length、UInt32 arity / flags / kind ID / visibility ID、12 個の UInt32 string ID。
+* body: 従来の record text を UTF-8 で連結。offset / length は body の先頭を基準とする。
+
+string field 順序は fqName / mangledName / receiverOwnerFQName / defaultStubExternalLinkName /
+externalLinkName / propertyReceiverTypeSignature / propertyGetterExternalLinkName /
+nominalTypeParametersSignature / companionObjectFQName / objectInitializerLinkName /
+companionInitializerLinkName / enumStaticInitLinkName。
+kind ID は package / class / interface / object / enumClass / annotationClass / typeAlias /
+function / constructor / property / field / backingField / typeParameter / valueParameter /
+local / label の順（0..15）、visibility ID は public / private / internal / protected（0..3）。
+flags bit 0..15 は suspend / inline / operator / infix / override / memberExtension /
+mutable / dataClass / openClass / innerClass / sealedClass / funInterface / valueClass /
+expect / actual / completeInitializerInfo。bit 16..17 は modality（0=final, 1=open, 2=abstract）。bit 18..20 は setter visibility
+（0=未指定, 1=public, 2=private, 3=internal, 4=protected）。
+未知の flag、ID、entry width、範囲外の body slice、不正な string UTF-8 は読み込み時に拒否する。
+本文の UTF-8 / signature / layout / annotation は宣言への semantic query 時にだけ decode する。
+
+index は shell 登録に必要な shape 専用型を使い、全件の汎用 MetadataRecord を生成しない。
+名前による検索は登録済み SymbolTable に任せ、wire index に重複した name hash は持たせない。
+共有 string ID によって routing 用の文字列を再利用する。cache integrity check も本文を decode せず、
+index の inline flag / mangledName から必要な inline-KIR blob の存在を検証する。
 
 通常のライブラリを bundled stdlib ソースでコンパイルする場合、stdlib 本体も
 KIR・オブジェクトへ出力する。stdlib 宣言はライブラリの公開メタデータから除外し、
@@ -1234,6 +1301,15 @@ KIR で `isSuspend = true` の関数。
      * if returned suspended -> return suspended
      * else result をローカルに入れて継続
 
+`Mutex.lock()` / `lock(owner)` は runtime suspend point として扱い、KIR の末尾の
+zero continuation を呼出元の continuation で置換する。owner 版の `outThrown` は
+独立した例外チャネルとして維持する。競合待機は cancellable continuation で通知し、
+所有権の移譲後でも delivery 前に取消された場合は mutex を返却する。同期取得と
+成功 delivery 後には汎用の取消検査を追加しない。continuation が zero の
+非 suspend 呼出しは引き続き blocking waiter を使う（KUU-2139）。
+ソース由来の `EmptyCoroutineContext` は空 context と解決し、既定の
+`runBlocking` と子 coroutine が同じ event loop を継承する。
+
 ## J17.3 non-suspend からの起動（KxMini）
 
 * `runBlocking`, `launch`, `async`, `delay` を Swift runtime 側で提供（GCD）。
@@ -1299,7 +1375,16 @@ swift test --show-codecov-path
 
 `AnnotationNode.constructionTokens` preserves constructor tokens (including aliases,
 escaped strings, array literals, named arguments and defaults) through frontend
-snapshots. `IncrementalFrontendState.supportedVersion = 6` rejects older snapshots.
+snapshots. `IncrementalFrontendState.supportedVersion = 7` rejects older snapshots
+and preserves prefix annotations on their operand expression IDs. Expression
+annotations retain the operand's type/control flow, validate the EXPRESSION
+target (or FUNCTION for function literals), and scope diagnostic suppression
+to that operand. CST declaration-boundary lookahead keeps complete expression
+annotation prefixes across newlines after `=` and before the operand, within the
+shared 4096-token lookahead budget. An unclosed argument list recovers at the
+following named declaration with a missing `)` that AST token scans honor.
+Suppression names decode regular literal escapes and preserve raw literal contents.
+Concatenated names remain unsuppressed, matching Kotlin 2.3.10's literal-only lookup.
 After headers, annotation construction is resolved in the declaration's lexical
 scope. After all declaration bodies are bound, all retention kinds require constant arguments/defaults; only RUNTIME
 records receive a private producer-owned constructor factory. Constant primitive
@@ -1310,6 +1395,9 @@ Missing fields decode as legacy records. A consumer registers a symbol reference
 with the normal zero-argument function-value ABI (`outThrown`); it does not rebuild
 private producer constructors. Typed class/callable reads invoke factories outside
 registry locks and root intermediate results until the returned list owns them.
+The `KAnnotatedElement.annotations` interface fast path uses those same throwing
+typed bridges for native KClass and callable handles. Source implementations
+continue to dispatch through their interface getter.
 Matching factory/legacy records share one occurrence; differing repeatable values
 remain separate. Old read entry points retain their serialized record boxes.
 `findAnnotation<T>()` returns `T?`, checks the Annotation bound, and can infer T
@@ -1343,6 +1431,25 @@ owner and referenced types checked normally. An experimental annotation consumes
 its marker at the annotation application site; that marker does not propagate
 a second time to callers of declarations annotated with it. This rule applies
 without special annotation-name exceptions and survives producer metadata.
+
+Top-level typealias declarations check opt-in requirements on their expanded
+underlying type. Resolved unqualified typealias constructor calls inherit the
+alias's directly applied markers instead of the expanded class's markers,
+while retaining the constructor's own markers. Explicit signature types still
+check the expanded class, even when the
+alias declaration opted in (KUU-2064; Kotlin 2.3.10).
+
+Property uses collect opt-in requirements from the declared property and its type,
+including nested type arguments and the extension receiver. Callable uses also
+collect requirements from return, receiver and parameter types. Consent on the
+producer permits its declaration and body; it does not remove requirements from
+these API types in consumers. Direct and type-derived occurrences of the same
+marker produce one diagnostic per usage, retaining each marker's severity.
+Signature-derived requirements are read from the current signature rather than
+cached with annotations, so inferred return types and imported metadata use the
+same checks (KUU-2143; Kotlin 2.3.10). Only explicit return types receive the
+function-header type check: an inferred type is checked at body usage sites,
+including after speculative inference is retried.
 
 Explicit descriptor annotation lists preserve the supplied objects and order.
 These APIs do not implement serializer generation, automatic wire-name changes,

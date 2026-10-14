@@ -8,6 +8,7 @@ extension DataFlowSemaPhase {
         let isValid: Bool
         var topLevelInitializerLinkName: String? = nil
         var sourceArrayComponentABI: Bool = false
+        var formatVersion: Int? = nil
     }
 
     struct LibraryImportDeferredWork {
@@ -387,23 +388,39 @@ extension DataFlowSemaPhase {
                 cache?.cachedIndexedMetadataFile(metadataPath: metadataPath)
                     ?? (try? Data(contentsOf: URL(fileURLWithPath: metadataPath))).flatMap(IndexedMetadataFile.init(data:))
             }
+            if manifestInfo.formatVersion == 2, indexedFile?.metadataVersion != 3 {
+                diagnostics.error("KSWIFTK-LIB-0024", "Malformed compact metadata index at \(metadataPath)", range: nil)
+                continue
+            }
             if let indexedFile {
                 cache?.cacheIndexedMetadataFile(indexedFile, metadataPath: metadataPath)
                 withSubPhaseTiming("registerShells", timer: phaseTimer) {
-                    let nominalTypeParametersByFQName = Dictionary(
-                        uniqueKeysWithValues: indexedFile.entries.compactMap { entry -> (String, String)? in
-                            guard let signature = entry.record.nominalTypeParametersSignature else { return nil }
-                            return (entry.record.fqName, signature)
-                        }
-                    )
+                    var nominalTypeParametersByFQName: [String: String] = [:]
                     for entry in indexedFile.entries {
-                        guard let shell = makeImportedLibraryRecord(
-                            entry.record,
-                            path: metadataPath,
-                            diagnostics: diagnostics,
-                            interner: interner,
-                            nominalTypeParametersByFQName: nominalTypeParametersByFQName
-                        ) else { continue }
+                        guard let signature = entry.nominalTypeParametersSignature else { continue }
+                        guard nominalTypeParametersByFQName.updateValue(signature, forKey: entry.fqName) == nil else {
+                            diagnostics.error(
+                                "KSWIFTK-LIB-0024",
+                                "Duplicate nominal type metadata for '\(entry.fqName)' in library metadata at \(metadataPath)",
+                                range: nil
+                            )
+                            return
+                        }
+                    }
+                    for entry in indexedFile.entries {
+                        let shell: ImportedLibrarySymbolRecord?
+                        if let compactRecord = entry.compactRecord {
+                            shell = makeImportedLibraryIndexRecord(
+                                compactRecord, path: metadataPath, diagnostics: diagnostics,
+                                interner: interner, nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                            )
+                        } else {
+                            shell = makeImportedLibraryRecord(
+                                entry.record, path: metadataPath, diagnostics: diagnostics,
+                                interner: interner, nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                            )
+                        }
+                        guard let shell else { continue }
                         appendImportedBinding(
                             shell,
                             metadataPath: metadataPath,

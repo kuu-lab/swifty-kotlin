@@ -34,7 +34,8 @@ final class DeclTypeChecker {
 
     func validateFunctionHeaderOptInTypes(
         _ symbol: SymbolID,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        hasExplicitReturnType: Bool
     ) {
         guard let signature = ctx.sema.symbols.functionSignature(for: symbol) else {
             return
@@ -46,7 +47,11 @@ final class DeclTypeChecker {
         for parameterType in signature.parameterTypes {
             validateOptInTypeUsage(parameterType, ctx: ctx, range: range)
         }
-        validateOptInTypeUsage(signature.returnType, ctx: ctx, range: range)
+        // An inferred return type is validated by its body usages. Rechecking
+        // the refined signature after speculative inference would duplicate them.
+        if hasExplicitReturnType {
+            validateOptInTypeUsage(signature.returnType, ctx: ctx, range: range)
+        }
     }
 
     func validatePropertyHeaderOptInTypes(
@@ -95,7 +100,13 @@ final class DeclTypeChecker {
             return ctx.sema.types.unitType
 
         case let .expr(exprID, _):
-            return driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: expectedType)
+            let type = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: expectedType)
+            if !ctx.isPropertyGetterReturn, expectedType == ctx.sema.types.unitType,
+               ctx.sema.types.makeNonNullable(type) == ctx.sema.types.unitType
+            {
+                ctx.sema.bindings.markUnitReturnCoercion(exprID)
+            }
+            return type
 
         case let .block(exprIDs, _):
             var canComplete = true
@@ -326,7 +337,7 @@ final class DeclTypeChecker {
             }
         case .nullableUnit:
             emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
-        case .error, .unit, .intersection:
+        case .error, .unit, .platformUnit, .intersection:
             break
         }
     }

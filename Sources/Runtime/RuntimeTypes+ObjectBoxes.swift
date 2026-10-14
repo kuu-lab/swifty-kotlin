@@ -223,8 +223,6 @@ final class RuntimeIntBox {
     /// the raw ordinal once the static enum type has been erased. See
     /// kk_enum_box_ordinal.
     let enumEntryName: String?
-    /// Declared Enum.name, independent of a custom toString display name.
-    let enumDeclaredName: String?
     /// Stable nominal ID for the enum class represented by this box. Unlike a
     /// plain boxed Int, enum equality must keep two entries from different
     /// enum classes unequal even when their ordinals match.
@@ -235,8 +233,7 @@ final class RuntimeIntBox {
         anyFallbackTag: Int32 = 1,
         primitiveTypeBase: Int64? = nil,
         enumEntryName: String? = nil,
-        enumClassID: Int64? = nil,
-        enumDeclaredName: String? = nil
+        enumClassID: Int64? = nil
     ) {
         self.value = value
         self.anyFallbackTag = anyFallbackTag
@@ -248,7 +245,6 @@ final class RuntimeIntBox {
         }
         self.primitiveTypeBase = primitiveTypeBase ?? defaultPrimitiveTypeBase
         self.enumEntryName = enumEntryName
-        self.enumDeclaredName = enumDeclaredName ?? enumEntryName
         self.enumClassID = enumClassID
     }
 }

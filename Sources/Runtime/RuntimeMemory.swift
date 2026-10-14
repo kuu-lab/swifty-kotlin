@@ -90,14 +90,69 @@ public func __kk_runtime_maxMemory() -> Int {
 }
 
 final class RuntimeJavaClassBox: @unchecked Sendable {
-    let receiverRaw: Int
+    let typeToken: Int
+    let nameHint: Int
 
-    init(receiverRaw: Int) {
-        self.receiverRaw = receiverRaw
+    init(typeToken: Int, nameHint: Int = 0) {
+        self.typeToken = typeToken
+        self.nameHint = nameHint
     }
 }
 
 @_cdecl("__kk_any_javaClass")
 public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
-    registerRuntimeObject(RuntimeJavaClassBox(receiverRaw: receiverRaw))
+    // A Class describes a classifier, independently of the source object's lifetime.
+    let kclassRaw = __kk_kclass_of(receiverRaw, Int(RuntimeTypeTokenEncoding.anyBase), 0)
+    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+        runtimeStructuredPanic("invalid runtime classifier")
+    }
+    return registerRuntimeObject(
+        RuntimeJavaClassBox(typeToken: classifier.typeToken, nameHint: classifier.nameHint),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+}
+
+@_cdecl("__kk_class_kotlin")
+public func __kk_class_kotlin(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return __kk_kclass_create(box.typeToken, box.nameHint)
+}
+
+@_cdecl("__kk_kclass_java_primitive_type")
+public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        runtimeStructuredPanic("invalid KClass handle")
+    }
+    let token = box.typeToken
+    // Kotlin's eight value primitives and Nothing (the JVM Void classifier) map
+    // to primitive Class handles.
+    // Unit and unsigned value classes are reference types on the JVM.
+    switch Int64(token) & RuntimeTypeTokenEncoding.baseMask {
+    case RuntimeTypeTokenEncoding.booleanBase, RuntimeTypeTokenEncoding.byteBase,
+         RuntimeTypeTokenEncoding.shortBase, RuntimeTypeTokenEncoding.intBase,
+         RuntimeTypeTokenEncoding.longBase, RuntimeTypeTokenEncoding.charBase,
+         RuntimeTypeTokenEncoding.floatBase, RuntimeTypeTokenEncoding.doubleBase:
+        break
+    default:
+        let name = extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_kclass_qualified_name(kclassRaw)))
+        guard name == "java.lang.Void" || name == "kotlin.Nothing" else {
+            return runtimeNullSentinelInt
+        }
+    }
+    if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[token] }) {
+        return cached
+    }
+    let raw = registerRuntimeObject(
+        RuntimeJavaClassBox(typeToken: token, nameHint: box.nameHint),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.primitiveJavaClassCache[token] { return cached }
+        state.primitiveJavaClassCache[token] = raw
+        return raw
+    }
+    if winner != raw { _ = runtimeReleaseObject(raw) }
+    return winner
 }

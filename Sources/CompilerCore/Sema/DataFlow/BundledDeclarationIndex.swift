@@ -520,7 +520,7 @@ struct BundledDeclarationIndex: Sendable {
         }
         if ownerFQName == ["kotlin", "collections", "MutableSet"] {
             // MutableSet.addAll(Collection) is now a source-backed default
-            // (KSP-704), while the retained Array/Iterable/Sequence overloads
+            // (KSP-704), while the retained Array overload
             // are registered as hidden runtime bridges. The bundled index is
             // arity-only, so these distinct overloads intentionally share one
             // key and must not emit KSWIFTK-SEMA-0102.
@@ -536,6 +536,11 @@ struct BundledDeclarationIndex: Sendable {
             // source-backed too (@KsSymbolName on Map.kt) rather than
             // synthetic, so this arm is likewise now vestigial-but-harmless:
             // no synthetic `get` registration remains to overlap-warn about.
+            return interner.resolve(key.name) == "get" && key.arity == 1
+        }
+        if ownerFQName == ["kotlinx", "cinterop", "CPointer"] {
+            // The source Byte overload returns a primitive value; the generic
+            // native extension still returns variable boxes for other pointees.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
         return false
