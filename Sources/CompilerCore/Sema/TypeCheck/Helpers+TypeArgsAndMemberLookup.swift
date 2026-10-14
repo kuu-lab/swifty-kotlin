@@ -723,7 +723,11 @@ extension TypeCheckHelpers {
         ownerSymbol: SymbolID,
         sema: SemaModule
     ) -> TypeID {
-        let nonNullReceiver = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: receiverType))
+        let nonNullReceiver = nominalReceiverThroughTypeParameterBounds(
+            receiverType,
+            ownerSymbol: ownerSymbol,
+            sema: sema
+        )
         guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
               sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerSymbol)
         else {
@@ -769,4 +773,35 @@ extension TypeCheckHelpers {
         )
     }
 
+    /// Walks a (possibly chained) type-parameter receiver such as `H : Holder<C>` to the
+    /// declared upper bound that is a nominal subtype of `ownerSymbol`, so owner type
+    /// arguments can be substituted into generic member property types.
+    private func nominalReceiverThroughTypeParameterBounds(
+        _ receiverType: TypeID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule
+    ) -> TypeID {
+        var current = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: receiverType))
+        var visited: Set<SymbolID> = []
+        while case let .typeParam(parameter) = sema.types.kind(of: current),
+              visited.insert(parameter.symbol).inserted
+        {
+            var next: TypeID?
+            for bound in sema.symbols.typeParameterUpperBounds(for: parameter.symbol) {
+                let candidate = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: bound))
+                switch sema.types.kind(of: candidate) {
+                case let .classType(classType)
+                    where sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerSymbol):
+                    return candidate
+                case .typeParam:
+                    next = next ?? candidate
+                default:
+                    continue
+                }
+            }
+            guard let next else { break }
+            current = next
+        }
+        return current
+    }
 }
