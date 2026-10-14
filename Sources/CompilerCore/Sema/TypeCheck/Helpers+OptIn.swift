@@ -44,6 +44,7 @@ extension TypeCheckHelpers {
         diagnostics: DiagnosticEngine
     ) {
         var requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        var isAnnotationConstruction = false
         if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
            let owner = ctx.sema.symbols.parentSymbol(for: symbolID) {
             var markers = Set(requirements.map(\.markerSymbol))
@@ -56,14 +57,48 @@ extension TypeCheckHelpers {
             if let validated = ctx.annotationOptInValidation,
                validated.owner == owner, validated.range == range {
                 requirements.removeAll { validated.markers.contains($0.markerSymbol) }
+                isAnnotationConstruction = true
             }
         }
-        guard !requirements.isEmpty else {
-            return
+        // Signature types remain dynamic: expression bodies can refine a header's
+        // placeholder after the annotation cache has already been populated.
+        // An annotation application's synthetic factory call checks the annotation
+        // class, not a callable signature. Nested explicit calls keep their checks.
+        var signatureTypes: [TypeID] = []
+        if let propertyType = ctx.sema.symbols.propertyType(for: symbolID) {
+            signatureTypes.append(propertyType)
+            if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbolID) {
+                signatureTypes.append(receiverType)
+            }
+        } else if !isAnnotationConstruction,
+                  let signature = ctx.sema.symbols.functionSignature(for: symbolID),
+                  ctx.sema.symbols.accessorOwnerProperty(for: symbolID) == nil,
+                  ctx.sema.symbols.parentSymbol(for: symbolID)
+                    .flatMap({ ctx.sema.symbols.symbol($0)?.kind }) != .property {
+            if ctx.sema.symbols.symbol(symbolID)?.kind != .constructor {
+                signatureTypes.append(signature.returnType)
+                if let receiverType = signature.receiverType {
+                    signatureTypes.append(receiverType)
+                }
+            }
+            signatureTypes.append(contentsOf: signature.parameterTypes)
         }
+        requirements.append(contentsOf: requiredOptInRequirements(forTypes: signatureTypes, ctx: ctx))
+        emitOptInRequirements(requirements, ctx: ctx, range: range, diagnostics: diagnostics)
+    }
+
+    private func emitOptInRequirements(
+        _ requirements: [OptInRequirement],
+        ctx: TypeInferenceContext,
+        range: SourceRange?,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard !requirements.isEmpty else { return }
+        var reportedMarkers: Set<SymbolID> = []
         let optedInMarkers = activeOptInMarkers(in: ctx)
         for requirement in requirements {
-            guard !optedInMarkers.contains(requirement.markerSymbol) else {
+            guard !optedInMarkers.contains(requirement.markerSymbol),
+                  reportedMarkers.insert(requirement.markerSymbol).inserted else {
                 continue
             }
 
@@ -94,15 +129,9 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        var visitedTypes: Set<TypeID> = []
-        var visitedSymbols: Set<SymbolID> = []
-        checkOptInForType(
-            type,
-            ctx: ctx,
-            range: range,
-            diagnostics: diagnostics,
-            visitedTypes: &visitedTypes,
-            visitedSymbols: &visitedSymbols
+        emitOptInRequirements(
+            requiredOptInRequirements(forTypes: [type], ctx: ctx),
+            ctx: ctx, range: range, diagnostics: diagnostics
         )
     }
 
@@ -139,96 +168,37 @@ extension TypeCheckHelpers {
         }
     }
 
-    private func checkOptInForType(
-        _ type: TypeID,
-        ctx: TypeInferenceContext,
-        range: SourceRange?,
-        diagnostics: DiagnosticEngine,
-        visitedTypes: inout Set<TypeID>,
-        visitedSymbols: inout Set<SymbolID>
-    ) {
-        guard visitedTypes.insert(type).inserted else {
-            return
-        }
-
-        switch ctx.sema.types.kind(of: type) {
-        case .unit, .nullableUnit, .platformUnit, .any, .stringStruct, .primitive, .typeParam, .nothing, .error:
-            return
-
-        case let .classType(classType):
-            if visitedSymbols.insert(classType.classSymbol).inserted {
-                checkOptIn(
-                    for: classType.classSymbol,
-                    ctx: ctx,
-                    range: range,
-                    diagnostics: diagnostics
-                )
-            }
-            for arg in classType.args {
-                if let inner = typeArgType(arg) {
-                    checkOptInForType(
-                        inner,
-                        ctx: ctx,
-                        range: range,
-                        diagnostics: diagnostics,
-                        visitedTypes: &visitedTypes,
-                        visitedSymbols: &visitedSymbols
-                    )
+    private func requiredOptInRequirements(
+        forTypes types: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> [OptInRequirement] {
+        var requirements: [OptInRequirement] = []
+        var visitedTypes: Set<TypeID> = []
+        var visitedSymbols: Set<SymbolID> = []
+        func visit(_ type: TypeID) {
+            guard visitedTypes.insert(type).inserted else { return }
+            switch ctx.sema.types.kind(of: type) {
+            case .unit, .nullableUnit, .platformUnit, .any, .stringStruct, .primitive, .typeParam, .nothing, .error:
+                break
+            case let .classType(classType):
+                if visitedSymbols.insert(classType.classSymbol).inserted {
+                    requirements.append(contentsOf: requiredOptInRequirements(for: classType.classSymbol, ctx: ctx))
                 }
+                for argument in classType.args {
+                    if let type = typeArgType(argument) { visit(type) }
+                }
+            case let .functionType(functionType):
+                if let receiver = functionType.receiver { visit(receiver) }
+                for parameter in functionType.params { visit(parameter) }
+                visit(functionType.returnType)
+            case let .intersection(parts):
+                for part in parts { visit(part) }
+            case let .kClassType(kClassType):
+                visit(kClassType.argument)
             }
-
-        case let .functionType(functionType):
-            if let receiverType = functionType.receiver {
-                checkOptInForType(
-                    receiverType,
-                    ctx: ctx,
-                    range: range,
-                    diagnostics: diagnostics,
-                    visitedTypes: &visitedTypes,
-                    visitedSymbols: &visitedSymbols
-                )
-            }
-            for parameterType in functionType.params {
-                checkOptInForType(
-                    parameterType,
-                    ctx: ctx,
-                    range: range,
-                    diagnostics: diagnostics,
-                    visitedTypes: &visitedTypes,
-                    visitedSymbols: &visitedSymbols
-                )
-            }
-            checkOptInForType(
-                functionType.returnType,
-                ctx: ctx,
-                range: range,
-                diagnostics: diagnostics,
-                visitedTypes: &visitedTypes,
-                visitedSymbols: &visitedSymbols
-            )
-
-        case let .intersection(parts):
-            for part in parts {
-                checkOptInForType(
-                    part,
-                    ctx: ctx,
-                    range: range,
-                    diagnostics: diagnostics,
-                    visitedTypes: &visitedTypes,
-                    visitedSymbols: &visitedSymbols
-                )
-            }
-
-        case let .kClassType(kClassType):
-            checkOptInForType(
-                kClassType.argument,
-                ctx: ctx,
-                range: range,
-                diagnostics: diagnostics,
-                visitedTypes: &visitedTypes,
-                visitedSymbols: &visitedSymbols
-            )
         }
+        for type in types { visit(type) }
+        return requirements
     }
 
     private func requiredOptInRequirements(
