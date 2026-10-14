@@ -359,6 +359,9 @@ extension DataFlowSemaPhase {
                 returnType = javaThreadLocalReturnType(
                     returnType, fqName: memberFQName, types: types, interner: interner
                 )
+                returnType = javaCollectionsReturnType(
+                    returnType, fqName: memberFQName, types: types, interner: interner
+                )
             }
 
             // The native implementation stays E?, while Java callers see E!.
@@ -411,7 +414,10 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: extensionReceiverType ?? ownerType,
                     contextReceiverTypes: contextReceiverTypes,
-                    parameterTypes: params.paramTypes,
+                    parameterTypes: sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
+                        ? javaCollectionsParameterTypes(
+                            params.paramTypes, fqName: memberFQName, types: types, interner: interner
+                        ) : params.paramTypes,
                     returnType: callableReturnType,
                     isSuspend: funDecl.isSuspend,
                     valueParameterSymbols: params.paramSymbols,

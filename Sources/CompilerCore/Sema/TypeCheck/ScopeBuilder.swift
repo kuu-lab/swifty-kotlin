@@ -191,6 +191,37 @@ struct TypeCheckScopeBuilder {
             guard let symbol = sema.symbols.symbol(id) else { return false }
             return visibility.isAccessible(symbol, fromFile: file.fileID, enclosingClass: nil)
         }
+        func validateExplicitImport(_ resolved: [SymbolID], range: SourceRange?) -> Bool {
+            guard validatesImports else { return true }
+            let declarations = resolved.compactMap { sema.symbols.symbol($0) }.filter { $0.kind != .package }
+            func inaccessibleOwner(of symbol: SemanticSymbol) -> SemanticSymbol? {
+                var chain = [symbol]
+                var seen: Set<SymbolID> = [symbol.id]
+                var current = symbol
+                while let parent = sema.symbols.parentSymbol(for: current.id),
+                      seen.insert(parent).inserted, let owner = sema.symbols.symbol(parent) {
+                    chain.append(owner)
+                    current = owner
+                }
+                return chain.reversed().first {
+                    !visibility.isAccessible($0, fromFile: file.fileID, enclosingClass: nil)
+                }
+            }
+            guard !declarations.isEmpty, declarations.allSatisfy({ inaccessibleOwner(of: $0) != nil }),
+                  let declaration = declarations.first, let inaccessible = inaccessibleOwner(of: declaration)
+            else { return true }
+            let code: String = switch inaccessible.visibility {
+            case .private: "KSWIFTK-SEMA-0040"
+            case .protected: "KSWIFTK-SEMA-0041"
+            case .internal: "KSWIFTK-SEMA-0044"
+            case .public: "KSWIFTK-SEMA-0040"
+            }
+            diagnostics.error(
+                code, "Cannot import inaccessible declaration '\(interner.resolve(inaccessible.name))'.",
+                range: range
+            )
+            return false
+        }
 
         for importDecl in file.imports {
             if let alias = importDecl.alias {
@@ -237,6 +268,7 @@ struct TypeCheckScopeBuilder {
                     }
                     return symbol.kind != .package
                 }
+                guard validateExplicitImport(importedSymbols, range: importDecl.range) else { continue }
 
                 for importedSymbol in importedSymbols {
                     explicitImportScope.insertWithAlias(importedSymbol, asName: alias)
@@ -331,12 +363,14 @@ struct TypeCheckScopeBuilder {
                 return symbol.kind != .package
             }
             if !importedSymbols.isEmpty, !hasPackageImport {
+                guard validateExplicitImport(importedSymbols, range: importDecl.range) else { continue }
                 for importedSymbol in importedSymbols {
                     explicitImportScope.insert(importedSymbol)
                 }
                 continue
             }
             if !importedSymbols.isEmpty, hasPackageImport {
+                guard validateExplicitImport(importedSymbols, range: importDecl.range) else { continue }
                 for importedSymbol in importedSymbols {
                     explicitImportScope.insert(importedSymbol)
                 }

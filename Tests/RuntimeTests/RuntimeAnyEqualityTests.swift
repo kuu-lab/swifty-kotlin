@@ -33,6 +33,38 @@ private let runtimeObjectsThrowingEqualityOverride: @convention(c) (
     return 0
 }
 
+private let runtimeAnyEntryValueGetter: @convention(c) (
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { receiver, outThrown in
+    outThrown?.pointee = 0
+    return kk_array_get(receiver, 1, nil)
+}
+
+private let runtimeAnyEntryHashOverride: @convention(c) (
+    Int, UnsafeMutablePointer<Int>?
+) -> Int = { receiver, outThrown in
+    outThrown?.pointee = 0
+    return kk_array_get(receiver, 0, nil) ^ kk_array_get(receiver, 1, nil)
+}
+
+private let runtimeAnyEntryIdentityHashOverride: @convention(c) (
+    Int, UnsafeMutablePointer<Int>?
+) -> Int = { receiver, outThrown in
+    outThrown?.pointee = 0
+    return Int(Int32(truncatingIfNeeded: kk_native_identityHashCode(kk_array_get(receiver, 0, nil)))
+        ^ Int32(truncatingIfNeeded: kk_native_identityHashCode(kk_array_get(receiver, 1, nil))))
+}
+
+private let runtimeAnyEntryEqualsOverride: @convention(c) (
+    Int, Int, UnsafeMutablePointer<Int>?
+) -> Int = { receiver, other, outThrown in
+    outThrown?.pointee = 0
+    guard let entry = runtimeMapEntryValues(rawValue: other) else { return 0 }
+    return kk_array_get(receiver, 0, nil) == entry.key
+        && kk_array_get(receiver, 1, nil) == entry.value ? 1 : 0
+}
+
 @Suite
 struct RuntimeAnyEqualityTests {
     private func boolValue(_ raw: Int) -> Bool {
@@ -198,6 +230,90 @@ struct RuntimeAnyEqualityTests {
 
         _ = kk_mutable_map_put(secondMap, 7, 11, nil)
         #expect(kk_structural_eq(mutableEntry, sameMutableEntry) == 0)
+    }
+
+    @Test
+    func testNativeEntryEqualityReadsSourceGettersWithoutReplacingCustomHash() {
+        let entryInterface = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry")
+        let native = runtimeMapEntryNew(key: 7, value: 8)
+        for (hash, expected) in [(runtimeAnyHashCodeOverride, 7), (runtimeAnyEntryHashOverride, 15)] {
+            let source = kk_object_new(2, 0x51_21)
+            _ = kk_array_set(source, 0, 7, nil)
+            _ = kk_array_set(source, 1, 8, nil)
+            _ = kk_object_register_equals_override(
+                source, unsafeBitCast(runtimeAnyEntryEqualsOverride, to: Int.self)
+            )
+            _ = kk_object_register_hashcode_override(source, unsafeBitCast(hash, to: Int.self))
+            let originalHash = RuntimeElementKey(value: source).hashValue
+            _ = kk_object_register_itable_iface(source, Int(entryInterface), 0)
+            _ = kk_object_register_itable_method(
+                source, 0, 0, unsafeBitCast(runtimeAnyHashCodeOverride, to: Int.self)
+            )
+            _ = kk_object_register_itable_method(
+                source, 0, 1, unsafeBitCast(runtimeAnyEntryValueGetter, to: Int.self)
+            )
+            #expect(kk_structural_eq(native, source) == 1)
+            #expect(kk_structural_eq(source, native) == 1)
+            #expect(kk_structural_eq(runtimeMapEntryNew(key: 9, value: 8), source) == 0)
+            #expect(kk_any_hashCode(source, 0) == expected)
+            if expected == 7 {
+                #expect(RuntimeElementKey(value: source).hashValue == originalHash)
+            }
+            if expected == 15 {
+                let nativeKey = RuntimeElementKey(value: native)
+                let sourceKey = RuntimeElementKey(value: source)
+                #expect(nativeKey.hashValue == sourceKey.hashValue)
+                #expect(Set([nativeKey]).contains(sourceKey))
+                #expect(Set([sourceKey]).contains(nativeKey))
+                #expect([nativeKey: "entry"][sourceKey] == "entry")
+            }
+        }
+        // Different contents with equal Java hashes still feed distinct content
+        // to the randomized internal hasher (the KUU-812 collision boundary).
+        let collisionFirst = runtimeMapEntryNew(key: registerRuntimeObject(RuntimeStringBox("Aa")), value: 8)
+        let collisionSecond = runtimeMapEntryNew(key: registerRuntimeObject(RuntimeStringBox("BB")), value: 8)
+        #expect(kk_any_hashCode(collisionFirst, 0) == kk_any_hashCode(collisionSecond, 0))
+        #expect(RuntimeElementKey(value: collisionFirst).hashValue != RuntimeElementKey(value: collisionSecond).hashValue)
+    }
+
+    @Test
+    func testIdentityEntryHashAndProtectedMembershipUseSourceGetters() throws {
+        let key = registerRuntimeObject(RuntimeStringBox("identity-key"))
+        let value = registerRuntimeObject(RuntimeStringBox("identity-value"))
+        let map = kk_object_new(0, Int(runtimeStableNominalTypeID(fqName: "java.util.IdentityHashMap")))
+        _ = kk_identity_hash_map_init(map)
+        _ = kk_mutable_map_put(map, key, value, nil)
+        let entries = try #require(runtimeSetBox(from: kk_map_entries(map)))
+        let native = try #require(entries.elements.first)
+        let entryInterface = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry")
+        let source = kk_object_new(2, 0x51_26)
+        _ = kk_array_set(source, 0, key, nil)
+        _ = kk_array_set(source, 1, value, nil)
+        _ = kk_type_register_iface(0x51_26, Int(entryInterface))
+        _ = kk_object_register_itable_iface(source, Int(entryInterface), 0)
+        _ = kk_object_register_itable_method(source, 0, 0, unsafeBitCast(runtimeAnyHashCodeOverride, to: Int.self))
+        _ = kk_object_register_itable_method(source, 0, 1, unsafeBitCast(runtimeAnyEntryValueGetter, to: Int.self))
+        _ = kk_object_register_equals_override(source, unsafeBitCast(runtimeAnyEntryEqualsOverride, to: Int.self))
+        _ = kk_object_register_hashcode_override(source, unsafeBitCast(runtimeAnyEntryIdentityHashOverride, to: Int.self))
+        #expect(kk_structural_eq(native, source) == 1)
+        #expect(kk_any_hashCode(native, 0) == kk_any_hashCode(source, 0))
+        let nativeKey = RuntimeElementKey(value: native)
+        let sourceKey = RuntimeElementKey(value: source)
+        #expect(nativeKey.hashValue == sourceKey.hashValue)
+        #expect(Set([nativeKey]).contains(sourceKey))
+        #expect(Set([sourceKey]).contains(nativeKey))
+        #expect([nativeKey: "entry"][sourceKey] == "entry")
+        #expect(entries.contains(rawValue: source))
+
+        let ordinary = registerRuntimeObject(RuntimeMapBox(keys: [key], values: [value]))
+        let ordinaryEntries = try #require(runtimeSetBox(from: kk_map_entries(ordinary)))
+        #expect(ordinaryEntries.contains(rawValue: source))
+        let equalKey = registerRuntimeObject(RuntimeStringBox("identity-key"))
+        let equalValue = registerRuntimeObject(RuntimeStringBox("identity-value"))
+        _ = kk_array_set(source, 0, equalKey, nil)
+        _ = kk_array_set(source, 1, equalValue, nil)
+        #expect(!entries.contains(rawValue: source))
+        #expect(ordinaryEntries.contains(rawValue: source))
     }
 
     // Pairs the runtime allocates for its own plumbing (comparator pairs and
