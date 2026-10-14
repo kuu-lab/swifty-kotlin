@@ -714,28 +714,38 @@ extension TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        guard let receiverNominal = nominalSymbol(of: receiverType, types: sema.types),
-              let receiverSymbol = sema.symbols.symbol(receiverNominal)
-        else {
+        guard let receiverNominal = nominalSymbol(of: receiverType, types: sema.types) else {
             return []
         }
-        // Look for a nested class with the given name whose symbol has the innerClass flag.
-        let nestedFQName = receiverSymbol.fqName + [calleeName]
-        for candidate in sema.symbols.lookupAll(fqName: nestedFQName) {
-            guard let sym = sema.symbols.symbol(candidate),
-                  sym.kind == .class,
-                  sym.flags.contains(.innerClass)
+        // Inner classes are inherited members, so walk the supertype chain too.
+        var ownerQueue: [SymbolID] = [receiverNominal]
+        var visited: Set<SymbolID> = []
+        while !ownerQueue.isEmpty {
+            let owner = ownerQueue.removeFirst()
+            guard visited.insert(owner).inserted,
+                  let ownerSymbol = sema.symbols.symbol(owner)
             else {
                 continue
             }
-            // Found the inner class – collect its constructors.
-            let initName = interner.intern("<init>")
-            let ctorFQName = nestedFQName + [initName]
-            return sema.symbols.lookupAll(fqName: ctorFQName).filter { ctorID in
-                guard let ctorSym = sema.symbols.symbol(ctorID),
-                      ctorSym.kind == .constructor else { return false }
-                return true
+            // Look for a nested class with the given name whose symbol has the innerClass flag.
+            let nestedFQName = ownerSymbol.fqName + [calleeName]
+            for candidate in sema.symbols.lookupAll(fqName: nestedFQName) {
+                guard let sym = sema.symbols.symbol(candidate),
+                      sym.kind == .class,
+                      sym.flags.contains(.innerClass)
+                else {
+                    continue
+                }
+                // Found the inner class – collect its constructors.
+                let initName = interner.intern("<init>")
+                let ctorFQName = nestedFQName + [initName]
+                return sema.symbols.lookupAll(fqName: ctorFQName).filter { ctorID in
+                    guard let ctorSym = sema.symbols.symbol(ctorID),
+                          ctorSym.kind == .constructor else { return false }
+                    return true
+                }
             }
+            ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
         return []
     }
