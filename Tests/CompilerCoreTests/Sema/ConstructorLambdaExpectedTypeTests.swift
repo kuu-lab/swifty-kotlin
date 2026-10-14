@@ -29,6 +29,32 @@ struct ConstructorLambdaExpectedTypeTests {
 
     @Test(arguments: [
         """
+        class Holder<T>(val action: (T) -> Unit)
+        class Host {
+            fun <T> accept(value: T, holder: Holder<T>) {}
+        }
+        fun sample() {
+            Host().accept("", Holder { value -> Unit })
+        }
+        """,
+        """
+        class Holder<T>(val action: (T) -> Unit)
+        fun <T> accept(value: T, holder: Holder<T>) {}
+        fun sample() {
+            accept("", Holder { value -> println(value) })
+        }
+        """,
+    ])
+    func unannotatedLambdaConstructorInfersFromOuterGenericArgument(source: String) throws {
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+        }
+    }
+
+    @Test(arguments: [
+        """
         open class Base(val transform: (Int) -> Int)
         object Derived : Base({ it + 1 })
         """,
