@@ -5,6 +5,25 @@ import Testing
 // entries/size reads must stay on the runtime bridge instead of a nominal vtable.
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testHashMapSubclassObjectLiteralIndexedAssignment(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            open class A : HashMap<String, String>()
+            fun box(): String {
+                (object : A() {})["OK"] = "OK"
+                val a = object : A() {}
+                a["OK"] = "OK"
+                return a["OK"]!!
+            }
+            fun main() { println(box()) }
+            """,
+            expectedOutput: "OK\n",
+            moduleName: "KUU2117HashMapObjectLiteralIndexedAssignment",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testHashMapSubclassMemberCalls(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             try diffCaseSource("hashmap_subclass_members.kt", file: #filePath),
