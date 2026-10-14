@@ -8,7 +8,7 @@ import Testing
 @Suite(.serialized)
 struct GenericMethodDelegationArtifactTests {
     private var expectedOutput: String {
-        "7\ninferred\n9\n11\nbound\nexplicit\ninterface\nsecond\n13\ntext:overload\ntext:interface overload\ngeneric\n18\n19\nshadow\n"
+        "7\ninferred\n9\n11\nbound\nexplicit\ninterface\nsecond\n13\ntext:overload\ntext:interface overload\ngeneric\n18\n19\nshadow\nOK\n"
     }
 
     @Test(arguments: [false, true], [0, 2])
@@ -51,10 +51,14 @@ struct GenericMethodDelegationArtifactTests {
         import delegation.generics.*
         class ImportedDelegate(base: Echo) : Echo by base
         class ImportedGeneric<C>(base: Child<C>) : Child<C> by base
+        class ImportedGenericArgImpl : A<Int> {
+            override fun foo(t: Int): String = if (t == 42) "OK" else "Fail $t"
+        }
         """
         let extraCalls = """
             println(ImportedDelegate(EchoImpl()).echo(23))
             println(ImportedGeneric<CharSequence>(ChildImpl<CharSequence>()).choose<String>("imported"))
+            println(Derived(ImportedGenericArgImpl()).foo(42))
         """
         let mainBody = String(source[main.lowerBound...])
         let closingBrace = try #require(mainBody.range(of: "}", options: .backwards))
@@ -67,7 +71,7 @@ struct GenericMethodDelegationArtifactTests {
         )))
         let result = try CommandRunner.run(executable: output, arguments: [])
         #expect(result.exitCode == 0, "\(result.stderr)")
-        #expect(result.stdout == expectedOutput + "23\nimported\n")
+        #expect(result.stdout == expectedOutput + "23\nimported\nOK\n")
 
         for receiver in ["GenericDelegate<CharSequence>(ChildImpl<CharSequence>())", "ImportedGeneric<CharSequence>(ChildImpl<CharSequence>())"] {
             let invalid = extraDeclarations + "\nfun main() { \(receiver).choose<Int>(7) }\n"
