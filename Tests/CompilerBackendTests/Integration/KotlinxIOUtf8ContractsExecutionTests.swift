@@ -193,7 +193,7 @@ struct KotlinxIOUtf8ContractsExecutionTests {
             dependencies.append(producer)
             let producerBefore = try artifactHashes(producer)
             try receipt(directory, "producer-before", ["path": producer, "file_sha256": producerBefore])
-            let metadata = try String(contentsOfFile: producer + "/metadata.bin", encoding: .utf8)
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: producer + "/metadata.bin"))
             let records = MetadataDecoder().decode(metadata)
             try #require(records.contains { $0.fqName == "io1733producer.main" })
             try #require(records.contains { $0.fqName == "io1733producer.ObservedChars" })

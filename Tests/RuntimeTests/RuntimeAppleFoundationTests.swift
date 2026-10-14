@@ -77,6 +77,32 @@ struct RuntimeAppleFoundationTests {
         let ordinary = RuntimeArrayBox(length: 2)
         ordinary.elements = [Int.max, Int.min]
         #expect(ordinary.elements == [Int.max, Int.min])
+        try bytePointerOffsetsAcceptAliasTargetsAndRejectOtherStorage()
+    }
+
+    private func bytePointerOffsetsAcceptAliasTargetsAndRejectOtherStorage() throws {
+        let bytes = UnsafeMutablePointer<UInt8>.allocate(capacity: 3)
+        defer { bytes.deallocate() }
+        bytes.initialize(repeating: 65, count: 3)
+        for name in ["ByteVar", "ByteVarOf", "UByteVar", "UByteVarOf", "IntVar", "BooleanVar"] {
+            let typeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.\(name)")
+            let pointer = registerRuntimeObject(RuntimeCPointerBox(
+                address: UInt(bitPattern: bytes), pointeeTypeID: typeID))
+            defer { _ = runtimeReleaseObject(pointer) }
+            var thrown = 0
+            let result = __kk_foundation_byte_pointer_add(pointer, 2, &thrown)
+            if name == "IntVar" || name == "BooleanVar" {
+                #expect(thrown != 0)
+                _ = runtimeReleaseObject(thrown)
+            } else {
+                try #require(thrown == 0)
+                let shifted = try #require(resolveCPointerBox(from: result))
+                #expect(shifted.address == UInt(bitPattern: bytes.advanced(by: 2)))
+                #expect(shifted.pointeeTypeID == typeID)
+                #expect(UnsafePointer<UInt8>(bitPattern: shifted.address)?.pointee == 65)
+                _ = runtimeReleaseObject(result)
+            }
+        }
     }
     @Test func nativeNoCopyStorageAndUnattachedRollbackFollowSDKOwnership() throws {
         let bytes = try #require(malloc(3)?.assumingMemoryBound(to: UInt8.self))

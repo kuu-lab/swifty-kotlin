@@ -7,6 +7,32 @@ import TestStdlibCache
 
 @Suite
 struct ExplicitImportResolutionTests {
+    /// KUU-2068: adding a packaged singleton must not expose its bare value
+    /// through the global classifier index in unrelated files.
+    @Test(arguments: ["", "package sample", "import sample.*", "import sample.Utility", "import sample.Utility as Alias"])
+    func packagedObjectValuesRequireLexicalImports(importDirective: String) throws {
+        let owner = """
+        package sample
+        object Utility { fun compare(a: Any?, b: Any?): Boolean = a === b }
+        """
+        let name = importDirective.contains("as Alias") ? "Alias" : "Utility"
+        let usage = """
+        \(importDirective)
+        fun same(a: Any?, b: Any?): Boolean = \(name).compare(a, b)
+        fun qualified(a: Any?, b: Any?): Boolean = sample.Utility.compare(a, b)
+        """
+        try withTemporaryFiles(contents: [owner, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try? runSema(ctx)
+            let errors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            if importDirective.isEmpty {
+                #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0022" && $0.message.contains("Utility") })
+            } else {
+                #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+            }
+        }
+    }
+
     private func context(inputs: [String], useArtifact: Bool) throws -> CompilationContext {
         let artifact: String?
         if useArtifact {

@@ -33,6 +33,16 @@ public extension RuntimeABISpec {
     static let collectionFunctions: [RuntimeABIFunctionSpec] = [
         // Core helpers
         RuntimeABIFunctionSpec(
+            name: "__kk_objects_equals",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_values_equal",
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),

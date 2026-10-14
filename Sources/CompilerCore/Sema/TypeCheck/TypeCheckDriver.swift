@@ -43,6 +43,8 @@ final class TypeCheckDriver {
     /// Properties whose types were inferred in a safe module pre-pass so earlier
     /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
+    /// Object headers published for forward references, with bodies still unchecked.
+    var predeclaredObjectLiteralDecls: Set<DeclID> = []
     /// Top-level expression bodies whose header return type is still a placeholder.
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
@@ -125,7 +127,11 @@ final class TypeCheckDriver {
         }
         let ctx = ctx.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
-        if let expectedType {
+        // JVM Unit locals keep the Java value, while Unit returns discard it.
+        // Argument checks are recorded separately after callable resolution.
+        if let expectedType, type != sema.types.unitType,
+           !(sema.types.kind(of: type) == .platformUnit && expectedType == sema.types.unitType)
+        {
             recordPlatformNullAssertion(id, sourceType: type, targetType: expectedType)
         }
         notePendingDeclarationDependency(at: id)
@@ -142,8 +148,13 @@ final class TypeCheckDriver {
     /// Unbounded T can contain null even though its type-parameter node is
     /// spelled non-null. Only concrete non-null targets or non-null bounds
     /// need an assertion when accepting a flexible Java return.
-    func recordPlatformNullAssertion(_ id: ExprID, sourceType: TypeID, targetType: TypeID) {
-        guard sema.types.nullability(of: sourceType) == .platformType else { return }
+    func recordPlatformNullAssertion(
+        _ id: ExprID, sourceType: TypeID, targetType: TypeID, declaredParameterType: TypeID? = nil
+    ) {
+        // A Unit local may hold null after assignment from Unit!. Keep the
+        // non-null argument check even after its declared type becomes Unit.
+        guard sema.types.nullability(of: sourceType) == .platformType
+            || sourceType == sema.types.unitType else { return }
         var visited: Set<SymbolID> = []
         func requiresNonNull(_ type: TypeID) -> Bool {
             guard sema.types.nullability(of: type) == .nonNull else { return false }
@@ -154,7 +165,9 @@ final class TypeCheckDriver {
             }
             return sema.types.isDefinitelyNonNull(type)
         }
-        if requiresNonNull(targetType), sema.types.isSubtype(sourceType, targetType) {
+        // Erased generic parameters use their declaration bounds, even when
+        // inference substitutes a concrete Unit that may still contain null.
+        if requiresNonNull(declaredParameterType ?? targetType), sema.types.isSubtype(sourceType, targetType) {
             sema.bindings.bindPlatformNullAssertion(id, targetType: targetType)
         }
     }
@@ -284,6 +297,34 @@ final class TypeCheckDriver {
             }
         }
 
+        // A direct object initializer has a fixed nominal type even when its
+        // member bodies depend on declarations checked later. Publish only its
+        // header so forward callers see its parameterized supertypes. This
+        // pre-pass does not check initializers or bodies; existing demand
+        // inference and the authoritative declaration pass still own them.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declaration in file.topLevelDecls {
+                guard case let .propertyDecl(property)? = ast.arena.decl(declaration),
+                      property.type == nil, property.receiverType == nil,
+                      let initializer = property.initializer,
+                      case let .objectLiteral(superTypes, objectDeclID?, _)? = ast.arena.expr(initializer),
+                      case let .objectDecl(objectDecl)? = ast.arena.decl(objectDeclID),
+                      let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                let objectSymbol = exprChecker.predeclareObjectLiteralSymbol(
+                    declID: objectDeclID,
+                    objectDecl: objectDecl,
+                    superTypes: superTypes,
+                    ctx: inferCtx.with(currentDeclSymbol: symbol)
+                )
+                sema.symbols.setPropertyType(sema.types.make(.classType(ClassType(
+                    classSymbol: objectSymbol, args: [], nullability: .nonNull
+                ))), for: symbol)
+                pendingPropertyTypes.remove(symbol)
+            }
+        }
+
         // Explicit contracts are declaration metadata. Earlier callers must
         // see them before a later function body happens to be type checked.
         for file in files {
@@ -396,9 +437,14 @@ final class TypeCheckDriver {
                     continue
                 }
                 if let result = independentBodies[declID] {
+                    let stringMapping = interner.mergeWorkerStrings(result.newStrings, startingAt: result.initialStringCount)
                     let typeMapping = sema.types.mergeWorkerTypes(result.newTypes, startingAt: result.initialTypeCount)
+                    let symbolMapping = sema.symbols.mergeWorkerLocals(
+                        result.localSymbols, strings: stringMapping, types: typeMapping
+                    )
                     sema.bindings.mergeIndependentScalarExpressions(
-                        types: result.expressionTypes, identifiers: result.identifierSymbols, typeMapping: typeMapping
+                        types: result.expressionTypes, identifiers: result.identifierSymbols,
+                        typeMapping: typeMapping, symbolMapping: symbolMapping
                     )
                     for diagnostic in result.diagnostics { diagnostics.emit(diagnostic) }
                     sema.independentBodyCount += 1
@@ -451,7 +497,16 @@ final class TypeCheckDriver {
                         diagnostics: diagnostics
                     )
 
-                case .typeAliasDecl, .enumEntryDecl:
+                case let .typeAliasDecl(typeAlias):
+                    if let underlyingType = sema.symbols.typeAliasUnderlyingType(for: declSymbol) {
+                        declChecker.validateOptInTypeUsage(
+                            underlyingType,
+                            ctx: inferCtx.with(currentDeclSymbol: declSymbol),
+                            range: typeAlias.range
+                        )
+                    }
+
+                case .enumEntryDecl:
                     continue
                 }
             }

@@ -408,27 +408,33 @@ final class DataFlowAnalyzer {
         // `this is List` (no explicit type argument) checked against a value
         // already known to be `Iterable<T>` must narrow to `List<T>`, not a
         // raw/star-projected `List<*>` -- see narrowedSubtypeArgs.
-        let targetType = refineIsCheckTargetType(rawTargetType, priorType: priorType, sema: sema)
-        let targetNullability = sema.types.nullability(of: targetType)
-        // Use intersection with previous flow state type for chained is-checks (P5-97)
-        let narrowedType: TypeID = if let baseState = base[symbol],
-                                      baseState.possibleTypes.count == 1,
-                                      let existingType = baseState.possibleTypes.first
-        {
-            if sema.types.isSubtype(existingType, targetType) {
-                existingType
-            } else if sema.types.isSubtype(targetType, existingType) {
-                targetType
-            } else {
-                sema.types.make(.intersection([existingType, targetType]))
-            }
+        let refinedTargetType = refineIsCheckTargetType(rawTargetType, priorType: priorType, sema: sema)
+        let targetNullability = sema.types.nullability(of: refinedTargetType)
+        // The first is-check must retain the declared type too (KUU-2138).
+        // A non-null target also proves the prior value is non-null.
+        let existingType = targetNullability == .nonNull ? sema.types.makeNonNullable(priorType) : priorType
+        // A non-null prior value cannot be the null accepted by `is Marker?`.
+        let targetType = isKnownNonNullForIsCheck(existingType, sema: sema)
+            ? sema.types.makeNonNullable(refinedTargetType) : refinedTargetType
+        let narrowedType: TypeID
+        if sema.types.isSubtype(existingType, targetType) {
+            narrowedType = existingType
+        } else if sema.types.isSubtype(targetType, existingType) {
+            narrowedType = targetType
         } else {
-            targetType
+            // Keep chained checks flat so generic constraint decomposition can
+            // still recover the nominal arguments from each conjunct.
+            let parts: [TypeID] = if case let .intersection(existingParts) = sema.types.kind(of: existingType) {
+                existingParts
+            } else {
+                [existingType]
+            }
+            narrowedType = sema.types.make(.intersection(parts + [targetType]))
         }
         var trueVars = base
         trueVars[symbol] = VariableFlowState(
             possibleTypes: [narrowedType],
-            nullability: targetNullability,
+            nullability: isKnownNonNullForIsCheck(narrowedType, sema: sema) ? .nonNull : targetNullability,
             isStable: true
         )
         let falseType: TypeID = if let baseState = base[symbol], baseState.possibleTypes.count == 1,
@@ -448,6 +454,26 @@ final class DataFlowAnalyzer {
             trueState: trueVars,
             falseState: falseVars
         )
+    }
+
+    private func isKnownNonNullForIsCheck(
+        _ type: TypeID, sema: SemaModule, visiting: Set<TypeID> = []
+    ) -> Bool {
+        guard !visiting.contains(type) else { return false }
+        let visiting = visiting.union([type])
+        switch sema.types.kind(of: type) {
+        case let .typeParam(parameter):
+            // Bare T can contain null even without a syntactic '?' when its
+            // upper bound is nullable. Do not use that spelling as a proof.
+            guard parameter.nullability == .nonNull else { return false }
+            let bounds = parameter.capture.map { [$0.upper] }
+                ?? sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+            return bounds.contains { isKnownNonNullForIsCheck($0, sema: sema, visiting: visiting) }
+        case let .intersection(parts):
+            return parts.contains { isKnownNonNullForIsCheck($0, sema: sema, visiting: visiting) }
+        default:
+            return sema.types.isDefinitelyNonNull(type)
+        }
     }
 
     func branchOnWhenSubject(

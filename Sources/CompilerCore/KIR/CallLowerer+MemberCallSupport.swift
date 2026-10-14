@@ -238,6 +238,8 @@ func resolveClassOwnToStringCallee(
         guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
         }
+        // Enum base values are tagged ordinal boxes whose override is registered
+        // with runtime Any dispatch, rather than ordinary vtable receivers.
         // HashSet, ULongRange, and ULongProgression are source-backed for
         // their nominal APIs, but their runtime representations do not carry
         // Kotlin vtables. Fall back to the generic Any path, whose runtime
@@ -251,6 +253,7 @@ func resolveClassOwnToStringCallee(
             ]
         }
         guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName,
+              classSymbol.fqName != [interner.intern("kotlin"), interner.intern("Enum")],
               !isRuntimeBackedULongRange
         else {
             return nil

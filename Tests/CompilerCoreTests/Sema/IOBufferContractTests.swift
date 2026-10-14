@@ -119,8 +119,7 @@ struct IOBufferContractTests {
         let resolve: (InternedString) -> String = { ctx.interner.resolve($0) }
         var records: [MetadataRecord] = []
         if let path = ctx.options.stdlibLibraryPath {
-            records = MetadataDecoder().decode(try String(contentsOf:
-                URL(fileURLWithPath: path).appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path).appendingPathComponent("metadata.bin")))
         }
         for row in try index().context_properties {
             let name = "kotlinx.io.unsafe." + row.official_property

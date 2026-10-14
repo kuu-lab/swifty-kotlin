@@ -34,8 +34,7 @@ struct IOAppleAPIContractTests {
             let manifest = try #require(JSONSerialization.jsonObject(with:
                 Data(contentsOf: directory.appendingPathComponent("manifest.json"))) as? [String: Any])
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
-            records = MetadataDecoder().decode(try String(contentsOf:
-                directory.appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
         }
         for (fqName, receiver, result) in rows {
             let matches = sema.symbols.allSymbols().filter { symbol in

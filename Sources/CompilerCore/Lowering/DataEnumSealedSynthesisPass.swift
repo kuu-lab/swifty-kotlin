@@ -20,6 +20,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
 
         rewriteExpectEnumEntryReferences(module: module, sema: sema)
 
+        appendEnumNominalsForReferencedNameHelpers(module: module, sema: sema, interner: ctx.interner)
+
         appendReferencedBundledEnumNominalsIfNeeded(
             module: module,
             sema: sema,
@@ -40,7 +42,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return nominal.symbol
         }
 
-        var enumStaticInitCallees: [(name: InternedString, symbol: SymbolID)] = []
+        var enumStaticInitCallees: [(name: InternedString, symbol: SymbolID, owner: SymbolID)] = []
 
         for nominalSymbolID in nominalSymbols {
             guard let nominalSymbol = sema.symbols.symbol(nominalSymbolID) else {
@@ -59,7 +61,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 )
                 let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
                 if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
-                    enumStaticInitCallees.append((initName, initSymbol))
+                    enumStaticInitCallees.append((initName, initSymbol, nominalSymbolID))
                 }
             }
             if nominalSymbol.flags.contains(.sealedType) {
@@ -96,22 +98,71 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
         }
 
-        // `__enum_static_init_<Class>` populates the global ordinal slots that
-        // equality comparisons and `when` branches read back. Nothing else
-        // ever calls it, so without this the globals stay at their
-        // zero-initialized default and every entry of a given enum class
-        // compares equal. Inject one call per enum class at the very start of
-        // `main`, mirroring how top-level property/companion initializers are
-        // threaded in by `postProcessTopLevelInitializersAndDelegates`.
-        if !enumStaticInitCallees.isEmpty {
-            let mainName = ctx.interner.intern("main")
-            let unitType = sema.types.unitType
+        // Enum ordinal slots and renderers must be initialized before use.
+        // Consumers initialize exported enums through their nominal metadata;
+        // hidden enums instead need the library's exported initializer, even
+        // when there are no stored top-level properties to create one. Hidden
+        // (non-public) singleton objects are not in the metadata either, so
+        // their eager handle allocation is routed through the same entry point.
+        let mainName = ctx.interner.intern("main")
+        let unitType = sema.types.unitType
+        let libraryInitName = ctx.interner.intern("__kk_library_top_level_init_\(ctx.options.moduleName)")
+        let isHiddenLibraryOwner: (SymbolID) -> Bool = { ownerID in
+            guard ctx.options.emit == .library, !ctx.options.stdlibOnly else { return false }
+            var owner: SymbolID? = ownerID
+            while let current = owner, let symbol = sema.symbols.symbol(current) {
+                switch symbol.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    if symbol.visibility != .public && symbol.visibility != .protected { return true }
+                default:
+                    break
+                }
+                owner = sema.symbols.parentSymbol(for: current)
+            }
+            return false
+        }
+        let objectInitPrefix = "__object_init_"
+        let hiddenObjectInitCallees: [(name: InternedString, symbol: SymbolID, owner: SymbolID)] =
+            module.arena.declarations.compactMap { declaration in
+                guard case let .function(function) = declaration else { return nil }
+                let functionName = ctx.interner.resolve(function.name)
+                guard functionName.hasPrefix(objectInitPrefix),
+                      let rawOwner = Int32(functionName.dropFirst(objectInitPrefix.count))
+                else { return nil }
+                let owner = SymbolID(rawValue: rawOwner)
+                guard sema.symbols.symbol(owner)?.kind == .object, isHiddenLibraryOwner(owner) else {
+                    return nil
+                }
+                return (function.name, function.symbol, owner)
+            }
+        let libraryCallees = hiddenObjectInitCallees
+            + enumStaticInitCallees.filter { isHiddenLibraryOwner($0.owner) }
+        if !enumStaticInitCallees.isEmpty || !libraryCallees.isEmpty {
+            if !libraryCallees.isEmpty,
+               !module.arena.declarations.contains(where: { declaration in
+                   if case let .function(function) = declaration { return function.name == libraryInitName }
+                   return false
+               }) {
+                let symbol = sema.symbols.define(
+                    kind: .function, name: libraryInitName, fqName: [libraryInitName],
+                    declSite: nil, visibility: .private, flags: [.synthetic, .static]
+                )
+                sema.symbols.setFunctionSignature(FunctionSignature(
+                    parameterTypes: [], returnType: unitType, isSuspend: false
+                ), for: symbol)
+                _ = module.arena.appendDecl(.function(KIRFunction(
+                    symbol: symbol, name: libraryInitName, params: [], returnType: unitType,
+                    body: [.beginBlock, .returnUnit, .endBlock], isSuspend: false, isInline: false
+                )))
+            }
             module.arena.transformFunctions { function in
-                guard function.name == mainName else {
+                let callees = function.name == mainName ? enumStaticInitCallees
+                    : function.name == libraryInitName ? libraryCallees : []
+                guard !callees.isEmpty else {
                     return function
                 }
                 var initInstructions: [KIRInstruction] = []
-                for callee in enumStaticInitCallees {
+                for callee in callees {
                     let result = module.arena.appendTemporary(type: unitType)
                     initInstructions.append(.call(
                         symbol: callee.symbol,
@@ -148,6 +199,53 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         rewriteSyntheticEnumEntryRefs(module: module, sema: sema)
 
         module.recordLowering(Self.name)
+    }
+
+    /// Boxing in generated annotation factories can call an enum name helper
+    /// even when the enum's bundled source nominal was omitted from KIR dumps.
+    /// Preserve that dependency using the emitted calls, including factories
+    /// that have no corresponding expression in the user's source AST.
+    private func appendEnumNominalsForReferencedNameHelpers(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        var referencedHelpers: Set<InternedString> = []
+        var definedFunctions: Set<InternedString> = []
+        var declaredNominals: Set<SymbolID> = []
+        for declaration in module.arena.declarations {
+            switch declaration {
+            case let .function(function):
+                definedFunctions.insert(function.name)
+                for instruction in function.body {
+                    if case let .call(_, callee, _, _, _, _, _, _) = instruction,
+                       interner.resolve(callee).hasPrefix("$enumOrdinalToName$") {
+                        referencedHelpers.insert(callee)
+                    }
+                }
+            case let .nominalType(nominal):
+                declaredNominals.insert(nominal.symbol)
+            default:
+                break
+            }
+        }
+        referencedHelpers.subtract(definedFunctions)
+        guard !referencedHelpers.isEmpty else { return }
+
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .enumClass {
+            guard !declaredNominals.contains(symbol.id),
+                  !symbol.flags.contains(.expectDeclaration),
+                  sema.symbols.isSourceBackedSymbol(symbol.id)
+            else { continue }
+            let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+            guard referencedHelpers.contains(helperName) else { continue }
+            // Imported helpers already have a body in the producer's object.
+            let hasExternalHelper = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).contains {
+                sema.symbols.externalLinkName(for: $0) != nil
+            }
+            guard !hasExternalHelper else { continue }
+            _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol.id)))
+        }
     }
 
     /// Describes a bundled enum nominal that is appended to consumer KIR only

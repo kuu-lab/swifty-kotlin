@@ -415,6 +415,7 @@ extension CallTypeChecker {
         }
 
         var candidates: [SymbolID] = []
+        var constructorTypeAlias: SymbolID?
         var implicitReceiverScopeCandidates: [SymbolID] = []
         var callImplicitReceiverType = ctx.implicitReceiverType
         /// Member-extension candidates -> the receiver-tower symbol Sema
@@ -445,6 +446,7 @@ extension CallTypeChecker {
             calleeName: calleeName,
             calleePath: calleePath,
             candidates: &candidates,
+            constructorTypeAlias: &constructorTypeAlias,
             implicitReceiverScopeCandidates: &implicitReceiverScopeCandidates,
             callImplicitReceiverType: &callImplicitReceiverType,
             memberExtensionReceiverMarks: &memberExtensionReceiverMarks,
@@ -546,6 +548,9 @@ extension CallTypeChecker {
             contextualCallResultType: expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: callImplicitReceiverType,
+            boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
+                named: calleeName, candidates: candidates, ctx: ctx
+            ),
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
@@ -582,6 +587,7 @@ extension CallTypeChecker {
             explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName,
             candidates: candidates,
+            constructorTypeAlias: constructorTypeAlias,
             callImplicitReceiverType: callImplicitReceiverType,
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,

@@ -54,6 +54,7 @@ extension LambdaLowerer {
             arena: arena,
             resultType: sema.types.anyType,
             requireNonNull: true,
+            sema: sema,
             into: &instructions
         )
     }

@@ -409,20 +409,11 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
                      "emitEnumOrdinalBoxCall requires a non-synthetic enum class symbol or an imported enum with a serialized helper")
     }
 
-    // BUG-A: an Any-erased rendering of the box (println on a boxed
-    // value, list/collection elements, etc.) must honor a user `toString()`
-    // override the same way the direct, statically-typed path does --
-    // otherwise a boxed `Op.MUL` prints "MUL" instead of "times".
-    let nameHelperCallee: InternedString
-    let helperSymbol: SymbolID?
-    if let override = enumToStringOverrideHelper(for: classSym, symbols: symbols, interner: interner) {
-        nameHelperCallee = override.name
-        helperSymbol = override.symbol
-    } else {
-        nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
-        helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
-            symbols.symbol(id).map { $0.kind == .function } ?? false
-        }
+    // Keep declaration metadata independent of call-time display text. Boxing
+    // must not execute a stateful toString override or cache its result.
+    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+    let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
+        symbols.symbol(id).map { $0.kind == .function } ?? false
     }
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
@@ -442,6 +433,13 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         symbol: nil, callee: boxCallee, arguments: [ordinal, nameResult, classIDExpr],
         result: result, canThrow: false, thrownResult: nil
     ))
+
+    if let sema {
+        appendEnumAnyToStringRegistration(
+            classSymbol: classSym, sema: sema,
+            arena: arena, interner: interner, into: &instructions
+        )
+    }
 
     // BUG-B: an enum value crossing into an interface-typed slot (e.g. `val
     // nm: Named = Dir.S`) is boxed here the same way it is for Any-erasure,
@@ -463,6 +461,39 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
         cache: cache,
         into: &instructions
     )
+}
+
+/// Registers the producer-owned renderer for every box with this enum's nominal ID.
+/// Imported enums must retain the producer's private entry dispatcher.
+func appendEnumAnyToStringRegistration<C: RangeReplaceableCollection>(
+    classSymbol: SemanticSymbol,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    into instructions: inout C
+) where C.Element == KIRInstruction {
+    guard !classSymbol.flags.contains(.importedLibrary),
+          let override = enumToStringOverrideHelper(for: classSymbol, symbols: sema.symbols, interner: interner),
+          let bridge = anyToStringBridgeSymbolForImplementation(
+              override.symbol, arena: arena, sema: sema, interner: interner
+          )
+    else { return }
+    let intType = sema.types.intType
+    let bridgeExpr = arena.appendExpr(.symbolRef(bridge), type: intType)
+    instructions.append(.constValue(result: bridgeExpr, value: .symbolRef(bridge)))
+    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: classSymbol.id, symbols: sema.symbols, interner: interner
+    )
+    let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        // This ABI registers raw-string renderers by nominal ID, independent
+        // of whether their payload is a value-class primitive or enum ordinal.
+        symbol: nil, callee: interner.intern("kk_value_class_register_any_to_string"),
+        arguments: [classIDExpr, bridgeExpr], result: registerResult,
+        canThrow: false, thrownResult: nil
+    ))
 }
 
 private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(

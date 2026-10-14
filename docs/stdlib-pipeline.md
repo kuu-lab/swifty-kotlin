@@ -212,6 +212,24 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 選択する。`--no-stdlib`、`--stdlib-only`、明示的な `--stdlib-library` は既定解決の対象外。
 ソースを introspect する API 呼び出しは `allowDefaultStdlibLibrary: false` を指定する。
 
+### Native の `java.lang.Class.desiredAssertionStatus()` 契約
+
+JVM-shaped `Class<T>` facade の `desiredAssertionStatus(): Boolean` は、既存の
+`__kk_assertions_enabled` を通じて `kotlin.assert` と同じプロセス共通の状態を返す。
+class token の生成と `Any.javaClass` の表現は既存の経路を使う。`KClass.java` は
+型引数を維持する source-backed extension として宣言し、既存の opaque Class facade に
+class token を格納する。Sema の java view binding はこの宣言の実体へ接続する。
+Native は JVM の ClassLoader・クラス別・パッケージ別の assertion policy を持たない。
+このメソッドを呼び出した時点の共通状態を返し、consumer が初期化時に保存した値は
+consumer の Kotlin ソースどおりに保持される。
+
+既定は **有効**。起動時に `KK_ASSERTIONS_ENABLED`、`KOTLIN_ASSERTIONS_ENABLED` の順で
+空でない認識可能な値を探す。前後の空白と大文字小文字を無視し、`0/false/no/off` は無効、
+`1/true/yes/on` は有効とする。認識できない値は次の変数に進み、どちらも指定がなければ
+有効になる。JVM の無効な既定値とは異なるため、出力・例外の比較には Native の既定値と
+`java -ea`、Native の `KK_ASSERTIONS_ENABLED=0` と `java -da` をそれぞれ対応させる。
+O0/O2 および source/artifact によってこの契約は変わらない。
+
 Golden ハーネスはケースの `stdlib-profile` を優先する。`source` はソース注入、`artifact` は
 渡された artifact、`no-stdlib` は stdlib なしで実行する。spec 無しケースもテストハーネスが
 共有 artifact を渡す既存経路を利用するが、artifact が渡されない直接実行の source fallback は
@@ -859,6 +877,17 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-2068 adds one private bridge, `__kk_objects_equals` (reason: metadata /
+   memory representation).
+   The runtime owns erased nominal objects' registered `equals` method pointers;
+   this bridge forwards their existing exception channel instead of dropping it
+   through the non-throwing Any equality intrinsic. Null/identity rules, array
+   dispatch, object-array traversal, and canonical floating-array bit
+   comparison remain in `java/util/Objects.kt`; the bridge reads erased Float/
+   Double box payloads for ordinary boxed equality. `RuntimeABISpec` declares the
+   two boxed operands and `outThrown`; its computed `specVersion` changes with
+   the new entry. The `__kk_*` export count increases by one; no public `kk_*`
+   export is added. Source/fresh-artifact O0/O2 regression tests own the contract.
    KUU-1761 adds one private host-information bridge,
    `__kk_io_fs_temporary_directory` (reason: syscall). Kotlin cannot query the
    host environment or `NSTemporaryDirectory`; path construction and separator
@@ -876,6 +905,15 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    `RuntimeABISpec.systemFunctions` records the nonthrowing int32/pointer/handle
    ABI; its canonical hash automatically updates `specVersion`.
 
+   KUU-2060 adds one private bridge, `__kk_identity_hash_map_init`
+   (reason: memory representation), attaching native reference-keyed Map storage
+   to the source-backed `java.util.IdentityHashMap` object. Generic constructors,
+   Map conformance, value identity checks, equality, and public members remain
+   in Kotlin. Existing Map/view bridges share the backing storage's equality policy;
+   ordinary HashMap storage keeps structural equality. `__kk_*` increases by one;
+   `RuntimeABISpec.collectionMapFunctions` registers the nonthrowing handle ABI
+   and automatically changes the canonical `specVersion` hash.
+
    KUU-2017 adds one private bridge, `__kk_system_in` (reason: syscall).
    The source-backed `java.lang.System.in` property stores a native standard-input
    stream object without reading stdin during initialization; the default-import
@@ -883,6 +921,20 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    stdio's cursor with console input. `__kk_*` increases by one;
    `RuntimeABISpec.systemFunctions` registers the ABI and its canonical hash
    updates `specVersion`.
+
+   KUU-2016 adds two private constructor bridges, `__kk_input_stream_reader_new`
+   and `__kk_buffered_reader_new` (reason: memory representation). The bundled
+   Java reader constructors produce native reader handles used by the existing
+   read/line/close ABI rather than Kotlin object fields. `__kk_*` increases by
+   two; `RuntimeABISpec.fileIOFunctions` registers both signatures and its
+   canonical hash updates `specVersion`. The native default decoder remains
+   UTF-8. BufferedReader reuses its bootstrap nominal shell and residual
+   members; its sole public constructor and close override are owned by the
+   bundled declaration, which reuses the existing close member symbol.
+   Factory lowering registers Closeable/AutoCloseable interface methods on
+   both native reader handles, preserving erased close calls and use cleanup.
+   The decoder accepts both existing byte-input box forms, including
+   SequenceInputStream; no additional public constructor overload is added.
    KUU-2018 adds four private `__kk_thread_local_*` storage bridges (reason:
    syscall and memory representation): allocation, initialized-state lookup,
    value lookup, and value storage use the native thread identity and GC root
@@ -1201,3 +1253,17 @@ No KUU-1763 API/test state may become VERIFIED based on this draft. CF opaque
 pointee typing, general foreign-object ingress/subclass protocol import, and
 cross-GC/ARC cycles remain documented review dependencies. The prepared macOS
 workflow is PR-triggered and also permits manual dispatch; no candidate execution is claimed.
+
+### KUU-2062 JVM class mapping bridge admission
+
+KUU-2062 adds `Class<T : Any>.kotlin: KClass<T>` and
+`KClass<T : Any>.javaPrimitiveType: Class<T>?` in `kotlin/jvm/JvmClassMapping.kt`.
+The two private entries `__kk_class_kotlin` and `__kk_kclass_java_primitive_type`
+have the §13-2 reason **metadata / memory representation**: native Class boxes
+and interned KClass type tokens have no Kotlin object-slot representation.
+This increases `__kk_*` by two, leaves public `kk_*` unchanged, and updates the
+canonical ABI specVersion hash through RuntimeABISpec registration. Generic
+types, nullable results and getter selection remain source-backed. The bridges
+only translate runtime classifiers; Nothing maps to JVM void, while Unit,
+unsigned types and ordinary reference classes return null. Focused Sema, runtime
+and executable source/artifact O0/O2 regressions live in the JvmClassMapping tests.

@@ -183,6 +183,8 @@ public enum TypeKind: Hashable {
     case unit
     /// A value-bearing Unit slot that can also contain the null sentinel.
     case nullableUnit
+    /// A flexible Java Unit value with lower bound Unit and upper bound Unit?.
+    case platformUnit
     case nothing(Nullability)
     case any(Nullability)
 
@@ -199,7 +201,7 @@ extension TypeKind {
     /// Rewrites nested TypeIDs while preserving nominal SymbolIDs.
     func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeKind {
         switch self {
-        case .error, .unit, .nullableUnit, .nothing, .any, .stringStruct, .primitive, .typeParam:
+        case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive, .typeParam:
             self
         case let .classType(type):
             .classType(ClassType(

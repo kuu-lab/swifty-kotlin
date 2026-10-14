@@ -19,6 +19,20 @@ private let runtimeAnyHashCodeOverride: @convention(c) (
     return kk_array_get(receiver, 0, nil)
 }
 
+private let runtimeObjectsNullEqualityOverride: @convention(c) (
+    Int, Int, UnsafeMutablePointer<Int>?
+) -> Int = { _, rhs, outThrown in
+    outThrown?.pointee = 0
+    return rhs == runtimeNullSentinelInt ? 1 : 0
+}
+
+private let runtimeObjectsThrowingEqualityOverride: @convention(c) (
+    Int, Int, UnsafeMutablePointer<Int>?
+) -> Int = { lhs, _, outThrown in
+    outThrown?.pointee = kk_array_get(lhs, 0, nil)
+    return 0
+}
+
 @Suite
 struct RuntimeAnyEqualityTests {
     private func boolValue(_ raw: Int) -> Bool {
@@ -28,6 +42,43 @@ struct RuntimeAnyEqualityTests {
             return false
         }
         return box.value
+    }
+
+    @Test
+    func testObjectsEqualsPreservesOverrideNullAndThrownChannel() {
+        let receiver = kk_object_new(1, 0x51_25)
+        let other = kk_object_new(0, 0x51_25)
+        _ = kk_object_register_equals_override(
+            receiver, unsafeBitCast(runtimeObjectsNullEqualityOverride, to: Int.self)
+        )
+        var thrown = 123
+        #expect(boolValue(__kk_objects_equals(receiver, runtimeNullSentinelInt, &thrown)))
+        #expect(thrown == 0)
+        #expect(!boolValue(__kk_objects_equals(receiver, other, &thrown)))
+        #expect(thrown == 0)
+
+        let exception = kk_illegal_state_exception_new()
+        _ = kk_array_set(receiver, 0, exception, nil)
+        _ = kk_object_register_equals_override(
+            receiver, unsafeBitCast(runtimeObjectsThrowingEqualityOverride, to: Int.self)
+        )
+        #expect(!boolValue(__kk_objects_equals(receiver, other, &thrown)))
+        #expect(thrown == exception)
+    }
+
+    @Test
+    func testObjectsEqualsCanonicalBoxedFloatingValues() {
+        let floatNaN = kk_box_float(0x7fc0_0001)
+        let otherFloatNaN = kk_box_float(0x7fc0_0002)
+        let doubleNaN = kk_box_double_nonnull(0x7ff8_0000_0000_0001)
+        let otherDoubleNaN = kk_box_double_nonnull(0x7ff8_0000_0000_0002)
+        var thrown = 123
+        #expect(boolValue(__kk_objects_equals(floatNaN, otherFloatNaN, &thrown)))
+        #expect(thrown == 0)
+        #expect(boolValue(__kk_objects_equals(doubleNaN, otherDoubleNaN, &thrown)))
+        #expect(!boolValue(__kk_objects_equals(floatNaN, doubleNaN, &thrown)))
+        #expect(!boolValue(__kk_objects_equals(kk_box_float(0x8000_0000), kk_box_float(0), &thrown)))
+        #expect(!boolValue(__kk_objects_equals(kk_box_double_nonnull(Int.min), kk_box_double_nonnull(0), &thrown)))
     }
 
     @Test

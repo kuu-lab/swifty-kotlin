@@ -5,19 +5,32 @@ import Testing
 
 @Suite
 struct SemaIndependentBodyTests {
-    private func analyze(_ sources: [String], jobs: Int, enabled: Bool = true) throws -> CompilationContext {
+    private func analyze(_ sources: [String], jobs: Int, enabled: Bool = true, parallelFrontend: Bool = false) throws -> CompilationContext {
         let paths = sources.indices.map { "/virtual/sema-independent/input\($0).kt" }
         let ctx = makeCompilationContext(
             inputs: paths,
-            frontendFlags: ["jobs=\(jobs)"] + (enabled ? ["sema-parallel"] : []),
+            frontendFlags: ["jobs=\(parallelFrontend ? jobs : 1)"],
             includeStdlib: false
         )
         for (path, source) in zip(paths, sources) {
             _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
         }
         try runFrontend(ctx)
-        try SemaPhase().run(ctx)
-        return ctx
+        // BuildAST currently allocates into a shared arena, so frontend jobs
+        // can change ExprIDs before Sema starts. Freeze that input when testing
+        // the Sema allocator itself, including ExprID-based synthetic names.
+        var options = ctx.options
+        options.frontendFlags = ["jobs=\(jobs)"] + (enabled ? ["sema-parallel"] : [])
+        let semaContext = CompilationContext(
+            options: options, sourceManager: ctx.sourceManager,
+            diagnostics: ctx.diagnostics, interner: ctx.interner
+        )
+        semaContext.tokens = ctx.tokens
+        semaContext.tokensByFile = ctx.tokensByFile
+        semaContext.storeSyntaxTrees(ctx.syntaxTrees)
+        semaContext.ast = ctx.ast
+        try SemaPhase().run(semaContext)
+        return semaContext
     }
 
     private func bindings(_ ctx: CompilationContext) throws -> [String] {
@@ -74,6 +87,96 @@ struct SemaIndependentBodyTests {
         let serial = try analyze(sources, jobs: 1)
         let parallel = try analyze(sources, jobs: jobs)
         #expect(!parallel.diagnostics.hasError)
+        #expect(parallel.sema?.independentBodyCount == 3)
+        #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
+        #expect(try bindings(parallel) == bindings(serial))
+    }
+
+    private func symbolRecords(_ ctx: CompilationContext) throws -> [String] {
+        let sema = try #require(ctx.sema)
+        return sema.symbols.allSymbols().map { symbol in
+            "\(symbol.id.rawValue):\(symbol.kind):\(symbol.name.rawValue):\(symbol.fqName.map(\.rawValue)):\(symbol.flags.rawValue):\(sema.symbols.propertyType(for: symbol.id)?.rawValue ?? -1)"
+        }
+    }
+
+    @Test(arguments: [2, 4])
+    func scalarLocalAllocationsJoinInDeclarationOrder(jobs: Int) throws {
+        let sources = [
+            """
+            fun first(x: Int): Int { val y = x + 1; return y * 2 }
+            fun serial(x: Int): Int { val f = { x + 1 }; return f() }
+            fun second(x: Long): Long { var y = x; y = y + 2; return y }
+            """,
+            """
+            fun branch(x: Int): Int { var y = x; if (x > 0) { val z = x + 2; y = z }; return y }
+            fun last(x: Int): Int { val a = x + 1; val b = a * 2; return b }
+            """,
+        ]
+        let serial = try analyze(sources, jobs: 1)
+        #expect(!serial.diagnostics.hasError, "\(serial.diagnostics.diagnostics)")
+        for _ in 0..<3 {
+            let parallel = try analyze(sources, jobs: jobs)
+            #expect(parallel.sema?.independentBodyCount == 4)
+            #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
+            #expect(try bindings(parallel) == bindings(serial))
+            #expect(try symbolRecords(parallel) == symbolRecords(serial))
+            #expect(parallel.interner.snapshotValues() == serial.interner.snapshotValues())
+            let types = try #require(parallel.sema?.types)
+            let serialTypes = try #require(serial.sema?.types)
+            #expect(types.workerTypeKinds(since: 0) == serialTypes.workerTypeKinds(since: 0))
+        }
+    }
+
+    @Test(arguments: [2, 4])
+    func rejectedLocalFilesLeaveNoAllocationsOrDiagnostics(jobs: Int) throws {
+        let sources = [
+            """
+            fun good(x: Int): Int { val y = x + 1; return y }
+            fun bad(x: Int): Int { val y = x; y = 2; return y }
+            """,
+            "fun other(x: Int): Int { val y = x * 2; return y }",
+            """
+            fun capture(x: Int): Int { val y = x; val f = { y + 1 }; return f() }
+            fun nominal(x: Int): Int { val o = object { val y = x }; return o.y }
+            """,
+        ]
+        let serial = try analyze(sources, jobs: 1)
+        #expect(serial.diagnostics.hasError)
+        for _ in 0..<3 {
+            let parallel = try analyze(sources, jobs: jobs)
+            #expect(parallel.sema?.independentBodyCount == 1)
+            #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
+            #expect(try bindings(parallel) == bindings(serial))
+            #expect(try symbolRecords(parallel) == symbolRecords(serial))
+            #expect(parallel.interner.snapshotValues() == serial.interner.snapshotValues())
+        }
+    }
+
+    @Test(arguments: [2, 4])
+    func laterLocalNamesCannotHideModuleDependencies(jobs: Int) throws {
+        let sources = [
+            """
+            val seed = 40
+            fun beforeLocal(): Int { val y = seed; val seed = 2; return y + seed }
+            """,
+            "fun other(x: Int): Int { val y = x + 1; return y }",
+        ]
+        let serial = try analyze(sources, jobs: 1)
+        let parallel = try analyze(sources, jobs: jobs)
+        #expect(parallel.sema?.independentBodyCount == 1)
+        #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
+        #expect(try bindings(parallel) == bindings(serial))
+        #expect(try symbolRecords(parallel) == symbolRecords(serial))
+    }
+
+    @Test(arguments: [2, 4])
+    func wholeFrontendPreservesSourcePositionBindingsForScalarLocals(jobs: Int) throws {
+        let sources = [
+            "fun first(x: Int): Int { val y = x + 1; return y * 2 }",
+            "fun second(x: Int): Int { var y = x; y = y + 2; return y }",
+        ]
+        let serial = try analyze(sources, jobs: 1)
+        let parallel = try analyze(sources, jobs: jobs, parallelFrontend: true)
         #expect(parallel.sema?.independentBodyCount == 2)
         #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
         #expect(try bindings(parallel) == bindings(serial))
@@ -201,6 +304,21 @@ struct SemaIndependentBodyTests {
             end: SourceLocation(file: FileID(rawValue: 0), offset: 1)
         ))
         #expect(!delta.hasOnlyIndependentScalarBindings)
+    }
+
+    @Test
+    func pendingAnnotationAndCallableReferenceWritesRejectWorkerDelta() {
+        let pending = BindingTable()
+        pending.deferLocalAnnotationTargets(DeclID(rawValue: 0), lexicalEnclosingFQNames: [])
+        #expect(!pending.hasOnlyIndependentScalarBindings)
+        let callable = BindingTable()
+        callable.bindCallableReference(ExprID(rawValue: 0), binding: CallBinding(
+            chosenCallee: SymbolID(rawValue: 1), substitutedTypeArguments: [], parameterMapping: [:]
+        ))
+        #expect(!callable.hasOnlyIndependentScalarBindings)
+        let annotation = BindingTable()
+        annotation.recordValidatedAnnotationOptIn(usageID: "annotation", markers: [SymbolID(rawValue: 1)])
+        #expect(!annotation.hasOnlyIndependentScalarBindings)
     }
 }
 

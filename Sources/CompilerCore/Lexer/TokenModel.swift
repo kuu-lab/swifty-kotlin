@@ -43,8 +43,15 @@ public final class StringInterner: @unchecked Sendable {
     public init() {}
 
     /// Preserves AST name IDs without allowing worker-local utility names to
-    /// perturb the module's interning order. No worker-created names escape.
+    /// perturb the module's interning order. Escaping names must be remapped
+    /// by replaying the declaration's ordered string delta at join.
     func makeSemaWorkerInterner() -> StringInterner {
+        makeWorkerInterner()
+    }
+
+    /// Copy-on-write baseline for frontend workers. The caller must remap any
+    /// worker-created strings before publishing them into the module namespace.
+    func makeWorkerInterner() -> StringInterner {
         lock.lock()
         defer { lock.unlock() }
         let worker = StringInterner()
@@ -109,6 +116,26 @@ public final class StringInterner: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return values
+    }
+
+    var internedStringCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return values.count
+    }
+
+    func workerStrings(since count: Int) -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return Array(values.dropFirst(count))
+    }
+
+    func mergeWorkerStrings(_ strings: [String], startingAt count: Int) -> [InternedString: InternedString] {
+        var mapping: [InternedString: InternedString] = [:]
+        for (offset, string) in strings.enumerated() {
+            mapping[InternedString(rawValue: Int32(count + offset))] = intern(string)
+        }
+        return mapping
     }
 
     public func preload(_ strings: [String]) {

@@ -192,6 +192,11 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         return lhs == rhs
     }
     if runtimeIsMapEntry(rawValue: lhs) || runtimeIsMapEntry(rawValue: rhs) {
+        if runtimeIsIdentityMapEntry(lhs) {
+            guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
+                  let rhsEntry = runtimeIdentityMapEntryValues(rhs) else { return false }
+            return lhsEntry.key == rhsEntry.key && lhsEntry.value == rhsEntry.value
+        }
         guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
               let rhsEntry = runtimeMapEntryValues(rawValue: rhs)
         else {
@@ -283,6 +288,17 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             }
         }
         return true
+    }
+    // Identity map views compare against any Set implementation, including
+    // source objects whose elements are exposed through an Iterable itable.
+    if let lhsSet = runtimeSetBox(from: lhs), lhsSet.usesReferenceEquality {
+        if let rhsSet = runtimeSetBox(from: rhs) {
+            return lhsSet.count == rhsSet.count && rhsSet.elements.allSatisfy { lhsSet.contains(rawValue: $0) }
+        }
+        guard let rhsType = runtimeObjectTypeID(rawValue: rhs),
+              runtimeIsAssignable(sourceTypeID: rhsType, targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")),
+              let elements = runtimeIterableElements(from: rhs) else { return false }
+        return lhsSet.count == elements.count && elements.allSatisfy { lhsSet.contains(rawValue: $0) }
     }
     if let lhsSet = tryCast(lhsPtr, to: RuntimeSetBox.self),
        let rhsSet = tryCast(rhsPtr, to: RuntimeSetBox.self)
@@ -376,8 +392,42 @@ public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
     kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
 }
 
+/// Objects.deepEquals must retain an erased equals override's exception channel,
+/// including when a nested array element supplies null as the right operand.
+@_cdecl("__kk_objects_equals")
+public func __kk_objects_equals(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if let overridden = runtimeObjectEqualsOverride(lhs, rhs, outThrown: outThrown) {
+        return kk_box_bool(overridden ? 1 : 0)
+    }
+    // Erased floating operands arrive as boxes. Read their owned payloads,
+    // preserving boxed equals' canonical NaNs and distinct signed zeros.
+    if runtimeFloatingBoxBitPattern(lhs) != nil, runtimeFloatingBoxBitPattern(rhs) != nil,
+       let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
+       let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs)
+    {
+        if let left = tryCast(lhsPointer, to: RuntimeFloatBox.self),
+           let right = tryCast(rhsPointer, to: RuntimeFloatBox.self)
+        {
+            return kk_box_bool((left.value.isNaN && right.value.isNaN)
+                || left.value.bitPattern == right.value.bitPattern ? 1 : 0)
+        }
+        if let left = tryCast(lhsPointer, to: RuntimeDoubleBox.self),
+           let right = tryCast(rhsPointer, to: RuntimeDoubleBox.self)
+        {
+            return kk_box_bool((left.value.isNaN && right.value.isNaN)
+                || left.value.bitPattern == right.value.bitPattern ? 1 : 0)
+        }
+    }
+    return kk_box_bool((runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 1 : 0)
+}
+
 /// Calls the user `Any.equals` override registered for `lhs`, if any.
-func runtimeObjectEqualsOverride(_ lhs: Int, _ rhs: Int) -> Bool? {
+func runtimeObjectEqualsOverride(
+    _ lhs: Int,
+    _ rhs: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Bool? {
     guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs),
           let functionRaw = runtimeStorage.withMetadataLock({ state in
               state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
@@ -389,7 +439,7 @@ func runtimeObjectEqualsOverride(_ lhs: Int, _ rhs: Int) -> Bool? {
         functionRaw,
         to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
     )
-    return equals(lhs, rhs, nil) != 0
+    return equals(lhs, rhs, outThrown) != 0
 }
 
 /// Calls the user `Any.hashCode` override registered for `value`, if any.

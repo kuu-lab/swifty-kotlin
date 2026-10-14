@@ -53,7 +53,7 @@ struct IOBufferingAPIContractTests {
             try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
             try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
-            records = MetadataDecoder().decode(try String(contentsOf: directory.appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
         }
         try runSema(ctx)
         try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -208,8 +208,7 @@ struct IOBufferingAPIContractTests {
             try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
             try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
-            records = MetadataDecoder().decode(try String(contentsOf:
-                directory.appendingPathComponent("metadata.bin"), encoding: .utf8))
+            records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
             let ownerRecord = try #require(records.first { $0.kind == .class && $0.fqName == "kotlinx.io.EOFException" })
             #expect(ownerRecord.visibility == .public && ownerRecord.isOpenClass)
         }

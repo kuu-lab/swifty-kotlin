@@ -59,7 +59,7 @@ struct SerializationAnnotationAPITests {
             moduleName: "SerializationAnnotationAPIProducer", inputs: [libraryInput], outputPath: library, emit: .library,
             target: defaultTargetTriple(), optLevel: level, stdlibLibraryPath: stdlib
         )))
-        let records = MetadataDecoder().decode(try String(contentsOfFile: library + ".kklib/metadata.bin", encoding: .utf8))
+        let records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: library + ".kklib/metadata.bin")))
         let tag = try #require(records.first { $0.fqName == "producer.SerialTag" })
         let marker = try #require(tag.annotations.first { $0.annotationFQName == "kotlinx.serialization.SerialInfo" })
         #expect(marker.retention == .binary && marker.factoryLinkName == nil)

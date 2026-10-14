@@ -70,7 +70,7 @@ extension CallLowerer {
                     let value = driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
                     return boxValueForAnySlot(value, sourceType: arena.exprType(value) ?? sema.types.anyType,
                         types: sema.types, symbols: sema.symbols, interner: interner, arena: arena,
-                        requireNonNull: true, into: &instructions.instructions)
+                        requireNonNull: true, sema: sema, into: &instructions.instructions)
                 }
                 let callee = signature.parameterTypes.count == 1 ? "kk_function_invoke"
                     : "kk_function_invoke_\(signature.parameterTypes.count)"
@@ -116,6 +116,7 @@ extension CallLowerer {
         {
             driver.emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                interner: interner,
                 instructions: &instructions.instructions
             )
         }

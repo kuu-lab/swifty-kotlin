@@ -51,6 +51,72 @@ private func fnPtrInt(_ fn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
 
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeBufferedReaderTests {
+    @Test func testReaderConstructorAcceptsSequenceInputStream() {
+        let first = RuntimeInputStreamBox(data: Data("a".utf8))
+        let second = RuntimeInputStreamBox(data: Data("b\n日本語\n".utf8))
+        let stream = RuntimeSequenceInputStreamBox(
+            first: registerRuntimeObject(first),
+            second: registerRuntimeObject(second)
+        )
+        let readerRaw = __kk_buffered_reader_new(__kk_input_stream_reader_new(registerRuntimeObject(stream)))
+        #expect(first.available() == 1)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "ab")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "日本語")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        _ = __kk_buffered_reader_close(readerRaw)
+        #expect(first.readByte() == -1)
+        #expect(second.readByte() == -1)
+    }
+
+    @Test func testSequenceInputAvailabilityAfterSwitchingToSecondStream() {
+        let stream = RuntimeSequenceInputStreamBox(
+            first: registerRuntimeObject(RuntimeInputStreamBox(data: Data("a".utf8))),
+            second: registerRuntimeObject(RuntimeInputStreamBox(data: Data("bc".utf8)))
+        )
+        #expect(stream.readByte() == 97)
+        #expect(stream.readByte() == 98)
+        #expect(stream.available() == 1)
+        stream.close()
+    }
+
+    @Test func testReaderConstructorsPreserveCursorAndCloseUnderlyingStream() {
+        let stream = RuntimeInputStreamBox(data: Data("!hello\n日本語\rα\r\nlast".utf8))
+        let streamRaw = registerRuntimeObject(stream)
+        let decoderRaw = __kk_input_stream_reader_new(streamRaw)
+        #expect(stream.readByte() == 33)
+        let readerRaw = __kk_buffered_reader_new(decoderRaw)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "hello")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "日本語")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "α")
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "last")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        _ = __kk_buffered_reader_close(readerRaw)
+        _ = __kk_buffered_reader_close(readerRaw)
+        #expect(__kk_buffered_reader_read(decoderRaw) == -1)
+        #expect(kk_unbox_bool(__kk_buffered_reader_ready(decoderRaw)) == 0)
+    }
+
+    @Test func testReaderConstructorCloseBeforeReadingClosesStream() {
+        let stream = RuntimeInputStreamBox(data: Data("unread".utf8))
+        let decoderRaw = __kk_input_stream_reader_new(registerRuntimeObject(stream))
+        let readerRaw = __kk_buffered_reader_new(decoderRaw)
+        _ = __kk_buffered_reader_close(readerRaw)
+        #expect(stream.readByte() == -1)
+        #expect(stream.available() == 0)
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+    }
+
+    @Test func testReaderConstructorsRetainUTF8AndCRLFAcrossRefills() {
+        let line = String(repeating: "a", count: 4095)
+        let content = line + "\r\n" + String(repeating: "b", count: 4093) + "日本語\n"
+        let streamRaw = registerRuntimeObject(RuntimeInputStreamBox(data: Data(content.utf8)))
+        let readerRaw = __kk_buffered_reader_new(__kk_input_stream_reader_new(streamRaw))
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == line)
+        #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == String(repeating: "b", count: 4093) + "日本語")
+        #expect(__kk_buffered_reader_readLine(readerRaw) == runtimeNullSentinelInt)
+        _ = __kk_buffered_reader_close(readerRaw)
+    }
+
     @Test func testBufferedReaderHandlesMixedLineEndingsAndNoTrailingEmptyLine() throws {
         let fileURL = try makeTempFile(contents: "alpha\r\nbeta\rgamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }

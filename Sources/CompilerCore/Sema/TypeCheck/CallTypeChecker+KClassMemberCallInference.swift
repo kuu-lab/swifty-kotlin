@@ -269,6 +269,24 @@ extension CallTypeChecker {
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(getterSymbol))
             }
+        } else if let functionSymbol = sema.symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
+            guard sema.symbols.symbol(symbolID)?.kind == .function,
+                  let signature = sema.symbols.functionSignature(for: symbolID)
+            else { return false }
+            return signature.receiverType != nil && signature.parameterTypes.isEmpty
+        }) {
+            // Generic source-backed extension properties are represented as
+            // zero-argument functions, including the native KClass.java view.
+            sema.bindings.bindIdentifier(id, symbol: functionSymbol)
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: functionSymbol,
+                    substitutedTypeArguments: [typeArgument],
+                    parameterMapping: [:]
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(functionSymbol))
         }
         sema.bindings.bindExprType(id, type: returnType)
         return returnType

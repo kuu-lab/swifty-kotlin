@@ -331,6 +331,30 @@ final class RuntimeListBox {
         return false
     }
 
+    var usesReferenceEquality: Bool {
+        guard case let .mapValuesViewOf(raw) = storage else { return false }
+        return runtimeMapBox(from: raw)?.usesReferenceEquality == true
+    }
+
+    func removeValues(where predicate: (RuntimeValue) -> Bool) {
+        if isMapValuesView {
+            for index in (0..<count).reversed() where predicate(value(at: index)) {
+                _ = removeMapBackedValue(at: index)
+            }
+        } else {
+            withMutableValues { $0.removeAll(where: predicate) }
+        }
+    }
+
+    /// Values views inherit their map's equality policy.
+    func elementsEqual(_ lhs: Int, _ rhs: Int) -> Bool {
+        if case let .mapValuesViewOf(mapRaw) = storage,
+           let map = runtimeMapBox(from: mapRaw) {
+            return map.valuesEqual(lhs, rhs)
+        }
+        return runtimeValuesEqual(lhs, rhs)
+    }
+
     /// Removes the backing map's key/value pair at `index` (as seen through
     /// this values view). Only valid when `isMapValuesView` is true.
     @discardableResult

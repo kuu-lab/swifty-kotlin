@@ -16,6 +16,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         calleeName: InternedString?,
         candidates: [SymbolID],
+        constructorTypeAlias: SymbolID?,
         callImplicitReceiverType: TypeID?,
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
@@ -88,6 +89,7 @@ extension CallTypeChecker {
                 ctx: ctx,
                 locals: locals
             )
+            var resolvedImplicitReceiverType = callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -97,6 +99,7 @@ extension CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: callImplicitReceiverType,
+                bindsObjectDispatchReceiver: true,
                 candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -227,6 +230,7 @@ extension CallTypeChecker {
                        explicitTypeArgs: explicitTypeArgs,
                        expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                        implicitReceiverType: ctx.implicitReceiverType,
+                       bindsObjectDispatchReceiver: true,
                        lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                        inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                        blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -235,6 +239,7 @@ extension CallTypeChecker {
                        locals: &locals
                    ) {
                     resolved = retried
+                    resolvedImplicitReceiverType = ctx.implicitReceiverType
                 }
             }
             if resolved.diagnostic == nil,
@@ -311,6 +316,7 @@ extension CallTypeChecker {
             )
             driver.helpers.checkOptIn(
                 for: chosen,
+                constructorTypeAlias: constructorTypeAlias,
                 ctx: ctx,
                 range: range,
                 diagnostics: ctx.sema.diagnostics
@@ -326,21 +332,18 @@ extension CallTypeChecker {
             {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
             }
-            // Scope lookup can resolve an inherited outer member before the
-            // receiver tower fallback runs. Preserve the actual enclosing
-            // instance for capture analysis even when its class differs from
-            // the member's declaring class.
+            // Scope lookup can resolve an outer member or package extension
+            // before the receiver tower fallback runs. Preserve the selected
+            // receiver for capture analysis, including builtin receivers
+            // such as String that have no nominal dispatch owner.
             if sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
+               sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
                sema.symbols.functionSignature(for: chosen)?.receiverType != nil,
-               let owner = sema.symbols.parentSymbol(for: chosen),
-               let activeType = ctx.implicitReceiverType,
-               resolveClassType(activeType, sema: sema).map({
-                   sema.types.isNominalSubtypeSymbol($0.classSymbol, of: owner)
-               }) != true,
-               let outerReceiver = ctx.outerReceiverTypes.reversed().first(where: { receiver in
-                   receiver.symbol != nil && resolveClassType(receiver.type, sema: sema).map {
-                       sema.types.isNominalSubtypeSymbol($0.classSymbol, of: owner)
-                   } == true
+               let resolvedImplicitReceiverType,
+               let outerReceiver = ctx.implicitReceiverMemberLookupEntries().first(where: { receiver in
+                   // Use the resolver's actual receiver, not the declaration's
+                   // generic receiver before type argument substitution.
+                   receiver.type == resolvedImplicitReceiverType
                }),
                let receiverSymbol = outerReceiver.symbol
             {

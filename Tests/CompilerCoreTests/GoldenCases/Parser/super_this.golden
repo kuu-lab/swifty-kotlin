@@ -4,7 +4,7 @@ node kotlinFile f0:0..185
     tok identifier(golden) f0:8..14
     tok symbol(.) f0:14..15
     tok identifier(parser) f0:15..21
-  node classDecl f0:23..38
+  node classDecl f0:23..81
     tok keyword(open) f0:23..27
     tok keyword(class) f0:28..33
     tok identifier(Base) f0:34..38

@@ -2,6 +2,7 @@ package java.math
 
 public class BigInteger private constructor(private val decimalValue: String) {
     public companion object {
+        public val ZERO: BigInteger = BigInteger("0")
         public val ONE: BigInteger = BigInteger("1")
 
         public fun valueOf(value: Long): BigInteger = BigInteger(value.toString())

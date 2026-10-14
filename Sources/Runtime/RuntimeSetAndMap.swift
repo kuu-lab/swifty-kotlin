@@ -1,3 +1,11 @@
+/// Attach identity-key storage to a source-allocated IdentityHashMap.
+@_cdecl("__kk_identity_hash_map_init")
+public func kk_identity_hash_map_init(_ mapRaw: Int) -> Int {
+    guard let objectBox = resolveRuntimeHandle(mapRaw, as: RuntimeObjectBox.self) else { return 0 }
+    objectBox.backingMapBox = RuntimeMapBox(keys: [], values: [], usesReferenceEquality: true)
+    return 0
+}
+
 // Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
 //
 // Split out from `RuntimeCollections.swift`.
@@ -227,8 +235,8 @@ public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int
     if let range = runtimeRangeBox(from: collRaw) {
         contains = { runtimeRangeContains(range, $0) }
     } else if let list = runtimeListBox(from: collRaw) {
-        let elementSet = Set(list.values.lazy.map { RuntimeElementKey(value: $0.legacyRawValue) })
-        contains = { elementSet.contains(RuntimeElementKey(value: $0)) ? 1 : 0 }
+        let membership = runtimeCollectionMembership(collRaw, values: list.values)
+        contains = { membership($0) ? 1 : 0 }
     } else if let set = runtimeSetBox(from: collRaw) {
         contains = { set.contains(rawValue: $0) ? 1 : 0 }
     } else if let array = runtimeArrayBox(from: collRaw) {
@@ -357,10 +365,10 @@ public func kk_mutable_set_removeAll(
     guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return 0
     }
-    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
     let originalCount = set.count
     _ = set.removeAll { elem in
-        members.contains(RuntimeElementKey(value: elem.legacyRawValue))
+        contains(elem.legacyRawValue)
     }
     return set.count != originalCount ? 1 : 0
 }
@@ -390,10 +398,10 @@ public func kk_mutable_set_retainAll(
     guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
         return 0
     }
-    let members = Set(collectionValues.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
     let originalCount = set.count
     _ = set.removeAll { elem in
-        !members.contains(RuntimeElementKey(value: elem.legacyRawValue))
+        !contains(elem.legacyRawValue)
     }
     return set.count != originalCount ? 1 : 0
 }
@@ -542,8 +550,9 @@ public func kk_mutable_map_put(
     if runtimeThrowIfReadOnlyMap(map, outThrown) {
         return runtimeNullSentinelInt
     }
-    let runtimeKey = runtimeValueFromCollectionABI(key)
-    let runtimeValue = runtimeValueFromCollectionABI(value)
+    // Identity maps retain boxed reference handles, including boxed Char.
+    let runtimeKey = map.usesReferenceEquality ? RuntimeValue(raw: key) : runtimeValueFromCollectionABI(key)
+    let runtimeValue = map.usesReferenceEquality ? RuntimeValue(raw: value) : runtimeValueFromCollectionABI(value)
     return map.put(key: runtimeKey, value: runtimeValue)
         .map(runtimeCollectionABIValue)
         ?? runtimeNullSentinelInt

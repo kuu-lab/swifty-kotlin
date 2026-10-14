@@ -382,7 +382,13 @@ extension BuildASTPhase {
     }
 
     func resolveToken(_ tokenID: TokenID, in arena: SyntaxArena) -> Token? {
-        arena.token(tokenID)
+        guard let token = arena.token(tokenID) else { return nil }
+        // Honor a recovered closing parenthesis so malformed annotation
+        // arguments cannot hide a following declaration during AST scans.
+        if case .missing(expected: .symbol(.rParen)) = token.kind {
+            return Token(kind: .symbol(.rParen), range: token.range)
+        }
+        return token
     }
 
     func collectTokens(from nodeID: NodeID, in arena: SyntaxArena) -> [Token] {

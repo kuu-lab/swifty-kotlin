@@ -173,6 +173,9 @@ struct TypeCheckScopeBuilder {
         sourceManager: SourceManager? = nil
     ) {
         var usedAliasNames: Set<InternedString> = []
+        // Aliases bound only to functions may be reused: Kotlin merges
+        // same-named function imports into one overload set.
+        var functionOnlyAliasNames: Set<InternedString> = []
         let suppressesInvisibleAccess = file.annotations.contains { annotation in
             KnownCompilerAnnotation.suppress.matches(annotation.name) && annotation.arguments.contains {
                 let code = $0.filter { $0 != "\"" && $0 != "'" }
@@ -222,7 +225,12 @@ struct TypeCheckScopeBuilder {
                     continue
                 }
 
-                if usedAliasNames.contains(alias) {
+                let isFunctionOnlyImport = resolved.allSatisfy {
+                    sema.symbols.symbol($0)?.kind == .function
+                }
+                if usedAliasNames.contains(alias),
+                   !(isFunctionOnlyImport && functionOnlyAliasNames.contains(alias))
+                {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0023",
                         "Import alias conflicts with a previous import alias in the same file.",
@@ -242,6 +250,13 @@ struct TypeCheckScopeBuilder {
                     explicitImportScope.insertWithAlias(importedSymbol, asName: alias)
                 }
 
+                if !usedAliasNames.contains(alias) || functionOnlyAliasNames.contains(alias),
+                   isFunctionOnlyImport
+                {
+                    functionOnlyAliasNames.insert(alias)
+                } else {
+                    functionOnlyAliasNames.remove(alias)
+                }
                 usedAliasNames.insert(alias)
                 continue
             }

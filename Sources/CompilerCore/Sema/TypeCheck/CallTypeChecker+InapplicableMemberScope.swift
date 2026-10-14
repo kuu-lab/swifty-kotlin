@@ -34,9 +34,26 @@ extension CallTypeChecker {
                         || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false)
             }
         ).visible
-        guard !initialMembers.isEmpty else { return (original, [], []) }
         var members = initialMembers
         var receiver = activeReceiver
+        if members.isEmpty {
+            // An anonymous object's lexical scope can stop at an enclosing
+            // class member. Probe that member against its captured receiver
+            // before allowing it to hide the next lexical/import tier.
+            guard !original.isEmpty,
+                  original.allSatisfy({ isRegularNominalScopeMember($0, ctx: ctx) }),
+                  let outerReceiver = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                      original.allSatisfy { candidate in
+                          guard let declared = sema.symbols.functionSignature(for: candidate)?.receiverType
+                          else { return false }
+                          return sema.types.isSubtype(entry.type, declared)
+                      }
+                  })
+            else { return (original, [], []) }
+            members = ctx.filterByVisibility(original.filter { !ctx.isCandidateBlockedByDslMarker($0) }).visible
+            guard !members.isEmpty else { return (original, [], []) }
+            receiver = outerReceiver.type
+        }
         var excluded: Set<SymbolID> = []
         while true {
             switch closedMemberInputApplicability(
@@ -166,7 +183,7 @@ extension CallTypeChecker {
             guard depth < 64, activeTypes.insert(current).inserted else { return false }
             defer { activeTypes.remove(current) }
             switch sema.types.kind(of: current) {
-            case .unit, .nullableUnit, .nothing, .any, .stringStruct, .primitive:
+            case .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive:
                 return true
             case let .classType(classType):
                 guard sema.symbols.symbol(classType.classSymbol) != nil else { return false }

@@ -14,6 +14,14 @@ struct CoercionRuntimeTests {
 
     // MARK: - Precision Tests
 
+    @Test(arguments: [0, 2, -1, Int.min, Int.max])
+    func testBoxedLongToULongPreservesPayload(value: Int) {
+        let boxed = kk_box_long_nonnull_static(value)
+        defer { _ = runtimeReleaseObject(boxed) }
+        #expect(kk_long_to_ulong(boxed) == value)
+        #expect(kk_long_to_ulong(value) == value)
+    }
+
     @Test
     func testFloatToDoublePrecision() {
         let preciseDouble = 1.23456789012345

@@ -8,6 +8,28 @@ import Testing
 @Suite
 struct CodegenBackendNumberConversionDispatchTests {
 
+    @Test
+    func testBoxedLongToULongPreservesUnsignedEquality() throws {
+        let source = """
+        fun main() {
+            val zero: Any = 0L
+            val two: Any = 2L
+            val negative: Any = -1L
+            val minimum: Any = Long.MIN_VALUE
+            println((zero as Long).toULong() == 0uL)
+            println((two as Long).toULong() == 2uL)
+            println((negative as Long).toULong() == ULong.MAX_VALUE)
+            println((minimum as Long).toULong() == 9223372036854775808uL)
+            val nullable: Long? = 2L
+            println(nullable?.toULong() == 2uL)
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "BoxedLongToULongEquality",
+            expected: "true\ntrue\ntrue\ntrue\ntrue\n"
+        )
+    }
+
     // KSP-1540 / DEBT-DIFF-008: a primitive assigned to a `Number`-typed
     // variable dispatches `toDouble/toFloat/toLong/toInt/toShort/toByte`
     // through the abstract `kotlin.Number` declaration. Before the fix this

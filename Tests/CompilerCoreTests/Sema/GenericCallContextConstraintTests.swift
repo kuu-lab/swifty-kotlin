@@ -69,6 +69,98 @@ struct GenericCallContextConstraintTests {
         }
     }
 
+    @Test(arguments: ["consume(cont)", "consume.invoke(cont)"])
+    func functionValueArgumentConstrainsInheritedContinuationType(invocation: String) throws {
+        let source = """
+        interface Cont<in T>
+        interface CCont<in T> : Cont<T>
+        fun <T> scc(block: (CCont<T>) -> Unit): T = null as T
+        fun f(consume: (Cont<Unit>) -> Unit) {
+            val result = scc { cont -> \(invocation) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let call = try call(named: "scc", path: path, in: ctx)
+            #expect(sema.bindings.exprType(for: call) == sema.types.unitType)
+            #expect(sema.bindings.callBinding(for: call)?.substitutedTypeArguments == [sema.types.unitType])
+        }
+    }
+
+    @Test(arguments: ["consume(cont)", "consume.invoke(cont)"])
+    func functionValueReceiverConstrainsContinuationType(invocation: String) throws {
+        let source = """
+        interface Cont<in T>
+        fun <T> scc(block: (Cont<T>) -> Unit): T = null as T
+        fun f(consume: Cont<Unit>.() -> Unit) {
+            val result = scc { cont -> \(invocation) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let call = try call(named: "scc", path: path, in: ctx)
+            #expect(sema.bindings.exprType(for: call) == sema.types.unitType)
+        }
+    }
+
+    @Test(arguments: [
+        "val result: String = scc { consume(it) }",
+        "scc<String> { consume(it) }",
+    ])
+    func incompatibleFunctionValueContinuationTypesAreRejected(statement: String) throws {
+        let source = """
+        interface Cont<in T>
+        interface CCont<in T> : Cont<T>
+        fun <T> scc(block: (CCont<T>) -> Unit): T = null as T
+        fun f(consume: (Cont<Unit>) -> Unit) { \(statement) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" },
+                    "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func allFunctionValueArgumentsContributeConstraints() throws {
+        let source = """
+        interface Cont<in T>
+        fun <T> scc(block: (Cont<T>) -> Unit): T = null as T
+        fun f(consume: (Cont<Unit>, Cont<String>) -> Unit) {
+            val result = scc { consume(it, it) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let call = try call(named: "scc", path: path, in: ctx)
+            #expect(sema.bindings.exprType(for: call) == sema.types.anyType)
+        }
+    }
+
+    @Test
+    func unrelatedFunctionValueArgumentDoesNotInferContinuationType() throws {
+        let source = """
+        interface Cont<in T>
+        fun <T> scc(block: (Cont<T>) -> Unit): T = null as T
+        fun f(consume: (Int) -> Unit) { val result = scc { consume(1) } }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-INFER" })
+        }
+    }
+
     @Test
     func allLambdaBodyUsesContributeConstraints() throws {
         let source = """

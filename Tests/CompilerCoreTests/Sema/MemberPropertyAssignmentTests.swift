@@ -104,9 +104,9 @@ struct MemberPropertyAssignmentTests {
         assertResult(example, ctx: ctx)
     }
 
-    @Test(arguments: [false, true], [false, true])
-    func freshLibraryAssignments(indexed: Bool, includeNonPublic: Bool) throws {
-        try withFreshLibrary(Self.declarations, indexed: indexed, includeNonPublic: includeNonPublic) { library in
+    @Test(arguments: ["v1", "v2", "v3"], [false, true])
+    func freshLibraryAssignments(format: String, includeNonPublic: Bool) throws {
+        try withFreshLibrary(Self.declarations, format: format, includeNonPublic: includeNonPublic) { library in
             for example in Self.cases {
                 let consumer = context(example.source, libraries: [library])
                 try runSema(consumer)
@@ -120,7 +120,7 @@ struct MemberPropertyAssignmentTests {
     }
 
     private func withFreshLibrary(
-        _ source: String, indexed: Bool, includeNonPublic: Bool = false,
+        _ source: String, format: String, includeNonPublic: Bool = false,
         body: (String) throws -> Void
     ) throws {
         let producer = context(source)
@@ -135,17 +135,22 @@ struct MemberPropertyAssignmentTests {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        try "{\"formatVersion\":1,\"moduleName\":\"AssignmentProducer\",\"metadata\":\"metadata.bin\"}"
+        try "{\"formatVersion\":\(format == "v3" ? 2 : 1),\"moduleName\":\"AssignmentProducer\",\"metadata\":\"metadata.bin\"}"
             .write(to: directory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        try (indexed ? encoder.serializeIndexed(records) : encoder.serialize(records))
-            .write(to: directory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        let data: Data
+        switch format {
+        case "v1": data = Data(encoder.serialize(records).utf8)
+        case "v2": data = Data(encoder.serializeIndexed(records).utf8)
+        default: data = encoder.serializeCompactIndexed(records)
+        }
+        try data.write(to: directory.appendingPathComponent("metadata.bin"))
         try body(directory.path)
     }
 
-    @Test(arguments: [false, true])
-    func independentLibrariesKeepTheirOwnUpperBounds(indexed: Bool) throws {
-        try withFreshLibrary("interface First<T : Int> { var callback: (T) -> Int }", indexed: indexed) { first in
-            try withFreshLibrary("interface Second<T : String> { var callback: (T) -> Int }", indexed: indexed) { second in
+    @Test(arguments: ["v1", "v2", "v3"])
+    func independentLibrariesKeepTheirOwnUpperBounds(format: String) throws {
+        try withFreshLibrary("interface First<T : Int> { var callback: (T) -> Int }", format: format) { first in
+            try withFreshLibrary("interface Second<T : String> { var callback: (T) -> Int }", format: format) { second in
                 let valid = context("""
                 fun test(first: First<*>, second: Second<*>, fi: (Int) -> Int, fs: (String) -> Int) {
                     second.callback = fs

@@ -587,6 +587,15 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func annotationArgumentLookaheadIsBoundedAndRecovers() {
+        let arguments = Array(repeating: "1", count: 2_100).joined(separator: ",")
+        let parsed = parse("fun broken() =\n @Tag(\(arguments)) 7\nfun after() = 9")
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
     func longContextParameterPrefixLookaheadIsBoundedAndRecovers() {
         let parameters = (0..<2_100).map { "p\($0): Int" }.joined(separator: ",\n")
         let source = "val answer = 42\ncontext(\n\(parameters)\n)\nfun next() {}"

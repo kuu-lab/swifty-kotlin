@@ -114,7 +114,7 @@ struct IOAppleInteropExecutionTests {
             let objects = try #require(manifest["objects"] as? [String])
             try #require(!objects.isEmpty)
             for object in objects { try #require(!Data(contentsOf: artifact.appendingPathComponent(object)).isEmpty) }
-            let records = MetadataDecoder().decode(try String(contentsOf: artifact.appendingPathComponent("metadata.bin"), encoding: .utf8))
+            let records = MetadataDecoder().decode(try Data(contentsOf: artifact.appendingPathComponent("metadata.bin")))
             for fqName in [publicContract ? "kuu1763publicproducer.copiedData" : "kotlinx.io.NSInputStreamSourceTest.nsInputStreamSource"] {
                 try #require(records.contains { $0.kind == .function && $0.fqName == fqName && $0.visibility == .public })
             }
@@ -181,12 +181,14 @@ private struct IOAppleArtifactSnapshot {
     func expectUnchanged() { #expect((try? io1763ArtifactHashes(directory)) == hashes) }
 }
 
-private func io1763ArtifactHashes(_ directory: URL) throws -> [String: String] {
-    let canonical = directory.standardizedFileURL
+func io1763ArtifactHashes(_ directory: URL) throws -> [String: String] {
+    let canonical = directory.resolvingSymlinksInPath().standardizedFileURL
     let enumerator = try #require(FileManager.default.enumerator(at: canonical, includingPropertiesForKeys: [.isRegularFileKey]))
     var hashes: [String: String] = [:]
-    for case let file as URL in enumerator {
+    for case let entry as URL in enumerator {
+        let file = entry.resolvingSymlinksInPath().standardizedFileURL
         guard try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { continue }
+        try #require(file.path.hasPrefix(canonical.path + "/"))
         hashes[String(file.path.dropFirst(canonical.path.count + 1))] = FileFingerprint.sha256Hex(try Data(contentsOf: file))
     }
     return hashes

@@ -21,7 +21,7 @@ node kotlinFile f0:0..118
         tok symbol(:) f0:69..70
         tok identifier(Int) f0:71..74
         tok symbol()) f0:74..75
-      node objectDecl f0:80..90
+      node objectDecl f0:80..116
         tok keyword(object) f0:80..86
         tok identifier(Obj) f0:87..90
         node block f0:91..116

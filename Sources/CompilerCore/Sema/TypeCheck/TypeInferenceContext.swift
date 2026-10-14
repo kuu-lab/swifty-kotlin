@@ -61,6 +61,14 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// against the actual return target.
     var enclosingFunctionReturnType: TypeID?
     var enclosingFunctionSymbol: SymbolID?
+    /// Unit getters return a value through their reference ABI; ordinary
+    /// Unit functions discard their result.
+    var isPropertyGetterReturn: Bool {
+        guard let function = enclosingFunctionSymbol else { return false }
+        if SyntheticSymbolScheme.decodedPropertyAccessor(function)?.kind == .getter { return true }
+        guard let property = sema.symbols.parentSymbol(for: function) else { return false }
+        return sema.symbols.extensionPropertyGetterAccessor(for: property) == function
+    }
     var enclosingLambdaExprIDs: [ExprID] = []
     /// When set, the specified block expression exports its local bindings to
     /// the outer locals map. Used for do-while body-to-condition visibility.

@@ -1,8 +1,17 @@
 import Foundation
 
-/// Runtime box for `java.io.BufferedReader` returned by `File.bufferedReader()`.
-/// Wraps a streaming file reader, supporting `readLine()` and `readLines()`.
+/// Byte operations needed by the native character decoder.
+protocol RuntimeReaderInputStream: AnyObject {
+    func readByte() -> Int
+    func available() -> Int
+    func close()
+}
+
+/// Native character-reader box shared by InputStreamReader and BufferedReader.
+/// Supports file, byte-stream, and reader-delegation backends.
 final class RuntimeBufferedReaderBox {
+    private var inputStream: (any RuntimeReaderInputStream)?
+    private var upstreamReader: RuntimeBufferedReaderBox?
     private var fileHandle: FileHandle?
     private var pendingData: Data
     /// Offset (from `pendingData.startIndex`) of the first unconsumed byte.
@@ -47,9 +56,25 @@ final class RuntimeBufferedReaderBox {
         self.chunkSize = max(1, chunkSize)
     }
 
+    /// Preserve the stream cursor until the first read; reuse the existing
+    /// UTF-8 decoder and line-ending handling rather than draining at construction.
+    convenience init(inputStream: any RuntimeReaderInputStream) {
+        self.init(data: Data())
+        self.inputStream = inputStream
+        self.reachedEOF = false
+    }
+
+    /// Reader handles already provide buffering. Keep a distinct close state
+    /// while forwarding reads and closing the wrapped reader transitively.
+    convenience init(reader: RuntimeBufferedReaderBox) {
+        self.init(data: Data())
+        self.upstreamReader = reader
+    }
+
     /// Returns the next line, or `nil` when all lines have been consumed.
     func readLine() -> String? {
         guard !closed else { return nil }
+        if let upstreamReader { return upstreamReader.readLine() }
 
         while true {
             if let (lineLength, terminatorLength) = locateLineTerminator() {
@@ -92,6 +117,7 @@ final class RuntimeBufferedReaderBox {
     /// to release the underlying file handle).
     func readText() -> String {
         guard !closed else { return "" }
+        if let upstreamReader { return upstreamReader.readText() }
         var data = pendingData.suffix(from: pendingStartIndex)
         pendingData.removeAll(keepingCapacity: false)
         readOffset = 0
@@ -109,6 +135,7 @@ final class RuntimeBufferedReaderBox {
     /// Reads a single character, returning its Unicode scalar value, or -1 on EOF.
     func read() -> Int {
         guard !closed else { return -1 }
+        if let upstreamReader { return upstreamReader.read() }
 
         while true {
             if pendingByteCount > 0 {
@@ -156,11 +183,17 @@ final class RuntimeBufferedReaderBox {
     /// Returns true if data is available to be read without blocking (buffered bytes exist or not EOF).
     func ready() -> Bool {
         guard !closed else { return false }
+        if let upstreamReader { return upstreamReader.ready() }
+        if let inputStream { return pendingByteCount > 0 || inputStream.available() > 0 }
         return pendingByteCount > 0 || !reachedEOF
     }
 
     func close() {
         guard !closed else { return }
+        inputStream?.close()
+        inputStream = nil
+        upstreamReader?.close()
+        upstreamReader = nil
         try? fileHandle?.close()
         fileHandle = nil
         pendingData.removeAll(keepingCapacity: false)
@@ -173,6 +206,18 @@ final class RuntimeBufferedReaderBox {
     }
 
     private func readNextChunk() -> Bool {
+        if let inputStream {
+            var chunk = Data()
+            for _ in 0 ..< chunkSize {
+                let byte = inputStream.readByte()
+                if byte < 0 { break }
+                chunk.append(UInt8(truncatingIfNeeded: byte))
+            }
+            guard !chunk.isEmpty else { return false }
+            dropConsumedPrefix()
+            pendingData.append(chunk)
+            return true
+        }
         guard let fileHandle else { return false }
         guard let chunk = try? fileHandle.read(upToCount: chunkSize), !chunk.isEmpty else {
             return false
@@ -216,10 +261,9 @@ final class RuntimeBufferedReaderBox {
     }
 }
 
-class RuntimeInputStreamBox: RuntimeChildReferenceProviding {
+class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputStream {
     /// Native stream implementations report I/O failures through the existing ABI.
     var readError: String? { nil }
-
     private let data: Data
     private let arrayRaw: Int?
     private let begin: Int
@@ -308,7 +352,7 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding {
 }
 
 /// Runtime box for `java.io.SequenceInputStream` — chains two InputStreams.
-final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding {
+final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputStream {
     private var current: Int?
     private var remaining: Int?
 
@@ -357,9 +401,13 @@ final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding {
         return -1
     }
 
+    func readByte() -> Int { readByte(nil) }
+
     func available(_ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
         current.map { __kk_input_stream_available_throwing($0, outThrown) } ?? 0
     }
+
+    func available() -> Int { available(nil) }
 
     func readAllBytes(_ outThrown: UnsafeMutablePointer<Int>? = nil) -> [Int] {
         var result: [Int] = []
@@ -370,6 +418,8 @@ final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding {
             result.append(Int(Int8(truncatingIfNeeded: byte)))
         }
     }
+
+    func close() { close(nil) }
 
     func close(_ outThrown: UnsafeMutablePointer<Int>? = nil) {
         let streams = childRefs

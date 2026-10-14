@@ -169,6 +169,7 @@ func kirVtableImplementations(
         guard let owner = sema.symbols.parentSymbol(for: methodSymbol),
               let ownerInfo = sema.symbols.symbol(owner),
               ownerInfo.flags.contains(.abstractType)
+                  || ownerInfo.flags.contains(.openType)
                   || !sema.symbols.directSubtypes(of: owner).isEmpty,
               let symbol = sema.symbols.symbol(methodSymbol),
               symbol.kind == .function || symbol.kind == .property
@@ -415,7 +416,7 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
 /// result, while Kotlin class methods use the flat String aggregate ABI.
 func anyToStringBridgeSymbolForImplementation(
     _ implementation: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     arena: KIRArena,
     sema: SemaModule,
     interner: StringInterner
@@ -432,18 +433,30 @@ func anyToStringBridgeSymbolForImplementation(
     let implementationReturnType = implementationFn?.returnType ?? implementationSig.returnType
     let receiverType = implementationFn?.params.first?.type ?? signatureReceiverType
 
-    if let cached = driver.ctx.anyToStringBridgeSymbolsByImplementation[implementation] {
+    if let cached = driver?.ctx.anyToStringBridgeSymbolsByImplementation[implementation] {
         return cached
     }
 
-    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-    driver.ctx.anyToStringBridgeSymbolsByImplementation[implementation] = bridgeSymbol
+    let bridgeFQName = [interner.intern("$anyToStringBridge"), interner.intern(String(implementation.rawValue))]
+    if driver == nil, let cached = sema.symbols.lookup(fqName: bridgeFQName),
+       arena.function(for: cached) != nil {
+        return cached
+    }
+    let bridgeSymbol = driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+        kind: .function, name: bridgeFQName[1], fqName: bridgeFQName,
+        declSite: nil, visibility: .private, flags: [.synthetic]
+    )
+    driver?.ctx.anyToStringBridgeSymbolsByImplementation[implementation] = bridgeSymbol
     let bridgeName = interner.intern(
         "kk_any_to_string_bridge_\(implementation.rawValue)_\(bridgeSymbol.rawValue)"
     )
 
     let receiverParam = KIRParameter(
-        symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+        symbol: driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+            kind: .valueParameter, name: interner.intern("receiver"),
+            fqName: bridgeFQName + [interner.intern("receiver")],
+            declSite: nil, visibility: .private, flags: [.synthetic]
+        ),
         type: receiverType
     )
     let receiverExpr = arena.appendExpr(
@@ -466,7 +479,17 @@ func anyToStringBridgeSymbolForImplementation(
     // `toString()` implementations that inspect their receiver recurse back
     // through the same Any override.
     let receiverForCall: KIRExprID
-    if rawReceiverKind != resolvedReceiverKind,
+    if case let .classType(receiverClass) = rawReceiverKind,
+       sema.symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass {
+        // Enum overrides consume ordinals; erased dispatch supplies a tagged box.
+        let ordinal = arena.appendTemporary(type: receiverType)
+        body.append(.call(
+            symbol: nil,
+            callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+            arguments: [receiverExpr], result: ordinal, canThrow: false, thrownResult: nil
+        ))
+        receiverForCall = ordinal
+    } else if rawReceiverKind != resolvedReceiverKind,
        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
            for: resolvedReceiverKind,
            requireNonNull: true
@@ -501,8 +524,8 @@ func anyToStringBridgeSymbolForImplementation(
     ))
 
     if let thrownResult {
-        let continueLabel = driver.ctx.makeLoopLabel()
-        let rethrowLabel = driver.ctx.makeLoopLabel()
+        let continueLabel = driver?.ctx.makeLoopLabel() ?? 0
+        let rethrowLabel = driver?.ctx.makeLoopLabel() ?? 1
         body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
         body.append(.jump(continueLabel))
         body.append(.label(rethrowLabel))
@@ -522,7 +545,13 @@ func anyToStringBridgeSymbolForImplementation(
         isSuspend: false,
         isInline: false
     )))
-    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    driver?.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    if driver == nil {
+        sema.symbols.setFunctionSignature(FunctionSignature(
+            receiverType: receiverType, parameterTypes: [], returnType: sema.types.intType,
+            isSuspend: false, canThrow: implementationSig.canThrow
+        ), for: bridgeSymbol)
+    }
     return bridgeSymbol
 }
 
@@ -641,6 +670,7 @@ func kirVtablePropertyAccessorImplementations(
               let owner = sema.symbols.parentSymbol(for: decoded.property),
               let ownerInfo = sema.symbols.symbol(owner),
               ownerInfo.flags.contains(.abstractType)
+                  || ownerInfo.flags.contains(.openType)
                   || !sema.symbols.directSubtypes(of: owner).isEmpty
         else {
             return nil
@@ -830,8 +860,9 @@ public extension SymbolTable {
 /// Returns a bridge symbol for `implementation` when its ABI (String aggregate
 /// vs raw pointer) does not match the erased dispatch signature used by the
 /// vtable or itable. The bridge has the dispatch ABI, forwards to the
-/// implementation, and relies on the backend's String bridging in `.call` and
-/// `returnValue` to convert across the boundary.
+/// implementation, checks narrowed erased reference arguments, and relies on
+/// the backend's String bridging in `.call` and `returnValue` to convert across
+/// the boundary.
 func itableBridgeSymbolForMethod(
     interfaceMethod: SymbolID,
     implementation: SymbolID,
@@ -894,7 +925,17 @@ func itableBridgeSymbolForMethod(
         return implementation
     }
 
-    var needsBridge = false
+    let receiverCount = interfaceReceiver == nil ? 0 : 1
+    let argumentCastTargets = implementationParamTypes.enumerated().map { index, implType -> TypeID? in
+        guard index >= receiverCount else { return nil }
+        return kirErasedDispatchArgumentCastTarget(
+            implementationType: implType,
+            dispatchType: interfaceParamTypes[index],
+            sema: sema
+        )
+    }
+
+    var needsBridge = argumentCastTargets.contains { $0 != nil }
     if isStringAggregate(implementationReturnType) != isStringAggregate(interfaceSig.returnType) {
         needsBridge = true
     }
@@ -999,6 +1040,38 @@ func itableBridgeSymbolForMethod(
     }
     let unboxingTable = BoxingCalleeTable(interner: interner)
     var forwardedArgExprs = bridgeParamExprs
+    var nextLocalLabel: Int32 = 0
+    func makeBridgeLabel() -> Int32 {
+        if let driver { return driver.ctx.makeLoopLabel() }
+        defer { nextLocalLabel += 1 }
+        return nextLocalLabel
+    }
+    for (index, target) in argumentCastTargets.enumerated() {
+        guard let target else { continue }
+        let token = RuntimeTypeCheckToken.encode(type: target, sema: sema, interner: interner)
+        let tokenExpr = arena.appendExpr(.intLiteral(token), type: sema.types.intType)
+        body.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+        // Keep the erased representation until the implementation call performs
+        // its ABI conversion (notably raw String handles to flat aggregates).
+        let checked = arena.appendTemporary(type: interfaceParamTypes[index])
+        let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_op_cast"),
+            arguments: [bridgeParamExprs[index], tokenExpr],
+            result: checked,
+            canThrow: true,
+            thrownResult: thrown
+        ))
+        let continueLabel = makeBridgeLabel()
+        let rethrowLabel = makeBridgeLabel()
+        body.append(.jumpIfNotNull(value: thrown, target: rethrowLabel))
+        body.append(.jump(continueLabel))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrown))
+        body.append(.label(continueLabel))
+        forwardedArgExprs[index] = checked
+    }
     if needsEnumReceiverUnboxing, let implReceiver = implementationParamTypes.first {
         let ordinal = arena.appendTemporary(type: implReceiver)
         body.append(.call(
@@ -1046,8 +1119,8 @@ func itableBridgeSymbolForMethod(
     ))
 
     if let thrownResult {
-        let continueLabel = driver?.ctx.makeLoopLabel() ?? 0
-        let rethrowLabel = driver?.ctx.makeLoopLabel() ?? 1
+        let continueLabel = makeBridgeLabel()
+        let rethrowLabel = makeBridgeLabel()
         body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
         body.append(.jump(continueLabel))
         body.append(.label(rethrowLabel))

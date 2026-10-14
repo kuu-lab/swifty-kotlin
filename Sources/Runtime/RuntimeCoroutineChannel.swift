@@ -57,6 +57,9 @@ final class SuspendedSender: @unchecked Sendable {
     /// Set to `true` (under the channel lock) when the sender is woken due to
     /// coroutine cancellation. Distinct from close-induced wakeup.
     var cancelledWakeup: Bool = false
+    /// Set when the sender suspended through its coroutine continuation
+    /// instead of blocking the calling thread (UNDISPATCHED parents).
+    var waiter: RuntimeCancellableContinuation?
 
     init(semaphore: DispatchSemaphore, continuation: Int, value: Int) {
         self.semaphore = semaphore
@@ -245,6 +248,18 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// Returns `.success` when the value is delivered, or `.closed` / `.cancelled`
     /// when the channel is closed or the calling coroutine is cancelled.
     func send(_ value: Int, continuation: Int = 0) -> ChannelOperationStatus {
+        send(value, continuation: continuation, suspendedResult: nil)
+    }
+
+    /// When `suspendedResult` is non-nil and `continuation` is non-zero, a send
+    /// that has to wait parks the continuation instead of blocking the thread:
+    /// `suspendedResult` receives `COROUTINE_SUSPENDED` and `.success` is
+    /// returned; the eventual outcome is delivered by resuming the continuation.
+    func send(
+        _ value: Int,
+        continuation: Int,
+        suspendedResult: UnsafeMutablePointer<Int>?
+    ) -> ChannelOperationStatus {
         lock.lock()
 
         // 0. Check cancellation before any blocking (Kotlin suspend semantics).
@@ -310,6 +325,18 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // semaphore compatibility during migration.
         let senderSem = DispatchSemaphore(value: 0)
         let entry = SuspendedSender(semaphore: senderSem, continuation: continuation, value: value)
+
+        if let suspendedResult, continuation != 0, runtimeContinuationState(from: continuation) != nil {
+            // Park the caller's continuation; receive/close/cancel resume it.
+            // Parent cancellation reaches the waiter through initParent().
+            let waiter = RuntimeCancellableContinuation(delegate: continuation)
+            suspendedResult.pointee = waiter.getResult(nil)
+            entry.waiter = waiter
+            senderQueue.enqueue(entry)
+            waiter.initParent()
+            lock.unlock()
+            return .success
+        }
 
         senderQueue.enqueue(entry)
         lock.unlock()
@@ -429,7 +456,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         if let value = buffer.dequeue() {
             // If a sender is suspended (backpressure), wake the oldest one and
             // move its value into the buffer to maintain ordering.
-            if let sender = senderQueue.dequeue() {
+            if let sender = dequeueLiveSender() {
                 buffer.enqueue(sender.value)
                 sender.delivered = true
                 lock.unlock()
@@ -445,7 +472,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // 2. Buffer is empty -- try to pair directly with a waiting sender
         //    (rendezvous fast-path, also applies to buffered when a sender
         //    arrived while the buffer was full and then got drained completely).
-        if let sender = senderQueue.dequeue() {
+        if let sender = dequeueLiveSender() {
             let value = sender.value
             sender.delivered = true
             lock.unlock()
@@ -526,7 +553,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // 1. Try to take from the buffer, waking the oldest suspended sender
         //    so its value keeps FIFO ordering behind the drained element.
         if let value = buffer.dequeue() {
-            if let sender = senderQueue.dequeue() {
+            if let sender = dequeueLiveSender() {
                 buffer.enqueue(sender.value)
                 sender.delivered = true
                 lock.unlock()
@@ -539,7 +566,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
 
         // 2. Buffer is empty -- pair directly with a waiting sender.
-        if let sender = senderQueue.dequeue() {
+        if let sender = dequeueLiveSender() {
             let value = sender.value
             sender.delivered = true
             lock.unlock()
@@ -820,9 +847,30 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     }
 
 
+    /// Pops the oldest sender, skipping entries whose suspended continuation
+    /// was already cancelled (their value must not be delivered). Caller holds `lock`.
+    private func dequeueLiveSender() -> SuspendedSender? {
+        while let sender = senderQueue.dequeue() {
+            if sender.waiter?.stateValue == 2 { continue }
+            return sender
+        }
+        return nil
+    }
+
     /// CORO-004: Resume a suspended sender using continuation model if available,
     /// falling back to semaphore for backward compatibility.
     func resumeSender(_ sender: SuspendedSender) {
+        if let waiter = sender.waiter {
+            if sender.delivered {
+                waiter.resume(value: kChannelResultSuccess) {}
+            } else {
+                let status: ChannelOperationStatus = sender.cancelledWakeup ? .cancelled : .closed
+                waiter.resume(failure: channelStatusThrowable(
+                    status, isReceive: false, channel: self, continuation: sender.continuation
+                ))
+            }
+            return
+        }
         if let resumeClosure = sender.resumeClosure {
             // Continuation-based implementation
             DispatchQueue.global().async {
@@ -1064,7 +1112,9 @@ public func kk_channel_send(
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_send received invalid channel handle")
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
-    let status = channel.send(resolvedValue, continuation: continuation)
+    var suspendedResult = 0
+    let status = channel.send(resolvedValue, continuation: continuation, suspendedResult: &suspendedResult)
+    if suspendedResult != 0 { return suspendedResult }
     let thrown = channelStatusThrowable(status, isReceive: false, channel: channel, continuation: continuation)
     if thrown != 0 {
         outThrown?.pointee = thrown

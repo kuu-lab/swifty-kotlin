@@ -22,7 +22,12 @@ internal external fun __kkMutexHoldsLock(mutex: Mutex, owner: Any): Boolean
 @KsSymbolName("__kk_mutex_tryLock")
 internal external fun __kkMutexTryLock(mutex: Mutex): Boolean
 
-public fun Mutex(): Mutex = __kkMutexCreate()
+public fun Mutex(locked: Boolean = false): Mutex {
+    val mutex = __kkMutexCreate()
+    // The fresh handle is not observable until its anonymous initial lock is set.
+    if (locked) __kkMutexTryLock(mutex)
+    return mutex
+}
 
 public val Mutex.isLocked: Boolean
     get() = __kkMutexIsLocked(this)

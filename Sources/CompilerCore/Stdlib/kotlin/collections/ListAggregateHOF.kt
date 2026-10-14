@@ -46,17 +46,6 @@ public inline fun <T, R> List<T>.foldRightIndexed(initial: R, operation: (Int, T
     return accumulator
 }
 
-public inline fun <T> List<T>.reduce(operation: (T, T) -> T): T {
-    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = this[0]
-    var i = 1
-    while (i < size) {
-        accumulator = operation(accumulator, this[i])
-        i += 1
-    }
-    return accumulator
-}
-
 public inline fun <T> List<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
     if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = this[0]

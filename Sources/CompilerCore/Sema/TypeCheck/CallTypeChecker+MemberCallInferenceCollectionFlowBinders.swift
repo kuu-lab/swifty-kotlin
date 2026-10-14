@@ -51,7 +51,7 @@ private func collectionFlowTypeMatches(
          let (.any(lNullability), .any(rNullability)),
          let (.stringStruct(lNullability), .stringStruct(rNullability)):
         return lNullability == rNullability
-    case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
+    case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit), (.platformUnit, .platformUnit):
         return true
     default:
         return false
