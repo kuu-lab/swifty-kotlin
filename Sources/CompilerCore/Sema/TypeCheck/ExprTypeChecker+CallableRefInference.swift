@@ -210,6 +210,7 @@ extension ExprTypeChecker {
         let hasLocalDeclaration = locals[member] != nil
         var implicitBoundReceiver: (type: TypeID, symbol: SymbolID)?
         var implicitPropertyCandidate: SymbolID?
+        var implicitPropertyType: TypeID?
         let implicitMemberCandidates: [SymbolID] = {
             guard receiver == nil, !hasLocalDeclaration
             else { return [] }
@@ -274,13 +275,16 @@ extension ExprTypeChecker {
                     implicitBoundReceiver = implicitReceiver
                     return visibleMembers
                 }
-                let memberProperties: [SymbolID] = if let (_, owner) = resolveClassTypeSymbol(nonNullImplicitReceiver, sema: sema) {
-                    sema.symbols.lookupAll(fqName: owner.fqName + [member]).filter { symbolID in
-                        let kind = ctx.cachedSymbol(symbolID)?.kind
-                        return (kind == .property || kind == .field)
-                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
-                    }
-                } else { [] }
+                let memberProperty = driver.helpers.lookupMemberProperty(
+                    named: member,
+                    receiverType: nonNullImplicitReceiver,
+                    sema: sema
+                ).flatMap { property in
+                    sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil
+                        ? property
+                        : nil
+                }
+                let memberProperties = memberProperty.map { [$0.symbol] } ?? []
                 let extensionProperties = ctx.cachedScopeLookup(member).filter { symbolID in
                     let ownerKind = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0)?.kind }
                     guard ctx.cachedSymbol(symbolID)?.kind == .property,
@@ -296,6 +300,7 @@ extension ExprTypeChecker {
                 if let property = ctx.filterByVisibility(memberProperties).0.first {
                     implicitBoundReceiver = implicitReceiver
                     implicitPropertyCandidate = property
+                    implicitPropertyType = memberProperty?.type
                     return []
                 }
                 let visibleExtensions = ctx.filterByVisibility(implicitExtensionCandidates).0
@@ -321,7 +326,8 @@ extension ExprTypeChecker {
                 isUnbound: false,
                 expectedType: expectedType,
                 sema: sema,
-                interner: interner
+                interner: interner,
+                resolvedPropertyType: implicitPropertyType
             )
         }
         // REFL-CTOR: set when `candidates` were filled with constructor
@@ -1026,10 +1032,16 @@ extension ExprTypeChecker {
         isUnbound: Bool,
         expectedType: TypeID?,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        resolvedPropertyType: TypeID? = nil
     ) -> TypeID {
-        var propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-        if let ownerType, let owner = sema.symbols.parentSymbol(for: propertySymbol) {
+        var propertyType = resolvedPropertyType
+            ?? sema.symbols.propertyType(for: propertySymbol)
+            ?? sema.types.errorType
+        if resolvedPropertyType == nil,
+           let ownerType,
+           let owner = sema.symbols.parentSymbol(for: propertySymbol)
+        {
             propertyType = driver.helpers.resolveMemberPropertyType(
                 propertyType,
                 receiverType: ownerType,
