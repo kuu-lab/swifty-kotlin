@@ -88,7 +88,11 @@ extension ExprTypeChecker {
                     return false
                 }
                 switch symbol.kind {
-                case .object, .class, .interface, .enumClass, .annotationClass, .typeAlias:
+                case .object:
+                    // Singleton values must be introduced by lexical/package
+                    // scope or imports, not the global classifier short-name index.
+                    return false
+                case .class, .interface, .enumClass, .annotationClass, .typeAlias:
                     return true
                 default:
                     return false

@@ -859,6 +859,17 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-2068 adds one private bridge, `__kk_objects_equals` (reason: metadata /
+   memory representation).
+   The runtime owns erased nominal objects' registered `equals` method pointers;
+   this bridge forwards their existing exception channel instead of dropping it
+   through the non-throwing Any equality intrinsic. Null/identity rules, array
+   dispatch, object-array traversal, and canonical floating-array bit
+   comparison remain in `java/util/Objects.kt`; the bridge reads erased Float/
+   Double box payloads for ordinary boxed equality. `RuntimeABISpec` declares the
+   two boxed operands and `outThrown`; its computed `specVersion` changes with
+   the new entry. The `__kk_*` export count increases by one; no public `kk_*`
+   export is added. Source/fresh-artifact O0/O2 regression tests own the contract.
    KUU-1761 adds one private host-information bridge,
    `__kk_io_fs_temporary_directory` (reason: syscall). Kotlin cannot query the
    host environment or `NSTemporaryDirectory`; path construction and separator
