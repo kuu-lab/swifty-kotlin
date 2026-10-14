@@ -24,6 +24,12 @@ struct TypeInferenceContext: CustomStringConvertible {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     var scope: Scope
+    /// A failed call may retry once using its arguments' natural types while
+    /// keeping the outer result constraint in overload resolution.
+    var allowsLiftedCallExpectedTypeHints = true
+    /// Collection fast paths must check inputs when their result type comes
+    /// from a speculative superclass hint rather than the inputs themselves.
+    var validatesLiftedHintCollectionArguments = false
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]

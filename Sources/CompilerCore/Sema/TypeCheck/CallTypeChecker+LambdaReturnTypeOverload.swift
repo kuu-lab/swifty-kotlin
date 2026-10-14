@@ -22,6 +22,7 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         preInferredNonLambdaArgTypes: [Int: TypeID] = [:],
         expectedTypeOverrides: [Int: TypeID] = [:],
+        expectedTypeHintIndices: Set<Int> = [],
         contextualCallResultType: TypeID? = nil,
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
@@ -69,6 +70,7 @@ extension CallTypeChecker {
         var blockedLambdaRefinement = false
         var hasUnresolvableImplicitLambdaParameter = false
         var contextualArgExpectedTypes = [TypeID?](repeating: nil, count: args.count)
+        var discardedExpectedTypeHintIndices: Set<Int> = []
 
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {
@@ -132,15 +134,33 @@ extension CallTypeChecker {
                    isInferableNestedCallExpr(argument.expr, ast: ast)
                 {
                     let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    var contextualLocals = locals
+                    var contextualContext = ctx
+                    if expectedTypeHintIndices.contains(index) {
+                        contextualContext.validatesLiftedHintCollectionArguments = true
+                    }
                     let contextualType = driver.inferExpr(
                         argument.expr,
-                        ctx: ctx,
-                        locals: &locals,
+                        ctx: contextualContext,
+                        locals: &contextualLocals,
                         expectedType: expectedType
                     )
                     let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
                         $0.severity == .error
                     }
+                    // A lifted covariant result supplies a hint, not an exact
+                    // argument requirement. A fixed Box<Int> factory can fail
+                    // against Box<Any> while still satisfying the outer Base<Any>.
+                    if expectedTypeHintIndices.contains(index),
+                       contextualType == sema.types.errorType || emittedError {
+                        sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+                        discardedExpectedTypeHintIndices.insert(index)
+                        inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                            argument.expr, ctx: ctx, locals: &locals
+                        )
+                        continue
+                    }
+                    locals = contextualLocals
                     if contextualType != sema.types.errorType,
                        !emittedError,
                        let argumentRange = ast.arena.exprRange(argument.expr)
@@ -210,7 +230,8 @@ extension CallTypeChecker {
         var argTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         for (index, argument) in args.enumerated() {
             defer { ctx.dataFlow.localStability.inPlaceLambdaScopes.remove(argument.expr) }
-            if let override = expectedTypeOverrides[index] {
+            if let override = expectedTypeOverrides[index],
+               !discardedExpectedTypeHintIndices.contains(index) {
                 contextualArgExpectedTypes[index] = override
             } else if let argumentExpr = ast.arena.expr(argument.expr) {
                 let narrowedCandidates = narrowedCallCandidates(
@@ -373,12 +394,28 @@ extension CallTypeChecker {
                         driver.helpers.lexicalTypeParameterSymbols(in: ctx)
                     )
                 }
-                let inferredType = driver.inferExpr(
+                if expectedTypeHintIndices.contains(index) {
+                    inferenceContext.validatesLiftedHintCollectionArguments = true
+                }
+                let checkpoint = sema.diagnostics.checkpoint()
+                var contextualLocals = locals
+                var inferredType = driver.inferExpr(
                     argument.expr,
                     ctx: inferenceContext,
-                    locals: &locals,
+                    locals: &contextualLocals,
                     expectedType: contextualExpectedType
                 )
+                let emittedError = sema.diagnostics.diagnostics.dropFirst(checkpoint).contains {
+                    $0.severity == .error
+                }
+                if expectedTypeHintIndices.contains(index),
+                   inferredType == sema.types.errorType || emittedError {
+                    sema.diagnostics.rollback(to: checkpoint)
+                    inferredType = driver.inferExpr(argument.expr, ctx: inferenceContext, locals: &locals)
+                    inputOnlyLambdaIndices.remove(index)
+                } else {
+                    locals = contextualLocals
+                }
                 if inputOnlyLambdaIndices.contains(index) {
                     argTypes[index] = rebuildLambdaLiteralType(
                         exprID: argument.expr,
