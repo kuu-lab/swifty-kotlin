@@ -32,7 +32,8 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_await_cancellation"),
-            // Mutex bridges already carry a placeholder continuation from KIR.
+            // Mutex/Channel bridges already carry a placeholder continuation from KIR.
+            ctx.interner.intern("kk_channel_send"),
             ctx.interner.intern("kk_mutex_lock"),
             ctx.interner.intern("__kk_mutex_lock_owner"),
             ctx.interner.intern("flow"),
@@ -144,7 +145,8 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_job_await_completion"),
             // awaitCancellation() parks a cancellable continuation.
             ctx.interner.intern("kk_await_cancellation"),
-            // Mutex lock must suspend instead of blocking UNDISPATCHED callers.
+            // Channel send / Mutex lock must suspend instead of blocking UNDISPATCHED callers.
+            ctx.interner.intern("kk_channel_send"),
             ctx.interner.intern("kk_mutex_lock"),
             ctx.interner.intern("__kk_mutex_lock_owner"),
             // KUU-642: DeepRecursive callRecursive parks the caller continuation
