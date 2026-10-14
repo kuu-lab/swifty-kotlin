@@ -1341,6 +1341,9 @@ Missing fields decode as legacy records. A consumer registers a symbol reference
 with the normal zero-argument function-value ABI (`outThrown`); it does not rebuild
 private producer constructors. Typed class/callable reads invoke factories outside
 registry locks and root intermediate results until the returned list owns them.
+The `KAnnotatedElement.annotations` interface fast path uses those same throwing
+typed bridges for native KClass and callable handles. Source implementations
+continue to dispatch through their interface getter.
 Matching factory/legacy records share one occurrence; differing repeatable values
 remain separate. Old read entry points retain their serialized record boxes.
 `findAnnotation<T>()` returns `T?`, checks the Annotation bound, and can infer T
