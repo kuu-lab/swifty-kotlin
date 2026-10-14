@@ -139,8 +139,9 @@ revision は `3c22b11e547b755dda56dd05e921e17bd8056084`、CompilerCore source tr
 fresh 1849-file artifact SHA256 は `cfdfd80867af93a15754f15ff30f2d563bbd605857b763169f7804d7096860b7`、
 manifest SHA256 は `4968c760ccd9d5699772443be1a8b1a4cda0d995b9b69d856d992167c8efda3d`。
 実行環境は macOS 27 / Apple Swift 6.4 arm64。
-このrevisionには #9027 / #9041 の変更を積んでいる。#9038 は merge queue 待ちのため含めず、
+このrevisionには #9027 / #9041 の変更を積んでいる。当時 #9038 は merge queue 待ちのため含めず、
 同PRが扱う unchecked cast warning は、このローカル実行では redundant cast の除去で回避している。
+#9038 はその後 2026-10-15 JST に merge された。
 
 2026-10-15 JST に同 revision `34858c2b01701c2f3caf8d12056779131de0c802` の hosted job を実行した。
 [workflow run 38624667409](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409) の
@@ -160,6 +161,24 @@ SHA-256 `0258ecc706cffebc9bc98cf63ff10e8c52926f0c3fe073fe1a4e47537487d6f1` を�
 この hosted run では別 job `Build debug Swift test bundle once` の一般 candidate-only diff 検証が10件失敗し、
 通常の kotlinc diff shard job も失敗したため、nightly workflow 全体を green とは扱わない。
 専用 JS annotation job の成功はそれらの結果と分けて記録する。
+
+### 移設後の hosted 再実行
+
+`Scripts/diff_cases/js_annotations.kt` を audit snapshot へ移して削除した revision
+`a9b9bbda0b8dc7d2f2e8f2a7d7382b84f58cfe2b` でも、2026-10-15 JST に同じ専用 job を再実行した。
+[workflow run 38635184807](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38635184807) の
+[専用 job](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38635184807/job/116101899388)
+は成功し、summary は `status=pass`, `case-runs=108`, `failed=0`, `inconsistent=0`, `excluded=3`。
+pass 108、fail / timeout / not-run はすべて0、`SKIP removal ready: true`。
+runner 回帰3本もすべて exit 0。matrix run ID は `20261014T210139.885569Z-502d3953`、
+evidence directory は `20261014T210131.230155Z-65dcbfc4`。
+JVM reference を起動しないよう `KOTLINC` / `JAVA_BIN` は未存在の指定先に固定した。
+
+移設後 evidence artifact は
+[js-annotations-evidence-38635184807 (ID 11929923733)](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38635184807/artifacts/11929923733)。
+upload SHA-256 は `e756996e35109235e304ade0d3cba02b994f1c92e719957524dffa7a9baae7c0`、
+size は 788982207 bytes。この run も一般 candidate-only diff verification と kotlinc diff shard が失敗し、
+nightly workflow 全体は failure。専用 JS annotation job の pass および PR の必須 checks pass とは区別する。
 
 集約器は compile/runtime timeout を `timeout`、artifact build 失敗によって開始できなかった
 fixture を `not-run`、実行した契約不一致を `fail` とする。artifact build 自身の timeout は
@@ -185,6 +204,8 @@ run URL、summary、evidence artifact は上記 hosted job の記録を参照す
    無効 FQN/import/property/reference の各診断を対応表で確認する。JS emission の達成を主張しない。
 6. KUU-1480 の独立 PR で diff case を専用 fixture lane に移設し、旧 diff file を削除する。
    これにより当該 SKIP-DIFF も削除される。タグだけを外して JVM diff に戻さない。
-7. fixture、期待値、必須 sentinel、CI 選択が残っていることを再確認し、移設後も専用 job を実行する。
+7. fixture、期待値、必須 sentinel、CI 選択が残っていることを再確認し、移設後にも専用 job を実行する。
+   実行結果は上記 `移設後の hosted 再実行` に保存した。
 
-KUU-1617 は接続・証拠集約のみを変更し、原 diff case と SKIP-DIFF は保持する。
+KUU-1617 の時点では接続・証拠集約のみを変更し、原 diff case と SKIP-DIFF を保持していた。
+KUU-1480 で上記の native-only lane へ移設した。
