@@ -768,6 +768,26 @@ struct TypeCheckHelpers {
         return nil
     }
 
+    /// True when a user declaration (e.g. `class Int`, local or top-level) in lexical
+    /// scope shadows the builtin type of the same name.
+    func hasUserDeclaredClassifier(
+        _ name: InternedString,
+        scope: Scope,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let kotlinRoot = interner.intern("kotlin")
+        return scope.lookupClassifier(name, matching: { id in
+            guard let sym = sema.symbols.symbol(id) else { return false }
+            switch sym.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                return sym.fqName.first != kotlinRoot
+            default:
+                return false
+            }
+        }).isEmpty == false
+    }
+
     func resolveTypeRef(
         _ typeRefID: TypeRefID,
         ast: ASTModule,
@@ -787,7 +807,9 @@ struct TypeCheckHelpers {
                 return sema.types.errorType
             }
             let nullability: Nullability = nullable ? .nullable : .nonNull
-            if let builtin = resolveBuiltinTypeName(shortName, nullability: nullability, types: sema.types, interner: interner) {
+            if let builtin = resolveBuiltinTypeName(shortName, nullability: nullability, types: sema.types, interner: interner),
+               !(path.count == 1 && scope.map { hasUserDeclaredClassifier(shortName, scope: $0, sema: sema, interner: interner) } == true)
+            {
                 return builtin
             }
             if path.count == 1,
