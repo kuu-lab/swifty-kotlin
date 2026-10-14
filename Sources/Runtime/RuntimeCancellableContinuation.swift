@@ -88,6 +88,11 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         ), outThrown: nil)
     }
 
+    /// Fails the suspended caller with `cause` (no-op if already cancelled).
+    func resume(failure cause: Int) {
+        resume(runtimeResultFailure(cause), callback: RuntimeCancellationCallback(fnPtr: 0, closureRaw: 0), outThrown: nil)
+    }
+
     fileprivate func resume(_ proposed: Int, callback: RuntimeCancellationCallback, outThrown: UnsafeMutablePointer<Int>?) {
         lock.lock()
         if state == .cancelled && !resumedAfterCancellation {
