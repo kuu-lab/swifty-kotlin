@@ -20,31 +20,6 @@ extension ExprLowerer {
             ? sema.types.nullableAnyType : sema.types.anyType
     }
 
-    /// A generic Array cast only changes the erased element type. When both
-    /// sides are statically the same non-null Array class, checking the
-    /// parameterized type at runtime is both unnecessary and impossible: the
-    /// runtime array handle does not carry its erased element type.
-    func isRedundantGenericArrayCast(
-        from sourceType: TypeID?,
-        to targetType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let sourceType,
-              sema.types.nullability(of: sourceType) == .nonNull,
-              let (sourceClass, sourceSymbol) = resolveClassTypeSymbol(sourceType, sema: sema),
-              let (targetClass, targetSymbol) = resolveClassTypeSymbol(targetType, sema: sema)
-        else {
-            return false
-        }
-        let knownNames = KnownCompilerNames(interner: interner)
-        return sourceSymbol.name == knownNames.array
-            && targetSymbol.name == knownNames.array
-            && sourceClass.classSymbol == targetClass.classSymbol
-            && sourceClass.args.count == 1
-            && targetClass.args.count == 1
-    }
-
     /// A generic comparison helper uses an erased Comparable cast to reach the
     /// source-backed member. The runtime representation does not attach
     /// interface metadata to primitive values, so checking this cast would
