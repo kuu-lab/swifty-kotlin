@@ -223,9 +223,17 @@ extension KIRLoweringDriver {
         if propertyDecl.explicitBackingField == nil,
            let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) {
             let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
-            let backingFieldRef = arena.appendExpr(.symbolRef(backingFieldSymbol), type: backingFieldType)
-            initInstructions.append(.constValue(result: backingFieldRef, value: .symbolRef(backingFieldSymbol)))
-            initInstructions.append(.copy(from: initValue, to: backingFieldRef))
+            // Property initialization seeds storage directly; invoking a
+            // custom setter here would run user code before the property has
+            // its declared initial value.
+            let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                initValue,
+                slotType: backingFieldType,
+                types: sema.types,
+                arena: arena,
+                into: &initInstructions
+            )
+            initInstructions.append(.storeGlobal(value: storedValueID, symbol: backingFieldSymbol))
         }
         allTopLevelInitInstructions.appendRelocatingLabels(contentsOf: initInstructions)
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())

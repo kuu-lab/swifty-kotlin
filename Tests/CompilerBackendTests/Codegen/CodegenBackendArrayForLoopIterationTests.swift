@@ -37,6 +37,34 @@ struct CodegenBackendArrayForLoopIterationTests {
     }
 
     @Test
+    func testArrayForLoopSnapshotsTopLevelBackingFieldBeforeBodyUpdatesIt() throws {
+        let source = """
+        var xs: IntArray = intArrayOf(1, 2, 3)
+            get() = field
+            set(ys) {
+                var sum = 0
+                for (x in field) {
+                    sum = sum * 10 + x
+                    field = intArrayOf(4, 5, 6)
+                }
+                if (sum != 123) throw AssertionError("sum=$sum")
+                field = ys
+            }
+
+        fun main() {
+            xs = intArrayOf()
+            if (xs.size != 0) throw AssertionError("xs.size=${xs.size}")
+            println("OK")
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayForLoopSnapshotsTopLevelBackingField",
+            expected: "OK\n"
+        )
+    }
+
+    @Test
     func testObjectArrayForLoopIteration() throws {
         let source = """
         fun main() {

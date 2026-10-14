@@ -74,6 +74,46 @@ extension ExprLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+            } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .backingField, {
+                let parent = sema.symbols.parentSymbol(for: symbol)
+                let parentKind = parent.flatMap { sema.symbols.symbol($0)?.kind }
+                return parentKind == nil || parentKind == .package || parentKind == .object
+            }() {
+                // Accessor `field` references bind directly to a backing-field
+                // symbol. Store global-backed fields directly because copies
+                // to backing-field symbols are rewritten as property setter calls.
+                let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                    valueID,
+                    slotType: sema.symbols.propertyType(for: symbol) ?? sema.types.anyType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
+                instructions.append(.storeGlobal(value: storedValueID, symbol: symbol))
+            } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property, {
+                let parent = sema.symbols.parentSymbol(for: symbol)
+                let parentKind = parent.flatMap { sema.symbols.symbol($0)?.kind }
+                return parentKind == nil || parentKind == .package || parentKind == .object
+            }(), driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
+                let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                let setterArguments = driver.callLowerer.propertyAccessorArguments(
+                    for: setterSymbol,
+                    arguments: [valueID],
+                    callExprID: exprID,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                instructions.append(.call(
+                    symbol: setterSymbol,
+                    callee: interner.intern("set"),
+                    arguments: setterArguments,
+                    result: arena.appendTemporary(type: sema.types.unitType),
+                    canThrow: false,
+                    thrownResult: nil
+                ))
             } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property || symInfo.kind == .field, {
                 let p = sema.symbols.parentSymbol(for: symbol)
                 let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
