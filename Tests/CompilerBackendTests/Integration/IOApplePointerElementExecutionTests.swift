@@ -24,8 +24,17 @@ struct IOApplePointerElementExecutionTests {
         import kotlinx.cinterop.get
         import kotlinx.cinterop.usePinned
         fun first(pointer: CPointer<ByteVar>): Byte = pointer[0]
+        fun ByteArray.implicitFirst(): Byte = usePinned { it.addressOf(0)[0] }
+        fun ByteArray.innerFirst(): Byte = with(byteArrayOf(7)) { usePinned { it.addressOf(0)[0] } }
+        fun ByteArray.shadowed(): Int {
+            fun usePinned(block: () -> Int): Int = block() + 100
+            return usePinned { 7 }
+        }
         fun main() {
             val bytes = byteArrayOf(-1, 0, 65)
+            println(bytes.implicitFirst())
+            println(bytes.innerFirst())
+            println(bytes.shadowed())
             bytes.usePinned {
                 val pointer = it.addressOf(0)
                 val second: Byte = pointer.get(1)
@@ -47,7 +56,7 @@ struct IOApplePointerElementExecutionTests {
         let result = try CommandRunner.run(executable: executable.path, arguments: [])
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout == "-1\n0\n65\ntrue\nfalse\n")
+        #expect(result.stdout == "-1\n7\n107\n-1\n0\n65\ntrue\nfalse\n")
     }
 }
 #endif
