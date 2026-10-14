@@ -134,6 +134,9 @@ extension CallTypeChecker {
                         else {
                             return false
                         }
+                        guard self.isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
+                            return false
+                        }
                         return self.extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: companionTypeForExtensionLookup,
                             declaredReceiver: recv,
