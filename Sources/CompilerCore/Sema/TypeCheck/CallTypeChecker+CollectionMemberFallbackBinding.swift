@@ -36,6 +36,16 @@ extension CallTypeChecker {
         }
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        // List.reduce must keep normal overload applicability and the distinct
+        // S/T callback types; this fallback only models an erased accumulator.
+        if calleeName == knownNames.reduce,
+           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           })
+        {
+            return nil
+        }
         if calleeName == knownNames.containsAll {
             // Expression markers also admit Iterable and Sequence values here,
             // but containsAll belongs only to Collection and its subtypes.

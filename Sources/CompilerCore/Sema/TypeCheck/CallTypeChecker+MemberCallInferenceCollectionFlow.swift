@@ -295,6 +295,51 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formIntersection(Self.mapCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+        // Explicit or annotated List.reduce calls need ordinary applicability
+        // and distinct S/T types. An unannotated lambda without type arguments
+        // keeps Kotlin's receiver-element input context (S = T).
+        if calleeStr == "reduce",
+           let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
+               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           })
+        {
+            guard explicitTypeArgs.isEmpty,
+                  args.count == 1,
+                  let argument = args.first,
+                  !argument.isSpread,
+                  argument.label == nil || argument.label == interner.intern("operation"),
+                  case let .lambdaLiteral(parameters, _, _, _) = ast.arena.expr(argument.expr),
+                  parameters.count == 2,
+                  ast.arena.lambdaParamTypeRefs(for: argument.expr)?.contains(where: { $0 != nil }) != true
+            else {
+                return nil
+            }
+            var scopedCandidates = ctx.scope.lookupMergingChain(calleeName)
+            if let local = locals[calleeName] {
+                scopedCandidates.append(local.symbol)
+            }
+            let hasUserExtension = ctx.filterByVisibility(scopedCandidates).visible.contains { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      let site = symbol.declSite,
+                      driver.sourceManager?.origin(of: site.start.file) == .user,
+                      !isHiddenByDeprecatedAnnotation(candidate, symbols: sema.symbols),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiver = signature.receiverType,
+                      parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) != nil
+                else {
+                    return false
+                }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: sema.types.makeNonNullable(receiverType),
+                    declaredReceiver: receiver,
+                    sema: sema
+                )
+            }
+            if hasUserExtension {
+                return nil
+            }
+        }
         // KUU-1926: the collection HOF fast path only infers count's result
         // type for Collection/Iterable receivers, leaving the callee unbound.
         // Use regular overload resolution for the bundled Iterable declarations
