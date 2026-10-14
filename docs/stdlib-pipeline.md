@@ -14,7 +14,7 @@ Kotlin ソースで stdlib を実装するための設計メモ。TODO.md の Ph
 - `HeaderHelpers+Synthetic*`（規模は `Scripts/loc_report.sh` の `header_helpers_synthetic_total_lines` が正。
   2026-07-06 時点で 121 ファイル / 約8.2万行）を、(a) 削除・(b) Kotlin 移行・(c) 真の組込残留の
   3分類（§9）に沿って縮減する
-- 挙動の正は **kotlinc 2.3.10**。`Scripts/diff_kotlinc.sh` を回帰 oracle とする
+- 挙動の正は **kotlinc 2.4.20**。`Scripts/diff_kotlinc.sh` を回帰 oracle とする
 - ランタイム ABI 表面を「ユーザーコードから直接呼ばれる `kk_*`」から
   「stdlib Kotlin 層だけが呼ぶ `__kk_*` ブリッジ」へ縮小する
 

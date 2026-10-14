@@ -8,7 +8,7 @@ WORKFLOW="$SCRIPT_DIR/../.github/workflows/nightly-full.yml"
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kswiftk-kotlinc-archive-test.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
-expected_kotlin_sha256="c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e"
+expected_kotlin_sha256="59e9ca74c7904ef2c122b12114937673ccce68de820a663f0ed66ccf8799e0b7"
 if ! grep -Fq "KOTLIN_COMPILER_SHA256: \"$expected_kotlin_sha256\"" "$WORKFLOW"; then
   echo "FAIL: CI must pin the reviewed Kotlin compiler SHA-256" >&2
   exit 1
@@ -50,7 +50,7 @@ mkdir -p "$SOURCE_DIR/kotlinc/bin"
 cat >"$SOURCE_DIR/kotlinc/bin/kotlinc" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "-version" ]]; then
-  echo "info: kotlinc-jvm 2.3.10 (archive integrity test)"
+  echo "info: kotlinc-jvm 2.4.20 (archive integrity test)"
   exit 0
 fi
 echo "unexpected invocation" >&2
@@ -62,7 +62,7 @@ valid_archive="$TEST_DIR/kotlin-compiler-valid.zip"
 (cd "$SOURCE_DIR" && zip -qr "$valid_archive" kotlinc)
 expected_sha256="$(sha256sum "$valid_archive" | awk '{print $1}')"
 valid_install="$TEST_DIR/valid-install"
-bash "$VERIFY_SCRIPT" "$valid_archive" "$expected_sha256" "$valid_install" "2.3.10"
+bash "$VERIFY_SCRIPT" "$valid_archive" "$expected_sha256" "$valid_install" "2.4.20"
 [[ -x "$valid_install/kotlinc/bin/kotlinc" ]]
 
 # Keep a pre-existing install in place to prove a corrupted cache cannot leave
@@ -73,7 +73,7 @@ printf 'X' | dd of="$corrupt_archive" bs=1 seek=20 conv=notrunc 2>/dev/null
 corrupt_install="$TEST_DIR/corrupt-install"
 mkdir -p "$corrupt_install/kotlinc/bin"
 touch "$corrupt_install/kotlinc/bin/kotlinc"
-if bash "$VERIFY_SCRIPT" "$corrupt_archive" "$expected_sha256" "$corrupt_install" "2.3.10" >"$TEST_DIR/corrupt.log" 2>&1; then
+if bash "$VERIFY_SCRIPT" "$corrupt_archive" "$expected_sha256" "$corrupt_install" "2.4.20" >"$TEST_DIR/corrupt.log" 2>&1; then
   echo "FAIL: checksum mismatch was accepted" >&2
   exit 1
 fi

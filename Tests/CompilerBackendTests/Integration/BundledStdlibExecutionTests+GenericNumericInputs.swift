@@ -32,7 +32,7 @@ extension BundledStdlibExecutionTests {
             let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
             try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
             try #require(manifest["formatVersion"] as? Int == 2)
-            try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+            try #require(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
             let metadata = try Data(contentsOf: directory.appendingPathComponent("metadata.bin"))
             try #require(!metadata.isEmpty)

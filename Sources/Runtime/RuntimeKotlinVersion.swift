@@ -5,8 +5,8 @@
 //
 // The target version must stay in sync with the rest of the toolchain
 // (`kotlinLanguageVersion` in CodegenPhase / LibraryDiscovery, README, AGENTS.md,
-// and `KOTLIN_VERSION` in .github/workflows/ci.yml).
-public let kotlinTargetVersion = (major: 2, minor: 3, patch: 10)
+// and `KOTLIN_VERSION` in .github/workflows/nightly-full.yml).
+public let kotlinTargetVersion = (major: 2, minor: 4, patch: 20)
 
 /// Returns the targeted Kotlin version packed as `major shl 16 | minor shl 8 | patch`.
 @_cdecl("__kk_kotlin_version_current")
