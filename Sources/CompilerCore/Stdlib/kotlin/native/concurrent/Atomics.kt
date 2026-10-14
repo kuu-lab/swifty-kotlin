@@ -145,7 +145,7 @@ public class AtomicLong {
     @KsSymbolName("kk_atomic_long_create")
     public constructor(value: Long = 0L)
 
-    @Volatile
+    // The runtime atomic box owns storage; these accessors have no Kotlin backing field.
     public var value: Long
         get() = __kkLoad()
         set(value) {
