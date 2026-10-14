@@ -14,16 +14,27 @@ extension MetadataEncoder {
         let superFQNames = isNominal ? symbols.directSupertypes(for: symbol.id).compactMap {
             symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
         } : []
-        let signature = symbol.kind == .function || symbol.kind == .constructor
-            ? symbols.functionSignature(for: symbol.id) : nil
+        let isCallable = symbol.kind == .function || symbol.kind == .constructor
+        let indexedShape = isCallable ? symbols.importedMemberIndexShape(for: symbol.id) : nil
+        // Prefer a signature already updated by semantic analysis. Otherwise
+        // the index and shell flags contain the entire callable projection;
+        // legacy/eager imports continue through the existing signature path.
+        let signature: FunctionSignature?
+        if !isCallable {
+            signature = nil
+        } else if indexedShape != nil {
+            signature = symbols.functionSignatureIfKnown(for: symbol.id)
+        } else {
+            signature = symbols.functionSignature(for: symbol.id)
+        }
         return MetadataRecord(
             kind: symbol.kind,
             visibility: symbol.visibility,
             mangledName: "",
             fqName: symbol.fqName.map { interner.resolve($0) }.joined(separator: "."),
-            arity: signature?.parameterTypes.count ?? 0,
-            isSuspend: signature?.isSuspend ?? false,
-            isInline: signature != nil && inlineFunctionSymbols.contains(symbol.id),
+            arity: signature?.parameterTypes.count ?? indexedShape?.arity ?? 0,
+            isSuspend: signature?.isSuspend ?? (indexedShape != nil && symbol.flags.contains(.suspendFunction)),
+            isInline: (signature != nil || indexedShape != nil) && inlineFunctionSymbols.contains(symbol.id),
             declaredFieldCount: layout?.instanceFieldCount,
             declaredInstanceSizeWords: layout?.instanceSizeWords,
             superFQName: superFQNames.isEmpty ? nil : superFQNames.joined(separator: ","),

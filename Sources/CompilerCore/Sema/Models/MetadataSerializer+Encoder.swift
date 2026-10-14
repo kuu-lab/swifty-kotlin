@@ -35,14 +35,19 @@ package final class MetadataEncoder {
                     // A public member of a hidden class is not a module API.
                     // Exporting it without its nominal owner makes the decoder
                     // erase its receiver and creates spurious overloads.
-                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    // Indexed imports already register their owner edges. A
+                    // reflection visibility check must not decode signatures.
+                    let useKnownParents = runtimeReflectionOnly && symbols.importedMemberIndexShape(for: symbol.id) != nil
+                    var parentID = useKnownParents
+                        ? symbols.parentSymbolIfKnown(for: symbol.id) : symbols.parentSymbol(for: symbol.id)
                     while let parent = parentID, let owner = symbols.symbol(parent) {
                         if Self.nominalKinds.contains(owner.kind),
                            owner.visibility != .public, owner.visibility != .protected
                         {
                             return false
                         }
-                        parentID = symbols.parentSymbol(for: parent)
+                        parentID = useKnownParents
+                            ? symbols.parentSymbolIfKnown(for: parent) : symbols.parentSymbol(for: parent)
                     }
                 }
                 // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
