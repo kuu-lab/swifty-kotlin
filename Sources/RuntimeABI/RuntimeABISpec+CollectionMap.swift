@@ -308,6 +308,13 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_identity_hash_map_init",
+            parameters: [RuntimeABIParameter(name: "mapRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_hash_map_storage",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),

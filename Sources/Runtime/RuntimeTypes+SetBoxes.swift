@@ -265,6 +265,12 @@ final class RuntimeSetBox {
            let map = runtimeMapBox(from: backingMapRaw) {
             switch backingMapViewKind {
             case .entries:
+                if map.usesReferenceEquality {
+                    guard let entry = runtimeIdentityMapEntryValues(rawValue),
+                          let index = map.index(ofRawKey: entry.key),
+                          let value = map.rawValue(at: index) else { return false }
+                    return value == entry.value
+                }
                 guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
                       let entry = tryCast(pointer, to: RuntimePairBox.self),
                       entry.mutableMapRaw == backingMapRaw,
@@ -282,6 +288,18 @@ final class RuntimeSetBox {
             return sortedSearch(for: rawValue).found
         }
         return index[RuntimeElementKey(value: rawValue)] != nil
+    }
+
+    var usesReferenceEquality: Bool {
+        if let viewParent { return viewParent.usesReferenceEquality }
+        return backingMapRaw.flatMap { runtimeMapBox(from: $0) }?.usesReferenceEquality == true
+    }
+
+    func elementHash(_ raw: Int) -> Int {
+        if usesReferenceEquality, backingMapViewKind == .keys {
+            return kk_native_identityHashCode(raw)
+        }
+        return runtimeValueHash(raw)
     }
 
     var isEffectivelyReadOnly: Bool {
@@ -337,6 +355,14 @@ final class RuntimeSetBox {
             }
             switch backingMapViewKind {
             case .entries:
+                if map.usesReferenceEquality {
+                    guard let entry = runtimeIdentityMapEntryValues(rawValue),
+                          let index = map.index(ofRawKey: entry.key),
+                          let value = map.rawValue(at: index),
+                          value == entry.value else { return false }
+                    _ = map.remove(key: entry.key)
+                    return true
+                }
                 guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
                       let entry = tryCast(pointer, to: RuntimePairBox.self),
                       entry.mutableMapRaw == backingMapRaw,

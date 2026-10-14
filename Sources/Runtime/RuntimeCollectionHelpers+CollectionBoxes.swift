@@ -91,6 +91,38 @@ func runtimeIsMapEntry(rawValue: Int) -> Bool {
     runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
 }
 
+/// Identity entry views accept arbitrary source Map.Entry implementations.
+func runtimeIdentityMapEntryValues(_ raw: Int) -> (key: Int, value: Int)? {
+    if let entry = runtimeMapEntryValues(rawValue: raw) { return entry }
+    let entryID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry")
+    guard let typeID = runtimeObjectTypeID(rawValue: raw),
+          runtimeIsAssignable(sourceTypeID: typeID, targetTypeID: entryID),
+          let key = runtimeSourceInterfaceCall0(raw, interfaceTypeID: entryID, methodSlot: 0,
+              context: "IdentityHashMap entry key"),
+          let value = runtimeSourceInterfaceCall0(raw, interfaceTypeID: entryID, methodSlot: 1,
+              context: "IdentityHashMap entry value") else { return nil }
+    return (key, value)
+}
+
+/// Bulk removal follows the argument collection's contains policy.
+func runtimeCollectionMembership(_ raw: Int, values: [RuntimeValue]) -> (Int) -> Bool {
+    if let set = runtimeSetBox(from: raw), set.usesReferenceEquality {
+        return { set.contains(rawValue: $0) }
+    }
+    if let list = runtimeListBox(from: raw), list.usesReferenceEquality {
+        let members = Set(values.map(\.legacyRawValue))
+        return { members.contains($0) }
+    }
+    let members = Set(values.map { RuntimeElementKey(value: $0.legacyRawValue) })
+    return { members.contains(RuntimeElementKey(value: $0)) }
+}
+
+func runtimeIsIdentityMapEntry(_ raw: Int) -> Bool {
+    guard runtimeIsMapEntry(rawValue: raw),
+          let pair = resolveRuntimeHandle(raw, as: RuntimePairBox.self) else { return false }
+    return runtimeMapBox(from: pair.mutableMapRaw)?.usesReferenceEquality == true
+}
+
 @inline(__always)
 func runtimeMapEntryValues(rawValue: Int) -> (key: Int, value: Int)? {
     guard runtimeIsMapEntry(rawValue: rawValue),

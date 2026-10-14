@@ -192,6 +192,11 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         return lhs == rhs
     }
     if runtimeIsMapEntry(rawValue: lhs) || runtimeIsMapEntry(rawValue: rhs) {
+        if runtimeIsIdentityMapEntry(lhs) {
+            guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
+                  let rhsEntry = runtimeIdentityMapEntryValues(rhs) else { return false }
+            return lhsEntry.key == rhsEntry.key && lhsEntry.value == rhsEntry.value
+        }
         guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
               let rhsEntry = runtimeMapEntryValues(rawValue: rhs)
         else {
@@ -283,6 +288,17 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
             }
         }
         return true
+    }
+    // Identity map views compare against any Set implementation, including
+    // source objects whose elements are exposed through an Iterable itable.
+    if let lhsSet = runtimeSetBox(from: lhs), lhsSet.usesReferenceEquality {
+        if let rhsSet = runtimeSetBox(from: rhs) {
+            return lhsSet.count == rhsSet.count && rhsSet.elements.allSatisfy { lhsSet.contains(rawValue: $0) }
+        }
+        guard let rhsType = runtimeObjectTypeID(rawValue: rhs),
+              runtimeIsAssignable(sourceTypeID: rhsType, targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")),
+              let elements = runtimeIterableElements(from: rhs) else { return false }
+        return lhsSet.count == elements.count && elements.allSatisfy { lhsSet.contains(rawValue: $0) }
     }
     if let lhsSet = tryCast(lhsPtr, to: RuntimeSetBox.self),
        let rhsSet = tryCast(rhsPtr, to: RuntimeSetBox.self)

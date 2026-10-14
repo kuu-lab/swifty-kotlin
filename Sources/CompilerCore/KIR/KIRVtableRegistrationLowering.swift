@@ -169,6 +169,7 @@ func kirVtableImplementations(
         guard let owner = sema.symbols.parentSymbol(for: methodSymbol),
               let ownerInfo = sema.symbols.symbol(owner),
               ownerInfo.flags.contains(.abstractType)
+                  || ownerInfo.flags.contains(.openType)
                   || !sema.symbols.directSubtypes(of: owner).isEmpty,
               let symbol = sema.symbols.symbol(methodSymbol),
               symbol.kind == .function || symbol.kind == .property
@@ -641,6 +642,7 @@ func kirVtablePropertyAccessorImplementations(
               let owner = sema.symbols.parentSymbol(for: decoded.property),
               let ownerInfo = sema.symbols.symbol(owner),
               ownerInfo.flags.contains(.abstractType)
+                  || ownerInfo.flags.contains(.openType)
                   || !sema.symbols.directSubtypes(of: owner).isEmpty
         else {
             return nil

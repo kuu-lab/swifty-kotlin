@@ -64,14 +64,7 @@ public inline fun <@kotlin.internal.OnlyInputTypes T> Collection<T>.containsAll(
     elements: Collection<T>
 ): Boolean {
     for (element in elements) {
-        var found = false
-        for (candidate in this) {
-            if (candidate == element) {
-                found = true
-                break
-            }
-        }
-        if (!found) return false
+        if (!contains(element)) return false
     }
     return true
 }
