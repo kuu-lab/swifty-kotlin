@@ -323,7 +323,12 @@ final class MemberLowerer {
                 if let existingStorage = sema.symbols.delegateStorageSymbol(for: symbol) {
                     delegateStorageSymbol = existingStorage
                 } else {
-                    let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                    let extensionSuffix = sema.symbols.hasExtensionPropertyReceiver(symbol)
+                        ? "_extension_\(symbol.rawValue)"
+                        : ""
+                    let delegateStorageName = interner.intern(
+                        "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+                    )
                     let delegateStorageFQName = (sema.symbols.symbol(symbol)?.fqName.dropLast() ?? []) + [delegateStorageName]
                     delegateStorageSymbol = sema.symbols.define(
                         kind: .field,
@@ -333,6 +338,7 @@ final class MemberLowerer {
                         visibility: .private,
                         flags: []
                     )
+                    sema.symbols.setDelegateStorageSymbol(delegateStorageSymbol, for: symbol)
                 }
                 let delegateType = sema.types.anyType
                 let delegateKirID = arena.appendDecl(

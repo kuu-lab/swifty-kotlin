@@ -343,7 +343,7 @@ final class PropertyLoweringPass: LoweringPass {
                     // accessor functions keyed off the property symbol, not the
                     // delegate storage field.
                     guard let propSymbol = self.propertySymbolForDelegateField(
-                        sym, symInfo: symInfo, sema: sema, interner: interner
+                        delegateStorageSymbol: sym, symInfo: symInfo, sema: sema, interner: interner
                     ) else {
                         // Cannot resolve property symbol — keep original call.
                         loweredBody.append(instruction)
@@ -484,11 +484,14 @@ final class PropertyLoweringPass: LoweringPass {
     /// property symbol it belongs to by stripping the prefix and looking
     /// up a sibling symbol with the property name.
     private func propertySymbolForDelegateField(
-        _: SymbolID,
+        delegateStorageSymbol: SymbolID,
         symInfo: SemanticSymbol,
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
+        if let property = sema.symbols.delegateProperty(forStorageSymbol: delegateStorageSymbol) {
+            return property
+        }
         let delegateName = interner.resolve(symInfo.name)
         guard delegateName.hasPrefix("$delegate_") else { return nil }
         let propertyName = String(delegateName.dropFirst("$delegate_".count))

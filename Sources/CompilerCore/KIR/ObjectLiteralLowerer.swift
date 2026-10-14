@@ -1108,7 +1108,12 @@ final class ObjectLiteralLowerer {
         if let existing = sema.symbols.delegateStorageSymbol(for: propertySymbol) {
             return existing
         }
-        let storageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+        let extensionSuffix = sema.symbols.hasExtensionPropertyReceiver(propertySymbol)
+            ? "_extension_\(propertySymbol.rawValue)"
+            : ""
+        let storageName = interner.intern(
+            "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+        )
         let storageSymbol = sema.symbols.define(
             kind: .field,
             name: storageName,
