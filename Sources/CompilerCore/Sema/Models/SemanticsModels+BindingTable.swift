@@ -292,6 +292,10 @@ public final class BindingTable {
     /// types and parameter references. Any other side-table write rejects the
     /// worker delta, including calls, captures and Worker.execute metadata.
     var hasOnlyIndependentScalarBindings: Bool {
+        hasOnlyIndependentScalarBindings(allowingSourceDeclaredExpectedTypeExprIDs: [])
+    }
+
+    func hasOnlyIndependentScalarBindings(allowingSourceDeclaredExpectedTypeExprIDs allowed: Set<ExprID>) -> Bool {
         if !validatedAnnotationOptInMarkers.isEmpty { return false }
         if !annotationFactoryExpressions.isEmpty { return false }
         if !primaryConstructorPropertyAnnotations.isEmpty { return false }
@@ -367,7 +371,7 @@ public final class BindingTable {
         if !coroutineLauncherLambdaExprIDs.isEmpty { return false }
         if !rawSuspendEntryLambdaExprIDs.isEmpty { return false }
         if !coroutineScopeLambdaReceiverTypes.isEmpty { return false }
-        if !sourceDeclaredExpectedTypeExprIDs.isEmpty { return false }
+        if !sourceDeclaredExpectedTypeExprIDs.isSubset(of: allowed) { return false }
         if !nominalFunctionExpectedTypes.isEmpty { return false }
         if !stdlibSpecialCallExprIDs.isEmpty { return false }
         if !stdlibSpecialCallKinds.isEmpty { return false }
@@ -390,10 +394,12 @@ public final class BindingTable {
     /// Joins the closed scalar delta at its original declaration position.
     func mergeIndependentScalarExpressions(
         types: [ExprID: TypeID], identifiers: [ExprID: SymbolID], typeMapping: [TypeID: TypeID],
+        sourceDeclaredExpectedTypeExpressions: Set<ExprID> = [],
         symbolMapping: [SymbolID: SymbolID] = [:]
     ) {
         exprTypes.merge(types.mapValues { typeMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
         identifierSymbols.merge(identifiers.mapValues { symbolMapping[$0] ?? $0 }, uniquingKeysWith: { _, new in new })
+        sourceDeclaredExpectedTypeExprIDs.formUnion(sourceDeclaredExpectedTypeExpressions)
     }
 
     /// Value-owned snapshot of every binding side table, including pending

@@ -29,7 +29,9 @@ worker に入ってしまう。contract 先行収集、constructor initializer �
   capture ordinal をリセットすると新しい existential が snapshot 内の既存型と同一に
   intern される。worker ごとの独立採番を保ち、captured type の一般的な join は未対応。
 * scalar delta の拒否条件: callable reference、annotation factory、primary-constructor
-  annotation、検証済み opt-in marker、pending local annotation target。
+  annotation、検証済み opt-in marker、pending local annotation target、body expression 外の
+  source-declared expected-type marker。local 型 annotation が付ける marker は、その宣言本体
+  の ExprID に属する分だけ結果へ含めて join する。
 
 ## 採用できる local delta
 
@@ -37,14 +39,16 @@ worker に入ってしまう。contract 先行収集、constructor initializer �
 | --- | --- | --- |
 | 既存の独立 scalar 式 | 対応 | 対応 |
 | scalar local の val/var、単純代入、block、unlabeled return | 対応 | 対応 |
-| local の型 annotation / delegate / lateinit、local function / nominal | snapshot の格納対象（一般的な意味一致は未検証） | 直列 |
+| scalar local の型 annotation（初期化子あり） | 対応 | 対応 |
+| delegate / lateinit、local function / nominal | snapshot の格納対象（一般的な意味一致は未検証） | 直列 |
 | lambda の負の合成 parameter SymbolID、capture、callable-value call | 所有権テストで確認 | 直列 |
 | object literal の nominal/member/backing symbol、capture、pending annotation | 所有権テストで確認 | 直列 |
 | inferred 依存、通常呼び出し、lazy metadata | module 帳簿・loader の契約が必要 | 直列 |
 
 新しい対象も明示戻り型、non-null primitive/String 引数、非 generic、receiver なしの
-top-level 関数に限る。通常 local は initializer を必須とし、型 annotation、delegate、
-lateinit を除外する。worker が実際に作った symbol がすべて `.local` で scalar 型を持ち、
+top-level 関数に限る。scalar local は initializer を必須とし、resolved symbol が scalar
+型であることを join 前に確認する。delegate と `lateinit` は除外する。worker が実際に
+作った symbol がすべて `.local` で scalar 型を持ち、
 識別子の解決先が現在の関数の引数または新規 local であることを確認する。後から宣言される
 local と同名の module property を読んだ場合も、解決先の確認で採用しない。
 
@@ -82,6 +86,8 @@ SWIFT_TEST_PRODUCT=CompilerCoreTests SWIFT_TEST_BUILD_JOBS=4 \
   --filter 'SemaIndependentBodyTests|SemaBodyWorkerOwnershipTests|SemaPerFileExecutorTests'
 python3 Scripts/benchmark_sema_independent.py --body locals --files 10 50 \
   --functions 4 --terms 8 --jobs 1 2 4 --runs 3 > /tmp/sema-ownership.tsv
+python3 Scripts/benchmark_sema_independent.py --body typed-locals --files 10 50 \
+  --functions 4 --terms 8 --jobs 1 2 4 --runs 3 > /tmp/sema-typed-locals.tsv
 python3 Scripts/validate_sema_worker_ownership.py --output /tmp/sema-ownership-gate
 ```
 
@@ -91,40 +97,34 @@ fresh artifact の経路・O0/O2 の実行と KIR は別に比較する。artifa
 body 並列化の成功として数えない。
 
 `validate_sema_worker_ownership.py` は空の出力ディレクトリを要求し、現 compiler で stdlib
-artifact を新規生成する。scalar locals と、間に直列で検査する lambda/object capture を
-含む 2 ファイルで、12 executable compile/run の stdout と 12 KIR compile の jobs 間
-正規化後の一致（8 比較）を確認する。worker が採用された件数は上記 Swift テストで別に
-確認する。
+artifact を新規生成する。型注釈付き scalar locals と、間に直列で検査する lambda/object
+capture を含む 2 ファイルで、12 executable compile/run の stdout と 12 KIR compile の jobs 間
+raw 一致（8 比較）を確認する。KIR 比較では一時パスと行末空白だけを正規化し、ID を保持する。
+worker が採用された件数は上記 Swift テストで別に確認する。
 
-既存 BuildAST の parallel append は ExprID を到着順で割り当てるため、`sema-parallel`
-を付けない対照でも lambda の合成名と負の合成 SymbolID が jobs 間で変わる。
-[KUU-2140](https://linear.app/kuu/issue/KUU-2140) に最小 2 ファイルと flag off の再現を記録した。
-Sema の Swift 比較は frontend jobs=1 で AST を固定し、Sema だけ jobs=1/2/4 として
-raw TypeID/SymbolID/FQName/interner を比較する。CLI 比較では、この既存 AST 由来の
-`kk_lambda_<ExprID>`、adapter 名、parameter/capture namespace の ExprID 部分だけを
-対応付ける。通常の SymbolID、TypeID、KIR register、宣言 ID は変更しない。正規化前 KIR、
-正規化後 KIR、対応表を保存し、raw KIR の不一致件数も報告する。一般的な raw ID の完全
-決定性を検証したとは扱わない。
+BuildAST の file-local arena と順序付き merge で並列採番を決定的にした
+[KUU-2140 / #8962](https://github.com/kuu-lab/swifty-kotlin/pull/8962) が master に入った。
+現行の CLI 検証では `validate_sema_worker_ownership.py` が一時パスと行末空白だけを正規化し、
+lambda 名・負の SymbolID を含む raw KIR を jobs=1/2/4 で比較する。ID の置換はしない。
+Swift の固定 AST 比較では raw TypeID/SymbolID/FQName/interner も引き続き確認する。
 
-## 今回の確認結果
+## 今回の確認結果（2026-10-15）
 
-macOS arm64、Apple Swift 6.4、debug compiler。開始時と最終確認時の master は
-`01544852e570d6bb1766e44b4e9fb47af88121f2`。
+macOS arm64、Apple Swift 6.4、debug compiler。作業ブランチを master
+`b72569983af5c58ad5aa3ae9657c3d44de0d5a14` へ fast-forward してから確認した。
 
-* 最終ソースの `swift build --disable-sandbox -j 4` が exit 0。
-* 対象 3 suites は 20 tests、parameter 展開後 31 cases が成功。Sema jobs=1/2/4 の
-  raw binding/型/採番、診断全内容・順序、fallback、親と sibling の capture/合成
-  parameter/property type/AST/診断の隔離を検証した。全 frontend を並列にする
-  scalar local の source-position binding 比較も別に確認した。
-* 独立した静的レビューで spec、closed delta の採用範囲、全 BindingTable storage、
-  並行 snapshot 構築時の凍結 read、jobs 以下の保持と join を確認。
-* 別 scratch path の Thread Sanitizer 実行でも同じ 20 tests / 31 cases が成功し、
-  競合の診断はなかった。通常ビルドと test build は重ねていない。
-* 現 compiler で生成した fresh artifact と source 注入で、O0/O2 × jobs=1/2/4 の
-  全 12 executable compile/run が exit 0、stdout は `8\n4\n42\n5\n8\n8\n` と byte 単位で
-  一致。同じ 12 構成の KIR compile と 8 正規化比較も成功。raw KIR は 7 比較で不一致が
-  残り、すべて KUU-2140 の namespace 差で説明できた。artifact の body は直列 fallback。
-  生 KIR から正規化結果と対応表も再生成して検証した。
+* `swift build --disable-sandbox -j 4` が exit 0。
+* `SemaIndependentBodyTests|SemaBodyWorkerOwnershipTests|SemaPerFileExecutorTests` の
+  対象3 suites は 23 tests が成功。明示型付き scalar local の canonical binding join、
+  不正な local annotation の直列 fallback、marker の body ExprID 範囲制約と、既存の
+  jobs=1/2/4 の決定性・所有権・依存バリアを検証した。
+* 両 Python スクリプトの AST 構文解析と `git diff --check` が成功。
+* fresh artifact の source/artifact・O0/O2・jobs=1/2/4 検証は、master fast-forward 前の
+  `4ccde1383e42d8f538c399c1b0c5769267f9ecdd` で成功済み（12 executable compile/run、12 KIR
+  compile、8 raw KIR 比較）。master fast-forward 後は未再実行のため、最新 base でのこのゲートは
+  未確認。
+* Thread Sanitizer、全テスト、全 Golden、kotlinc diff、Linux / Swift 6.3、release compiler
+  は今回の更新では未実行。
 
 ## local 本体の参考測定
 
@@ -132,7 +132,8 @@ macOS arm64、Apple Swift 6.4、debug compiler。開始時と最終確認時の 
 debug compiler。flag off/on × jobs=1/2/4 の各構成で warmup を除く 3 標本を採取した。
 計測中に本作業の build/test/source-artifact gate は重ねていない。外部の host 負荷は
 管理していないため、通常負荷や release の性能を示すものではない。
-144 測定行を [生 TSV](sema-worker-ownership-measurements.tsv) に保存した。
+先行する `locals` 144行と、2026-10-14 に追加した `typed-locals` 144行を
+[生 TSV](sema-worker-ownership-measurements.tsv) に保存した。
 
 以下は jobs=4 の中央値。Sema の時間と各 sub-phase の中央値は足し合わせない。
 RSS は compiler process 全体の最大値で、Sema 単独のメモリではない。
@@ -147,5 +148,20 @@ RSS は compiler process 全体の最大値で、Sema 単独のメモリでは�
 この条件でも高速化は確認できなかった。snapshot の同時保持と local delta の累積は
 抑えたが、準備・snapshot 構築・canonical join のコストが残る。既定有効化、一般的な
 lambda/object の join、コア数に比例する高速化、KUU-2000 の完了は主張しない。
+
+型注釈付き local の追加経路は、2026-10-14 に Swift 6.4 / arm64 / debug compiler、
+stdlib=none、1 warmup + 3標本で測定した。各ファイルは4関数、8個の `x * x` 項を持つ。
+ホスト負荷は管理していない。jobs=4 の中央値は次のとおりで、型 annotation を含む worker
+経路でも高速化は見られなかった。
+
+| files | flag | Sema ms | type-check ms | peak RSS MiB |
+| --- | --- | ---: | ---: | ---: |
+| 10 | off | 52.82 | 14.41 | 27.89 |
+| 10 | on | 83.91 | 18.64 | 30.59 |
+| 50 | off | 106.23 | 48.09 | 46.25 |
+| 50 | on | 137.95 | 79.91 | 47.19 |
+
+この測定は候補範囲の代表性・通常負荷の性能を示さない。Sema worker は引き続き明示 opt-in
+のままにする。
 
 全テスト、全 Golden、全 kotlinc diff、Linux / Swift 6.3、release compiler は未実行。
