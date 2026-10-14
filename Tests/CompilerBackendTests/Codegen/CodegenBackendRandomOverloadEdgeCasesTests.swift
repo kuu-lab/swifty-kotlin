@@ -106,6 +106,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
         // This test only needs to confirm nextULong() executes without crashing.
         let source = """
         import kotlin.random.Random
+        import kotlin.random.nextULong
         import kotlin.ranges.ULongRange
 
         fun main() {
@@ -185,6 +186,7 @@ struct CodegenBackendRandomOverloadEdgeCasesTests {
         // compare/stringify as if signed), same tautological-check workaround.
         let source = """
         import kotlin.random.Random
+        import kotlin.random.nextUInt
         import kotlin.ranges.UIntRange
 
         fun main() {
