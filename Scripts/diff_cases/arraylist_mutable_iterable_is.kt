@@ -1,0 +1,15 @@
+fun main() {
+    val a: Any = ArrayList<String>()
+    println(a is MutableIterable<*>)
+    println(a is MutableCollection<*>)
+    println(a is MutableList<*>)
+    println(a is Iterable<*>)
+    val l: Any = mutableListOf(1)
+    println(l is MutableIterable<*>)
+    println(l is MutableCollection<*>)
+    val s: Any = mutableSetOf(1)
+    println(s is MutableIterable<*>)
+    println(s is MutableSet<*>)
+    val h: Any = HashMap<String,Int>()
+    println(h is MutableMap<*,*>)
+}

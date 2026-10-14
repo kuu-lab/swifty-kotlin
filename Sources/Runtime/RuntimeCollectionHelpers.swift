@@ -10,6 +10,21 @@ private let collectionRuntimeTypeID: Int64 = {
     return id
 }()
 
+/// `MutableIterable` -> `Iterable` and `MutableCollection` -> `Collection` /
+/// `MutableIterable` edges, so mutable boxes answer `is MutableIterable<*>` and
+/// `is MutableCollection<*>` through the ordinary assignability walk.
+private let mutableCollectionRuntimeTypeID: Int64 = {
+    let mutableIterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
+    runtimeRegisterTypeEdge(
+        childTypeID: mutableIterable,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+    )
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableCollection")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableIterable)
+    return id
+}()
+
 let listRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.List")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
@@ -19,6 +34,7 @@ let listRuntimeTypeID: Int64 = {
 private let mutableListRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableList")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: listRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableCollectionRuntimeTypeID)
     return id
 }()
 
@@ -79,6 +95,12 @@ let arrayDequeRuntimeTypeID: Int64 = {
     return id
 }()
 
+private let mutableSetRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableCollectionRuntimeTypeID)
+    return id
+}()
+
 let setRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
@@ -90,10 +112,7 @@ let setRuntimeTypeID: Int64 = {
 /// constructors opt into this more specific identity.
 let hashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashSet")
-    runtimeRegisterTypeEdge(
-        childTypeID: id,
-        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
-    )
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableSetRuntimeTypeID)
     runtimeRegisterTypeEdge(
         childTypeID: id,
         parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableSet")
@@ -117,10 +136,7 @@ let hashSetRuntimeTypeID: Int64 = {
 let linkedHashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashSet")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: hashSetRuntimeTypeID)
-    runtimeRegisterTypeEdge(
-        childTypeID: id,
-        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
-    )
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableSetRuntimeTypeID)
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: setRuntimeTypeID)
     return id
 }()
