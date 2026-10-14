@@ -971,8 +971,9 @@ enum ParserBoundaryPolicy {
     }
 
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
-        // Both class and property delegation require an expression after `by`.
-        if kind == .softKeyword(.by) {
+        // Both class and property delegation require an expression after `by`;
+        // a cast may also continue a block-bodied expression after its closing brace.
+        if kind == .softKeyword(.by) || kind == .keyword(.as) {
             return true
         }
         if case let .symbol(symbol) = kind {
