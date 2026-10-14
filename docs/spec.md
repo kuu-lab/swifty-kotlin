@@ -1344,6 +1344,13 @@ its marker at the annotation application site; that marker does not propagate
 a second time to callers of declarations annotated with it. This rule applies
 without special annotation-name exceptions and survives producer metadata.
 
+Top-level typealias declarations check opt-in requirements on their expanded
+underlying type. Resolved unqualified typealias constructor calls inherit the
+alias's directly applied markers instead of the expanded class's markers,
+while retaining the constructor's own markers. Explicit signature types still
+check the expanded class, even when the
+alias declaration opted in (KUU-2064; Kotlin 2.3.10).
+
 Explicit descriptor annotation lists preserve the supplied objects and order.
 These APIs do not implement serializer generation, automatic wire-name changes,
 annotation inheritance or its conflict checks; those remain in KUU-1724.

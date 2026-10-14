@@ -17,6 +17,7 @@ extension CallTypeChecker {
         calleeName: InternedString?,
         calleePath: [InternedString]?,
         candidates: inout [SymbolID],
+        constructorTypeAlias: inout SymbolID?,
         implicitReceiverScopeCandidates: inout [SymbolID],
         callImplicitReceiverType: inout TypeID?,
         memberExtensionReceiverMarks: inout [SymbolID: SymbolID],
@@ -413,6 +414,7 @@ extension CallTypeChecker {
                             if !ctorSymbols.isEmpty {
                                 let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
                                 candidates = vis
+                                constructorTypeAlias = aliasSym
                                 callInvisible.append(contentsOf: invis)
                             }
                         }

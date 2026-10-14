@@ -38,6 +38,7 @@ extension TypeCheckHelpers {
 
     func checkOptIn(
         for symbolID: SymbolID,
+        constructorTypeAlias: SymbolID? = nil,
         ctx: TypeInferenceContext,
         range: SourceRange?,
         diagnostics: DiagnosticEngine
@@ -46,7 +47,9 @@ extension TypeCheckHelpers {
         if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
            let owner = ctx.sema.symbols.parentSymbol(for: symbolID) {
             var markers = Set(requirements.map(\.markerSymbol))
-            for requirement in requiredOptInRequirements(for: owner, ctx: ctx)
+            // An alias constructor inherits the alias's markers, not those of
+            // its expanded class. The constructor's own markers still apply.
+            for requirement in requiredOptInRequirements(for: constructorTypeAlias ?? owner, ctx: ctx)
                 where markers.insert(requirement.markerSymbol).inserted {
                 requirements.append(requirement)
             }
