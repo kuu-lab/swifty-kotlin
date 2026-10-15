@@ -588,6 +588,15 @@ final class LambdaLowerer {
             )
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
+        emitLambdaEnclosingClassMetadata(
+            exprID: exprID,
+            value: lambdaValueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let captureArgs = (usesClosureRawCapture || usesClosureObjectCapture) ? captureBindings.map(\.valueExpr) : functionCaptureBindings.map(\.valueExpr)
         driver.ctx.registerCallableValue(
             lambdaValueExpr,
@@ -882,6 +891,15 @@ final class LambdaLowerer {
             )
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
+        emitLambdaEnclosingClassMetadata(
+            exprID: exprID,
+            value: lambdaValueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         if !hasNonLocalReturn {
             emitFunctionDescription(

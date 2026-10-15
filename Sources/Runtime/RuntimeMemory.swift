@@ -92,10 +92,14 @@ public func __kk_runtime_maxMemory() -> Int {
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
+    let className: String?
+    let enclosingClassName: String?
 
-    init(typeToken: Int, nameHint: Int = 0) {
+    init(typeToken: Int, nameHint: Int = 0, className: String? = nil, enclosingClassName: String? = nil) {
         self.typeToken = typeToken
         self.nameHint = nameHint
+        self.className = className
+        self.enclosingClassName = enclosingClassName
     }
 }
 
@@ -108,7 +112,11 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
         runtimeStructuredPanic("invalid runtime classifier")
     }
     return registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: classifier.typeToken, nameHint: classifier.nameHint),
+        RuntimeJavaClassBox(
+            typeToken: classifier.typeToken,
+            nameHint: classifier.nameHint,
+            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw)
+        ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
 }

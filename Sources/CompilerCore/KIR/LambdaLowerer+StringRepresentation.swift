@@ -1,4 +1,32 @@
 extension LambdaLowerer {
+    func emitLambdaEnclosingClassMetadata(
+        exprID: ExprID,
+        value: KIRExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let fileID = ast.arena.exprRange(exprID)?.start.file,
+              let enclosingClassName = driver.ctx.lambdaEnclosingClassNamesByFileID[fileID]
+        else {
+            return
+        }
+
+        let name = interner.intern(enclosingClassName)
+        let nameExpr = arena.appendExpr(.stringLiteral(name), type: sema.types.stringType)
+        instructions.append(.constValue(result: nameExpr, value: .stringLiteral(name)))
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_function_set_enclosing_class"),
+            arguments: [value, nameExpr],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
     func emitFunctionDescription(
         value: KIRExprID,
         description: String,
