@@ -1865,11 +1865,14 @@ final class ExprTypeChecker {
         if types.isSubtype(subject, target) || types.isSubtype(target, subject) {
             return false
         }
-        // Generic shapes and type parameters defeat the nominal disjointness
-        // argument: star projections, variance and erased types are not
-        // compared precisely here, and a type parameter may still be
-        // instantiated to the target type.
-        if hasImpreciseIsCheckShape(subject, sema: sema) || hasImpreciseIsCheckShape(target, sema: sema) {
+        // Generic subject shapes and type parameters defeat the nominal
+        // disjointness argument. A target with only star projections still has
+        // a known runtime classifier, so a final subject can be rejected when
+        // no subtype relation exists.
+        if hasImpreciseIsCheckShape(subject, sema: sema)
+            || (hasImpreciseIsCheckShape(target, sema: sema)
+                && !hasOnlyStarProjectedClassArguments(target, sema: sema))
+        {
             return false
         }
         return isFinalForIsCheck(subject, sema: sema) || isFinalForIsCheck(target, sema: sema)
@@ -1885,12 +1888,48 @@ final class ExprTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard sema.bindings.isRangeExpr(subjectExpr),
+        guard sema.bindings.isRangeExpr(subjectExpr) || sema.bindings.isFloatingPointRangeExpr(subjectExpr),
               case .primitive = sema.types.kind(of: subjectType),
               case let .classType(targetClass) = sema.types.kind(of: targetType),
               let targetSymbol = sema.symbols.symbol(targetClass.classSymbol)
         else {
             return false
+        }
+
+        let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: subjectExpr)
+        let isFloatingRange = floatingPointElementType != nil
+            || subjectType == sema.types.floatType
+            || subjectType == sema.types.doubleType
+        let isDiscreteRange = floatingPointElementType == nil && (
+            subjectType == sema.types.charType
+                || subjectType == sema.types.uintType
+                || subjectType == sema.types.ulongType
+                || subjectType == sema.types.longType
+                || subjectType == sema.types.intType
+        )
+        guard isFloatingRange || isDiscreteRange else {
+            return false
+        }
+
+        let kotlinRangesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+        ]
+        let targetName = interner.resolve(targetSymbol.name)
+        if Array(targetSymbol.fqName.dropLast()) == kotlinRangesFQName {
+            switch targetName {
+            case "ClosedRange":
+                return true
+            case "OpenEndRange":
+                return isDiscreteRange
+            case "ClosedFloatingPointRange":
+                return isFloatingRange
+            default:
+                break
+            }
+        }
+        if targetSymbol.fqName == [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Iterable")] {
+            return isDiscreteRange
         }
 
         let rangeTypeNames: [String]
@@ -1908,10 +1947,6 @@ final class ExprTypeChecker {
             return false
         }
 
-        let kotlinRangesFQName = [
-            interner.intern("kotlin"),
-            interner.intern("ranges"),
-        ]
         return rangeTypeNames.contains { name in
             targetSymbol.fqName == kotlinRangesFQName + [interner.intern(name)]
         }
@@ -1929,6 +1964,18 @@ final class ExprTypeChecker {
         case .classType(let classType):
             return !classType.args.isEmpty
         default:
+            return false
+        }
+    }
+
+    /// A target with only star-projected arguments has a known runtime class
+    /// even though its generic arguments are erased.
+    private func hasOnlyStarProjectedClassArguments(_ type: TypeID, sema: SemaModule) -> Bool {
+        guard case .classType(let classType) = sema.types.kind(of: type), !classType.args.isEmpty else {
+            return false
+        }
+        return classType.args.allSatisfy { argument in
+            if case .star = argument { return true }
             return false
         }
     }
