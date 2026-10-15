@@ -36,6 +36,20 @@ extension CallTypeChecker {
                 args: args, range: range, ctx: ctx, locals: &locals,
                 expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
+            if let binding = sema.bindings.callableValueCallBinding(for: id) {
+                sema.bindings.bindCallableValueCall(
+                    id,
+                    binding: CallableValueCallBinding(
+                        target: binding.target,
+                        functionType: binding.functionType,
+                        parameterMapping: binding.parameterMapping,
+                        extensionCallableExpr: binding.extensionCallableExpr,
+                        implicitInvokeReceiverExpr: thisExpr,
+                        contextArgumentCount: binding.contextArgumentCount,
+                        receiverArgumentOffset: binding.receiverArgumentOffset
+                    )
+                )
+            }
             return returnType
         }
 

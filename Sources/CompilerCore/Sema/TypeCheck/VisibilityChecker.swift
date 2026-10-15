@@ -18,12 +18,10 @@ struct VisibilityChecker {
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?
     ) -> Bool {
-        // An explicitly public constructor or member cannot expose an owner
-        // whose declaration is private or internal in an imported library.
-        if symbol.flags.contains(.importedLibrary),
-           let parent = symbols.parentSymbol(for: symbol.id),
+        // A nested declaration cannot expose an owner that is invisible at its
+        // use site, for source declarations or imported metadata alike.
+        if let parent = symbols.parentSymbol(for: symbol.id),
            let owner = symbols.symbol(parent),
-           owner.flags.contains(.importedLibrary),
            !isAccessible(owner, fromFile: accessFileID, enclosingClass: enclosingClass) {
             return false
         }
@@ -86,6 +84,15 @@ struct VisibilityChecker {
         case .protected:
             guard let ownerClass = symbols.parentSymbol(for: symbol.id) else {
                 return false
+            }
+            // A protected nested class passes its visibility to an implicit
+            // constructor. Check access against that class's owning scope so
+            // the enclosing class and its subclasses can construct it. An
+            // explicitly protected constructor still uses its own class as
+            // the protected owner.
+            if symbol.flags.contains(.constructorVisibilityInherited),
+               let ownerSymbol = symbols.symbol(ownerClass) {
+                return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
             }
             guard let enclosingClass else {
                 return false

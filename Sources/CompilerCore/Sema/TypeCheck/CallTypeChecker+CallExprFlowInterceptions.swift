@@ -46,7 +46,8 @@ extension CallTypeChecker {
             var flowBuilderCtx = ctx.with(implicitReceiverType: sema.types.anyType)
             flowBuilderCtx.isFlowBuilderLambdaScope = true
             let flowInference = FlowBuilderInferenceSession(
-                expectedElementType: explicitTypeArgs.first ?? flowBuilderElementType(expectedType, ctx: ctx)
+                expectedElementType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+                    ?? flowBuilderElementType(expectedType, ctx: ctx)
             )
             flowBuilderCtx.flowBuilderInference = flowInference
             let flowLambdaExpectedType = sema.types.make(.functionType(FunctionType(

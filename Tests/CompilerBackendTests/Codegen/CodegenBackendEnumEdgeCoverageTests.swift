@@ -129,5 +129,25 @@ struct CodegenBackendEnumEdgeCoverageTests {
             expected: "3\n3\n"
         )
     }
+
+    @Test
+    func testForInOverEnumValuesReadsConstructorProperty() throws {
+        let source = """
+        enum class Dogs(val id: String) {
+            BULLDOG("bulldog"), TERRIER("terrier"), HOUND("hound"), MASTIFF("mastiff")
+        }
+
+        fun main() {
+            for (value in Dogs.values())
+                println("${value.name} -> ${value.id}")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumValuesForInConstructorProperty",
+            expected: "BULLDOG -> bulldog\nTERRIER -> terrier\nHOUND -> hound\nMASTIFF -> mastiff\n"
+        )
+    }
 }
 #endif

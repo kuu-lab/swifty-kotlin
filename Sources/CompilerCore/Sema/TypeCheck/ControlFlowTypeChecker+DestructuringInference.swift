@@ -177,9 +177,13 @@ extension ControlFlowTypeChecker {
             bodyLocals[name] = (componentType, symbol, false, true)
         }
 
+        var newLabelStack = ctx.loopLabelStack
+        if let label = ctx.ast.arena.loopLabel(for: id) {
+            newLabelStack.append(label)
+        }
         _ = driver.inferExpr(
             bodyExpr,
-            ctx: ctx.copying(loopDepth: ctx.loopDepth + 1),
+            ctx: ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack),
             locals: &bodyLocals,
             expectedType: nil
         )

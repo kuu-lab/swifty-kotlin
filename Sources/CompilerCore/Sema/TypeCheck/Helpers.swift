@@ -532,42 +532,50 @@ struct TypeCheckHelpers {
         return sema.types.anyType
     }
 
-    /// For Map<K, V> and the built-in nominal map subtypes, return
-    /// Map.Entry<K, V>; mutable maps iterate mutable entries.
+    /// For any subtype of Map<K, V>, return Map.Entry<K, V>; mutable maps
+    /// iterate mutable entries. The inherited type arguments matter for
+    /// classes such as TreeMap, which reaches MutableMap through several
+    /// Java collection interfaces.
     func mapEntryElementType(
         for mapType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(mapType)),
-              classType.args.count >= 2,
-              let concreteSymbol = sema.symbols.symbol(classType.classSymbol),
-              KnownCompilerNames(interner: interner).isMapLikeSymbol(concreteSymbol)
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(mapType)) else {
+            return nil
+        }
+
+        let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
+        guard let mapSymbol = sema.symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("Map")]),
+              let mutableMapSymbol = sema.symbols.lookup(
+                  fqName: kotlinCollectionsPkg + [interner.intern("MutableMap")]
+              )
         else {
             return nil
         }
 
-        // HashMap and LinkedHashMap carry the same K/V arguments as their
-        // MutableMap supertype, so the direct class arguments are sufficient
-        // for the built-in map classes. Avoid a transitive nominal-supertype
-        // walk here: this helper runs while every for-loop is being inferred,
-        // and that walk can revisit the large synthetic collection graph.
         let isMutable: Bool
         let mapArgs: [TypeArg]
-        switch concreteSymbol.name {
-        case interner.intern("MutableMap"), interner.intern("HashMap"), interner.intern("LinkedHashMap"):
+        if let mutableMapArgs = sema.types.liftedNominalSupertypeArgs(
+            from: classType.classSymbol,
+            childArgs: classType.args,
+            to: mutableMapSymbol
+        ), mutableMapArgs.count >= 2 {
             isMutable = true
-            mapArgs = classType.args
-        case interner.intern("Map"):
+            mapArgs = mutableMapArgs
+        } else if let readOnlyMapArgs = sema.types.liftedNominalSupertypeArgs(
+            from: classType.classSymbol,
+            childArgs: classType.args,
+            to: mapSymbol
+        ), readOnlyMapArgs.count >= 2 {
             isMutable = false
-            mapArgs = classType.args
-        default:
+            mapArgs = readOnlyMapArgs
+        } else {
             return nil
         }
 
         // MutableMap.iterator() returns MutableMap.MutableEntry, while Map.iterator()
         // returns the read-only Map.Entry surface.
-        let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         let entryOwnerName = isMutable ? interner.intern("MutableMap") : interner.intern("Map")
         let entryName = isMutable ? interner.intern("MutableEntry") : interner.intern("Entry")
         let entryFQName = kotlinCollectionsPkg + [entryOwnerName, entryName]

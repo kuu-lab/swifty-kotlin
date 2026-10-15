@@ -135,6 +135,22 @@ extension CallTypeChecker {
                 let resolvedArgTypes = args.map { arg in
                     sema.bindings.exprType(for: arg.expr) ?? sema.types.anyType
                 }
+                let stringMapResultElementType: TypeID? = if explicitTypeArgs.count <= 1 {
+                    switch stringHOFCalleeStr {
+                    case "map", "mapIndexed":
+                        explicitTypeArgs.first
+                            ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                    case "mapNotNull":
+                        explicitTypeArgs.first
+                            ?? sema.types.makeNonNullable(
+                                inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                            )
+                    default:
+                        nil
+                    }
+                } else {
+                    nil
+                }
                 if stringHOFCalleeStr == "zipWithNext" {
                     // Re-run inference with the transform overload so the result type
                     // comes from the lambda body rather than the placeholder `Any`.
@@ -145,7 +161,7 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: sema.types.anyType)
                         return sema.types.anyType
                     }
-                    let lambdaReturnType = explicitTypeArgs.first ?? sema.types.anyType
+                    let lambdaReturnType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [charType, charType],
                         returnType: lambdaReturnType,
@@ -153,7 +169,7 @@ extension CallTypeChecker {
                         nullability: .nonNull
                     )))
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = explicitTypeArgs.first
+                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                         ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
                     if let chosen = sema.symbols.lookupAll(fqName: [
                         interner.intern("kotlin"),
@@ -201,6 +217,39 @@ extension CallTypeChecker {
                     explicitTypeArgs: explicitTypeArgs,
                     safeCall: safeCall
                 ) {
+                    // The placeholder lambda type above can leave the generic
+                    // result as Any? even when the body has a concrete type.
+                    // Reapply the body type when no explicit or expected type
+                    // constrains the call, so a following collection operator
+                    // sees the correct List element type.
+                    if explicitTypeArgs.isEmpty,
+                       expectedType == nil,
+                       boundType != sema.types.errorType,
+                       let resultElementType = stringMapResultElementType,
+                       let binding = sema.bindings.callBinding(for: id),
+                       let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                       signature.typeParameterSymbols.count == 1
+                    {
+                        sema.bindings.bindCall(
+                            id,
+                            binding: CallBinding(
+                                chosenCallee: binding.chosenCallee,
+                                substitutedTypeArguments: [resultElementType],
+                                parameterMapping: binding.parameterMapping,
+                                defaultArgumentOwner: binding.defaultArgumentOwner,
+                                isCallableReferenceAdapter: binding.isCallableReferenceAdapter
+                            )
+                        )
+                        let resultType = makeSyntheticListType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: resultElementType
+                        )
+                        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
                     return boundType
                 }
                 bindSyntheticStringMemberDirectlyIfAvailable(
@@ -222,11 +271,25 @@ extension CallTypeChecker {
                         nullability: .nonNull
                     )))
                 }()
+                // KUU-2331: the synthetic String-HOF fallback can miss the
+                // source-backed CharSequence.map candidate. Keep its list
+                // result type so chained collection calls bind normally.
                 let resultType: TypeID = switch stringHOFCalleeStr {
                 case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "takeWhile", "dropWhile",
                      "trim", "trimStart", "trimEnd": sema.types.stringType
-                case "map", "mapIndexed", "mapNotNull": sema.types.anyType
+                case "map", "mapIndexed": makeSyntheticListType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: stringMapResultElementType ?? sema.types.anyType
+                )
+                case "mapNotNull": makeSyntheticListType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: stringMapResultElementType ?? sema.types.anyType
+                )
                 case "splitToSequence": sequenceStringType
                 default: sema.types.anyType
                 }

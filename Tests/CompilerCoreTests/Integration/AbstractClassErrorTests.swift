@@ -76,6 +76,22 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    @Test func testEnumAbstractOverrideWithEntryImplementationRemainsValid() throws {
+        let ctx = makeContextFromSource("""
+        interface T { fun f() }
+        enum class E : T {
+            ENTRY {
+                override fun f() {}
+            };
+            abstract override fun f()
+        }
+        """)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     @Test func testEnumAbstractMemberWithEntryImplementationRemainsValid() throws {
         let ctx = makeContextFromSource("""
         enum class C {
@@ -88,6 +104,46 @@ import Testing
         try runSema(ctx)
 
         #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testUpstreamAbstractOverrideInEnumRemainsValid() throws {
+        // Mirrors JetBrains/kotlin v2.3.10 compiler/testData/diagnostics/tests/enum/AbstractOverrideInEnum.kt.
+        let ctx = makeContextFromSource("""
+        enum class E : T {
+            ENTRY {
+                override fun f() {
+                }
+            };
+
+            abstract override fun f()
+        }
+
+        interface T {
+            fun f()
+        }
+        """)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testEnumAbstractOverrideRequiresEveryEntryImplementation() throws {
+        let ctx = makeContextFromSource("""
+        interface T { fun f() }
+        enum class E : T {
+            IMPLEMENTED { override fun f() {} },
+            MISSING;
+            abstract override fun f()
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                && $0.severity == .error
+                && $0.message.contains("E.MISSING")
+        })
     }
 
     private static let abstractErrorSources: [String] = [

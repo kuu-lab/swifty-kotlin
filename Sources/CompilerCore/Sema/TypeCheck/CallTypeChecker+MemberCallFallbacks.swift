@@ -551,6 +551,7 @@ extension CallTypeChecker {
         guard !isClassNameReceiver,
               args.isEmpty,
               explicitTypeArgs.count == 1,
+              let typeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs),
               interner.resolve(calleeName) == "alloc"
         else {
             return nil
@@ -585,7 +586,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        let typeArg = explicitTypeArgs[0]
         sema.bindings.bindCall(
             id,
             binding: CallBinding(

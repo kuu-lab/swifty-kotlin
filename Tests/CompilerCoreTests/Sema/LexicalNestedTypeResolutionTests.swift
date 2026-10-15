@@ -83,6 +83,60 @@ struct LexicalNestedTypeResolutionTests {
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0025" })
     }
 
+    @Test
+    func missingJavaLangObjectResolvesToKotlinAny() throws {
+        let facade = """
+        package java.lang
+        public typealias Object = kotlin.Any
+        """
+        let consumer = """
+        class Monitor
+        fun box(): String {
+            val obj = Monitor() as java.lang.Object
+            return "OK"
+        }
+        fun javaLangObjectType(value: Monitor): java.lang.Object = value
+        fun kotlinAnyType(value: Monitor): Any = value
+        fun nullableJavaLangObjectType(value: Monitor): java.lang.Object? = value
+        fun nullableAnyType(value: Monitor): Any? = value
+        """
+        try withTemporaryFiles(contents: [facade, consumer]) { inputs in
+            let ctx = makeCompilationContext(inputs: inputs, includeStdlib: false, allowDefaultStdlibLibrary: false)
+            _ = ctx.sourceManager.addFile(path: inputs[0], contents: Data(facade.utf8), origin: .bundledStdlib)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let javaLangObject = try #require(
+                sema.symbols.lookup(fqName: ["java", "lang", "Object"].map(ctx.interner.intern))
+            )
+            let kotlinAny = try #require(sema.symbols.lookup(fqName: ["kotlinAnyType"].map(ctx.interner.intern)))
+            let javaLangObjectSymbol = try #require(sema.symbols.symbol(javaLangObject))
+            let nullableJavaLangObject = try #require(
+                sema.symbols.lookup(fqName: ["nullableJavaLangObjectType"].map(ctx.interner.intern))
+            )
+            let nullableAny = try #require(
+                sema.symbols.lookup(fqName: ["nullableAnyType"].map(ctx.interner.intern))
+            )
+            let javaLangObjectFunction = try #require(
+                sema.symbols.lookup(fqName: ["javaLangObjectType"].map(ctx.interner.intern))
+            )
+            let javaLangObjectSignature = try #require(sema.symbols.functionSignature(for: javaLangObjectFunction))
+            let kotlinAnySignature = try #require(sema.symbols.functionSignature(for: kotlinAny))
+            let nullableJavaLangObjectSignature = try #require(
+                sema.symbols.functionSignature(for: nullableJavaLangObject)
+            )
+            let nullableAnySignature = try #require(
+                sema.symbols.functionSignature(for: nullableAny)
+            )
+
+            #expect(javaLangObjectSymbol.kind == .typeAlias)
+            #expect(javaLangObjectSignature.returnType == sema.types.anyType)
+            #expect(javaLangObjectSignature.returnType == kotlinAnySignature.returnType)
+            #expect(nullableJavaLangObjectSignature.returnType == nullableAnySignature.returnType)
+        }
+    }
+
     @discardableResult
     private func expectSignature(
         _ function: [String], returns target: [String], prefix: [String], in ctx: CompilationContext

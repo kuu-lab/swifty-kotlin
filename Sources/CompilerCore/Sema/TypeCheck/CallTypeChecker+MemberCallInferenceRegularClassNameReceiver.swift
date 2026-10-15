@@ -530,7 +530,8 @@ extension CallTypeChecker {
                         preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                         expectedTypeOverrides: expectedTypeOverrides,
                         expectedTypeHintIndices: expectedTypeHintIndices,
-                        contextualCallResultType: expectedType,
+                        contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                            ? sema.types.unitType : expectedType,
                         explicitTypeArgs: explicitTypeArgs,
                         lambdaContextOverrides: lambdaContextOverrides,
                         ctx: ctx,

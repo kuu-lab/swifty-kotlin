@@ -233,6 +233,20 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Delegate"
         ),
+    ] + (7...22).map { arity in
+        RuntimeABIFunctionSpec(
+            name: "kk_function_invoke_\(arity)",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ] + (1...arity).map { argument in
+                RuntimeABIParameter(name: "arg\(argument)", type: .intptr)
+            } + [
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Delegate"
+        )
+    } + [
         RuntimeABIFunctionSpec(
             name: "kk_function_create_0",
             parameters: [

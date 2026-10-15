@@ -111,4 +111,32 @@ struct LibrarySymbolNamespaceTests {
                 "42\nlibrary\n42\nlibrary\nleft\nright\n42\nlibrary\n")
         }
     }
+
+    @Test(arguments: [0, 2])
+    func sourceDataClassCanShadowBundledLibraryDeclaration(optimization: Int) throws {
+        let level = try #require(OptimizationLevel(rawValue: optimization))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourcePath = directory.appendingPathComponent("CoroutineName.kt").path
+        try """
+        package kotlinx.coroutines
+        public data class CoroutineName(val name: String)
+        """.write(toFile: sourcePath, atomically: true, encoding: .utf8)
+        let options = CompilerOptions(
+            moduleName: "CoroutineNameSourceOverrideO\(optimization)",
+            inputs: [sourcePath],
+            outputPath: directory.appendingPathComponent("CoroutineNameSourceOverride").path,
+            emit: .library,
+            target: defaultTargetTriple(),
+            optLevel: level,
+            stdlibLibraryPath: try testStdlibArtifactPath()
+        )
+
+        try assertCompilationSucceeded(
+            makeTestDriver().runForTesting(options: options),
+            context: "CoroutineName O\(optimization)"
+        )
+    }
 }

@@ -612,6 +612,28 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
+        // KUU-2380: enum-entry properties are owned by the entry field in
+        // Sema, while their backing slots and getter helpers belong to the
+        // containing enum class. Resolve that owner before the nominal
+        // instance-layout path treats the ordinal receiver as an object.
+        if enumClassOwnerSymbol(forEntryField: ownerSymbol, sema: sema) != nil,
+           let propertyInfo = sema.symbols.symbol(propertySymbol),
+           propertyInfo.kind == .property,
+           let getterPlaceholder = enumPropertyGetterPlaceholder(
+               for: propertySymbol, sema: sema, interner: interner
+           )
+        {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: getterPlaceholder,
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         guard ownerInfo.kind == .class || ownerInfo.kind == .interface
             || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
         else {
@@ -670,28 +692,6 @@ extension CallLowerer {
            !externalLinkName.isEmpty
         {
             return nil
-        }
-
-        // Runtime-backed Set instances are opaque set boxes. Their
-        // source-backed `size` getter must use the set bridge directly; an
-        // itable/vtable getter would require a Kotlin object layout that the
-        // runtime box does not have.
-        if isRuntimeBackedSetSizeProperty(
-            propertySymbol,
-            receiverExpr: receiverExpr,
-            sema: sema,
-            interner: interner
-        ) {
-            let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_set_size"),
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
         }
 
         // KSP-928: an abstract/open class property is a getter dispatch point,
@@ -1242,23 +1242,6 @@ extension CallLowerer {
             return nil
         }
 
-        if isRuntimeBackedSetSizeProperty(
-            propertySymbol,
-            receiverExpr: receiverExpr,
-            sema: sema,
-            interner: interner
-        ) {
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_set_size"),
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
-
         // Let the stored-property path distinguish opaque dispatcher tags from
         // source implementations before attempting a normal virtual getter.
         if sema.symbols.symbol(propertySymbol)?.name == interner.intern("immediate"),
@@ -1323,24 +1306,6 @@ extension CallLowerer {
             instructions: &instructions
         )
         return result
-    }
-
-    private func isRuntimeBackedSetSizeProperty(
-        _ propertySymbol: SymbolID,
-        receiverExpr: ExprID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard sema.symbols.symbol(propertySymbol)?.name == interner.intern("size"),
-              let receiverType = sema.bindings.exprTypes[receiverExpr]
-        else {
-            return false
-        }
-        return isSetLikeType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
     }
 
     func tryLowerEnumEntryPropertyRead(
@@ -1802,19 +1767,23 @@ extension CallLowerer {
     }
 
     func isEnumEntryField(_ fieldSymbol: SymbolID, sema: SemaModule) -> Bool {
+        guard let field = sema.symbols.symbol(fieldSymbol) else { return false }
+        return sema.symbols.enumOwnerSymbol(for: field) != nil
+    }
+
+    func enumClassOwnerSymbol(forEntryField fieldSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+        guard isEnumEntryField(fieldSymbol, sema: sema),
+              let fieldInfo = sema.symbols.symbol(fieldSymbol)
+        else {
+            return nil
+        }
         if let parentSymbol = sema.symbols.parentSymbol(for: fieldSymbol),
            sema.symbols.symbol(parentSymbol)?.kind == .enumClass
         {
-            return true
+            return parentSymbol
         }
-        guard let field = sema.symbols.symbol(fieldSymbol),
-              field.kind == .field,
-              field.fqName.count >= 2
-        else {
-            return false
-        }
-        let ownerFQName = Array(field.fqName.dropLast())
-        return sema.symbols.lookupAll(fqName: ownerFQName).contains { candidate in
+        let ownerFQName = Array(fieldInfo.fqName.dropLast())
+        return sema.symbols.lookupAll(fqName: ownerFQName).first { candidate in
             sema.symbols.symbol(candidate)?.kind == .enumClass
         }
     }

@@ -65,6 +65,19 @@ struct RuntimeProcessArgumentsTests {
     }
 
     @Test
+    func processArgumentArraysAreAcceptedByArrayToListBridges() throws {
+        for expected in [[], ["alpha", "日本語"]] {
+            let raw = withArgv(["program"] + expected) { argv, _ in
+                __kk_process_args_from_argv(Int32(expected.count + 1), argv)
+            }
+            for listRaw in [kk_array_asList(raw), kk_array_toList(raw)] {
+                let list = try #require(runtimeListBox(from: listRaw))
+                #expect(list.values.compactMap { runtimeStringFromRaw($0.legacyRawValue) } == expected)
+            }
+        }
+    }
+
+    @Test
     func arrayAndStringValuesOutliveBorrowedArgvStorage() throws {
         let raw = try withArgv(["program", "original"]) { argv, buffers in
             let result = __kk_process_args_from_argv(2, argv)

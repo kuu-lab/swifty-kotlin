@@ -191,6 +191,14 @@ final class ObjectLiteralLowerer {
         if emittedNominal {
             let scopeSnapshot = driver.ctx.saveScope()
             defer { driver.ctx.restoreScope(scopeSnapshot) }
+            lowerObjectLiteralNestedMembers(
+                objectDecl,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
             lowerObjectLiteralMemberFunctions(
                 objectDecl,
                 ast: ast,
@@ -975,6 +983,33 @@ final class ObjectLiteralLowerer {
             memberProperties: [],
             nestedClasses: [],
             nestedObjects: [],
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers
+        )
+        for declID in allDecls {
+            driver.ctx.appendGeneratedCallableDecl(declID)
+        }
+    }
+
+    private func lowerObjectLiteralNestedMembers(
+        _ objectDecl: ObjectDecl,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) {
+        guard !objectDecl.nestedClasses.isEmpty || !objectDecl.nestedObjects.isEmpty else {
+            return
+        }
+        let (_, allDecls) = driver.memberLowerer.lowerMemberDecls(
+            memberFunctions: [],
+            memberProperties: [],
+            nestedClasses: objectDecl.nestedClasses,
+            nestedObjects: objectDecl.nestedObjects,
             ast: ast,
             sema: sema,
             arena: arena,
