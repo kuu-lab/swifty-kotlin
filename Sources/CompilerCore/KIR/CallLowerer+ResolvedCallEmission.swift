@@ -981,23 +981,40 @@ extension CallLowerer {
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
             if let arrayResultTypeID {
-                let typeIDExpr = arena.appendExpr(
-                    .intLiteral(arrayResultTypeID),
-                    type: sema.types.intType
-                )
-                instructions.append(.constValue(
-                    result: typeIDExpr,
-                    value: .intLiteral(arrayResultTypeID)
-                ))
-                let taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_array_tag_type"),
-                    arguments: [callResult, typeIDExpr],
-                    result: taggedResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                let taggedResult: KIRExprID
+                if loweredCalleeName == interner.intern("kk_array_of_nulls") {
+                    // This intrinsic allocates a fresh reference array, so its
+                    // call-site result type is reliable component metadata.
+                    // Inlined collection bridges such as toTypedArray() reach
+                    // this path through arrayOfNulls<T>.
+                    taggedResult = appendRuntimeArrayComponentTag(
+                        callResult,
+                        arrayType: boundType ?? arena.exprType(result),
+                        context: driver.ctx,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                } else {
+                    let typeIDExpr = arena.appendExpr(
+                        .intLiteral(arrayResultTypeID),
+                        type: sema.types.intType
+                    )
+                    instructions.append(.constValue(
+                        result: typeIDExpr,
+                        value: .intLiteral(arrayResultTypeID)
+                    ))
+                    taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_tag_type"),
+                        arguments: [callResult, typeIDExpr],
+                        result: taggedResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 // Nominal return tagging is existing erased-Array behavior.
                 // Actual components belong to allocation/copy sites: an
                 // untagged legacy/erased array cannot be proven by return type.
