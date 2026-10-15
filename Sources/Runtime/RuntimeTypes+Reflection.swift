@@ -459,6 +459,9 @@ final class RuntimeKConstructorBox {
     let isPrimary: Bool
     /// Visibility as a KKString raw handle (e.g. "PUBLIC", "PRIVATE", "PROTECTED", "INTERNAL").
     let visibilityRaw: Int
+    /// JVM access visibility for Java reflection; Kotlin visibility can be
+    /// narrower when the constructor inherits its owning class visibility.
+    var jvmVisibilityOrdinal: Int = 0
     /// The declaring KClass raw handle (0 if unknown).
     let declaringClassRaw: Int
     /// Parameter names as KKString raw handles.

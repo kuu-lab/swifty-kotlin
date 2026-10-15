@@ -943,3 +943,14 @@ public func __kk_kconstructor_set_parameter_type(
     box.setParameterTypeToken(typeToken, at: index)
     return 1
 }
+
+@_cdecl("__kk_kconstructor_set_jvm_visibility")
+public func __kk_kconstructor_set_jvm_visibility(_ constructorRaw: Int, _ visibilityOrdinal: Int) -> Int {
+    guard (0..<4).contains(visibilityOrdinal),
+          let constructor = runtimeReflectionObject(from: constructorRaw, as: RuntimeKConstructorBox.self)
+    else {
+        return 0
+    }
+    constructor.jvmVisibilityOrdinal = visibilityOrdinal
+    return constructorRaw
+}

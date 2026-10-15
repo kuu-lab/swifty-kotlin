@@ -150,6 +150,24 @@ public extension RuntimeABISpec {
             returnType: .intptr, section: "Reflection", isThrowing: true
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_java_class_get_constructor",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+                RuntimeABIParameter(name: "parameterTypesRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_constructor_new_instance",
+            parameters: [
+                RuntimeABIParameter(name: "constructorRaw", type: .intptr),
+                RuntimeABIParameter(name: "argumentsRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kfunction_create",
             parameters: [
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
@@ -347,6 +365,14 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Reflection",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kconstructor_set_jvm_visibility",
+            parameters: [
+                RuntimeABIParameter(name: "constructorRaw", type: .intptr),
+                RuntimeABIParameter(name: "visibilityOrdinal", type: .intptr),
+            ],
+            returnType: .intptr, section: "Reflection", isThrowing: false
         ),
     ]
 

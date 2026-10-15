@@ -112,6 +112,12 @@ public extension RuntimeABISpec {
             p("classRaw", .intptr),
             p("parameterTypesRaw", .intptr),
         ], isThrowing: false),
+        abiParitySpec("__kk_class_canonical_name", parameters: [
+            p("classRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_kclass_java_class", parameters: [
+            p("kclassRaw", .intptr),
+        ], isThrowing: false),
         abiParitySpec("__kk_kclass_java_primitive_type", parameters: [
             p("kclassRaw", .intptr),
         ], isThrowing: false),
