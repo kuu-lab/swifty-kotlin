@@ -46,9 +46,15 @@ extension CallTypeChecker {
             // Class-name receiver: only companion members are valid targets.
             // Search from the companion, rather than the owner class, so its
             // inherited members are included without exposing owner instances.
-            if let ownerNominal = classNameReceiverNominalSymbol,
-               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
-            {
+            let classNameReceiverCompanionSymbol: SymbolID? = {
+                guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
+                if let companion = sema.symbols.companionObjectSymbol(for: ownerNominal) {
+                    return companion
+                }
+                guard let actualOwner = sema.symbols.actualSymbol(for: ownerNominal) else { return nil }
+                return sema.symbols.companionObjectSymbol(for: actualOwner)
+            }()
+            if let companionSymbol = classNameReceiverCompanionSymbol {
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
                 // Try companion property access when no arguments are provided
@@ -555,27 +561,12 @@ extension CallTypeChecker {
                 if !innerCtorCandidates.isEmpty {
                     allCandidates = innerCtorCandidates
                 } else {
-                    allCandidates = collectExtensionCallCandidates(
-                        named: calleeName,
-                        memberLookupType: memberLookupType,
-                        isSuperCall: isSuperCall,
-                        supertypeSymbols: supertypeSymbols,
-                        ctx: ctx,
-                        locals: locals,
-                        sema: sema,
-                        interner: interner,
-                        callShapeMatches: {
-                            self.extensionCandidateMatchesCallShape(
-                                $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
-                            )
-                        },
-                        requiresInfix: ast.arena.isInfixCall(id)
-                    )
-                    if allCandidates.isEmpty, let callableReferenceFunctionType {
-                        // Callable references are also function values. Keep KFunction as the
-                        // primary lookup type for reflection extensions, then retry extensions
-                        // declared on the underlying function type when no reflective candidate
-                        // applies to this member name.
+                    if let callableReferenceFunctionType {
+                        // A callable reference is both a reflective KFunction and an
+                        // invokable function value. Resolve generic extensions such as
+                        // `let` against its structural function type first so the inferred
+                        // receiver type retains its parameter list. Reflection-specific
+                        // extensions still use the KFunction lookup below as a fallback.
                         allCandidates = collectExtensionCallCandidates(
                             named: calleeName,
                             memberLookupType: callableReferenceFunctionType,
@@ -589,6 +580,26 @@ extension CallTypeChecker {
                                 self.extensionCandidateMatchesCallShape(
                                     $0, request: request, argumentTypes: argTypes,
                                     receiverType: callableReferenceFunctionType
+                                )
+                            },
+                            requiresInfix: ast.arena.isInfixCall(id)
+                        )
+                    } else {
+                        allCandidates = []
+                    }
+                    if allCandidates.isEmpty {
+                        allCandidates = collectExtensionCallCandidates(
+                            named: calleeName,
+                            memberLookupType: memberLookupType,
+                            isSuperCall: isSuperCall,
+                            supertypeSymbols: supertypeSymbols,
+                            ctx: ctx,
+                            locals: locals,
+                            sema: sema,
+                            interner: interner,
+                            callShapeMatches: {
+                                self.extensionCandidateMatchesCallShape(
+                                    $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
                                 )
                             },
                             requiresInfix: ast.arena.isInfixCall(id)

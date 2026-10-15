@@ -2,6 +2,8 @@
 extension CallTypeChecker {
     /// A qualified member import binds the named singleton, whereas lookup
     /// through a nullable implicit receiver must still check that receiver.
+    /// Imported extensions keep their declared receiver even when their
+    /// bundled owner is an object after header collection.
     func importedObjectDispatchReceiverCandidates(
         named name: InternedString?,
         candidates: [SymbolID],
@@ -14,6 +16,7 @@ extension CallTypeChecker {
         guard !paths.isEmpty else { return [] }
         return Set(candidates.filter { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
+                  ctx.sema.symbols.functionSignature(for: candidate)?.receiverType == nil,
                   let owner = ctx.sema.symbols.parentSymbol(for: candidate),
                   ctx.sema.symbols.symbol(owner)?.kind == .object,
                   ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
@@ -538,6 +541,7 @@ extension CallTypeChecker {
                 expectedType: nil,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
             if selection.diagnostic == nil, let chosen = selection.chosenCallee {
@@ -598,6 +602,7 @@ extension CallTypeChecker {
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
             return validateConstructorTypeInference(
@@ -625,6 +630,7 @@ extension CallTypeChecker {
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: candidateArgumentTypes,
             ignoringLambdaReturnTypeArgumentIndices: inputOnlyLambdaIndices,
+            resultIsDiscarded: ctx.isCallResultDiscarded,
             ctx: ctx.sema
         )
         let viableSymbols = probe.viableCandidates.map(\.symbol)
@@ -635,6 +641,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -645,6 +652,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -666,6 +674,7 @@ extension CallTypeChecker {
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -691,6 +700,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -701,6 +711,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }

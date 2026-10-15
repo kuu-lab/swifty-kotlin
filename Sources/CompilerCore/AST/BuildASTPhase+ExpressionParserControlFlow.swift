@@ -697,6 +697,9 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         var elseExpr: ExprID?
+        if matches(.symbol(.semicolon)), peek(1)?.kind == .keyword(.else) {
+            _ = consume()
+        }
         if matches(.keyword(.else)) {
             _ = consume()
             elseExpr = parseControlFlowBodyExpression()

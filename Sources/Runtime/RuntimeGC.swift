@@ -128,6 +128,7 @@ struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
     var functionArityByPointer: [Int: Int] = [:]
     var functionDescriptionsByValue: [Int: String] = [:]
+    var functionEnclosingClassNamesByPointer: [Int: String] = [:]
 }
 
 final class RuntimeStorageBox: @unchecked Sendable {
@@ -729,6 +730,7 @@ func kk_runtime_reset_delegate() {
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
         state.functionArityByPointer.removeAll(keepingCapacity: false)
         state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
+        state.functionEnclosingClassNamesByPointer.removeAll(keepingCapacity: false)
     }
 }
 

@@ -20,6 +20,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if let classText = runtimeJavaClassToStringText(elem) {
+        return classText
+    }
     if let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self),
        let name = dispatcher.displayName {
         return name

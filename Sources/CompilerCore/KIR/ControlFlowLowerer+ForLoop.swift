@@ -1135,11 +1135,19 @@ extension ControlFlowLowerer {
             instructions: &instructions
         )
         // The erased Iterator<T>.next ABI may return a boxed Int for Byte and
-        // Short elements. Normalize it before arithmetic in source-backed
-        // Iterable loops; kk_unbox_int also accepts an already-raw scalar.
+        // Short elements, or a boxed enum ordinal. Normalize it before the
+        // loop body uses the typed value; kk_unbox_int also accepts an
+        // already-raw scalar.
         let loopElementID: KIRExprID
-        switch sema.types.kind(of: loopBinding.elementType) {
+        let needsIntUnboxing: Bool = switch sema.types.kind(of: loopBinding.elementType) {
         case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
+            true
+        case let .classType(classType) where classType.nullability == .nonNull:
+            sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass
+        default:
+            false
+        }
+        if needsIntUnboxing {
             let scalar = arena.appendTemporary(type: loopBinding.elementType)
             emitNonThrowingCall(
                 callee: interner.intern("kk_unbox_int"),
@@ -1148,7 +1156,7 @@ extension ControlFlowLowerer {
                 into: &instructions
             )
             loopElementID = scalar
-        default:
+        } else {
             loopElementID = nextValueID
         }
         if let loopVariableSymbol {

@@ -1,3 +1,23 @@
+@_cdecl("__kk_function_set_enclosing_class")
+public func __kk_function_set_enclosing_class(_ value: Int, _ enclosingClassNameRaw: Int) {
+    guard value != 0,
+          let enclosingClassName = extractString(from: UnsafeMutableRawPointer(bitPattern: enclosingClassNameRaw))
+    else {
+        return
+    }
+    let functionPointer = runtimeFunctionValueBox(from: value)?.fnPtr ?? value
+    runtimeStorage.withDelegateLock { state in
+        state.functionEnclosingClassNamesByPointer[functionPointer] = enclosingClassName
+    }
+}
+
+func runtimeFunctionEnclosingClassName(for value: Int) -> String? {
+    let functionPointer = runtimeFunctionValueBox(from: value)?.fnPtr ?? value
+    return runtimeStorage.withDelegateLock { state in
+        state.functionEnclosingClassNamesByPointer[functionPointer]
+    }
+}
+
 @_cdecl("kk_function_value_tag_arity")
 public func kk_function_value_tag_arity(_ functionRaw: Int, _ arity: Int) -> Int {
     guard functionRaw != 0, arity >= 0 else {

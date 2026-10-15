@@ -451,7 +451,9 @@ extension KotlinParser {
             }
         }
         if case .symbol(.lParen) = stream.peek().kind {
-            let params = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            let params = parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
+            )
             children.append(.node(params))
             range.append(childRange(.node(params)))
         }
