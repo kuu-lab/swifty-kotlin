@@ -1019,7 +1019,15 @@ extension CallTypeChecker {
             // substituting the receiver variable itself, so F-bounded contracts
             // (`T : Comparable<T>`) still hold. Bounds that stay type parameters
             // (`C : R`) constrain a different variable and are skipped.
-            let bounds = sema.symbols.typeParameterUpperBounds(for: receiverTypeParam.symbol)
+            let signatureBounds: [TypeID]
+            if let index = signature.typeParameterSymbols.firstIndex(of: receiverTypeParam.symbol),
+               signature.typeParameterUpperBoundsList.indices.contains(index) {
+                signatureBounds = signature.typeParameterUpperBoundsList[index]
+            } else {
+                signatureBounds = []
+            }
+            let symbolBounds = sema.symbols.typeParameterUpperBounds(for: receiverTypeParam.symbol)
+            let bounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
             guard !bounds.isEmpty else {
                 return true
             }
