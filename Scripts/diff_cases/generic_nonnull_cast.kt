@@ -13,6 +13,9 @@ inline fun <reified T : Any?> reifiedNullable(value: Any?): T = value as T
 inline fun <reified T : Any> reifiedSafe(value: Any?): T? = value as? T
 inline fun <reified T : Any?> reifiedSafeNullable(value: Any?): T? = value as? T
 
+fun <T : Any> valueControl(value: T): T = value as T
+inline fun <T : Any> inlineValueControl(value: T): T = value as T
+
 fun main() {
     println(try { strict<String>(null); "NO_THROW" } catch (e: NullPointerException) { "NPE" })
     println(explicitNullable<String>(null) == null)
@@ -41,4 +44,17 @@ fun main() {
     println(reifiedNullable<String>("OK"))
     println(reifiedSafe<String>("OK"))
     println(reifiedSafeNullable<String>("OK"))
+    println(valueControl("OK"))
+    println(inlineValueControl("OK"))
+    println(valueControl(Long.MIN_VALUE))
+    println(inlineValueControl(Long.MIN_VALUE))
+    println(valueControl(false))
+    println(inlineValueControl(false))
+    println(valueControl(0))
+    println(inlineValueControl(0))
+    println(valueControl(-0.0).toRawBits() == Long.MIN_VALUE)
+    println(inlineValueControl(-0.0).toRawBits() == Long.MIN_VALUE)
+    println(valueControl(9223372036854775808uL) == 9223372036854775808uL)
+    println(inlineValueControl(9223372036854775808uL) == 9223372036854775808uL)
+    println(strict<Long>(Long.MIN_VALUE) == Long.MIN_VALUE)
 }

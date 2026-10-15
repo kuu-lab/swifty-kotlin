@@ -12,7 +12,9 @@ struct CodegenBackendGenericNonNullCastTests {
         let source = try diffCaseSource("generic_nonnull_cast.kt", file: #filePath)
         let expected = "NPE\n" + String(repeating: "true\n", count: 5)
             + "NPE\ntrue\nNPE\n" + String(repeating: "true\n", count: 4)
-            + "NPE\n" + String(repeating: "OK\n", count: 13)
+            + "NPE\n" + String(repeating: "OK\n", count: 15)
+            + "-9223372036854775808\n-9223372036854775808\nfalse\nfalse\n0\n0\n"
+            + String(repeating: "true\n", count: 5)
         try assertKotlinOutput(
             source,
             moduleName: "GenericNonNullCast",

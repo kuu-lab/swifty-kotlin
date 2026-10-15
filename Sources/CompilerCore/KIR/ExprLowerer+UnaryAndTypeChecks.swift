@@ -148,7 +148,7 @@ extension ExprLowerer {
 
     /// A plain T may admit null through its upper bounds even when its type
     /// parameter node has no explicit `?`. Follow dependent bounds as well.
-    private func erasedCastRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
+    private func castTypeRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
         var visited: Set<SymbolID> = []
         func requiresNonNull(_ type: TypeID) -> Bool {
             guard sema.types.nullability(of: type) == .nonNull else { return false }
@@ -240,7 +240,12 @@ extension ExprLowerer {
            !typeParamSymbol.flags.contains(.reifiedTypeParameter)
         {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            if !isSafe, erasedCastRequiresNonNull(targetType, sema: sema) {
+            let operandIsNonNull = sema.bindings.exprType(for: exprToCast).map {
+                castTypeRequiresNonNull($0, sema: sema)
+            } ?? false
+            // A check on a statically non-null value is redundant and can
+            // misread an unboxed Long.MIN_VALUE after inline specialization.
+            if !isSafe, !operandIsNonNull, castTypeRequiresNonNull(targetType, sema: sema) {
                 instructions.append(.nullAssert(operand: operandID, result: result))
             } else {
                 instructions.append(.copy(from: operandID, to: result))
