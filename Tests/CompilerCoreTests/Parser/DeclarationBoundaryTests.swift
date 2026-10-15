@@ -66,6 +66,63 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 3)
     }
 
+    @Test(arguments: [
+        "Base, Entry by delegate",
+        "Base,\n    Entry by delegate",
+        "Base, Entry\n    by delegate",
+        "Base, Entry\n    by\n    delegate",
+        "Base, Entry<String>\n    by delegate",
+    ])
+    func classSupertypeDelegationContinuesBeforeBy(supertypes: String) throws {
+        let declaration = """
+        class Target(private val delegate: Entry) : \(supertypes) {
+            override fun base() {}
+            override fun entry() {}
+        }
+        """
+        let parsed = parse("\(declaration)\nfun after() = 3")
+        let firstChild = try #require(parsed.arena.children(of: parsed.root).first)
+        guard case let .node(classID) = firstChild else {
+            Issue.record("Expected a class declaration")
+            return
+        }
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(parsed.arena.node(classID).kind == .classDecl)
+        #expect(parsed.arena.node(classID).range.end.offset == declaration.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func namedObjectSupertypeDelegationContinuesBeforeBy() {
+        let parsed = parse("""
+        object Target : Entry
+            by delegate {
+            fun member() = 1
+        }
+        fun after() = 3
+        """)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .objectDecl) == 1)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .funDecl) == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test(arguments: ["class Target", "class Target : Entry {}", "fun target(): Entry = delegate", "val target: Entry = delegate"])
+    func newlineByExpressionRemainsOutsideCompletedDeclaration(declaration: String) throws {
+        let parsed = parse("\(declaration)\nby(delegate)")
+        let firstChild = try #require(parsed.arena.children(of: parsed.root).first)
+        guard case let .node(firstID) = firstChild else {
+            Issue.record("Expected a declaration")
+            return
+        }
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(firstID).range.end.offset == declaration.utf8.count)
+        #expect(parsed.arena.children(of: parsed.root).count == 2)
+    }
+
     @Test(arguments: ["Simple()", "(Simple())", "create()"])
     func classDelegationContinuesAfterNewline(expression: String) {
         let parsed = parse("""
