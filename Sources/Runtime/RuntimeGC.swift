@@ -647,6 +647,7 @@ func kk_runtime_reset_metadata() {
     runtimeKClassObjectRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
+    runtimeJavaMethodRegistry.reset()
     runtimeKCompanionRegistry.reset()
     runtimeKNestedClassRegistry.reset()
 }

@@ -449,6 +449,94 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+
+        emitJavaClassDeclaredMethodsRegistration(
+            for: classSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Registers Java-shaped method names from this class's own declarations.
+    /// The runtime keys them by type token, so inherited members remain separate.
+    private func emitJavaClassDeclaredMethodsRegistration(
+        for classSymbol: SymbolID,
+        typeTokenExpr: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let owner = sema.symbols.symbol(classSymbol) else { return }
+        let intType = sema.types.intType
+        let stringType = sema.types.stringType
+
+        func register(name: String, signature: String, flags: Int64 = 0) {
+            let internedName = interner.intern(name)
+            let nameExpr = arena.appendExpr(.stringLiteral(internedName), type: stringType)
+            instructions.append(.constValue(result: nameExpr, value: .stringLiteral(internedName)))
+
+            let internedSignature = interner.intern(signature)
+            let signatureExpr = arena.appendExpr(.stringLiteral(internedSignature), type: stringType)
+            instructions.append(.constValue(result: signatureExpr, value: .stringLiteral(internedSignature)))
+
+            let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
+            instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
+
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_java_class_register_declared_method"),
+                arguments: [typeTokenExpr, nameExpr, signatureExpr, flagsExpr],
+                result: arena.appendTemporary(type: intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        for childID in sema.symbols.children(ofFQName: owner.fqName) {
+            guard let child = sema.symbols.symbol(childID) else { continue }
+            switch child.kind {
+            case .function:
+                guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
+                let parameterNames = signature.parameterTypes.map {
+                    sema.types.displayName(of: $0, symbols: sema.symbols, interner: interner)
+                }
+                register(
+                    name: interner.resolve(child.name),
+                    signature: parameterNames.joined(separator: ",")
+                )
+            case .property:
+                guard let propertyType = sema.symbols.propertyType(for: childID) else { continue }
+                let propertyName = interner.resolve(child.name)
+                let getterName: String
+                if propertyName.hasPrefix("is"),
+                   propertyName.dropFirst(2).first?.isUppercase == true
+                {
+                    getterName = propertyName
+                } else if let first = propertyName.first {
+                    getterName = "get" + String(first).uppercased() + propertyName.dropFirst()
+                } else {
+                    getterName = "get"
+                }
+                let returnType = sema.types.displayName(
+                    of: propertyType, symbols: sema.symbols, interner: interner
+                )
+                register(name: getterName, signature: "()->\(returnType)")
+
+                let hasRuntimePropertyAnnotation = sema.symbols.annotations(for: childID).contains { annotation in
+                    annotation.useSiteTarget == nil
+                        && resolvedAnnotationRetention(annotation, symbols: sema.symbols, interner: interner) != .source
+                }
+                if hasRuntimePropertyAnnotation {
+                    register(name: "\(getterName)$annotations", signature: "()->kotlin.Unit", flags: 1)
+                }
+            default:
+                continue
+            }
+        }
     }
 
     /// KUU-1448: emits the full `emitClassLiteralMetadataRegistrationImpl`
