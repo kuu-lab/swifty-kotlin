@@ -334,15 +334,17 @@ extension ExprTypeChecker {
             )
         }
         // REFL-CTOR: set when `candidates` were filled with constructor
-        // symbols for a bare `::Foo` reference below. A constructor
+        // symbols for a bare or nested constructor reference below. A constructor
         // signature's `receiverType` field carries the class type for the
         // constructor body's own implicit `this` (MemberHeaderCollection.swift),
         // not a real extension-style receiver -- `callableFunctionType` must
-        // therefore treat it as already "bound" (excluded from the resulting
-        // function type's parameter list) the same way a bound `obj::method`
-        // reference is, or `(Int) -> Foo` would gain a spurious leading `Foo`
-        // parameter.
+        // therefore treat it as already "bound" for ordinary constructors
+        // (excluded from the resulting function type's parameter list) the same
+        // way a bound `obj::method` reference is, or `(Int) -> Foo` would gain
+        // a spurious leading `Foo` parameter. An inner constructor is the
+        // exception: its enclosing instance is the unbound first parameter.
         var isConstructorReference = false
+        var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
@@ -517,7 +519,8 @@ extension ExprTypeChecker {
                    unboundClassType != nil,
                    let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
                 {
-                    let nestedClass = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+                    let nestedClasses = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+                    let nestedClass = nestedClasses
                         .compactMap { ctx.cachedSymbol($0) }
                         .first { ($0.kind == .class || $0.kind == .enumClass) && !$0.flags.contains(.innerClass) }
                     if let nestedClass,
@@ -525,6 +528,17 @@ extension ExprTypeChecker {
                     {
                         candidates = ctorCandidates
                         isConstructorReference = true
+                    }
+                    if candidates.isEmpty,
+                       let innerClass = nestedClasses
+                           .compactMap({ ctx.cachedSymbol($0) })
+                           .first(where: { $0.kind == .class && $0.flags.contains(.innerClass) }),
+                       !ctx.filterByVisibility([innerClass.id]).0.isEmpty,
+                       let ctorCandidates = visibleConstructorCandidates(of: innerClass, ctx: ctx)
+                    {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                        unboundInnerConstructorReceiverType = nonNullReceiver
                     }
                 }
             }
@@ -694,15 +708,37 @@ extension ExprTypeChecker {
                     break
                 }
             }
+            if candidates.isEmpty {
+                for nestedID in nestedClasses {
+                    let (visibleNested, _) = ctx.filterByVisibility([nestedID])
+                    guard let nested = ctx.cachedSymbol(nestedID),
+                          nested.kind == .class,
+                          nested.flags.contains(.innerClass),
+                          !nested.flags.contains(.abstractType),
+                          !visibleNested.isEmpty
+                    else { continue }
+                    let constructors = sema.symbols.lookupAll(
+                        fqName: nested.fqName + [interner.intern("<init>")]
+                    )
+                    let (visible, _) = ctx.filterByVisibility(constructors)
+                    if !visible.isEmpty {
+                        candidates = visible
+                        isConstructorReference = true
+                        unboundInnerConstructorReceiverType = unboundClassType
+                        break
+                    }
+                }
+            }
         }
 
         // For unbound type references (Type::member), the receiver is not
-        // bound — it becomes a parameter of the function type.  For bound
-        // references (obj::member), the receiver is captured. A constructor
-        // reference has no receiver at all; see `isConstructorReference`'s
-        // declaration above for why it is folded into the "bound" side here.
+        // bound — it becomes a parameter of the function type. For bound
+        // references (obj::member), the receiver is captured. Ordinary
+        // constructor references have no receiver parameter; inner
+        // constructors use their enclosing instance as that parameter.
         let isBoundReceiver = (receiver != nil && unboundClassType == nil)
-            || isConstructorReference || isImplicitlyBoundMember
+            || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
+            || isImplicitlyBoundMember
 
         // BUG-164: callable references must also support SAM-conversion to a
         // functional interface expected type, the same way lambda literals do.
@@ -807,6 +843,7 @@ extension ExprTypeChecker {
                     for: signature,
                     bindReceiver: isBoundReceiver,
                     boundReceiver: boundReceiverType.map { (candidate, $0) },
+                    unboundReceiverType: unboundInnerConstructorReceiverType,
                     expectedFunctionType: inputType,
                     interner: interner,
                     sema: sema
@@ -824,6 +861,7 @@ extension ExprTypeChecker {
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
+            unboundReceiverType: unboundInnerConstructorReceiverType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
             sema: sema
@@ -837,6 +875,7 @@ extension ExprTypeChecker {
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
+                unboundReceiverType: unboundInnerConstructorReceiverType,
                 interner: interner,
                 sema: sema
             )
@@ -872,6 +911,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        unboundReceiverType: unboundInnerConstructorReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
@@ -891,6 +931,7 @@ extension ExprTypeChecker {
                           let specialization = driver.helpers.contextualCallableReferenceBinding(
                               for: signature, bindReceiver: isBoundReceiver,
                               boundReceiver: boundReceiverType.map { (chosen, $0) },
+                              unboundReceiverType: unboundInnerConstructorReceiverType,
                               expectedFunctionType: expectedFunctionType,
                               postponedReturnTypeParameter: postponedReturnParameter, interner: interner, sema: sema
                           ) {
@@ -902,6 +943,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        unboundReceiverType: unboundInnerConstructorReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
                         sema: sema
@@ -934,6 +976,7 @@ extension ExprTypeChecker {
                        let specialization = driver.helpers.contextualCallableReferenceBinding(
                            for: signature, bindReceiver: true,
                            boundReceiver: boundReceiverType.map { (chosen, $0) },
+                           unboundReceiverType: unboundInnerConstructorReceiverType,
                            expectedFunctionType: nil, interner: interner, sema: sema
                        ) {
                         inferredType = specialization.functionType
@@ -979,7 +1022,7 @@ extension ExprTypeChecker {
                     sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
                 }
             }
-            if unboundClassType != nil && !isConstructorReference {
+            if unboundClassType != nil && (!isConstructorReference || unboundInnerConstructorReceiverType != nil) {
                 sema.bindings.markUnboundCallableRef(id)
             }
             let captures = receiver.map { recv in

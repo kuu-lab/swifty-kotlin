@@ -60,8 +60,13 @@ extension LambdaLowerer {
         } else {
             nil
         }
-        let constructorOuterReceiver: KIRExprID? = if sema.symbols.symbol(targetSymbol)?.kind == .constructor,
-                                                       captureRefs.indices.contains(localCaptureCount)
+        let isInnerConstructor = sema.symbols.symbol(targetSymbol)?.kind == .constructor
+            && sema.symbols.parentSymbol(for: targetSymbol)
+                .flatMap { sema.symbols.symbol($0) }?.flags.contains(.innerClass) == true
+        let constructorOuterReceiver: KIRExprID? = if isInnerConstructor && isUnbound {
+            valueRefs.first
+        } else if sema.symbols.symbol(targetSymbol)?.kind == .constructor,
+                  captureRefs.indices.contains(localCaptureCount)
         {
             captureRefs[localCaptureCount]
         } else {
@@ -759,11 +764,20 @@ extension LambdaLowerer {
                 callArgExprs.append(normalizedParamExpr)
             }
 
+            let isInnerConstructor = sema.symbols.parentSymbol(for: callTargetSymbol)
+                .flatMap { sema.symbols.symbol($0) }?.flags.contains(.innerClass) == true
+            let constructorOuterReceiver: KIRExprID? = isInnerConstructor && isUnbound
+                ? callArgExprs.first
+                : nil
+            let constructorArguments = constructorOuterReceiver == nil
+                ? callArgExprs
+                : Array(callArgExprs.dropFirst())
+
             let constructedValue = driver.callLowerer.lowerResolvedCallBody(
                 exprID,
                 args: [],
                 loweredArgIDs: packOrdinaryCallableVarargValues(
-                    callArgExprs, targetSymbol: callTargetSymbol, parameterOffset: 0, resultType: returnType,
+                    constructorArguments, targetSymbol: callTargetSymbol, parameterOffset: 0, resultType: returnType,
                     sema: sema, arena: arena, interner: interner, instructions: &body
                 ),
                 chosen: callTargetSymbol,
@@ -779,7 +793,8 @@ extension LambdaLowerer {
                 arena: arena,
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &body
+                instructions: &body,
+                outerReceiverOverride: constructorOuterReceiver
             )
             body.append(.returnValue(constructedValue))
             body.append(.endBlock)

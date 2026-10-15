@@ -517,6 +517,54 @@ extension CompilerCoreTests {
         #expect(sema.symbols.parentSymbol(for: ctor) == nestedClass)
     }
 
+    /// KUU-2343: an unbound inner-constructor reference takes its enclosing
+    /// instance before the constructor's declared value parameters.
+    @Test func testUnboundInnerConstructorReferenceUsesOuterAsLeadingArgument() throws {
+        let source = """
+        class Sample { inner class SS(val value: String) }
+        fun make(): Sample.SS {
+            val make: (Sample, String) -> Sample.SS = Sample::SS
+            return make(Sample(), "OK")
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let outerClass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Sample")]))
+        let innerClass = try #require(sema.symbols.lookup(
+            fqName: ["Sample", "SS"].map(ctx.interner.intern)
+        ))
+        let constructor = try #require(sema.bindings.identifierSymbols[ref])
+        #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+        #expect(sema.symbols.parentSymbol(for: constructor) == innerClass)
+        #expect(sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true)
+        #expect(sema.bindings.isUnboundCallableRef(ref))
+
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected an unbound inner-constructor function type.")
+            return
+        }
+        #expect(function.params.count == 2)
+        guard case let .classType(outerParameter) = sema.types.kind(of: function.params[0]),
+              case let .classType(innerResult) = sema.types.kind(of: function.returnType)
+        else {
+            Issue.record("Expected the outer class parameter and inner class result.")
+            return
+        }
+        #expect(outerParameter.classSymbol == outerClass)
+        #expect(function.params[1] == sema.types.stringType)
+        #expect(innerResult.classSymbol == innerClass)
+    }
+
     /// KUU-917: a bare reference in an extension body binds its receiver,
     /// including members inherited through an interface.
     @Test func testExtensionBareMemberReferenceBindsImplicitReceiver() throws {
