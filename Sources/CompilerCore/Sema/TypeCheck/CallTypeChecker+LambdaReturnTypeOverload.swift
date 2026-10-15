@@ -2,6 +2,8 @@
 extension CallTypeChecker {
     /// A qualified member import binds the named singleton, whereas lookup
     /// through a nullable implicit receiver must still check that receiver.
+    /// Imported extensions keep their declared receiver even when their
+    /// bundled owner is an object after header collection.
     func importedObjectDispatchReceiverCandidates(
         named name: InternedString?,
         candidates: [SymbolID],
@@ -14,6 +16,7 @@ extension CallTypeChecker {
         guard !paths.isEmpty else { return [] }
         return Set(candidates.filter { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
+                  ctx.sema.symbols.functionSignature(for: candidate)?.receiverType == nil,
                   let owner = ctx.sema.symbols.parentSymbol(for: candidate),
                   ctx.sema.symbols.symbol(owner)?.kind == .object,
                   ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
