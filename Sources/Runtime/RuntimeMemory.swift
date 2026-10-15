@@ -112,6 +112,17 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     )
 }
 
+@_cdecl("__kk_kclass_java")
+public func __kk_kclass_java(_ kclassRaw: Int) -> Int {
+    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+        runtimeStructuredPanic("invalid KClass handle")
+    }
+    return registerRuntimeObject(
+        RuntimeJavaClassBox(typeToken: classifier.typeToken, nameHint: classifier.nameHint),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+}
+
 @_cdecl("__kk_class_kotlin")
 public func __kk_class_kotlin(_ classRaw: Int) -> Int {
     guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
