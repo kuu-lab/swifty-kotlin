@@ -958,10 +958,12 @@ extension KotlinParser {
 
     func parseTail(
         inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator,
-        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false
+        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false,
+        allowsClassDelegation: Bool = false
     ) {
         var progress = false
         var sawAssignment = false
+        var sawSupertypeColon = false
         var sawTryKeyword = false
         var sawIfKeyword = false
         var depth = BracketDepth()
@@ -971,6 +973,7 @@ extension KotlinParser {
             let atTopLevel = depth.isTopLevel
                 && templateExpressionDepth == 0
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
+            if atTopLevel, token.kind == .symbol(.colon) { sawSupertypeColon = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
             {
@@ -1073,10 +1076,12 @@ extension KotlinParser {
                 // name (`a or\n    (b)`) or after an `if (...)` condition whose
                 // branch body starts on the next line.
                 // In a class header, a supertype colon may also follow the
-                // implicit constructor on the next line.
+                // implicit constructor on the next line. A delegation `by` may
+                // begin a line only while scanning that supertype list.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
+                    || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {

@@ -184,7 +184,8 @@ extension KotlinParser {
             into: &children,
             range: &range,
             includeBlock: kind == .classDecl || kind == .interfaceDecl || kind == .objectDecl,
-            allowsClassHeaderColon: kind == .classDecl
+            allowsClassHeaderColon: kind == .classDecl,
+            allowsClassDelegation: kind == .classDecl || kind == .objectDecl
         )
 
         return arena.appendNode(
@@ -659,7 +660,8 @@ extension KotlinParser {
 
     func parsePostDeclarationTail(
         into children: inout [SyntaxChild], range: inout RangeAccumulator,
-        includeBlock: Bool, allowsClassHeaderColon: Bool = false
+        includeBlock: Bool, allowsClassHeaderColon: Bool = false,
+        allowsClassDelegation: Bool = false
     ) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
@@ -675,7 +677,10 @@ extension KotlinParser {
         if hasLeadingNewline(next), isDeclarationStart(next.kind) {
             return
         }
-        parseTail(inBlock: false, into: &children, range: &range, allowsClassHeaderColon: allowsClassHeaderColon)
+        parseTail(
+            inBlock: false, into: &children, range: &range,
+            allowsClassHeaderColon: allowsClassHeaderColon, allowsClassDelegation: allowsClassDelegation
+        )
         // Header scanning may stop at a newline after constructor parameters or
         // supertypes. The following brace still belongs to this declaration,
         // unless a terminator or an already parsed body has ended it.
