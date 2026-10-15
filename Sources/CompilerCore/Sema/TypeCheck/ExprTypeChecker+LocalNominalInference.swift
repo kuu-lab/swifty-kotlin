@@ -487,7 +487,8 @@ extension ExprTypeChecker {
             driver.declChecker.typeCheckFunctionDecl(
                 functionDecl,
                 symbol: functionSymbol,
-                ctx: classCtx.with(currentDeclSymbol: functionSymbol),
+                ctx: driver.helpers.localFunctionOptInContext(classCtx)
+                    .with(currentDeclSymbol: functionSymbol),
                 solver: driver.solver,
                 diagnostics: ctx.sema.diagnostics,
                 baseLocals: outerLocalsSnapshot
