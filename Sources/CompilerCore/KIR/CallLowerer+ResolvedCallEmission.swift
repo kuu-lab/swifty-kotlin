@@ -426,6 +426,29 @@ extension CallLowerer {
                 )
             }
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
+        } else if callableInvokeCallee == nil,
+                  let chosen,
+                  sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true
+        {
+            // A local function may be called from a lifted constructor lambda
+            // whose context has its free variables but no callable-value
+            // metadata. Rebuild the direct-call environment from Sema's
+            // declaration-time capture list.
+            var captureArguments: [KIRExprID] = []
+            for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: chosen) {
+                guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                    for: capturedSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) else {
+                    assertionFailure("BuildKIRPhase: missing local function capture '\(capturedSymbol)'")
+                    continue
+                }
+                captureArguments.append(captureValue)
+            }
+            finalArgIDs.insert(contentsOf: captureArguments, at: 0)
         } else if let chosen,
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor

@@ -33,6 +33,28 @@ extension DataFlowSemaPhase {
         }
     }
 
+    func synthesizeNominalLayouts(
+        for nominalIDs: [SymbolID],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard !nominalIDs.isEmpty else { return }
+        let requestedNominals = Set(nominalIDs)
+        let topoOrder = buildTopoOrder(
+            nominalIDs: nominalIDs,
+            symbols: symbols,
+            interner: interner,
+            diagnostics: diagnostics,
+            maxInheritanceDepth: Self.maxNominalLayoutInheritanceDepth,
+            maxTypeCount: Self.maxNominalLayoutTypeCount
+        )
+        for nominalID in topoOrder where requestedNominals.contains(nominalID) {
+            synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
+        }
+    }
+
     /// Iterative post-order DFS producing the same deterministic order as a
     /// recursive visit: a nominal is appended after all of its supertype
     /// nominals, children explored in ascending raw-ID order. Cycles are
@@ -139,7 +161,7 @@ extension DataFlowSemaPhase {
         return topoOrder
     }
 
-    private func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
+    func synthesizeLayoutForNominal(_ nominalID: SymbolID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
         guard let nominalSymbol = symbols.symbol(nominalID) else { return }
         if nominalSymbol.flags.contains(.synthetic),
            symbols.nominalLayout(for: nominalID) != nil
