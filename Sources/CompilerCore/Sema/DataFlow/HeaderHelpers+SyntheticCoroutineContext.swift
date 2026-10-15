@@ -503,6 +503,31 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticCoroutineMember(
+            ownerSymbol: coroutineExceptionHandlerSymbol,
+            ownerType: coroutineExceptionHandlerType,
+            name: "handleException",
+            externalLinkName: "kk_exception_handler_invoke",
+            returnType: types.unitType,
+            parameters: [
+                (name: "context", type: kotlinCoroutineContextType),
+                (name: "exception", type: throwableType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "handleCoroutineException",
+            packageFQName: coroutinesPkg,
+            parameters: [
+                (name: "context", type: kotlinCoroutineContextType),
+                (name: "exception", type: throwableType),
+            ],
+            returnType: types.unitType,
+            externalLinkName: "kk_handle_coroutine_exception",
+            symbols: symbols,
+            interner: interner
+        )
 
         context.coroutineNameSymbol = coroutineNameSymbol
         context.coroutineNameType = coroutineNameType
