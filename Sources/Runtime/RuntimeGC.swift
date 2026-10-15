@@ -68,7 +68,7 @@ struct GCState {
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
-    var primitiveJavaClassCache: [Int: Int] = [:]
+    var javaClassCache: [Int: Int] = [:]
     var delegatedPropertyStubCache: [String: Int] = [:]
     var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
@@ -610,14 +610,14 @@ func kk_runtime_reset_metadata() {
     let cachedReflectionBoxes = runtimeStorage.withDelegatedPropertyStubLock {
         runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
             var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
-            boxes += state.primitiveJavaClassCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+            boxes += state.javaClassCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
             boxes += state.delegatedPropertyStubCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
             if let starRaw = state.kTypeProjectionStarRaw,
                let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
                 boxes.append(pointer)
             }
             state.kClassBoxCache.removeAll(keepingCapacity: false)
-            state.primitiveJavaClassCache.removeAll(keepingCapacity: false)
+            state.javaClassCache.removeAll(keepingCapacity: false)
             state.delegatedPropertyStubCache.removeAll(keepingCapacity: false)
             state.kTypeProjectionStarRaw = nil
             state.objectTypeByPointer.removeAll(keepingCapacity: false)
@@ -657,7 +657,7 @@ func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
         state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
             UInt(bitPattern: raw) != key
         }
-        state.primitiveJavaClassCache = state.primitiveJavaClassCache.filter { _, raw in
+        state.javaClassCache = state.javaClassCache.filter { _, raw in
             UInt(bitPattern: raw) != key
         }
         if state.kTypeProjectionStarRaw == Int(bitPattern: key) {

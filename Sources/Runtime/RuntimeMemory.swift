@@ -108,6 +108,23 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     }
 }
 
+private func runtimeJavaClassHandle(typeToken: Int, nameHint: @autoclosure () -> Int) -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.javaClassCache[typeToken] }) {
+        return cached
+    }
+    let raw = registerRuntimeObject(
+        RuntimeJavaClassBox(typeToken: typeToken, nameHint: nameHint()),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.javaClassCache[typeToken] { return cached }
+        state.javaClassCache[typeToken] = raw
+        return raw
+    }
+    if winner != raw { _ = runtimeReleaseObject(raw) }
+    return winner
+}
+
 @_cdecl("__kk_any_javaClass")
 public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     // A Class describes a classifier, independently of the source object's lifetime.
@@ -124,6 +141,39 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
         ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
+}
+
+@_cdecl("__kk_kclass_java")
+public func __kk_kclass_java(_ kclassRaw: Int) -> Int {
+    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+        runtimeStructuredPanic("invalid KClass handle")
+    }
+    return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
+}
+
+private func runtimeKotlinClassName(forJavaClassName name: String) -> String {
+    switch name {
+    case "java.lang.Object": return "kotlin.Any"
+    case "java.lang.String": return "kotlin.String"
+    case "java.lang.CharSequence": return "kotlin.CharSequence"
+    case "java.lang.Throwable": return "kotlin.Throwable"
+    case "java.lang.Exception": return "kotlin.Exception"
+    case "java.lang.RuntimeException": return "kotlin.RuntimeException"
+    default:
+        // Kotlin nested classifiers use dots in their semantic names; JVM
+        // binary class names use '$' between the same classifiers.
+        return name.replacingOccurrences(of: "$", with: ".")
+    }
+}
+
+@_cdecl("__kk_class_for_name")
+public func __kk_class_for_name(_ classNameRaw: Int) -> Int {
+    guard let className = extractString(from: UnsafeMutableRawPointer(bitPattern: classNameRaw)) else {
+        runtimeStructuredPanic("invalid runtime classifier")
+    }
+    let kotlinName = runtimeKotlinClassName(forJavaClassName: className)
+    let token = Int(truncatingIfNeeded: runtimeTypeToken(forQualifiedName: kotlinName))
+    return runtimeJavaClassHandle(typeToken: token, nameHint: runtimeMakeStringRaw(kotlinName))
 }
 
 @_cdecl("__kk_class_kotlin")
@@ -169,18 +219,5 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
             return runtimeNullSentinelInt
         }
     }
-    if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[token] }) {
-        return cached
-    }
-    let raw = registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: token, nameHint: box.nameHint),
-        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
-    )
-    let winner = runtimeStorage.withMetadataLock { state -> Int in
-        if let cached = state.primitiveJavaClassCache[token] { return cached }
-        state.primitiveJavaClassCache[token] = raw
-        return raw
-    }
-    if winner != raw { _ = runtimeReleaseObject(raw) }
-    return winner
+    return runtimeJavaClassHandle(typeToken: token, nameHint: box.nameHint)
 }

@@ -9,6 +9,9 @@ private external fun __assertionsEnabled(): Boolean
 @KsSymbolName("__kk_class_declared_constructors")
 private external fun __declaredConstructors(value: Class<*>): Array<Constructor<*>>
 
+@KsSymbolName("__kk_class_for_name")
+private external fun __classForName(className: String): Class<*>
+
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     /**
@@ -36,4 +39,9 @@ public class Class<T> {
     public fun getEnclosingMethod(): java.lang.reflect.Method? = null
 
     public fun getDeclaringClass(): Class<*>? = null
+
+    public companion object {
+        /** Resolves a JVM binary class name to its native class token. */
+        public fun forName(className: String): Class<*> = __classForName(className)
+    }
 }
