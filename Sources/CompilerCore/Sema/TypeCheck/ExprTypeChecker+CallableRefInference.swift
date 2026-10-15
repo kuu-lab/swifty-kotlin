@@ -155,6 +155,16 @@ extension ExprTypeChecker {
             }
         } else if let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           let local = locals[receiverName],
+           let symbol = sema.symbols.symbol(local.symbol),
+           (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass)
+        {
+            // A local class name also enters LocalBindings so member calls can
+            // resolve. Recognize its classifier symbol; local value receivers
+            // continue to be treated as bound callable-reference receivers.
+            unboundClassType = local.type
+        } else if let receiver,
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
         {
             // A local with this name is a bound receiver, so only unresolved
