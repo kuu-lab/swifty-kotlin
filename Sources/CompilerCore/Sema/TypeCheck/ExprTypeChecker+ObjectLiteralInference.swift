@@ -39,11 +39,7 @@ extension ExprTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        let objectType = sema.types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
+        let objectType = objectLiteralType(for: objectSymbol, sema: sema)
         sema.bindings.bindExprType(id, type: objectType)
         return objectType
     }
@@ -233,11 +229,7 @@ extension ExprTypeChecker {
         )
 
         let objectSymbolFQName = fqNamePrefix + [objectDecl.name]
-        let objectType = sema.types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
+        let objectType = objectLiteralType(for: objectSymbol, sema: sema)
         let objectScope = ClassMemberScope(
             parent: ctx.scope,
             symbols: sema.symbols,
@@ -252,6 +244,7 @@ extension ExprTypeChecker {
             memberFQNamePrefix: objectSymbolFQName,
             objectSymbol: objectSymbol,
             objectType: objectType,
+            classTypeParameterSymbols: sema.types.nominalTypeParameterSymbols(for: objectSymbol),
             objectScope: objectScope,
             ctx: ctx
         )
@@ -1093,6 +1086,7 @@ extension ExprTypeChecker {
         memberFQNamePrefix: [InternedString],
         objectSymbol: SymbolID,
         objectType: TypeID,
+        classTypeParameterSymbols: [SymbolID] = [],
         objectScope: ClassMemberScope,
         ctx: TypeInferenceContext
     ) -> [DeclID: SymbolID] {
@@ -1186,7 +1180,9 @@ extension ExprTypeChecker {
                     isSuspend: functionDecl.isSuspend,
                     valueParameterSymbols: parameterSymbols,
                     valueParameterHasDefaultValues: functionDecl.valueParams.map(\.hasDefaultValue),
-                    valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg)
+                    valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg),
+                    typeParameterSymbols: classTypeParameterSymbols,
+                    classTypeParameterCount: classTypeParameterSymbols.count
                 ),
                 for: memberSymbol
             )
