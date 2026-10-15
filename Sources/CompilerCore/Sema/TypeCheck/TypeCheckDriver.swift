@@ -336,10 +336,22 @@ final class TypeCheckDriver {
                 guard case let .funDecl(function)? = ast.arena.decl(declaration),
                       let symbol = sema.bindings.declSymbols[declaration]
                 else { continue }
-                if function.returnType == nil, case .expr = function.body {
-                    inferredReturnFunctions[symbol] = (function, inferCtx.with(currentDeclSymbol: symbol))
-                }
+                registerInferredReturnFunction(for: declaration, context: inferCtx)
                 declChecker.precollectContractEffects(function: function, symbol: symbol, ctx: inferCtx)
+            }
+
+            for declaration in file.topLevelDecls {
+                guard case let .objectDecl(objectDecl)? = ast.arena.decl(declaration),
+                      let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                let objectCtx = declChecker.makeObjectTypeCheckContext(
+                    objectDecl: objectDecl,
+                    symbol: symbol,
+                    ctx: inferCtx.with(currentDeclSymbol: symbol)
+                )
+                for memberFunction in objectDecl.memberFunctions {
+                    registerInferredReturnFunction(for: memberFunction, context: objectCtx)
+                }
             }
         }
 
