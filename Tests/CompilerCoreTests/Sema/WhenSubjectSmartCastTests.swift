@@ -122,6 +122,91 @@ struct WhenSubjectSmartCastTests {
         #expect(diagnostics.allSatisfy { $0.message.contains("Missing branches: Leaf.") })
     }
 
+    @Test func testNegatedSealedWhenCoversDisjointSubtype() throws {
+        let source = """
+        sealed class Sealed(val x: Int) {
+            object First : Sealed(12)
+            open class NonFirst(x: Int) : Sealed(x) {
+                object Second : NonFirst(34)
+                object Third : NonFirst(56)
+            }
+        }
+        fun original(s: Sealed): Int = when (s) {
+            is Sealed.First -> 1
+            !is Sealed.First -> 0
+        }
+
+        sealed class Shape {
+            object Circle : Shape()
+            object Square : Shape()
+        }
+        fun minimal(s: Shape): Int = when (s) {
+            is Shape.Circle -> 1
+            !is Shape.Circle -> 0
+        }
+        fun positiveControl(s: Shape): Int = when (s) {
+            is Shape.Circle -> 1
+            is Shape.Square -> 0
+        }
+
+        sealed class OpenClasses {
+            open class Left : OpenClasses()
+            open class Right : OpenClasses()
+        }
+        fun openClasses(s: OpenClasses): Int = when (s) {
+            is OpenClasses.Left -> 1
+            !is OpenClasses.Left -> 0
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testNegatedSealedWhenDoesNotCoverOverlappingOpenSubtype() throws {
+        let source = """
+        sealed interface Node
+        interface Tag
+        open class Flexible : Node
+        object End : Node
+        fun classify(node: Node): Int = when (node) {
+            !is Tag -> 0
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0071" }
+        #expect(diagnostics.count == 1)
+        #expect(diagnostics.first?.message == "Non-exhaustive when expression on sealed type. Missing branches: Flexible.")
+    }
+
+    @Test func testNegatedTypeCheckDoesNotMakeNullableOrNonSealedWhenExhaustive() throws {
+        let source = """
+        sealed interface Shape
+        object Circle : Shape
+        object Square : Shape
+        fun nullable(shape: Shape?): Int = when (shape) {
+            is Circle -> 1
+            !is Circle -> 0
+        }
+
+        open class Animal
+        class Cat : Animal()
+        fun nonSealed(animal: Animal): Int = when (animal) {
+            !is Cat -> 0
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let exhaustivenessErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0004" }
+        #expect(exhaustivenessErrors.count == 2)
+        assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
+    }
+
     @Test func testUnrelatedInterfaceWithSameShortNameDoesNotCoverSubclass() throws {
         let source = """
         sealed interface Node {
