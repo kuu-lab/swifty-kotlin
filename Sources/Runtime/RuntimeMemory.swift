@@ -165,8 +165,12 @@ public func __kk_class_declared_constructors(_ classRaw: Int) -> Int {
     let kclassRaw = __kk_kclass_create(box.typeToken, box.nameHint)
     let constructors = runtimeKConstructorRegistry.constructors(for: kclassRaw)
     let array = RuntimeArrayBox(length: constructors.count)
+    let constructorTypeID = runtimeStableNominalTypeID(fqName: "java.lang.reflect.Constructor")
     for (index, constructorRaw) in constructors.enumerated() {
-        array[index] = constructorRaw
+        array[index] = registerRuntimeObject(
+            RuntimeJavaConstructorBox(callableRaw: constructorRaw, usesDefaultArguments: false),
+            typeID: constructorTypeID
+        )
     }
     return registerRuntimeObject(array)
 }
