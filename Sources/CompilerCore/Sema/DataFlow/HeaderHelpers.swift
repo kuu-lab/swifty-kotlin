@@ -452,51 +452,7 @@ extension DataFlowSemaPhase {
     }
 
     func flags(from modifiers: Modifiers) -> SymbolFlags {
-        var value: SymbolFlags = []
-        insertFunctionFlags(modifiers, into: &value)
-        insertTypeFlags(modifiers, into: &value)
-        insertMemberFlags(modifiers, into: &value)
-        return value
-    }
-
-    private func insertFunctionFlags(
-        _ modifiers: Modifiers,
-        into value: inout SymbolFlags
-    ) {
-        if modifiers.contains(.suspend) { value.insert(.suspendFunction) }
-        if modifiers.contains(.inline) { value.insert(.inlineFunction) }
-        if modifiers.contains(.operator) { value.insert(.operatorFunction) }
-        if modifiers.contains(.infix) { value.insert(.infixFunction) }
-    }
-
-    private func insertTypeFlags(
-        _ modifiers: Modifiers,
-        into value: inout SymbolFlags
-    ) {
-        if modifiers.contains(.sealed) { value.insert(.sealedType) }
-        if modifiers.contains(.data) { value.insert(.dataType) }
-        if modifiers.contains(.inner) { value.insert(.innerClass) }
-        if modifiers.contains(.abstract) { value.insert(.abstractType) }
-        if modifiers.contains(.open) { value.insert(.openType) }
-        // Note: .valueType is intentionally NOT set here. The `.value`
-        // modifier should only produce the `.valueType` flag for class
-        // declarations, which is handled explicitly in
-        // HeaderCollection.collectHeader (classDecl branch). Setting it
-        // here would incorrectly flag non-class declarations (functions,
-        // interfaces, etc.) if the parser ever attaches a `.value`
-        // modifier to them.
-    }
-
-    private func insertMemberFlags(
-        _ modifiers: Modifiers,
-        into value: inout SymbolFlags
-    ) {
-        if modifiers.contains(.const) { value.insert(.constValue) }
-        if modifiers.contains(.override) { value.insert(.overrideMember) }
-        if modifiers.contains(.final) { value.insert(.finalMember) }
-        if modifiers.contains(.expect) { value.insert(.expectDeclaration) }
-        if modifiers.contains(.actual) { value.insert(.actualDeclaration) }
-        if modifiers.contains(.lateinit) { value.insert(.lateinitProperty) }
+        SymbolFlags(modifiers: modifiers)
     }
 
     func inheritedExpectActualFlags(

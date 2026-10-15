@@ -81,6 +81,29 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let legacyReifiedClassTokenABI = SymbolFlags(rawValue: 1 << 28)
 }
 
+extension SymbolFlags {
+    init(modifiers: Modifiers) {
+        self.init(rawValue: 0)
+        // Value-class status is declaration-kind-specific and is assigned by
+        // class header collection rather than from modifiers alone.
+        if modifiers.contains(.suspend) { insert(.suspendFunction) }
+        if modifiers.contains(.inline) { insert(.inlineFunction) }
+        if modifiers.contains(.operator) { insert(.operatorFunction) }
+        if modifiers.contains(.infix) { insert(.infixFunction) }
+        if modifiers.contains(.sealed) { insert(.sealedType) }
+        if modifiers.contains(.data) { insert(.dataType) }
+        if modifiers.contains(.inner) { insert(.innerClass) }
+        if modifiers.contains(.abstract) { insert(.abstractType) }
+        if modifiers.contains(.open) { insert(.openType) }
+        if modifiers.contains(.const) { insert(.constValue) }
+        if modifiers.contains(.override) { insert(.overrideMember) }
+        if modifiers.contains(.final) { insert(.finalMember) }
+        if modifiers.contains(.expect) { insert(.expectDeclaration) }
+        if modifiers.contains(.actual) { insert(.actualDeclaration) }
+        if modifiers.contains(.lateinit) { insert(.lateinitProperty) }
+    }
+}
+
 public struct SemanticSymbol: Sendable {
     public let id: SymbolID
     public let kind: SymbolKind
