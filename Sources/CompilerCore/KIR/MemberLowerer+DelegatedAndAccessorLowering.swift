@@ -621,11 +621,17 @@ extension MemberLowerer {
         var typeTokenBindings: [(SymbolID, KIRExprID)] = []
         if let signature = semanticSignature {
             for index in signature.reifiedTypeParameterIndices.sorted() where index < signature.typeParameterSymbols.count {
-                let token = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: signature.typeParameterSymbols[index])
-                params.append(KIRParameter(symbol: token, type: sema.types.intType))
-                let value = arena.appendExpr(.symbolRef(token), type: sema.types.intType)
-                driver.ctx.setLocalValue(value, for: token)
-                typeTokenBindings.append((token, value))
+                let typeParameter = signature.typeParameterSymbols[index]
+                let tokens = [
+                    SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameter),
+                    SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParameter),
+                ]
+                for token in tokens {
+                    params.append(KIRParameter(symbol: token, type: sema.types.intType))
+                    let value = arena.appendExpr(.symbolRef(token), type: sema.types.intType)
+                    driver.ctx.setLocalValue(value, for: token)
+                    typeTokenBindings.append((token, value))
+                }
             }
         }
         var body: KIRLoweringEmitContext = [.beginBlock]
