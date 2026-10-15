@@ -68,6 +68,14 @@ extension BuildASTPhase {
         else {
             return nil
         }
+        // `fun(...)` is an anonymous function expression. Lambda-body parsing
+        // probes local declarations before ordinary expressions, so let this
+        // shape fall through to the expression parser.
+        if statementTokens.indices.contains(startIndex + 1),
+           statementTokens[startIndex + 1].kind == .symbol(.lParen)
+        {
+            return nil
+        }
         // KUU-1407: local functions accept only `suspend`/`infix`/`operator`/
         // `tailrec` modifiers on JVM; `inline` gets its own error.
         for modifier in leadingModifiers {

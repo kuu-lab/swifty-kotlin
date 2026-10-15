@@ -8,6 +8,22 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test
+    func anonymousFunctionAtLambdaBlockStartIsAnExpression() {
+        let parsed = parse("""
+        fun host() {
+            val maker: () -> (() -> Int) = { fun () = 1 }
+            val named: () -> Int = {
+                fun local() = 2
+                local()
+            }
+        }
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
     @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
     func topLevelFunctionSeparatorsDoNotMakeFileAScript(separator: String) {
         let source = """
