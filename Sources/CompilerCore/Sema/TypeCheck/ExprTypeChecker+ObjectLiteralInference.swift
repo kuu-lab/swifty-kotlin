@@ -1214,9 +1214,25 @@ extension ExprTypeChecker {
                 }
             }
 
+            let receiverType: TypeID
+            if let receiverTypeRef = functionDecl.receiverType {
+                receiverType = driver.helpers.resolveTypeRef(
+                    receiverTypeRef,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner,
+                    scope: objectScope,
+                    diagnostics: ctx.sema.diagnostics,
+                    inferenceContext: ctx,
+                    usageRange: functionDecl.range
+                )
+            } else {
+                receiverType = objectType
+            }
+
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: objectType,
+                    receiverType: receiverType,
                     parameterTypes: parameterTypes,
                     returnType: returnType,
                     isSuspend: functionDecl.isSuspend,
