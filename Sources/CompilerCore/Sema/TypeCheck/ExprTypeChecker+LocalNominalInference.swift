@@ -334,7 +334,23 @@ extension ExprTypeChecker {
             }
             lexicalScope = scope.parent
         }
+        let lexicalLocalNominalScopes = outerLocalsSnapshot.values
+            .sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
+            .compactMap { binding -> [InternedString]? in
+            guard let localNominal = sema.symbols.symbol(binding.symbol),
+                  !localNominal.fqName.isEmpty
+            else {
+                return nil
+            }
+            switch localNominal.kind {
+            case .class, .interface, .enumClass, .annotationClass:
+                return Array(localNominal.fqName.dropLast())
+            default:
+                return nil
+            }
+        }
         var nestedEnclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
+        nestedEnclosingClassScopes.append(contentsOf: lexicalLocalNominalScopes)
         nestedEnclosingClassScopes.append(classFQName)
         if let sourceFile = ast.file(for: ctx.currentFileID) {
             for nestedDeclID in classDecl.nestedClasses + classDecl.nestedObjects {
@@ -515,6 +531,17 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        capturedSymbols.formUnion(collectNestedInnerClassCaptures(
+            classDecl.nestedClasses,
+            outerReceiverSymbols: Set(
+                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
+            ),
+            ast: ast,
+            sema: sema
+        ))
+        for superSymbol in directSuperSymbols where sema.symbols.symbol(superSymbol)?.kind == .class {
+            capturedSymbols.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
+        }
         bindLocalNominalCaptures(
             capturedSymbols,
             ownerSymbol: classSymbol,
@@ -550,6 +577,23 @@ extension ExprTypeChecker {
                 break
             }
         }
+        for nestedSymbol in nestedNominalSymbols {
+            guard let nestedInfo = sema.symbols.symbol(nestedSymbol),
+                  nestedInfo.kind == .class || nestedInfo.kind == .object
+            else {
+                continue
+            }
+            var inheritedCaptures = sema.bindings.objectLiteralCaptureSymbols(for: nestedSymbol)
+            for superSymbol in sema.symbols.directSupertypes(for: nestedSymbol)
+                where sema.symbols.symbol(superSymbol)?.kind == .class
+            {
+                inheritedCaptures.append(contentsOf: sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
+            }
+            sema.bindings.bindObjectLiteralCaptureSymbols(
+                nestedSymbol,
+                symbols: Array(Set(inheritedCaptures)).sorted(by: { $0.rawValue < $1.rawValue })
+            )
+        }
         synthesizeLocalNominalLayout(
             ownerSymbol: classSymbol,
             memberFunctionDecls: classDecl.memberFunctions,
@@ -570,5 +614,53 @@ extension ExprTypeChecker {
             diagnostics: sema.diagnostics
         )
         return classSymbol
+    }
+
+    private func collectNestedInnerClassCaptures(
+        _ nestedClassDeclIDs: [DeclID],
+        outerReceiverSymbols: Set<SymbolID>,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Set<SymbolID> {
+        var capturedSymbols: Set<SymbolID> = []
+        var pendingDeclIDs = nestedClassDeclIDs
+        while let nestedDeclID = pendingDeclIDs.popLast() {
+            guard let decl = ast.arena.decl(nestedDeclID),
+                  case let .classDecl(nestedClass) = decl,
+                  nestedClass.isInner
+            else {
+                continue
+            }
+            for functionDeclID in nestedClass.memberFunctions {
+                guard let functionDecl = ast.arena.decl(functionDeclID),
+                      case let .funDecl(function) = functionDecl
+                else {
+                    continue
+                }
+                capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                    inBody: function.body,
+                    ast: ast,
+                    sema: sema,
+                    outerSymbols: outerReceiverSymbols,
+                    skipNestedClosures: false
+                ))
+            }
+            capturedSymbols.formUnion(collectLocalNominalCaptureSymbols(
+                memberProperties: nestedClass.memberProperties,
+                includePropertyInitializers: true,
+                extraBodies: nestedClass.initBlocks + nestedClass.secondaryConstructors.map(\.body),
+                extraExprRoots: nestedClass.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
+                    + nestedClass.primaryConstructorParams.compactMap(\.defaultValue)
+                    + nestedClass.secondaryConstructors.flatMap { constructor in
+                        constructor.valueParams.compactMap(\.defaultValue)
+                            + (constructor.delegationCall?.args.map(\.expr) ?? [])
+                    },
+                captureOuterSymbols: outerReceiverSymbols,
+                ast: ast,
+                sema: sema
+            ))
+            pendingDeclIDs.append(contentsOf: nestedClass.nestedClasses)
+        }
+        return capturedSymbols
     }
 }
