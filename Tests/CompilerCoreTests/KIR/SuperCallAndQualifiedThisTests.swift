@@ -92,6 +92,46 @@ struct SuperCallAndQualifiedThisTests {
         #expect(qualifier == base)
     }
 
+    @Test func testEnumEntryOverrideCanCallEnumMemberThroughSuper() throws {
+        let ctx = makeContextFromSource("""
+        enum class EntryCall {
+            ONE {
+                override fun call(): Int = super.baseValue()
+                override fun directCall(): Int = baseValue()
+            };
+            abstract fun call(): Int
+            abstract fun directCall(): Int
+            fun baseValue(): Int = 42
+        }
+
+        fun main() { println(EntryCall.ONE.call()) }
+        """)
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("EntryCall")]))
+        let baseValueCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> (SymbolID, Bool)? in
+                guard case let .call(symbol, callee, _, _, _, _, isSuperCall, _) = instruction,
+                      callee == ctx.interner.intern("baseValue"),
+                      let symbol
+                else {
+                    return nil
+                }
+                return (symbol, isSuperCall)
+            }
+        }
+        let superBaseCalls = baseValueCalls.filter(\.1).compactMap(\.0)
+        let directBaseCalls = baseValueCalls.filter { !$0.1 }.compactMap(\.0)
+
+        #expect(superBaseCalls.count == 1)
+        #expect(directBaseCalls.count == 1)
+        #expect(superBaseCalls.allSatisfy { sema.symbols.parentSymbol(for: $0) == enumSymbol })
+        #expect(directBaseCalls.allSatisfy { sema.symbols.parentSymbol(for: $0) == enumSymbol })
+    }
+
     @Test(arguments: ["Root", "Other", "Missing"])
     func testQualifiedSuperRejectsNonDirectSupertype(qualifier: String) throws {
         let ctx = makeContextFromSource("""

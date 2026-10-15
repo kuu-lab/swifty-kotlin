@@ -16,6 +16,13 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        if interfaceQualifier == nil,
+           let entrySuperContext = ctx.enumEntrySuperContext,
+           ctx.enclosingClassSymbol == entrySuperContext.ownerSymbol
+        {
+            sema.bindings.bindExprType(id, type: entrySuperContext.type)
+            return entrySuperContext.type
+        }
         guard let classSymbol = driver.helpers.nominalSymbol(of: receiverType, types: sema.types) else {
             return emitNoSuperclass(id: id, range: range, ctx: ctx)
         }
