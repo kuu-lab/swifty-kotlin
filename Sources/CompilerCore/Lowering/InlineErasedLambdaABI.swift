@@ -254,6 +254,19 @@ enum InlineErasedLambdaABI {
                 continue
             }
 
+            if argumentType == nil, erasedCallConvention,
+               primitiveKind(of: parameterType, ctx: ctx) == nil
+            {
+                // Imported inline bodies omit expression types. Preserve the
+                // callback parameter's static type on a local copy so later
+                // operations can still unbox a smart-cast Any value (for
+                // example `it + 1` after `it is Int`).
+                let typedArgument = module.arena.appendTemporary(type: parameterType)
+                body.append(.copy(from: arguments[index], to: typedArgument))
+                normalized[index] = typedArgument
+                continue
+            }
+
             guard argumentIsErased,
                   let primitive = primitiveKind(of: parameterType, ctx: ctx)
             else {
