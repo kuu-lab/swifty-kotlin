@@ -70,7 +70,7 @@ extension KotlinParser {
             case .symbol(.rParen):
                 parenDepth -= 1
                 if parenDepth == 0 {
-                    return isAccessorBodyStart(stream.peek(offset + 1))
+                    return accessorBodyStart(after: offset + 1, through: maxLookahead) != nil
                 }
             default:
                 break
@@ -79,6 +79,40 @@ extension KotlinParser {
             offset += 1
         }
         return false
+    }
+
+    private func accessorBodyStart(after headerEnd: Int, through limit: Int) -> Int? {
+        guard stream.peek(headerEnd).kind == .symbol(.colon) else {
+            return isAccessorBodyStart(stream.peek(headerEnd)) ? headerEnd : nil
+        }
+
+        var offset = headerEnd + 1
+        var typeDepth = BracketDepth()
+        var sawTypeToken = false
+        while offset <= limit {
+            let token = stream.peek(offset)
+            guard token.kind != .eof else { return nil }
+
+            let atTypeTopLevel = typeDepth.isTopLevel && typeDepth.angle == 0
+            if atTypeTopLevel {
+                switch token.kind {
+                case .symbol(.assign), .symbol(.lBrace):
+                    return sawTypeToken ? offset : nil
+                case .symbol(.semicolon), .symbol(.rBrace):
+                    return nil
+                default:
+                    break
+                }
+                if sawTypeToken, hasLeadingNewline(token), startsGenuineDeclaration(at: offset) {
+                    return nil
+                }
+            }
+
+            typeDepth.track(token.kind)
+            sawTypeToken = true
+            offset += 1
+        }
+        return nil
     }
 
     private func isAccessorBodyStart(_ token: Token) -> Bool {
