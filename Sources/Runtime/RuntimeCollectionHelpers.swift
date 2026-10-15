@@ -192,9 +192,9 @@ func registerSortedCollectionTypeEdgesOnce() {
         if state.sortedCollectionTypeEdgesRegistered {
             return
         }
-        // Runtime-backed Map.Entry boxes already carry the MutableEntry itable
-        // when the entry is mutable; on the JVM both erase to Map.Entry, so the
-        // nominal edge mirrors that for `is`/`as` and bridge checkcasts.
+        // On the JVM Map.Entry and MutableEntry erase to java.util.Map.Entry,
+        // so `is`/`as` and bridge checkcasts accept every runtime entry box for
+        // either nominal. The reverse edge lives in registerMapEntryTypeEdgesOnce.
         state.typeParents[mapEntry, default: []].insert(mutableMapEntry)
         state.typeParents[sortedSet, default: []].insert(mutableSet)
         state.typeParents[sortedSet, default: []].insert(set)

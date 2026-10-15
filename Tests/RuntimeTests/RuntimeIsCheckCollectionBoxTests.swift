@@ -28,10 +28,17 @@ struct RuntimeIsCheckCollectionBoxTests {
             : runtimeMutableMapEntryNew(mapRaw: map, key: 1, value: 2)
         let mutableEntryID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap.MutableEntry"))
         let entryID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry"))
+        #expect(runtimeObjectTypeID(rawValue: entry) == Int64(mutableEntryID))
+        #expect(kk_op_is(entry, token("kotlin.collections.MutableMap.MutableEntry")) == 1)
+        #expect(kk_op_is(entry, token("kotlin.collections.Map.Entry")) == 1)
+        #expect(runtimeMapEntryValues(rawValue: entry)?.key == 1)
+        #expect(runtimeMapEntryValues(rawValue: entry)?.value == 2)
+        var thrown = 0
+        #expect(kk_op_cast(entry, token("kotlin.collections.MutableMap.MutableEntry"), &thrown) == entry)
+        #expect(thrown == 0)
         let pointer = kk_itable_lookup_dynamic(entry, mutableEntryID, 0)
         try #require(pointer != 0)
         let setValue = unsafeBitCast(pointer, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-        var thrown = 0
         #expect(setValue(entry, 4, &thrown) == 2)
         #expect(thrown == 0)
         #expect(kk_map_get(map, 1) == 4)
@@ -46,6 +53,8 @@ struct RuntimeIsCheckCollectionBoxTests {
             #expect(thrown == 0)
         }
         let readonly = runtimeMapEntryNew(key: 1, value: 2)
+        #expect(kk_op_is(readonly, token("kotlin.collections.Map.Entry")) == 1)
+        #expect(kk_op_is(readonly, token("kotlin.collections.MutableMap.MutableEntry")) == 0)
         #expect(kk_itable_lookup_dynamic(readonly, mutableEntryID, 0) == 0)
         #expect(kk_itable_lookup_dynamic(readonly, entryID, 0) != 0)
     }
