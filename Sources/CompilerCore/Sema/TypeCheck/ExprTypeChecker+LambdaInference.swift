@@ -210,7 +210,26 @@ extension ExprTypeChecker {
             }
             return nil
         }()
-        let expectedParameterTypes: [TypeID] = if let declaredParameterTypes {
+        // Callable references satisfy the reflective `KFunction<R>` view of a
+        // generic receiver, but that view erases the callable's parameter
+        // types. When the HOF receiver supplies the concrete function type,
+        // preserve it for implicit `it` so calls such as
+        // `Boolean::not.let { it(true) }` remain invokable.
+        let inferredCallableItType: TypeID? = {
+            guard effectiveParams == [ctx.interner.intern("it")],
+                  let inferredImplicitItType,
+                  case .functionType = sema.types.kind(of: inferredImplicitItType),
+                  let declaredParameterType = declaredParameterTypes?.first,
+                  sema.types.nominalFunctionType(for: declaredParameterType) == nil,
+                  sema.types.isSubtype(inferredImplicitItType, declaredParameterType)
+            else {
+                return nil
+            }
+            return inferredImplicitItType
+        }()
+        let expectedParameterTypes: [TypeID] = if let inferredCallableItType {
+            [inferredCallableItType]
+        } else if let declaredParameterTypes {
             declaredParameterTypes
         } else if effectiveParams.count == 1 && effectiveParams.contains(ctx.interner.intern("it")) {
             // For implicit `it` parameter, try to infer type from context
@@ -753,6 +772,12 @@ extension ExprTypeChecker {
                 to: parameterType,
                 signature: signature,
                 candidate: candidate,
+                receiverType: memberReceiverType,
+                sema: sema
+            )
+            parameterType = driver.callChecker.applyFunctionReceiverTypeArgs(
+                to: parameterType,
+                signature: signature,
                 receiverType: memberReceiverType,
                 sema: sema
             )
