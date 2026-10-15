@@ -637,13 +637,15 @@ final class ObjectLiteralLowerer {
             let isMutableLocal = sema.symbols.symbol(capturedSymbol).map {
                 $0.kind == .local && $0.flags.contains(.mutable)
             } ?? false
-            // A mutable capture's field holds the boxed cell itself (see
-            // `LambdaLowerer.captureValueExpr`), not the logical value, so
-            // the load must be typed generically; only the box's contents
-            // are typed `logicalType`, once unwrapped on actual reads/writes.
+            let isReifiedTypeParameter = sema.symbols.symbol(capturedSymbol).map {
+                $0.kind == .typeParameter && $0.flags.contains(.reifiedTypeParameter)
+            } ?? false
+            // Mutable captures hold boxed cells, and reified captures hold a
+            // pair of raw tokens. Keep either generic until it is unwrapped;
+            // ordinary immutable captures can use their logical type directly.
             let logicalType = sema.bindings.capturedLocalType(for: capturedSymbol)
                 ?? driver.lambdaLowerer.typeForSymbolReference(capturedSymbol, sema: sema)
-            let loadedType = isMutableLocal ? sema.types.anyType : logicalType
+            let loadedType = isMutableLocal || isReifiedTypeParameter ? sema.types.anyType : logicalType
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -662,10 +664,31 @@ final class ObjectLiteralLowerer {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
             }
             driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
-            if sema.symbols.symbol(capturedSymbol)?.flags.contains(.reifiedTypeParameter) == true {
+            if isReifiedTypeParameter {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capturedSymbol)
-                driver.ctx.setLocalValue(loadedExpr, for: tokenSymbol)
+                let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capturedSymbol)
+                let classToken = arena.appendTemporary(type: intType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_pair_first"),
+                    arguments: [loadedExpr],
+                    result: classToken,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                let componentToken = arena.appendTemporary(type: intType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_pair_second"),
+                    arguments: [loadedExpr],
+                    result: componentToken,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                driver.ctx.setLocalValue(classToken, for: tokenSymbol)
                 driver.ctx.setLocalDeclaredType(intType, for: tokenSymbol)
+                driver.ctx.setLocalValue(componentToken, for: componentSymbol)
+                driver.ctx.setLocalDeclaredType(intType, for: componentSymbol)
             }
             if let capturedOwner = sema.symbols.symbol(capturedSymbol),
                [.class, .interface, .enumClass, .object].contains(capturedOwner.kind)

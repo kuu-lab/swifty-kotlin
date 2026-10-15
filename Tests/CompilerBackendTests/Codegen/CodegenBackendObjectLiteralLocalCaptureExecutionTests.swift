@@ -6,11 +6,75 @@
 // captured values must be threaded through instance fields instead.
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite
 struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
+
+    @Test
+    func testLoweringUnpacksReifiedTypeTokensForObjectLiteralMembers() throws {
+        let source = """
+        inline fun <reified T> typeName(value: T): String = T::class.simpleName ?: "unknown"
+        interface RefMaker<T> { fun reference(): (T) -> String }
+        inline fun <reified T> objectMaker(): RefMaker<T> = object : RefMaker<T> {
+            override fun reference(): (T) -> String = ::typeName
+        }
+        inline fun <reified T> nestedObjectMaker(): () -> RefMaker<T> = {
+            object : RefMaker<T> { override fun reference(): (T) -> String = ::typeName }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "ObjectLiteralReifiedTypeTokenCaptureKIR",
+                emit: .kirDump,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToLowering(ctx)
+            let module = try #require(ctx.kir)
+            let references = findAllKIRFunctions(in: module).filter {
+                ctx.interner.resolve($0.name) == "reference"
+            }
+            let tokenCapturingReferences = references.filter { function in
+                extractCallees(from: function.body, interner: ctx.interner).contains("__kk_pair_first")
+            }
+            #expect(tokenCapturingReferences.count == 2)
+            for function in tokenCapturingReferences {
+                let callees = extractCallees(from: function.body, interner: ctx.interner)
+                #expect(callees.contains("__kk_pair_second"))
+                let classTokenIndex = try #require(callees.firstIndex(of: "__kk_pair_first"))
+                let componentTokenIndex = try #require(callees.firstIndex(of: "__kk_pair_second"))
+                #expect(classTokenIndex < componentTokenIndex)
+            }
+        }
+    }
+
+    @Test
+    func testCodegenObjectLiteralCapturesBothReifiedTypeTokens() throws {
+        let source = """
+        inline fun <reified T> typeName(value: T): String = T::class.simpleName ?: "unknown"
+        interface RefMaker<T> { fun reference(): (T) -> String }
+        inline fun <reified T> objectMaker(): RefMaker<T> = object : RefMaker<T> {
+            override fun reference(): (T) -> String = ::typeName
+        }
+        inline fun <reified T> nestedObjectMaker(): () -> RefMaker<T> = {
+            object : RefMaker<T> { override fun reference(): (T) -> String = ::typeName }
+        }
+        fun main() {
+            println(objectMaker<String>().reference()("object"))
+            println(nestedObjectMaker<String>()().reference()("nested-object"))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralReifiedTypeTokenCaptureExecution",
+            expected: "String\nString\n"
+        )
+    }
 
     @Test(arguments: ["make", "inherited", "local"])
     func testMemberExtensionLocalNominalsCaptureInheritedDispatchOwner(_ method: String) throws {
