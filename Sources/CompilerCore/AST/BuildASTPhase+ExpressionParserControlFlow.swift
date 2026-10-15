@@ -463,25 +463,19 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        let destructuringClose: TokenKind?
-        if matches(.symbol(.lParen)) {
-            destructuringClose = .symbol(.rParen)
-        } else if matches(.symbol(.lBracket)) {
-            destructuringClose = .symbol(.rBracket)
-        } else {
-            destructuringClose = nil
-        }
-
-        if let destructuringClose {
+        if matches(.symbol(.lParen)) || matches(.symbol(.lBracket)) {
             let savedIndex = index
+            let closingKind: TokenKind = matches(.symbol(.lBracket))
+                ? .symbol(.rBracket)
+                : .symbol(.rParen)
             _ = consume()
 
             var destructuringNames: [InternedString?] = []
-            var foundCloseDelimiter = false
+            var foundClosingDelimiter = false
             while let token = current() {
-                if token.kind == destructuringClose {
+                if token.kind == closingKind {
                     _ = consume()
-                    foundCloseDelimiter = true
+                    foundClosingDelimiter = true
                     break
                 }
                 if token.kind == .symbol(.comma) {
@@ -500,7 +494,7 @@ extension BuildASTPhase.ExpressionParser {
                         _ = consume()
                         while let t = current(),
                               t.kind != .symbol(.comma),
-                              t.kind != destructuringClose
+                              t.kind != closingKind
                         {
                             _ = consume()
                         }
@@ -510,7 +504,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
             }
 
-            if foundCloseDelimiter, !destructuringNames.isEmpty {
+            if foundClosingDelimiter, !destructuringNames.isEmpty {
                 guard consumeIf(.keyword(.in)) != nil else {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)

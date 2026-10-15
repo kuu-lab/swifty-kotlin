@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--jobs", type=positive, nargs="+", default=[1, 2, 4])
     parser.add_argument("--functions", type=positive, default=20)
     parser.add_argument("--terms", type=positive, default=16)
-    parser.add_argument("--body", choices=["scalar", "locals"], default="scalar")
+    parser.add_argument("--body", choices=["scalar", "locals", "typed-locals"], default="scalar")
     parser.add_argument("--runs", type=positive, default=3)
     parser.add_argument("--stdlib", choices=["none", "source", "artifact"], default="none")
     parser.add_argument("--stdlib-library", type=Path)
@@ -84,8 +84,12 @@ def main():
             for file in range(count):
                 source = work / f"input{file}.kt"
                 expression = " + ".join(["x * x"] * args.terms)
-                body = (f"= {expression}" if args.body == "scalar" else
-                        f"{{ val y = {expression}; var z = y; z = z + 1; return z }}")
+                if args.body == "scalar":
+                    body = f"= {expression}"
+                else:
+                    annotation = ": Int" if args.body == "typed-locals" else ""
+                    body = (f"{{ val y{annotation} = {expression}; var z{annotation} = y; "
+                            "z = z + 1; return z }")
                 source.write_text("package independentbench\n" + "\n".join(
                     f"fun f{file}_{function}(x: Int): Int {body}"
                     for function in range(args.functions)

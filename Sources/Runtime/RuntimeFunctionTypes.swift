@@ -59,6 +59,60 @@ func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeFunctionValueBox.self)
 }
 
+private struct RuntimeCallableReferenceIdentity {
+    let targetRaw: Int
+    let arity: Int
+    let isSuspend: Bool
+    let modifierFlags: Int
+    let captures: [Int]
+}
+
+private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCallableReferenceIdentity? {
+    guard let metadata = runtimeStorage.withDelegateLock({ $0.callableRefMetadataByValue[rawValue] }),
+          metadata.kind == .function,
+          metadata.identityTargetRaw != 0
+    else {
+        return nil
+    }
+    return RuntimeCallableReferenceIdentity(
+        targetRaw: metadata.identityTargetRaw,
+        arity: metadata.arity,
+        isSuspend: metadata.isSuspend,
+        modifierFlags: metadata.modifierFlags,
+        captures: metadata.identityCaptures
+    )
+}
+
+func runtimeCallableReferenceValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool? {
+    let lhsIdentity = runtimeCallableReferenceIdentity(from: lhs)
+    let rhsIdentity = runtimeCallableReferenceIdentity(from: rhs)
+    guard lhsIdentity != nil || rhsIdentity != nil else { return nil }
+    guard let lhsIdentity, let rhsIdentity,
+          lhsIdentity.targetRaw == rhsIdentity.targetRaw,
+          lhsIdentity.arity == rhsIdentity.arity,
+          lhsIdentity.isSuspend == rhsIdentity.isSuspend,
+          lhsIdentity.modifierFlags == rhsIdentity.modifierFlags,
+          lhsIdentity.captures.count == rhsIdentity.captures.count
+    else {
+        return false
+    }
+    return zip(lhsIdentity.captures, rhsIdentity.captures).allSatisfy { lhsCapture, rhsCapture in
+        runtimeValuesEqual(lhsCapture, rhsCapture)
+    }
+}
+
+func runtimeCallableReferenceHashCode(_ rawValue: Int) -> Int? {
+    guard let identity = runtimeCallableReferenceIdentity(from: rawValue) else { return nil }
+    var hash = Int32(truncatingIfNeeded: identity.targetRaw)
+    hash = 31 &* hash &+ Int32(identity.arity)
+    hash = 31 &* hash &+ (identity.isSuspend ? 1 : 0)
+    hash = 31 &* hash &+ Int32(truncatingIfNeeded: identity.modifierFlags)
+    for capture in identity.captures {
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(capture))
+    }
+    return Int(hash)
+}
+
 private let runtimeFunctionInterfaceTypeIDs = (0...22).map {
     runtimeStableNominalTypeID(fqName: "kotlin.Function.Function\($0)")
 }

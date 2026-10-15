@@ -12,7 +12,7 @@ import summarize_evidence as summary
 
 class EvidenceTests(unittest.TestCase):
     def setUp(self) -> None:
-        document, _ = run_matrix.load_contract_sets(run_matrix.DEFAULT_CONTRACT_PAIRS)
+        document, _, _ = run_matrix.load_contract_sets(run_matrix.DEFAULT_CONTRACT_PAIRS)
         self.stages = [{"id": name, "status": "pass", "exitCode": 0}
                        for name in ("test_run_candidate", "test_run_matrix", "test_summarize_evidence")]
         self.evidence = {

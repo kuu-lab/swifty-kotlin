@@ -48,6 +48,35 @@ struct ASTContextFunctionTypeTests {
     }
 
     @Test
+    func testBuildASTParsesNamedContextParametersOnFunctionsAndProperties() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        @OptIn(kotlin.ExperimentalContextParameters::class)
+        context(prefix: String)
+        fun render(value: String): String = prefix + value
+
+        @OptIn(kotlin.ExperimentalContextParameters::class)
+        context(prefix: String)
+        var current: String
+            get() = prefix
+            set(value) {}
+        """)
+        let function = try #require(firstFunDecl(named: "render", in: ast, interner: ctx.interner))
+        let property = try #require(ast.arena.declarations().lazy.compactMap { declaration -> PropertyDecl? in
+            guard case let .propertyDecl(property) = declaration else { return nil }
+            return property
+        }.first { ctx.interner.resolve($0.name) == "current" })
+
+        #expect(function.contextReceivers.count == 1)
+        let functionContext = try #require(function.contextReceivers.first)
+        #expect(ctx.interner.resolve(functionContext.name ?? ctx.interner.intern("<missing>")) == "prefix")
+        #expect(functionContext.isContextParameter)
+        #expect(property.contextReceivers.count == 1)
+        let propertyContext = try #require(property.contextReceivers.first)
+        #expect(ctx.interner.resolve(propertyContext.name ?? ctx.interner.intern("<missing>")) == "prefix")
+        #expect(propertyContext.isContextParameter)
+    }
+
+    @Test
     func testBuildASTParsesNestedGenericContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """
         package demo

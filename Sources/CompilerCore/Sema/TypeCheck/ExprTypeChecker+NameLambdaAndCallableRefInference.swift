@@ -87,6 +87,14 @@ extension ExprTypeChecker {
                 guard let symbol = sema.symbols.symbol(symbolID) else {
                     return false
                 }
+                // Bundled classifiers obey the file's imports. The global
+                // short-name registry must not make java.util classes default imports.
+                let file = sema.symbols.sourceFileID(for: symbolID) ?? symbol.declSite?.start.file
+                let isBundled = sema.symbols.isImportedStdlibSymbol(symbolID)
+                    || file.flatMap { ctx.visibilityChecker.sourceManager?.origin(of: $0)?.isBundledStdlib } == true
+                if isBundled, !ctx.cachedScopeLookup(name).contains(symbolID) {
+                    return false
+                }
                 switch symbol.kind {
                 case .object:
                     // Singleton values must be introduced by lexical/package

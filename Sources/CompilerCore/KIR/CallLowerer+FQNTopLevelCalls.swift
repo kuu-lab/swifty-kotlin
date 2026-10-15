@@ -51,8 +51,7 @@ extension CallLowerer {
                 ))
                 return result
             }
-            if symbol.flags.contains(.importedLibrary),
-               sema.symbols.propertyHasCustomGetter(for: symbolID),
+            if sema.symbols.propertyHasCustomGetter(for: symbolID),
                let getter = sema.symbols.extensionPropertyGetterAccessor(for: symbolID)
             {
                 let result = arena.appendTemporary(type: resultType)

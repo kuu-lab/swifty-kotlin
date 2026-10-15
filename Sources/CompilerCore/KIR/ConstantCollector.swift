@@ -275,23 +275,47 @@ struct ConstantCollector {
             default: return nil
             }
         case let (.floatLiteral(l), .floatLiteral(r)):
-            return comparison(op, Float(l), Float(r))
+            let lhs = Float(l)
+            let rhs = Float(r)
+            return comparison(op, lhs, rhs)
+                ?? floatingPointBinaryOp(op, lhs, rhs).map { .floatLiteral(Double($0)) }
         case let (.floatLiteral(l), .doubleLiteral(r)):
-            return comparison(op, Double(Float(l)), r)
+            let lhs = Double(Float(l))
+            return comparison(op, lhs, r) ?? floatingPointBinaryOp(op, lhs, r).map { .doubleLiteral($0) }
         case let (.doubleLiteral(l), .floatLiteral(r)):
-            return comparison(op, l, Double(Float(r)))
+            let rhs = Double(Float(r))
+            return comparison(op, l, rhs) ?? floatingPointBinaryOp(op, l, rhs).map { .doubleLiteral($0) }
         case let (.doubleLiteral(l), .doubleLiteral(r)):
-            return comparison(op, l, r)
+            return comparison(op, l, r) ?? floatingPointBinaryOp(op, l, r).map { .doubleLiteral($0) }
         case let (.intLiteral(l), .floatLiteral(r)), let (.longLiteral(l), .floatLiteral(r)):
-            return comparison(op, Float(l), Float(r))
+            let lhs = Float(l)
+            let rhs = Float(r)
+            return comparison(op, lhs, rhs)
+                ?? floatingPointBinaryOp(op, lhs, rhs).map { .floatLiteral(Double($0)) }
         case let (.floatLiteral(l), .intLiteral(r)), let (.floatLiteral(l), .longLiteral(r)):
-            return comparison(op, Float(l), Float(r))
+            let lhs = Float(l)
+            let rhs = Float(r)
+            return comparison(op, lhs, rhs)
+                ?? floatingPointBinaryOp(op, lhs, rhs).map { .floatLiteral(Double($0)) }
         case let (.intLiteral(l), .doubleLiteral(r)), let (.longLiteral(l), .doubleLiteral(r)):
-            return comparison(op, Double(l), r)
+            let lhs = Double(l)
+            return comparison(op, lhs, r) ?? floatingPointBinaryOp(op, lhs, r).map { .doubleLiteral($0) }
         case let (.doubleLiteral(l), .intLiteral(r)), let (.doubleLiteral(l), .longLiteral(r)):
-            return comparison(op, l, Double(r))
+            let rhs = Double(r)
+            return comparison(op, l, rhs) ?? floatingPointBinaryOp(op, l, rhs).map { .doubleLiteral($0) }
         default:
             return nil
+        }
+    }
+
+    private func floatingPointBinaryOp<T: BinaryFloatingPoint>(_ op: BinaryOp, _ lhs: T, _ rhs: T) -> T? {
+        switch op {
+        case .add: lhs + rhs
+        case .subtract: lhs - rhs
+        case .multiply: lhs * rhs
+        case .divide: lhs / rhs
+        case .modulo: lhs.truncatingRemainder(dividingBy: rhs)
+        default: nil
         }
     }
 

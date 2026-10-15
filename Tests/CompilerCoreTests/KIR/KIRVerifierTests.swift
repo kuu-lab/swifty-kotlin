@@ -6,7 +6,8 @@ struct KIRVerifierTests {
     private func makeModule(
         arena: KIRArena,
         interner: StringInterner,
-        body: [KIRInstruction]
+        body: [KIRInstruction],
+        isInlineOnly: Bool = false
     ) -> KIRModule {
         let function = KIRFunction(
             symbol: SymbolID(rawValue: 9000),
@@ -15,7 +16,8 @@ struct KIRVerifierTests {
             returnType: TypeID(rawValue: 0),
             body: body,
             isSuspend: false,
-            isInline: false
+            isInline: false,
+            isInlineOnly: isInlineOnly
         )
         let declID = arena.appendDecl(.function(function))
         return KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
@@ -43,6 +45,29 @@ struct KIRVerifierTests {
             .returnUnit,
         ])
         let failures = KIRVerifier.verify(module: module, symbols: nil, interner: interner)
+        #expect(failures.contains { $0.kind == .undefinedJumpTarget })
+    }
+
+    @Test
+    func testExternalLoopJumpMarkerIsAllowedOnlyInInlineOnlyFunctions() {
+        let interner = StringInterner()
+        let inlineArena = KIRArena()
+        let externalTarget = KIRExternalLoopJump.marker(for: 77)
+        let inlineModule = makeModule(
+            arena: inlineArena,
+            interner: interner,
+            body: [.jump(externalTarget), .returnUnit],
+            isInlineOnly: true
+        )
+        #expect(KIRVerifier.verify(module: inlineModule, symbols: nil, interner: interner).isEmpty)
+
+        let ordinaryArena = KIRArena()
+        let ordinaryModule = makeModule(
+            arena: ordinaryArena,
+            interner: interner,
+            body: [.jump(externalTarget), .returnUnit]
+        )
+        let failures = KIRVerifier.verify(module: ordinaryModule, symbols: nil, interner: interner)
         #expect(failures.contains { $0.kind == .undefinedJumpTarget })
     }
 

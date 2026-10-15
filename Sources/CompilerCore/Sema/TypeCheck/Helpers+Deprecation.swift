@@ -41,14 +41,11 @@ private struct KotlinCompilerVersion: Comparable {
 }
 
 // @DeprecatedSinceKotlin thresholds are evaluated against the compiler's
-// default -api-version, not its build version. kotlinc 2.3.10 (the reference
-// compiler pinned by CI, see KOTLIN_VERSION in ci.yml) still defaults to
-// apiVersion 2.2: confirmed empirically via Scripts/diff_kotlinc.sh — it
-// emits no diagnostic for `Number.toChar()` (errorSince = "2.3") at the call
-// site, while `StringBuilder.appendln()` (errorSince = "2.1") matches this
-// compiler's error diagnostic. Keep in sync if the pinned kotlinc's default
-// api-version changes.
-private let kotlinApiVersion = KotlinCompilerVersion(major: 2, minor: 2, patch: 0)
+// default -api-version, not its build version. kotlinc 2.4.20 (the reference
+// compiler pinned by CI) defaults to apiVersion 2.4: it rejects
+// `Number.toChar()` (errorSince = "2.3") at the call site. Keep in sync if
+// the pinned kotlinc's default api-version changes.
+private let kotlinApiVersion = KotlinCompilerVersion(major: 2, minor: 4, patch: 0)
 
 extension TypeCheckHelpers {
     private enum DeprecatedLevel {

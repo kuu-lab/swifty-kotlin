@@ -416,6 +416,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         let valueHash = Int32(truncatingIfNeeded: kk_any_hashCode(entry.value, 0))
         return Int(keyHash ^ valueHash)
     }
+    if let hash = runtimeCallableReferenceHashCode(value) {
+        return hash
+    }
     // Nominal objects honor user overrides and data-class structural hashes;
     // plain classes inherit Any's identity hash, matching runtimeValuesEqual.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {

@@ -14,6 +14,16 @@ struct InlineExpansion {
             return callAncestries[offset] ?? []
         }
     }
+
+    func remappingExternalLoopTargets(using mapping: [Int32: Int32]) -> InlineExpansion {
+        InlineExpansion(
+            instructions: KIRExternalLoopJump.remappingTargets(in: instructions, mapping: mapping),
+            returnedExpr: returnedExpr,
+            hasNonLocalReturn: hasNonLocalReturn,
+            hasNormalReturn: hasNormalReturn,
+            callAncestries: callAncestries
+        )
+    }
 }
 
 final class InlineLoweringPass: LoweringPass {

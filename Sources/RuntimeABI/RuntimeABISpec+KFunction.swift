@@ -376,6 +376,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_callable_ref_set_identity",
+            parameters: [
+                RuntimeABIParameter(name: "callable", type: .intptr),
+                RuntimeABIParameter(name: "targetRaw", type: .intptr),
+                RuntimeABIParameter(name: "capturesRaw", type: .intptr),
+            ],
+            returnType: .void,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_callable_ref_tag_kproperty",
             parameters: [
                 RuntimeABIParameter(name: "callable", type: .intptr),

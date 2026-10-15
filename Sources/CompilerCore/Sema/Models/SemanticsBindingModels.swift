@@ -36,12 +36,23 @@ public struct CallableValueCallBinding {
     public let functionType: TypeID
     public let parameterMapping: [Int: Int]
     public let extensionCallableExpr: ExprID?
+    public let contextArgumentCount: Int
+    public let receiverArgumentOffset: Int
 
-    public init(target: CallableTarget?, functionType: TypeID, parameterMapping: [Int: Int], extensionCallableExpr: ExprID? = nil) {
+    public init(
+        target: CallableTarget?,
+        functionType: TypeID,
+        parameterMapping: [Int: Int],
+        extensionCallableExpr: ExprID? = nil,
+        contextArgumentCount: Int = 0,
+        receiverArgumentOffset: Int = 0
+    ) {
         self.target = target
         self.functionType = functionType
         self.parameterMapping = parameterMapping
         self.extensionCallableExpr = extensionCallableExpr
+        self.contextArgumentCount = contextArgumentCount
+        self.receiverArgumentOffset = receiverArgumentOffset
     }
 }
 

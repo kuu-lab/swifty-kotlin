@@ -48,6 +48,58 @@ struct CodegenBackendCoroutineSchedulingTests {
         )
     }
 
+    /// `async` owns its nested launch/async children until its body completes.
+    /// The parent runBlocking scope must not finish after the deferred body
+    /// returns while those children still have queued resumptions.
+    @Test func testAsyncWaitsForNestedChildrenBeforeCompletion() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            async {
+                println("outer async first")
+                launch {
+                    println("nested launch first")
+                    yield()
+                    println("nested launch second")
+                }
+                async {
+                    println("nested async first")
+                    yield()
+                    println("nested async second")
+                }
+                yield()
+                println("outer async second")
+            }
+            launch {
+                println("sibling launch first")
+                yield()
+                println("sibling launch second")
+            }
+            yield()
+            println("nested parent")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "AsyncWaitsForNestedChildren",
+            expected:
+                """
+                outer async first
+                sibling launch first
+                nested parent
+                nested launch first
+                nested async first
+                outer async second
+                sibling launch second
+                nested launch second
+                nested async second
+
+                """
+        )
+    }
+
     /// `CoroutineStart.UNDISPATCHED` runs the body inline on the calling thread
     /// until its first suspension, so `undispatched1` precedes `after launch`.
     /// Every start mode used to reach the lazy launcher, which printed

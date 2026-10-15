@@ -15,6 +15,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -220,7 +221,15 @@ def reject_unhandled_events(stdout: bytes) -> None:
 def normalized_paths(stdout: bytes, workspace: Path) -> bytes:
     # Only the owned execution paths differ between lanes. Preserve path suffixes
     # and every other byte (including errors, state and scalar/hash values).
-    for path, label in ((workspace / "tmp", b"<tmp>"), (workspace, b"<work>")):
+    paths = [(workspace / "tmp", b"<tmp>"), (workspace, b"<work>")]
+    # Foundation's NSTemporaryDirectory() can return the host user temp directory
+    # even when TMPDIR is isolated for the process. Map that root to the lane temp.
+    host_temporary_directory = Path(tempfile.gettempdir())
+    shared_temporary_directory = Path("/tmp").resolve()
+    if (host_temporary_directory.resolve() != shared_temporary_directory
+            and host_temporary_directory.resolve() not in (workspace.resolve(), (workspace / "tmp").resolve())):
+        paths.append((host_temporary_directory, b"<tmp>"))
+    for path, label in paths:
         variants = {str(path), str(path.resolve())}
         if str(path).startswith("/private/tmp/"): variants.add(str(path).removeprefix("/private"))
         for value in sorted(variants, key=len, reverse=True): stdout = stdout.replace(value.encode(), label)

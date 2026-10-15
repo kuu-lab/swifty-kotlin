@@ -11,6 +11,35 @@ extension BuildASTPhase {
         }
 
         var startIndex = 0
+        var contextReceivers: [ContextReceiverDecl] = []
+        if statementTokens.first?.kind == .softKeyword(.context),
+           statementTokens.count > 1,
+           statementTokens[1].kind == .symbol(.lParen)
+        {
+            var depth = 0
+            var closingIndex: Int?
+            for index in 1 ..< statementTokens.count {
+                switch statementTokens[index].kind {
+                case .symbol(.lParen): depth += 1
+                case .symbol(.rParen):
+                    depth -= 1
+                    if depth == 0 {
+                        closingIndex = index
+                        break
+                    }
+                default: break
+                }
+                if closingIndex != nil { break }
+            }
+            if let closingIndex {
+                contextReceivers = parseContextReceivers(
+                    from: Array(statementTokens[0 ... closingIndex]),
+                    interner: interner,
+                    astArena: astArena
+                )
+                startIndex = closingIndex + 1
+            }
+        }
         var isSuspend = false
         var isInfix = false
         var hasOperator = false
@@ -186,6 +215,9 @@ extension BuildASTPhase {
             range: range,
             typeParams: typeParams
         ))
+        if !contextReceivers.isEmpty {
+            astArena.setLocalFunContextReceivers(contextReceivers, for: declaration)
+        }
         if isInfix { astArena.markInfixFunction(declaration) }
         if hasOperator { astArena.markOperatorFunction(declaration) }
         return declaration

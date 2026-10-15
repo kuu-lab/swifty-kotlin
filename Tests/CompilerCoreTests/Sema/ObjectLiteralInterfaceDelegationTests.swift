@@ -36,6 +36,35 @@ import Testing
         #expect(layout.instanceFieldCount == 1)
     }
 
+    @Test func capturingOuterLocalsDoesNotMakeDelegatedAbstractMembersMissing() throws {
+        let ctx = makeContextFromSource("""
+        interface A { fun foo(): Int }
+        class B1 : A { override fun foo() = 10 }
+        class B2(val z: Int) : A { override fun foo() = z }
+        fun f1(b: B1): Int {
+            val o = object : A by b { }
+            return o.foo()
+        }
+        fun f2(b: B2): Int {
+            val o = object : A by B2(b.z) { }
+            return o.foo()
+        }
+        fun f3(b: B2, mult: Int): Int {
+            val o = object : A by B2(mult * b.z) { }
+            return o.foo()
+        }
+        fun f4(b: B1, x: Int, y: Int, z: Int): Int {
+            val o = object : A by b {
+                fun bar() = x + y + z
+            }
+            return o.foo()
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+    }
+
     @Test func inheritedGenericMembersAndExplicitOverridesAreBound() throws {
         let ctx = makeContextFromSource("""
         interface Parent<T> { fun read(): T; var value: T }

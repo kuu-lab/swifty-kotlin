@@ -46,6 +46,9 @@ public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
 /// value as an instance of its enum class (BUG-182).
 @_cdecl("kk_enum_box_ordinal")
 public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) -> Int {
+    runtimeStorage.withMetadataLock { state in
+        _ = state.enumClassifierIDs.insert(Int64(classID) & RuntimeTypeTokenEncoding.payloadMask)
+    }
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: namePtr))
     // Tagged-handle registration keeps the box's raw address out of
     // `objectPointers`, so a raw scalar that equals that address cannot be

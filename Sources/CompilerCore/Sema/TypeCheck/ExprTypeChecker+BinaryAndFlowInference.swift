@@ -183,6 +183,20 @@ extension ExprTypeChecker {
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)
 
+        // Numeric operators on a type parameter are resolved against its
+        // concrete primitive upper bound (for example, `T : Double`). Keep
+        // the operand bindings generic; the resulting primitive expression
+        // type lets ABI lowering unbox those values before emitting the op.
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+           let primitiveLhs = primitiveArithmeticUpperBound(of: lhs, sema: sema),
+           let primitiveRhs = primitiveArithmeticUpperBound(of: rhs, sema: sema),
+           sema.types.isBuiltinArithmeticOperand(primitiveLhs),
+           sema.types.isBuiltinArithmeticOperand(primitiveRhs)
+        {
+            lhs = primitiveLhs
+            rhs = primitiveRhs
+        }
+
         if [.add, .subtract, .multiply, .divide, .modulo,
             .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
             .rangeTo, .rangeUntil, .downTo, .step].contains(op) {
@@ -776,6 +790,34 @@ extension ExprTypeChecker {
             args: [],
             nullability: .nonNull
         )))
+    }
+
+    private func primitiveArithmeticUpperBound(of type: TypeID, sema: SemaModule) -> TypeID? {
+        func resolve(_ type: TypeID, visited: inout Set<SymbolID>) -> TypeID? {
+            switch sema.types.kind(of: type) {
+            case .primitive(_, .nonNull):
+                return type
+            case let .intersection(parts):
+                let primitiveBounds = parts.compactMap { resolve($0, visited: &visited) }
+                let uniqueBounds = Set(primitiveBounds)
+                return uniqueBounds.count == 1 ? uniqueBounds.first : nil
+            case let .typeParam(parameter):
+                guard parameter.nullability == .nonNull else { return nil }
+                if let capture = parameter.capture {
+                    return resolve(capture.upper, visited: &visited)
+                }
+                guard visited.insert(parameter.symbol).inserted else { return nil }
+                let primitiveBounds = sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+                    .compactMap { resolve($0, visited: &visited) }
+                let uniqueBounds = Set(primitiveBounds)
+                return uniqueBounds.count == 1 ? uniqueBounds.first : nil
+            default:
+                return nil
+            }
+        }
+
+        var visited: Set<SymbolID> = []
+        return resolve(type, visited: &visited)
     }
 
     private func bindComparableUpperBoundOperatorFallback(

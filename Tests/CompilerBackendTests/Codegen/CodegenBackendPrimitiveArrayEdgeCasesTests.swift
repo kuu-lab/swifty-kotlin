@@ -77,6 +77,27 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     }
 
     @Test
+    func testDataClassToStringUsesContentForArrayProperties() throws {
+        let source = """
+        data class Arrays(val ints: IntArray, val strings: Array<String>)
+        data class NullableArrays(val ints: IntArray?, val strings: Array<String>?)
+        fun main() {
+            val value = Arrays(intArrayOf(1, 2), arrayOf("x"))
+            println(value.toString())
+            println(value)
+            println(NullableArrays(null, null))
+            println(Arrays(intArrayOf(1, 2), arrayOf("x")) == value)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "DataClassArrayPropertyToString", expected: """
+        Arrays(ints=[1, 2], strings=[x])
+        Arrays(ints=[1, 2], strings=[x])
+        NullableArrays(ints=null, strings=null)
+        false
+        """ + "\n")
+    }
+
+    @Test
     func testFloatingPointArrayToStringSpecialValuesAndCopies() throws {
         let source = """
         fun main() {

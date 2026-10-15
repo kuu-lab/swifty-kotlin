@@ -170,7 +170,13 @@ extension InlineLoweringPass {
                 lowered.append(.label(labelRemap[id] ?? id))
 
             case let .jump(target):
-                lowered.append(.jump(labelRemap[target] ?? target))
+                let remappedTarget: Int32
+                if let externalTarget = KIRExternalLoopJump.label(for: target) {
+                    remappedTarget = KIRExternalLoopJump.marker(for: labelRemap[externalTarget] ?? externalTarget)
+                } else {
+                    remappedTarget = labelRemap[target] ?? target
+                }
+                lowered.append(.jump(remappedTarget))
 
             case let .jumpIfEqual(lhs, rhs, target):
                 lowered.append(
@@ -291,7 +297,7 @@ extension InlineLoweringPass {
                         erasedCallConvention: erasedExpansionABI,
                         into: &lowered
                     )
-                    if let lambdaExpansion = expandLambdaBody(
+                    if let rawLambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
                         module: module,
@@ -300,6 +306,7 @@ extension InlineLoweringPass {
                         labels: &labels,
                         expansionBudget: budget
                     ) {
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(
@@ -368,7 +375,7 @@ extension InlineLoweringPass {
                         erasedCallConvention: erasedExpansionABI,
                         into: &lowered
                     )
-                    if let lambdaExpansion = expandLambdaBody(
+                    if let rawLambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
                         module: module,
@@ -377,6 +384,7 @@ extension InlineLoweringPass {
                         labels: &labels,
                         expansionBudget: budget
                     ) {
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(

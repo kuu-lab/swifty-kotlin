@@ -390,6 +390,10 @@ extension CallTypeChecker {
                 || (calleeStr == "none" && isIterableReceiver)
                 || (calleeStr == "asSequence" && isIterableReceiver)
                 || ((calleeStr == "runningReduce" || calleeStr == "runningReduceIndexed") && isIterableReceiver))
+            // Array.map has a dedicated bundled Array extension. Keep vararg
+            // Array receivers on regular overload resolution so the source
+            // function supplies the lambda's return-type constraints.
+            && !(isArrayReceiver && calleeStr == "map")
             && !isULongProgressionFirstLastCall
             && !(calleeStr == "binarySearch"
                 && isArrayReceiver)

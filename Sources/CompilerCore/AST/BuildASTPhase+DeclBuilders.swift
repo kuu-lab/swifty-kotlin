@@ -291,7 +291,8 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena,
-        prefixedAnnotations: [AnnotationNode] = []
+        prefixedAnnotations: [AnnotationNode] = [],
+        prefixedContextReceivers: [ContextReceiverDecl] = []
     ) -> FunDecl {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
@@ -301,12 +302,15 @@ extension BuildASTPhase {
         let functionName = declarationFunctionName(from: nodeID, in: arena, interner: interner)
         let valueParams = declarationValueParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let explicitReceiverType = declarationReceiverType(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let contextReceivers = declarationContextReceivers(
+        let declaredContextReceivers = declarationContextReceivers(
             from: nodeID,
             in: arena,
             interner: interner,
             astArena: astArena
         )
+        let contextReceivers = declaredContextReceivers.isEmpty
+            ? prefixedContextReceivers
+            : declaredContextReceivers
         // Do not promote a context receiver to `receiverType`: that would
         // overwrite a member function's class `this` with the context type.
         let receiverType = explicitReceiverType
@@ -333,7 +337,13 @@ extension BuildASTPhase {
         )
     }
 
-    func makePropertyDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> PropertyDecl {
+    func makePropertyDecl(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena,
+        prefixedContextReceivers: [ContextReceiverDecl] = []
+    ) -> PropertyDecl {
         let node = arena.node(nodeID)
         let typeParams = applyWhereClauses(
             declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena),
@@ -380,6 +390,12 @@ extension BuildASTPhase {
         let receiverType = declarationPropertyReceiverType(
             from: nodeID, in: arena, interner: interner, astArena: astArena
         )
+        let declaredContextReceivers = declarationContextReceivers(
+            from: nodeID, in: arena, interner: interner, astArena: astArena
+        )
+        let contextReceivers = declaredContextReceivers.isEmpty
+            ? prefixedContextReceivers
+            : declaredContextReceivers
         let propertyName: InternedString = if receiverType != nil {
             declarationPropertyNameAfterDot(from: nodeID, in: arena, interner: interner)
         } else {
@@ -405,6 +421,7 @@ extension BuildASTPhase {
             delegateBody: delegateBody,
             delegateBodyParams: delegateBodyParams,
             receiverType: receiverType,
+            contextReceivers: contextReceivers,
             explicitBackingField: explicitField
         )
     }

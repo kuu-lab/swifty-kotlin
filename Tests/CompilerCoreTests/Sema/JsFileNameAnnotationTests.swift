@@ -75,6 +75,9 @@
             #expect(diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST" }.count == 1, "\(diagnostics)")
             #expect(diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY" }.count == 3, "\(diagnostics)")
             #expect(diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning }.count == 1, "\(diagnostics)")
+            #expect(!diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0022" && $0.message == "Unresolved reference 'kotlin'."
+            }, "File annotation validation should not re-resolve the qualified package name: \(diagnostics)")
 
             let sema = try #require(ctx.sema)
             let jsFileName = try #require(sema.symbols.lookup(fqName: ["kotlin", "js", "JsFileName"].map(ctx.interner.intern)))

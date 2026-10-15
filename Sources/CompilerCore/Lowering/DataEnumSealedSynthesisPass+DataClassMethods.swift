@@ -394,6 +394,72 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
+    /// Synthesizes `hashCode(): Int` for a data object from its simple name.
+    func appendSyntheticDataObjectHashCodeIfNeeded(
+        owner: SemanticSymbol,
+        objectName: InternedString,
+        existingSymbol: SymbolID?,
+        module: KIRModule,
+        sema: SemaModule,
+        existingFunctionSymbols: Set<SymbolID>,
+        interner: StringInterner
+    ) {
+        guard owner.kind == .object, let functionSymbol = existingSymbol else {
+            return
+        }
+        if existingFunctionSymbols.contains(functionSymbol) {
+            return
+        }
+
+        let receiverType = sema.types.make(.classType(ClassType(
+            classSymbol: owner.id,
+            args: [],
+            nullability: .nonNull
+        )))
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let hashCodeName = interner.intern("hashCode")
+        let parameterName = interner.intern("$self")
+        let fqName = owner.fqName + [hashCodeName]
+        let parameterSymbol = sema.symbols.define(
+            kind: .valueParameter,
+            name: parameterName,
+            fqName: fqName + [parameterName],
+            declSite: owner.declSite,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        let parameter = KIRParameter(symbol: parameterSymbol, type: receiverType)
+
+        var hashCode: Int32 = 0
+        for codeUnit in interner.resolve(objectName).utf16 {
+            hashCode = 31 &* hashCode &+ Int32(codeUnit)
+        }
+        let resultExpr = module.arena.appendTemporary(type: intType)
+        let body: [KIRInstruction] = [
+            .constValue(result: resultExpr, value: .intLiteral(Int64(hashCode))),
+            .returnValue(resultExpr),
+        ]
+        let signature = FunctionSignature(
+            receiverType: receiverType,
+            parameterTypes: [],
+            returnType: intType,
+            isSuspend: false,
+            valueParameterSymbols: [],
+            valueParameterHasDefaultValues: [],
+            valueParameterIsVararg: [],
+            typeParameterSymbols: []
+        )
+        appendSyntheticFunctionWithSymbol(
+            functionSymbol: functionSymbol,
+            name: hashCodeName,
+            module: module,
+            sema: sema,
+            signature: signature,
+            params: [parameter],
+            body: body
+        )
+    }
+
     /// Synthesizes `toString(): String` for data object, returning the object name.
     /// Uses existingSymbol when provided (from Sema) so call resolution matches the KIR function.
     func appendSyntheticDataObjectToStringIfNeeded(
@@ -798,9 +864,42 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
+    /// Finds the source-backed `contentToString` overload for an array type.
+    private func dataClassArrayContentToStringSymbol(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let (arrayType, arraySymbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(type), sema: sema
+        ),
+            arraySymbol.fqName == [interner.intern("kotlin"), arraySymbol.name],
+            KnownCompilerNames(interner: interner).isArrayLikeName(arraySymbol.name)
+        else {
+            return nil
+        }
+        let fqName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("contentToString"),
+        ]
+        return sema.symbols.lookupAll(fqName: fqName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  let receiverType = signature.receiverType,
+                  let (receiverClass, _) = resolveClassTypeSymbol(
+                      sema.types.makeNonNullable(receiverType), sema: sema
+                  )
+            else {
+                return false
+            }
+            return receiverClass.classSymbol == arrayType.classSymbol
+        }
+    }
+
     /// Synthesizes `toString(): String` for data class with properties.
     /// Output format: "ClassName(prop1=val1, prop2=val2)"
-    /// Each property value is converted to string via `kk_any_to_string` and concatenated.
+    /// Each property is rendered according to its declared type, then concatenated.
     func dataClassExplicitSuperclass(
         owner: SemanticSymbol,
         sema: SemaModule,
@@ -957,6 +1056,19 @@ extension DataEnumSealedSynthesisPass {
                 body.append(.call(
                     symbol: nil, callee: interner.intern("__kk_array_contentDeepToString"),
                     arguments: [propValue], result: propStr, canThrow: false, thrownResult: nil
+                ))
+            } else if let arrayToStringSymbol = dataClassArrayContentToStringSymbol(
+                for: propType, sema: sema, interner: interner
+            ) {
+                let callee = sema.symbols.externalLinkName(for: arrayToStringSymbol)
+                    .map(interner.intern) ?? interner.intern("contentToString")
+                body.append(.call(
+                    symbol: arrayToStringSymbol,
+                    callee: callee,
+                    arguments: [propValue],
+                    result: propStr,
+                    canThrow: false,
+                    thrownResult: nil
                 ))
             } else if let nameHelper = resolveEnumOrdinalToNameCallee(for: propType, sema: sema, interner: interner) {
                 body.append(.call(
