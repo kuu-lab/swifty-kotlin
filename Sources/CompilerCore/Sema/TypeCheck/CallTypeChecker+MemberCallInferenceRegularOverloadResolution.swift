@@ -250,6 +250,42 @@ extension CallTypeChecker {
         var candidates = candidates
         let memberNameText = interner.resolve(calleeName)
 
+        let hasNonNullFlowFact = if let reference = ctx.dataFlow.resolveStableReference(
+            request.receiverID, locals: locals, ast: ast, sema: sema, interner: interner
+        ), reference.isStable,
+           let flow = ctx.flowState.includingMembers(from: locals)[reference.symbol]
+        {
+            flow.isStable && flow.nullability == .nonNull
+        } else {
+            false
+        }
+        // A safe call or stable non-null flow fact proves this receiver can use
+        // the non-null view of its upper bounds during overload resolution.
+        let receiverTypeForResolution: TypeID = {
+            guard request.safeCall || hasNonNullFlowFact else { return effectiveReceiverType }
+
+            let upperBounds: [TypeID] = switch sema.types.kind(of: effectiveReceiverType) {
+            case let .typeParam(parameter):
+                parameter.capture.map { [$0.upper] }
+                    ?? sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+            case let .intersection(parts):
+                parts.flatMap { part -> [TypeID] in
+                    guard case let .typeParam(parameter) = sema.types.kind(of: part) else {
+                        return []
+                    }
+                    return parameter.capture.map { [$0.upper] }
+                        ?? sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+                }
+            default:
+                []
+            }
+            guard !upperBounds.isEmpty else { return effectiveReceiverType }
+            let nonNullBounds = upperBounds.map(sema.types.makeNonNullable)
+            return nonNullBounds.count == 1
+                ? nonNullBounds[0]
+                : sema.types.make(.intersection(nonNullBounds))
+        }()
+
         var cachedNonLambdaArgTypes: [Int: TypeID] = [:]
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {
@@ -335,7 +371,7 @@ extension CallTypeChecker {
             calleeName: calleeName,
             explicitTypeArgs: resolutionTypeArgs,
             expectedType: resolutionExpectedType,
-            implicitReceiverType: effectiveReceiverType,
+            implicitReceiverType: receiverTypeForResolution,
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
             blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -423,7 +459,7 @@ extension CallTypeChecker {
                     calleeName: calleeName,
                     explicitTypeArgs: explicitTypeArgs,
                     expectedType: expectedType,
-                    implicitReceiverType: effectiveReceiverType,
+                    implicitReceiverType: receiverTypeForResolution,
                     lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                     inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                     blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,

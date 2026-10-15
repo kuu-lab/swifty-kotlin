@@ -100,6 +100,23 @@ extension CallLowerer {
             shared: shared, emit: &instructions
         )
 
+        if let numberConversionResult = tryLowerNumberConversion(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions,
+            precomputedReceiver: loweredReceiverID,
+            safeCall: true
+        ) {
+            return numberConversionResult
+        }
+
         // Non-escaping Comparable<Char> local: `v?.compareTo(x)` → kk_char_compareTo
         // behind the same null guard the generic path would build (KUU-1211).
         if let comparableCharResult = tryLowerComparableCharCompareToSafeCall(
