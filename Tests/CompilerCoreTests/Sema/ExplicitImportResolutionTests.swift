@@ -127,8 +127,9 @@ struct ExplicitImportResolutionTests {
         try runSema(ctx)
 
         let unresolvedImports = ctx.diagnostics.diagnostics.filter {
-            $0.code == "KSWIFTK-SEMA-0024"
+            $0.code == "KSWIFTK-SEMA-UNRESOLVED-IMPORT"
         }
+        #expect(DiagnosticRegistry.lookup("KSWIFTK-SEMA-UNRESOLVED-IMPORT")?.pass == "SEMA")
         #expect(unresolvedImports.count == 3, "Expected all three unused imports to be rejected: \(ctx.diagnostics.diagnostics)")
     }
 
