@@ -110,6 +110,7 @@ extension DeclTypeChecker {
             inferClassLikeMemberTypes(
                 memberFunctions: classDecl.memberFunctions,
                 memberProperties: classDecl.memberProperties,
+                nestedClasses: classDecl.nestedClasses,
                 ctx: classCtx,
                 propertyInitializerLocals: primaryCtorLocals,
                 solver: solver,
@@ -416,41 +417,22 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine
     ) {
         typeCheckAnnotationFactories(interfaceDecl.annotations, symbol: symbol, ctx: ctx)
-        let sema = ctx.sema
         var allNestedObjects = interfaceDecl.nestedObjects
         if let companionDeclID = interfaceDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        let interfaceTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
-            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
-        }
-        let interfaceType = sema.types.make(.classType(ClassType(
-            classSymbol: symbol, args: interfaceTypeArgs, nullability: .nonNull
-        )))
-        let interfaceScope = buildClassMemberScope(
-            ownerSymbol: symbol,
-            ownerType: interfaceType,
-            memberFunctions: interfaceDecl.memberFunctions,
-            memberProperties: interfaceDecl.memberProperties,
-            nestedClasses: interfaceDecl.nestedClasses,
-            nestedObjects: allNestedObjects,
+        let interfaceCtx = makeInterfaceTypeCheckContext(
+            interfaceDecl: interfaceDecl,
+            symbol: symbol,
             ctx: ctx
         )
-        let label = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let interfaceCtx = ctx
-            .withOuterReceiver(label: label, type: interfaceType)
-            .copying(
-                scope: interfaceScope,
-                implicitReceiverType: interfaceType,
-                currentDeclSymbol: symbol,
-                enclosingClassSymbol: symbol
-            )
 
         if let companionDeclID = interfaceDecl.companionObject {
             let diagnosticSnapshot = diagnostics.count
             inferClassLikeMemberTypes(
                 memberFunctions: interfaceDecl.memberFunctions,
                 memberProperties: interfaceDecl.memberProperties,
+                nestedClasses: interfaceDecl.nestedClasses,
                 ctx: interfaceCtx,
                 solver: solver,
                 diagnostics: diagnostics
@@ -479,6 +461,7 @@ extension DeclTypeChecker {
     private func inferClassLikeMemberTypes(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
+        nestedClasses: [DeclID] = [],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
         solver: ConstraintSolver,
@@ -539,10 +522,10 @@ extension DeclTypeChecker {
                     solver: solver,
                     diagnostics: diagnostics
                 )
-                if needsAccessorRecheck(property) {
-                    // A getter can still see inferred nested methods' header
-                    // placeholders. Keep its inferred type for other members,
-                    // then diagnose it after those method bodies are checked.
+                if needsMemberPropertyRecheck(property, nestedClasses: nestedClasses) {
+                    // Keep speculative diagnostics for properties that can
+                    // depend on inferred nested member returns until their
+                    // bodies have been checked.
                     diagnostics.truncate(to: diagnosticSnapshot)
                 }
 
@@ -555,6 +538,15 @@ extension DeclTypeChecker {
     private func needsAccessorRecheck(_ property: PropertyDecl) -> Bool {
         property.getter != nil && property.initializer == nil
             && property.delegateExpression == nil && property.explicitBackingField == nil
+    }
+
+    private func needsMemberPropertyRecheck(
+        _ property: PropertyDecl,
+        nestedClasses: [DeclID]
+    ) -> Bool {
+        needsAccessorRecheck(property)
+            || (!nestedClasses.isEmpty
+                && (property.initializer != nil || property.delegateExpression != nil))
     }
 
     func typeCheckClassLikeMembers(
@@ -572,6 +564,7 @@ extension DeclTypeChecker {
         inferClassLikeMemberTypes(
             memberFunctions: memberFunctions,
             memberProperties: memberProperties,
+            nestedClasses: nestedClasses,
             ctx: ctx,
             propertyInitializerLocals: propertyInitializerLocals,
             solver: solver,
@@ -606,12 +599,14 @@ extension DeclTypeChecker {
             typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
         }
 
-        // Recheck computed properties before the authoritative function pass.
-        // Their first pass may have used a nested method's placeholder return
-        // type. Initializers and delegates retain their original single check.
+        // Recheck properties after nested classes publish inferred member
+        // return types. Initializers and delegates can use those returns to
+        // determine their own types, including the effective delegate returned
+        // by provideDelegate.
         for declID in memberProperties {
             guard case let .propertyDecl(property)? = ast.arena.decl(declID),
-                  needsAccessorRecheck(property),
+                  needsMemberPropertyRecheck(property, nestedClasses: nestedClasses),
+                  !driver.precheckedPropertyDecls.contains(declID),
                   let symbol = sema.bindings.declSymbols[declID]
             else {
                 continue
