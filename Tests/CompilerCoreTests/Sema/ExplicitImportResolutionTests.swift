@@ -256,6 +256,97 @@ struct ExplicitImportResolutionTests {
     }
 
     @Test(arguments: [false, true])
+    func samePackageOverloadDoesNotHideExplicitlyImportedFunction(useArtifact: Bool) throws {
+        let sources = [
+            """
+            package repro
+            fun min(first: Int, second: Int, third: Int): Int = first + second + third
+            """,
+            """
+            package repro
+            import kotlin.math.min
+            import kotlin.math.min as min2
+            fun minimum2(first: Int, second: Int): Int = min(first, second)
+            fun minimum3(first: Int, second: Int, third: Int): Int = min(first, second, third)
+            fun minimumAlias2(first: Int, second: Int): Int = min2(first, second)
+            fun minimumQualified2(first: Int, second: Int): Int = kotlin.math.min(first, second)
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let twoArgumentCall = try #require(selectedCall(
+                named: "min", inFunction: "minimum2", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let threeArgumentCall = try #require(selectedCall(
+                named: "min", inFunction: "minimum3", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let aliasedCall = try #require(selectedCall(
+                named: "min2", inFunction: "minimumAlias2", ast: ast, sema: sema, interner: ctx.interner
+            ))
+
+            #expect(twoArgumentCall.fqName == "kotlin.math.min")
+            #expect(twoArgumentCall.arity == 2)
+            #expect(threeArgumentCall.fqName == "repro.min")
+            #expect(threeArgumentCall.arity == 3)
+            #expect(aliasedCall.fqName == "kotlin.math.min")
+            #expect(aliasedCall.arity == 2)
+        }
+    }
+
+    private func selectedCall(
+        named calleeName: String,
+        inFunction functionName: String,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (fqName: String, arity: Int)? {
+        let function = ast.sortedFiles
+            .flatMap { file in
+                file.topLevelDecls.compactMap { declID -> FunDecl? in
+                    guard case let .funDecl(function) = ast.arena.decl(declID),
+                          interner.resolve(function.name) == functionName else {
+                        return nil
+                    }
+                    return function
+                }
+            }
+            .first
+        guard let function else { return nil }
+
+        let bodyRange: SourceRange
+        switch function.body {
+        case .block(_, let range), .expr(_, let range):
+            bodyRange = range
+        case .unit:
+            return nil
+        }
+
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let exprRange = ast.arena.exprRange(exprID), bodyRange.contains(exprRange),
+                  case let .call(calleeID, _, _, _) = ast.arena.expr(exprID),
+                  case let .nameRef(name, _) = ast.arena.expr(calleeID),
+                  interner.resolve(name) == calleeName,
+                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let symbol = sema.symbols.symbol(chosen),
+                  let signature = sema.symbols.functionSignature(for: chosen) else {
+                continue
+            }
+            return (
+                symbol.fqName.map(interner.resolve).joined(separator: "."),
+                signature.parameterTypes.count
+            )
+        }
+        return nil
+    }
+
+    @Test(arguments: [false, true])
     func bundledJvmAnnotationsContinuationAndCoroutineIntrinsicsAreImportable(useArtifact: Bool) throws {
         let sources = [
             """

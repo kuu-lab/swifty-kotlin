@@ -470,7 +470,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter { !isExpectDeclarationSupersededByActual($0) }
     }
 
-    private func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {
+    func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {
         guard let symbol = cachedSymbol(id), symbol.flags.contains(.expectDeclaration) else {
             return false
         }
