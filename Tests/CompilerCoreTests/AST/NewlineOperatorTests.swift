@@ -22,6 +22,19 @@ struct NewlineOperatorTests {
         #expect(!ParserBoundaryPolicy.shouldSplitStatementOnNewline(next.first!.kind))
     }
 
+    @Test
+    func newlineBeforeDoWhileConditionContinuesExpression() {
+        let previous = lex("do { value = \"x\" }").tokens.dropLast()
+        let next = lex("while (value != \"Y\")").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+
+        let labeledPrevious = lex("loop@ do { value = \"x\" }").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: labeledPrevious, nextHead: next))
+
+        let unrelatedBlock = lex("if (ready) { value = \"x\" }").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: unrelatedBlock, nextHead: next))
+    }
+
     @Test(arguments: ["+", "-"])
     func unaryStatementDoesNotChangeInitializer(op: String) throws {
         let context = makeContextFromSource("""
