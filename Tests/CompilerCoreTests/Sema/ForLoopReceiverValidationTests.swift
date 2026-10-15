@@ -100,4 +100,21 @@ struct ForLoopReceiverValidationTests {
         #expect(names?.map { $0.map(ctx.interner.resolve) } == ["a", "b"])
     }
 
+    @Test
+    func acceptsBreakToLabeledDestructuringForLoop() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val rows = listOf("a", "b")
+            find@ for ((r, row) in rows.withIndex()) {
+                for ((i, c) in row.withIndex()) {
+                    if (c == 'a') break@find
+                }
+            }
+            println("done")
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
 }
