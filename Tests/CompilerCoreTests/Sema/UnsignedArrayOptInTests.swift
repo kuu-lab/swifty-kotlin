@@ -110,6 +110,19 @@ struct UnsignedArrayOptInTests {
     }
 
     @Test
+    func enclosingOptInAppliesToNestedNominalMemberBodies() throws {
+        let diagnostics = try check("""
+        @OptIn(kotlin.ExperimentalUnsignedTypes::class)
+        fun main() {
+            val anonymous = object { fun values() = uintArrayOf(1u) }
+            class Local { fun values() = uintArrayOf(2u) }
+            println(anonymous.values().size + Local().values().size)
+        }
+        """)
+        #expect(diagnostics.isEmpty, "\(diagnostics)")
+    }
+
+    @Test
     func compilerOptInSuppressesWarnings() throws {
         let diagnostics = try check(
             "fun main() { val u = uintArrayOf(1u); println(u.size) }",
