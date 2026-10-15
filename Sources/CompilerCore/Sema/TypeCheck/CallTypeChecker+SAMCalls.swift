@@ -382,37 +382,50 @@ extension CallTypeChecker {
         }
         let sema = ctx.sema
         let interfaceTypeParameters = sema.types.nominalTypeParameterSymbols(for: interfaceSymID)
-        let interfaceArgs: [TypeArg]
-        if explicitTypeArgs.isEmpty {
-            if let expectedType,
-               let expectedClassType = resolveClassType(expectedType, sema: sema),
-               expectedClassType.classSymbol == interfaceSymID
-            {
-                interfaceArgs = expectedClassType.args
+        let inferredInterfaceArgs: [TypeArg]
+        if let expectedType,
+           let expectedClassType = resolveClassType(expectedType, sema: sema),
+           expectedClassType.classSymbol == interfaceSymID
+        {
+            inferredInterfaceArgs = expectedClassType.args
+        } else {
+            let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
+                interfaceSymID,
+                typeParameters: interfaceTypeParameters,
+                argExpr: argExpr,
+                ctx: ctx
+            )
+            if annotationArgs.count == interfaceTypeParameters.count {
+                inferredInterfaceArgs = annotationArgs
             } else {
-                let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
+                inferredInterfaceArgs = inferInterfaceArgsFromLambdaReturnType(
                     interfaceSymID,
                     typeParameters: interfaceTypeParameters,
                     argExpr: argExpr,
-                    ctx: ctx
-                )
-                if annotationArgs.count == interfaceTypeParameters.count {
-                    interfaceArgs = annotationArgs
-                } else {
-                    interfaceArgs = inferInterfaceArgsFromLambdaReturnType(
-                        interfaceSymID,
-                        typeParameters: interfaceTypeParameters,
-                        argExpr: argExpr,
-                        ctx: ctx,
-                        locals: locals
-                    ) ?? annotationArgs
-                }
+                    ctx: ctx,
+                    locals: locals
+                ) ?? annotationArgs
             }
+        }
+
+        let interfaceArgs: [TypeArg]
+        if explicitTypeArgs.isEmpty {
+            interfaceArgs = inferredInterfaceArgs
         } else {
             guard explicitTypeArgs.count == interfaceTypeParameters.count else {
                 return nil
             }
-            interfaceArgs = explicitTypeArgs.map { .invariant($0) }
+            var mergedArgs: [TypeArg] = []
+            for index in interfaceTypeParameters.indices {
+                if let explicit = resolvedExplicitTypeArgument(at: index, in: explicitTypeArgs) {
+                    mergedArgs.append(.invariant(explicit))
+                } else if inferredInterfaceArgs.indices.contains(index) {
+                    mergedArgs.append(inferredInterfaceArgs[index])
+                } else {
+                    return nil
+                }
+            }
+            interfaceArgs = mergedArgs
         }
         let interfaceType = sema.types.make(.classType(ClassType(
             classSymbol: interfaceSymID,

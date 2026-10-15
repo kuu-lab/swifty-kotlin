@@ -15,6 +15,14 @@ public object System {
     @KsSymbolName("__kk_system_gc")
     private external fun __gc()
 
+    @KsSymbolName("__kk_system_getProperty")
+    private external fun __getProperty(propertyName: String): String?
+
+    public fun getProperty(propertyName: String): String? = __getProperty(propertyName)
+
+    public fun getProperty(propertyName: String, defaultValue: String): String =
+        __getProperty(propertyName) ?: defaultValue
+
     public fun gc(): Unit = __gc()
 
     public fun exit(status: Int): Unit = kotlin.system.exitProcess(status)

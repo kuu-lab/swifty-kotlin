@@ -1396,6 +1396,13 @@ extension DataFlowSemaPhase {
                 ? signature.typeParameterSymbols
                 : Array(ownerTypeParameters.prefix(ownerCount))
                     + signature.typeParameterSymbols.dropFirst(ownerCount)
+            let normalizedUnsafeVarianceTypeParameterSymbols = signature.valueParameterUnsafeVarianceTypeParameterSymbols.map { unsafeSymbols in
+                Set(signature.typeParameterSymbols.enumerated().compactMap { index, symbol in
+                    unsafeSymbols.contains(symbol) && normalizedTypeParameterSymbols.indices.contains(index)
+                        ? normalizedTypeParameterSymbols[index]
+                        : nil
+                })
+            }
             let normalizedUpperBoundsList = signature.typeParameterUpperBoundsList.map { $0.map(normalize) }
             for index in 0 ..< min(signature.classTypeParameterCount, normalizedTypeParameterSymbols.count) {
                 guard index < normalizedUpperBoundsList.count else {
@@ -1417,6 +1424,7 @@ extension DataFlowSemaPhase {
                     isSuspend: signature.isSuspend,
                     canThrow: signature.canThrow,
                     valueParameterSymbols: signature.valueParameterSymbols,
+                    valueParameterUnsafeVarianceTypeParameterSymbols: normalizedUnsafeVarianceTypeParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
@@ -1501,6 +1509,7 @@ extension DataFlowSemaPhase {
                 returnType: normalize(signature.returnType),
                 isSuspend: signature.isSuspend, canThrow: signature.canThrow,
                 valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,

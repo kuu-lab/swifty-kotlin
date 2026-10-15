@@ -371,12 +371,9 @@ extension MemberLowerer {
     /// custom-delegate instance stored in `$delegate_x`) for the current access.
     ///
     /// Class/interface instance delegates live inside the heap-allocated object,
-    /// not in a module-global slot, so the read must go through
-    /// `kk_array_get_inbounds` at the field's computed offset — mirroring
-    /// `tryLowerStoredMemberPropertyRead` (regular stored-property reads) and
-    /// `emitFieldStore` (writes, used by the matching constructor initializer).
-    /// Falls back to `.loadGlobal` for top-level and `object`-member delegates,
-    /// which intentionally keep a single shared instance backed by a real global.
+    /// while enum delegates use a per-entry global slot because enum values are
+    /// ordinal-backed. Top-level and `object`-member delegates intentionally
+    /// keep a single shared instance backed by a real global.
     private func loadDelegateHandle(
         delegateStorageSymbol: SymbolID,
         ownerSymbol: SymbolID?,
@@ -387,6 +384,30 @@ extension MemberLowerer {
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let delegateType = sema.types.anyType
+        if let ownerSymbol,
+           sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let storageName = sema.symbols.symbol(delegateStorageSymbol)?.name
+        {
+            // Enum values are ordinal-backed, so their delegate handles live
+            // in per-entry globals and are read through the enum storage helper.
+            let helperName = EnumPropertyHelperNames.placeholder(
+                prefix: EnumPropertyHelperNames.getterPrefix,
+                ownerSymbol: ownerSymbol,
+                propertyName: storageName,
+                interner: interner
+            )
+            let result = arena.appendTemporary(type: delegateType)
+            body.append(.call(
+                symbol: nil,
+                callee: helperName,
+                arguments: [receiverExprID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         if let ownerSymbol,
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface,

@@ -3,6 +3,9 @@ package java.lang
 import java.lang.reflect.Constructor
 import kotlin.internal.KsSymbolName
 
+@KsSymbolName("__kk_class_toString")
+private external fun <T> __classToString(type: Class<T>): String
+
 @KsSymbolName("__kk_assertions_enabled")
 private external fun __assertionsEnabled(): Boolean
 
@@ -14,6 +17,12 @@ private external fun __classForName(className: String): Class<*>
 
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
+    /**
+     * Returns the native runtime's loader used for resource lookup.
+     */
+    public val classLoader: ClassLoader?
+        get() = getSystemClassLoader()
+
     /**
      * Returns the process-wide Native assertion policy used by kotlin.assert.
      * Assertions default to enabled. KK_ASSERTIONS_ENABLED takes precedence over
@@ -44,4 +53,5 @@ public class Class<T> {
         /** Resolves a JVM binary class name to its native class token. */
         public fun forName(className: String): Class<*> = __classForName(className)
     }
+    public override fun toString(): String = __classToString(this)
 }

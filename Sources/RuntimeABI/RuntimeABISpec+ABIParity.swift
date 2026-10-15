@@ -99,6 +99,9 @@ public extension RuntimeABISpec {
     ])
 
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
+        abiParitySpec("__kk_class_toString", parameters: [
+            p("classRaw", .intptr),
+        ], isThrowing: false),
         abiParitySpec("__kk_class_kotlin", parameters: [
             p("classRaw", .intptr),
         ], isThrowing: false),
@@ -124,9 +127,6 @@ public extension RuntimeABISpec {
             p("value", .intptr),
             p("enclosingClassNameRaw", .intptr),
         ], returnType: .void, isThrowing: false),
-        abiParitySpec("__kk_kclass_java", parameters: [
-            p("kclassRaw", .intptr),
-        ], isThrowing: false),
         abiParitySpec("kk_future_getState", parameters: [
             p("futureRaw", .intptr),
         ]),

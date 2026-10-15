@@ -695,7 +695,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         }
 
         let propertiesByName = Dictionary(
-            symbols.children(ofFQName: owner.fqName)
+            symbols.children(of: owner.id)
                 .compactMap { symbols.symbol($0) }
                 .filter { $0.kind == .property && !$0.flags.contains(.synthetic) }
                 .map { ($0.name, $0) },
@@ -705,7 +705,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     }
 
     private func primaryConstructorSymbol(owner: SemanticSymbol, symbols: SymbolTable) -> SemanticSymbol? {
-        symbols.children(ofFQName: owner.fqName)
+        symbols.children(of: owner.id)
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .constructor }
             .min { lhs, rhs in
@@ -839,7 +839,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         sema: SemaModule,
         interner: StringInterner
     ) -> [(index: Int, symbolID: SymbolID, signature: FunctionSignature)] {
-        sema.symbols.children(ofFQName: owner.fqName)
+        sema.symbols.children(of: owner.id)
             .compactMap { childID -> (Int, SymbolID, FunctionSignature)? in
                 guard let sym = sema.symbols.symbol(childID),
                       sym.kind == .function,
@@ -872,7 +872,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         owner: SemanticSymbol,
         sema: SemaModule
     ) -> [SemanticSymbol?] {
-        let childProperties = sema.symbols.children(ofFQName: owner.fqName)
+        let childProperties = sema.symbols.children(of: owner.id)
             .compactMap { childID -> SemanticSymbol? in
                 guard let symbol = sema.symbols.symbol(childID), symbol.kind == .property else {
                     return nil
@@ -881,7 +881,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
         let propertiesByName = Dictionary(uniqueKeysWithValues: childProperties.map { ($0.name, $0) })
 
-        guard let primaryCtorSymbol = sema.symbols.children(ofFQName: owner.fqName)
+        guard let primaryCtorSymbol = sema.symbols.children(of: owner.id)
             .compactMap({ childID -> SymbolID? in
                 guard let symbol = sema.symbols.symbol(childID),
                       symbol.kind == .constructor,
@@ -907,9 +907,9 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
 
     private func enumEntrySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
         let fieldOffsets = symbols.nominalLayout(for: owner.id)?.fieldOffsets ?? [:]
-        return symbols.children(ofFQName: owner.fqName)
+        return symbols.children(of: owner.id)
             .compactMap { symbols.symbol($0) }
-            .filter { $0.kind == .field && symbols.parentSymbol(for: $0.id) == owner.id }
+            .filter { symbols.enumOwnerSymbol(for: $0) == owner.id }
             .sorted(by: {
                 // Source-backed entries have precise declaration ranges.
                 let lhsDeclOffset = $0.declSite?.start.offset

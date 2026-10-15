@@ -99,12 +99,22 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     let nameHint: Int
     let className: String?
     let enclosingClassName: String?
+    let displayText: String
 
-    init(typeToken: Int, nameHint: Int = 0, className: String? = nil, enclosingClassName: String? = nil) {
+    init(
+        typeToken: Int,
+        nameHint: Int = 0,
+        className: String? = nil,
+        enclosingClassName: String? = nil,
+        displayText: String? = nil
+    ) {
         self.typeToken = typeToken
         self.nameHint = nameHint
         self.className = className
         self.enclosingClassName = enclosingClassName
+        self.displayText = displayText
+            ?? className.map { "class \($0)" }
+            ?? runtimeJavaClassDisplayText(receiverRaw: 0, typeToken: typeToken, nameHint: nameHint)
     }
 }
 
@@ -133,22 +143,27 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     guard let classifier else {
         runtimeStructuredPanic("invalid runtime classifier")
     }
+    // KClass-sourced lookups canonicalize through javaClassCache so
+    // Class.forName and KClass.java agree on identity, matching JVM Class
+    // interning. Object receivers keep per-receiver boxes: array and
+    // collection runtimes report JVM implementation names derived from the
+    // receiver, and functions carry a receiver-specific enclosing class.
+    if runtimeKClassBox(from: receiverRaw) != nil {
+        return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
+    }
     return registerRuntimeObject(
         RuntimeJavaClassBox(
             typeToken: classifier.typeToken,
             nameHint: classifier.nameHint,
-            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw)
+            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw),
+            displayText: runtimeJavaClassDisplayText(
+                receiverRaw: receiverRaw,
+                typeToken: classifier.typeToken,
+                nameHint: classifier.nameHint
+            )
         ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
-}
-
-@_cdecl("__kk_kclass_java")
-public func __kk_kclass_java(_ kclassRaw: Int) -> Int {
-    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
-        runtimeStructuredPanic("invalid KClass handle")
-    }
-    return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
 }
 
 private func runtimeKotlinClassName(forJavaClassName name: String) -> String {
@@ -174,6 +189,14 @@ public func __kk_class_for_name(_ classNameRaw: Int) -> Int {
     let kotlinName = runtimeKotlinClassName(forJavaClassName: className)
     let token = Int(truncatingIfNeeded: runtimeTypeToken(forQualifiedName: kotlinName))
     return runtimeJavaClassHandle(typeToken: token, nameHint: runtimeMakeStringRaw(kotlinName))
+}
+
+@_cdecl("__kk_class_toString")
+public func __kk_class_toString(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return runtimeMakeStringRaw(box.displayText)
 }
 
 @_cdecl("__kk_class_kotlin")
@@ -219,5 +242,22 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
             return runtimeNullSentinelInt
         }
     }
-    return runtimeJavaClassHandle(typeToken: token, nameHint: box.nameHint)
+    if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[token] }) {
+        return cached
+    }
+    let raw = registerRuntimeObject(
+        RuntimeJavaClassBox(
+            typeToken: token,
+            nameHint: box.nameHint,
+            displayText: runtimeJavaPrimitiveClassDisplayText(typeToken: token)
+        ),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.primitiveJavaClassCache[token] { return cached }
+        state.primitiveJavaClassCache[token] = raw
+        return raw
+    }
+    if winner != raw { _ = runtimeReleaseObject(raw) }
+    return winner
 }

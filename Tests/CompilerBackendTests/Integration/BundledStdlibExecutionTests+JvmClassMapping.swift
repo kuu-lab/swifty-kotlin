@@ -45,6 +45,12 @@ extension BundledStdlibExecutionTests {
             try diffCaseSource("kuu_2379_class_for_name.kt", file: #filePath),
             expectedOutput: String(repeating: "true\n", count: 5),
             moduleName: "KUU2379ClassForName",
+    func jvmClassMappingIssue2391(fromArtifact: Bool, optimization: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        try compileAndRunKotlin(
+            try diffCaseSource("java_void_primitive_type.kt", file: #filePath),
+            expectedOutput: "OK\n",
+            moduleName: "KUU2391JavaLangVoid",
             allowDefaultStdlibLibrary: fromArtifact,
             optLevel: optLevel
         )

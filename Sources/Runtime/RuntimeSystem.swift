@@ -16,6 +16,16 @@ public func __kk_system_exitProcess(_ status: Int) -> Never {
     exit(Int32(status))
 }
 
+@_cdecl("__kk_system_getProperty")
+public func __kk_system_getProperty(_ propertyNameRaw: Int) -> Int {
+    guard let propertyName = runtimeStringFromRaw(propertyNameRaw),
+          let value = ProcessInfo.processInfo.environment[propertyName]
+    else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeMakeStringRaw(value)
+}
+
 /// Not monotonic — reads the system real-time clock, which may jump on NTP adjustments.
 @_cdecl("__kk_system_currentTimeMillis")
 public func __kk_system_currentTimeMillis() -> Int {

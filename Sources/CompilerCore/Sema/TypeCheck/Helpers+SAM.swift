@@ -132,7 +132,10 @@ extension TypeCheckHelpers {
         guard let classType = resolveClassType(expectedType, sema: sema) else {
             return nil
         }
-        guard let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols),
+        guard let interface = sema.symbols.symbol(classType.classSymbol),
+              interface.kind == .interface,
+              interface.flags.contains(.funInterface),
+              let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols),
               let signature = sema.symbols.functionSignature(for: method)
         else {
             return nil
