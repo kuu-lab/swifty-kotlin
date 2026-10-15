@@ -84,6 +84,27 @@ final class RuntimeIllegalArgumentExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeInvalidParameterExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.security.InvalidParameterException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.security.InvalidParameterException",
+            "java.lang.IllegalArgumentException",
+            "kotlin.IllegalArgumentException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("InvalidParameterException", message)
+    }
+}
+
 final class RuntimeNoWhenBranchMatchedExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.NoWhenBranchMatchedException"
@@ -548,6 +569,11 @@ func runtimeAllocateIllegalArgumentException(message: String?, cause: Int = 0) -
     return runtimeRegisterThrowable(RuntimeIllegalArgumentExceptionBox(message: message, cause: cause))
 }
 
+/// Allocates a Java `InvalidParameterException` with its distinct runtime type identity.
+func runtimeAllocateInvalidParameterException(message: String?, cause: Int = 0) -> Int {
+    return runtimeRegisterThrowable(RuntimeInvalidParameterExceptionBox(message: message, cause: cause))
+}
+
 func runtimeAllocateNoWhenBranchMatchedException(message: String?, cause: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause))
 }
@@ -970,6 +996,33 @@ public func kk_illegal_argument_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateIllegalArgumentException(
         message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_invalid_parameter_exception_new")
+public func kk_invalid_parameter_exception_new() -> Int {
+    runtimeAllocateInvalidParameterException(message: nil)
+}
+
+@_cdecl("__kk_invalid_parameter_exception_new_message")
+public func kk_invalid_parameter_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateInvalidParameterException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_invalid_parameter_exception_new_message_cause")
+public func kk_invalid_parameter_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateInvalidParameterException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_invalid_parameter_exception_new_cause")
+public func kk_invalid_parameter_exception_new_cause(_ causeRaw: Int) -> Int {
+    let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    return runtimeAllocateInvalidParameterException(
+        message: runtimeCauseToString(from: cause),
+        cause: cause
     )
 }
 
