@@ -243,6 +243,60 @@ struct LLVMOptimizationRegressionTests {
         }
     }
 
+    /// KUU-2402: source stdlib O2 must keep FunctionN.invoke call arities valid
+    /// when a generic result is discarded by a Unit lambda.
+    @Test
+    func kuu2402SourceAndArtifactO2PreserveGenericUnitLambdaResult() throws {
+        let arityChecks = (0...22).map { arity -> (declaration: String, call: String, expected: String) in
+            let parameterNames = (0..<arity).map { "p\($0 + 1)" }
+            let typeArguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
+            let functionType = "Function\(arity)<\(typeArguments)>"
+            let values = (0..<arity).map { $0 + 1 }
+            let invokeArguments = values.map(String.init).joined(separator: ", ")
+            let invokeBody = arity == 0 ? "fn.invoke()" : "fn.invoke(\(invokeArguments))"
+            let declaration = "fun invoke\(arity)(fn: \(functionType)): Int = \(invokeBody)"
+            let lambdaBody = parameterNames.isEmpty ? "0" : parameterNames.joined(separator: " + ")
+            let lambda = parameterNames.isEmpty
+                ? "{ \(lambdaBody) }"
+                : "{ \(parameterNames.joined(separator: ", ")) -> \(lambdaBody) }"
+            let call = "println(invoke\(arity) \(lambda))"
+            let expected = String(values.reduce(0, +))
+            return (declaration, call, expected)
+        }
+        let source = """
+        var result = ""
+
+        fun <K> materialize(): K {
+            result += "K"
+            return "str" as K
+        }
+
+        fun consume(block: () -> Unit) {
+            block()
+        }
+
+        \(arityChecks.map(\.declaration).joined(separator: "\n"))
+
+        fun main() {
+            consume { materialize<String>() }
+            print(result)
+            println()
+            \(arityChecks.map(\.call).joined(separator: "\n"))
+        }
+        """
+        let expected = "K\n" + arityChecks.map(\.expected).joined(separator: "\n") + "\n"
+
+        for stdlibFromSource in [true, false] {
+            try assertOutput(
+                source,
+                moduleName: stdlibFromSource ? "KUU2402SourceStdlibO2" : "KUU2402ArtifactStdlibO2",
+                expected: expected,
+                optimization: .O2,
+                stdlibFromSource: stdlibFromSource
+            )
+        }
+    }
+
     @Test(arguments: [0, 2])
     func sourceInjectedCompanionDurationGettersUseDispatchReceiver(optimization: Int) throws {
         try assertOutput(
