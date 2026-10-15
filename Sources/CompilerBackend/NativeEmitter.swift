@@ -27,14 +27,14 @@ struct NativeEmitter {
 
     // These calls receive a function value as their first argument; the KIR
     // symbol is only an inline-lowering hint and never a direct native callee.
-    static let functionValueInvokeCallees: Set<String> = [
+    static let functionValueInvokeCallees: Set<String> = Set([
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
         "kk_function_invoke_5", "kk_function_invoke_6",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
         "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
         "kk_suspend_function_invoke_6",
-    ]
+    ] + (7...22).map { "kk_function_invoke_\($0)" })
 
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })

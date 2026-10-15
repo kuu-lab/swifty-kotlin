@@ -143,6 +143,49 @@ struct LLVMOptimizationRegressionTests {
         )
     }
 
+    /// KUU-2241: function-value invokes and curried bodies must keep valid arity-specific LLVM ABIs.
+    @Test
+    func highArityFunctionInvokesAndCurryBodiesEmitValidLLVMAtO0AndO2() throws {
+        let arities = [5, 6, 7, 8, 14]
+        let declarations = arities.flatMap { arity -> [String] in
+            let functionType = "Function\(arity)<\(Array(repeating: "Int", count: arity + 1).joined(separator: ", "))>"
+            let invokeArguments = (1...arity).map(String.init).joined(separator: ", ")
+            let functionParameters = (0..<arity).map { "p\($0): Int" }
+            let curryArguments = (0..<arity).map { "p\($0)" }.joined(separator: ", ")
+            let curryResultType = String(repeating: "(Int) -> ", count: arity) + "Int"
+            let curryBody = functionParameters.reversed().reduce("fn.invoke(\(curryArguments))") { body, parameter in
+                "{ \(parameter) -> \(body) }"
+            }
+            return [
+                "fun direct\(arity)(fn: \(functionType)): Int = fn.invoke(\(invokeArguments))",
+                "fun curry\(arity)(fn: \(functionType)): \(curryResultType) = \(curryBody)",
+            ]
+        }
+        let source = declarations.joined(separator: "\n")
+
+        try withTemporaryFile(contents: source) { inputPath in
+            for optimization in [OptimizationLevel.O0, .O2] {
+                let outputBase = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("function-invoke-arity-\(UUID().uuidString)").path
+                let objectPath = outputBase + ".o"
+                defer { try? FileManager.default.removeItem(atPath: objectPath) }
+                let options = CompilerOptions(
+                    moduleName: "FunctionInvokeArity",
+                    inputs: [inputPath],
+                    outputPath: outputBase,
+                    emit: .object,
+                    target: TargetTriple.hostDefault(),
+                    optLevel: optimization,
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                let result = makeTestDriver().runForTesting(options: options)
+                try assertCompilationSucceeded(result, context: "Function invocation object compilation at \(optimization)")
+                #expect(FileManager.default.fileExists(atPath: objectPath))
+            }
+        }
+    }
+
     @Test(arguments: [0, 2])
     func sourceInjectedCompanionDurationGettersUseDispatchReceiver(optimization: Int) throws {
         try assertOutput(

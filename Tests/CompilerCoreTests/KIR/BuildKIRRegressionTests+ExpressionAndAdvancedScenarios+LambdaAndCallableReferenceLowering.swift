@@ -68,7 +68,7 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    @Test(arguments: 0 ... 5)
+    @Test(arguments: [0, 1, 2, 3, 4, 5, 6, 7, 8, 14, 22])
     func testBuildKIRRegistersAritySpecificNominalInvokeABI(arity: Int) throws {
         let runtime = try RuntimeNames()
         let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
@@ -77,24 +77,27 @@ extension BuildKIRRegressionTests {
         let functionTypeParameters = Array(repeating: "Int", count: arity).joined(separator: ", ")
         let functionType = arity == 0 ? "() -> Int" : "(\(functionTypeParameters)) -> Int"
         let values = Array(repeating: "1", count: arity).joined(separator: ", ")
-        let ctx = makeContextFromSource("""
+        let source = """
         fun main() {
             val f: Function\(arity)<\(arguments)> = { \(arrow)7 }
             val arrowValue: \(functionType) = { \(arrow)8 }
-            println(f(\(values)))
-            println(f.invoke(\(values)))
-            println(arrowValue(\(values)))
-            println(arrowValue.invoke(\(values)))
+            f(\(values))
+            f.invoke(\(values))
+            arrowValue(\(values))
+            arrowValue.invoke(\(values))
         }
-        """)
-        try runToKIR(ctx)
-        #expect(!ctx.diagnostics.hasError)
-        let sema = try #require(ctx.sema)
-        let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
-        let symbol = try #require(sema.symbols.symbol(owner))
-        let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
-        let linkName = try runtime.functionInvoke(arity: arity)
-        #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
+            let symbol = try #require(sema.symbols.symbol(owner))
+            let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
+            let linkName = try runtime.functionInvoke(arity: arity)
+            #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+        }
     }
 
     @Test func testBuildKIRCompareValuesByVarargSelectorsAreMaterialized() throws {
