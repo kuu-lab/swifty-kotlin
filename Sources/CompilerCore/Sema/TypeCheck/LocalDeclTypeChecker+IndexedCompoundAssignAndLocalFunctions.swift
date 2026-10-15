@@ -15,9 +15,17 @@ extension LocalDeclTypeChecker {
 
         let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
         let getName = interner.intern("get")
-        let getCandidates = driver.helpers.collectMemberFunctionCandidates(
+        var getCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: getName, receiverType: receiverType, sema: sema, interner: interner
         )
+        getCandidates = ctx.filterByVisibility(getCandidates).visible.filter {
+            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+        }
+        if getCandidates.isEmpty {
+            getCandidates = collectIndexedOperatorExtensionCandidates(
+                named: getName, receiverType: receiverType, ctx: ctx
+            )
+        }
         var indexTypes: [TypeID] = []
         for (position, indexExpr) in indices.enumerated() {
             let literalExpectedType = contextualIntegerLiteralExpectedType(
@@ -30,6 +38,24 @@ extension LocalDeclTypeChecker {
             indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType))
         }
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+
+        let getCall = CallExpr(
+            range: range,
+            calleeName: getName,
+            args: zip(indices, indexTypes).map { index, type in
+                let literal = driver.callChecker.integerLiteralValues(index, ast: ctx.ast)
+                return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+            }
+        )
+        if ctx.resolver.probeCall(
+            candidates: getCandidates, call: getCall, expectedType: nil,
+            implicitReceiverType: receiverType, ctx: sema
+        ).viableCandidates.isEmpty {
+            let extensions = collectIndexedOperatorExtensionCandidates(
+                named: getName, receiverType: receiverType, call: getCall, ctx: ctx
+            )
+            if !extensions.isEmpty { getCandidates = extensions }
+        }
 
         // Array<*>'s element type is erased to Any? at the type-check level, but the
         // backing store's actual boxed representation (IntBox/LongBox/DoubleBox/...)
@@ -51,8 +77,8 @@ extension LocalDeclTypeChecker {
         }
 
         let (elementType, operatorResolved) = resolveIndexedGetElement(
-            id: id, receiverType: receiverType, getCandidates: getCandidates, indexTypes: indexTypes,
-            range: range, ctx: ctx
+            id: id, receiverType: receiverType, getCandidates: getCandidates, getCall: getCall,
+            ctx: ctx
         )
 
         if !operatorResolved {
@@ -97,20 +123,24 @@ extension LocalDeclTypeChecker {
 
         // KSWIFTK-BUG: the write-back half of `a[i] op= v` must go through the
         // same custom operator `set()` that a plain `a[i] = v` would resolve,
-        // not the raw built-in array runtime. Only attempt this when `get()`
-        // itself resolved to a real member (not the built-in array fallback)
-        // and the receiver isn't a genuine array (Array<T>'s `get`/`set` ARE
-        // real resolvable members too, but must still go through the raw
-        // array/boxing path — mirrored from inferIndexedAssignExpr's
-        // `assignReceiverIsArrayLike` guard).
+        // not the raw built-in array runtime. Built-in array members still use
+        // the raw array/boxing path, while an applicable extension operator
+        // on an array type must use its matching extension `set()`.
         // An in-place `plusAssign` mutates the element returned by `get()`
         // and never writes it back, so the receiver needs no `set()`.
+        // A selected extension `get()` on an array-like receiver is custom
+        // too; its matching `set()` must be bound so lowering doesn't bypass
+        // both extensions through the raw array runtime.
+        let getResolvedAsExtension = sema.bindings.callBinding(for: id).map {
+            driver.helpers.declaresExtensionReceiver($0.chosenCallee, sema: sema, interner: interner)
+        } ?? false
         if operatorResolved,
            elementOperator?.kind != .inPlace,
-           !isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner)
+           (!isConcreteArrayLikeReceiverType(receiverType, sema: sema, interner: interner)
+               || getResolvedAsExtension)
         {
             let setOperatorBound = bindIndexedCompoundAssignSetOperator(
-                id, receiverType: receiverType, indexTypes: indexTypes, valueType: resultType,
+                id, receiverType: receiverType, indexExprs: indices, indexTypes: indexTypes, valueType: resultType,
                 elementType: elementType, range: range, ctx: ctx
             )
             // KSWIFTK-BUG: a get()-only receiver with no matching set() overload
@@ -363,11 +393,11 @@ extension LocalDeclTypeChecker {
     /// Resolve `operator fun set` for the write-back half of `a[i] op= v` and,
     /// on success, record it via `IndexedCompoundAssignOperatorBinding` so
     /// KIR lowering can dispatch to it instead of the raw array runtime. Only
-    /// called once `get()` has already resolved to a real member (see the
-    /// `operatorResolved` / `isConcreteArrayLikeReceiverType` guard at the
-    /// call site); a `get`-only receiver (no matching `set`) is left
-    /// unbound, and KIR lowering keeps its previous (pre-existing) fallback
-    /// behavior for that edge case.
+    /// called once `get()` has resolved to an operator and either the
+    /// receiver is not a concrete array or the selected `get()` is an
+    /// extension on an array type. Built-in array member access keeps the raw
+    /// array path. A custom `get` without a matching `set` is rejected by the
+    /// caller instead of falling back to raw array access.
     /// Returns `true` once a matching `set()` overload is resolved and bound;
     /// `false` when the receiver has no usable `set()` (missing entirely, or
     /// no overload whose parameters accept `indexTypes + valueType`) — the
@@ -376,6 +406,7 @@ extension LocalDeclTypeChecker {
     private func bindIndexedCompoundAssignSetOperator(
         _ id: ExprID,
         receiverType: TypeID,
+        indexExprs: [ExprID],
         indexTypes: [TypeID],
         valueType: TypeID,
         elementType: TypeID,
@@ -385,20 +416,32 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let setName = interner.intern("set")
-        let setCandidates = driver.helpers.collectMemberFunctionCandidates(
+        var setCandidates = driver.helpers.collectMemberFunctionCandidates(
             named: setName, receiverType: receiverType, sema: sema, interner: interner
         )
+        var callArgs = zip(indexExprs, indexTypes).map { expr, type in
+            let literal = driver.callChecker.integerLiteralValues(expr, ast: ctx.ast)
+            return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+        }
+        callArgs.append(CallArg(type: valueType))
+        let setCall = CallExpr(range: range, calleeName: setName, args: callArgs)
+        if ctx.resolver.probeCall(
+            candidates: setCandidates, call: setCall, expectedType: nil,
+            implicitReceiverType: receiverType, ctx: sema
+        ).viableCandidates.isEmpty {
+            let extensions = collectIndexedOperatorExtensionCandidates(
+                named: setName, receiverType: receiverType, call: setCall, ctx: ctx
+            )
+            if !extensions.isEmpty { setCandidates = extensions }
+        }
         guard !setCandidates.isEmpty else {
             reportMissingIndexedSetOperator(range: range, ctx: ctx)
             return false
         }
 
-        var callArgTypes = indexTypes
-        callArgTypes.append(valueType)
-        let callArgs = callArgTypes.map { CallArg(type: $0) }
         let resolved = ctx.resolver.resolveCall(
             candidates: setCandidates,
-            call: CallExpr(range: range, calleeName: setName, args: callArgs),
+            call: setCall,
             expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.sema
         )
         guard let chosenSet = resolved.chosenCallee else {
@@ -434,23 +477,20 @@ extension LocalDeclTypeChecker {
         id: ExprID,
         receiverType: TypeID,
         getCandidates: [SymbolID],
-        indexTypes: [TypeID],
-        range: SourceRange,
+        getCall: CallExpr,
         ctx: TypeInferenceContext
     ) -> (TypeID, Bool) {
         let sema = ctx.sema
         let interner = ctx.interner
-        let getName = interner.intern("get")
         let fallback = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
         ) ?? sema.types.anyType
 
         guard !getCandidates.isEmpty else { return (fallback, false) }
 
-        let callArgs = indexTypes.map { CallArg(type: $0) }
         let resolved = ctx.resolver.resolveCall(
             candidates: getCandidates,
-            call: CallExpr(range: range, calleeName: getName, args: callArgs),
+            call: getCall,
             expectedType: nil, implicitReceiverType: receiverType, ctx: ctx.sema
         )
         guard let chosen = resolved.chosenCallee,
@@ -803,6 +843,23 @@ extension LocalDeclTypeChecker {
             isSuspend: isSuspend,
             nullability: .nonNull
         )))
+
+        var localFunctionOuterSymbols = Set(locals.values.map(\.symbol))
+        localFunctionOuterSymbols.formUnion(ctx.outerReceiverTypes.compactMap(\.symbol))
+        localFunctionOuterSymbols.formUnion(ctx.implicitReceiverStack.map(\.symbol))
+        localFunctionOuterSymbols.formUnion(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
+            sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
+        })
+        sema.bindings.bindLocalFunctionCaptureSymbols(
+            funSymbol,
+            symbols: driver.captureAnalyzer.collectCapturedOuterSymbols(
+                inBody: body,
+                ast: ast,
+                sema: sema,
+                outerSymbols: localFunctionOuterSymbols,
+                skipNestedClosures: false
+            )
+        )
 
         locals[name] = (finalFunType, funSymbol, false, true)
         sema.bindings.bindIdentifier(id, symbol: funSymbol)

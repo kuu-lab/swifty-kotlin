@@ -426,6 +426,29 @@ extension CallLowerer {
                 )
             }
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
+        } else if callableInvokeCallee == nil,
+                  let chosen,
+                  sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true
+        {
+            // A local function may be called from a lifted constructor lambda
+            // whose context has its free variables but no callable-value
+            // metadata. Rebuild the direct-call environment from Sema's
+            // declaration-time capture list.
+            var captureArguments: [KIRExprID] = []
+            for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: chosen) {
+                guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                    for: capturedSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) else {
+                    assertionFailure("BuildKIRPhase: missing local function capture '\(capturedSymbol)'")
+                    continue
+                }
+                captureArguments.append(captureValue)
+            }
+            finalArgIDs.insert(contentsOf: captureArguments, at: 0)
         } else if let chosen,
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
@@ -981,23 +1004,40 @@ extension CallLowerer {
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
             if let arrayResultTypeID {
-                let typeIDExpr = arena.appendExpr(
-                    .intLiteral(arrayResultTypeID),
-                    type: sema.types.intType
-                )
-                instructions.append(.constValue(
-                    result: typeIDExpr,
-                    value: .intLiteral(arrayResultTypeID)
-                ))
-                let taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_array_tag_type"),
-                    arguments: [callResult, typeIDExpr],
-                    result: taggedResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                let taggedResult: KIRExprID
+                if loweredCalleeName == interner.intern("kk_array_of_nulls") {
+                    // This intrinsic allocates a fresh reference array, so its
+                    // call-site result type is reliable component metadata.
+                    // Inlined collection bridges such as toTypedArray() reach
+                    // this path through arrayOfNulls<T>.
+                    taggedResult = appendRuntimeArrayComponentTag(
+                        callResult,
+                        arrayType: boundType ?? arena.exprType(result),
+                        context: driver.ctx,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                } else {
+                    let typeIDExpr = arena.appendExpr(
+                        .intLiteral(arrayResultTypeID),
+                        type: sema.types.intType
+                    )
+                    instructions.append(.constValue(
+                        result: typeIDExpr,
+                        value: .intLiteral(arrayResultTypeID)
+                    ))
+                    taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_tag_type"),
+                        arguments: [callResult, typeIDExpr],
+                        result: taggedResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 // Nominal return tagging is existing erased-Array behavior.
                 // Actual components belong to allocation/copy sites: an
                 // untagged legacy/erased array cannot be proven by return type.

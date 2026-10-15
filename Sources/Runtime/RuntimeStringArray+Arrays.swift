@@ -12,12 +12,7 @@ public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {
 
 @_cdecl("kk_array_new")
 public func kk_array_new(_ length: Int) -> Int {
-    let box = RuntimeArrayBox(length: length)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    registerRuntimeObject(RuntimeArrayBox(length: length))
 }
 
 /// Same as `kk_array_new`, but validates `length` first and throws
