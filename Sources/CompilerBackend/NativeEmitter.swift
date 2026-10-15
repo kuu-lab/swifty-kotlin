@@ -173,6 +173,18 @@ struct NativeEmitter {
             else { return nil }
             return function.symbol
         })
+        let globalSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .global(global) = declaration else { return nil }
+            return global.symbol
+        })
+        let topLevelStringCallableRefThunkSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration,
+                  interner.resolve(function.name).hasPrefix("kk_top_level_string_callable_ref_")
+            else {
+                return nil
+            }
+            return function.symbol
+        })
         var rawSymbols: Set<SymbolID> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration else {
@@ -200,8 +212,35 @@ struct NativeEmitter {
                     pending.append(contentsOf: aliasSources[exprID] ?? [])
                 }
             }
+            func collectTopLevelStringCallableRefThunks(reaching root: KIRExprID) {
+                var visited: Set<KIRExprID> = []
+                var pending = [root]
+                while let exprID = pending.popLast() {
+                    guard visited.insert(exprID).inserted else { continue }
+                    if case let .symbolRef(symbol)? = module.arena.expr(exprID),
+                       topLevelStringCallableRefThunkSymbols.contains(symbol)
+                    {
+                        rawSymbols.insert(symbol)
+                    }
+                    pending.append(contentsOf: aliasSources[exprID] ?? [])
+                }
+            }
             for instruction in function.body {
                 switch instruction {
+                case let .copy(from, to):
+                    if case let .symbolRef(globalSymbol)? = module.arena.expr(to),
+                       globalSymbols.contains(globalSymbol)
+                    {
+                        // Keep the original function's Kotlin ABI; only its
+                        // generated global callable-reference thunk uses callback ABI.
+                        collectTopLevelStringCallableRefThunks(reaching: from)
+                    }
+
+                case let .storeGlobal(value, globalSymbol):
+                    if globalSymbols.contains(globalSymbol) {
+                        collectTopLevelStringCallableRefThunks(reaching: value)
+                    }
+
                 case let .call(_, callee, arguments, _, _, _, _, _):
                     // Imported inline bodies pack captured lambdas into closure
                     // fields or launcher slots before invoking them as function values.

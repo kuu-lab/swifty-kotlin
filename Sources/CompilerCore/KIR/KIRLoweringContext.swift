@@ -86,6 +86,9 @@ final class KIRLoweringContext {
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
+    /// Callable-reference expression currently lowered as a top-level
+    /// property initializer, if the initializer is exactly that expression.
+    var topLevelPropertyCallableReferenceInitializerExprID: ExprID?
     /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI
     /// (source literal was marked via `markCoroutineLauncherLambdaExpr` and
     /// carries an explicit receiver). Launcher-continuation rewrites must
