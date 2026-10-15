@@ -55,10 +55,12 @@ extension CallTypeChecker {
                       guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                           return false
                       }
-                      if case .functionType = sema.types.kind(of: receiver) {
+                      switch sema.types.kind(of: sema.types.makeNonNullable(receiver)) {
+                      case .functionType, .typeParam:
                           return true
+                      default:
+                          return false
                       }
-                      return false
                   })
             else {
                 return nil

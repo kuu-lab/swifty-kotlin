@@ -115,6 +115,21 @@ extension ExprTypeChecker {
             return result
         }
 
+        // ── REFL-PRIMOP: Boolean::not — primitive unary operator with no
+        // backing member symbol. Keep this callable-reference-only; regular
+        // member and unary-expression resolution retain their existing paths.
+        if let receiver,
+           ast.arena.callableRefReceiverTypeRef(for: id) == nil,
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           locals[receiverName] == nil,
+           let result = inferPrimitiveUnaryOperatorCallableRefExpr(
+               id, receiverName: receiverName, member: member,
+               expectedType: expectedType, range: range, ctx: ctx
+           )
+        {
+            return result
+        }
+
         // ── REFL-003: Type::member — unbound callable reference ─────────
         // When the receiver is a name that refers to a class/interface/enum
         // (not an instance variable), treat it as an unbound member reference.
@@ -1158,6 +1173,55 @@ extension ExprTypeChecker {
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)
         sema.bindings.bindExprType(id, type: expectedType)
         return expectedType
+    }
+
+    /// REFL-PRIMOP: `Boolean::not` has no real member symbol because ordinary
+    /// Boolean negation is a compiler intrinsic. Synthesize its unique
+    /// callable-reference type and record the unary operator for KIR lowering.
+    private func inferPrimitiveUnaryOperatorCallableRefExpr(
+        _ id: ExprID,
+        receiverName: InternedString,
+        member: InternedString,
+        expectedType: TypeID?,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard interner.resolve(member) == "not",
+              let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName)
+        else {
+            return nil
+        }
+        guard case .boolean = primitive else { return nil }
+
+        let booleanType = sema.types.booleanType
+        let functionType = sema.types.make(.functionType(FunctionType(
+            params: [booleanType],
+            returnType: booleanType,
+            isSuspend: false,
+            isCallableReference: true,
+            nullability: .nonNull
+        )))
+        if let expectedType {
+            let constraintTarget = sema.types.nominalFunctionType(for: expectedType).map {
+                sema.types.make(.functionType($0))
+            } ?? expectedType
+            driver.emitSubtypeConstraint(
+                left: functionType,
+                right: constraintTarget,
+                range: range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.sema.diagnostics
+            )
+        }
+
+        sema.bindings.bindPrimitiveUnaryOperatorCallableRef(id, op: .not)
+        sema.bindings.bindCallableRefKind(id, kind: .functionRef)
+        let resultType = expectedType ?? functionType
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 
     /// Resolves an unbound generic extension property's value type from its

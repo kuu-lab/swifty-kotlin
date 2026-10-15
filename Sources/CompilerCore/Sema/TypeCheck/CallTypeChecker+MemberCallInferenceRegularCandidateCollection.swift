@@ -561,27 +561,12 @@ extension CallTypeChecker {
                 if !innerCtorCandidates.isEmpty {
                     allCandidates = innerCtorCandidates
                 } else {
-                    allCandidates = collectExtensionCallCandidates(
-                        named: calleeName,
-                        memberLookupType: memberLookupType,
-                        isSuperCall: isSuperCall,
-                        supertypeSymbols: supertypeSymbols,
-                        ctx: ctx,
-                        locals: locals,
-                        sema: sema,
-                        interner: interner,
-                        callShapeMatches: {
-                            self.extensionCandidateMatchesCallShape(
-                                $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
-                            )
-                        },
-                        requiresInfix: ast.arena.isInfixCall(id)
-                    )
-                    if allCandidates.isEmpty, let callableReferenceFunctionType {
-                        // Callable references are also function values. Keep KFunction as the
-                        // primary lookup type for reflection extensions, then retry extensions
-                        // declared on the underlying function type when no reflective candidate
-                        // applies to this member name.
+                    if let callableReferenceFunctionType {
+                        // A callable reference is both a reflective KFunction and an
+                        // invokable function value. Resolve generic extensions such as
+                        // `let` against its structural function type first so the inferred
+                        // receiver type retains its parameter list. Reflection-specific
+                        // extensions still use the KFunction lookup below as a fallback.
                         allCandidates = collectExtensionCallCandidates(
                             named: calleeName,
                             memberLookupType: callableReferenceFunctionType,
@@ -595,6 +580,26 @@ extension CallTypeChecker {
                                 self.extensionCandidateMatchesCallShape(
                                     $0, request: request, argumentTypes: argTypes,
                                     receiverType: callableReferenceFunctionType
+                                )
+                            },
+                            requiresInfix: ast.arena.isInfixCall(id)
+                        )
+                    } else {
+                        allCandidates = []
+                    }
+                    if allCandidates.isEmpty {
+                        allCandidates = collectExtensionCallCandidates(
+                            named: calleeName,
+                            memberLookupType: memberLookupType,
+                            isSuperCall: isSuperCall,
+                            supertypeSymbols: supertypeSymbols,
+                            ctx: ctx,
+                            locals: locals,
+                            sema: sema,
+                            interner: interner,
+                            callShapeMatches: {
+                                self.extensionCandidateMatchesCallShape(
+                                    $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
                                 )
                             },
                             requiresInfix: ast.arena.isInfixCall(id)

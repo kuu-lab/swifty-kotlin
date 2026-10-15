@@ -190,7 +190,7 @@ extension CallTypeChecker {
     /// the lambda's expected type `T.() -> Unit` must become `ConcreteType.() -> Unit`
     /// before the lambda body is type-checked so that unqualified member access on
     /// the implicit receiver resolves correctly.
-    private func applyFunctionReceiverTypeArgs(
+    func applyFunctionReceiverTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         receiverType: TypeID?,
