@@ -718,12 +718,7 @@ extension TypeCheckHelpers {
         }
 
         var candidates: [SymbolID] = []
-        var overrideDepthByShape: [String: Int] = [:]
-        func overrideShape(for key: MemberDispatchKey) -> String {
-            let base = "\(key.parameterTypes.count)#\(key.isSuspend)"
-            guard let extensionReceiverType = key.extensionReceiverType else { return base }
-            return "\(base)#receiver:\(extensionReceiverType.rawValue)"
-        }
+        var overrideDepthByKey: [MemberDispatchKey: Int] = [:]
         for key in keyOrder {
             guard let grouped = candidatesByKey[key] else { continue }
             for candidate in grouped {
@@ -732,16 +727,14 @@ extension TypeCheckHelpers {
                 else {
                     continue
                 }
-                let shape = overrideShape(for: key)
-                overrideDepthByShape[shape] = min(overrideDepthByShape[shape] ?? candidate.depth, candidate.depth)
+                overrideDepthByKey[key] = min(overrideDepthByKey[key] ?? candidate.depth, candidate.depth)
             }
         }
         for key in keyOrder {
             guard let grouped = candidatesByKey[key], !grouped.isEmpty else {
                 continue
             }
-            let shape = overrideShape(for: key)
-            if let overrideDepth = overrideDepthByShape[shape],
+            if let overrideDepth = overrideDepthByKey[key],
                grouped.allSatisfy({ $0.depth > overrideDepth })
             {
                 continue
