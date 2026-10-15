@@ -68,6 +68,65 @@ struct SuspendCallContextTests {
     }
 
     @Test
+    func suspendSamLambdaSuppliesItsOwnSuspensionContext() throws {
+        let result = try diagnostics("""
+        suspend fun sf() = 1
+        fun interface SuspendAction { suspend fun run() }
+        fun accept(action: SuspendAction) {}
+        fun setup() { accept { sf() } }
+        """)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
+    func nonSuspendSamLambdaDoesNotInheritSuspensionContext() throws {
+        let result = try diagnostics("""
+        suspend fun sf() = 1
+        fun interface OrdinaryAction { fun run() }
+        fun accept(action: OrdinaryAction) {}
+        fun ordinaryCaller() { accept { sf() } }
+        suspend fun suspendCaller() { accept { sf() } }
+        """)
+        let errors = result.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 2, "\(result.diagnostics)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0308" })
+    }
+
+    @Test
+    func flowCollectSuspendSamMinimumReproducerIsAccepted() throws {
+        let result = try diagnostics("""
+        interface Flow<out T> {
+            suspend fun collect(collector: FlowCollector<T>)
+        }
+        fun interface FlowCollector<in T> {
+            suspend fun emit(value: T)
+        }
+        inline fun <T, R> Flow<T>.transform(
+            crossinline transform: suspend FlowCollector<R>.(value: T) -> Unit
+        ): Flow<R> = object : Flow<R> {
+            override suspend fun collect(collector: FlowCollector<R>) {
+                this@transform.collect label@{ value ->
+                    return@label collector.transform(value)
+                }
+            }
+        }
+        fun box(): String = "OK"
+        """)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
+    func callableLocalDoesNotHideApplicableTrailingLambdaExtension() throws {
+        let result = try diagnostics("""
+        class Flow<T>
+        fun <T, R> Flow<T>.transform(action: (T) -> R): Flow<R> = Flow()
+        inline fun <T, R> Flow<T>.map(transform: (T) -> R): Flow<R> =
+            transform { value -> transform(value) }
+        """)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
     func coroutineBuildersProvideSuspensionContexts() throws {
         let result = try diagnostics("""
         import kotlinx.coroutines.*
