@@ -26,17 +26,7 @@ extension CallTypeChecker {
             }
         }
         guard visibleCallables.isEmpty else { return nil }
-        var interfaces = ctx.cachedScopeLookup(calleeName).filter { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-            return symbol.kind == .interface && symbol.flags.contains(.funInterface)
-        }
-        if interfaces.isEmpty {
-            interfaces = ctx.sema.symbols.lookupAll(fqName: [ctx.interner.intern("kotlin"), calleeName]).filter { candidate in
-                guard let symbol = ctx.sema.symbols.symbol(candidate) else { return false }
-                return symbol.kind == .interface && symbol.flags.contains(.funInterface)
-            }
-        }
-        return interfaces.count == 1 ? interfaces.first : nil
+        return samConstructorTarget(named: calleeName, ctx: ctx)?.interfaceSymbol
     }
 
     func inferSamConvertedCallExpr(
@@ -84,7 +74,7 @@ extension CallTypeChecker {
         // A same-named factory participates in ordinary overload resolution before
         // the synthetic SAM constructor. Check applicability without inferring a
         // losing lambda body or suppressing errors in the winning factory context.
-        let hasSamConstructor = samConstructorInterface(named: calleeName, ctx: ctx) != nil
+        let hasSamConstructor = samConstructorTarget(named: calleeName, ctx: ctx) != nil
         if hasSamConstructor {
             let shapes = samFactoryShapes(
                 visibleCandidates, calleeName: calleeName, args: args, range: range,
@@ -225,7 +215,7 @@ extension CallTypeChecker {
               case let .nameRef(argName, _)? = ctx.ast.arena.expr(args[0].expr),
               let local = locals[argName],
               case .functionType = ctx.sema.types.kind(of: local.type),
-              samConstructorInterface(named: calleeName, ctx: ctx) != nil
+              samConstructorTarget(named: calleeName, ctx: ctx) != nil
         else { return nil }
         let hasCallable = !ctx.filterByVisibility(
             ctx.cachedScopeLookup(calleeName).filter { candidate in
@@ -316,15 +306,67 @@ extension CallTypeChecker {
         return signature.parameterTypes[varargIndex]
     }
 
-    private func samConstructorInterface(named name: InternedString, ctx: TypeInferenceContext) -> SymbolID? {
+    private func samConstructorTarget(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> (interfaceSymbol: SymbolID, typeAliasSymbol: SymbolID?)? {
+        let sema = ctx.sema
         let isFunInterface: (SymbolID) -> Bool = { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .interface && symbol.flags.contains(.funInterface)
         }
-        let scoped = ctx.cachedScopeLookup(name).filter(isFunInterface)
-        if let interface = ctx.filterByVisibility(scoped).visible.first { return interface }
+
+        let scoped = ctx.filterByVisibility(ctx.cachedScopeLookup(name)).visible
+        if let interface = scoped.first(where: isFunInterface) {
+            return (interface, nil)
+        }
+        for alias in scoped where ctx.cachedSymbol(alias)?.kind == .typeAlias {
+            let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
+            let typeArgs = typeParameters.map { parameter in
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
+            }
+            guard let expanded = driver.helpers.expandTypeAlias(
+                alias,
+                typeArgs: typeArgs,
+                sema: sema,
+                visited: [],
+                depth: 0
+            ),
+               case let .classType(classType) = sema.types.kind(of: expanded),
+               classType.nullability == .nonNull,
+               isFunInterface(classType.classSymbol)
+            else {
+                continue
+            }
+            return (classType.classSymbol, alias)
+        }
+
         let kotlinFQName = [ctx.interner.intern("kotlin"), name]
-        return ctx.filterByVisibility(ctx.sema.symbols.lookupAll(fqName: kotlinFQName).filter(isFunInterface)).visible.first
+        let kotlinCandidates = ctx.filterByVisibility(sema.symbols.lookupAll(fqName: kotlinFQName)).visible
+        if let interface = kotlinCandidates.first(where: isFunInterface) {
+            return (interface, nil)
+        }
+        for alias in kotlinCandidates where ctx.cachedSymbol(alias)?.kind == .typeAlias {
+            let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
+            let typeArgs = typeParameters.map { parameter in
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
+            }
+            guard let expanded = driver.helpers.expandTypeAlias(
+                alias,
+                typeArgs: typeArgs,
+                sema: sema,
+                visited: [],
+                depth: 0
+            ),
+               case let .classType(classType) = sema.types.kind(of: expanded),
+               classType.nullability == .nonNull,
+               isFunInterface(classType.classSymbol)
+            else {
+                continue
+            }
+            return (classType.classSymbol, alias)
+        }
+        return nil
     }
 
     /// Handles `Transformer { ... }` — calling a fun interface name with a
@@ -339,48 +381,66 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
-        guard let interfaceSymID = samConstructorInterface(named: calleeName, ctx: ctx) else {
+        guard let target = samConstructorTarget(named: calleeName, ctx: ctx) else {
             return nil
         }
+        let interfaceSymID = target.interfaceSymbol
         let sema = ctx.sema
         let interfaceTypeParameters = sema.types.nominalTypeParameterSymbols(for: interfaceSymID)
-        let interfaceArgs: [TypeArg]
-        if explicitTypeArgs.isEmpty {
-            if let expectedType,
-               let expectedClassType = resolveClassType(expectedType, sema: sema),
-               expectedClassType.classSymbol == interfaceSymID
-            {
-                interfaceArgs = expectedClassType.args
-            } else {
-                let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
-                    interfaceSymID,
-                    typeParameters: interfaceTypeParameters,
-                    argExpr: argExpr,
-                    ctx: ctx
-                )
-                if annotationArgs.count == interfaceTypeParameters.count {
-                    interfaceArgs = annotationArgs
+        let interfaceType: TypeID
+        if let aliasSymbol = target.typeAliasSymbol {
+            guard let aliasType = samAliasConstructorType(
+                aliasSymbol,
+                interfaceSymbol: interfaceSymID,
+                interfaceTypeParameters: interfaceTypeParameters,
+                argExpr: argExpr,
+                expectedType: expectedType,
+                explicitTypeArgs: explicitTypeArgs,
+                ctx: ctx,
+                locals: locals
+            ) else {
+                return nil
+            }
+            interfaceType = aliasType
+        } else {
+            let interfaceArgs: [TypeArg]
+            if explicitTypeArgs.isEmpty {
+                if let expectedType,
+                   let expectedClassType = resolveClassType(expectedType, sema: sema),
+                   expectedClassType.classSymbol == interfaceSymID
+                {
+                    interfaceArgs = expectedClassType.args
                 } else {
-                    interfaceArgs = inferInterfaceArgsFromLambdaReturnType(
+                    let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
                         interfaceSymID,
                         typeParameters: interfaceTypeParameters,
                         argExpr: argExpr,
-                        ctx: ctx,
-                        locals: locals
-                    ) ?? annotationArgs
+                        ctx: ctx
+                    )
+                    if annotationArgs.count == interfaceTypeParameters.count {
+                        interfaceArgs = annotationArgs
+                    } else {
+                        interfaceArgs = inferInterfaceArgsFromLambdaReturnType(
+                            interfaceSymID,
+                            typeParameters: interfaceTypeParameters,
+                            argExpr: argExpr,
+                            ctx: ctx,
+                            locals: locals
+                        ) ?? annotationArgs
+                    }
                 }
+            } else {
+                guard explicitTypeArgs.count == interfaceTypeParameters.count else {
+                    return nil
+                }
+                interfaceArgs = explicitTypeArgs.map { .invariant($0) }
             }
-        } else {
-            guard explicitTypeArgs.count == interfaceTypeParameters.count else {
-                return nil
-            }
-            interfaceArgs = explicitTypeArgs.map { .invariant($0) }
+            interfaceType = sema.types.make(.classType(ClassType(
+                classSymbol: interfaceSymID,
+                args: interfaceArgs,
+                nullability: .nonNull
+            )))
         }
-        let interfaceType = sema.types.make(.classType(ClassType(
-            classSymbol: interfaceSymID,
-            args: interfaceArgs,
-            nullability: .nonNull
-        )))
         guard let samFT = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else {
             return nil
         }
@@ -399,6 +459,173 @@ extension CallTypeChecker {
 
         sema.bindings.bindExprType(id, type: interfaceType)
         return interfaceType
+    }
+
+    private func samAliasConstructorType(
+        _ aliasSymbol: SymbolID,
+        interfaceSymbol: SymbolID,
+        interfaceTypeParameters: [SymbolID],
+        argExpr: ExprID,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID],
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
+        guard explicitTypeArgs.isEmpty || explicitTypeArgs.count == aliasTypeParameters.count else {
+            return nil
+        }
+        let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+            aliasTypeParameters.map { parameter in
+                .invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
+            }
+        } else {
+            explicitTypeArgs.map(TypeArg.invariant)
+        }
+        guard let expanded = driver.helpers.expandTypeAlias(
+            aliasSymbol,
+            typeArgs: aliasTypeArgs,
+            sema: sema,
+            visited: [],
+            depth: 0,
+            diagnostics: sema.diagnostics
+        ),
+           case let .classType(templateType) = sema.types.kind(of: expanded),
+           templateType.classSymbol == interfaceSymbol,
+           templateType.nullability == .nonNull
+        else {
+            return nil
+        }
+        if !explicitTypeArgs.isEmpty || aliasTypeParameters.isEmpty {
+            return expanded
+        }
+
+        var inferredAliasArguments: [TypeID]?
+        if let expectedType,
+           let expectedClassType = resolveClassType(expectedType, sema: sema),
+           expectedClassType.classSymbol == interfaceSymbol
+        {
+            inferredAliasArguments = inferSamAliasTypeArguments(
+                aliasTypeParameters,
+                templateArguments: templateType.args,
+                actualArguments: expectedClassType.args,
+                ctx: ctx
+            )
+        }
+        if inferredAliasArguments == nil {
+            let annotationArguments = inferInterfaceArgsFromLambdaAnnotations(
+                interfaceSymbol,
+                typeParameters: interfaceTypeParameters,
+                argExpr: argExpr,
+                ctx: ctx
+            )
+            if annotationArguments.count == interfaceTypeParameters.count {
+                inferredAliasArguments = inferSamAliasTypeArguments(
+                    aliasTypeParameters,
+                    templateArguments: templateType.args,
+                    actualArguments: annotationArguments,
+                    ctx: ctx
+                )
+            }
+        }
+        if inferredAliasArguments == nil,
+           let returnArguments = inferInterfaceArgsFromLambdaReturnType(
+               interfaceSymbol,
+               typeParameters: interfaceTypeParameters,
+               argExpr: argExpr,
+               ctx: ctx,
+               locals: locals
+           )
+        {
+            inferredAliasArguments = inferSamAliasTypeArguments(
+                aliasTypeParameters,
+                templateArguments: templateType.args,
+                actualArguments: returnArguments,
+                ctx: ctx
+            )
+        }
+        guard let inferredAliasArguments,
+              inferredAliasArguments.count == aliasTypeParameters.count
+        else {
+            return nil
+        }
+        return driver.helpers.expandTypeAlias(
+            aliasSymbol,
+            typeArgs: inferredAliasArguments.map(TypeArg.invariant),
+            sema: sema,
+            visited: [],
+            depth: 0,
+            diagnostics: sema.diagnostics
+        )
+    }
+
+    private func inferSamAliasTypeArguments(
+        _ aliasTypeParameters: [SymbolID],
+        templateArguments: [TypeArg],
+        actualArguments: [TypeArg],
+        ctx: TypeInferenceContext
+    ) -> [TypeID]? {
+        let sema = ctx.sema
+        guard !aliasTypeParameters.isEmpty,
+              templateArguments.count == actualArguments.count
+        else {
+            return nil
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(aliasTypeParameters)
+        let variables = aliasTypeParameters.compactMap { typeVarBySymbol[$0] }
+        guard variables.count == aliasTypeParameters.count else {
+            return nil
+        }
+        var constraints: [VariableConstraint] = []
+        for (templateArgument, actualArgument) in zip(templateArguments, actualArguments) {
+            let templateType: TypeID
+            let actualType: TypeID
+            switch (templateArgument, actualArgument) {
+            case let (.invariant(template), .invariant(actual)),
+                 let (.invariant(template), .out(actual)),
+                 let (.invariant(template), .in(actual)),
+                 let (.out(template), .invariant(actual)),
+                 let (.in(template), .invariant(actual)),
+                 let (.out(template), .out(actual)),
+                 let (.in(template), .in(actual)):
+                templateType = template
+                actualType = actual
+            case (.star, _), (_, .star):
+                return nil
+            default:
+                return nil
+            }
+            constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                subtype: templateType,
+                supertype: actualType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: sema.types,
+                blameRange: nil
+            ))
+            constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                subtype: actualType,
+                supertype: templateType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: sema.types,
+                blameRange: nil
+            ))
+        }
+        let solution = ConstraintSolver().solve(
+            vars: variables,
+            constraints: constraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else {
+            return nil
+        }
+        let inferredArguments = aliasTypeParameters.compactMap { parameter in
+            typeVarBySymbol[parameter].flatMap { solution.substitution[$0] }
+        }
+        guard inferredArguments.count == aliasTypeParameters.count else {
+            return nil
+        }
+        return inferredArguments
     }
 
     /// Infers a raw SAM constructor's type arguments from the lambda's explicit
