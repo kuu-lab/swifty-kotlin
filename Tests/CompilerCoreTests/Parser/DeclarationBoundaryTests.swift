@@ -200,6 +200,36 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func multilineEnumPrimaryConstructorParametersDoNotEndDeclaration() {
+        let parsed = parse("""
+        enum class Spacing(
+            val horizontal: Int,
+            val vertical: Int
+        ) {
+            SINGLE(1, 1),
+            DOUBLE(2, 2)
+        }
+        fun after() = 3
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .enumEntry) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func unterminatedMultilineEnumPrimaryConstructorRecoversAtNextDeclaration() {
+        let parsed = parse("""
+        enum class Broken(
+            val value: Int
+        fun after() = 3
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test
     func multilineDefaultLambdaIssueReproductionParses() {
         let parsed = parse("""
         fun topRun(value: Int = run {
