@@ -242,10 +242,12 @@ extension KotlinParser {
     ) -> NodeID {
         var children: [SyntaxChild] = leadingChildren
         var range = RangeAccumulator(value: leadingRange)
+        var hasTypeParameters = false
 
         _ = consumeToken(into: &children, range: &range)
         if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
             children.append(.node(parseTypeArguments()))
+            hasTypeParameters = true
             if let last = children.last {
                 range.append(childRange(last))
             }
@@ -280,7 +282,13 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
+            parseTail(
+                inBlock: false,
+                into: &children,
+                range: &range,
+                allowsDeclarationAssignment: true,
+                allowsFunctionWhereClause: hasTypeParameters
+            )
             // A block on the next line still belongs to a function whose
             // header has no expression body or explicit terminator.
             if case .symbol(.lBrace) = stream.peek().kind,
