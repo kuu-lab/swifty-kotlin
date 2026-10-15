@@ -235,6 +235,90 @@ struct CallableReferenceExtensionReceiverTests {
         #expect(errors.isEmpty, "Extension property refs via `Int::`/`i::` must type-check, got: \(errors)")
     }
 
+    @Test func testUnboundGenericExtensionPropertyReferenceSpecializesReceiverType() throws {
+        let source = """
+        val <T> T.identity: T get() = this
+        fun use(): (String) -> String = String::identity
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Generic extension property reference should specialize T from String: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(firstExprID(in: ast) { _, expr in
+            if case let .callableRef(_, member, _) = expr {
+                return ctx.interner.resolve(member) == "identity"
+            }
+            return false
+        })
+        #expect(sema.bindings.callableRefKind(for: reference) == .propertyRef)
+        #expect(sema.bindings.isUnboundCallableRef(reference))
+
+        let referenceType = try #require(sema.bindings.exprType(for: reference))
+        guard case let .functionType(functionType) = sema.types.kind(of: referenceType) else {
+            Issue.record("Expected the generic property reference to have a function type.")
+            return
+        }
+        #expect(functionType.params == [sema.types.stringType])
+        #expect(functionType.returnType == sema.types.stringType)
+    }
+
+    @Test func testUnboundGenericExtensionPropertyReferenceRetainsReifiedTypeArgument() throws {
+        let source = """
+        inline val <reified T> T.id: T get() = (this as Any) as T
+        fun foo(reference: (String) -> String) = reference("OK")
+        fun box(): String = foo(String::id)
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The pinned reified extension-property conformance case should type-check: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(firstExprID(in: ast) { _, expr in
+            if case let .callableRef(_, member, _) = expr {
+                return ctx.interner.resolve(member) == "id"
+            }
+            return false
+        })
+        let binding = try #require(sema.bindings.callableReferenceBinding(for: reference))
+        let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+        #expect(signature.reifiedTypeParameterIndices == Set([0]))
+        #expect(binding.substitutedTypeArguments.count == 1)
+        guard case let .classType(receiverType) = sema.types.kind(of: binding.substitutedTypeArguments[0]) else {
+            Issue.record("Expected the reified receiver argument to be kotlin.String.")
+            return
+        }
+        #expect(sema.symbols.symbol(receiverType.classSymbol)?.fqName == ["kotlin", "String"].map(ctx.interner.intern))
+
+        let property = try #require(sema.bindings.identifierSymbol(for: reference))
+        let module = try #require(ctx.kir)
+        let functions = findAllKIRFunctions(in: module)
+        let propertyThunkName = "kk_lambda_property_getter_\(property.rawValue)"
+        let reifiedThunkPrefix = "kk_reified_ref_thunk_\(reference.rawValue)_"
+        #expect(!functions.contains { ctx.interner.resolve($0.name) == propertyThunkName })
+        #expect(functions.contains { ctx.interner.resolve($0.name).hasPrefix(reifiedThunkPrefix) })
+    }
+
+    @Test func testUnboundGenericExtensionPropertyReferenceRejectsInvalidReceiverBound() throws {
+        let source = """
+        val <T : Number> T.numeric: T get() = this
+        fun use(): (String) -> String = String::numeric
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.hasError,
+            "A String receiver must not satisfy a generic extension property's Number bound"
+        )
+    }
+
     @Test func testImplicitReceiverBoundExtensionReference() throws {
         let source = """
         fun Int.even(): Boolean = this % 2 == 0
