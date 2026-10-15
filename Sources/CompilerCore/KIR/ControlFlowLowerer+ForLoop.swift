@@ -53,6 +53,44 @@ extension ControlFlowLowerer {
         // argument list that matches this contract to avoid double receivers.
         let isClassMember: Bool
         let chosenCallee = callBinding.chosenCallee
+        if sema.symbols.memberExtensionOwnerSymbol(for: chosenCallee) != nil {
+            guard let dispatchReceiverID = driver.callLowerer.memberExtensionDispatchReceiver(
+                for: chosenCallee,
+                callExprID: nil,
+                dispatchReceiverSymbol: callBinding.dispatchReceiverSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) else {
+                preconditionFailure("Bound for-loop member extension has no dispatch receiver during lowering.")
+            }
+            let arguments = [dispatchReceiverID, receiverID]
+            if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                chosenCallee: chosenCallee,
+                calleeName: calleeName,
+                receiverExpr: nil,
+                loweredReceiverID: dispatchReceiverID,
+                isSuperCall: false,
+                finalArguments: arguments,
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            ) {
+                instructions.append(virtualInstruction)
+            } else {
+                instructions.append(.call(
+                    symbol: chosenCallee,
+                    callee: calleeName,
+                    arguments: arguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+            return
+        }
         if let parentSymbolID = sema.symbols.parentSymbol(for: chosenCallee),
            let parentSymbol = sema.symbols.symbol(parentSymbolID) {
             switch parentSymbol.kind {

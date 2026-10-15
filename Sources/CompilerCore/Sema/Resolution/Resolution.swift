@@ -178,11 +178,13 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID? = nil,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        preserveMemberExtensionAmbiguity: Bool = false,
         ctx: SemaModule
     ) -> ResolvedCall {
         let result = resolveCallWithoutJavaWarnings(
             candidates: candidates, call: call, expectedType: expectedType,
-            implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes, ctx: ctx
+            implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity, ctx: ctx
         )
         if let chosen = result.chosenCallee {
             warnJavaCollectionsNullableArguments(call, expectedType: expectedType, chosen: chosen, ctx: ctx)
@@ -196,17 +198,24 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID? = nil,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        preserveMemberExtensionAmbiguity: Bool,
         ctx: SemaModule
     ) -> ResolvedCall {
         // --- cache lookup ---
-        // Per-candidate argument overrides bypass the shared cache key.
-        guard candidateArgumentTypes.isEmpty, call.typeAliasConstructor == nil, let cache = cacheContext else {
+        // Per-candidate argument overrides and call-site-specific extension ambiguity
+        // rules bypass the shared cache key.
+        guard !preserveMemberExtensionAmbiguity,
+              candidateArgumentTypes.isEmpty,
+              call.typeAliasConstructor == nil,
+              let cache = cacheContext
+        else {
             return resolveCallUncached(
                 candidates: candidates,
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
                 ctx: ctx
             )
         }
@@ -237,6 +246,7 @@ extension OverloadResolver {
             expectedType: expectedType,
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: [:],
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
             ctx: ctx
         )
         cache.cacheCallResolution(result, for: key)
@@ -249,6 +259,7 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]],
+        preserveMemberExtensionAmbiguity: Bool,
         ctx: SemaModule
     ) -> ResolvedCall {
         let (viable, candidateFailures) = evaluateCandidates(
@@ -264,7 +275,8 @@ extension OverloadResolver {
             from: viable,
             call: call,
             typeSystem: ctx.types,
-            candidateFailures: candidateFailures
+            candidateFailures: candidateFailures,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
         )
     }
 
@@ -1315,7 +1327,8 @@ extension OverloadResolver {
         from viable: [ViableCandidate],
         call: CallExpr,
         typeSystem: TypeSystem,
-        candidateFailures: [Diagnostic]
+        candidateFailures: [Diagnostic],
+        preserveMemberExtensionAmbiguity: Bool
     ) -> ResolvedCall {
         if viable.isEmpty {
             if let diagnostic = candidateFailures.first {
@@ -1335,7 +1348,12 @@ extension OverloadResolver {
         if viable.count == 1 {
             return viable[0].toResolvedCall()
         }
-        if let chosen = pickMostSpecific(viable, call: call, typeSystem: typeSystem) {
+        if let chosen = pickMostSpecific(
+            viable,
+            call: call,
+            typeSystem: typeSystem,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
+        ) {
             return chosen.toResolvedCall()
         }
         return errorResult(
@@ -1417,7 +1435,8 @@ extension OverloadResolver {
     private func pickMostSpecific(
         _ candidates: [ViableCandidate],
         call: CallExpr,
-        typeSystem: TypeSystem
+        typeSystem: TypeSystem,
+        preserveMemberExtensionAmbiguity: Bool
     ) -> ViableCandidate? {
         let winners = candidates.filter { candidate in
             for other in candidates where other.symbol != candidate.symbol {
@@ -1443,6 +1462,9 @@ extension OverloadResolver {
         let tied = winners.isEmpty ? candidates : winners
         if tied.count > 1,
            tied.allSatisfy({ !call.boundObjectDispatchReceiverCandidates.contains($0.symbol) }),
+           (!preserveMemberExtensionAmbiguity || tied.allSatisfy({
+               typeSystem.symbolTable?.memberExtensionOwnerSymbol(for: $0.symbol) == nil
+           })),
            tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
            tied.allSatisfy({ lhs in
                tied.allSatisfy { rhs in
