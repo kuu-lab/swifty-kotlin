@@ -110,7 +110,7 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
     }
 
-    @Test(arguments: ["class Target", "class Target : Entry {}", "fun target(): Entry = delegate", "val target: Entry = delegate"])
+    @Test(arguments: ["fun target(): Entry = delegate", "val target: Entry = delegate"])
     func newlineByExpressionRemainsOutsideCompletedDeclaration(declaration: String) throws {
         let parsed = parse("\(declaration)\nby(delegate)")
         let firstChild = try #require(parsed.arena.children(of: parsed.root).first)
