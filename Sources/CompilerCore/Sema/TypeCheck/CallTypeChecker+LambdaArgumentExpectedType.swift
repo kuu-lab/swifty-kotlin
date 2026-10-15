@@ -28,6 +28,7 @@ extension CallTypeChecker {
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
         for (idx, explicitTypeArg) in explicitTypeArgs.enumerated() {
+            guard explicitTypeArg != TypeID.invalid else { continue }
             let symbolIndex = typeArgOffset + idx
             guard symbolIndex < signature.typeParameterSymbols.count else { break }
             let sym = signature.typeParameterSymbols[symbolIndex]

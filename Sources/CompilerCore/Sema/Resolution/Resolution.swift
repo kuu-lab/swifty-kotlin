@@ -538,6 +538,7 @@ extension OverloadResolver {
         let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
         var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
+            guard explicitArg != TypeID.invalid else { continue }
             let typeParamSymbol = aliasConstructor?.typeParameterSymbols[index]
                 ?? signature.typeParameterSymbols[typeArgOffset + index]
             if let typeVar = typeVarBySymbol[typeParamSymbol] {

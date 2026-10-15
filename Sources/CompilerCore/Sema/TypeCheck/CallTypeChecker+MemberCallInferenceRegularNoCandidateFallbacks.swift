@@ -959,7 +959,7 @@ extension CallTypeChecker {
                     }
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [charType, charType],
-                        returnType: explicitTypeArgs.first ?? sema.types.anyType,
+                        returnType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType,
                         isSuspend: false,
                         nullability: .nonNull
                     )))
@@ -967,7 +967,7 @@ extension CallTypeChecker {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = explicitTypeArgs.first
+                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                         ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
                     if let chosen = sema.symbols.lookupAll(fqName: [
                         interner.intern("kotlin"),
@@ -1008,7 +1008,7 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: sema.types.anyType)
                         return sema.types.anyType
                     }
-                    let lambdaExpectedReturn = explicitTypeArgs.first.map { sema.types.makeNullable($0) }
+                    let lambdaExpectedReturn = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs).map { sema.types.makeNullable($0) }
                         ?? sema.types.nullableAnyType
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [charType],
@@ -1020,7 +1020,7 @@ extension CallTypeChecker {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = explicitTypeArgs.first
+                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                         ?? sema.types.makeNonNullable(inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema))
                     if let chosen = sema.symbols.lookupAll(fqName: [
                         interner.intern("kotlin"),
@@ -1055,7 +1055,7 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: sema.types.nullableAnyType)
                         return sema.types.nullableAnyType
                     }
-                    let lambdaExpectedReturn = explicitTypeArgs.first.map { sema.types.makeNullable($0) }
+                    let lambdaExpectedReturn = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs).map { sema.types.makeNullable($0) }
                         ?? sema.types.nullableAnyType
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [charType],
@@ -1067,7 +1067,7 @@ extension CallTypeChecker {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = explicitTypeArgs.first
+                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                         ?? sema.types.makeNonNullable(inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema))
                     if let chosen = sema.symbols.lookupAll(fqName: [
                         interner.intern("kotlin"),

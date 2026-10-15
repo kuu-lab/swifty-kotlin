@@ -731,7 +731,12 @@ extension ExprTypeChecker {
         }
 
         let explicitTypeArgs = explicitTypeArgRefs.map { typeArgRef in
-            driver.helpers.resolveTypeRef(
+            guard !driver.helpers.isExplicitTypeInferencePlaceholder(
+                typeArgRef, ast: ctx.ast, interner: ctx.interner
+            ) else {
+                return TypeID.invalid
+            }
+            return driver.helpers.resolveTypeRef(
                 typeArgRef,
                 ast: ctx.ast,
                 sema: sema,
@@ -811,7 +816,7 @@ extension ExprTypeChecker {
             return type
         }
         let explicitType = explicitTypeArgs[argOffset]
-        guard explicitType != sema.types.errorType else {
+        guard explicitType != TypeID.invalid, explicitType != sema.types.errorType else {
             return type
         }
         return typeParam.nullability == .nullable

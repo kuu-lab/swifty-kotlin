@@ -382,7 +382,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
-            let filterType = explicitTypeArgs.first ?? sema.types.anyType
+            let filterType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
             let receiverElementType = resolvedCollectionElementType(
                 receiverID: receiverID,
                 receiverType: receiverType,
