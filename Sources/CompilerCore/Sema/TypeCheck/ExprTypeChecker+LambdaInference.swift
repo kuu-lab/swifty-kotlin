@@ -431,7 +431,17 @@ extension ExprTypeChecker {
         if samConversion, let expectedType, let expectedFunctionType {
             // Unit-returning SAM lambdas discard the body's value, just like
             // ordinary Unit-returning lambdas (e.g. a Boolean-valued CAS call).
-            if expectedFunctionType.returnType != sema.types.unitType {
+            let expectedReturnIsTypeParam: Bool = {
+                guard case .typeParam = sema.types.kind(of: expectedFunctionType.returnType) else {
+                    return false
+                }
+                return true
+            }()
+            let deferReturnConstraint = expectedTypeIsHintOnly
+                || expectedFunctionType.returnType == sema.types.unitType
+                || expectedReturnIsTypeParam
+                || expectedReturnHasUnresolvedOutputTypeParameter
+            if !deferReturnConstraint {
                 driver.emitSubtypeConstraint(
                     left: sourceLevelInferredBodyType,
                     right: expectedFunctionType.returnType,
@@ -442,7 +452,26 @@ extension ExprTypeChecker {
                 )
             }
             sema.bindings.markSamConversion(id)
-            let underlyingFuncType = sema.types.make(.functionType(expectedFunctionType))
+            let inferredReturnType = expectedTypeIsHintOnly
+                || expectedReturnIsTypeParam
+                || expectedReturnHasUnresolvedOutputTypeParameter
+                    ? inferOptimizedReturnType(
+                        inferredBodyType: sourceLevelInferredBodyType,
+                        expectedReturnType: expectedFunctionType.returnType,
+                        sema: sema
+                    )
+                    : expectedFunctionType.returnType
+            let underlyingFunctionType = FunctionType(
+                contextReceivers: expectedFunctionType.contextReceivers,
+                receiver: expectedFunctionType.receiver,
+                params: expectedFunctionType.params,
+                returnType: inferredReturnType,
+                isSuspend: expectedFunctionType.isSuspend,
+                isCallableReference: expectedFunctionType.isCallableReference,
+                nullability: expectedFunctionType.nullability,
+                throws: expectedFunctionType.throws
+            )
+            let underlyingFuncType = sema.types.make(.functionType(underlyingFunctionType))
             sema.bindings.bindSamUnderlyingFunctionType(id, type: underlyingFuncType)
             sema.bindings.bindExprType(id, type: expectedType)
             return expectedType
