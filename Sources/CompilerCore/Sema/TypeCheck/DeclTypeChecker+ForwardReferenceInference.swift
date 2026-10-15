@@ -1,4 +1,40 @@
 extension DeclTypeChecker {
+    func makeInterfaceTypeCheckContext(
+        interfaceDecl: InterfaceDecl,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeInferenceContext {
+        let sema = ctx.sema
+        var nestedObjects = interfaceDecl.nestedObjects
+        if let companionObject = interfaceDecl.companionObject {
+            nestedObjects.append(companionObject)
+        }
+        let typeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
+            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+        }
+        let interfaceType = sema.types.make(.classType(ClassType(
+            classSymbol: symbol, args: typeArgs, nullability: .nonNull
+        )))
+        let interfaceScope = buildClassMemberScope(
+            ownerSymbol: symbol,
+            ownerType: interfaceType,
+            memberFunctions: interfaceDecl.memberFunctions,
+            memberProperties: interfaceDecl.memberProperties,
+            nestedClasses: interfaceDecl.nestedClasses,
+            nestedObjects: nestedObjects,
+            ctx: ctx
+        )
+        let label = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
+        return ctx
+            .withOuterReceiver(label: label, type: interfaceType)
+            .copying(
+                scope: interfaceScope,
+                implicitReceiverType: interfaceType,
+                currentDeclSymbol: symbol,
+                enclosingClassSymbol: symbol
+            )
+    }
+
     func makeClassTypeCheckContext(
         classDecl: ClassDecl,
         symbol: SymbolID,
