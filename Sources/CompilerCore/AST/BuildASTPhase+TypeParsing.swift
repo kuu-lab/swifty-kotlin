@@ -227,6 +227,10 @@ extension BuildASTPhase {
             if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) {
                 return nil
             }
+            // A where-clause bound uses a colon but is not a return type.
+            if case .softKeyword(.where) = token.kind {
+                return nil
+            }
             if token.kind == .symbol(.colon) {
                 index += 1
                 break
