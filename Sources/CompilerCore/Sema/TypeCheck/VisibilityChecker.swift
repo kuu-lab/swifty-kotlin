@@ -87,6 +87,15 @@ struct VisibilityChecker {
             guard let ownerClass = symbols.parentSymbol(for: symbol.id) else {
                 return false
             }
+            // A protected nested class passes its visibility to an implicit
+            // constructor. Check access against that class's owning scope so
+            // the enclosing class and its subclasses can construct it. An
+            // explicitly protected constructor still uses its own class as
+            // the protected owner.
+            if symbol.flags.contains(.constructorVisibilityInherited),
+               let ownerSymbol = symbols.symbol(ownerClass) {
+                return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
+            }
             guard let enclosingClass else {
                 return false
             }
