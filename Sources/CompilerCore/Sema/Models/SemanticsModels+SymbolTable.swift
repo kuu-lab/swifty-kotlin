@@ -1012,6 +1012,9 @@ public final class SymbolTable {
     }
 
     public func setDelegateStorageSymbol(_ storage: SymbolID, for property: SymbolID) {
+        if let previousStorage = delegateStorageSymbols[property], previousStorage != storage {
+            delegatePropertiesByStorageSymbol.removeValue(forKey: previousStorage)
+        }
         delegateStorageSymbols[property] = storage
         delegatePropertiesByStorageSymbol[storage] = property
     }

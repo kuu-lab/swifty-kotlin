@@ -1767,21 +1767,8 @@ extension CallLowerer {
     }
 
     func isEnumEntryField(_ fieldSymbol: SymbolID, sema: SemaModule) -> Bool {
-        if let parentSymbol = sema.symbols.parentSymbol(for: fieldSymbol),
-           sema.symbols.symbol(parentSymbol)?.kind == .enumClass
-        {
-            return true
-        }
-        guard let field = sema.symbols.symbol(fieldSymbol),
-              field.kind == .field,
-              field.fqName.count >= 2
-        else {
-            return false
-        }
-        let ownerFQName = Array(field.fqName.dropLast())
-        return sema.symbols.lookupAll(fqName: ownerFQName).contains { candidate in
-            sema.symbols.symbol(candidate)?.kind == .enumClass
-        }
+        guard let field = sema.symbols.symbol(fieldSymbol) else { return false }
+        return sema.symbols.enumOwnerSymbol(for: field) != nil
     }
 
     func enumClassOwnerSymbol(forEntryField fieldSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
