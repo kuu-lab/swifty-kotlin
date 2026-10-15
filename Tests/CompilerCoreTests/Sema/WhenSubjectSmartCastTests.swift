@@ -12,6 +12,57 @@ import Testing
 /// `resolveLocalVariable`).
 @Suite
 struct WhenSubjectSmartCastTests {
+    @Test func testEnumWhenIsExhaustiveInDelegatedPropertyInitializer() throws {
+        let source = """
+        enum class State {
+            STARTED, STOPPED;
+
+            val label by lazy {
+                when (this) {
+                    STARTED -> "started"
+                    STOPPED -> "stopped"
+                }
+            }
+
+            val explicitLabel by lazy {
+                val state: State = this
+                when (state) {
+                    State.STARTED -> "started"
+                    State.STOPPED -> "stopped"
+                }
+            }
+
+            fun labelFromMemberFunction() = when (this) {
+                STARTED -> "started"
+                STOPPED -> "stopped"
+            }
+        }
+
+        class OtherOwner {
+            val label by lazy {
+                when (State.STARTED) {
+                    State.STARTED -> "started"
+                    State.STOPPED -> "stopped"
+                }
+            }
+        }
+
+        val topLevelLabel by lazy {
+            when (State.STARTED) {
+                State.STARTED -> "started"
+                State.STOPPED -> "stopped"
+            }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let nonExhaustiveDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0004"
+        }
+        #expect(nonExhaustiveDiagnostics.isEmpty, "Got: \(nonExhaustiveDiagnostics)")
+    }
+
     @Test func testSealedWhenInterfaceBranchCoversImplementingSubclasses() throws {
         let source = """
         sealed class Grammar

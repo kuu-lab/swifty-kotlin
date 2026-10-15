@@ -937,7 +937,7 @@ final class DataFlowAnalyzer {
         var names: Set<InternedString> = []
         for childID in childIDs {
             guard let child = sema.symbols.symbol(childID),
-                  child.kind == .field
+                  sema.symbols.enumOwnerSymbol(for: child) == enumSymbol.id
             else {
                 continue
             }
