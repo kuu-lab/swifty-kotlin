@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import TestStdlibCache
 import Testing
 
 @Suite
@@ -137,6 +138,29 @@ struct TypeParameterUpperBoundArgumentTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        }
+    }
+
+    @Test func explicitTypeArgumentsCanForwardNullableDependentUpperBounds() throws {
+        // The reported failure occurs with the bundled stdlib loaded from its .kklib.
+        TestStdlibCache.shared.prepare()
+        let source = """
+        class Serializer<T>(val value: T)
+
+        fun <T : Any, E : T?> inner(x: E): Serializer<E> = Serializer(x)
+        fun <T : Any, E : T?> outer(x: E): Serializer<E> = inner<T, E>(x)
+
+        fun <T : Any, E : T> innerNonNull(x: E): Serializer<E> = Serializer(x)
+        fun <T : Any, E : T> outerNonNull(x: E): Serializer<E> = innerNonNull<T, E>(x)
+
+        fun <E : String?> innerString(x: E): Serializer<E> = Serializer(x)
+        fun <E : String?> outerString(x: E): Serializer<E> = innerString<E>(x)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: true)
+            try runSema(ctx)
+            #expect(ctx.options.stdlibLibraryPath != nil)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
         }
     }
 }

@@ -644,6 +644,18 @@ extension OverloadResolver {
         // `where C : Collection<*>, C : R`). Add those relationships to the
         // inference graph before solving so a receiver lower bound can widen
         // the result type as required by Kotlin's self-type extensions.
+        func shouldDeferNullableDependentBoundCheck(_ bound: TypeID, for parameter: SymbolID) -> Bool {
+            guard case let .typeParam(boundParameter) = ctx.types.kind(of: bound),
+                  boundParameter.nullability != .nonNull,
+                  let parameterVariable = typeVarBySymbol[parameter],
+                  let boundVariable = typeVarBySymbol[boundParameter.symbol]
+            else {
+                return false
+            }
+            return explicitTypeSubstitution[parameterVariable] != nil
+                && explicitTypeSubstitution[boundVariable] != nil
+        }
+
         for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
             guard index < signature.typeParameterUpperBoundsList.count else {
                 continue
@@ -656,6 +668,13 @@ extension OverloadResolver {
                       let typeParamVariable = typeVarBySymbol[typeParamSymbol],
                       let boundTypeParamVariable = typeVarBySymbol[boundTypeParam.symbol]
                 else {
+                    continue
+                }
+                // A nullable dependent bound such as `E : T?` cannot be
+                // represented by this variable-to-variable edge without
+                // dropping nullability. Explicit arguments are checked against
+                // the fully substituted bound after solving.
+                if shouldDeferNullableDependentBoundCheck(upperBound, for: typeParamSymbol) {
                     continue
                 }
                 constraints.append(VariableConstraint(
@@ -708,6 +727,9 @@ extension OverloadResolver {
                 for bound in bounds where containsTypeVariable(
                     bound, typeVarBySymbol: dependentVariables, typeSystem: ctx.types
                 ) {
+                    if shouldDeferNullableDependentBoundCheck(bound, for: symbol) {
+                        continue
+                    }
                     let projected = decomposeSubtypeConstraint(
                         subtype: inferred,
                         supertype: bound,
