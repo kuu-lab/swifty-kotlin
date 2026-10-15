@@ -24,6 +24,13 @@ struct RuntimeMemoryTests {
     }
 
     @Test
+    func testRuntimeAvailableProcessorsMatchesPlatformCount() {
+        let processors = __kk_runtime_availableProcessors()
+        #expect(processors >= 1)
+        #expect(processors == kk_platform_getAvailableProcessors(0))
+    }
+
+    @Test
     func testSystemGCLeavesMetricsQueryable() {
         __kk_system_gc()
 
