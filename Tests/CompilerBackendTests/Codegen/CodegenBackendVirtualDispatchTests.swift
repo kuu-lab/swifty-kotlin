@@ -46,6 +46,18 @@ struct CodegenBackendVirtualDispatchTests {
         }
     }
 
+    @Test func testNullableFunctionValuesAdaptToNullableSamParameters() throws {
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("nullable_sam_conversion.kt"),
+                moduleName: "NullableFunctionValueSamArtifact",
+                expected: "OK\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: true
+            )
+        }
+    }
+
     @Test(arguments: [true, false])
     func testNestedRunForEachKeepsLabeledClassReceiverForGenericVisitor(
         allowDefaultStdlibLibrary: Bool
