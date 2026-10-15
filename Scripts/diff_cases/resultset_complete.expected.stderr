@@ -1,4 +1,4 @@
-Scripts/diff_cases/resultset_complete.kt:8:1: error KSWIFTK-SEMA-0024: Unresolved import path.
+Scripts/diff_cases/resultset_complete.kt:8:1: error KSWIFTK-SEMA-UNRESOLVED-IMPORT: Unresolved import path.
 import java.sql.ResultSetMetaData
 ^
 Scripts/diff_cases/resultset_complete.kt:30:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
