@@ -3,6 +3,34 @@
 import Testing
 
 extension CompanionObjectTests {
+    @Test func testBaseCompanionMembersResolveUnqualifiedInDerivedInstanceMembers() throws {
+        let source = """
+        open class Root {
+            val inheritedProperty: Int = 1
+            fun baseMember(): Int = EOF
+            companion object {
+                const val EOF: Int = -1
+                const val ROOT_VALUE: Int = 42
+            }
+        }
+        open class Middle : Root()
+        class Derived : Middle() {
+            companion object {
+                const val OWN_VALUE: Int = 7
+            }
+
+            fun current(): Int = EOF
+            fun inheritedFromGrandparent(): Int = ROOT_VALUE
+            fun ownCompanion(): Int = OWN_VALUE
+            fun qualifiedBaseCompanion(): Int = Root.EOF
+            fun inheritedInstanceMember(): Int = inheritedProperty
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: ["", "Factory"])
     func testInheritedCompanionShorthandMembers(companionName: String) throws {
         let qualifier = companionName.isEmpty ? "Companion" : companionName
