@@ -499,26 +499,8 @@ extension LambdaLowerer {
         // link (`Undefined symbols: "_v"` for `class C(val v: Int)`). Call the
         // generated property-reference accessor instead.
         //
-        // Substituted *here*, after the capture decisions above and before the
-        // three call-target branches: those decisions consult
-        // `parentSymbol(for:)` on the property symbol, which the synthetic
-        // accessor symbol does not carry.
         var callTargetSymbol = targetSymbol
         var callTargetName: InternedString?
-        if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
-           let targetSymbol,
-           let accessorTarget = propertyReferenceFunctionCallTarget(
-               targetSymbol: targetSymbol,
-               ast: ast,
-               sema: sema,
-               arena: arena,
-               interner: interner,
-               propertyConstantInitializers: propertyConstantInitializers
-           )
-        {
-            callTargetSymbol = accessorTarget.symbol
-            callTargetName = accessorTarget.name
-        }
         // A reference to an interface / open / abstract member function must
         // dispatch virtually; the declaring symbol alone is only a stub.
         if !isAdaptedCallableReference,
@@ -540,7 +522,10 @@ extension LambdaLowerer {
             guard case let .functionType(function) = sema.types.kind(of: type) else { return nil }
             return function
         }
-        let reifiedThunk = isAdaptedCallableReference ? nil : targetSymbol.flatMap { target in
+        let reifiedTargetSymbol = sema.bindings.callableRefKind(for: exprID) == .propertyRef
+            ? callableReferenceBinding?.chosenCallee ?? targetSymbol
+            : targetSymbol
+        let reifiedThunk = isAdaptedCallableReference ? nil : reifiedTargetSymbol.flatMap { target in
             reifiedFunctionType.flatMap { function in
                 reifiedCallableReferenceThunk(
                     exprID, targetSymbol: target, functionType: function,
@@ -549,6 +534,29 @@ extension LambdaLowerer {
                 )
             }
         }
+
+        // Resolve the property target after the capture decisions above:
+        // those decisions consult `parentSymbol(for:)` on the property symbol,
+        // which the synthetic accessor symbol does not carry.
+        // Reified property getters require hidden type-token arguments. Their
+        // callable thunk already forwards those tokens, so don't emit a plain
+        // property getter thunk with the shorter ABI as dead invalid IR.
+        if reifiedThunk == nil,
+           sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           let targetSymbol,
+           let accessorTarget = propertyReferenceFunctionCallTarget(
+               targetSymbol: targetSymbol,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers
+           )
+        {
+            callTargetSymbol = accessorTarget.symbol
+            callTargetName = accessorTarget.name
+        }
+
         if let reifiedThunk {
             callTargetSymbol = reifiedThunk.symbol
             callTargetName = reifiedThunk.name

@@ -425,16 +425,54 @@ extension ExprTypeChecker {
                             sema: sema
                         )
                     }
-                    if let propertySymbol = extensionPropertyCandidates.first {
-                        return bindPropertyCallableRef(
+                    var extensionPropertyReference: (
+                        symbol: SymbolID,
+                        valueType: TypeID,
+                        specialization: ContextualCallableReferenceBinding?
+                    )?
+                    for propertySymbol in extensionPropertyCandidates {
+                        guard let propertyType = sema.symbols.propertyType(for: propertySymbol) else {
+                            continue
+                        }
+                        if unboundClassType != nil {
+                            guard let resolution = resolveExtensionPropertyReferenceType(
+                                propertySymbol,
+                                receiverType: nonNullReceiver,
+                                fallbackPropertyType: propertyType,
+                                sema: sema,
+                                interner: interner
+                            ) else {
+                                continue
+                            }
+                            extensionPropertyReference = (
+                                propertySymbol, resolution.valueType, resolution.specialization
+                            )
+                        } else {
+                            extensionPropertyReference = (propertySymbol, propertyType, nil)
+                        }
+                        break
+                    }
+                    if let extensionPropertyReference {
+                        let resultType = bindPropertyCallableRef(
                             id,
-                            propertySymbol: propertySymbol,
+                            propertySymbol: extensionPropertyReference.symbol,
                             ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
                             sema: sema,
-                            interner: interner
+                            interner: interner,
+                            resolvedPropertyType: extensionPropertyReference.valueType
                         )
+                        if let specialization = extensionPropertyReference.specialization,
+                           let getter = sema.symbols.extensionPropertyGetterAccessor(
+                               for: extensionPropertyReference.symbol
+                           ) {
+                            bindCallableReferenceBinding(
+                                id, target: getter, specialization: specialization,
+                                range: range, ctx: ctx
+                            )
+                        }
+                        return resultType
                     }
                 }
                 // A same-named non-extension function in a nearer scope must
@@ -1062,6 +1100,37 @@ extension ExprTypeChecker {
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)
         sema.bindings.bindExprType(id, type: expectedType)
         return expectedType
+    }
+
+    /// Resolves an unbound generic extension property's value type from its
+    /// receiver and retains the accessor specialization for reified calls.
+    private func resolveExtensionPropertyReferenceType(
+        _ propertySymbol: SymbolID,
+        receiverType: TypeID,
+        fallbackPropertyType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (valueType: TypeID, specialization: ContextualCallableReferenceBinding?)? {
+        guard let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol),
+              let signature = sema.symbols.functionSignature(for: getter)
+        else {
+            return (fallbackPropertyType, nil)
+        }
+        guard !signature.typeParameterSymbols.isEmpty else {
+            return (fallbackPropertyType, nil)
+        }
+        guard let specialization = driver.helpers.contextualCallableReferenceBinding(
+            for: signature,
+            bindReceiver: false,
+            boundReceiver: (propertySymbol, receiverType),
+            expectedFunctionType: nil,
+            interner: interner,
+            sema: sema
+        ), case let .functionType(functionType) = sema.types.kind(of: specialization.functionType)
+        else {
+            return nil
+        }
+        return (functionType.returnType, specialization)
     }
 
     /// Binds an unbound `Type::property` (or, when `ownerType` is `nil`, a
