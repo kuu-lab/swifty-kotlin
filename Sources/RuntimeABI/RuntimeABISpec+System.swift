@@ -201,6 +201,13 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_runtime_availableProcessors",
+            parameters: [],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_clock_now",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),

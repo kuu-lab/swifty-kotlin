@@ -89,6 +89,11 @@ public func __kk_runtime_maxMemory() -> Int {
     Int(clamping: runtimeCaptureMemorySnapshot().maxBytes)
 }
 
+@_cdecl("__kk_runtime_availableProcessors")
+public func __kk_runtime_availableProcessors() -> Int {
+    kk_platform_getAvailableProcessors(0)
+}
+
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
