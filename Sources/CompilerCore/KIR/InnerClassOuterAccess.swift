@@ -48,6 +48,23 @@ func resolveOuterChainValue(
         if sema.types.isSubtype(currentType, targetType) {
             return currentValue
         }
+        if sema.bindings.objectLiteralCaptureSymbols(for: currentClassSymbol.id).contains(target),
+           let captureOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?.fieldOffsets[target]
+        {
+            let captureType = sema.bindings.capturedLocalType(for: target) ?? targetType
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureOffset))))
+            let capturedValue = arena.appendTemporary(type: captureType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [currentValue, offsetExpr],
+                result: capturedValue,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return capturedValue
+        }
         guard currentClassSymbol.flags.contains(.innerClass),
               let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: currentClassSymbol.id),
               let outerOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?.fieldOffsets[outerFieldSymbol],
