@@ -113,6 +113,7 @@ public enum RuntimeABISpec {
         comparatorFunctions,
         consolePrintFunctions,
         coroutineFunctions,
+        dateFormatFunctions,
         deepRecursiveFunctions,
         delegateFunctions,
         dispatchBridgeFunctions,
