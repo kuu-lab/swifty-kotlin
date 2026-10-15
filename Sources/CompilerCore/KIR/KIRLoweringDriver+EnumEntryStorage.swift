@@ -84,20 +84,34 @@ extension KIRLoweringDriver {
         guard !entrySymbols.contains(.invalid) else { return [] }
 
         let params = classDecl.primaryConstructorParams
-        let ctorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
+        let primaryConstructorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
             .first(where: { sema.symbols.symbol($0)?.kind == .constructor })
-        // Enums with only secondary constructors still need body/init storage.
-        // Their primary parameter list is empty and has no primary signature.
-        let ctorSignature = ctorSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+        let primaryConstructorSignature = primaryConstructorSymbol.flatMap {
+            sema.symbols.functionSignature(for: $0)
+        }
             ?? FunctionSignature(parameterTypes: [], returnType: sema.types.unitType, isSuspend: false)
-        let argumentMappings = classDecl.enumEntries.map { entry in
-            OverloadResolver().buildParameterMapping(
-                signature: ctorSignature,
+        let entryConstructorBindings = entrySymbols.map {
+            sema.bindings.enumEntryConstructorBinding(for: $0)
+        }
+        let argumentMappings = classDecl.enumEntries.enumerated().map { index, entry in
+            if let binding = entryConstructorBindings[index],
+               binding.chosenCallee == primaryConstructorSymbol
+            {
+                return binding.parameterMapping
+            }
+            guard primaryConstructorSymbol != nil else { return [:] }
+            return OverloadResolver().buildParameterMapping(
+                signature: primaryConstructorSignature,
                 callArgs: entry.constructorArgs.map {
-                    CallArg.source($0, type: sema.bindings.exprTypes[$0.expr] ?? sema.types.anyType,
-                                   callRange: entry.range, ast: ast)
+                    CallArg.source(
+                        $0,
+                        type: sema.bindings.exprTypes[$0.expr] ?? sema.types.anyType,
+                        callRange: entry.range,
+                        ast: ast
+                    )
                 },
-                symbols: sema.symbols, typeSystem: sema.types
+                symbols: sema.symbols,
+                typeSystem: sema.types
             ) ?? [:]
         }
 
@@ -170,6 +184,10 @@ extension KIRLoweringDriver {
         // Even literal/empty varargs are arrays with observable identity and
         // mutation. Pack them once in the entry initializer, never in a getter.
         let needsStorage = params.contains(where: \.isVararg)
+            || entryConstructorBindings.contains { binding in
+                guard let chosen = binding?.chosenCallee else { return false }
+                return chosen != primaryConstructorSymbol
+            }
             || !classDecl.initBlocks.isEmpty
             || !bodyStoredPropertySymbols.isEmpty
             || entryBodyProperties.contains(where: { !$0.isEmpty })
@@ -197,9 +215,9 @@ extension KIRLoweringDriver {
             classDecl: classDecl,
             ownerInfo: ownerInfo,
             entrySymbols: entrySymbols,
+            entryConstructorBindings: entryConstructorBindings,
             argumentMappings: argumentMappings,
-            constructorSymbol: ctorSymbol,
-            constructorSignature: ctorSignature,
+            primaryConstructorSymbol: primaryConstructorSymbol,
             storedProperties: storedProperties,
             bodyStoredPropertySymbols: bodyStoredPropertySymbols,
             entryBodyProperties: entryBodyProperties,
@@ -442,9 +460,9 @@ extension KIRLoweringDriver {
         classDecl: ClassDecl,
         ownerInfo: SemanticSymbol,
         entrySymbols: [SymbolID],
+        entryConstructorBindings: [CallBinding?],
         argumentMappings: [[Int: Int]],
-        constructorSymbol: SymbolID?,
-        constructorSignature: FunctionSignature,
+        primaryConstructorSymbol: SymbolID?,
         storedProperties: [EnumStoredProperty],
         bodyStoredPropertySymbols: [InternedString: SymbolID],
         entryBodyProperties: [[EnumEntryBodyProperty]],
@@ -521,7 +539,6 @@ extension KIRLoweringDriver {
             // from initializers (e.g. `init { println(id) }`) do not recurse.
             body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
-            let ctorSignature = constructorSignature
             let enumType = sema.types.make(.classType(ClassType(
                 classSymbol: ownerSymbol, args: [], nullability: .nonNull
             )))
@@ -531,82 +548,53 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: thisExpr, value: .symbolRef(entrySymbol)))
                 ctx.setImplicitReceiver(symbol: entrySymbol, exprID: thisExpr)
 
-                // Constructor arguments: explicit ones in source order, then
-                // defaults in parameter order with earlier parameters bound.
-                let params = classDecl.primaryConstructorParams
-                let providedArguments = entry.constructorArgs.map {
-                    lowerExpr($0.expr, shared: shared, emit: &body)
-                }
-                let normalized = callSupportLowerer.normalizedCallArguments(
-                    providedArguments: providedArguments,
-                    callBinding: constructorSymbol.map {
-                        CallBinding(chosenCallee: $0, substitutedTypeArguments: [],
-                                    parameterMapping: argumentMappings[ordinal])
-                    },
-                    chosenCallee: constructorSymbol,
-                    spreadFlags: entry.constructorArgs.map(\.isSpread),
-                    argumentLabels: entry.constructorArgs.map(\.label),
-                    sourceArgExprs: entry.constructorArgs.map(\.expr),
-                    ast: shared.ast, sema: sema, arena: arena, interner: interner,
-                    propertyConstantInitializers: shared.propertyConstantInitializers,
-                    instructions: &body.instructions
-                )
-                var argumentValues = normalized.arguments
-                // Enum defaults are evaluated here rather than through the
-                // ordinary call's fixed-width ABI mask. Keep every omitted
-                // declaration default, including parameters beyond bit 63.
-                let suppliedParameters = Set(argumentMappings[ordinal].values)
-                let defaultedParameters = Set(params.indices.filter {
-                    !suppliedParameters.contains($0)
-                        && (!params[$0].isVararg || params[$0].defaultValue != nil)
-                })
-                var boundParameterSymbols: [SymbolID] = []
-                func bind(_ paramIndex: Int, _ value: KIRExprID) {
-                    guard paramIndex < ctorSignature.valueParameterSymbols.count
-                    else { return }
-                    let parameterSymbol = ctorSignature.valueParameterSymbols[paramIndex]
-                    ctx.setLocalValue(value, for: parameterSymbol)
-                    boundParameterSymbols.append(parameterSymbol)
-                }
-                for (paramIndex, value) in argumentValues.enumerated()
-                    where !defaultedParameters.contains(paramIndex) {
-                    bind(paramIndex, value)
-                }
-                for (paramIndex, param) in params.enumerated()
-                    where defaultedParameters.contains(paramIndex) {
-                    let value: KIRExprID
-                    if let defaultExpr = param.defaultValue {
-                        value = lowerExpr(defaultExpr, shared: shared, emit: &body)
-                    } else {
-                        let paramType = constructorParameterStorageType(
-                            at: paramIndex, signature: ctorSignature, sema: sema, interner: interner
-                        )
-                        let defaultValue = delegationDefaultValue(for: paramType, sema: sema)
-                        value = arena.appendExpr(defaultValue, type: paramType)
-                        body.append(.constValue(result: value, value: defaultValue))
-                    }
-                    argumentValues[paramIndex] = value
-                    bind(paramIndex, value)
-                }
-
-                for (paramIndex, param) in params.enumerated() where param.isProperty {
-                    let value = argumentValues[paramIndex]
-                    guard let slotSymbol = classSlots[ordinal][param.name],
-                          let property = storedProperties.first(where: { $0.name == param.name })
-                    else { continue }
-                    let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: property.type)
-                    body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
-                    body.append(.copy(from: value, to: slotRef))
-                }
-
-                // Class body: property initializers and `init` blocks in
-                // source order, writing into this entry's slots.
                 ctx.enumEntryStorageSlots = Dictionary(
                     uniqueKeysWithValues: bodyStoredPropertySymbols.compactMap { name, propertySymbol in
                         classSlots[ordinal][name].map { (propertySymbol, $0) }
                     }
                 )
-                emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
+                if let selectedBinding = entryConstructorBindings[ordinal] {
+                    let providedArguments = entry.constructorArgs.map {
+                        lowerExpr($0.expr, shared: shared, emit: &body)
+                    }
+                    emitEnumEntryConstructorInitialization(
+                        constructorSymbol: selectedBinding.chosenCallee,
+                        arguments: entry.constructorArgs,
+                        providedArguments: providedArguments,
+                        binding: selectedBinding,
+                        primaryConstructorSymbol: primaryConstructorSymbol,
+                        classDecl: classDecl,
+                        classSlots: classSlots[ordinal],
+                        storedProperties: storedProperties,
+                        shared: shared,
+                        body: &body
+                    )
+                } else if let primaryConstructorSymbol {
+                    // Preserve lowering for enum declarations produced before
+                    // entry bindings were recorded, while keeping primary
+                    // constructor mapping consistent with Sema when present.
+                    let providedArguments = entry.constructorArgs.map {
+                        lowerExpr($0.expr, shared: shared, emit: &body)
+                    }
+                    emitEnumEntryConstructorInitialization(
+                        constructorSymbol: primaryConstructorSymbol,
+                        arguments: entry.constructorArgs,
+                        providedArguments: providedArguments,
+                        binding: CallBinding(
+                            chosenCallee: primaryConstructorSymbol,
+                            substitutedTypeArguments: [],
+                            parameterMapping: argumentMappings[ordinal]
+                        ),
+                        primaryConstructorSymbol: primaryConstructorSymbol,
+                        classDecl: classDecl,
+                        classSlots: classSlots[ordinal],
+                        storedProperties: storedProperties,
+                        shared: shared,
+                        body: &body
+                    )
+                } else {
+                    emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
+                }
                 ctx.enumEntryStorageSlots = [:]
 
                 // Entry body (`A { override val x = ... }`) runs after the
@@ -619,9 +607,6 @@ extension KIRLoweringDriver {
                     body.append(.copy(from: value, to: slotRef))
                 }
 
-                for parameterSymbol in boundParameterSymbols {
-                    ctx.clearLocalValue(for: parameterSymbol)
-                }
                 ctx.clearImplicitReceiver()
             }
 
@@ -745,6 +730,166 @@ extension KIRLoweringDriver {
     /// Inserts guarded enum and companion initialization calls before each
     /// enum entry reference, so entry side effects and companion `init` blocks
     /// run in source access order.
+    private func emitEnumEntryConstructorInitialization(
+        constructorSymbol: SymbolID,
+        arguments: [CallArgument],
+        providedArguments: [KIRExprID],
+        binding: CallBinding,
+        primaryConstructorSymbol: SymbolID?,
+        classDecl: ClassDecl,
+        classSlots: [InternedString: SymbolID],
+        storedProperties: [EnumStoredProperty],
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        guard let signature = sema.symbols.functionSignature(for: constructorSymbol) else { return }
+
+        let isPrimary = constructorSymbol == primaryConstructorSymbol
+        let constructorDeclSite = sema.symbols.symbol(constructorSymbol)?.declSite
+        let secondaryConstructor = classDecl.secondaryConstructors.first {
+            $0.range == constructorDeclSite
+        }
+        let parameters = isPrimary ? classDecl.primaryConstructorParams : secondaryConstructor?.valueParams ?? []
+        let normalized = callSupportLowerer.normalizedCallArguments(
+            providedArguments: providedArguments,
+            callBinding: binding,
+            chosenCallee: constructorSymbol,
+            spreadFlags: arguments.map(\.isSpread),
+            argumentLabels: arguments.map(\.label),
+            sourceArgExprs: arguments.map(\.expr),
+            ast: shared.ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: shared.propertyConstantInitializers,
+            instructions: &body.instructions
+        )
+        var argumentValues = normalized.arguments
+        if argumentValues.count > signature.parameterTypes.count {
+            argumentValues = Array(argumentValues.prefix(signature.parameterTypes.count))
+        }
+        while argumentValues.count < signature.parameterTypes.count {
+            let index = argumentValues.count
+            let type = constructorParameterStorageType(
+                at: index, signature: signature, sema: sema, interner: interner
+            )
+            let value = delegationDefaultValue(for: type, sema: sema)
+            let valueExpr = arena.appendExpr(value, type: type)
+            body.append(.constValue(result: valueExpr, value: value))
+            argumentValues.append(valueExpr)
+        }
+
+        let savedParameterValues = signature.valueParameterSymbols.map { ($0, ctx.localValue(for: $0)) }
+        defer {
+            for (symbol, value) in savedParameterValues {
+                if let value {
+                    ctx.setLocalValue(value, for: symbol)
+                } else {
+                    ctx.clearLocalValue(for: symbol)
+                }
+            }
+        }
+
+        // Enum defaults are evaluated here rather than through the ordinary
+        // constructor's fixed-width ABI mask. This also keeps defaults beyond
+        // bit 63 and defaults that read earlier parameters intact.
+        let suppliedParameters = Set(binding.parameterMapping.values)
+        let isVararg = OverloadResolver.normalizeFlags(
+            signature.valueParameterIsVararg,
+            count: signature.parameterTypes.count
+        )
+        let defaultedParameters = Set(signature.parameterTypes.indices.filter { index in
+            !suppliedParameters.contains(index)
+                && (!isVararg[index] || parameters.indices.contains(index) && parameters[index].defaultValue != nil)
+        })
+        for (index, value) in argumentValues.enumerated() where !defaultedParameters.contains(index) {
+            guard signature.valueParameterSymbols.indices.contains(index) else { continue }
+            ctx.setLocalValue(value, for: signature.valueParameterSymbols[index])
+        }
+        for index in defaultedParameters.sorted() where parameters.indices.contains(index) {
+            let value: KIRExprID
+            if let defaultExpr = parameters[index].defaultValue {
+                value = lowerExpr(defaultExpr, shared: shared, emit: &body)
+            } else {
+                let type = constructorParameterStorageType(
+                    at: index, signature: signature, sema: sema, interner: interner
+                )
+                let defaultValue = delegationDefaultValue(for: type, sema: sema)
+                value = arena.appendExpr(defaultValue, type: type)
+                body.append(.constValue(result: value, value: defaultValue))
+            }
+            argumentValues[index] = value
+            if signature.valueParameterSymbols.indices.contains(index) {
+                ctx.setLocalValue(value, for: signature.valueParameterSymbols[index])
+            }
+        }
+
+        if isPrimary {
+            for (index, parameter) in parameters.enumerated() where parameter.isProperty {
+                guard argumentValues.indices.contains(index),
+                      let slotSymbol = classSlots[parameter.name],
+                      let property = storedProperties.first(where: { $0.name == parameter.name })
+                else { continue }
+                let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: property.type)
+                body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+                body.append(.copy(from: argumentValues[index], to: slotRef))
+            }
+            emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
+            return
+        }
+
+        guard let secondaryConstructor else {
+            emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
+            return
+        }
+
+        if let delegation = secondaryConstructor.delegationCall,
+           delegation.kind == .this,
+           let delegatedConstructor = sema.bindings.constructorDelegationTarget(for: constructorSymbol)
+        {
+            let delegatedArguments = delegation.args.map {
+                lowerExpr($0.expr, shared: shared, emit: &body)
+            }
+            let delegatedBinding = sema.bindings.constructorDelegationCallBinding(for: constructorSymbol)
+                ?? CallBinding(
+                    chosenCallee: delegatedConstructor,
+                    substitutedTypeArguments: [],
+                    parameterMapping: [:]
+                )
+            emitEnumEntryConstructorInitialization(
+                constructorSymbol: delegatedConstructor,
+                arguments: delegation.args,
+                providedArguments: delegatedArguments,
+                binding: delegatedBinding,
+                primaryConstructorSymbol: primaryConstructorSymbol,
+                classDecl: classDecl,
+                classSlots: classSlots,
+                storedProperties: storedProperties,
+                shared: shared,
+                body: &body
+            )
+        } else {
+            // Constructors without a `this(...)` call reach the superclass
+            // directly, so the class property initializers and init blocks run
+            // before their own body.
+            emitClassBodyInitializers(classDecl: classDecl, shared: shared, body: &body)
+        }
+
+        switch secondaryConstructor.body {
+        case let .block(exprIDs, _):
+            for exprID in exprIDs {
+                _ = lowerExpr(exprID, shared: shared, emit: &body)
+            }
+        case let .expr(exprID, _):
+            _ = lowerExpr(exprID, shared: shared, emit: &body)
+        case .unit:
+            break
+        }
+    }
+
     func insertEnumLazyInitTriggers(arena: KIRArena, sema: SemaModule) {
         let lazyInits = ctx.enumLazyInitByOwner
         var companionLazyInits: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]

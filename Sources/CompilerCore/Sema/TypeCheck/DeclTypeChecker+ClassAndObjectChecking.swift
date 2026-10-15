@@ -142,7 +142,9 @@ extension DeclTypeChecker {
                 if let value = parameter.defaultValue { validateAnnotationDefaultValue(value, ctx: classCtx) }
             }
         }
-        typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        typeCheckEnumEntryConstructorArguments(
+            classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics
+        )
         typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
         let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
@@ -805,10 +807,9 @@ extension DeclTypeChecker {
         return classScope
     }
 
-    /// Type-checks enum entry constructor argument expressions against the
-    /// primary constructor parameter types. Without this the expressions are
-    /// never visited by Sema, so KIR lowering cannot resolve constants or
-    /// produce correct type information for constructor property dispatch.
+    /// Resolves and type-checks each enum entry's constructor call. Without
+    /// this the expressions are never visited by Sema, and lowering cannot
+    /// use the selected constructor or its argument-to-parameter mapping.
     private func typeCheckEnumEntryConstructorArguments(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
@@ -820,45 +821,88 @@ extension DeclTypeChecker {
             return
         }
         let sema = ctx.sema
-        let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
-            .compactMap { sema.symbols.symbol($0) }
-            .first { $0.kind == .constructor }
-        guard let primaryCtorSymbol,
-              let signature = sema.symbols.functionSignature(for: primaryCtorSymbol.id)
-        else {
-            return
+        guard let owner = sema.symbols.symbol(symbol) else { return }
+        let constructorName = ctx.interner.intern("<init>")
+        let constructors = sema.symbols.lookupAll(fqName: owner.fqName + [constructorName]).filter { candidate in
+            sema.symbols.symbol(candidate)?.kind == .constructor
+                && sema.symbols.parentSymbol(for: candidate) == symbol
         }
-
+        let enumType = sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
         let argCtx = ctx.copying(scope: ctx.scope, implicitReceiverType: nil)
         for entry in classDecl.enumEntries {
-            // Share ordinary constructor mapping, including varargs, named
-            // arrays, duplicate labels and omitted/default parameters.
-            guard let mapping = driver.callChecker.parameterMappingForCallArguments(
-                entry.constructorArgs, in: signature, callRange: entry.range, ctx: argCtx
-            ) else {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-0250",
-                    "Invalid constructor arguments for enum entry '\(ctx.interner.resolve(entry.name))'",
-                    range: entry.range
-                )
+            let entryFQName = owner.fqName + [entry.name]
+            guard let entrySymbol = sema.symbols.lookupAll(fqName: entryFQName).first(where: { candidate in
+                sema.symbols.symbol(candidate)?.kind == .field
+                    && sema.symbols.parentSymbol(for: candidate) == symbol
+            }) else {
                 continue
             }
-            for (argIndex, arg) in entry.constructorArgs.enumerated() {
-                guard let paramIndex = mapping[argIndex],
-                      let paramType = driver.callChecker.contextualCallArgumentType(
-                          arg, parameterIndex: paramIndex, in: signature, ctx: argCtx
-                      ) else { continue }
-                var locals: LocalBindings = [:]
-                let argType = driver.inferExpr(arg.expr, ctx: argCtx, locals: &locals, expectedType: paramType)
-                driver.emitSubtypeConstraint(
-                    left: argType,
-                    right: paramType,
-                    range: ctx.ast.arena.exprRange(arg.expr),
-                    solver: solver,
-                    sema: sema,
-                    diagnostics: diagnostics
-                )
+
+            // Enum entry arguments are constructor calls in the enum's lexical
+            // scope. Use the same candidate preparation, overload selection,
+            // literal adaptation, and contextual lambda inference as an
+            // ordinary constructor call, then retain its exact mapping for KIR.
+            var locals: LocalBindings = [:]
+            let resolved = inferConstructorDelegationArguments(
+                entry.constructorArgs,
+                candidates: constructors,
+                range: entry.range,
+                targetType: enumType,
+                ctx: argCtx,
+                locals: &locals
+            )
+            guard let chosenCallee = resolved.chosenCallee else {
+                if resolved.diagnostic == nil {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0250",
+                        "Invalid constructor arguments for enum entry '\(ctx.interner.resolve(entry.name))'",
+                        range: entry.range
+                    )
+                }
+                continue
             }
+
+            if let signature = sema.symbols.functionSignature(for: chosenCallee) {
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                for (argumentIndex, argument) in entry.constructorArgs.enumerated() {
+                    guard let parameterIndex = resolved.parameterMapping[argumentIndex],
+                          let contextualType = driver.callChecker.contextualCallArgumentType(
+                              argument, parameterIndex: parameterIndex, in: signature, ctx: argCtx
+                          )
+                    else { continue }
+                    let expectedType = sema.types.substituteTypeParameters(
+                        in: contextualType,
+                        substitution: resolved.substitutedTypeArguments,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    let actualType = driver.inferExpr(
+                        argument.expr, ctx: argCtx, locals: &locals, expectedType: expectedType
+                    )
+                    driver.emitSubtypeConstraint(
+                        left: actualType,
+                        right: expectedType,
+                        range: ctx.ast.arena.exprRange(argument.expr),
+                        solver: solver,
+                        sema: sema,
+                        diagnostics: diagnostics
+                    )
+                }
+            }
+            sema.bindings.bindEnumEntryConstructor(
+                entrySymbol,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: resolved.substitutedTypeArguments
+                        .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                        .map(\.value),
+                    parameterMapping: resolved.parameterMapping,
+                    defaultArgumentOwner: resolved.defaultArgumentOwner
+                )
+            )
         }
     }
 }

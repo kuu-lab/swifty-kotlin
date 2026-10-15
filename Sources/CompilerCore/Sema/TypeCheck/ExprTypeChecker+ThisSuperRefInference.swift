@@ -19,6 +19,12 @@ extension ExprTypeChecker {
         guard let classSymbol = driver.helpers.nominalSymbol(of: receiverType, types: sema.types) else {
             return emitNoSuperclass(id: id, range: range, ctx: ctx)
         }
+        if interfaceQualifier == nil,
+           isEnumEntryMemberBody(classSymbol: classSymbol, ctx: ctx)
+        {
+            sema.bindings.bindExprType(id, type: receiverType)
+            return receiverType
+        }
         if let qualifier = interfaceQualifier {
             return resolveQualifiedSuper(
                 id: id, qualifier: qualifier, classSymbol: classSymbol, range: range, ctx: ctx
@@ -27,6 +33,20 @@ extension ExprTypeChecker {
         return resolveUnqualifiedSuper(
             id: id, classSymbol: classSymbol, receiverType: receiverType, range: range, ctx: ctx
         )
+    }
+
+    private func isEnumEntryMemberBody(classSymbol: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        let symbols = ctx.sema.symbols
+        guard ctx.enclosingClassSymbol == classSymbol,
+              symbols.symbol(classSymbol)?.kind == .enumClass,
+              let currentDeclSymbol = ctx.currentDeclSymbol,
+              let entrySymbol = symbols.parentSymbol(for: currentDeclSymbol),
+              symbols.symbol(entrySymbol)?.kind == .field,
+              symbols.parentSymbol(for: entrySymbol) == classSymbol
+        else {
+            return false
+        }
+        return true
     }
 
     /// Resolves `super<T>` — only direct supertypes (interfaces and classes) are valid per Kotlin spec.
