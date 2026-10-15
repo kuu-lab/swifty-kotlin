@@ -6,7 +6,7 @@
 /// inlining, give every imported body ID a fresh consumer expression while
 /// recovering the concrete non-null primitive results callback invokes need.
 enum ImportedInlineKIRMaterializer {
-    private static let callbackInvokeNames: Set<String> = [
+    private static let callbackInvokeNames: Set<String> = Set([
         "kk_function_invoke",
         "kk_function_invoke_0",
         "kk_function_invoke_2",
@@ -21,7 +21,7 @@ enum ImportedInlineKIRMaterializer {
         "kk_suspend_function_invoke_4",
         "kk_suspend_function_invoke_5",
         "kk_suspend_function_invoke_6",
-    ]
+    ] + (7...22).map { "kk_function_invoke_\($0)" })
 
     static func materialize(
         importedFunctions: inout [SymbolID: KIRFunction],

@@ -447,6 +447,541 @@ public func kk_function_invoke_6(
     return function(arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
 }
 
+private func runtimeInvokeHighArityFunctionValue(
+    _ functionRaw: Int,
+    arguments: [Int],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: arguments, outThrown: outThrown) {
+        return driven
+    }
+    if runtimeFunctionNeedsDispatch(functionRaw) {
+        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: arguments.count, outThrown: outThrown) else {
+            return 0
+        }
+        return runtimeInvokeHighArityFunctionPointer(
+            pair.fnPtr, closureRaw: pair.closureRaw, arguments: arguments, outThrown: outThrown
+        )
+    }
+    return runtimeInvokeHighArityFunctionPointer(
+        functionRaw, closureRaw: nil, arguments: arguments, outThrown: outThrown
+    )
+}
+
+private func runtimeInvokeHighArityFunctionPointer(
+    _ functionRaw: Int,
+    closureRaw: Int?,
+    arguments: [Int],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if let closureRaw {
+        switch arguments.count {
+
+        case 7:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint7.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], outThrown)
+
+        case 8:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint8.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], outThrown)
+
+        case 9:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint9.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], outThrown)
+
+        case 10:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint10.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], outThrown)
+
+        case 11:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint11.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], outThrown)
+
+        case 12:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint12.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], outThrown)
+
+        case 13:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint13.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], outThrown)
+
+        case 14:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint14.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], outThrown)
+
+        case 15:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint15.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], outThrown)
+
+        case 16:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint16.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], outThrown)
+
+        case 17:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint17.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], outThrown)
+
+        case 18:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint18.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], outThrown)
+
+        case 19:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint19.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], outThrown)
+
+        case 20:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint20.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], arguments[19], outThrown)
+
+        case 21:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint21.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], arguments[19], arguments[20], outThrown)
+
+        case 22:
+            let function = unsafeBitCast(functionRaw, to: KKClosureFunctionEntryPoint22.self)
+            return function(closureRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], arguments[19], arguments[20], arguments[21], outThrown)
+
+        default:
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "Unsupported function invocation arity: \(arguments.count)"
+            )
+            return 0
+        }
+    }
+    switch arguments.count {
+
+    case 7:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint7.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], outThrown)
+
+    case 8:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint8.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], outThrown)
+
+    case 9:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint9.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], outThrown)
+
+    case 10:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint10.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], outThrown)
+
+    case 11:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint11.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], outThrown)
+
+    case 12:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint12.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], outThrown)
+
+    case 13:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint13.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], outThrown)
+
+    case 14:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint14.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], outThrown)
+
+    case 15:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint15.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], outThrown)
+
+    case 16:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint16.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], outThrown)
+
+    case 17:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint17.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], outThrown)
+
+    case 18:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint18.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], outThrown)
+
+    case 19:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint19.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], outThrown)
+
+    case 20:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint20.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], arguments[19], outThrown)
+
+    case 21:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint21.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], arguments[19], arguments[20], outThrown)
+
+    case 22:
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint22.self)
+        return function(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], arguments[6], arguments[7], arguments[8], arguments[9], arguments[10], arguments[11], arguments[12], arguments[13], arguments[14], arguments[15], arguments[16], arguments[17], arguments[18], arguments[19], arguments[20], arguments[21], outThrown)
+
+    default:
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "Unsupported function invocation arity: \(arguments.count)"
+        )
+        return 0
+    }
+}
+
+@_cdecl("kk_function_invoke_7")
+public func kk_function_invoke_7(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_8")
+public func kk_function_invoke_8(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_9")
+public func kk_function_invoke_9(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_10")
+public func kk_function_invoke_10(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_11")
+public func kk_function_invoke_11(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_12")
+public func kk_function_invoke_12(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_13")
+public func kk_function_invoke_13(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_14")
+public func kk_function_invoke_14(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_15")
+public func kk_function_invoke_15(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_16")
+public func kk_function_invoke_16(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_17")
+public func kk_function_invoke_17(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ arg17: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_18")
+public func kk_function_invoke_18(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ arg17: Int,
+    _ arg18: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_19")
+public func kk_function_invoke_19(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ arg17: Int,
+    _ arg18: Int,
+    _ arg19: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_20")
+public func kk_function_invoke_20(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ arg17: Int,
+    _ arg18: Int,
+    _ arg19: Int,
+    _ arg20: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_21")
+public func kk_function_invoke_21(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ arg17: Int,
+    _ arg18: Int,
+    _ arg19: Int,
+    _ arg20: Int,
+    _ arg21: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21], outThrown: outThrown)
+}
+
+@_cdecl("kk_function_invoke_22")
+public func kk_function_invoke_22(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ arg7: Int,
+    _ arg8: Int,
+    _ arg9: Int,
+    _ arg10: Int,
+    _ arg11: Int,
+    _ arg12: Int,
+    _ arg13: Int,
+    _ arg14: Int,
+    _ arg15: Int,
+    _ arg16: Int,
+    _ arg17: Int,
+    _ arg18: Int,
+    _ arg19: Int,
+    _ arg20: Int,
+    _ arg21: Int,
+    _ arg22: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22], outThrown: outThrown)
+}
+
 @_cdecl("kk_function_create_0")
 public func kk_function_create_0(
     _ bodyRaw: Int,

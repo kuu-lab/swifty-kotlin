@@ -58,7 +58,7 @@ extension CallLowerer {
            let propertyType = sema.symbols.propertyType(for: property),
            let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
            let signature = sema.symbols.functionSignature(for: chosen),
-           signature.parameterTypes.count <= 5,
+           signature.parameterTypes.count <= 22,
            sema.symbols.externalLinkName(for: chosen)?.hasPrefix("kk_function_invoke") == true {
             let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
             if let function = lowerStoredMemberPropertyReadValue(
