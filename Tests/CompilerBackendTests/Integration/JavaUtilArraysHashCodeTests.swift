@@ -129,8 +129,8 @@ struct JavaUtilArraysHashCodeTests {
                     .appendingPathComponent(UUID().uuidString).path,
                 emit: .executable,
                 target: defaultTargetTriple(),
-                stdlibLibraryPath: stdlibArtifact,
                 includeStdlib: fromSource,
+                stdlibLibraryPath: stdlibArtifact,
                 allowDefaultStdlibLibrary: false
             ))
             #expect(result.exitCode != 0)
