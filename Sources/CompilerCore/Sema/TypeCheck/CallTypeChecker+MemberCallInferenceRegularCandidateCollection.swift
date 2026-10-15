@@ -46,9 +46,15 @@ extension CallTypeChecker {
             // Class-name receiver: only companion members are valid targets.
             // Search from the companion, rather than the owner class, so its
             // inherited members are included without exposing owner instances.
-            if let ownerNominal = classNameReceiverNominalSymbol,
-               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
-            {
+            let classNameReceiverCompanionSymbol: SymbolID? = {
+                guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
+                if let companion = sema.symbols.companionObjectSymbol(for: ownerNominal) {
+                    return companion
+                }
+                guard let actualOwner = sema.symbols.actualSymbol(for: ownerNominal) else { return nil }
+                return sema.symbols.companionObjectSymbol(for: actualOwner)
+            }()
+            if let companionSymbol = classNameReceiverCompanionSymbol {
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
                 // Try companion property access when no arguments are provided
