@@ -199,7 +199,7 @@ extension DeclTypeChecker {
                 implicitReceiverType: enumType,
                 currentDeclSymbol: entrySymbol,
                 enclosingClassSymbol: enumSymbol
-            )
+            ).withEnumEntrySuperContext(ownerSymbol: enumSymbol, type: enumType)
             typeCheckClassLikeMembers(
                 memberFunctions: entry.memberFunctions,
                 memberProperties: entry.memberProperties,

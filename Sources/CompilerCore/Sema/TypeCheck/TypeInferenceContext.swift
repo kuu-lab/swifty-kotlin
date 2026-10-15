@@ -84,6 +84,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     var flowState: DataFlowState
     let currentFileID: FileID
     var currentDeclSymbol: SymbolID?
+    /// The direct super receiver synthesized for enum-entry member bodies.
+    /// Entry overrides have the enum instance as `this`, while their implicit
+    /// `super` receiver is the enum class itself.
+    var enumEntrySuperContext: (ownerSymbol: SymbolID, type: TypeID)?
     /// When set, the symbol of the property/val whose initializer expression is
     /// currently being type-checked. A bare name reference that resolves back to
     /// this same symbol is a self-referential read before the property has ever
@@ -253,6 +257,12 @@ struct TypeInferenceContext: CustomStringConvertible {
 
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
         var copy = self; copy.currentDeclSymbol = newSymbol; return copy
+    }
+
+    func withEnumEntrySuperContext(ownerSymbol: SymbolID, type: TypeID) -> TypeInferenceContext {
+        var copy = self
+        copy.enumEntrySuperContext = (ownerSymbol: ownerSymbol, type: type)
+        return copy
     }
 
     func with(initializingPropertySymbol newSymbol: SymbolID?) -> TypeInferenceContext {
