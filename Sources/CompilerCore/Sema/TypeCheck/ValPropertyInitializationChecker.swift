@@ -321,7 +321,7 @@ final class ValPropertyInitializationChecker {
             walkLoop(body: body, condition: nil, label: label, atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
         case let .forDestructuringExpr(_, iterable, body, _):
             visit(iterable)
-            walkLoop(body: body, condition: nil, label: nil, atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
+            walkLoop(body: body, condition: nil, label: ast.arena.loopLabel(for: id), atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
         case let .tryExpr(body, catches, finallyExpr, _):
             var attempted = branch(body, from: entry)
             // Exceptions may happen before any write in the try body. Preserve

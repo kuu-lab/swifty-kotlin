@@ -528,7 +528,7 @@ final class ControlFlowTypeChecker {
             case .forDestructuringExpr(_, let iterable, let body, _):
                 if visit(iterable, loopLabelStack: loopLabelStack) { return true }
                 var nestedStack = loopLabelStack
-                nestedStack.append(nil)
+                nestedStack.append(ast.arena.loopLabel(for: exprID))
                 return visit(body, loopLabelStack: nestedStack)
             case .ifExpr(let condition, let thenExpr, let elseExpr, _):
                 if visit(condition, loopLabelStack: loopLabelStack) { return true }
