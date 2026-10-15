@@ -551,6 +551,7 @@ extension OverloadResolver {
         let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
         var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
+            guard explicitArg != TypeID.invalid else { continue }
             let typeParamSymbol = aliasConstructor?.typeParameterSymbols[index]
                 ?? signature.typeParameterSymbols[typeArgOffset + index]
             if let typeVar = typeVarBySymbol[typeParamSymbol] {
@@ -1209,7 +1210,10 @@ extension OverloadResolver {
                case .functionType = typeSystem.kind(of: argType),
                let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
             {
-                constraintParameterType = typeSystem.make(.functionType(samFunction))
+                constraintParameterType = typeSystem.withNullability(
+                    typeSystem.nullability(of: paramType),
+                    for: typeSystem.make(.functionType(samFunction))
+                )
             } else {
                 constraintParameterType = paramType
             }

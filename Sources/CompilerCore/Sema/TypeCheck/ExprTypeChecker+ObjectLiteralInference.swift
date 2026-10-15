@@ -39,11 +39,7 @@ extension ExprTypeChecker {
             ctx: ctx,
             locals: &locals
         )
-        let objectType = sema.types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
+        let objectType = objectLiteralType(for: objectSymbol, sema: sema)
         sema.bindings.bindExprType(id, type: objectType)
         return objectType
     }
@@ -233,17 +229,66 @@ extension ExprTypeChecker {
         )
 
         let objectSymbolFQName = fqNamePrefix + [objectDecl.name]
-        let objectType = sema.types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
+        let objectType = objectLiteralType(for: objectSymbol, sema: sema)
         let objectScope = ClassMemberScope(
             parent: ctx.scope,
             symbols: sema.symbols,
             ownerSymbol: objectSymbol,
             thisType: objectType
         )
+        if let compilationContext = driver.compilationContext {
+            DataFlowSemaPhase().collectMemberHeaders(
+                members: MemberDeclarations(
+                    functions: [],
+                    properties: [],
+                    nestedClasses: objectDecl.nestedClasses,
+                    nestedObjects: objectDecl.nestedObjects
+                ),
+                owner: OwnerContext(
+                    fqName: objectSymbolFQName,
+                    symbol: objectSymbol,
+                    type: objectType
+                ),
+                sourceFileID: ctx.currentFileID,
+                ctx: compilationContext,
+                ast: ast,
+                symbols: sema.symbols,
+                types: sema.types,
+                bindings: sema.bindings,
+                scope: objectScope,
+                diagnostics: sema.diagnostics,
+                interner: interner
+            )
+
+            var lexicalEnclosingFQNames: [[InternedString]] = []
+            var lexicalScope: Scope? = ctx.scope
+            while let scope = lexicalScope as? BaseScope {
+                if let memberScope = scope as? ClassMemberScope,
+                   let owner = sema.symbols.symbol(memberScope.owner) {
+                    lexicalEnclosingFQNames.append(owner.fqName)
+                }
+                lexicalScope = scope.parent
+            }
+            var nestedEnclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
+            nestedEnclosingClassScopes.append(objectSymbolFQName)
+            if let sourceFile = ast.file(for: ctx.currentFileID) {
+                for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+                    DataFlowSemaPhase().bindInheritanceEdges(
+                        declID: nestedDeclID,
+                        currentPackage: sourceFile.packageFQName,
+                        imports: sourceFile.imports,
+                        enclosingTypeParameters: [:],
+                        enclosingClassScopes: nestedEnclosingClassScopes,
+                        ast: ast,
+                        symbols: sema.symbols,
+                        bindings: sema.bindings,
+                        types: sema.types,
+                        diagnostics: sema.diagnostics,
+                        interner: interner
+                    )
+                }
+            }
+        }
         for propertySymbol in propertySymbolsByDecl.values {
             objectScope.insert(propertySymbol)
         }
@@ -252,6 +297,7 @@ extension ExprTypeChecker {
             memberFQNamePrefix: objectSymbolFQName,
             objectSymbol: objectSymbol,
             objectType: objectType,
+            classTypeParameterSymbols: sema.types.nominalTypeParameterSymbols(for: objectSymbol),
             objectScope: objectScope,
             ctx: ctx
         )
@@ -306,11 +352,81 @@ extension ExprTypeChecker {
             }
             objectOuterReceiverTypes[index].symbol = classSymbol.id
         }
+        // A nested inner class resolves members through the enclosing object
+        // literal's receiver tower. Keep the owner symbol on this entry so
+        // capture analysis and constructor lowering can materialize that
+        // receiver for the inner class's `$outer` field.
+        objectOuterReceiverTypes.append((label: objectDecl.name, type: objectType, symbol: objectSymbol))
         let objectCtx = ctx.withoutSuspensionContext().copying(
             scope: objectScope,
             implicitReceiverType: objectType,
             enclosingClassSymbol: objectSymbol,
             outerReceiverTypes: objectOuterReceiverTypes
+        )
+
+        // Nested inner-class bodies can read properties from this receiver.
+        // Resolve independent inferred property types first so those reads do
+        // not see the placeholder types used until the normal member pass.
+        driver.declChecker.precheckIndependentObjectLiteralMemberProperties(
+            objectDecl.memberProperties,
+            ctx: objectCtx,
+            initialLocals: outerLocalsSnapshot,
+            solver: driver.solver,
+            diagnostics: sema.diagnostics
+        )
+
+        for nestedClassDeclID in objectDecl.nestedClasses {
+            driver.declChecker.typeCheckNestedClassDecl(
+                declID: nestedClassDeclID,
+                ctx: objectCtx,
+                solver: driver.solver,
+                diagnostics: sema.diagnostics
+            )
+        }
+        for nestedObjectDeclID in objectDecl.nestedObjects {
+            driver.declChecker.typeCheckNestedObjectDecl(
+                nestedObjectDeclID,
+                ctx: objectCtx,
+                solver: driver.solver,
+                diagnostics: sema.diagnostics
+            )
+        }
+
+        // Object-literal declarations are excluded from the eager declaration
+        // passes, so nested nominals need their layouts synthesized here after
+        // their member headers and bodies have been checked.
+        var pendingNestedNominalDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
+        var nestedNominalSymbols: [SymbolID] = []
+        while let nestedDeclID = pendingNestedNominalDecls.popLast() {
+            guard let nestedSymbol = sema.bindings.declSymbols[nestedDeclID],
+                  let nestedDecl = ast.arena.decl(nestedDeclID)
+            else {
+                continue
+            }
+            nestedNominalSymbols.append(nestedSymbol)
+            switch nestedDecl {
+            case let .classDecl(nestedClass):
+                pendingNestedNominalDecls.append(contentsOf: nestedClass.nestedClasses + nestedClass.nestedObjects)
+                if let companionObject = nestedClass.companionObject {
+                    pendingNestedNominalDecls.append(companionObject)
+                }
+            case let .interfaceDecl(nestedInterface):
+                pendingNestedNominalDecls.append(contentsOf: nestedInterface.nestedClasses + nestedInterface.nestedObjects)
+                if let companionObject = nestedInterface.companionObject {
+                    pendingNestedNominalDecls.append(companionObject)
+                }
+            case let .objectDecl(nestedObject):
+                pendingNestedNominalDecls.append(contentsOf: nestedObject.nestedClasses + nestedObject.nestedObjects)
+            default:
+                break
+            }
+        }
+        DataFlowSemaPhase().synthesizeNominalLayouts(
+            for: nestedNominalSymbols,
+            symbols: sema.symbols,
+            types: sema.types,
+            interner: interner,
+            diagnostics: sema.diagnostics
         )
 
         typeCheckLocalNominalMemberProperties(
@@ -655,7 +771,8 @@ extension ExprTypeChecker {
         let interner = ctx.interner
         var initializerLocals = initializerLocals
         for propertyDeclID in memberProperties {
-            guard let propertySymbol = propertySymbolsByDecl[propertyDeclID],
+            guard !driver.precheckedPropertyDecls.contains(propertyDeclID),
+                  let propertySymbol = propertySymbolsByDecl[propertyDeclID],
                   let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else {
@@ -1094,6 +1211,7 @@ extension ExprTypeChecker {
         memberFQNamePrefix: [InternedString],
         objectSymbol: SymbolID,
         objectType: TypeID,
+        classTypeParameterSymbols: [SymbolID] = [],
         objectScope: ClassMemberScope,
         ctx: TypeInferenceContext
     ) -> [DeclID: SymbolID] {
@@ -1240,11 +1358,16 @@ extension ExprTypeChecker {
                     valueParameterSymbols: parameterSymbols,
                     valueParameterHasDefaultValues: functionDecl.valueParams.map(\.hasDefaultValue),
                     valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg),
-                    typeParameterSymbols: typeParamResult.typeParameterSymbols,
-                    reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
-                    typeParameterUpperBoundsList: typeParamResult.typeParameterSymbols.map {
+                    typeParameterSymbols: classTypeParameterSymbols + typeParamResult.typeParameterSymbols,
+                    reifiedTypeParameterIndices: Set(
+                        typeParamResult.reifiedIndices.map { $0 + classTypeParameterSymbols.count }
+                    ),
+                    typeParameterUpperBoundsList: (
+                        classTypeParameterSymbols + typeParamResult.typeParameterSymbols
+                    ).map {
                         sema.symbols.typeParameterUpperBounds(for: $0)
-                    }
+                    },
+                    classTypeParameterCount: classTypeParameterSymbols.count
                 ),
                 for: memberSymbol
             )

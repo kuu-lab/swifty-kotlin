@@ -61,7 +61,7 @@ extension CallTypeChecker {
                         type == sema.types.nullableNothingType ? nil : sema.types.makeNonNullable(type)
                     }
                     : argTypes
-                let elementType = explicitTypeArgs.first
+                let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                     ?? (elementTypes.isEmpty ? sema.types.nothingType : sema.types.lub(elementTypes))
                 let resultType: TypeID
                 if name == "arrayListOf" {
@@ -98,7 +98,7 @@ extension CallTypeChecker {
                         type == sema.types.nullableNothingType ? nil : sema.types.makeNonNullable(type)
                     }
                     : argTypes
-                let elementType = explicitTypeArgs.first
+                let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                     ?? (elementTypes.isEmpty ? sema.types.nothingType : sema.types.lub(elementTypes))
                 let resultType: TypeID
                 if name == "linkedSetOf" {
@@ -144,18 +144,13 @@ extension CallTypeChecker {
                             ?? sema.types.errorType)
                         : type
                 }
-                let keyType: TypeID
-                let valueType: TypeID
-                if explicitTypeArgs.count == 2 {
-                    keyType = explicitTypeArgs[0]
-                    valueType = explicitTypeArgs[1]
-                } else if let inferred = inferSyntheticMapKeyValueTypes(from: pairTypes, ctx: ctx) {
-                    keyType = inferred.keyType
-                    valueType = inferred.valueType
-                } else {
-                    keyType = sema.types.nothingType
-                    valueType = sema.types.nothingType
-                }
+                let inferred = inferSyntheticMapKeyValueTypes(from: pairTypes, ctx: ctx)
+                let keyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+                    ?? inferred?.keyType
+                    ?? sema.types.nothingType
+                let valueType = resolvedExplicitTypeArgument(at: 1, in: explicitTypeArgs)
+                    ?? inferred?.valueType
+                    ?? sema.types.nothingType
                 let resultType: TypeID
                 if name == "mapOf" || name == "emptyMap" {
                     resultType = makeSyntheticMapType(
@@ -329,7 +324,7 @@ extension CallTypeChecker {
             } else {
                 []
             }
-            let constructorElementType = explicitTypeArgs.first
+            let constructorElementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                 ?? expectedCollectionArgs.first
                 ?? (["HashSet", "LinkedHashSet"].contains(resolvedName) ? argTypes.first.flatMap { argumentType in
                     guard case let .classType(argumentClassType) = sema.types.kind(
@@ -358,7 +353,7 @@ extension CallTypeChecker {
                 ?? sema.types.anyType
             switch resolvedName {
             case "ArrayList":
-                let arrayListElementType: TypeID = if let explicit = explicitTypeArgs.first {
+                let arrayListElementType: TypeID = if let explicit = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                     explicit
                 } else if let expected = expectedCollectionArgs.first {
                     expected
@@ -406,11 +401,11 @@ extension CallTypeChecker {
                 return resultType
             case "HashMap", "LinkedHashMap":
                 let inferredMapTypes = inferMapTypeArgumentsFromConstructorArgument(from: argTypes, ctx: ctx)
-                let keyType = explicitTypeArgs.first
+                let keyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                     ?? expectedCollectionArgs.first
                     ?? inferredMapTypes?.keyType
                     ?? sema.types.anyType
-                let valueType = explicitTypeArgs.dropFirst().first
+                let valueType = resolvedExplicitTypeArgument(at: 1, in: explicitTypeArgs)
                     ?? expectedCollectionArgs.dropFirst().first
                     ?? inferredMapTypes?.valueType
                     ?? sema.types.anyType

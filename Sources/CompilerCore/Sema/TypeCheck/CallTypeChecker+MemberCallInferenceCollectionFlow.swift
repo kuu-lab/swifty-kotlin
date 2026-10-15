@@ -295,9 +295,33 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formIntersection(Self.mapCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+        let isPrimitiveOperatorReducerReference: Bool = {
+            guard calleeStr == "reduce",
+                  explicitTypeArgs.isEmpty,
+                  args.count == 1,
+                  let argument = args.first,
+                  !argument.isSpread,
+                  argument.label == nil || argument.label == interner.intern("operation"),
+                  case let .callableRef(receiver?, member, _) = ast.arena.expr(argument.expr),
+                  ast.arena.callableRefReceiverTypeRef(for: argument.expr) == nil,
+                  case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+                  locals[receiverName] == nil,
+                  let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName),
+                  ["plus", "times"].contains(interner.resolve(member))
+            else {
+                return false
+            }
+            switch primitive {
+            case .int, .long, .uint, .ulong, .float, .double:
+                return true
+            case .boolean, .char, .ubyte, .ushort, .byte, .short:
+                return false
+            }
+        }()
         // Explicit or annotated List.reduce calls need ordinary applicability
-        // and distinct S/T types. An unannotated lambda without type arguments
-        // keeps Kotlin's receiver-element input context (S = T).
+        // and distinct S/T types. Unannotated binary lambdas and primitive
+        // operator references without type arguments use the receiver element
+        // context (S = T).
         if calleeStr == "reduce",
            let listOwner = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsListFQName),
            driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
@@ -308,11 +332,18 @@ extension CallTypeChecker {
                   args.count == 1,
                   let argument = args.first,
                   !argument.isSpread,
-                  argument.label == nil || argument.label == interner.intern("operation"),
-                  case let .lambdaLiteral(parameters, _, _, _) = ast.arena.expr(argument.expr),
-                  parameters.count == 2,
-                  ast.arena.lambdaParamTypeRefs(for: argument.expr)?.contains(where: { $0 != nil }) != true
+                  argument.label == nil || argument.label == interner.intern("operation")
             else {
+                return nil
+            }
+            let isUnannotatedBinaryLambda: Bool
+            if case let .lambdaLiteral(parameters, _, _, _) = ast.arena.expr(argument.expr) {
+                isUnannotatedBinaryLambda = parameters.count == 2
+                    && ast.arena.lambdaParamTypeRefs(for: argument.expr)?.contains(where: { $0 != nil }) != true
+            } else {
+                isUnannotatedBinaryLambda = false
+            }
+            guard isUnannotatedBinaryLambda || isPrimitiveOperatorReducerReference else {
                 return nil
             }
             var scopedCandidates = ctx.scope.lookupMergingChain(calleeName)
@@ -387,6 +418,7 @@ extension CallTypeChecker {
                 || isSequenceReceiver
                 || (isIterableIndexFamilyHOF && isIterableIndexReceiver)
                 || (isIterableFilterFamilyHOF && isIterableReceiver)
+                || (calleeStr == "reduce" && isIterableReceiver && isPrimitiveOperatorReducerReference)
                 || (calleeStr == "none" && isIterableReceiver)
                 || (calleeStr == "asSequence" && isIterableReceiver)
                 || ((calleeStr == "runningReduce" || calleeStr == "runningReduceIndexed") && isIterableReceiver))

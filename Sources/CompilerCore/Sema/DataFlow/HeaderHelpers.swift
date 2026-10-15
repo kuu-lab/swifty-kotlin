@@ -564,7 +564,18 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
+        // A source declaration may replace a declaration imported from a
+        // dependency with the same FQName. Only declarations already owned by
+        // this compilation participate in SEMA-0001 redeclaration checks.
+        // Imported library symbols carry `.importedLibrary`; bundled source
+        // declarations do not, so same-module source duplicates still fail.
         let existing = existingByID.values.filter { existing in
+            guard !existing.flags.contains(.importedLibrary) else { return false }
+            // Callable parameters are indexed under `callableFQName + name`.
+            // When a factory shares a name with a class, that encoding can
+            // overlap a class member's FQName even though the parameter does
+            // not occupy the member declaration namespace.
+            guard existing.kind != .valueParameter, existing.kind != .typeParameter else { return false }
             guard let topLevelVisibility, let topLevelFileID else { return true }
             return !symbols.canCoexistAsFilePrivateTopLevelCallable(
                 kind: newKind, visibility: topLevelVisibility, fileID: topLevelFileID, existing: existing

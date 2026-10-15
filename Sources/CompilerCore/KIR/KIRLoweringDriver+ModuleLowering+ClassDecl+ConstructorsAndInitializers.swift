@@ -1090,12 +1090,40 @@ extension KIRLoweringDriver {
             let isPrimaryExpr = arena.appendExpr(.intLiteral(Int64(isPrimary)), type: intType)
             body.append(.constValue(result: isPrimaryExpr, value: .intLiteral(Int64(isPrimary))))
 
+            let constructorInfo = sema.symbols.symbol(ctorSymbol)
+            let jvmVisibilityOrdinal: Int
+            if constructorInfo?.flags.contains(.constructorVisibilityInherited) == true {
+                jvmVisibilityOrdinal = 0
+            } else {
+                switch constructorInfo?.visibility ?? .public {
+                case .public, .internal:
+                    jvmVisibilityOrdinal = 0
+                case .protected:
+                    jvmVisibilityOrdinal = 1
+                case .private:
+                    jvmVisibilityOrdinal = 3
+                }
+            }
+            let jvmVisibilityExpr = arena.appendExpr(.intLiteral(Int64(jvmVisibilityOrdinal)), type: intType)
+            body.append(.constValue(result: jvmVisibilityExpr, value: .intLiteral(Int64(jvmVisibilityOrdinal))))
+
             let registrationResult = arena.appendTemporary(type: intType)
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("__kk_kconstructor_create"),
-                arguments: [ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr, visibilityExpr, kclassExpr],
+                arguments: [
+                    ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr,
+                    visibilityExpr, kclassExpr,
+                ],
                 result: registrationResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_kconstructor_set_jvm_visibility"),
+                arguments: [registrationResult, jvmVisibilityExpr],
+                result: nil,
                 canThrow: false,
                 thrownResult: nil
             ))
@@ -1250,7 +1278,7 @@ extension KIRLoweringDriver {
     ) {
         guard let ownerInfo = sema.symbols.symbol(ownerSymbol) else { return }
         let intType = sema.types.intType
-        let childSymbols = sema.symbols.children(ofFQName: ownerInfo.fqName)
+        let childSymbols = sema.symbols.children(of: ownerSymbol)
         for childID in childSymbols {
             guard let childSym = sema.symbols.symbol(childID) else { continue }
             let isDataClassComponent = isSyntheticDataClassComponent(

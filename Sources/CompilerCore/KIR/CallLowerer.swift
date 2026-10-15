@@ -5,12 +5,12 @@ final class CallLowerer {
     /// Returns nil when the layout is unknown or a slot does not fit in the mask, in which case
     /// the runtime keeps comparing every stored slot.
     func dataClassFieldSlotMask(owner ownerSymbol: SymbolID, sema: SemaModule) -> Int64? {
-        guard let owner = sema.symbols.symbol(ownerSymbol),
+        guard sema.symbols.symbol(ownerSymbol) != nil,
               let fieldOffsets = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets
         else {
             return nil
         }
-        let children = sema.symbols.children(ofFQName: owner.fqName).compactMap { sema.symbols.symbol($0) }
+        let children = sema.symbols.children(of: ownerSymbol).compactMap { sema.symbols.symbol($0) }
         guard let primaryConstructor = children.filter({ $0.kind == .constructor }).min(by: { lhs, rhs in
             let lhsOffset = lhs.declSite?.start.offset ?? Int.max
             let rhsOffset = rhs.declSite?.start.offset ?? Int.max

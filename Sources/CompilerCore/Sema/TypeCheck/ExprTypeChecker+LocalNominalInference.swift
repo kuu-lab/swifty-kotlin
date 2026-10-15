@@ -33,11 +33,7 @@ extension ExprTypeChecker {
                 ctx: ctx,
                 locals: &locals
             )
-            let objectType = sema.types.make(.classType(ClassType(
-                classSymbol: objectSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
+            let objectType = objectLiteralType(for: objectSymbol, sema: sema)
             // A named `object`'s name is both a type name and the singleton
             // value name, so it registers in the lexical scope as well —
             // `val x: Local` resolves, while `Local` in expression position

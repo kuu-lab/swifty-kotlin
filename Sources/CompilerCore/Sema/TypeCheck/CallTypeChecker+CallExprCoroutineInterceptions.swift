@@ -158,7 +158,7 @@ extension CallTypeChecker {
            args.count == 1,
            !isSuspendCoroutineShadowed
         {
-            let resultType = explicitTypeArgs.first ?? expectedType ?? sema.types.anyType
+            let resultType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? expectedType ?? sema.types.anyType
             let continuationType: TypeID = if let continuationSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCoroutinesFQName + [knownNames.continuation]) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: continuationSymbol,
@@ -218,7 +218,7 @@ extension CallTypeChecker {
            calleeName == knownNames.suspendCoroutine,
            args.count == 1
         {
-            let resultType = expectedType ?? explicitTypeArgs.first ?? sema.types.anyType
+            let resultType = expectedType ?? resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
             let continuationType: TypeID = if let continuationSymbol = sema.symbols.lookup(fqName: knownNames.kotlinContinuationFQName) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: continuationSymbol,

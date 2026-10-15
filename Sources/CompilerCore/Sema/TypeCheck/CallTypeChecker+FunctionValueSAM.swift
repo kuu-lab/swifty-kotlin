@@ -7,10 +7,14 @@ extension CallTypeChecker {
         guard let sam = driver.helpers.samFunctionType(for: parameterType, sema: ctx.sema) else {
             return parameterType
         }
+        let expectedFunctionType = ctx.sema.types.withNullability(
+            ctx.sema.types.nullability(of: parameterType),
+            for: ctx.sema.types.make(.functionType(sam))
+        )
         if let type = ctx.sema.bindings.exprType(for: exprID),
            case .functionType = ctx.sema.types.kind(of: type)
         {
-            return ctx.sema.types.make(.functionType(sam))
+            return expectedFunctionType
         }
         if case let .call(callee, _, _, _) = ctx.ast.arena.expr(exprID),
            case let .nameRef(name, _) = ctx.ast.arena.expr(callee)
@@ -23,7 +27,7 @@ extension CallTypeChecker {
                 if case .functionType = ctx.sema.types.kind(of: type) { return true }
                 return false
             }) {
-                return ctx.sema.types.make(.functionType(sam))
+                return expectedFunctionType
             }
         }
         return parameterType
@@ -59,7 +63,11 @@ extension CallTypeChecker {
             )
             guard let function = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else { continue }
             let functionType = sema.types.make(.functionType(function))
-            guard sema.types.isSubtype(sourceType, functionType) else { continue }
+            let compatibleFunctionType = sema.types.withNullability(
+                sema.types.nullability(of: interfaceType),
+                for: functionType
+            )
+            guard sema.types.isSubtype(sourceType, compatibleFunctionType) else { continue }
             sema.bindings.markSamConversion(argument.expr)
             sema.bindings.bindSamUnderlyingFunctionType(argument.expr, type: functionType)
             sema.bindings.bindSamInterfaceType(argument.expr, type: interfaceType)

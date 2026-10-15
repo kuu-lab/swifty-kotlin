@@ -91,8 +91,117 @@ extension DataFlowSemaPhase {
             ctx: ctx
         )
 
+        if case let .classDecl(classDecl) = decl,
+           ctx.symbols.symbol(symbol)?.kind == .enumClass {
+            validateEnumAbstractOverrideImplementations(
+                classDecl,
+                ownerSymbol: symbol,
+                ctx: ctx
+            )
+        }
+
         if case let .interfaceDecl(interfaceDecl) = decl {
             validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)
+        }
+    }
+
+    /// Enum entries act as the concrete variants of an enum class. Any
+    /// `abstract override` declared in the enum body must be implemented by
+    /// every entry body.
+    private func validateEnumAbstractOverrideImplementations(
+        _ classDecl: ClassDecl,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard let owner = ctx.symbols.symbol(ownerSymbol) else { return }
+        let ownerName = owner.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
+
+        for memberDeclID in classDecl.memberFunctions {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  case let .funDecl(memberFunction) = memberDecl,
+                  memberFunction.modifiers.contains(.abstract),
+                  memberFunction.modifiers.contains(.override),
+                  let memberSymbol = ctx.bindings.declSymbols[memberDeclID],
+                  let memberSignature = ctx.symbols.functionSignature(for: memberSymbol)
+            else {
+                continue
+            }
+
+            for entry in classDecl.enumEntries {
+                let implemented = entry.memberFunctions.contains { entryMemberDeclID in
+                    guard let entryMemberDecl = ctx.ast.arena.decl(entryMemberDeclID),
+                          case let .funDecl(entryFunction) = entryMemberDecl,
+                          entryFunction.name == memberFunction.name,
+                          entryFunction.modifiers.contains(.override),
+                          let entryMemberSymbol = ctx.bindings.declSymbols[entryMemberDeclID],
+                          let entrySignature = ctx.symbols.functionSignature(for: entryMemberSymbol),
+                          let entryOwner = ctx.symbols.parentSymbol(for: entryMemberSymbol),
+                          entrySignature.receiverType == memberSignature.receiverType,
+                          entrySignature.isSuspend == memberSignature.isSuspend,
+                          methodUpperBoundsMatch(
+                              source: entrySignature,
+                              target: memberSignature,
+                              sourceOwner: entryOwner,
+                              targetOwner: ownerSymbol,
+                              instanceOwner: ownerSymbol,
+                              types: ctx.types
+                          ),
+                          methodIdentityParameterTypesMatch(
+                              candidateParameterTypes: alignedMethodParameterTypes(
+                                  source: entrySignature,
+                                  target: memberSignature,
+                                  sourceOwner: entryOwner,
+                                  instanceOwner: ownerSymbol,
+                                  types: ctx.types
+                              ),
+                              interfaceParameterTypes: memberSignature.parameterTypes,
+                              types: ctx.types
+                          ),
+                          entrySignature.contextReceiverTypes.count == memberSignature.contextReceiverTypes.count
+                    else {
+                        return false
+                    }
+
+                    let sourceParameters = Array(entrySignature.typeParameterSymbols.dropFirst(
+                        entrySignature.classTypeParameterCount
+                    ))
+                    let targetParameters = Array(memberSignature.typeParameterSymbols.dropFirst(
+                        memberSignature.classTypeParameterCount
+                    ))
+                    let alignedContextReceivers = entrySignature.contextReceiverTypes.map { receiverType in
+                        let specialized = specializeMethodOwnerType(
+                            receiverType,
+                            owner: ctx.symbols.parentSymbol(for: entryMemberSymbol),
+                            instanceOwner: ownerSymbol,
+                            types: ctx.types
+                        )
+                        return alphaAlignedMethodType(
+                            specialized,
+                            sourceParameters: sourceParameters,
+                            targetParameters: targetParameters,
+                            types: ctx.types
+                        )
+                    }
+                    guard methodIdentityParameterTypesMatch(
+                        candidateParameterTypes: alignedContextReceivers,
+                        interfaceParameterTypes: memberSignature.contextReceiverTypes,
+                        types: ctx.types
+                    ) else {
+                        return false
+                    }
+                    guard entryFunction.returnType != nil, memberFunction.returnType != nil else {
+                        return true
+                    }
+                    return ctx.types.isSubtype(entrySignature.returnType, memberSignature.returnType)
+                }
+
+                guard !implemented else { continue }
+                ctx.diagnostics.error(
+                    "KSWIFTK-SEMA-ABSTRACT",
+                    "Enum entry '\(ownerName).\(ctx.interner.resolve(entry.name))' must override abstract member '\(ctx.interner.resolve(memberFunction.name))'.",
+                    range: entry.range
+                )
+            }
         }
     }
 
@@ -598,7 +707,9 @@ extension DataFlowSemaPhase {
         if memberMeta.hasAbstract {
             guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
 
-            if !ownerSym.flags.contains(.abstractType) {
+            // Enum classes may re-abstract an inherited member because each
+            // enum entry can provide its own concrete implementation.
+            if !ownerSym.flags.contains(.abstractType), ownerSym.kind != .enumClass {
                 let memberName = ctx.interner.resolve(memberMeta.name)
                 let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
                 ctx.diagnostics.error(

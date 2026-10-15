@@ -48,6 +48,33 @@ struct CodegenBackendEnumInterfaceMethodDispatchTests {
     }
 
     @Test
+    func testAbstractOverrideImplementedByEnumEntries() throws {
+        let source = """
+        interface T { fun f(): String }
+        enum class E : T {
+            ENTRY { override fun f() = "entry" },
+            OTHER { override fun f() = "other" };
+            abstract override fun f(): String
+        }
+        fun main() {
+            println(E.ENTRY.f())
+            println(E.OTHER.f())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumAbstractOverrideEntries",
+            expected:
+                """
+                entry
+                other
+                """
+                + "\n"
+        )
+    }
+
+    @Test
     func testEnumReachesInterfaceDefaultsLambdasAndCallableReferences() throws {
         let source = """
         interface J {
