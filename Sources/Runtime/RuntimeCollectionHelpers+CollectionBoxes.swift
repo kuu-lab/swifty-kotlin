@@ -26,7 +26,6 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
-    runtimeRegisterReadOnlyMapEntrySetValue(raw)
     return raw
 }
 
@@ -35,7 +34,6 @@ func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
     let raw = runtimePairNew(firstValue: key, secondValue: value)
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
-    runtimeRegisterReadOnlyMapEntrySetValue(raw)
     return raw
 }
 
@@ -96,19 +94,6 @@ private func runtimeRegisterMutableMapEntryMethods(_ raw: Int) {
     // MutableEntry owns setValue (slot 0); inherited getters stay on Map.Entry.
     _ = kk_object_register_itable_iface(raw, Int(mutableMapEntryRuntimeTypeID), 1)
     _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(runtimeMutableMapEntrySetValue, to: Int.self))
-}
-
-// Read-only entries satisfy `is MutableEntry` on the JVM (both erase to
-// java.util.Map.Entry), so they carry the MutableEntry itable with a setter
-// that throws UOE, mirroring AbstractMap.SimpleImmutableEntry.
-private let runtimeReadOnlyMapEntrySetValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: "Map.Entry is read-only")
-    return runtimeNullSentinelInt
-}
-
-private func runtimeRegisterReadOnlyMapEntrySetValue(_ raw: Int) {
-    _ = kk_object_register_itable_iface(raw, Int(mutableMapEntryRuntimeTypeID), 1)
-    _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(runtimeReadOnlyMapEntrySetValue, to: Int.self))
 }
 
 @inline(__always)
