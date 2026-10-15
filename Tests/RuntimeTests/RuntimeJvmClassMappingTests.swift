@@ -77,4 +77,66 @@ struct RuntimeJvmClassMappingTests {
         _ = runtimeReleaseObject(enclosingClass)
         _ = runtimeReleaseObject(functionValue)
     }
+
+    @Test func javaClassToStringUsesJvmNameAndKeepsKClassRendering() {
+        let value = runtimeMakeStringRaw("value")
+        let javaClass = __kk_any_javaClass(value)
+        _ = runtimeReleaseObject(value)
+
+        #expect(runtimeJavaClassToStringText(javaClass) == "class java.lang.String")
+        #expect(runtimeRenderAnyForPrint(javaClass) == "class java.lang.String")
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_class_toString(javaClass))) == "class java.lang.String")
+        #expect(runtimeRenderAnyForPrint(__kk_class_kotlin(javaClass)) == "class kotlin.String")
+    }
+
+    @Test func arrayKClassToStringKeepsKotlinQualifiedName() {
+        let name = "kotlin.IntArray"
+        let typeToken = runtimeNominalTypeToken(runtimeStableNominalTypeID(fqName: name))
+        let kclass = RuntimeKClassBox(typeToken: typeToken, nameHint: runtimeMakeStringRaw(name))
+        #expect(runtimeKClassToString(kclass) == "class kotlin.IntArray")
+    }
+
+    @Test func javaClassToStringRecognizesRuntimeCollectionImplementations() {
+        let elements = [kk_box_int(1), kk_box_int(7), kk_box_int(53)]
+        let set = registerRuntimeObject(RuntimeSetBox(elements: elements))
+        let list = registerRuntimeObject(RuntimeListBox(elements: elements))
+        let map = registerRuntimeObject(RuntimeMapBox(keys: elements, values: elements))
+        defer {
+            _ = runtimeReleaseObject(set)
+            _ = runtimeReleaseObject(list)
+            _ = runtimeReleaseObject(map)
+        }
+
+        let setClass = __kk_any_javaClass(set)
+        let listClass = __kk_any_javaClass(list)
+        let mapClass = __kk_any_javaClass(map)
+        defer {
+            _ = runtimeReleaseObject(setClass)
+            _ = runtimeReleaseObject(listClass)
+            _ = runtimeReleaseObject(mapClass)
+        }
+
+        #expect(runtimeJavaClassToStringText(setClass) == "class java.util.LinkedHashSet")
+        #expect(runtimeJavaClassToStringText(listClass) == "class java.util.Arrays$ArrayList")
+        #expect(runtimeJavaClassToStringText(mapClass) == "class java.util.LinkedHashMap")
+    }
+
+    @Test func primitiveJavaClassToStringUsesPrimitiveNames() {
+        let cases: [(Int, String)] = [
+            (Int(RuntimeTypeTokenEncoding.booleanBase), "boolean"),
+            (Int(RuntimeTypeTokenEncoding.byteBase), "byte"),
+            (Int(RuntimeTypeTokenEncoding.shortBase), "short"),
+            (Int(RuntimeTypeTokenEncoding.intBase), "int"),
+            (Int(RuntimeTypeTokenEncoding.longBase), "long"),
+            (Int(RuntimeTypeTokenEncoding.charBase), "char"),
+            (Int(RuntimeTypeTokenEncoding.floatBase), "float"),
+            (Int(RuntimeTypeTokenEncoding.doubleBase), "double"),
+            (Int(RuntimeTypeTokenEncoding.nullBase), "void"),
+        ]
+        for (token, expected) in cases {
+            let javaClass = __kk_kclass_java_primitive_type(__kk_kclass_create(token, 0))
+            #expect(runtimeJavaClassToStringText(javaClass) == expected)
+            #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_class_toString(javaClass))) == expected)
+        }
+    }
 }

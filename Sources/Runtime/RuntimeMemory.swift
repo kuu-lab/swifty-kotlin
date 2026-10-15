@@ -99,12 +99,22 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     let nameHint: Int
     let className: String?
     let enclosingClassName: String?
+    let displayText: String
 
-    init(typeToken: Int, nameHint: Int = 0, className: String? = nil, enclosingClassName: String? = nil) {
+    init(
+        typeToken: Int,
+        nameHint: Int = 0,
+        className: String? = nil,
+        enclosingClassName: String? = nil,
+        displayText: String? = nil
+    ) {
         self.typeToken = typeToken
         self.nameHint = nameHint
         self.className = className
         self.enclosingClassName = enclosingClassName
+        self.displayText = displayText
+            ?? className.map { "class \($0)" }
+            ?? runtimeJavaClassDisplayText(receiverRaw: 0, typeToken: typeToken, nameHint: nameHint)
     }
 }
 
@@ -120,10 +130,23 @@ public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
         RuntimeJavaClassBox(
             typeToken: classifier.typeToken,
             nameHint: classifier.nameHint,
-            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw)
+            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw),
+            displayText: runtimeJavaClassDisplayText(
+                receiverRaw: receiverRaw,
+                typeToken: classifier.typeToken,
+                nameHint: classifier.nameHint
+            )
         ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
+}
+
+@_cdecl("__kk_class_toString")
+public func __kk_class_toString(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return runtimeMakeStringRaw(box.displayText)
 }
 
 @_cdecl("__kk_class_kotlin")
@@ -173,7 +196,11 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         return cached
     }
     let raw = registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: token, nameHint: box.nameHint),
+        RuntimeJavaClassBox(
+            typeToken: token,
+            nameHint: box.nameHint,
+            displayText: runtimeJavaPrimitiveClassDisplayText(typeToken: token)
+        ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
     let winner = runtimeStorage.withMetadataLock { state -> Int in

@@ -3,6 +3,9 @@ package java.lang
 import java.lang.reflect.Constructor
 import kotlin.internal.KsSymbolName
 
+@KsSymbolName("__kk_class_toString")
+private external fun <T> __classToString(type: Class<T>): String
+
 @KsSymbolName("__kk_assertions_enabled")
 private external fun __assertionsEnabled(): Boolean
 
@@ -36,4 +39,6 @@ public class Class<T> {
     public fun getEnclosingMethod(): java.lang.reflect.Method? = null
 
     public fun getDeclaringClass(): Class<*>? = null
+
+    public override fun toString(): String = __classToString(this)
 }
