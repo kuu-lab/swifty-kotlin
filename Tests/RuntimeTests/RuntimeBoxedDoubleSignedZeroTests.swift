@@ -23,8 +23,10 @@ struct RuntimeBoxedDoubleSignedZeroTests {
                 #expect(kk_unbox_double_nonnull_static(boxed) == raw)
             }
         }
-        #expect(kk_unbox_double(runtimeNullSentinelInt) == 0)
-        #expect(kk_unbox_double_static(runtimeNullSentinelInt) == 0)
+        // Legacy unboxing must also preserve a raw -0.0 word; its bits
+        // cannot be distinguished from the nullable sentinel at this boundary.
+        #expect(kk_unbox_double(runtimeNullSentinelInt) == runtimeNullSentinelInt)
+        #expect(kk_unbox_double_static(runtimeNullSentinelInt) == runtimeNullSentinelInt)
     }
 
     @Test

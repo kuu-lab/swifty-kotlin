@@ -963,6 +963,14 @@ struct RuntimeCoroutineStateTests {
         #expect(result == 0, "Regular throwable should not be CancellationException")
     }
 
+    @Test func testIsCancellationExceptionReturnsFalseForTaggedPrimitiveBox() {
+        let primitive = kk_box_int(20_000)
+        defer { _ = kk_object_release(primitive) }
+
+        #expect(runtimePrimitiveBoxBasePointer(from: primitive) != nil)
+        #expect(kk_is_cancellation_exception(primitive) == 0)
+    }
+
     @Test func testJobCancelStopsLaunchedCoroutine() {
         let entryRaw = unsafeBitCast(
             runtime_test_suspend_cancel_loop as RuntimeTestSuspendEntry,

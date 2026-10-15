@@ -107,6 +107,7 @@ extension ControlFlowTypeChecker {
             var branchTypes: [TypeID] = []
             var covered: Set<InternedString> = []
             var coveredTypeSymbols: Set<SymbolID> = []
+            var negatedTypeCheckTypes: Set<TypeID> = []
             var hasNullCase = false
             var hasTrueCase = false
             var hasFalseCase = false
@@ -214,14 +215,16 @@ extension ControlFlowTypeChecker {
                     // `identifierSymbols` and comparing symbols. Qualified or
                     // computed subjects do not have a local binding either, but
                     // their `is` conditions still cover sealed subclasses.
-                    guard !negated,
-                          checkedExprID == subjectID,
-                          let targetType = sema.bindings.isCheckTargetType(for: conditionID),
-                          let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types)
+                    guard checkedExprID == subjectID,
+                          let targetType = sema.bindings.isCheckTargetType(for: conditionID)
                     else {
                         return
                     }
-                    coveredTypeSymbols.insert(targetNominal)
+                    if negated {
+                        negatedTypeCheckTypes.insert(targetType)
+                    } else if let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types) {
+                        coveredTypeSymbols.insert(targetNominal)
+                    }
 
                 default:
                     break
@@ -406,7 +409,8 @@ extension ControlFlowTypeChecker {
             let summary = WhenBranchSummary(
                 coveredSymbols: covered, hasElse: elseExpr != nil,
                 hasNullCase: hasNullCase, hasTrueCase: hasTrueCase,
-                hasFalseCase: hasFalseCase, coveredTypeSymbols: coveredTypeSymbols
+                hasFalseCase: hasFalseCase, coveredTypeSymbols: coveredTypeSymbols,
+                negatedTypeCheckTypes: negatedTypeCheckTypes
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
             sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)

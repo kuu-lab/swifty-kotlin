@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 
 @Suite
 struct LibMetadataImportIntegrationTests {
@@ -801,6 +802,127 @@ struct LibMetadataImportIntegrationTests {
 
         try assertWinningOwner(searchPaths: [libA.path, libB.path], expectedModule: firstModule, winnerHasExtra: false)
         try assertWinningOwner(searchPaths: [libB.path, libA.path], expectedModule: secondModule, winnerHasExtra: true)
+    }
+
+    @Test(arguments: [false, true])
+    func testSourceDeclarationShadowsImportedLibraryWithSameFQName(indexed: Bool) throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: directory) }
+
+        let library = directory.appendingPathComponent("Dependency.kklib")
+        try fm.createDirectory(at: library, withIntermediateDirectories: true)
+        try """
+        {"formatVersion":1,"moduleName":"Dependency","metadata":"metadata.bin"}
+        """.write(to: library.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        let records = [
+            MetadataRecord(kind: .class, mangledName: "_Dependency_Foo", fqName: "dup.Foo"),
+            MetadataRecord(
+                kind: .constructor,
+                mangledName: "_Dependency_Foo_init",
+                fqName: "dup.Foo.<init>",
+                arity: 1,
+                typeSignature: "F1<I,Ldup.Foo;>"
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_Dependency_Foo_value",
+                fqName: "dup.Foo.value",
+                typeSignature: "I"
+            ),
+        ]
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+        try metadata.write(to: library.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: """
+        package dup
+        public data class Foo(val value: Int)
+        public class CompatibilityProbe
+        """) { sourcePath in
+            try withTemporaryFile(contents: """
+            package elsewhere
+            public class Foo
+            """) { otherPackagePath in
+                let ctx = makeCompilationContext(
+                    inputs: [sourcePath, otherPackagePath],
+                    moduleName: "SourceOverride",
+                    searchPaths: [library.path],
+                    includeStdlib: false
+                )
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+                #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
+
+                let sema = try #require(ctx.sema)
+                let classFQName = ["dup", "Foo"].map(ctx.interner.intern)
+                let classCandidates = sema.symbols.lookupAll(fqName: classFQName).filter {
+                    sema.symbols.symbol($0)?.kind == .class
+                }
+                let sourceClass = try #require(sema.symbols.lookup(fqName: classFQName))
+                let importedClass = try #require(classCandidates.first {
+                    guard let symbol = sema.symbols.symbol($0) else { return false }
+                    return symbol.flags.contains(.importedLibrary)
+                })
+                #expect(classCandidates.count == 2)
+                #expect(sema.symbols.moduleFQN(for: sourceClass) == ctx.interner.intern("SourceOverride"))
+                #expect(sema.symbols.moduleFQN(for: importedClass) == ctx.interner.intern("Dependency"))
+                #expect(sema.symbols.sourceFileID(for: sourceClass) != nil)
+
+                let propertyFQName = ["dup", "Foo", "value"].map(ctx.interner.intern)
+                let sourceProperty = try #require(sema.symbols.lookup(fqName: propertyFQName))
+                #expect(sema.symbols.parentSymbol(for: sourceProperty) == sourceClass)
+                #expect(sema.symbols.lookupAll(fqName: propertyFQName).count == 2)
+            }
+        }
+    }
+
+    @Test func testSourceCoroutineNameShadowsBundledStdlibArtifact() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlib = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        try withTemporaryFile(contents: """
+        package kotlinx.coroutines
+        public data class CoroutineName(val name: String)
+        """) { sourcePath in
+            let ctx = makeCompilationContext(
+                inputs: [sourcePath],
+                moduleName: "CoroutineNameSourceOverride",
+                includeStdlib: false,
+                stdlibLibraryPath: stdlib,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlinx", "coroutines", "CoroutineName"].map(ctx.interner.intern)
+            let classCandidates = sema.symbols.lookupAll(fqName: fqName).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            }
+            let candidateDetails = classCandidates.compactMap { id -> String? in
+                guard let symbol = sema.symbols.symbol(id) else { return nil }
+                let module = sema.symbols.moduleFQN(for: id).map(ctx.interner.resolve) ?? "<none>"
+                let file = sema.symbols.sourceFileID(for: id).map { String($0.rawValue) } ?? "<none>"
+                return "id=\(id.rawValue) flags=\(symbol.flags.rawValue) module=\(module) file=\(file)"
+            }
+            #expect(!ctx.diagnostics.hasError, "diagnostics=\(ctx.diagnostics.diagnostics); candidates=\(candidateDetails)")
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
+            let sourceClass = try #require(sema.symbols.lookup(fqName: fqName))
+            #expect(classCandidates.contains(sourceClass))
+            #expect(sema.symbols.moduleFQN(for: sourceClass) == ctx.interner.intern("CoroutineNameSourceOverride"))
+        }
+    }
+
+    @Test func sameModuleDuplicateClassStillReportsSema0001() throws {
+        try withTemporaryFile(contents: "package dup\npublic class Foo") { firstPath in
+            try withTemporaryFile(contents: "package dup\npublic class Foo") { secondPath in
+                let ctx = makeCompilationContext(
+                    inputs: [firstPath, secondPath],
+                    includeStdlib: false
+                )
+                try runSema(ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+            }
+        }
     }
 }
 #endif

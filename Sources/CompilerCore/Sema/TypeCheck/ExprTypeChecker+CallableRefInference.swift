@@ -115,6 +115,21 @@ extension ExprTypeChecker {
             return result
         }
 
+        // ── REFL-PRIMOP: Boolean::not — primitive unary operator with no
+        // backing member symbol. Keep this callable-reference-only; regular
+        // member and unary-expression resolution retain their existing paths.
+        if let receiver,
+           ast.arena.callableRefReceiverTypeRef(for: id) == nil,
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           locals[receiverName] == nil,
+           let result = inferPrimitiveUnaryOperatorCallableRefExpr(
+               id, receiverName: receiverName, member: member,
+               expectedType: expectedType, range: range, ctx: ctx
+           )
+        {
+            return result
+        }
+
         // ── REFL-003: Type::member — unbound callable reference ─────────
         // When the receiver is a name that refers to a class/interface/enum
         // (not an instance variable), treat it as an unbound member reference.
@@ -153,6 +168,16 @@ extension ExprTypeChecker {
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
             }
+        } else if let receiver,
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+           let local = locals[receiverName],
+           let symbol = sema.symbols.symbol(local.symbol),
+           (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass)
+        {
+            // A local class name also enters LocalBindings so member calls can
+            // resolve. Recognize its classifier symbol; local value receivers
+            // continue to be treated as bound callable-reference receivers.
+            unboundClassType = local.type
         } else if let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
@@ -334,16 +359,19 @@ extension ExprTypeChecker {
             )
         }
         // REFL-CTOR: set when `candidates` were filled with constructor
-        // symbols for a bare `::Foo` reference below. A constructor
+        // symbols for a bare or nested constructor reference below. A constructor
         // signature's `receiverType` field carries the class type for the
         // constructor body's own implicit `this` (MemberHeaderCollection.swift),
         // not a real extension-style receiver -- `callableFunctionType` must
-        // therefore treat it as already "bound" (excluded from the resulting
-        // function type's parameter list) the same way a bound `obj::method`
-        // reference is, or `(Int) -> Foo` would gain a spurious leading `Foo`
-        // parameter.
+        // therefore treat it as already "bound" for ordinary constructors
+        // (excluded from the resulting function type's parameter list) the same
+        // way a bound `obj::method` reference is, or `(Int) -> Foo` would gain
+        // a spurious leading `Foo` parameter. An inner constructor is the
+        // exception: its enclosing instance is the unbound first parameter.
         var isConstructorReference = false
+        var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
+        var unboundMemberPropertyCandidate: (symbol: SymbolID, ownerType: TypeID, type: TypeID)?
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
             // `Any` is represented by a builtin TypeID, while its compiler-provided
@@ -379,16 +407,33 @@ extension ExprTypeChecker {
                     interner: interner
                 )
             }
+            let memberProperty = driver.helpers.lookupMemberProperty(
+                named: member,
+                receiverType: nonNullReceiver,
+                sema: sema
+            )
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
+                if unboundClassType != nil,
+                   let memberProperty,
+                   sema.symbols.extensionPropertyReceiverType(for: memberProperty.symbol) == nil
+                {
+                    unboundMemberPropertyCandidate = (
+                        memberProperty.symbol,
+                        nonNullReceiver,
+                        memberProperty.type
+                    )
+                }
             } else {
                 // Property references use the same inheritance-aware lookup as
                 // ordinary member reads (for example MutableList<Int>::size).
-                if let property = driver.helpers.lookupMemberProperty(
-                    named: member,
-                    receiverType: nonNullReceiver,
-                    sema: sema
-                ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil {
+                if let property = memberProperty,
+                   sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil
+                {
+                    // `lookupMemberProperty` has already substituted the
+                    // receiver's arguments into the property type. Keep that
+                    // specialized value type even for a bound reference, whose
+                    // `ownerType` remains nil to preserve KProperty0 arity.
                     return bindPropertyCallableRef(
                         id,
                         propertySymbol: property.symbol,
@@ -396,7 +441,8 @@ extension ExprTypeChecker {
                         isUnbound: unboundClassType != nil,
                         expectedType: expectedType,
                         sema: sema,
-                        interner: interner
+                        interner: interner,
+                        resolvedPropertyType: property.type
                     )
                 }
                 // REFL-EXTPROP: a package-level extension property (e.g. `val
@@ -425,16 +471,54 @@ extension ExprTypeChecker {
                             sema: sema
                         )
                     }
-                    if let propertySymbol = extensionPropertyCandidates.first {
-                        return bindPropertyCallableRef(
+                    var extensionPropertyReference: (
+                        symbol: SymbolID,
+                        valueType: TypeID,
+                        specialization: ContextualCallableReferenceBinding?
+                    )?
+                    for propertySymbol in extensionPropertyCandidates {
+                        guard let propertyType = sema.symbols.propertyType(for: propertySymbol) else {
+                            continue
+                        }
+                        if unboundClassType != nil {
+                            guard let resolution = resolveExtensionPropertyReferenceType(
+                                propertySymbol,
+                                receiverType: nonNullReceiver,
+                                fallbackPropertyType: propertyType,
+                                sema: sema,
+                                interner: interner
+                            ) else {
+                                continue
+                            }
+                            extensionPropertyReference = (
+                                propertySymbol, resolution.valueType, resolution.specialization
+                            )
+                        } else {
+                            extensionPropertyReference = (propertySymbol, propertyType, nil)
+                        }
+                        break
+                    }
+                    if let extensionPropertyReference {
+                        let resultType = bindPropertyCallableRef(
                             id,
-                            propertySymbol: propertySymbol,
+                            propertySymbol: extensionPropertyReference.symbol,
                             ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                             isUnbound: unboundClassType != nil,
                             expectedType: expectedType,
                             sema: sema,
-                            interner: interner
+                            interner: interner,
+                            resolvedPropertyType: extensionPropertyReference.valueType
                         )
+                        if let specialization = extensionPropertyReference.specialization,
+                           let getter = sema.symbols.extensionPropertyGetterAccessor(
+                               for: extensionPropertyReference.symbol
+                           ) {
+                            bindCallableReferenceBinding(
+                                id, target: getter, specialization: specialization,
+                                range: range, ctx: ctx
+                            )
+                        }
+                        return resultType
                     }
                 }
                 // A same-named non-extension function in a nearer scope must
@@ -474,7 +558,8 @@ extension ExprTypeChecker {
                    unboundClassType != nil,
                    let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
                 {
-                    let nestedClass = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+                    let nestedClasses = sema.symbols.lookupAll(fqName: owner.fqName + [member])
+                    let nestedClass = nestedClasses
                         .compactMap { ctx.cachedSymbol($0) }
                         .first { ($0.kind == .class || $0.kind == .enumClass) && !$0.flags.contains(.innerClass) }
                     if let nestedClass,
@@ -482,6 +567,17 @@ extension ExprTypeChecker {
                     {
                         candidates = ctorCandidates
                         isConstructorReference = true
+                    }
+                    if candidates.isEmpty,
+                       let innerClass = nestedClasses
+                           .compactMap({ ctx.cachedSymbol($0) })
+                           .first(where: { $0.kind == .class && $0.flags.contains(.innerClass) }),
+                       !ctx.filterByVisibility([innerClass.id]).0.isEmpty,
+                       let ctorCandidates = visibleConstructorCandidates(of: innerClass, ctx: ctx)
+                    {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                        unboundInnerConstructorReceiverType = nonNullReceiver
                     }
                 }
             }
@@ -651,15 +747,37 @@ extension ExprTypeChecker {
                     break
                 }
             }
+            if candidates.isEmpty {
+                for nestedID in nestedClasses {
+                    let (visibleNested, _) = ctx.filterByVisibility([nestedID])
+                    guard let nested = ctx.cachedSymbol(nestedID),
+                          nested.kind == .class,
+                          nested.flags.contains(.innerClass),
+                          !nested.flags.contains(.abstractType),
+                          !visibleNested.isEmpty
+                    else { continue }
+                    let constructors = sema.symbols.lookupAll(
+                        fqName: nested.fqName + [interner.intern("<init>")]
+                    )
+                    let (visible, _) = ctx.filterByVisibility(constructors)
+                    if !visible.isEmpty {
+                        candidates = visible
+                        isConstructorReference = true
+                        unboundInnerConstructorReceiverType = unboundClassType
+                        break
+                    }
+                }
+            }
         }
 
         // For unbound type references (Type::member), the receiver is not
-        // bound — it becomes a parameter of the function type.  For bound
-        // references (obj::member), the receiver is captured. A constructor
-        // reference has no receiver at all; see `isConstructorReference`'s
-        // declaration above for why it is folded into the "bound" side here.
+        // bound — it becomes a parameter of the function type. For bound
+        // references (obj::member), the receiver is captured. Ordinary
+        // constructor references have no receiver parameter; inner
+        // constructors use their enclosing instance as that parameter.
         let isBoundReceiver = (receiver != nil && unboundClassType == nil)
-            || isConstructorReference || isImplicitlyBoundMember
+            || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
+            || isImplicitlyBoundMember
 
         // BUG-164: callable references must also support SAM-conversion to a
         // functional interface expected type, the same way lambda literals do.
@@ -672,7 +790,7 @@ extension ExprTypeChecker {
             } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
                 expectedFunctionType = sema.types.make(.functionType(functionType))
                 expectedSamInterfaceType = nil
-            } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+            } else if let samFT = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
                 expectedFunctionType = sema.types.make(.functionType(samFT))
                 expectedSamInterfaceType = expectedType
             } else {
@@ -682,6 +800,65 @@ extension ExprTypeChecker {
         } else {
             expectedFunctionType = nil
             expectedSamInterfaceType = nil
+        }
+
+        let unboundMemberPropertyReferenceType: TypeID? = if let candidate = unboundMemberPropertyCandidate {
+            kPropertyReferenceType(
+                ownerType: candidate.ownerType,
+                valueType: candidate.type,
+                isMutable: sema.symbols.symbol(candidate.symbol)?.flags.contains(.mutable) == true,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        if let candidate = unboundMemberPropertyCandidate,
+           let expectedType,
+           isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner),
+           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           sema.types.isSubtype(propertyReferenceType, expectedType)
+        {
+            return bindPropertyCallableRef(
+                id,
+                propertySymbol: candidate.symbol,
+                ownerType: candidate.ownerType,
+                isUnbound: true,
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                resolvedPropertyType: candidate.type
+            )
+        }
+        if let candidate = unboundMemberPropertyCandidate,
+           let expectedFunctionType,
+           !sema.types.typeContainsAnyTypeParam(expectedFunctionType),
+           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           sema.types.isSubtype(propertyReferenceType, expectedFunctionType),
+           !candidates.contains(where: { driver.inferredReturnFunctions[$0] != nil })
+        {
+            let functionCandidateMatches = candidates.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                return driver.helpers.contextualCallableReferenceBinding(
+                    for: signature,
+                    bindReceiver: false,
+                    expectedFunctionType: expectedFunctionType,
+                    interner: interner,
+                    sema: sema
+                ) != nil
+            }
+            if !functionCandidateMatches {
+                return bindPropertyCallableRef(
+                    id,
+                    propertySymbol: candidate.symbol,
+                    ownerType: candidate.ownerType,
+                    isUnbound: true,
+                    expectedType: expectedType,
+                    sema: sema,
+                    interner: interner,
+                    resolvedPropertyType: candidate.type
+                )
+            }
         }
 
         // `Type::toString` as a `(Type) -> String` value: the zero-argument
@@ -764,6 +941,7 @@ extension ExprTypeChecker {
                     for: signature,
                     bindReceiver: isBoundReceiver,
                     boundReceiver: boundReceiverType.map { (candidate, $0) },
+                    unboundReceiverType: unboundInnerConstructorReceiverType,
                     expectedFunctionType: inputType,
                     interner: interner,
                     sema: sema
@@ -781,10 +959,28 @@ extension ExprTypeChecker {
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
+            unboundReceiverType: unboundInnerConstructorReceiverType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
             sema: sema
         )
+        if chosen == nil,
+           let candidate = unboundMemberPropertyCandidate,
+           let expectedFunctionType,
+           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           sema.types.isSubtype(propertyReferenceType, expectedFunctionType)
+        {
+            return bindPropertyCallableRef(
+                id,
+                propertySymbol: candidate.symbol,
+                ownerType: candidate.ownerType,
+                isUnbound: true,
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                resolvedPropertyType: candidate.type
+            )
+        }
 
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen)
@@ -794,6 +990,7 @@ extension ExprTypeChecker {
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
+                unboundReceiverType: unboundInnerConstructorReceiverType,
                 interner: interner,
                 sema: sema
             )
@@ -829,6 +1026,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        unboundReceiverType: unboundInnerConstructorReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
@@ -848,6 +1046,7 @@ extension ExprTypeChecker {
                           let specialization = driver.helpers.contextualCallableReferenceBinding(
                               for: signature, bindReceiver: isBoundReceiver,
                               boundReceiver: boundReceiverType.map { (chosen, $0) },
+                              unboundReceiverType: unboundInnerConstructorReceiverType,
                               expectedFunctionType: expectedFunctionType,
                               postponedReturnTypeParameter: postponedReturnParameter, interner: interner, sema: sema
                           ) {
@@ -859,6 +1058,7 @@ extension ExprTypeChecker {
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        unboundReceiverType: unboundInnerConstructorReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
                         sema: sema
@@ -891,6 +1091,7 @@ extension ExprTypeChecker {
                        let specialization = driver.helpers.contextualCallableReferenceBinding(
                            for: signature, bindReceiver: true,
                            boundReceiver: boundReceiverType.map { (chosen, $0) },
+                           unboundReceiverType: unboundInnerConstructorReceiverType,
                            expectedFunctionType: nil, interner: interner, sema: sema
                        ) {
                         inferredType = specialization.functionType
@@ -936,7 +1137,7 @@ extension ExprTypeChecker {
                     sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
                 }
             }
-            if unboundClassType != nil && !isConstructorReference {
+            if unboundClassType != nil && (!isConstructorReference || unboundInnerConstructorReceiverType != nil) {
                 sema.bindings.markUnboundCallableRef(id)
             }
             let captures = receiver.map { recv in
@@ -1064,6 +1265,86 @@ extension ExprTypeChecker {
         return expectedType
     }
 
+    /// REFL-PRIMOP: `Boolean::not` has no real member symbol because ordinary
+    /// Boolean negation is a compiler intrinsic. Synthesize its unique
+    /// callable-reference type and record the unary operator for KIR lowering.
+    private func inferPrimitiveUnaryOperatorCallableRefExpr(
+        _ id: ExprID,
+        receiverName: InternedString,
+        member: InternedString,
+        expectedType: TypeID?,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard interner.resolve(member) == "not",
+              let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName)
+        else {
+            return nil
+        }
+        guard case .boolean = primitive else { return nil }
+
+        let booleanType = sema.types.booleanType
+        let functionType = sema.types.make(.functionType(FunctionType(
+            params: [booleanType],
+            returnType: booleanType,
+            isSuspend: false,
+            isCallableReference: true,
+            nullability: .nonNull
+        )))
+        if let expectedType {
+            let constraintTarget = sema.types.nominalFunctionType(for: expectedType).map {
+                sema.types.make(.functionType($0))
+            } ?? expectedType
+            driver.emitSubtypeConstraint(
+                left: functionType,
+                right: constraintTarget,
+                range: range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.sema.diagnostics
+            )
+        }
+
+        sema.bindings.bindPrimitiveUnaryOperatorCallableRef(id, op: .not)
+        sema.bindings.bindCallableRefKind(id, kind: .functionRef)
+        let resultType = expectedType ?? functionType
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    /// Resolves an unbound generic extension property's value type from its
+    /// receiver and retains the accessor specialization for reified calls.
+    private func resolveExtensionPropertyReferenceType(
+        _ propertySymbol: SymbolID,
+        receiverType: TypeID,
+        fallbackPropertyType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (valueType: TypeID, specialization: ContextualCallableReferenceBinding?)? {
+        guard let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol),
+              let signature = sema.symbols.functionSignature(for: getter)
+        else {
+            return (fallbackPropertyType, nil)
+        }
+        guard !signature.typeParameterSymbols.isEmpty else {
+            return (fallbackPropertyType, nil)
+        }
+        guard let specialization = driver.helpers.contextualCallableReferenceBinding(
+            for: signature,
+            bindReceiver: false,
+            boundReceiver: (propertySymbol, receiverType),
+            expectedFunctionType: nil,
+            interner: interner,
+            sema: sema
+        ), case let .functionType(functionType) = sema.types.kind(of: specialization.functionType)
+        else {
+            return nil
+        }
+        return (functionType.returnType, specialization)
+    }
+
     /// Binds an unbound `Type::property` (or, when `ownerType` is `nil`, a
     /// bound `instance::property`) callable reference to `propertySymbol` and
     /// returns its result type. Shared by the FQ-based owner-member lookup
@@ -1184,7 +1465,7 @@ extension ExprTypeChecker {
     ) {
         guard let expectedType,
               resultType == expectedType,
-              let samFunctionType = driver.helpers.samFunctionType(for: expectedType, sema: sema)
+              let samFunctionType = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema)
         else {
             return
         }
@@ -1252,7 +1533,7 @@ extension ExprTypeChecker {
             }
             return expectedType
         }
-        if let samFunctionType = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+        if let samFunctionType = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
             // Same check against the SAM signature for a fun-interface
             // expected type (`useSam(C::v)`): adopt the interface type only
             // when the reference's function view matches the SAM.
@@ -1265,6 +1546,17 @@ extension ExprTypeChecker {
             return expectedType
         }
         guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
+            return inferredType
+        }
+        guard isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner) else {
+            return expectedType
+        }
+        // Keep the reference's actual shape when a concrete KPropertyN
+        // expectation has the wrong arity or type arguments. The enclosing
+        // expression's subtype check then emits the mismatch diagnostic.
+        if sema.types.typeContainsAnyTypeParam(expectedType)
+            || !sema.types.isSubtype(inferredType, expectedType)
+        {
             return inferredType
         }
         return expectedType

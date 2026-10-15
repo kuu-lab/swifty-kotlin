@@ -139,7 +139,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(ownerSymbol, for: invokeSymbol)
-        let runtimeInvoke = arity == 1 || arity > 5 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+        let runtimeInvoke = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
         symbols.setExternalLinkName(runtimeInvoke, for: invokeSymbol)
 
         var parameterTypes: [TypeID] = []

@@ -193,6 +193,29 @@ extension KIRLoweringDriver {
             ctx.setCurrentFunctionSymbol(forwardingSymbol)
 
             var params: [KIRParameter] = []
+            var dispatchReceiverExprID: KIRExprID?
+            // A member extension has the class instance and extension value as separate receivers.
+            if sema.symbols.memberExtensionOwnerSymbol(for: info.interfaceMethodSymbol) != nil,
+               let ownerInfo = sema.symbols.symbol(classSymbol)
+            {
+                let ownerTypeArgs = signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .map { TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(
+                        symbol: $0, nullability: .nonNull
+                    )))) }
+                let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: classSymbol, args: ownerTypeArgs, nullability: .nonNull
+                )))
+                let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: classSymbol)
+                params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                let receiverExpr = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: dispatchReceiverType)
+                ctx.setLocalValue(receiverExpr, for: dispatchReceiverSymbol)
+                ctx.setLocalValue(receiverExpr, for: classSymbol)
+                ctx.setLocalDeclaredType(dispatchReceiverType, for: classSymbol)
+                ctx.setQualifiedThisReceiver(receiverExpr, for: ownerInfo.name)
+                ctx.setCapturedOuterReceiver(receiverExpr, for: classSymbol)
+                dispatchReceiverExprID = receiverExpr
+            }
             if let receiverType = signature.receiverType {
                 let receiverSymbol = callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: forwardingSymbol)
                 params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
@@ -216,10 +239,11 @@ extension KIRLoweringDriver {
 
             let delegateResultID = arena.appendTemporary(type: shared.sema.symbols.propertyType(for: info.fieldSymbol) ?? shared.sema.types.anyType
             )
+            let delegateReceiverExprID = dispatchReceiverExprID ?? ctx.activeImplicitReceiverExprID()!
             body.append(.call(
                 symbol: nil,
                 callee: shared.interner.intern("kk_array_get"),
-                arguments: [ctx.activeImplicitReceiverExprID()!, offsetExpr],
+                arguments: [delegateReceiverExprID, offsetExpr],
                 result: delegateResultID,
                 canThrow: true,
                 thrownResult: nil,
@@ -227,6 +251,14 @@ extension KIRLoweringDriver {
             ))
 
             var callArgExprs: [KIRExprID] = []
+            if sema.symbols.memberExtensionOwnerSymbol(for: info.interfaceMethodSymbol) != nil,
+               let receiverBinding = ctx.activeImplicitReceiver()
+            {
+                callArgExprs.append(arena.appendExpr(
+                    .symbolRef(receiverBinding.symbol),
+                    type: signature.receiverType ?? sema.types.anyType
+                ))
+            }
             for (paramSym, paramType) in zip(signature.valueParameterSymbols, signature.parameterTypes) {
                 callArgExprs.append(arena.appendExpr(.symbolRef(paramSym), type: paramType))
             }
@@ -880,7 +912,10 @@ extension KIRLoweringDriver {
                 guard kirMethodSignatureMatches(
                     source: interfaceSignature, target: signature,
                     sourceOwner: sema.symbols.parentSymbol(for: interfaceMethodSymbol),
-                    targetOwner: owner, instanceOwner: concreteTypeSymbol, types: sema.types
+                    targetOwner: owner, instanceOwner: concreteTypeSymbol,
+                    sourceIsMemberExtension: sema.symbols.memberExtensionOwnerSymbol(for: interfaceMethodSymbol) != nil,
+                    targetIsMemberExtension: sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                    types: sema.types
                 ) else {
                     continue
                 }

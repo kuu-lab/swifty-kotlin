@@ -37,7 +37,7 @@ extension CallTypeChecker {
         {
             let contextOfFQName = [interner.intern("kotlin"), calleeName]
             if let contextOfSymbol = sema.symbols.lookup(fqName: contextOfFQName) {
-                let inferredType = explicitTypeArgs.first
+                let inferredType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                     ?? expectedType
                     ?? (ctx.contextReceiverTypes.count == 1 ? ctx.contextReceiverTypes[0] : sema.types.anyType)
                 driver.helpers.checkOptIn(

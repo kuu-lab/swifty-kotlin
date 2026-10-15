@@ -330,15 +330,18 @@ final class TypeCheckDriver {
 
         // Explicit contracts are declaration metadata. Earlier callers must
         // see them before a later function body happens to be type checked.
+        var registeredInferredReturnDeclarations: Set<DeclID> = []
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declaration in file.topLevelDecls {
+                registerInferredReturnFunctions(
+                    in: declaration,
+                    context: inferCtx,
+                    visited: &registeredInferredReturnDeclarations
+                )
                 guard case let .funDecl(function)? = ast.arena.decl(declaration),
                       let symbol = sema.bindings.declSymbols[declaration]
                 else { continue }
-                if function.returnType == nil, case .expr = function.body {
-                    inferredReturnFunctions[symbol] = (function, inferCtx.with(currentDeclSymbol: symbol))
-                }
                 declChecker.precollectContractEffects(function: function, symbol: symbol, ctx: inferCtx)
             }
         }

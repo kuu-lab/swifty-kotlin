@@ -63,8 +63,13 @@ extension KIRLoweringDriver {
         // state machine at the call site. Such functions compile as standalone CPS
         // coroutines instead, which handle post-suspension control flow correctly.
         let autoInline = shouldAutoInlineFunction(function, parameterTypes: params.map(\.type), types: sema.types)
-        let effectiveInline: Bool = function.isInline || autoInline
-        let isInlineOnly = !function.isInline && autoInline
+        let explicitlyInlineOnly = function.annotations.contains {
+            KnownCompilerAnnotation.inlineOnly.matches($0.name)
+        }
+        let effectiveInline: Bool = function.isInline || autoInline || explicitlyInlineOnly
+        // Kotlin's InlineOnly annotation says this body exists for inlining but
+        // must not become a standalone native entry point.
+        let isInlineOnly = explicitlyInlineOnly || (!function.isInline && autoInline)
         let kirID = arena.appendDecl(.function(KIRFunction(
             symbol: symbol, name: function.name, params: params,
             returnType: returnType, body: Array(body),

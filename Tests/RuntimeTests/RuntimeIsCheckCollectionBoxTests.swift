@@ -57,6 +57,13 @@ struct RuntimeIsCheckCollectionBoxTests {
         #expect(kk_op_is(readonly, token("kotlin.collections.MutableMap.MutableEntry")) == 0)
         #expect(kk_itable_lookup_dynamic(readonly, mutableEntryID, 0) == 0)
         #expect(kk_itable_lookup_dynamic(readonly, entryID, 0) != 0)
+
+        let sourceEntryID = runtimeStableNominalTypeID(fqName: "test.ReadOnlyMapEntry")
+        runtimeRegisterTypeEdge(childTypeID: sourceEntryID, parentTypeID: Int64(entryID))
+        let sourceReadOnly = kk_object_new(0, Int(sourceEntryID))
+        #expect(kk_op_is(sourceReadOnly, token("kotlin.collections.Map.Entry")) == 1)
+        #expect(kk_op_is(sourceReadOnly, token("kotlin.collections.MutableMap.MutableEntry")) == 0)
+        #expect(kk_itable_lookup_dynamic(sourceReadOnly, mutableEntryID, 0) == 0)
     }
 
     private func token(_ name: String) -> Int {

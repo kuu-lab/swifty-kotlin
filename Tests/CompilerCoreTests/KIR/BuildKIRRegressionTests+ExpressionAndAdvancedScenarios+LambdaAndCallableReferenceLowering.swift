@@ -68,7 +68,7 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    @Test(arguments: 0 ... 5)
+    @Test(arguments: [0, 1, 2, 3, 4, 5, 6, 7, 8, 14, 22])
     func testBuildKIRRegistersAritySpecificNominalInvokeABI(arity: Int) throws {
         let runtime = try RuntimeNames()
         let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
@@ -77,24 +77,48 @@ extension BuildKIRRegressionTests {
         let functionTypeParameters = Array(repeating: "Int", count: arity).joined(separator: ", ")
         let functionType = arity == 0 ? "() -> Int" : "(\(functionTypeParameters)) -> Int"
         let values = Array(repeating: "1", count: arity).joined(separator: ", ")
-        let ctx = makeContextFromSource("""
+        let source = """
         fun main() {
             val f: Function\(arity)<\(arguments)> = { \(arrow)7 }
             val arrowValue: \(functionType) = { \(arrow)8 }
-            println(f(\(values)))
-            println(f.invoke(\(values)))
-            println(arrowValue(\(values)))
-            println(arrowValue.invoke(\(values)))
+            f(\(values))
+            f.invoke(\(values))
+            arrowValue(\(values))
+            arrowValue.invoke(\(values))
         }
-        """)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
+            let symbol = try #require(sema.symbols.symbol(owner))
+            let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
+            let linkName = try runtime.functionInvoke(arity: arity)
+            #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+        }
+    }
+
+    @Test(arguments: [1, 2, 22])
+    func testBuildKIRUsesContextReceiverCountForFunctionInvokeABI(arity: Int) throws {
+        let contextTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
+        let parameters = (0 ..< arity).map { "context\($0): Int" }.joined(separator: ", ")
+        let arguments = (0 ..< arity).map { "context\($0)" }.joined(separator: ", ")
+        let source = """
+        fun invokeContext(block: context(\(contextTypes)) () -> Int, \(parameters)): Int = block(\(arguments))
+        fun main() = 0
+        """
+        let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
-        #expect(!ctx.diagnostics.hasError)
-        let sema = try #require(ctx.sema)
-        let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
-        let symbol = try #require(sema.symbols.symbol(owner))
-        let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
-        let linkName = try runtime.functionInvoke(arity: arity)
-        #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "invokeContext", in: module, interner: ctx.interner)
+        let call = try #require(
+            kirCalls(to: .functionInvoke(arity: arity), in: body, interner: ctx.interner).first
+        )
+        #expect(call.arguments.count == arity + 1)
     }
 
     @Test func testBuildKIRCompareValuesByVarargSelectorsAreMaterialized() throws {
@@ -339,6 +363,47 @@ extension BuildKIRRegressionTests {
         }
         #expect(storedCaptures.count == 2)
         #expect(storedCaptures.first == storedCaptures.last, "Both receiver captures must store the same Counter instance.")
+    }
+
+    @Test func testBuildKIRUnqualifiedInvokeUsesImplicitFunctionReceiver() throws {
+        let runtime = try RuntimeNames()
+        let ctx = makeContextFromSource("""
+        fun <A, T> ((A) -> T).toProvider(arg: () -> A): () -> T = { invoke(arg()) }
+
+        fun main() {
+            val f: (Int) -> String = { "v$it" }
+            println(f.toProvider { 3 }())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let invokeName = ctx.interner.intern(try runtime.functionInvoke(arity: 1))
+        let lambda = try #require(findAllKIRFunctions(in: module).first { function in
+            function.body.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return callee == invokeName
+            }
+        })
+        let invokeArguments = try #require(lambda.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == invokeName
+            else { return nil }
+            return arguments
+        }.first)
+        guard let receiverArgument = invokeArguments.first,
+              case let .symbolRef(receiverSymbol)? = module.arena.expr(receiverArgument),
+              let receiverParameter = lambda.params.first(where: { $0.symbol == receiverSymbol })
+        else {
+            Issue.record("Expected invoke() to use the captured function-typed extension receiver.")
+            return
+        }
+        guard case .functionType = sema.types.kind(of: receiverParameter.type) else {
+            Issue.record("Expected invoke()'s receiver parameter to have a function type.")
+            return
+        }
     }
 
     @Test func testBuildKIRCollectionSourceHOFLambdaHasElementParameter() throws {

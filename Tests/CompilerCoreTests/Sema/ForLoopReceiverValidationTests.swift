@@ -75,6 +75,26 @@ struct ForLoopReceiverValidationTests {
     }
 
     @Test
+    func acceptsTreeMapDirectIterationAndEntryDestructuring() throws {
+        let ctx = makeContextFromSource("""
+        import java.util.TreeMap
+
+        fun test() {
+            val values = TreeMap<Char, String>()
+            values['A'] = "1"
+            for (entry in values) {
+                println("${entry.key}=${entry.value}")
+            }
+            for ((key, value) in values) {
+                println("$key=$value")
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func acceptsSquareBracketDestructuringInForLoop() throws {
         let ctx = makeContextFromSource("""
         data class C(val first: Int, val second: Int)
@@ -98,6 +118,23 @@ struct ForLoopReceiverValidationTests {
             return names
         }.first
         #expect(names?.map { $0.map(ctx.interner.resolve) } == ["a", "b"])
+    }
+
+    @Test
+    func acceptsBreakToLabeledDestructuringForLoop() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val rows = listOf("a", "b")
+            find@ for ((r, row) in rows.withIndex()) {
+                for ((i, c) in row.withIndex()) {
+                    if (c == 'a') break@find
+                }
+            }
+            println("done")
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
 }

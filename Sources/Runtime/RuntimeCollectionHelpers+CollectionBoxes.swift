@@ -39,13 +39,13 @@ func runtimeMapEntryNew(key: RuntimeValue, value: RuntimeValue) -> Int {
 
 @inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
+    registerMapEntryTypeEdgesOnce()
     let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key
     }
-    registerMapEntryTypeEdgesOnce()
     runtimeRegisterObjectType(rawValue: raw, classID: mutableMapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
     runtimeRegisterMutableMapEntryMethods(raw)
@@ -54,13 +54,13 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
 
 @inline(__always)
 func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeValue) -> Int {
+    registerMapEntryTypeEdgesOnce()
     let raw = registerRuntimeObject(RuntimePairBox(firstValue: key, secondValue: value))
     if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
        let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
         pairBox.mutableMapRaw = mapRaw
         pairBox.mutableMapKey = key.legacyRawValue
     }
-    registerMapEntryTypeEdgesOnce()
     runtimeRegisterObjectType(rawValue: raw, classID: mutableMapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
     runtimeRegisterMutableMapEntryMethods(raw)

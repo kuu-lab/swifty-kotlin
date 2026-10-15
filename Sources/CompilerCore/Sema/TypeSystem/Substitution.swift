@@ -202,7 +202,11 @@ public extension TypeSystem {
     ) -> Int? {
         guard !writeForbiddenSymbols.isEmpty else { return nil }
         for (index, paramType) in signature.parameterTypes.enumerated() {
-            for symbol in writeForbiddenSymbols where typeContainsTypeParam(paramType, symbol: symbol) {
+            let unsafeVarianceSymbols = signature.valueParameterUnsafeVarianceTypeParameterSymbols.indices.contains(index)
+                ? signature.valueParameterUnsafeVarianceTypeParameterSymbols[index]
+                : []
+            for symbol in writeForbiddenSymbols
+            where typeContainsTypeParam(paramType, symbol: symbol) && !unsafeVarianceSymbols.contains(symbol) {
                 return index
             }
         }

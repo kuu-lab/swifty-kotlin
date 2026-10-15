@@ -605,6 +605,7 @@ extension CallTypeChecker {
         }
 
         for (index, explicitTypeArg) in explicitTypeArgs.enumerated() where index < signature.typeParameterSymbols.count {
+            guard explicitTypeArg != TypeID.invalid else { continue }
             let symbol = signature.typeParameterSymbols[index]
             if let typeVar = typeVarBySymbol[symbol] {
                 substitution[typeVar] = explicitTypeArg

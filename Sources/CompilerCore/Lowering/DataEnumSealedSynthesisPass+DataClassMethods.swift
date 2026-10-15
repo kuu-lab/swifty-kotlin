@@ -736,7 +736,13 @@ extension DataEnumSealedSynthesisPass {
                             interner: interner, arena: module.arena, into: &body
                         )
                     } else {
-                        hashValue = fieldValueExpr
+                        // Full-width primitive payloads (notably Double -0.0)
+                        // can equal the null sentinel. Preserve their non-null
+                        // value before entering generic runtime hash dispatch.
+                        hashValue = boxSentinelProneHashCodeReceiver(
+                            fieldValueExpr, sourceType: propType, sema: sema,
+                            interner: interner, arena: module.arena, into: &body
+                        )
                     }
                     body.append(.call(
                         symbol: nil,

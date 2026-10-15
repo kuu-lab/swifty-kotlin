@@ -290,10 +290,23 @@ extension DataFlowSemaPhase {
             }
             let expectSupertypes = symbols.directSupertypes(for: expect.id)
             let actualSupertypes = symbols.directSupertypes(for: actual.id)
-            guard expectSupertypes.count == actualSupertypes.count else {
+            guard expect.kind == .class || expectSupertypes.count == actualSupertypes.count else {
                 return false
             }
-            for (expectSuper, actualSuper) in zip(expectSupertypes, actualSupertypes) {
+
+            for (index, expectSuper) in expectSupertypes.enumerated() {
+                let actualSuper: SymbolID
+                if expect.kind == .class {
+                    guard let matchingActualSuper = actualSupertypes.first(where: { actualSuper in
+                        expectActualNominalSymbolsMatch(expectSuper, actualSuper, symbols: symbols)
+                    }) else {
+                        return false
+                    }
+                    actualSuper = matchingActualSuper
+                } else {
+                    actualSuper = actualSupertypes[index]
+                }
+
                 guard expectActualNominalSymbolsMatch(expectSuper, actualSuper, symbols: symbols) else {
                     return false
                 }

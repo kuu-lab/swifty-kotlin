@@ -51,7 +51,7 @@ extension CallTypeChecker {
                 }
             }
         }
-        let resolvedCandidates: [SymbolID]
+        var resolvedCandidates: [SymbolID]
         if !contextApplicableCandidates.isEmpty {
             resolvedCandidates = contextApplicableCandidates
         } else if let missingType = candidates
@@ -88,11 +88,6 @@ extension CallTypeChecker {
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
             }
-            let isCoroutineBuilderWithHardcodedAnyReturn = resolvedCandidates.contains { candidate in
-                isCoroutineBuilderCandidate(candidate)
-                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
-                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null_throwing"
-            }
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
             // class. Resolve it against that enclosing receiver's type rather
@@ -128,6 +123,24 @@ extension CallTypeChecker {
                 ctx: ctx,
                 locals: locals
             )
+            resolvedCandidates = preferApplicableExplicitTopLevelImportTier(
+                candidates: resolvedCandidates,
+                args: args,
+                argTypes: argTypes,
+                range: range,
+                calleeName: calleeName,
+                explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
+                implicitReceiverType: callImplicitReceiverType,
+                candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
+                hasApplicableImplicitMembers: !knownApplicableImplicitMembers.isEmpty,
+                ctx: ctx
+            )
+            let isCoroutineBuilderWithHardcodedAnyReturn = resolvedCandidates.contains { candidate in
+                isCoroutineBuilderCandidate(candidate)
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null_throwing"
+            }
             var resolvedImplicitReceiverType = callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: resolvedCandidates,

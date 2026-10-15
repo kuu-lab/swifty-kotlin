@@ -54,7 +54,9 @@ extension KotlinParser {
             } else {
                 hasContextDeclarationPrefix = true
             }
+            let isAnonymousFunction = isAnonymousFunctionExpressionStart()
             if isDeclarationStart(token.kind), hasContextDeclarationPrefix, !isObjectExpressionStart(token),
+               !isAnonymousFunction,
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
                 children.append(.node(parseDeclaration()))
@@ -707,6 +709,11 @@ extension KotlinParser {
         }
     }
 
+    func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
+        stream.peek(offset).kind == .keyword(.fun)
+            && stream.peek(offset + 1).kind == .symbol(.lParen)
+    }
+
     /// A modifier keyword (`suspend`, `private`, ...) or the `context` soft
     /// keyword is ambiguous the same way `object` is (see
     /// `isObjectExpressionStart` above): it can introduce a genuine
@@ -808,7 +815,7 @@ extension KotlinParser {
             // identifier in an expression. In `fun f() =\n value\n fun g() = 0`,
             // the next `fun` is a separate declaration, not one modified by
             // `value`; otherwise `f` loses its expression body.
-            let isAnonymousFunction = token.kind == .keyword(.fun) && stream.peek(cursor + 1).kind == .symbol(.lParen)
+            let isAnonymousFunction = isAnonymousFunctionExpressionStart(at: cursor)
             let isAnonymousObject = token.kind == .keyword(.object)
                 && (stream.peek(cursor + 1).kind == .symbol(.lBrace) || stream.peek(cursor + 1).kind == .symbol(.colon))
             let startsDeclaration = isDeclarationStart(token.kind) && !isAnonymousFunction && !isAnonymousObject
@@ -920,7 +927,7 @@ extension KotlinParser {
     /// Defers to `startsGenuineDeclaration` lookahead only for ambiguous modifier /
     /// `context` prefixes, trusting the caller's own check otherwise.
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
-        let isAnonymousFunction = token.kind == .keyword(.fun) && stream.peek(1).kind == .symbol(.lParen)
+        let isAnonymousFunction = isAnonymousFunctionExpressionStart()
         guard isAmbiguousDeclarationPrefix(token) || isAnonymousFunction else {
             return true
         }
@@ -958,10 +965,12 @@ extension KotlinParser {
 
     func parseTail(
         inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator,
-        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false
+        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false,
+        allowsClassDelegation: Bool = false
     ) {
         var progress = false
         var sawAssignment = false
+        var sawSupertypeColon = false
         var sawTryKeyword = false
         var sawIfKeyword = false
         var depth = BracketDepth()
@@ -971,6 +980,7 @@ extension KotlinParser {
             let atTopLevel = depth.isTopLevel
                 && templateExpressionDepth == 0
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
+            if atTopLevel, token.kind == .symbol(.colon) { sawSupertypeColon = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
             {
@@ -1073,10 +1083,12 @@ extension KotlinParser {
                 // name (`a or\n    (b)`) or after an `if (...)` condition whose
                 // branch body starts on the next line.
                 // In a class header, a supertype colon may also follow the
-                // implicit constructor on the next line.
+                // implicit constructor on the next line. A delegation `by` may
+                // begin a line only while scanning that supertype list.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
+                    || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {

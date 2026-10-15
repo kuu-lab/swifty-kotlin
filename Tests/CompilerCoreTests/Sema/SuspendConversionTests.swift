@@ -4,6 +4,33 @@ import Testing
 
 @Suite
 struct SuspendConversionTests {
+    @Test func memberOverloadKeepsSuspendFunctionCandidateForRegularFunctionValue() throws {
+        let source = """
+        fun interface FlowCollector<T> { suspend fun emit(value: T) }
+        interface Flow<T> {
+            suspend fun collect(action: suspend (T) -> Unit)
+            suspend fun collect(action: FlowCollector<T>)
+        }
+        fun forward(source: Flow<Int>, action: (Int) -> Unit) {
+            source.collect(action)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let binding = try #require(sema.bindings.callBindings.values.first { binding in
+                sema.symbols.symbol(binding.chosenCallee).map { ctx.interner.resolve($0.name) == "collect" } == true
+            })
+            let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+            guard case let .functionType(functionType) = sema.types.kind(of: signature.parameterTypes[0]) else {
+                Issue.record("The regular function value must select the suspend function overload.")
+                return
+            }
+            #expect(functionType.isSuspend)
+        }
+    }
+
     @Test func acceptsFunctionValuesAndInfersGenericSignature() throws {
         let source = """
         fun consume(action: suspend (Int) -> Unit) {}

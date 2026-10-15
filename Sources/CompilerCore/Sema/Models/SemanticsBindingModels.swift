@@ -4,6 +4,10 @@ public struct CallBinding {
     public let parameterMapping: [Int: Int]
     /// The interface default source in an inherited class use-site scope.
     public let defaultArgumentOwner: SymbolID?
+    /// The selected lexical dispatch receiver for a member-extension call.
+    /// Most call sites track this separately by expression; synthetic calls
+    /// such as for-in convention calls carry it with the binding instead.
+    public let dispatchReceiverSymbol: SymbolID?
     /// Whether a callable-reference wrapper must adapt its fixed function
     /// arity to this declaration's defaults or vararg parameter.
     public let isCallableReferenceAdapter: Bool
@@ -13,12 +17,14 @@ public struct CallBinding {
         substitutedTypeArguments: [TypeID],
         parameterMapping: [Int: Int],
         defaultArgumentOwner: SymbolID? = nil,
+        dispatchReceiverSymbol: SymbolID? = nil,
         isCallableReferenceAdapter: Bool = false
     ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
         self.defaultArgumentOwner = defaultArgumentOwner
+        self.dispatchReceiverSymbol = dispatchReceiverSymbol
         self.isCallableReferenceAdapter = isCallableReferenceAdapter
     }
 }
@@ -46,6 +52,10 @@ public struct CallableValueCallBinding {
     public let functionType: TypeID
     public let parameterMapping: [Int: Int]
     public let extensionCallableExpr: ExprID?
+    /// The callable value used by an unqualified `invoke(...)` on an implicit
+    /// function-typed receiver. The source AST still has `invoke` as its callee,
+    /// so KIR needs this receiver expression to lower the function value.
+    public let implicitInvokeReceiverExpr: ExprID?
     public let contextArgumentCount: Int
     public let receiverArgumentOffset: Int
 
@@ -54,6 +64,7 @@ public struct CallableValueCallBinding {
         functionType: TypeID,
         parameterMapping: [Int: Int],
         extensionCallableExpr: ExprID? = nil,
+        implicitInvokeReceiverExpr: ExprID? = nil,
         contextArgumentCount: Int = 0,
         receiverArgumentOffset: Int = 0
     ) {
@@ -61,6 +72,7 @@ public struct CallableValueCallBinding {
         self.functionType = functionType
         self.parameterMapping = parameterMapping
         self.extensionCallableExpr = extensionCallableExpr
+        self.implicitInvokeReceiverExpr = implicitInvokeReceiverExpr
         self.contextArgumentCount = contextArgumentCount
         self.receiverArgumentOffset = receiverArgumentOffset
     }

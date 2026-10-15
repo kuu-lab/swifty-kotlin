@@ -97,9 +97,31 @@ extension ExprLowerer {
             }(), driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                var setterInputs = [valueID]
+                if let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   sema.symbols.symbol(ownerSymbol)?.kind == .object,
+                   !sema.bindings.isObjectLiteralPropertySymbol(symbol)
+                {
+                    // Bare references to singleton properties omit the dispatch receiver.
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: ownerSymbol,
+                        arena: arena,
+                        sema: sema,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    let ownerType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    let receiver = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                    instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
+                    setterInputs.insert(receiver, at: 0)
+                }
                 let setterArguments = driver.callLowerer.propertyAccessorArguments(
                     for: setterSymbol,
-                    arguments: [valueID],
+                    arguments: setterInputs,
                     callExprID: exprID,
                     sema: sema,
                     arena: arena,
@@ -119,10 +141,30 @@ extension ExprLowerer {
                 let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                 return pk == nil || pk == .package || pk == .object
             }() {
-                let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
-                let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
-                instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
-                instructions.append(.copy(from: valueID, to: globalRef))
+                if sema.symbols.symbol(symbol)?.kind == .property,
+                   let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
+                {
+                    // A custom getter with no custom setter still has the
+                    // compiler-provided setter, which writes the backing field.
+                    // Keep bare assignments on that same storage so later
+                    // getter calls observe the new value.
+                    let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol)
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                        valueID,
+                        slotType: backingFieldType,
+                        types: sema.types,
+                        arena: arena,
+                        into: &instructions
+                    )
+                    instructions.append(.storeGlobal(value: storedValueID, symbol: backingFieldSymbol))
+                } else {
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
+                    instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
+                    instructions.append(.copy(from: valueID, to: globalRef))
+                }
             } else if let slotSymbol = driver.ctx.enumEntryStorageSlots[symbol] {
                 // Inside an enum entry's construction (`init { x = ... }`),
                 // including a `val` initialized there: write the slot.

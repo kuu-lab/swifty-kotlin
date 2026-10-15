@@ -76,14 +76,25 @@ extension BuildASTPhase.ExpressionParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        var unpairedTopLevelIfCount = 0
         for (idx, token) in tokens.enumerated() {
             let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
             if isTopLevel {
                 if token.kind == .symbol(.semicolon) {
+                    // Kotlin permits a statement separator between an unbraced
+                    // if branch and its else branch, including across a newline.
+                    if unpairedTopLevelIfCount > 0,
+                       tokens.indices.contains(idx + 1),
+                       tokens[idx + 1].kind == .keyword(.else)
+                    {
+                        lastTokenIndex = idx
+                        continue
+                    }
                     if lastTokenIndex >= groupStart {
                         ranges.append((groupStart, lastTokenIndex + 1))
                     }
                     groupStart = idx + 1
+                    unpairedTopLevelIfCount = 0
                     continue
                 }
                 let hasNewline = token.leadingTrivia.contains { piece in
@@ -91,6 +102,7 @@ extension BuildASTPhase.ExpressionParser {
                     return false
                 }
                 if hasNewline, lastTokenIndex >= groupStart,
+                   !(token.kind == .keyword(.else) && unpairedTopLevelIfCount > 0),
                    !BuildASTPhase.isContinuationBoundary(
                        previousTail: tokens[groupStart ... lastTokenIndex],
                        nextHead: tokens[idx...]
@@ -98,6 +110,12 @@ extension BuildASTPhase.ExpressionParser {
                 {
                     ranges.append((groupStart, lastTokenIndex + 1))
                     groupStart = idx
+                    unpairedTopLevelIfCount = 0
+                }
+                if token.kind == .keyword(.if) {
+                    unpairedTopLevelIfCount += 1
+                } else if token.kind == .keyword(.else) {
+                    unpairedTopLevelIfCount = max(0, unpairedTopLevelIfCount - 1)
                 }
             }
             switch token.kind {

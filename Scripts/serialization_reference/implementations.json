@@ -2374,6 +2374,1184 @@
         "@MustBeDocumented",
         "@Target(AnnotationTarget.PROPERTY)"
       ]
+    },
+    {
+      "declaration_id": "03b3293086d3649dd264234ed5fe36966a2bd06add6b6c7741d7ba3b24fc4141",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "07cf21d57caec90a11544f0b8d72298c930eaf3c293ccbd98bb0a0c7b88b7394",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "0b5ad439731f08b55199347be31e06b0c248dc393cf9cc385ace18f0669272ca",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "0cba8cacaa17b1988c5dfa4144b80d2572a61fcbb1e600ab1102f670d4baba42",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "0d5dc9d9c350616d6444ecba924ba4fd03c07d5bccd9a398dc44ca87dc20662a",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "0ed62baa249572f57bcd8fd991ca944f0807afbd95e95e36e11431464c35e96e",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "14271ff46e426af7c50544ce2804c7b9294f86f3f650fdeb87493acc7ba0dbad",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "16fef1b177e657927d3f8420ef4f12508e0cdc4923bc4a4f208a7da5bae5b635",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "1c706c32d963042ad425d17b09c6512820eed8c320f051de4da2cd0b101b879e",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "1e404c1dfcd95f89c0f146328a33bcc6e1f5f11c2c969b77554f5191313e849b",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "1fecc3025c319aa737d307a04c664c23508047807df9aa2fc927588601523f0c",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "223bc1caf4a68867e40677fdba4e8e46c25827e5137668f9ee1854b0030fe545",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "422fc0071b7a584013e58dafb0409736d01a47329f2f4f4662088942914a285a",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "432007d7bf554d5803404e9871634dcc08c68b292e5435265848a97753ae7d8e",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "43fcac4fd508eb08bcba0472fd22ae5053a8d7e36d0197a912324210120640d7",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "472f5656fda954971a40fe48274a14f15cfd948b64fcea4b67151c3a03f3c3e2",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "4e8a93db7724eda729dbc31ba2b9cd75549f070a9c1391bc84a7432e294acb1b",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "515908192003dbd16c4742312e165cc71611cfe0ce4ba3c7a43f33e17f453d18",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "522224a499043b9685cee1642d17092875c23d13bf958f01af395026705d3e69",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "5acfce6ed635f168d66dfe169dffd25d10cdbb18961d2a22f72df74fd48d0b35",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "64a7c8cc9d16ff39e2b45da540674a1892d00de5d2dbbde1b810efaafb12b64a",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "66a393b875ed76ae60d1f3d6871ad9444589d1bbf606c617e03d6c9f5f5b06b2",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "69dcf55dd5843790f92abd40c1c31595be62bdef61ae9bc7ea2d766762b02979",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "6d142aa11fc3eb2da437b8cfada80139d0476262cbf9ae56ac6d3beb9506231c",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "6e81d6353752d508a9ec3a84dca0d649702a765b131c0743271c8fabf1d72b71",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "6f0ad461a2e84db647b5720fd3c77221b92e2950c5935e24ebb51e9654447c46",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "728a276dfa81edeadb36d72b41d23e25ee29aa24afb437bd249cbcba11ec3435",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "7460fe7e68212e06ebffc0bbe15c244b80832205e1278bab6f84f0cde6d2cb13",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "76e075a1960cee89e776baac14f58879a7e94ec64fded5a5d41d6376cb3945d2",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "786f430d5ca0a851472cea5e1a4922672f2ec612e3993726f847a87a476e2f5c",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "79e3a98ecfadfbe089df007a1015f504fcf10634a785e8fe1da1c637434ffb51",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "7a19e99030003d0c4a09b80a5986f3a0dc6ad3d9dcd1fe87dc5b588cb1bdd28a",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "8208d0c582d255c223b42332c8f48a63a6abba18781363d056647cb7c4f5b588",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "832c54448cd39e7eb1ebf9421c4e856f20420154d95889b276b89a8c68d7f14e",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "85c0028f9cdd38005adc72492442dd7fd64544e63d5d55f48a8253040ce152ff",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "863b3c338717ed4aa5a5c5f7edabb30e13b1bab63e1ee7fc959e9341a20c68f9",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "893f04bbe2ba5c5405b743f4254902fcc0031a8d016f6382eeffe4cdd92880b3",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "8faece4c930279990dfd8770809e3628f2c464325049b1f360043b670afab9ea",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "92b35f8a3bbf90ac6542a5abcbb763a47393aaba88b46bef3c504db5464527f2",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "9ee7f8e3e453fe3d2b65f72fb7b9164b5c175937b547ef85b50cccc884a7dcb6",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "a4054ef12412915f8e8bb3ca9eac659521674d794dc7df3978ac590eaa83e44f",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "a7f408311dcdc7fcfdec46da71b2ffe20a5b11b262a0edc606079b79050f2282",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "b2cc39afc2fd63e73e578b38df08e2765ccea980d19adb56568f8ee7b887d645",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "b7a377f693142a2c084486bbe53ea405166c8b79f0f18633282f91b00c95ebd5",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "c7be2ed1f82e3ee96b293d47a67a76348ddcaa7915d52a4e6da51cb36e91bbef",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "c7fd56e38ae4a1b1406612d73204913b39c8b214f47c9de3f8bbda59637772e4",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "cb1b102b7d16c03cc094519945a627ccf5bd08a3f2dea0859eadc58900713f96",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "d1977099dc2d6257dfc0f2265c638a2b5eb4b60e0ac13c91825d15bc4ee46135",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "dcea62d4a5e1821b1f80e95558df52db89fc4fbc4d656d31acd1e59fb108f16f",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "de9f07d6876289578f81d04d97ffbf28139d20713361087a4a00124a8c56830c",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "e0695ff966695d1e1e127e72758bbeeefeae1d408abd999d0291ef7118b6651b",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "e0da5134e543fc048825b9f48a749cfe288e5755bb98e645d2fc7cb43d72eac1",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "e4bb44cf9f32f22ce3043ed4dfedb9a4e0053ad71112b60370eb50e23b946798",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "e7d488d367e4a988e7ff77be7013b928a2de5a8108e456d8e03745e678d3adbb",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "e86741514b1fbd9e30d23b376e2cb4ff2bfab6a6e182469738889f2ec484ae20",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "e8eb7b75995bccb628ef8de79abcaf1941b6c066da8f81e1cebd6fdd5c757fdd",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "eb3c7bdc54fcb5d2d056d51b3a3d8952b2c58c528316b08d271348733d3ceaaa",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "ebe947f5fc8f054eec63dd9ad84818dba73c913f37548d7f0b79b18b7731f4af",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "eef047ca8df73b418f2866de03da1cef54291318ba172224106b8a644b793079",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "fb5fb8ec67a46bebf63e6fdf75edff4df98cca49c328c13949654d9e6ef8fcfa",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "fd566b1733c2f1cd485b2373b0b4ff4e266e92e30fdf28daa6ea41fdffcebdf8",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "2f811e31b07453d62bdc622044f09f347936f54f307ae9d9fb95e305f6bb218c",
+      "ticket": "KUU-2324",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/json/JsonElement.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_json_primitive.kt",
+      "expected": "Scripts/reference_cases/serialization_json_primitive.expected",
+      "test_suite": "SerializationJsonPrimitiveTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationJsonPrimitiveTests.swift",
+      "required_validation": [
+        "source-O0",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
     }
   ]
 }

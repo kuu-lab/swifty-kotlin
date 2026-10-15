@@ -400,7 +400,12 @@ extension CallTypeChecker {
                             .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
                         }
                     } else {
-                        explicitTypeArgs.map(TypeArg.invariant)
+                        explicitTypeArgs.enumerated().map { index, type in
+                            let resolved = type == TypeID.invalid
+                                ? sema.types.make(.typeParam(TypeParamType(symbol: aliasTypeParameters[index], nullability: .nonNull)))
+                                : type
+                            return .invariant(resolved)
+                        }
                     }
                     if let expanded = driver.helpers.expandTypeAlias(
                         aliasSym,
@@ -462,7 +467,8 @@ extension CallTypeChecker {
         let variables = sema.types.makeTypeVarBySymbol(alias.typeParameterSymbols)
         let substitution = Dictionary(uniqueKeysWithValues: zip(alias.typeParameterSymbols, explicitTypeArgs).compactMap {
             symbol, type -> (TypeVarID, TypeID)? in
-            variables[symbol].map { ($0, type) }
+            guard type != TypeID.invalid else { return nil }
+            return variables[symbol].map { ($0, type) }
         })
         return owner.args.compactMap { argument in
             switch argument {

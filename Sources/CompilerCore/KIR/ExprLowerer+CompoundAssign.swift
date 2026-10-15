@@ -45,6 +45,13 @@ extension ExprLowerer {
         }
         let stringType = sema.types.stringType
         let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+        var incrementDecrementResult: KIRExprID?
+
+        func rememberIncrementDecrementResult(_ value: KIRExprID) {
+            if ast.arena.incrementDecrementReturnsValue(exprID) {
+                incrementDecrementResult = value
+            }
+        }
 
         func appendBuiltinCompoundResult(
             lhs: KIRExprID,
@@ -157,6 +164,36 @@ extension ExprLowerer {
                 return nil
             }
 
+            func appendOperatorCall(
+                calleeName: InternedString,
+                arguments: [KIRExprID],
+                result: KIRExprID
+            ) {
+                if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                    chosenCallee: callBinding.chosenCallee,
+                    calleeName: calleeName,
+                    receiverExpr: nil,
+                    loweredReceiverID: lhs,
+                    isSuperCall: false,
+                    finalArguments: arguments,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                ) {
+                    instructions.append(virtualInstruction)
+                } else {
+                    instructions.append(.call(
+                        symbol: callBinding.chosenCallee,
+                        callee: calleeName,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+            }
+
             if ast.arena.isIncrementDecrement(exprID) {
                 let callResult = arena.appendTemporary(type: resultType)
                 let operatorName = op == .plusAssign ? "inc" : "dec"
@@ -168,14 +205,11 @@ extension ExprLowerer {
                 } else {
                     interner.intern(operatorName)
                 }
-                instructions.append(.call(
-                    symbol: callBinding.chosenCallee,
-                    callee: loweredCalleeName,
+                appendOperatorCall(
+                    calleeName: loweredCalleeName,
                     arguments: [lhs],
-                    result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    result: callResult
+                )
                 return callResult
             }
 
@@ -220,14 +254,11 @@ extension ExprLowerer {
             } else {
                 interner.intern(op.kotlinFunctionName)
             }
-            instructions.append(.call(
-                symbol: callBinding.chosenCallee,
-                callee: loweredCalleeName,
+            appendOperatorCall(
+                calleeName: loweredCalleeName,
                 arguments: finalArguments,
-                result: callResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                result: callResult
+            )
             return callResult
         }
         if let symbol = sema.bindings.identifierSymbols[exprID] {
@@ -273,6 +304,7 @@ extension ExprLowerer {
                     rhs: rhsID,
                     rhsType: arena.exprType(rhsID)
                 )
+                rememberIncrementDecrementResult(computedValue)
                 let setterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
                     localSymbol: symbol, sema: sema, arena: arena, interner: interner,
                     instructions: &instructions
@@ -323,14 +355,17 @@ extension ExprLowerer {
                         _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
                     } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
                         storeViaSetter(resultID)
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
-                    storeViaSetter(appendBuiltinCompoundResult(
+                    let resultID = appendBuiltinCompoundResult(
                         lhs: loadedValue,
                         lhsType: propType,
                         rhs: rhsID,
                         rhsType: arena.exprType(rhsID)
-                    ))
+                    )
+                    storeViaSetter(resultID)
+                    rememberIncrementDecrementResult(resultID)
                 }
             } else if let symInfo = sema.symbols.symbol(symbol),
                       symInfo.kind == .property,
@@ -379,6 +414,7 @@ extension ExprLowerer {
                         _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
                     } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
                         storeViaSetter(resultID)
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
                     let resultID = appendBuiltinCompoundResult(
@@ -388,6 +424,7 @@ extension ExprLowerer {
                         rhsType: arena.exprType(rhsID)
                     )
                     storeViaSetter(resultID)
+                    rememberIncrementDecrementResult(resultID)
                 }
             } else if let symInfo = sema.symbols.symbol(symbol),
                       symInfo.kind == .property || symInfo.kind == .field || symInfo.kind == .backingField, {
@@ -405,17 +442,74 @@ extension ExprLowerer {
                     )
                 }
                 let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
-                let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
-                instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
-                let loadedValue = arena.appendExpr(.symbolRef(symbol), type: propType)
-                instructions.append(.loadGlobal(result: loadedValue, symbol: symbol))
+                let parentKind = sema.symbols.parentSymbol(for: symbol).flatMap {
+                    sema.symbols.symbol($0)?.kind
+                }
+                let setterSymbol: SymbolID? = if sema.symbols.symbol(symbol)?.kind == .property,
+                                                 (parentKind == nil || parentKind == .package),
+                                                 driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
+                {
+                    sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                        ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                } else {
+                    nil
+                }
+                let globalRef: KIRExprID?
+                if setterSymbol == nil {
+                    let ref = arena.appendExpr(.symbolRef(symbol), type: propType)
+                    instructions.append(.constValue(result: ref, value: .symbolRef(symbol)))
+                    globalRef = ref
+                } else {
+                    globalRef = nil
+                }
+                let loadedValue: KIRExprID
+                if ast.arena.isIncrementDecrement(exprID),
+                   let cachedValue = ast.arena.incrementDecrementCachedValue(for: exprID)
+                {
+                    loadedValue = lowerExpr(
+                        cachedValue,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    )
+                } else {
+                    loadedValue = arena.appendExpr(.symbolRef(symbol), type: propType)
+                    instructions.append(.loadGlobal(result: loadedValue, symbol: symbol))
+                }
                 let rhsID = lowerRHS()
+                func storeGlobalResult(_ value: KIRExprID) {
+                    if let setterSymbol {
+                        let setterArguments = driver.callLowerer.propertyAccessorArguments(
+                            for: setterSymbol,
+                            arguments: [value],
+                            callExprID: exprID,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        instructions.append(.call(
+                            symbol: setterSymbol,
+                            callee: interner.intern("set"),
+                            arguments: setterArguments,
+                            result: arena.appendTemporary(type: sema.types.unitType),
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    } else if let globalRef {
+                        instructions.append(.copy(from: value, to: globalRef))
+                    }
+                }
                 if let callBinding = sema.bindings.callBindings[exprID],
                    let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                     if signature.returnType == sema.types.unitType {
                         _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
                     } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
-                        instructions.append(.copy(from: resultID, to: globalRef))
+                        storeGlobalResult(resultID)
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
                     let resultID = appendBuiltinCompoundResult(
@@ -424,7 +518,8 @@ extension ExprLowerer {
                         rhs: rhsID,
                         rhsType: arena.exprType(rhsID)
                     )
-                    instructions.append(.copy(from: resultID, to: globalRef))
+                    storeGlobalResult(resultID)
+                    rememberIncrementDecrementResult(resultID)
                 }
             } else if let symInfo = sema.symbols.symbol(symbol),
                       symInfo.kind == .property || symInfo.kind == .field,
@@ -500,6 +595,7 @@ extension ExprLowerer {
                         _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
                     } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
                         storeFieldResult(resultID)
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
                     let resultID = appendBuiltinCompoundResult(
@@ -509,6 +605,7 @@ extension ExprLowerer {
                         rhsType: arena.exprType(rhsID)
                     )
                     storeFieldResult(resultID)
+                    rememberIncrementDecrementResult(resultID)
                 }
             } else if driver.ctx.isMutableCaptureBoxed(symbol),
                       let loadedValue = loadMutableCaptureCellValue(
@@ -539,6 +636,7 @@ extension ExprLowerer {
                             interner: interner,
                             instructions: &instructions
                         )
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
                     let resultID = appendBuiltinCompoundResult(
@@ -555,6 +653,7 @@ extension ExprLowerer {
                         interner: interner,
                         instructions: &instructions
                     )
+                    rememberIncrementDecrementResult(resultID)
                 }
             } else if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
@@ -612,6 +711,7 @@ extension ExprLowerer {
                         _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
                     } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
                         storeField(resultID)
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
                     let resultID = appendBuiltinCompoundResult(
@@ -621,8 +721,21 @@ extension ExprLowerer {
                         rhsType: arena.exprType(rhsID)
                     )
                     storeField(resultID)
+                    rememberIncrementDecrementResult(resultID)
                 }
             } else {
+                if sema.symbols.symbol(symbol)?.kind == .object {
+                    // A bare object receiver is lowered directly from its
+                    // singleton symbol here, so preserve the lazy-init guard
+                    // that ordinary name-reference lowering would emit.
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: symbol,
+                        arena: arena,
+                        sema: sema,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
                 if let storageID = driver.ctx.localValue(for: symbol) {
                     // Compute lhs op rhs and update storage in place so the value
                     // persists across loop iterations.
@@ -648,6 +761,7 @@ extension ExprLowerer {
                             _ = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType)
                         } else if let resultID = appendOperatorCompoundResult(lhs: frozenLHS, rhs: rhsID, resultType: signature.returnType) {
                             instructions.append(.copy(from: resultID, to: storageID))
+                            rememberIncrementDecrementResult(resultID)
                         }
                     } else {
                         let resultID = appendBuiltinCompoundResult(
@@ -657,6 +771,7 @@ extension ExprLowerer {
                             rhsType: arena.exprType(rhsID)
                         )
                         instructions.append(.copy(from: resultID, to: storageID))
+                        rememberIncrementDecrementResult(resultID)
                     }
                 } else {
                     // No existing local value — create a symbol reference as lhs
@@ -672,6 +787,7 @@ extension ExprLowerer {
                             _ = appendOperatorCompoundResult(lhs: lhsID, rhs: rhsID, resultType: signature.returnType)
                         } else if let resultID = appendOperatorCompoundResult(lhs: lhsID, rhs: rhsID, resultType: signature.returnType) {
                             driver.ctx.setLocalValue(resultID, for: symbol)
+                            rememberIncrementDecrementResult(resultID)
                         }
                     } else {
                         let resultID = appendBuiltinCompoundResult(
@@ -681,9 +797,13 @@ extension ExprLowerer {
                             rhsType: arena.exprType(rhsID)
                         )
                         driver.ctx.setLocalValue(resultID, for: symbol)
+                        rememberIncrementDecrementResult(resultID)
                     }
                 }
             }
+        }
+        if let incrementDecrementResult {
+            return incrementDecrementResult
         }
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))

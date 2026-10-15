@@ -764,6 +764,7 @@ extension LocalDeclTypeChecker {
             flowState: DataFlowState(),
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
+        bodyCtx.isUnitCoercionContext = resolvedReturnType == sema.types.unitType
         bodyCtx = bodyCtx.with(
             contextReceiverTypes: ctx.contextReceiverTypes + contextParameterDeclarations.map(\.type)
         )

@@ -53,6 +53,44 @@ extension ControlFlowLowerer {
         // argument list that matches this contract to avoid double receivers.
         let isClassMember: Bool
         let chosenCallee = callBinding.chosenCallee
+        if sema.symbols.memberExtensionOwnerSymbol(for: chosenCallee) != nil {
+            guard let dispatchReceiverID = driver.callLowerer.memberExtensionDispatchReceiver(
+                for: chosenCallee,
+                callExprID: nil,
+                dispatchReceiverSymbol: callBinding.dispatchReceiverSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) else {
+                preconditionFailure("Bound for-loop member extension has no dispatch receiver during lowering.")
+            }
+            let arguments = [dispatchReceiverID, receiverID]
+            if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                chosenCallee: chosenCallee,
+                calleeName: calleeName,
+                receiverExpr: nil,
+                loweredReceiverID: dispatchReceiverID,
+                isSuperCall: false,
+                finalArguments: arguments,
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            ) {
+                instructions.append(virtualInstruction)
+            } else {
+                instructions.append(.call(
+                    symbol: chosenCallee,
+                    callee: calleeName,
+                    arguments: arguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+            return
+        }
         if let parentSymbolID = sema.symbols.parentSymbol(for: chosenCallee),
            let parentSymbol = sema.symbols.symbol(parentSymbolID) {
             switch parentSymbol.kind {
@@ -1097,11 +1135,19 @@ extension ControlFlowLowerer {
             instructions: &instructions
         )
         // The erased Iterator<T>.next ABI may return a boxed Int for Byte and
-        // Short elements. Normalize it before arithmetic in source-backed
-        // Iterable loops; kk_unbox_int also accepts an already-raw scalar.
+        // Short elements, or a boxed enum ordinal. Normalize it before the
+        // loop body uses the typed value; kk_unbox_int also accepts an
+        // already-raw scalar.
         let loopElementID: KIRExprID
-        switch sema.types.kind(of: loopBinding.elementType) {
+        let needsIntUnboxing: Bool = switch sema.types.kind(of: loopBinding.elementType) {
         case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
+            true
+        case let .classType(classType) where classType.nullability == .nonNull:
+            sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass
+        default:
+            false
+        }
+        if needsIntUnboxing {
             let scalar = arena.appendTemporary(type: loopBinding.elementType)
             emitNonThrowingCall(
                 callee: interner.intern("kk_unbox_int"),
@@ -1110,7 +1156,7 @@ extension ControlFlowLowerer {
                 into: &instructions
             )
             loopElementID = scalar
-        default:
+        } else {
             loopElementID = nextValueID
         }
         if let loopVariableSymbol {

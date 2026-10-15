@@ -437,6 +437,7 @@ extension DataFlowSemaPhase {
                     returnType: callableReturnType,
                     isSuspend: funDecl.isSuspend,
                     valueParameterSymbols: params.paramSymbols,
+                    valueParameterUnsafeVarianceTypeParameterSymbols: params.paramUnsafeVarianceTypeParameterSymbols,
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
@@ -465,6 +466,11 @@ extension DataFlowSemaPhase {
             )
         }
 
+        let declarationPositionValidator = DeclarationPositionValidator(
+            astArena: ast.arena,
+            interner: interner,
+            diagnostics: nil
+        )
         for declID in members.properties {
             guard let decl = ast.arena.decl(declID),
                   case let .propertyDecl(propertyDecl) = decl
@@ -870,9 +876,9 @@ extension DataFlowSemaPhase {
             // backing field declarations (Kotlin 2.0 `field = expr`).
             // Simple properties with only an initializer don't need a separate
             // backing field — the property symbol IS the storage.
-            // Getter-only computed properties (`val x: Int get() = expr`) never
-            // need a backing field because they have no storage — the getter
-            // body is evaluated on every access.
+            // Getter-only computed properties (`val x: Int get() = expr`) do
+            // not need storage unless the getter reads Kotlin's special
+            // `field` identifier.
             // STDLIB-CLASS-010: Abstract properties cannot have backing fields.
             // Interfaces never need a backing field either — properties in an
             // interface have no instance state of their own (KIR lowering
@@ -882,10 +888,13 @@ extension DataFlowSemaPhase {
             let isAbstractProperty = propertyFlags.contains(.abstractType)
             let isInterfaceOwner = symbols.symbol(ownerSymbol)?.kind == .interface
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
+            let getterUsesBackingField = declarationPositionValidator
+                .accessorUsesBackingField(propertyDecl.getter)
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
                 && propertyDecl.initializer == nil
                 && !hasExplicitBackingField
+                && !getterUsesBackingField
             let needsBackingField = !isAbstractProperty && !isInterfaceOwner && (
                 hasExplicitBackingField
                 || (!isGetterOnlyComputed
