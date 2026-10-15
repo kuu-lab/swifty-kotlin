@@ -446,7 +446,32 @@ public final class SymbolTable {
                 )
             }
 
-            let shouldCoexist = canCoexistAsOverload(
+            let sourceExistingSymbols = existingSymbols.filter {
+                !$0.flags.contains(.importedLibrary)
+            }
+            let sourceCanShadowImportedLibrary = declSite != nil
+                && !flags.contains(.synthetic)
+                && !flags.contains(.importedLibrary)
+                && existingSymbols.contains { $0.flags.contains(.importedLibrary) }
+                && (
+                    sourceExistingSymbols.isEmpty
+                        || canCoexistAsOverload(
+                            kind: kind,
+                            existingSymbols: sourceExistingSymbols,
+                            isExtensionProperty: isExtensionProperty
+                        )
+                        || canCoexistAsExpectActual(
+                            kind: kind,
+                            flags: flags,
+                            existingSymbols: sourceExistingSymbols
+                        )
+                        || canCoexistAsSyntheticPropertyFamily(
+                            kind: kind,
+                            flags: flags,
+                            existingSymbols: sourceExistingSymbols
+                        )
+                )
+            let shouldCoexist = sourceCanShadowImportedLibrary || canCoexistAsOverload(
                 kind: kind,
                 existingSymbols: existingSymbols,
                 isExtensionProperty: isExtensionProperty
@@ -460,7 +485,8 @@ public final class SymbolTable {
                     fqName: fqName,
                     declSite: declSite,
                     visibility: visibility,
-                    flags: flags
+                    flags: flags,
+                    prioritizeOverImported: sourceCanShadowImportedLibrary
                 )
                 if isExtensionProperty { declaredExtensionProperties.insert(id) }
                 return id
@@ -491,7 +517,8 @@ public final class SymbolTable {
         fqName: [InternedString],
         declSite: SourceRange?,
         visibility: Visibility,
-        flags: SymbolFlags
+        flags: SymbolFlags,
+        prioritizeOverImported: Bool = false
     ) -> SymbolID {
         let id = SymbolID(rawValue: Int32(symbolsStorage.count))
         let symbol = SemanticSymbol(
@@ -504,7 +531,15 @@ public final class SymbolTable {
             flags: flags
         )
         symbolsStorage.append(symbol)
-        byFQName[fqName, default: []].append(id)
+        if prioritizeOverImported, var candidates = byFQName[fqName] {
+            let importedIndex = candidates.firstIndex { candidate in
+                symbolsStorage[Int(candidate.rawValue)].flags.contains(.importedLibrary)
+            } ?? candidates.endIndex
+            candidates.insert(id, at: importedIndex)
+            byFQName[fqName] = candidates
+        } else {
+            byFQName[fqName, default: []].append(id)
+        }
         byShortName[name, default: []].append(id)
         byKind[kind, default: []].append(id)
         if fqName.count >= 1 {
@@ -990,8 +1025,9 @@ public final class SymbolTable {
         return parentSymbols[child]
     }
 
-    /// Returns registered children in declaration order without loading bodies.
-    /// Reparenting an extension also updates this index.
+    /// Returns direct children owned by this exact symbol in declaration order.
+    /// FQName-only lookup may combine members from source and imported
+    /// declarations that share a name.
     public func children(of parent: SymbolID) -> [SymbolID] {
         lock.lock()
         defer { lock.unlock() }
