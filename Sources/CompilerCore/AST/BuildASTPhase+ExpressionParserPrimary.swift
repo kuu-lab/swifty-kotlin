@@ -280,6 +280,12 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
+        if hasAt, peek(2) != nil {
+            _ = consume()
+            _ = consume()
+            return parsePrefixUnary()
+        }
+
         _ = consume()
         return astArena.appendExpr(.nameRef(name, token.range))
     }

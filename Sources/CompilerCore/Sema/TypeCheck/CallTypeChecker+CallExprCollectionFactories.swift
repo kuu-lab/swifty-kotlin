@@ -45,7 +45,10 @@ extension CallTypeChecker {
                 else {
                     return nil
                 }
-                return expectedType
+                // Collection factories are non-null even when their contextual
+                // assignment target is nullable. Keep the target's type arguments
+                // without propagating its nullability to the call result.
+                return sema.types.makeNonNullable(expectedType)
             }
 
             switch name {

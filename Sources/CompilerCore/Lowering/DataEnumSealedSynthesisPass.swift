@@ -909,7 +909,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let fieldOffsets = symbols.nominalLayout(for: owner.id)?.fieldOffsets ?? [:]
         return symbols.children(ofFQName: owner.fqName)
             .compactMap { symbols.symbol($0) }
-            .filter { $0.kind == .field && symbols.parentSymbol(for: $0.id) == owner.id }
+            .filter { symbols.enumOwnerSymbol(for: $0) == owner.id }
             .sorted(by: {
                 // Source-backed entries have precise declaration ranges.
                 let lhsDeclOffset = $0.declSite?.start.offset

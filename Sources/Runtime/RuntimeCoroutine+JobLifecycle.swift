@@ -1022,11 +1022,10 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
     guard isObjectPointer else {
         return 0
     }
-    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    if obj is RuntimeCancellationBox { return 1 }
+    if tryCast(ptr, to: RuntimeCancellationBox.self) != nil { return 1 }
     // Bundled/user subclasses (including Flow's AbortFlowException) use
     // ordinary source objects rather than the runtime cancellation box.
-    guard let object = obj as? RuntimeObjectBox else { return 0 }
+    guard let object = tryCast(ptr, to: RuntimeObjectBox.self) else { return 0 }
     return runtimeIsAssignable(
         sourceTypeID: object.classID,
         targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.coroutines.cancellation.CancellationException")

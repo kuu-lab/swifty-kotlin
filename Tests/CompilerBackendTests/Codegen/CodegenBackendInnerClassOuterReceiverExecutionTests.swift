@@ -43,5 +43,41 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
             expected: "10\n"
         )
     }
+
+    @Test
+    func localOwnerInnerConstructorCapturesEnclosingInstances() throws {
+        try assertKotlinOutput(
+            """
+            class Host {
+                val a = 1
+                fun calculate(): Int {
+                    class Owner {
+                        val b = 2
+                        inner class Child {
+                            val c = 3
+                            fun value() = this@Host.a + this@Owner.b + this.c
+                        }
+                    }
+                    return Owner().Child().value()
+                }
+            }
+            fun String.bar(): String {
+                open class Local { fun result() = this@bar }
+                class ExtensionOwner {
+                    inner class Inner : Local() {
+                        fun owner() = this@ExtensionOwner
+                    }
+                }
+                return ExtensionOwner().Inner().result()
+            }
+            fun main() {
+                println(Host().calculate())
+                println("OK".bar())
+            }
+            """,
+            moduleName: "LocalOwnerInnerConstructor",
+            expected: "6\nOK\n"
+        )
+    }
 }
 #endif

@@ -349,7 +349,8 @@ extension ExprTypeChecker {
             driver.declChecker.typeCheckFunctionDecl(
                 functionDecl,
                 symbol: functionSymbol,
-                ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
+                ctx: driver.helpers.localFunctionOptInContext(objectCtx)
+                    .with(currentDeclSymbol: functionSymbol),
                 solver: driver.solver,
                 diagnostics: ctx.sema.diagnostics,
                 baseLocals: outerLocalsSnapshot
@@ -1126,6 +1127,42 @@ extension ExprTypeChecker {
             sema.symbols.setSourceFileID(ctx.currentFileID, for: memberSymbol)
             objectScope.insert(memberSymbol)
 
+            let memberFQName = memberFQNamePrefix + [functionDecl.name]
+            let localNamespaceFQName = memberFQName + [interner.intern("$\(memberSymbol.rawValue)")]
+            var enclosingTypeParameters: [InternedString: SymbolID] = [:]
+            for typeParameterSymbol in driver.helpers.lexicalTypeParameterSymbols(in: ctx) {
+                guard let name = sema.symbols.symbol(typeParameterSymbol)?.name,
+                      enclosingTypeParameters[name] == nil,
+                      let visibleSymbol = driver.helpers.resolveTypeParameterSymbol(
+                          name, scope: objectScope, sema: sema
+                      )
+                else {
+                    continue
+                }
+                enclosingTypeParameters[name] = visibleSymbol
+            }
+            let sourceFile = ast.file(for: ctx.currentFileID)
+            let typeParamResult = DataFlowSemaPhase().collectFunctionTypeParameters(
+                functionDecl.typeParams,
+                localNamespaceFQName: localNamespaceFQName,
+                declSite: functionDecl.range,
+                ast: ast,
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                sourceManager: ctx.visibilityChecker.sourceManager,
+                isInline: functionDecl.isInline,
+                diagnostics: ctx.sema.diagnostics,
+                enclosingTypeParameters: enclosingTypeParameters,
+                relativeOwnerFQName: memberFQNamePrefix,
+                currentPackageFQName: sourceFile?.packageFQName,
+                imports: sourceFile?.imports ?? []
+            )
+            let functionScope = FunctionScope(parent: objectScope, symbols: sema.symbols)
+            for typeParameterSymbol in typeParamResult.typeParameterSymbols {
+                functionScope.insert(typeParameterSymbol)
+            }
+
             var parameterTypes: [TypeID] = []
             var parameterSymbols: [SymbolID] = []
             for param in functionDecl.valueParams {
@@ -1135,7 +1172,7 @@ extension ExprTypeChecker {
                         ast: ast,
                         sema: sema,
                         interner: interner,
-                        scope: objectScope,
+                        scope: functionScope,
                         diagnostics: ctx.sema.diagnostics,
                         inferenceContext: ctx,
                         usageRange: functionDecl.range
@@ -1165,7 +1202,7 @@ extension ExprTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    scope: objectScope,
+                    scope: functionScope,
                     diagnostics: ctx.sema.diagnostics,
                     inferenceContext: ctx
                 )
@@ -1178,15 +1215,36 @@ extension ExprTypeChecker {
                 }
             }
 
+            let receiverType: TypeID
+            if let receiverTypeRef = functionDecl.receiverType {
+                receiverType = driver.helpers.resolveTypeRef(
+                    receiverTypeRef,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner,
+                    scope: objectScope,
+                    diagnostics: ctx.sema.diagnostics,
+                    inferenceContext: ctx,
+                    usageRange: functionDecl.range
+                )
+            } else {
+                receiverType = objectType
+            }
+
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: objectType,
+                    receiverType: receiverType,
                     parameterTypes: parameterTypes,
                     returnType: returnType,
                     isSuspend: functionDecl.isSuspend,
                     valueParameterSymbols: parameterSymbols,
                     valueParameterHasDefaultValues: functionDecl.valueParams.map(\.hasDefaultValue),
-                    valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg)
+                    valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg),
+                    typeParameterSymbols: typeParamResult.typeParameterSymbols,
+                    reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
+                    typeParameterUpperBoundsList: typeParamResult.typeParameterSymbols.map {
+                        sema.symbols.typeParameterUpperBounds(for: $0)
+                    }
                 ),
                 for: memberSymbol
             )

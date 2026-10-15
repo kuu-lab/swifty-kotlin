@@ -30,6 +30,14 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Collection fast paths must check inputs when their result type comes
     /// from a speculative superclass hint rather than the inputs themselves.
     var validatesLiftedHintCollectionArguments = false
+    /// The current call expression is in statement position and its result is
+    /// discarded. This lets generic call inference apply Kotlin's Unit-coercion
+    /// rules without weakening calls whose values are consumed by expressions.
+    var isCallResultDiscarded = false
+    /// The surrounding function or lambda body is expected to produce Unit.
+    /// A discarded call may pass Unit to its lambda arguments only in this
+    /// context; ordinary statements in non-Unit functions keep natural types.
+    var isUnitCoercionContext = false
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]
@@ -84,6 +92,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     var flowState: DataFlowState
     let currentFileID: FileID
     var currentDeclSymbol: SymbolID?
+    /// The direct super receiver synthesized for enum-entry member bodies.
+    /// Entry overrides have the enum instance as `this`, while their implicit
+    /// `super` receiver is the enum class itself.
+    var enumEntrySuperContext: (ownerSymbol: SymbolID, type: TypeID)?
     /// When set, the symbol of the property/val whose initializer expression is
     /// currently being type-checked. A bare name reference that resolves back to
     /// this same symbol is a self-referential read before the property has ever
@@ -253,6 +265,12 @@ struct TypeInferenceContext: CustomStringConvertible {
 
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
         var copy = self; copy.currentDeclSymbol = newSymbol; return copy
+    }
+
+    func withEnumEntrySuperContext(ownerSymbol: SymbolID, type: TypeID) -> TypeInferenceContext {
+        var copy = self
+        copy.enumEntrySuperContext = (ownerSymbol: ownerSymbol, type: type)
+        return copy
     }
 
     func with(initializingPropertySymbol newSymbol: SymbolID?) -> TypeInferenceContext {
@@ -470,7 +488,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter { !isExpectDeclarationSupersededByActual($0) }
     }
 
-    private func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {
+    func isExpectDeclarationSupersededByActual(_ id: SymbolID) -> Bool {
         guard let symbol = cachedSymbol(id), symbol.flags.contains(.expectDeclaration) else {
             return false
         }

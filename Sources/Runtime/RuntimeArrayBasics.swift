@@ -24,6 +24,31 @@ private let runtimeArrayTypeNames: [(id: Int64, name: String, kind: RuntimePrimi
     return (runtimeStableNominalTypeID(fqName: fqName), fqName, kind)
 }
 
+func runtimeArrayKClassIdentity(rawValue: Int) -> (typeToken: Int, nameHint: Int)? {
+    let typeIDs = runtimeArrayTypeIDs(rawValue: rawValue)
+    if let arrayType = runtimeArrayTypeNames.first(where: { typeIDs.contains($0.id) }) {
+        return (runtimeNominalTypeToken(arrayType.id), runtimeMakeStringRaw(arrayType.name))
+    }
+    let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    guard typeIDs.contains(arrayTypeID) else { return nil }
+    return (runtimeNominalTypeToken(arrayTypeID), runtimeMakeStringRaw("kotlin.Array"))
+}
+
+func runtimeArrayKClassQualifiedName(typeToken: Int) -> String? {
+    if let arrayType = runtimeArrayTypeNames.first(where: {
+        runtimeNominalTypeToken($0.id) == typeToken
+    }) {
+        return arrayType.name
+    }
+    let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    return runtimeNominalTypeToken(arrayTypeID) == typeToken ? "kotlin.Array" : nil
+}
+
+func runtimeNominalTypeToken(_ typeID: Int64) -> Int {
+    let payload = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+    return Int(truncatingIfNeeded: payload | RuntimeTypeTokenEncoding.nominalBase)
+}
+
 func runtimeArrayIdentityToString(_ raw: Int) -> String {
     let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
     let typeName = runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.name ?? "kotlin.Array"

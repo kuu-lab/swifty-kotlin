@@ -33,6 +33,15 @@ private let callable6: KKClosureFunctionEntryPoint6 = { receiver, a, b, c, d, e,
     thrown?.pointee = 0
     return kk_box_int(callablePayload(receiver) + kk_unbox_int(a) + kk_unbox_int(b) + kk_unbox_int(c) + kk_unbox_int(d) + kk_unbox_int(e) + kk_unbox_int(f))
 }
+private let rawSum7: KKFunctionEntryPoint7 = { a, b, c, d, e, f, g, thrown in
+    thrown?.pointee = 0
+    return a + b + c + d + e + f + g
+}
+private let callable14: KKClosureFunctionEntryPoint14 = { receiver, a, b, c, d, e, f, g, h, i, j, k, l, m, n, thrown in
+    thrown?.pointee = 0
+    let arguments = [a, b, c, d, e, f, g, h, i, j, k, l, m, n]
+    return kk_box_int(callablePayload(receiver) + arguments.reduce(0) { $0 + kk_unbox_int($1) })
+}
 private let callableIdentity: KKClosureFunctionEntryPoint1 = { _, value, thrown in
     thrown?.pointee = 0
     return value
@@ -110,6 +119,25 @@ struct RuntimeFunctionObjectDispatchTests {
         let function = kk_function_create_1(unsafeBitCast(capturedIncrement, to: Int.self), 10, &thrown)
         #expect(kk_function_invoke(function, 3, &thrown) == 13)
         #expect(kk_function_create_1(function, 0, &thrown) == function)
+        #expect(thrown == 0)
+    }
+
+    @Test
+    func dispatchesHighArityRawAndObjectFunctions() {
+        var thrown = 0
+        let raw = unsafeBitCast(rawSum7, to: Int.self)
+        #expect(kk_function_invoke_7(raw, 1, 2, 3, 4, 5, 6, 7, &thrown) == 28)
+        #expect(thrown == 0)
+
+        let object = makeCallable(14, fnPtr: unsafeBitCast(callable14, to: Int.self))
+        let result = kk_function_invoke_14(
+            object,
+            kk_box_int(1), kk_box_int(2), kk_box_int(3), kk_box_int(4), kk_box_int(5),
+            kk_box_int(6), kk_box_int(7), kk_box_int(8), kk_box_int(9), kk_box_int(10),
+            kk_box_int(11), kk_box_int(12), kk_box_int(13), kk_box_int(14),
+            &thrown
+        )
+        #expect(kk_unbox_int(result) == 115)
         #expect(thrown == 0)
     }
 

@@ -175,6 +175,25 @@ struct RuntimeAssertionsTests {
         #expect(runtimeValueIsThrowableBox(box))
     }
 
+    // MARK: - RuntimeInvalidParameterExceptionBox
+
+    @Test
+    func testInvalidParameterExceptionBoxHasJavaIdentityAndIllegalArgumentHierarchy() {
+        let box = RuntimeInvalidParameterExceptionBox(message: "bad parameter")
+        #expect(box.exceptionFQName == "java.security.InvalidParameterException")
+        #expect(box.exceptionHierarchyFQNames == [
+            "java.security.InvalidParameterException",
+            "java.lang.IllegalArgumentException",
+            "kotlin.IllegalArgumentException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ])
+        #expect(box.renderedMessage == "InvalidParameterException: bad parameter")
+        #expect(box.cause == 0)
+        #expect(runtimeValueIsThrowableBox(box))
+    }
+
     // MARK: - RuntimeNoWhenBranchMatchedExceptionBox
 
     @Test

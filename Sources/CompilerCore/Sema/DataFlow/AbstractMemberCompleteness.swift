@@ -95,7 +95,8 @@ private func isNominalSubtypeViaDirectSupertypes(
 /// The inherited abstract members `classSymbol` still owes an implementation
 /// for: everything `collectInheritedAbstractMembers` finds, minus the names
 /// this type provides an `override` for, minus anything owned by an interface
-/// satisfied through `by` delegation (CLASS-008).
+/// satisfied through `by` delegation (CLASS-008), including delegates declared
+/// by class ancestors.
 func unimplementedAbstractMembers(
     for classSymbol: SymbolID,
     overriddenNames: Set<InternedString>,
@@ -107,8 +108,22 @@ func unimplementedAbstractMembers(
     // super-interfaces too: `class C : MutableMap<K,V> by m` must not owe an
     // implementation for `Map.values`, which is declared on MutableMap's
     // parent interface rather than on MutableMap itself (BUG-240).
-    var delegatedNominals: Set<SymbolID> = []
     var delegatedQueue = delegatedInterfaces
+    var classAncestorQueue = symbols.directSupertypes(for: classSymbol)
+    var visitedClassAncestors: Set<SymbolID> = [classSymbol]
+    while let ancestor = classAncestorQueue.popLast() {
+        guard let ancestorSym = symbols.symbol(ancestor),
+              ancestorSym.kind == .class || ancestorSym.kind == .object
+                || ancestorSym.kind == .enumClass || ancestorSym.kind == .annotationClass,
+              visitedClassAncestors.insert(ancestor).inserted
+        else {
+            continue
+        }
+        delegatedQueue.append(contentsOf: symbols.delegatedInterfaces(forClass: ancestor))
+        classAncestorQueue.append(contentsOf: symbols.directSupertypes(for: ancestor))
+    }
+
+    var delegatedNominals: Set<SymbolID> = []
     while let interface = delegatedQueue.popLast() {
         guard delegatedNominals.insert(interface).inserted else { continue }
         for supertype in symbols.directSupertypes(for: interface)

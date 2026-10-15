@@ -89,27 +89,57 @@ public func __kk_runtime_maxMemory() -> Int {
     Int(clamping: runtimeCaptureMemorySnapshot().maxBytes)
 }
 
+@_cdecl("__kk_runtime_availableProcessors")
+public func __kk_runtime_availableProcessors() -> Int {
+    kk_platform_getAvailableProcessors(0)
+}
+
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
     let javaNameOverride: String?
+    let className: String?
+    let enclosingClassName: String?
+    let displayText: String
 
-    init(typeToken: Int, nameHint: Int = 0, javaNameOverride: String? = nil) {
+    init(
+        typeToken: Int,
+        nameHint: Int = 0,
+        javaNameOverride: String? = nil,
+        className: String? = nil,
+        enclosingClassName: String? = nil,
+        displayText: String? = nil
+    ) {
         self.typeToken = typeToken
         self.nameHint = nameHint
         self.javaNameOverride = javaNameOverride
+        self.className = className
+        self.enclosingClassName = enclosingClassName
+        self.displayText = displayText
+            ?? className.map { "class \($0)" }
+            ?? runtimeJavaClassDisplayText(receiverRaw: 0, typeToken: typeToken, nameHint: nameHint)
     }
 }
 
 @_cdecl("__kk_any_javaClass")
 public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     // A Class describes a classifier, independently of the source object's lifetime.
-    let kclassRaw = __kk_kclass_of(receiverRaw, Int(RuntimeTypeTokenEncoding.anyBase), 0)
-    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+    let classifier = runtimeKClassBox(from: receiverRaw)
+        ?? runtimeKClassBox(from: __kk_kclass_of(receiverRaw, Int(RuntimeTypeTokenEncoding.anyBase), 0))
+    guard let classifier else {
         runtimeStructuredPanic("invalid runtime classifier")
     }
     return registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: classifier.typeToken, nameHint: classifier.nameHint),
+        RuntimeJavaClassBox(
+            typeToken: classifier.typeToken,
+            nameHint: classifier.nameHint,
+            enclosingClassName: runtimeFunctionEnclosingClassName(for: receiverRaw),
+            displayText: runtimeJavaClassDisplayText(
+                receiverRaw: receiverRaw,
+                typeToken: classifier.typeToken,
+                nameHint: classifier.nameHint
+            )
+        ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
 }
@@ -125,12 +155,34 @@ public func __kk_kclass_java_class(_ kclassRaw: Int) -> Int {
     )
 }
 
+@_cdecl("__kk_class_toString")
+public func __kk_class_toString(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return runtimeMakeStringRaw(box.displayText)
+}
+
 @_cdecl("__kk_class_kotlin")
 public func __kk_class_kotlin(_ classRaw: Int) -> Int {
     guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
         runtimeStructuredPanic("invalid Java Class handle")
     }
     return __kk_kclass_create(box.typeToken, box.nameHint)
+}
+
+@_cdecl("__kk_class_declared_constructors")
+public func __kk_class_declared_constructors(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    let kclassRaw = __kk_kclass_create(box.typeToken, box.nameHint)
+    let constructors = runtimeKConstructorRegistry.constructors(for: kclassRaw)
+    let array = RuntimeArrayBox(length: constructors.count)
+    for (index, constructorRaw) in constructors.enumerated() {
+        array[index] = constructorRaw
+    }
+    return registerRuntimeObject(array)
 }
 
 @_cdecl("__kk_kclass_java_primitive_type")
@@ -158,7 +210,11 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         return cached
     }
     let raw = registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: token, nameHint: box.nameHint),
+        RuntimeJavaClassBox(
+            typeToken: token,
+            nameHint: box.nameHint,
+            displayText: runtimeJavaPrimitiveClassDisplayText(typeToken: token)
+        ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
     let winner = runtimeStorage.withMetadataLock { state -> Int in

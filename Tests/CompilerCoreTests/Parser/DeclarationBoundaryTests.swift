@@ -8,6 +8,22 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test
+    func anonymousFunctionAtLambdaBlockStartIsAnExpression() {
+        let parsed = parse("""
+        fun host() {
+            val maker: () -> (() -> Int) = { fun () = 1 }
+            val named: () -> Int = {
+                fun local() = 2
+                local()
+            }
+        }
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
     @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
     func topLevelFunctionSeparatorsDoNotMakeFileAScript(separator: String) {
         let source = """
@@ -66,6 +82,63 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 3)
     }
 
+    @Test(arguments: [
+        "Base, Entry by delegate",
+        "Base,\n    Entry by delegate",
+        "Base, Entry\n    by delegate",
+        "Base, Entry\n    by\n    delegate",
+        "Base, Entry<String>\n    by delegate",
+    ])
+    func classSupertypeDelegationContinuesBeforeBy(supertypes: String) throws {
+        let declaration = """
+        class Target(private val delegate: Entry) : \(supertypes) {
+            override fun base() {}
+            override fun entry() {}
+        }
+        """
+        let parsed = parse("\(declaration)\nfun after() = 3")
+        let firstChild = try #require(parsed.arena.children(of: parsed.root).first)
+        guard case let .node(classID) = firstChild else {
+            Issue.record("Expected a class declaration")
+            return
+        }
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(parsed.arena.node(classID).kind == .classDecl)
+        #expect(parsed.arena.node(classID).range.end.offset == declaration.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func namedObjectSupertypeDelegationContinuesBeforeBy() {
+        let parsed = parse("""
+        object Target : Entry
+            by delegate {
+            fun member() = 1
+        }
+        fun after() = 3
+        """)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .objectDecl) == 1)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .funDecl) == 1)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test(arguments: ["fun target(): Entry = delegate", "val target: Entry = delegate"])
+    func newlineByExpressionRemainsOutsideCompletedDeclaration(declaration: String) throws {
+        let parsed = parse("\(declaration)\nby(delegate)")
+        let firstChild = try #require(parsed.arena.children(of: parsed.root).first)
+        guard case let .node(firstID) = firstChild else {
+            Issue.record("Expected a declaration")
+            return
+        }
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(firstID).range.end.offset == declaration.utf8.count)
+        #expect(parsed.arena.children(of: parsed.root).count == 2)
+    }
+
     @Test(arguments: ["Simple()", "(Simple())", "create()"])
     func classDelegationContinuesAfterNewline(expression: String) {
         let parsed = parse("""
@@ -81,6 +154,21 @@ struct DeclarationBoundaryTests {
         #expect(parsed.diagnostics.diagnostics.isEmpty)
         #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 2)
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test(arguments: ["1", "fallback()"])
+    func expressionBodyElseBranchCanStartOnTheNextLine(elseExpression: String) {
+        let parsed = parse("""
+        fun fallback(): Int = 1
+        fun target(x: Boolean): Int = if (x) 0 else
+            \(elseExpression)
+        fun after(): Int = 2
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .statement) == 0)
     }
 
     @Test(arguments: [
@@ -124,6 +212,36 @@ struct DeclarationBoundaryTests {
 
         #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
+    func multilineEnumPrimaryConstructorParametersDoNotEndDeclaration() {
+        let parsed = parse("""
+        enum class Spacing(
+            val horizontal: Int,
+            val vertical: Int
+        ) {
+            SINGLE(1, 1),
+            DOUBLE(2, 2)
+        }
+        fun after() = 3
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .enumEntry) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func unterminatedMultilineEnumPrimaryConstructorRecoversAtNextDeclaration() {
+        let parsed = parse("""
+        enum class Broken(
+            val value: Int
+        fun after() = 3
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
     }
 
     @Test
@@ -520,6 +638,23 @@ struct DeclarationBoundaryTests {
         }
         """
         #expect(rootRange(source).end.offset == source.utf8.count)
+    }
+
+    @Test(arguments: [
+        "fun add(a: Long, b: Long): Long\n{\n    return a + b\n}",
+        "class Calculator\n{\n    fun add(a: Long, b: Long): Long\n    {\n        return a + b\n    }\n}",
+    ])
+    func functionBlockOnNextLineBelongsToFunction(source: String) throws {
+        let parsed = parse(source)
+        let function = try #require(parsed.arena.nodes.enumerated().first { $0.element.kind == .funDecl })
+        let functionID = NodeID(rawValue: Int32(function.offset))
+        let hasDirectBlock = parsed.arena.children(of: functionID).contains { child in
+            guard case let .node(nodeID) = child else { return false }
+            return parsed.arena.node(nodeID).kind == .block
+        }
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(hasDirectBlock)
     }
 
     @Test

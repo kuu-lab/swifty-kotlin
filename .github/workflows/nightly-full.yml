@@ -63,7 +63,13 @@ jobs:
           echo "Detected $worker_count logical CPUs"
       - name: Build compiler and all tests
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Warm runtime objects for candidate-only verification
+        env:
+          DIFF_COMPILE_TIMEOUT: "600"
+        run: bash Scripts/run_candidate_only.sh Scripts/diff_cases/array_max_by.kt
       - name: Verify candidate-only diff cases
+        env:
+          KSWIFTK_STDLIB_LIBRARY: ${{ github.workspace }}/.artifacts/candidate_only/KSwiftKStdlib.kklib
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases
       - name: Package debug test bundle
         run: |

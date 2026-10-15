@@ -186,16 +186,10 @@ func registerSortedCollectionTypeEdgesOnce() {
     let abstractMutableMap = runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableMap")
     let set = setRuntimeTypeID
     let mutableMap = mutableMapRuntimeTypeID
-    let mapEntry = mapEntryRuntimeTypeID
-    let mutableMapEntry = mutableMapEntryRuntimeTypeID
     runtimeStorage.withMetadataLock { state in
         if state.sortedCollectionTypeEdgesRegistered {
             return
         }
-        // On the JVM Map.Entry and MutableEntry erase to java.util.Map.Entry,
-        // so `is`/`as` and bridge checkcasts accept every runtime entry box for
-        // either nominal. The reverse edge lives in registerMapEntryTypeEdgesOnce.
-        state.typeParents[mapEntry, default: []].insert(mutableMapEntry)
         state.typeParents[sortedSet, default: []].insert(mutableSet)
         state.typeParents[sortedSet, default: []].insert(set)
         state.typeParents[navigableSet, default: []].insert(sortedSet)

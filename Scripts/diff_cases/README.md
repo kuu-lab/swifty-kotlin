@@ -63,6 +63,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `cast_operators.kt`: `as` / `as?` キャストと null 結果の parity
 - `reified_generics.kt`: `reified` inline 関数の `is` / `as` / `as?` / `T::class` と bounded type parameter の parity
 - `enum_values_reified_noinline_lambda.kt`: inline `Choice<T>` factory の noinline lambda 内 `enumValues<T>()` の materialization parity
+- `enum_values_for_in_constructor_property.kt`: `values()` を for-in 反復した enum のコンストラクタプロパティ取得 parity（KUU-2336）
 - `is_type_check.kt`: `is` / `!is` と `&&` / `||` の smart-cast 伝播 parity
 - `is_type_check_non_reified_error.kt`: non-reified 型パラメータへの `is` チェック compile-error parity
 - `try_expression.kt`: `try` 式（multi-catch / partial catch / `finally` 実行順）の parity
@@ -76,6 +77,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `value_classes.kt`: `@JvmInline` / `inline class` / `value class` の value class 基本動作 parity
 - `mock_objects.kt`: mock / spy パターン（stubbing, verification, any/eq matcher）の parity
 - `comparator_basic.kt`: Comparator 合成（compareBy / compareByDescending / thenBy / thenByDescending / thenComparator / nullsFirst / nullsLast / naturalOrder / reverseOrder / reversed）の parity
+- `comparator_comparing_int.kt`: `Comparator.comparingInt` のコンパイル、整数境界を含む比較結果、同値キー、selector の評価回数の JVM parity（KUU-2226）
 - `sequence_lazy.kt`: `Sequence<T>` lazy evaluation chain（`asSequence` → `map` → `filter` → `toList`）の parity
 - `stdlib_collection_hof.kt`: collection HOF（map/filter/flatMap/fold/reduce/any/all/none/groupBy/groupingBy.fold/sortedBy/find/count/first/last）と capture lambda の parity
 - `stdlib_kotlin_collections_n_check.kt`: `@PublishedApi internal` collection overflow checks; candidate-only expected-output coverage for negative, zero, positive, and boundary `Int` values

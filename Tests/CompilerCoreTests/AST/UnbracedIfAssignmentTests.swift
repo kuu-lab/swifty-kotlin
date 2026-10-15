@@ -91,6 +91,41 @@ struct UnbracedIfAssignmentTests {
         #expect(innerElseID != nil)
     }
 
+    @Test
+    func newlineElseAfterSemicolonStaysAttachedToUnbracedIf() throws {
+        let context = makeContextFromSource("""
+        fun choose() {
+            var x = 1.0
+            var n = 5.0
+            if (3.14 < n) {
+                if (0.0 < x)
+                    x -= 1.0;
+                else
+                    x += 1.0;
+                n += 1.0;
+            }
+        }
+        """)
+        try runFrontend(context)
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let (ast, outerBranch) = try parsedIf(in: context)
+        guard case let .ifExpr(_, thenID, _, _) = outerBranch,
+              case let .blockExpr(statements, _, _) = ast.arena.expr(thenID),
+              let nestedID = statements.first(where: { expression in
+                  if case .ifExpr = ast.arena.expr(expression) { return true }
+                  return false
+              }),
+              case let .ifExpr(_, _, elseID, _) = ast.arena.expr(nestedID)
+        else {
+            Issue.record("Expected the inner if to remain a statement in the outer block")
+            return
+        }
+        #expect(elseID != nil)
+        #expect(statements.count == 2)
+    }
+
     private struct TestFailure: Error {
         let message: String
         init(_ message: String) { self.message = message }

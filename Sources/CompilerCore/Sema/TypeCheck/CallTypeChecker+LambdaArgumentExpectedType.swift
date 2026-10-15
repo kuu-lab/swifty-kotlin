@@ -190,7 +190,7 @@ extension CallTypeChecker {
     /// the lambda's expected type `T.() -> Unit` must become `ConcreteType.() -> Unit`
     /// before the lambda body is type-checked so that unqualified member access on
     /// the implicit receiver resolves correctly.
-    private func applyFunctionReceiverTypeArgs(
+    func applyFunctionReceiverTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         receiverType: TypeID?,
@@ -254,6 +254,11 @@ extension CallTypeChecker {
             return parameterType
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let receiverInfersTypeParameters = signature.receiverType.map { declaredReceiver in
+            signature.typeParameterSymbols.contains { symbol in
+                sema.types.typeContainsTypeParam(declaredReceiver, symbol: symbol)
+            }
+        } ?? false
         var result = parameterType
         if !inferredNonLambdaArgTypes.isEmpty {
             let substitution = resolver.probeArgumentTypeSubstitution(
@@ -277,9 +282,14 @@ extension CallTypeChecker {
         // derived bindings are applied to the lambda's inputs only.
         if fixesReceiverBoundInputs,
            let receiverType,
-           hasTypeParameterBoundedByTypeParameter(signature, sema: sema),
+           receiverInfersTypeParameters,
            case let .functionType(functionType) = sema.types.kind(of: result)
         {
+            // Receiver constraints can determine callback inputs through a
+            // generic bound such as C: Iterable<T>, even when no parameter
+            // is directly bounded by another type parameter. The probe keeps
+            // only variables with lower-bound evidence, so output-only
+            // variables remain open for the authoritative call inference.
             let receiverSubstitution = resolver.probeArgumentTypeSubstitution(
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
@@ -366,26 +376,6 @@ extension CallTypeChecker {
         explicitTypeArgs.isEmpty
             && index < args.count
             && ctx.ast.arena.lambdaParamTypeRefs(for: args[index].expr)?.contains(where: { $0 != nil }) != true
-    }
-
-    private func hasTypeParameterBoundedByTypeParameter(
-        _ signature: FunctionSignature,
-        sema: SemaModule
-    ) -> Bool {
-        guard signature.receiverType != nil else { return false }
-        for (index, symbol) in signature.typeParameterSymbols.enumerated() {
-            let signatureBounds = index < signature.typeParameterUpperBoundsList.count
-                ? signature.typeParameterUpperBoundsList[index]
-                : []
-            let bounds = signatureBounds + sema.symbols.typeParameterUpperBounds(for: symbol)
-            if bounds.contains(where: { bound in
-                if case .typeParam = sema.types.kind(of: bound) { return true }
-                return false
-            }) {
-                return true
-            }
-        }
-        return false
     }
 
     func callableReferenceExpectedType(
@@ -485,6 +475,8 @@ extension CallTypeChecker {
         blocksRefinement: Bool,
         hasAmbiguousImplicitParameterShape: Bool
     ) {
+        let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
+
         // When all candidates share the same input-only HOF shape, pick the
         // first candidate and treat the lambda as input-only so that its return type is
         // not used for constraint solving — matches what the single-candidate path does.
@@ -506,7 +498,7 @@ extension CallTypeChecker {
                 signature: signature,
                 candidate: candidates[0],
                 explicitTypeArgs: explicitTypeArgs,
-                receiverType: receiverType,
+                receiverType: effectiveReceiverType,
                 sema: sema
             )
             return (substituted, true, false, false)
@@ -527,7 +519,7 @@ extension CallTypeChecker {
                 signature: signature,
                 candidate: candidates[0],
                 explicitTypeArgs: explicitTypeArgs,
-                receiverType: receiverType,
+                receiverType: effectiveReceiverType,
                 fixesReceiverBoundInputs: fixesReceiverBoundLambdaInputs(
                     at: index, args: args, explicitTypeArgs: explicitTypeArgs, ctx: ctx
                 ),
@@ -544,7 +536,7 @@ extension CallTypeChecker {
             callRange: callRange,
             candidates: candidates,
             explicitTypeArgs: explicitTypeArgs,
-            receiverType: receiverType,
+            receiverType: effectiveReceiverType,
             inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
             resolver: resolver,
             sema: sema,

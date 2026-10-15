@@ -262,10 +262,15 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        let usesRuntimeSetContainsVirtualBridge = interner.resolve(calleeName) == "__kk_set_contains"
+            && receiverTypeForDispatch.map {
+                isSetLikeType($0, sema: sema, interner: interner)
+            } == true
         guard listIteratorInheritedDispatch != nil
             || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
             || usesIteratorRuntimeVirtualBridge
+            || usesRuntimeSetContainsVirtualBridge
         else { return nil }
         guard !isRuntimeRangeReceiver,
               let dispatchKind = resolveVirtualDispatch(

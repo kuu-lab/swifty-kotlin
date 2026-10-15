@@ -639,7 +639,17 @@ extension KIRLoweringDriver {
                       case let .propertyDecl(property) = propertyDecl,
                       let propertySymbol = sema.bindings.declSymbols[propertyDeclID]
                 else { continue }
-                if property.delegateExpression != nil { continue }
+                if property.delegateExpression != nil {
+                    emitDelegatePropertyInitializer(
+                        propertyDecl: property,
+                        propSymbol: propertySymbol,
+                        sema: sema,
+                        arena: shared.arena,
+                        shared: shared,
+                        body: &body
+                    )
+                    continue
+                }
                 guard let initializer = property.initializer else { continue }
                 let initializerValue = lowerExpr(initializer, shared: shared, emit: &body)
                 let targetSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol

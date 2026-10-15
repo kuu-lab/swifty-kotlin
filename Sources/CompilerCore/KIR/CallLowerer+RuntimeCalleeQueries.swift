@@ -12,7 +12,9 @@ extension CallLowerer {
             return nil
         }
 
-        let valueArity = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+        let valueArity = functionType.contextReceivers.count
+            + functionType.params.count
+            + (functionType.receiver == nil ? 0 : 1)
 
         if functionType.isSuspend {
             switch valueArity {
@@ -40,16 +42,8 @@ extension CallLowerer {
             return interner.intern("kk_function_invoke_0")
         case 1:
             return interner.intern("kk_function_invoke")
-        case 2:
-            return interner.intern("kk_function_invoke_2")
-        case 3:
-            return interner.intern("kk_function_invoke_3")
-        case 4:
-            return interner.intern("kk_function_invoke_4")
-        case 5:
-            return interner.intern("kk_function_invoke_5")
-        case 6:
-            return interner.intern("kk_function_invoke_6")
+        case 2...22:
+            return interner.intern("kk_function_invoke_\(valueArity)")
         default:
             return nil
         }

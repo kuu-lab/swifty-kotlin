@@ -79,6 +79,30 @@ struct AnonymousObjectFinalInheritanceTests {
         )
     }
 
+    @Test(arguments: [false, true])
+    func anonymousObjectsStillCannotInheritFinalLocalOrTopLevelClasses(usesLibraryArtifact: Bool) throws {
+        let ctx = try compile(
+            """
+            class TopLevelFinal
+            fun topLevelAnonymous() = object : TopLevelFinal() {}
+
+            fun localAnonymous() {
+                class LocalFinal
+                val instance = object : LocalFinal() {}
+            }
+            """,
+            usesLibraryArtifact: usesLibraryArtifact
+        )
+
+        let finalDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-FINAL"
+        }
+        #expect(
+            finalDiagnostics.count == 2,
+            "Expected top-level and local final classes to be rejected with stdlib artifact=\(usesLibraryArtifact), got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     @Test
     func namedAndAnonymousDataClassInheritancesAreRejected() throws {
         let ctx = try compile("""

@@ -236,6 +236,12 @@ func runtimeFloatHashCode(_ value: Float) -> Int {
     return Int(Int32(bitPattern: value.bitPattern))
 }
 
+/// Double.hashCode() folds canonical NaN bits while retaining signed zero.
+private func runtimeDoubleHashCode(_ value: Double) -> Int {
+    let bits: UInt64 = value.isNaN ? 0x7FF8_0000_0000_0000 : value.bitPattern
+    return runtimeXorFoldHashCode(Int64(bitPattern: bits))
+}
+
 /// Unboxed (raw, non-pointer) `Any.hashCode()` fallback. Tags 5/6/7/8
 /// (Float/Double/ULong/Long) apply Kotlin's bit-level formulas. Tags 9/10/11
 /// (UInt/UByte/UShort) reinterpret the zero-extended payload as the signed
@@ -248,7 +254,9 @@ private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return value != 0 ? 1231 : 1237
     case 5:
         return runtimeFloatHashCode(kk_bits_to_float(value))
-    case 6, 7, 8:
+    case 6:
+        return runtimeDoubleHashCode(kk_bits_to_double(value))
+    case 7, 8:
         return runtimeXorFoldHashCode(Int64(value))
     case 9:
         return Int(Int32(truncatingIfNeeded: value))
@@ -327,7 +335,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeFloatHashCode(floatBox.value)
     }
     if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
-        return runtimeXorFoldHashCode(Int64(kk_double_to_bits(doubleBox.value)))
+        return runtimeDoubleHashCode(doubleBox.value)
     }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return charBox.value

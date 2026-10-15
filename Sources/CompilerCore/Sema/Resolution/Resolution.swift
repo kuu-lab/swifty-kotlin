@@ -33,6 +33,7 @@ extension OverloadResolver {
         implicitReceiverType: TypeID? = nil,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         ignoringLambdaReturnTypeArgumentIndices: Set<Int> = [],
+        resultIsDiscarded: Bool = false,
         ctx: SemaModule
     ) -> ProbedCallResult {
         let (viable, _) = evaluateCandidates(
@@ -42,6 +43,7 @@ extension OverloadResolver {
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: candidateArgumentTypes,
             ignoredLambdaReturnTypeArgumentIndices: ignoringLambdaReturnTypeArgumentIndices,
+            resultIsDiscarded: resultIsDiscarded,
             ctx: ctx
         )
         return ProbedCallResult(
@@ -178,11 +180,15 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID? = nil,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        preserveMemberExtensionAmbiguity: Bool = false,
+        resultIsDiscarded: Bool = false,
         ctx: SemaModule
     ) -> ResolvedCall {
         let result = resolveCallWithoutJavaWarnings(
             candidates: candidates, call: call, expectedType: expectedType,
-            implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes, ctx: ctx
+            implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
+            resultIsDiscarded: resultIsDiscarded, ctx: ctx
         )
         if let chosen = result.chosenCallee {
             warnJavaCollectionsNullableArguments(call, expectedType: expectedType, chosen: chosen, ctx: ctx)
@@ -196,17 +202,27 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID? = nil,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        preserveMemberExtensionAmbiguity: Bool,
+        resultIsDiscarded: Bool = false,
         ctx: SemaModule
     ) -> ResolvedCall {
         // --- cache lookup ---
-        // Per-candidate argument overrides bypass the shared cache key.
-        guard candidateArgumentTypes.isEmpty, call.typeAliasConstructor == nil, let cache = cacheContext else {
+        // Per-candidate overrides, extension ambiguity rules, and discarded-result
+        // inference bypass the shared cache because they are call-site specific.
+        guard !preserveMemberExtensionAmbiguity,
+              !resultIsDiscarded,
+              candidateArgumentTypes.isEmpty,
+              call.typeAliasConstructor == nil,
+              let cache = cacheContext
+        else {
             return resolveCallUncached(
                 candidates: candidates,
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
+                resultIsDiscarded: resultIsDiscarded,
                 ctx: ctx
             )
         }
@@ -237,6 +253,8 @@ extension OverloadResolver {
             expectedType: expectedType,
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: [:],
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
+            resultIsDiscarded: false,
             ctx: ctx
         )
         cache.cacheCallResolution(result, for: key)
@@ -249,6 +267,8 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]],
+        preserveMemberExtensionAmbiguity: Bool,
+        resultIsDiscarded: Bool,
         ctx: SemaModule
     ) -> ResolvedCall {
         let (viable, candidateFailures) = evaluateCandidates(
@@ -258,13 +278,15 @@ extension OverloadResolver {
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: candidateArgumentTypes,
             ignoredLambdaReturnTypeArgumentIndices: [],
+            resultIsDiscarded: resultIsDiscarded,
             ctx: ctx
         )
         return selectResult(
             from: viable,
             call: call,
             typeSystem: ctx.types,
-            candidateFailures: candidateFailures
+            candidateFailures: candidateFailures,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
         )
     }
 
@@ -275,6 +297,7 @@ extension OverloadResolver {
         implicitReceiverType: TypeID?,
         candidateArgumentTypes: [SymbolID: [Int: TypeID]],
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
+        resultIsDiscarded: Bool,
         ctx: SemaModule
     ) -> (viable: [ViableCandidate], failures: [Diagnostic]) {
         let solver = ConstraintSolver()
@@ -288,6 +311,7 @@ extension OverloadResolver {
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
                 ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
+                resultIsDiscarded: resultIsDiscarded,
                 solver: solver,
                 ctx: ctx
             )
@@ -309,6 +333,7 @@ extension OverloadResolver {
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
+        resultIsDiscarded: Bool,
         solver: ConstraintSolver,
         ctx: SemaModule
     ) -> CandidateEvaluation {
@@ -644,6 +669,18 @@ extension OverloadResolver {
         // `where C : Collection<*>, C : R`). Add those relationships to the
         // inference graph before solving so a receiver lower bound can widen
         // the result type as required by Kotlin's self-type extensions.
+        func shouldDeferNullableDependentBoundCheck(_ bound: TypeID, for parameter: SymbolID) -> Bool {
+            guard case let .typeParam(boundParameter) = ctx.types.kind(of: bound),
+                  boundParameter.nullability != .nonNull,
+                  let parameterVariable = typeVarBySymbol[parameter],
+                  let boundVariable = typeVarBySymbol[boundParameter.symbol]
+            else {
+                return false
+            }
+            return explicitTypeSubstitution[parameterVariable] != nil
+                && explicitTypeSubstitution[boundVariable] != nil
+        }
+
         for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
             guard index < signature.typeParameterUpperBoundsList.count else {
                 continue
@@ -658,12 +695,61 @@ extension OverloadResolver {
                 else {
                     continue
                 }
+                // A nullable dependent bound such as `E : T?` cannot be
+                // represented by this variable-to-variable edge without
+                // dropping nullability. Explicit arguments are checked against
+                // the fully substituted bound after solving.
+                if shouldDeferNullableDependentBoundCheck(upperBound, for: typeParamSymbol) {
+                    continue
+                }
                 constraints.append(VariableConstraint(
                     kind: .subtype,
                     left: .variable(typeParamVariable),
                     right: .variable(boundTypeParamVariable),
                     blameRange: call.range
                 ))
+            }
+        }
+
+        if resultIsDiscarded {
+            let inputTypes = signature.parameterTypes
+                + signature.contextReceiverTypes
+                + signature.contextParameterTypes
+                + (signature.receiverType.map { [$0] } ?? [])
+            for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+                guard let typeVariable = typeVarBySymbol[typeParamSymbol],
+                      containsTypeVariable(
+                          signature.returnType,
+                          typeVarBySymbol: [typeParamSymbol: typeVariable],
+                          typeSystem: ctx.types
+                      ),
+                      !inputTypes.contains(where: {
+                          containsTypeVariable(
+                              $0,
+                              typeVarBySymbol: [typeParamSymbol: typeVariable],
+                              typeSystem: ctx.types
+                          )
+                      })
+                else {
+                    continue
+                }
+
+                var defaultUpperBounds = index < signature.typeParameterUpperBoundsList.count
+                    ? signature.typeParameterUpperBoundsList[index]
+                    : []
+                defaultUpperBounds.append(contentsOf: ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+                    .filter { !defaultUpperBounds.contains($0) })
+                if defaultUpperBounds.isEmpty {
+                    defaultUpperBounds = [ctx.types.nullableAnyType]
+                }
+                constraints.append(contentsOf: defaultUpperBounds.map { upperBound in
+                    VariableConstraint(
+                        kind: .subtype,
+                        left: .variable(typeVariable),
+                        right: .type(upperBound),
+                        blameRange: call.range
+                    )
+                })
             }
         }
 
@@ -708,6 +794,9 @@ extension OverloadResolver {
                 for bound in bounds where containsTypeVariable(
                     bound, typeVarBySymbol: dependentVariables, typeSystem: ctx.types
                 ) {
+                    if shouldDeferNullableDependentBoundCheck(bound, for: symbol) {
+                        continue
+                    }
                     let projected = decomposeSubtypeConstraint(
                         subtype: inferred,
                         supertype: bound,
@@ -842,7 +931,10 @@ extension OverloadResolver {
             parameterMapping: parameterMapping,
             defaultArgumentOwner: defaultArgumentOwner,
             effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
-            usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
+            usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true),
+            isLowPriorityInOverloadResolution: ctx.symbols.annotations(for: candidate).contains {
+                $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+            }
         ))
     }
 
@@ -1315,7 +1407,8 @@ extension OverloadResolver {
         from viable: [ViableCandidate],
         call: CallExpr,
         typeSystem: TypeSystem,
-        candidateFailures: [Diagnostic]
+        candidateFailures: [Diagnostic],
+        preserveMemberExtensionAmbiguity: Bool
     ) -> ResolvedCall {
         if viable.isEmpty {
             if let diagnostic = candidateFailures.first {
@@ -1332,10 +1425,22 @@ extension OverloadResolver {
                 range: call.range
             )
         }
-        if viable.count == 1 {
-            return viable[0].toResolvedCall()
+        // Low-priority overloads participate only when no applicable
+        // regular-priority candidate exists. Apply this after viability so an
+        // inapplicable regular overload cannot suppress the low-priority set.
+        let regularPriorityCandidates = viable.filter { candidate in
+            !candidate.isLowPriorityInOverloadResolution
         }
-        if let chosen = pickMostSpecific(viable, call: call, typeSystem: typeSystem) {
+        let priorityFiltered = regularPriorityCandidates.isEmpty ? viable : regularPriorityCandidates
+        if priorityFiltered.count == 1 {
+            return priorityFiltered[0].toResolvedCall()
+        }
+        if let chosen = pickMostSpecific(
+            priorityFiltered,
+            call: call,
+            typeSystem: typeSystem,
+            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
+        ) {
             return chosen.toResolvedCall()
         }
         return errorResult(
@@ -1386,6 +1491,7 @@ extension OverloadResolver {
         let defaultArgumentOwner: SymbolID?
         let effectiveDefaultValues: [Bool]
         let usesVararg: Bool
+        let isLowPriorityInOverloadResolution: Bool
 
         func toResolvedCall() -> ResolvedCall {
             ResolvedCall(
@@ -1417,7 +1523,8 @@ extension OverloadResolver {
     private func pickMostSpecific(
         _ candidates: [ViableCandidate],
         call: CallExpr,
-        typeSystem: TypeSystem
+        typeSystem: TypeSystem,
+        preserveMemberExtensionAmbiguity: Bool
     ) -> ViableCandidate? {
         let winners = candidates.filter { candidate in
             for other in candidates where other.symbol != candidate.symbol {
@@ -1443,6 +1550,9 @@ extension OverloadResolver {
         let tied = winners.isEmpty ? candidates : winners
         if tied.count > 1,
            tied.allSatisfy({ !call.boundObjectDispatchReceiverCandidates.contains($0.symbol) }),
+           (!preserveMemberExtensionAmbiguity || tied.allSatisfy({
+               typeSystem.symbolTable?.memberExtensionOwnerSymbol(for: $0.symbol) == nil
+           })),
            tied.allSatisfy({ isNominalMemberFunction($0.symbol, typeSystem: typeSystem) }),
            tied.allSatisfy({ lhs in
                tied.allSatisfy { rhs in
