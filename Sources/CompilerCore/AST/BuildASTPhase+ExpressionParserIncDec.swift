@@ -91,21 +91,19 @@ extension BuildASTPhase.ExpressionParser {
 
         case let .memberCall(receiver, callee, typeArgs, args, _)
             where typeArgs.isEmpty && args.isEmpty:
-            let cachedReceiver: ExprID
-            if isSideEffectFreeReceiver(receiver) {
-                cachedReceiver = receiver
-            } else {
-                let receiverRange = astArena.exprRange(receiver) ?? operandRange
-                let receiverName = interner.intern("$incdec$receiver$\(nextIncDecTempID())")
-                statements.append(astArena.appendExpr(.localDecl(
-                    name: receiverName,
-                    isMutable: false,
-                    typeAnnotation: nil,
-                    initializer: receiver,
-                    range: receiverRange
-                )))
-                cachedReceiver = astArena.appendExpr(.nameRef(receiverName, receiverRange))
-            }
+            // A name reference can still invoke a top-level property's getter.
+            // Capture every receiver once because the synthesized read and
+            // write otherwise evaluate that reference separately.
+            let receiverRange = astArena.exprRange(receiver) ?? operandRange
+            let receiverName = interner.intern("$incdec$receiver$\(nextIncDecTempID())")
+            statements.append(astArena.appendExpr(.localDecl(
+                name: receiverName,
+                isMutable: false,
+                typeAnnotation: nil,
+                initializer: receiver,
+                range: receiverRange
+            )))
+            let cachedReceiver = astArena.appendExpr(.nameRef(receiverName, receiverRange))
             readExpr = astArena.appendExpr(.memberCall(
                 receiver: cachedReceiver,
                 callee: callee,
@@ -261,14 +259,4 @@ extension BuildASTPhase.ExpressionParser {
         interner.intern("$incdec$\(range.start.offset)$\(nextIncDecTempID())")
     }
 
-    /// Only receivers that can be evaluated twice without observable effects are
-    /// eligible, because the desugaring reads and writes the member separately.
-    private func isSideEffectFreeReceiver(_ exprID: ExprID) -> Bool {
-        switch astArena.expr(exprID) {
-        case .nameRef, .thisRef:
-            true
-        default:
-            false
-        }
-    }
 }

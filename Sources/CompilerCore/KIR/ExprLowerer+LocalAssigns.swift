@@ -119,10 +119,30 @@ extension ExprLowerer {
                 let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                 return pk == nil || pk == .package || pk == .object
             }() {
-                let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
-                let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
-                instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
-                instructions.append(.copy(from: valueID, to: globalRef))
+                if sema.symbols.symbol(symbol)?.kind == .property,
+                   let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
+                {
+                    // A custom getter with no custom setter still has the
+                    // compiler-provided setter, which writes the backing field.
+                    // Keep bare assignments on that same storage so later
+                    // getter calls observe the new value.
+                    let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol)
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                        valueID,
+                        slotType: backingFieldType,
+                        types: sema.types,
+                        arena: arena,
+                        into: &instructions
+                    )
+                    instructions.append(.storeGlobal(value: storedValueID, symbol: backingFieldSymbol))
+                } else {
+                    let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+                    let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
+                    instructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))
+                    instructions.append(.copy(from: valueID, to: globalRef))
+                }
             } else if let slotSymbol = driver.ctx.enumEntryStorageSlots[symbol] {
                 // Inside an enum entry's construction (`init { x = ... }`),
                 // including a `val` initialized there: write the slot.
