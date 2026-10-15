@@ -156,6 +156,21 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
     }
 
+    @Test(arguments: ["1", "fallback()"])
+    func expressionBodyElseBranchCanStartOnTheNextLine(elseExpression: String) {
+        let parsed = parse("""
+        fun fallback(): Int = 1
+        fun target(x: Boolean): Int = if (x) 0 else
+            \(elseExpression)
+        fun after(): Int = 2
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .statement) == 0)
+    }
+
     @Test(arguments: [
         "var count = 0\ncount = count + 1\ncount",
         "val count = 1\ncount",
