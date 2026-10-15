@@ -107,6 +107,20 @@ struct RuntimeNumericHashCodeTests {
         #expect(kk_any_hashCode(negativeZero, 0) == -2_147_483_648)
     }
 
+    @Test(arguments: [
+        UInt64(0x7FF8_0000_0000_0000), 0x7FF0_0000_0000_0001,
+        0x7FFF_FFFF_FFFF_FFFF, 0xFFF8_0000_0000_0042,
+    ])
+    func testDoubleHashCodeCanonicalizesNaNPayloads(bits: UInt64) {
+        let raw = Int(bitPattern: UInt(bits))
+        let boxed = kk_box_double_nonnull(raw)
+        #expect(kk_any_hashCode(raw, 6) == 2_146_959_360)
+        #expect(kk_any_hashCode(boxed, 0) == 2_146_959_360)
+        let canonical = kk_box_double_nonnull(kk_double_to_bits(Double.nan))
+        #expect(kk_unbox_bool(__kk_objects_equals(boxed, canonical, nil)) == 1)
+        #expect(runtimeValueHash(boxed) == runtimeValueHash(canonical))
+    }
+
     @Test
     func testBoxedDurationHashCodeMatchesLongXorFold() {
         // Duration hashes Kotlin's tagged payload, not the nanosecond count.
