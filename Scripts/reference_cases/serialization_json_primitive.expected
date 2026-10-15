@@ -1,0 +1,11 @@
+quoted:"quote: \" slash: \\ backspace: \b formfeed: \f newline: \n return: \r tab: \t control: \u0001"
+values:42,0,1.25,2.5
+nullable:null,null,true,true,true
+unsigned:18446744073709551615
+invalid-cast:IllegalArgumentException:Element class kotlinx.serialization.json.JsonLiteral is not a JsonNull
+int-overflow:NumberFormatException:2147483648 is not an Int
+fraction-as-int:NumberFormatException:Unexpected JSON token at offset 0: Unexpected symbol '.' in numeric literal at path: $
+JSON input: 1.0
+long-overflow:NumberFormatException:Unexpected JSON token at offset 19: Numeric value overflow at path: $
+JSON input: 9223372036854775808
+invalid-bool:IllegalStateException:"yes" does not represent a Boolean
