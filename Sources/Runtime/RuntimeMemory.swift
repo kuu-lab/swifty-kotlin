@@ -92,10 +92,12 @@ public func __kk_runtime_maxMemory() -> Int {
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
+    let canonicalNameOverride: String?
 
-    init(typeToken: Int, nameHint: Int = 0) {
+    init(typeToken: Int, nameHint: Int = 0, canonicalNameOverride: String? = nil) {
         self.typeToken = typeToken
         self.nameHint = nameHint
+        self.canonicalNameOverride = canonicalNameOverride
     }
 }
 
@@ -135,12 +137,71 @@ public func __kk_class_declared_constructors(_ classRaw: Int) -> Int {
     return registerRuntimeObject(array)
 }
 
+@_cdecl("__kk_kclass_java_class")
+public func __kk_kclass_java_class(_ kclassRaw: Int) -> Int {
+    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+        runtimeStructuredPanic("invalid KClass handle")
+    }
+    return registerRuntimeObject(
+        RuntimeJavaClassBox(typeToken: classifier.typeToken, nameHint: classifier.nameHint),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+}
+
+@_cdecl("__kk_class_canonical_name")
+public func __kk_class_canonical_name(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    if let canonicalName = box.canonicalNameOverride {
+        return runtimeMakeStringRaw(canonicalName)
+    }
+    let base = Int64(truncatingIfNeeded: box.typeToken) & RuntimeTypeTokenEncoding.baseMask
+    let canonicalName: String?
+    switch base {
+    case RuntimeTypeTokenEncoding.booleanBase:
+        canonicalName = "boolean"
+    case RuntimeTypeTokenEncoding.charBase:
+        canonicalName = "char"
+    case RuntimeTypeTokenEncoding.byteBase:
+        canonicalName = "byte"
+    case RuntimeTypeTokenEncoding.shortBase:
+        canonicalName = "short"
+    case RuntimeTypeTokenEncoding.intBase:
+        canonicalName = "int"
+    case RuntimeTypeTokenEncoding.floatBase:
+        canonicalName = "float"
+    case RuntimeTypeTokenEncoding.longBase:
+        canonicalName = "long"
+    case RuntimeTypeTokenEncoding.doubleBase:
+        canonicalName = "double"
+    case RuntimeTypeTokenEncoding.nullBase:
+        canonicalName = "void"
+    case RuntimeTypeTokenEncoding.anyBase:
+        canonicalName = "java.lang.Object"
+    case RuntimeTypeTokenEncoding.stringBase:
+        canonicalName = "java.lang.String"
+    default:
+        let qualifiedNameRaw = __kk_type_token_qualified_name(box.typeToken, box.nameHint)
+        guard qualifiedNameRaw != 0, qualifiedNameRaw != runtimeNullSentinelInt,
+              let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw)),
+              !qualifiedName.isEmpty, qualifiedName != "Unknown"
+        else {
+            return runtimeNullSentinelInt
+        }
+        canonicalName = runtimeJVMExceptionFQName(from: qualifiedName)
+    }
+    guard let canonicalName else { return runtimeNullSentinelInt }
+    return runtimeMakeStringRaw(canonicalName)
+}
+
 @_cdecl("__kk_kclass_java_primitive_type")
 public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         runtimeStructuredPanic("invalid KClass handle")
     }
     let token = box.typeToken
+    var canonicalNameOverride: String?
     // Kotlin's eight value primitives and Nothing (the JVM Void classifier) map
     // to primitive Class handles.
     // Unit and unsigned value classes are reference types on the JVM.
@@ -155,12 +216,17 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         guard name == "java.lang.Void" || name == "kotlin.Nothing" else {
             return runtimeNullSentinelInt
         }
+        canonicalNameOverride = "void"
     }
     if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[token] }) {
         return cached
     }
     let raw = registerRuntimeObject(
-        RuntimeJavaClassBox(typeToken: token, nameHint: box.nameHint),
+        RuntimeJavaClassBox(
+            typeToken: token,
+            nameHint: box.nameHint,
+            canonicalNameOverride: canonicalNameOverride
+        ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
     )
     let winner = runtimeStorage.withMetadataLock { state -> Int in
