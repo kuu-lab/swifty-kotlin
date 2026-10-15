@@ -522,6 +522,23 @@ struct DeclarationBoundaryTests {
         #expect(rootRange(source).end.offset == source.utf8.count)
     }
 
+    @Test(arguments: [
+        "fun add(a: Long, b: Long): Long\n{\n    return a + b\n}",
+        "class Calculator\n{\n    fun add(a: Long, b: Long): Long\n    {\n        return a + b\n    }\n}",
+    ])
+    func functionBlockOnNextLineBelongsToFunction(source: String) throws {
+        let parsed = parse(source)
+        let function = try #require(parsed.arena.nodes.enumerated().first { $0.element.kind == .funDecl })
+        let functionID = NodeID(rawValue: Int32(function.offset))
+        let hasDirectBlock = parsed.arena.children(of: functionID).contains { child in
+            guard case let .node(nodeID) = child else { return false }
+            return parsed.arena.node(nodeID).kind == .block
+        }
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(hasDirectBlock)
+    }
+
     @Test
     func testRootRangeReachesTrailingEnumBody() {
         let source = """

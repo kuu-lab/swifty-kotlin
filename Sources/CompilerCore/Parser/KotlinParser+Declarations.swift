@@ -280,6 +280,20 @@ extension KotlinParser {
             range.append(childRange(.node(body)))
         } else {
             parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
+            // A block on the next line still belongs to a function whose
+            // header has no expression body or explicit terminator.
+            if case .symbol(.lBrace) = stream.peek().kind,
+               hasLeadingNewline(stream.peek()),
+               lastConsumedToken?.kind != .symbol(.semicolon),
+               !children.contains(where: { child in
+                   guard case let .token(tokenID) = child else { return false }
+                   return arena.token(tokenID)?.kind == .symbol(.assign)
+               })
+            {
+                let body = parseBlock()
+                children.append(.node(body))
+                range.append(childRange(.node(body)))
+            }
         }
 
         return arena.appendNode(
