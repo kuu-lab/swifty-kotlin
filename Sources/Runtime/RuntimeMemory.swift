@@ -102,8 +102,9 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
 @_cdecl("__kk_any_javaClass")
 public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
     // A Class describes a classifier, independently of the source object's lifetime.
-    let kclassRaw = __kk_kclass_of(receiverRaw, Int(RuntimeTypeTokenEncoding.anyBase), 0)
-    guard let classifier = runtimeKClassBox(from: kclassRaw) else {
+    let classifier = runtimeKClassBox(from: receiverRaw)
+        ?? runtimeKClassBox(from: __kk_kclass_of(receiverRaw, Int(RuntimeTypeTokenEncoding.anyBase), 0))
+    guard let classifier else {
         runtimeStructuredPanic("invalid runtime classifier")
     }
     return registerRuntimeObject(
@@ -118,6 +119,20 @@ public func __kk_class_kotlin(_ classRaw: Int) -> Int {
         runtimeStructuredPanic("invalid Java Class handle")
     }
     return __kk_kclass_create(box.typeToken, box.nameHint)
+}
+
+@_cdecl("__kk_class_declared_constructors")
+public func __kk_class_declared_constructors(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    let kclassRaw = __kk_kclass_create(box.typeToken, box.nameHint)
+    let constructors = runtimeKConstructorRegistry.constructors(for: kclassRaw)
+    let array = RuntimeArrayBox(length: constructors.count)
+    for (index, constructorRaw) in constructors.enumerated() {
+        array[index] = constructorRaw
+    }
+    return registerRuntimeObject(array)
 }
 
 @_cdecl("__kk_kclass_java_primitive_type")
