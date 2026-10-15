@@ -1355,16 +1355,28 @@ extension DeclTypeChecker {
 
         // Record the type in the declaration scope, not the caller's scope.
         if case let .isCheck(operand, typeRef, negated, _) = conditionExpr,
-           !negated,
-           case let .nameRef(name, _) = ast.arena.expr(operand),
-           let index = function.valueParams.firstIndex(where: { $0.name == name })
+           !negated
         {
+            let target: ContractImplicationTarget
+            if case let .nameRef(name, _) = ast.arena.expr(operand),
+               let index = function.valueParams.firstIndex(where: { $0.name == name })
+            {
+                target = .valueParameter(index)
+            } else if case let .thisRef(label, _) = ast.arena.expr(operand),
+                      label == function.name,
+                      function.receiverType != nil,
+                      signature.receiverType != nil
+            {
+                target = .extensionReceiver
+            } else {
+                return
+            }
             let targetType = driver.helpers.resolveTypeRef(
                 typeRef, ast: ast, sema: sema, interner: interner, scope: scope
             )
             guard targetType != sema.types.errorType else { return }
             sema.symbols.addContractImplicationEffect(
-                ContractImplicationEffect(parameterIndex: index, returnCondition: returnCondition,
+                ContractImplicationEffect(target: target, returnCondition: returnCondition,
                                           argumentCondition: .isType, targetType: targetType),
                 for: symbol
             )

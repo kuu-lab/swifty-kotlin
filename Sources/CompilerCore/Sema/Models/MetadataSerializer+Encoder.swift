@@ -996,7 +996,7 @@ package final class MetadataEncoder {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
             contractImplicationEffects: symbols.contractImplicationEffects(for: symbol.id).map { effect in
-                ContractImplicationEffect(parameterIndex: effect.parameterIndex,
+                ContractImplicationEffect(target: effect.target,
                     returnCondition: effect.returnCondition, argumentCondition: effect.argumentCondition,
                     targetTypeSignature: effect.targetType.map {
                         metadataTypeSignature($0, symbols: symbols, types: types,
@@ -1268,7 +1268,11 @@ package final class MetadataEncoder {
                 }
                 if !record.contractImplicationEffects.isEmpty {
                     let effects = record.contractImplicationEffects.map {
-                        "\($0.parameterIndex):\($0.returnCondition.rawValue):\($0.argumentCondition.rawValue)"
+                        let target = switch $0.target {
+                        case let .valueParameter(index): String(index)
+                        case .extensionReceiver: "receiver"
+                        }
+                        return "\(target):\($0.returnCondition.rawValue):\($0.argumentCondition.rawValue)"
                             + ($0.targetTypeSignature.map { ":" + Data($0.utf8).base64EncodedString() } ?? "")
                     }.joined(separator: ",")
                     fields.append("contractImplies=\(effects)")

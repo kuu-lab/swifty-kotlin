@@ -292,12 +292,21 @@ final class MetadataDecoder {
         case "contractImplies":
             record.contractImplicationEffects = value.split(separator: ",").compactMap { item in
                 let parts = item.split(separator: ":")
-                guard (parts.count == 3 || parts.count == 4), let index = Int(parts[0]), index >= 0,
+                guard parts.count == 3 || parts.count == 4,
                       let result = ContractReturnCondition(rawValue: String(parts[1])),
                       let condition = ContractArgumentCondition(rawValue: String(parts[2])) else { return nil }
+                let target: ContractImplicationTarget
+                if parts[0] == "receiver" {
+                    target = .extensionReceiver
+                } else if let index = Int(parts[0]), index >= 0 {
+                    target = .valueParameter(index)
+                } else {
+                    return nil
+                }
                 let signature = parts.count == 4 ? Data(base64Encoded: String(parts[3])).flatMap { String(data: $0, encoding: .utf8) } : nil
                 guard condition != .isType || signature != nil else { return nil }
-                return ContractImplicationEffect(parameterIndex: index, returnCondition: result, argumentCondition: condition, targetTypeSignature: signature)
+                return ContractImplicationEffect(target: target, returnCondition: result,
+                    argumentCondition: condition, targetTypeSignature: signature)
             }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"

@@ -143,17 +143,29 @@ final class DataFlowAnalyzer {
         case let .call(_, _, arguments, _), let .memberCall(_, _, _, arguments, _): args = arguments
         default: return base
         }
+        guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else {
+            return base
+        }
         var state = base
         for effect in sema.symbols.contractImplicationEffects(for: binding.chosenCallee) {
             guard effect.returnCondition == .normally || effect.returnCondition == result
-                || (effect.returnCondition == .returnsNotNull && (result == .returnsTrue || result == .returnsFalse)),
-                let argumentIndex = binding.parameterMapping.first(where: { $0.value == effect.parameterIndex })?.key,
-                args.indices.contains(argumentIndex) else { continue }
-            let argument = args[argumentIndex].expr
+                || (effect.returnCondition == .returnsNotNull && (result == .returnsTrue || result == .returnsFalse))
+            else { continue }
+            let argument: ExprID
+            switch effect.target {
+            case let .valueParameter(parameterIndex):
+                guard let argumentIndex = binding.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
+                      args.indices.contains(argumentIndex) else { continue }
+                argument = args[argumentIndex].expr
+            case .extensionReceiver:
+                guard signature.receiverType != nil,
+                      case let .memberCall(receiver, _, _, _, _) = expr else { continue }
+                argument = receiver
+            }
             switch effect.argumentCondition {
             case .isType:
                 if let rawTargetType = effect.targetType {
-                    let parameters = sema.symbols.functionSignature(for: binding.chosenCallee)?.typeParameterSymbols ?? []
+                    let parameters = signature.typeParameterSymbols
                     let variables = sema.types.makeTypeVarBySymbol(parameters)
                     var substitution: [TypeVarID: TypeID] = [:]
                     for (parameter, type) in zip(parameters, binding.substitutedTypeArguments) {
