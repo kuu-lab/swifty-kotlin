@@ -97,6 +97,7 @@ extension KotlinLexer {
         var segmentStart = offset
         while offset + 2 < byteCount() {
             if starts(with: "\"\"\"", at: offset) {
+                advanceToRawStringClosingDelimiter()
                 break
             }
             if byte(at: offset) == 0x24, offset + 1 < byteCount(), byte(at: offset + 1) == 0x7B {
@@ -512,6 +513,7 @@ extension KotlinLexer {
         var segmentStart = offset
         while offset + 2 < byteCount() {
             if starts(with: "\"\"\"", at: offset) {
+                advanceToRawStringClosingDelimiter()
                 break
             }
 
@@ -543,6 +545,15 @@ extension KotlinLexer {
         )
         offset += 3
         return tokens
+    }
+
+    /// The last three quotes in a run close the string; earlier quotes are content.
+    private func advanceToRawStringClosingDelimiter() {
+        var runEnd = offset + 3
+        while runEnd < byteCount(), byte(at: runEnd) == 0x22 {
+            runEnd += 1
+        }
+        offset = runEnd - 3
     }
 
     func appendSegment(to tokens: inout [Token], from: Int, to: Int, leadingTrivia: [TriviaPiece]) {
