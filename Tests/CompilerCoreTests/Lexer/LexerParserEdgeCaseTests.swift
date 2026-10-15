@@ -104,6 +104,38 @@ struct LexerParserEdgeCaseTests {
         #expect(!result.diagnostics.hasError)
     }
 
+    @Test
+    func testSimpleStringTemplatesStopBeforeUnicodePunctuation() {
+        let result = lex("""
+        val s = "x"
+        val quoted = "«$s»"
+        val raw = \"\"\"«$s»\"\"\"
+        val unicodeName = "$変数»"
+        """)
+        let tokens = result.tokens
+        let templateStartIndexes = tokens.indices.filter { tokens[$0].kind == .templateSimpleNameStart }
+        let templateNames = templateStartIndexes.compactMap { index -> String? in
+            guard index + 1 < tokens.count,
+                  case let .identifier(identifier) = tokens[index + 1].kind
+            else {
+                return nil
+            }
+            return result.interner.resolve(identifier)
+        }
+        let suffixes = templateStartIndexes.compactMap { index -> String? in
+            guard index + 2 < tokens.count,
+                  case let .stringSegment(segment) = tokens[index + 2].kind
+            else {
+                return nil
+            }
+            return result.interner.resolve(segment)
+        }
+
+        #expect(templateNames == ["s", "s", "変数"])
+        #expect(suffixes == ["»", "»", "»"])
+        #expect(!result.diagnostics.hasError)
+    }
+
     @Test(arguments: ["\n", "\r", "\r\n"], ["", "$$", "$$$"])
     func testQuotedStringsRejectUnescapedLineBreaks(lineBreak: String, prefix: String) {
         let start = "val text = \(prefix)\"  indented"

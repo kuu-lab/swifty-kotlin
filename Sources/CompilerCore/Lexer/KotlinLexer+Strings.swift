@@ -32,8 +32,7 @@ extension KotlinLexer {
 
             if ch == 0x24,
                offset + 1 < byteCount(),
-               isIdentifierStart(byte(at: offset + 1)),
-               byte(at: offset + 1) != 0x24
+               templateIdentifierScalarByteLength(at: offset + 1, isStart: true) != nil
             {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
@@ -113,8 +112,7 @@ extension KotlinLexer {
             }
             if byte(at: offset) == 0x24,
                offset + 1 < byteCount(),
-               isIdentifierStart(byte(at: offset + 1)),
-               byte(at: offset + 1) != 0x24
+               templateIdentifierScalarByteLength(at: offset + 1, isStart: true) != nil
             {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
@@ -422,8 +420,7 @@ extension KotlinLexer {
 
         if consecutiveDollars >= dollarCount,
            afterDollars < byteCount(),
-           isIdentifierStart(byte(at: afterDollars)),
-           byte(at: afterDollars) != 0x24  // exclude '$' itself which is also identifier start
+           templateIdentifierScalarByteLength(at: afterDollars, isStart: true) != nil
         {
             let literalDollars = consecutiveDollars - dollarCount
             if literalDollars > 0 {
