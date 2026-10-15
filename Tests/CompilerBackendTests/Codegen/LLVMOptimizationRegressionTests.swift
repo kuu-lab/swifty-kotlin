@@ -143,6 +143,63 @@ struct LLVMOptimizationRegressionTests {
         )
     }
 
+    /// KUU-2399: source-injected O2 codegen for the kt4152 property fixture must emit valid LLVM IR.
+    @Test
+    func topLevelPropertyIncrementCompilesWithSourceStdlibAtO2() throws {
+        let source = """
+        public var inc: Int = 0
+
+        public var propInc: Int = 0
+            get() { inc++; return field }
+            set(a: Int) {
+                inc++
+                field = a
+            }
+
+        public var dec: Int = 0
+
+        public var propDec: Int = 0
+            get() { dec--; return field }
+            set(a: Int) {
+                dec--
+                field = a
+            }
+
+        fun box(): String {
+            propInc++
+            if (inc != 2) return "fail in postfix increment: ${inc} != 2"
+            if (propInc != 1) return "fail in postfix increment: ${propInc} != 1"
+
+            propDec--
+            if (dec != -2) return "fail in postfix decrement: ${dec} != -2"
+            if (propDec != -1) return "fail in postfix decrement: ${propDec} != -1"
+
+            return "OK"
+        }
+        fun main() { println(box()) }
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent("kt4152-source-o2-\(UUID().uuidString)").path
+            let objectPath = outputBase + ".o"
+            defer { try? FileManager.default.removeItem(atPath: objectPath) }
+
+            let options = CompilerOptions(
+                moduleName: "Kt4152SourceStdlibO2",
+                inputs: [inputPath],
+                outputPath: outputBase,
+                emit: .object,
+                target: TargetTriple.hostDefault(),
+                optLevel: .O2,
+                allowDefaultStdlibLibrary: false
+            )
+            let result = makeTestDriver().runForTesting(options: options)
+            try assertCompilationSucceeded(result, context: "kt4152 source-stdlib O2 object compilation")
+            #expect(FileManager.default.fileExists(atPath: objectPath))
+        }
+    }
+
     /// KUU-2241: function-value invokes and curried bodies must keep valid arity-specific LLVM ABIs.
     @Test
     func highArityFunctionInvokesAndCurryBodiesEmitValidLLVMAtO0AndO2() throws {
