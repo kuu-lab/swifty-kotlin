@@ -128,6 +128,46 @@ struct SemaIndependentBodyTests {
     }
 
     @Test(arguments: [2, 4])
+    func scalarLocalTypeAnnotationsJoinWithCanonicalBindings(jobs: Int) throws {
+        let sources = [
+            "typealias Count = Int\nfun count(x: Int): Int { val y: Count = x + 1; var z: Int = y; z = z + 2; return z }",
+            "fun text(x: String): String { val copy: String = x; return copy }",
+            "fun other(x: Int): Int { val y: Int = x * 2; return y }",
+        ]
+        let serial = try analyze(sources, jobs: 1)
+        #expect(!serial.diagnostics.hasError, "\(serial.diagnostics.diagnostics)")
+        for _ in 0..<3 {
+            let parallel = try analyze(sources, jobs: jobs)
+            #expect(parallel.sema?.independentBodyCount == 3)
+            #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
+            #expect(try bindings(parallel) == bindings(serial))
+            #expect(try symbolRecords(parallel) == symbolRecords(serial))
+            #expect(parallel.sema?.bindings.sourceDeclaredExpectedTypeExprIDs == serial.sema?.bindings.sourceDeclaredExpectedTypeExprIDs)
+            #expect(parallel.interner.snapshotValues() == serial.interner.snapshotValues())
+            let types = try #require(parallel.sema?.types)
+            let serialTypes = try #require(serial.sema?.types)
+            #expect(types.workerTypeKinds(since: 0) == serialTypes.workerTypeKinds(since: 0))
+        }
+    }
+
+    @Test(arguments: [2, 4])
+    func invalidScalarLocalAnnotationsFallBackToSerialAnalysis(jobs: Int) throws {
+        let sources = [
+            "fun invalid(x: Int): Int { val text: String = x; return x }",
+            "fun good(x: Int): Int { val y: Int = x + 1; return y }",
+        ]
+        let serial = try analyze(sources, jobs: 1)
+        #expect(serial.diagnostics.hasError)
+        let parallel = try analyze(sources, jobs: jobs)
+        #expect(parallel.sema?.independentBodyCount == 1)
+        #expect(parallel.diagnostics.diagnostics == serial.diagnostics.diagnostics)
+        #expect(try bindings(parallel) == bindings(serial))
+        #expect(try symbolRecords(parallel) == symbolRecords(serial))
+        #expect(parallel.sema?.bindings.sourceDeclaredExpectedTypeExprIDs == serial.sema?.bindings.sourceDeclaredExpectedTypeExprIDs)
+        #expect(parallel.interner.snapshotValues() == serial.interner.snapshotValues())
+    }
+
+    @Test(arguments: [2, 4])
     func rejectedLocalFilesLeaveNoAllocationsOrDiagnostics(jobs: Int) throws {
         let sources = [
             """
@@ -304,6 +344,17 @@ struct SemaIndependentBodyTests {
             end: SourceLocation(file: FileID(rawValue: 0), offset: 1)
         ))
         #expect(!delta.hasOnlyIndependentScalarBindings)
+    }
+
+    @Test
+    func sourceDeclaredExpectedTypeMarkersAreAllowedOnlyForBodyExpressions() {
+        let expr = ExprID(rawValue: 7)
+        let outsideBody = ExprID(rawValue: 8)
+        let delta = BindingTable()
+        delta.markSourceDeclaredExpectedType(expr)
+        #expect(!delta.hasOnlyIndependentScalarBindings)
+        #expect(delta.hasOnlyIndependentScalarBindings(allowingSourceDeclaredExpectedTypeExprIDs: [expr]))
+        #expect(!delta.hasOnlyIndependentScalarBindings(allowingSourceDeclaredExpectedTypeExprIDs: [outsideBody]))
     }
 
     @Test

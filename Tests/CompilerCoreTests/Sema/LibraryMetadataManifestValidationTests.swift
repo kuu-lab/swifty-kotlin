@@ -184,7 +184,7 @@ struct LibraryMetadataManifestValidationTests {
         }
     }
 
-    @Test func testManifestValidCompilerVersionDoesNotWarn() throws {
+    @Test func testManifestAcceptsPreviousKotlinLanguageVersion() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -479,7 +479,7 @@ struct LibraryMetadataManifestValidationTests {
         {
           "formatVersion": 1,
           "moduleName": "FullValid",
-          "kotlinLanguageVersion": "2.3.10",
+          "kotlinLanguageVersion": "2.4.20",
           "compilerVersion": "0.1.0",
           "target": "\(targetStr)",
           "objects": ["objects/FullValid_0.o"],

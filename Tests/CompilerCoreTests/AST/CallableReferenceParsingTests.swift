@@ -189,14 +189,18 @@ struct CallableReferenceParsingTests {
         })
     }
 
-    /// KUU-1376: `T::class.findAssociatedObject<A>()` hung the parser. After a
-    /// consumed `::class`, the `<` suffix re-matched the already-folded `::`
-    /// in `tryParseCallableReferenceTypeReceiver`, rewound `index`, and the
-    /// postfix loop re-parsed `.member<` forever. A `::` behind the cursor is
-    /// already consumed, so the `<A>` must fall through to ordinary member
-    /// type arguments.
+    /// KUU-1376 / KUU-2086: `T::class.findAssociatedObject<A>()` hung the
+    /// parser. After a consumed `::class`, the `<` suffix re-matched the
+    /// already-folded `::` in `tryParseCallableReferenceTypeReceiver`, rewound
+    /// `index`, and the postfix loop re-parsed `.member<` forever. A `::`
+    /// behind the cursor is already consumed, so the `<A>` must fall through
+    /// to ordinary member type arguments. KUU-2086's corpus cases also use
+    /// instance and literal receivers.
     @Test(arguments: [
         "Tgt::class.findAssociatedObject<AOK>()",
+        "Foo::class.findAssociatedObject<Associated1>()",
+        "I1ImplHolder()::class.findAssociatedObject<Associated1>()",
+        "10::class.findAssociatedObject<Associated2>()",
         "Tgt::class.findAnnotation<AOK>()",
         "Tgt::class.member<AOK>",
         "a.b<T>::c.d<E>::f",

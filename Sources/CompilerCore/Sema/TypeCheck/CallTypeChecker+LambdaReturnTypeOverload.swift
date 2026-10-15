@@ -410,6 +410,7 @@ extension CallTypeChecker {
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
                 var inferenceContext = lambdaContextOverrides[index] ?? ctx
                 if case .callableRef = ast.arena.expr(argument.expr) {
+                    inferenceContext.isCallableReferenceArgument = true
                     let parameters = candidates.flatMap { candidate -> [SymbolID] in
                         guard let signature = sema.symbols.functionSignature(for: candidate) else { return [] }
                         return Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))

@@ -42,9 +42,9 @@ struct ExecutableArgumentsBackendTests {
                 with: Data(contentsOf: URL(fileURLWithPath: artifact + "/manifest.json"))
             ) as? [String: Any]
             guard manifest?["moduleName"] as? String == "KSwiftKStdlib",
-                  manifest?["kotlinLanguageVersion"] as? String == "2.3.10",
+                  manifest?["kotlinLanguageVersion"] as? String == "2.4.20",
                   manifest?["formatVersion"] as? Int == 2 else {
-                throw TestCompilationFailure(description: "Library mode requires the Kotlin 2.3.10 stdlib manifest")
+                throw TestCompilationFailure(description: "Library mode requires the Kotlin 2.4.20 stdlib manifest")
             }
         } else if result.stdlibLibraryPath != nil || !result.includeStdlib {
             throw TestCompilationFailure(description: "Source mode must actually inject source stdlib")

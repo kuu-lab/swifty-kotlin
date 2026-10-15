@@ -180,7 +180,7 @@ func hex1767StdlibSnapshot(useLibrary: Bool) throws -> Hex1767ArtifactSnapshot? 
     let json = try #require(JSONSerialization.jsonObject(with: manifest) as? [String: Any])
     try #require(json["moduleName"] as? String == "KSwiftKStdlib")
     try #require(json["formatVersion"] as? Int == 2)
-    try #require(json["kotlinLanguageVersion"] as? String == "2.3.10")
+    try #require(json["kotlinLanguageVersion"] as? String == "2.4.20")
     try #require(json["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
     let metadata = try Data(contentsOf: directory.appendingPathComponent("metadata.bin"))
     try #require(!metadata.isEmpty)

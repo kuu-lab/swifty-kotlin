@@ -1,4 +1,4 @@
-private let mapEntryRuntimeTypeID: Int64 = {
+let mapEntryRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
     for byte in "kotlin.collections.Map.Entry".utf8 {
         hash ^= UInt64(byte)
@@ -9,7 +9,7 @@ private let mapEntryRuntimeTypeID: Int64 = {
     return payload == 0 ? 1 : payload
 }()
 
-private let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
+let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.MutableMap.MutableEntry"
 )
 

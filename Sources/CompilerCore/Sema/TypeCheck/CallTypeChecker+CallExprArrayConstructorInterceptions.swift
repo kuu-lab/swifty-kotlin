@@ -22,6 +22,14 @@ extension CallTypeChecker {
 
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
+        let arrayConstructorTarget = arrayConstructorTarget(
+            calleeName: calleeName,
+            explicitTypeArgs: explicitTypeArgs,
+            expectedType: expectedType,
+            locals: locals,
+            ctx: ctx,
+            knownNames: knownNames
+        )
         // A visible source-backed top-level function with the same name and applicable
         // arity owns the overload. For one-argument primitive arrays, compare
         // the inferred argument type as well: UByteArray(ByteArray) must not
@@ -60,17 +68,18 @@ extension CallTypeChecker {
             return !sourceBackedArrayConstructors.isEmpty
         }()
         if let calleeName,
-           knownNames.isArrayLikeName(calleeName),
+           let arrayConstructorTarget,
            args.count == 1 || args.count == 2,
            locals[calleeName] == nil,
            !hasSourceBackedArrayConstructor
         {
             let intType = sema.types.intType
-            let calleeNameStr = interner.resolve(calleeName)
+            let arrayName = arrayConstructorTarget.name
+            let calleeNameStr = interner.resolve(arrayName)
             // Intrinsic allocation bypasses normal constructor resolution, but
             // still uses the source-backed array class's opt-in contract.
             if let arraySymbol = sema.symbols.lookup(
-                fqName: [interner.intern("kotlin"), calleeName]
+                fqName: [interner.intern("kotlin"), arrayName]
             ) {
                 driver.helpers.checkOptIn(
                     for: arraySymbol,
@@ -150,6 +159,10 @@ extension CallTypeChecker {
             let isKotlinArray = calleeNameStr == "Array"
             let elementReturnType: TypeID
             if isKotlinArray,
+               let aliasElementType = arrayConstructorTarget.elementType
+            {
+                elementReturnType = aliasElementType
+            } else if isKotlinArray,
                let explicitTypeArg = explicitTypeArgs.first
             {
                 elementReturnType = explicitTypeArg
@@ -238,6 +251,83 @@ extension CallTypeChecker {
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
+        }
+        return nil
+    }
+
+    private func arrayConstructorTarget(
+        calleeName: InternedString?,
+        explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext,
+        knownNames: KnownCompilerNames
+    ) -> (name: InternedString, elementType: TypeID?)? {
+        guard let calleeName, locals[calleeName] == nil else { return nil }
+        if knownNames.isArrayLikeName(calleeName) {
+            return (calleeName, nil)
+        }
+
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let visibleSymbols = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        guard !visibleSymbols.contains(where: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.kind == .function || symbol.kind == .constructor
+        }) else {
+            return nil
+        }
+
+        let aliases = visibleSymbols.filter { ctx.cachedSymbol($0)?.kind == .typeAlias }
+        for alias in aliases {
+            let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
+            let aliasTypeArgs: [TypeArg] = if !explicitTypeArgs.isEmpty {
+                explicitTypeArgs.map(TypeArg.invariant)
+            } else if !typeParameters.isEmpty,
+                      let expectedType,
+                      case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
+            {
+                Array(expectedClassType.args.prefix(typeParameters.count))
+            } else {
+                typeParameters.map { parameter in
+                    .invariant(sema.types.make(.typeParam(TypeParamType(symbol: parameter))))
+                }
+            }
+            guard let expanded = driver.helpers.expandTypeAlias(
+                alias,
+                typeArgs: aliasTypeArgs,
+                sema: sema,
+                visited: [],
+                depth: 0,
+                diagnostics: ctx.sema.diagnostics
+            ),
+                  case let .classType(classType) = sema.types.kind(of: expanded),
+                  classType.nullability == .nonNull,
+                  let targetSymbol = sema.symbols.symbol(classType.classSymbol),
+                  targetSymbol.fqName.count == 2,
+                  targetSymbol.fqName[0] == interner.intern("kotlin"),
+                  knownNames.isArrayLikeName(targetSymbol.name)
+            else {
+                continue
+            }
+
+            let elementType: TypeID?
+            if targetSymbol.name == knownNames.array, let firstArg = classType.args.first {
+                let type: TypeID = switch firstArg {
+                case let .invariant(type), let .in(type), let .out(type): type
+                case .star: sema.types.anyType
+                }
+                if case let .typeParam(typeParameter) = sema.types.kind(of: type),
+                   typeParameters.contains(typeParameter.symbol)
+                {
+                    elementType = nil
+                } else {
+                    elementType = type
+                }
+            } else {
+                elementType = nil
+            }
+            return (targetSymbol.name, elementType)
         }
         return nil
     }

@@ -61,6 +61,7 @@ package final class NameMangler {
             let erasedFunctionType = types.make(
                 .functionType(
                     FunctionType(
+                        contextReceivers: signature.contextParameterTypes,
                         receiver: signature.receiverType,
                         params: signature.parameterTypes,
                         returnType: signature.returnType,

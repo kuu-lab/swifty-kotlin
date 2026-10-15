@@ -4,7 +4,7 @@ AI 向けクイックリファレンス。詳細なアーキテクチャ・ナ�
 
 ## プロジェクト概要
 
-KSwiftK は Swift で書かれた Kotlin コンパイラ。Kotlin 2.3.10 stable をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成する。実行バイナリは `kswiftc`（LSP サーバ `kswift-lsp` も生成）。
+KSwiftK は Swift で書かれた Kotlin コンパイラ。Kotlin 2.4.20 stable をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成する。実行バイナリは `kswiftc`（LSP サーバ `kswift-lsp` も生成）。
 
 ## ビルド & テストコマンド
 
@@ -184,7 +184,7 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 
 - **スモーク**: `SmokeTests` はドライバ・KIR・LLVM オブジェクト生成まで（約 3 分、初回はテスト用バイナリのビルド込み）。
 - **全テスト**: `bash Scripts/swift_test.sh` は長時間。既定で並列実行、無効化は `--no-parallel`、ワーカー数調整は `SWIFT_TEST_WORKERS`（[`Scripts/README.md`](Scripts/README.md)）。
-- **kotlinc 差分**（任意）: JDK 21 + Kotlin 2.3.10 + `Scripts/diff_kotlinc.sh`。CI の diff ジョブ専用で、通常の `swift test` には不要。
+- **kotlinc 差分**（任意）: JDK 21 + Kotlin 2.4.20 + `Scripts/diff_kotlinc.sh`。CI の diff ジョブ専用で、通常の `swift test` には不要。
 
 ### リント / フォーマット
 

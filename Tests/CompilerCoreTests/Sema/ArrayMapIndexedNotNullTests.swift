@@ -5,6 +5,25 @@ import TestStdlibCache
 @Suite
 struct ArrayMapIndexedNotNullTests {
     @Test(arguments: [false, true])
+    func testVarargArrayMapAcceptsProjectedReceiver(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        let source = """
+        interface HasCode { val code: Int }
+        fun codesOf(vararg items: HasCode): List<Int> = items.map { it.code }
+        fun projectedCodes(items: Array<out HasCode>): List<Int> = items.map { it.code }
+        fun literalCodes(): List<Int> = arrayOf(object : HasCode { override val code = 1 }).map { it.code }
+        """
+        let ctx = makeContextFromSource(
+            source,
+            emit: .kirDump,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected vararg's projected Array receiver to resolve map: \(errors)")
+    }
+
+    @Test(arguments: [false, true])
     func testArrayMapIndexedNotNullTypeBoundaries(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
         let sources = [

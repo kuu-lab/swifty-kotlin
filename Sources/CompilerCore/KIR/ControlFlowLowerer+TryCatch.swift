@@ -562,7 +562,24 @@ extension ControlFlowLowerer {
             }
             // Inside a finally guard region: pass through verbatim.
             if finallyGuardDepth > 0 {
-                instructions.append(instruction)
+                if case let .rethrow(value) = instruction {
+                    // A rethrow leaves the guarded local handler. Let the
+                    // enclosing try/catch claim it instead of letting the
+                    // guard hide it from every outer routing pass.
+                    instructions.append(.copy(from: value, to: exceptionSlot))
+                    let rethrowType = arena.exprType(value) ?? sema.types.anyType
+                    let tokenValue = RuntimeTypeCheckToken.encode(
+                        type: rethrowType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let thrownTypeToken = arena.appendExpr(.intLiteral(tokenValue), type: intType)
+                    instructions.append(.constValue(result: thrownTypeToken, value: .intLiteral(tokenValue)))
+                    instructions.append(.copy(from: thrownTypeToken, to: exceptionTypeSlot))
+                    instructions.append(.jump(thrownTarget))
+                } else {
+                    instructions.append(instruction)
+                }
                 continue
             }
             switch instruction {

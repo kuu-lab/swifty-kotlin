@@ -83,8 +83,9 @@ extension CallLowerer {
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface
-           || ownerInfo.kind == .object,
+           // Interface-owned accessors must fall through to the itable path
+           // below; imported metadata can mark abstract setters as accessor-backed.
+           ownerInfo.kind == .class || ownerInfo.kind == .object,
            memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
         {
             // BUG-227: an open/abstract/override property with a custom

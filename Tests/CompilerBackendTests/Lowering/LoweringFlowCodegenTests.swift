@@ -107,6 +107,38 @@ struct LoweringFlowCodegenTests {
         }
     }
 
+    @Test
+    func testFlowBuilderEmitTakesPrecedenceOverEnclosingMember() throws {
+        let source = try diffCaseSource("flow_emit_class_member_shadowing.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "FlowBuilderEmitReceiverPriority",
+                emit: .kirDump
+            )
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
+            let instructions = findAllKIRFunctions(in: module).flatMap(\.body)
+            let flowEmit = try runtimeABICallee("flow_emit")
+            let flowEmitCalls = instructions.filter { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee) == flowEmit
+            }
+
+            // Two member-shadowing calls, the unqualified call beside an
+            // explicit outer receiver, and two top-level flow calls use the
+            // FlowCollector ABI. The explicitly qualified S.emit stays a
+            // regular member call.
+            #expect(flowEmitCalls.count == 5)
+            let explicitMemberEmitCalls = instructions.filter { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee) == "emit"
+            }
+            #expect(explicitMemberEmitCalls.count == 1)
+        }
+    }
+
     @Test(arguments: [false, true])
     func testOnEmptyPreservesEmitAndEmitAllOrder(useSourceStdlib: Bool) throws {
         let source = try diffCaseSource("flow_onempty_emit_all.kt", file: #filePath)

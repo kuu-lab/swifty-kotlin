@@ -742,26 +742,36 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Inserts a call to the owning enum's lazy initializer in front of
-    /// every entry reference lowered in this compilation, so `init` blocks
-    /// and argument side effects run on first access to the enum, as on the
-    /// JVM, rather than eagerly or never.
+    /// Inserts guarded enum and companion initialization calls before each
+    /// enum entry reference, so entry side effects and companion `init` blocks
+    /// run in source access order.
     func insertEnumLazyInitTriggers(arena: KIRArena, sema: SemaModule) {
         let lazyInits = ctx.enumLazyInitByOwner
-        guard !lazyInits.isEmpty else { return }
+        var companionLazyInits: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+        for enumSymbol in sema.symbols.allSymbols() where enumSymbol.kind == .enumClass {
+            guard let companionSymbol = sema.symbols.companionObjectSymbol(for: enumSymbol.id) else {
+                continue
+            }
+            if let lazyInit = ctx.objectLazyInit(for: companionSymbol) {
+                companionLazyInits[enumSymbol.id] = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
+            } else if let importedInit = sema.symbols.objectLazyInitializerSymbol(for: companionSymbol),
+                      let importedSymbol = sema.symbols.symbol(importedInit)
+            {
+                companionLazyInits[enumSymbol.id] = (importedInit, importedSymbol.name)
+            }
+        }
+        guard !lazyInits.isEmpty || !companionLazyInits.isEmpty else { return }
         let ensureInitSymbols = Set(lazyInits.values.map(\.symbol))
         var ownerByEntry: [SymbolID: SymbolID] = [:]
-        func lazyInitOwner(of symbol: SymbolID) -> SymbolID? {
+        func enumOwnerForEntry(_ symbol: SymbolID) -> SymbolID? {
             if let cached = ownerByEntry[symbol] { return cached == .invalid ? nil : cached }
-            var owner = SymbolID.invalid
-            if sema.symbols.symbol(symbol)?.kind == .field,
-               let parent = sema.symbols.parentSymbol(for: symbol),
-               lazyInits[parent] != nil
-            {
-                owner = parent
-            }
+            let owner = sema.symbols.symbol(symbol)
+                .flatMap { sema.symbols.enumOwnerSymbol(for: $0) } ?? .invalid
             ownerByEntry[symbol] = owner
-            return owner == .invalid ? nil : owner
+            guard owner != .invalid,
+                  lazyInits[owner] != nil || companionLazyInits[owner] != nil
+            else { return nil }
+            return owner
         }
         let unitType = sema.types.unitType
         arena.transformFunctions { function in
@@ -770,7 +780,14 @@ extension KIRLoweringDriver {
             for instruction in function.body {
                 switch instruction {
                 case let .constValue(_, .symbolRef(symbol)), let .loadGlobal(_, symbol):
-                    if lazyInitOwner(of: symbol) != nil { needsRewrite = true }
+                    if let owner = enumOwnerForEntry(symbol) {
+                        let needsCompanionInit = companionLazyInits[owner].map {
+                            $0.symbol != function.symbol
+                        } ?? false
+                        if lazyInits[owner] != nil || needsCompanionInit {
+                            needsRewrite = true
+                        }
+                    }
                 default:
                     break
                 }
@@ -788,16 +805,31 @@ extension KIRLoweringDriver {
                 default:
                     nil
                 }
-                if let referenced, let owner = lazyInitOwner(of: referenced), let lazyInit = lazyInits[owner] {
-                    newBody.append(.call(
-                        symbol: lazyInit.symbol,
-                        callee: lazyInit.name,
-                        arguments: [],
-                        result: arena.appendTemporary(type: unitType),
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    newLocations.append(location)
+                if let referenced, let owner = enumOwnerForEntry(referenced) {
+                    if let lazyInit = lazyInits[owner] {
+                        newBody.append(.call(
+                            symbol: lazyInit.symbol,
+                            callee: lazyInit.name,
+                            arguments: [],
+                            result: arena.appendTemporary(type: unitType),
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        newLocations.append(location)
+                    }
+                    if let companionInit = companionLazyInits[owner],
+                       companionInit.symbol != function.symbol
+                    {
+                        newBody.append(.call(
+                            symbol: companionInit.symbol,
+                            callee: companionInit.name,
+                            arguments: [],
+                            result: arena.appendTemporary(type: unitType),
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        newLocations.append(location)
+                    }
                 }
                 newBody.append(instruction)
                 newLocations.append(location)

@@ -60,7 +60,7 @@ public fun Element.minusPolymorphicKey(key: Key<*>): CoroutineContext {
 // semantics. The compiler/runtime context bridges remain responsible for
 // context values that contain runtime-owned elements.
 public object EmptyCoroutineContext : CoroutineContext {
-    public override fun <E : Element> get(key: Key<E>): E? = null
+    public override operator fun <E : Element> get(key: Key<E>): E? = null
 
     public override fun <R> fold(
         initial: R,

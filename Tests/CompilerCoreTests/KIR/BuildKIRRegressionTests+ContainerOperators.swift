@@ -67,6 +67,30 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains(runtimeCallee(.arraySet)), "Long-indexed set() must not fall back to raw array access, got: \(callees)")
     }
 
+    @Test func testBuildKIRUsesCustomLongIndexExtensionsForCompoundAssignOnIntArray() throws {
+        let source = """
+        operator fun IntArray.get(index: Long): Int = 0
+        operator fun IntArray.set(index: Long, value: Int) {}
+
+        fun use(values: IntArray) {
+            values[0L] += 6
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("get"), "Expected the custom Long-indexed get extension, got: \(callees)")
+        #expect(callees.contains("set"), "Expected the custom Long-indexed set extension, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arrayGet)), "Custom Long-indexed get must not use raw array access, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arraySet)), "Custom Long-indexed set must not use raw array access, got: \(callees)")
+    }
+
     // KSWIFTK-BUG: `a[i] += v` / `a[i]++` on a receiver with a custom (or
     // source-backed member, e.g. MutableList) get()/set() pair previously
     // always lowered to raw kk_array_get/kk_array_set on the receiver's own

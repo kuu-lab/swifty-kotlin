@@ -47,21 +47,54 @@ extension MemberLowerer {
         driver.ctx.beginCallableLoweringScope()
 
         let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+        let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
+        let semanticAccessorSymbol = accessorKind == .getter
+            ? sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            : sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+        let semanticSignature = semanticAccessorSymbol.flatMap {
+            sema.symbols.functionSignature(for: $0)
+        }
         var params: [KIRParameter] = []
+        var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
 
-        // Add receiver parameter if property has an owner class/object.
-        if let ownerSymbol,
-           let ownerSym = sema.symbols.symbol(ownerSymbol)
+        // Member extension accessors take the dispatch receiver before the
+        // extension receiver, matching ordinary extension-property accessors.
+        if extensionReceiverType != nil,
+           let ownerSymbol,
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           [.class, .interface, .enumClass, .object, .annotationClass].contains(ownerInfo.kind)
         {
             let ownerType = sema.types.make(
-                .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+                .classType(ClassType(classSymbol: ownerSymbol, args: [], nullability: .nonNull))
+            )
+            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+            params.append(KIRParameter(symbol: receiverSymbol, type: ownerType))
+            driver.ctx.setLocalValue(receiverExpr, for: receiverSymbol)
+            driver.ctx.setLocalValue(receiverExpr, for: ownerSymbol)
+            driver.ctx.setLocalDeclaredType(ownerType, for: ownerSymbol)
+            driver.ctx.setQualifiedThisReceiver(receiverExpr, for: ownerInfo.name)
+            driver.ctx.setCapturedOuterReceiver(receiverExpr, for: ownerSymbol)
+            dispatchReceiverBinding = (receiverSymbol, receiverExpr)
+        }
+
+        if let extensionReceiverType {
+            let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: extensionReceiverType)
+            params.append(KIRParameter(symbol: receiverSymbol, type: extensionReceiverType))
+            driver.ctx.setLocalDeclaredType(extensionReceiverType, for: receiverSymbol)
+            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverExpr)
+        } else if let ownerSymbol,
+                  let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                  [.class, .interface, .enumClass, .object, .annotationClass].contains(ownerInfo.kind)
+        {
+            let ownerType = sema.types.make(
+                .classType(ClassType(classSymbol: ownerSymbol, args: [], nullability: .nonNull))
             )
             let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
             params.append(KIRParameter(symbol: receiverSymbol, type: ownerType))
-            driver.ctx.setImplicitReceiver(
-                symbol: receiverSymbol,
-                exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
-            )
+            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverExpr)
         }
 
         let returnType: TypeID
@@ -77,8 +110,26 @@ extension MemberLowerer {
         // is `symbol: customGetValueSymbol`/`customSetValueSymbol` below.
         let getValueName = interner.intern("getValue")
         let setValueName = interner.intern("setValue")
+        let getterReturnsTypeParameter = customGetValueSymbol
+            .flatMap { sema.symbols.functionSignature(for: $0)?.returnType }
+            .map { returnType in
+                if case .typeParam = sema.types.kind(of: returnType) { return true }
+                return false
+            } ?? false
+        let propertyTypeIsTypeParameter: Bool = if case .typeParam = sema.types.kind(of: propertyType) {
+            true
+        } else {
+            false
+        }
+        let needsErasedGetterResultCast = getterReturnsTypeParameter && !propertyTypeIsTypeParameter
 
         var body: KIRLoweringEmitContext = [.beginBlock]
+        if let dispatchReceiverBinding {
+            body.append(.constValue(
+                result: dispatchReceiverBinding.exprID,
+                value: .symbolRef(dispatchReceiverBinding.symbol)
+            ))
+        }
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
@@ -91,13 +142,15 @@ extension MemberLowerer {
             let delegateHandleExprID = loadDelegateHandle(
                 delegateStorageSymbol: delegateStorageSymbol,
                 ownerSymbol: ownerSymbol,
+                receiverExprID: dispatchReceiverBinding?.exprID ?? driver.ctx.activeImplicitReceiverExprID(),
                 sema: sema,
                 arena: arena,
                 interner: interner,
                 body: &body
             )
             // call: $delegate_x.getValue(thisRef, kProperty) -> PropertyType
-            let resultExprID = arena.appendTemporary(type: propertyType
+            let resultExprID = arena.appendTemporary(
+                type: needsErasedGetterResultCast ? sema.types.anyType : propertyType
             )
             let getterExtraArgs = buildCustomDelegateGetterArgs(
                 propertySymbol: propertySymbol,
@@ -115,7 +168,28 @@ extension MemberLowerer {
                 sema: sema,
                 interner: interner
             ))
-            body.append(.returnValue(resultExprID))
+            if needsErasedGetterResultCast {
+                let typeToken = RuntimeTypeCheckToken.encode(
+                    type: propertyType, sema: sema, interner: interner
+                )
+                let typeTokenExprID = arena.appendExpr(.intLiteral(typeToken), type: sema.types.intType)
+                body.append(.constValue(
+                    result: typeTokenExprID,
+                    value: .intLiteral(typeToken)
+                ))
+                let checkedResultExprID = arena.appendTemporary(type: propertyType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_cast_erased_return"),
+                    arguments: [resultExprID, typeTokenExprID],
+                    result: checkedResultExprID,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                body.append(.returnValue(checkedResultExprID))
+            } else {
+                body.append(.returnValue(resultExprID))
+            }
 
         case .setter:
             returnType = sema.types.unitType
@@ -130,6 +204,7 @@ extension MemberLowerer {
             let delegateHandleExprID = loadDelegateHandle(
                 delegateStorageSymbol: delegateStorageSymbol,
                 ownerSymbol: ownerSymbol,
+                receiverExprID: dispatchReceiverBinding?.exprID ?? driver.ctx.activeImplicitReceiverExprID(),
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -156,12 +231,48 @@ extension MemberLowerer {
             ))
             body.append(.returnUnit)
         }
+
+        var typeTokenBindings: [(symbol: SymbolID, exprID: KIRExprID)] = []
+        if let semanticSignature {
+            for index in semanticSignature.reifiedTypeParameterIndices.sorted()
+                where index < semanticSignature.typeParameterSymbols.count
+            {
+                let typeParameter = semanticSignature.typeParameterSymbols[index]
+                let token = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameter)
+                let value = arena.appendExpr(.symbolRef(token), type: sema.types.intType)
+                params.append(KIRParameter(symbol: token, type: sema.types.intType))
+                driver.ctx.setLocalValue(value, for: token)
+                typeTokenBindings.append((token, value))
+            }
+        }
         body.append(.endBlock)
 
-        let syntheticAccessorSymbol = SyntheticSymbolScheme.propertyAccessorSymbol(
-            for: propertySymbol,
-            kind: accessorKind
-        )
+        let syntheticAccessorSymbol = semanticAccessorSymbol
+            ?? SyntheticSymbolScheme.propertyAccessorSymbol(for: propertySymbol, kind: accessorKind)
+        var tokenInsertionIndex = body.index(after: body.startIndex)
+        for (token, value) in typeTokenBindings {
+            body.insert(.constValue(result: value, value: .symbolRef(token)), at: tokenInsertionIndex)
+            tokenInsertionIndex = body.index(after: tokenInsertionIndex)
+        }
+
+        if sema.symbols.functionSignature(for: syntheticAccessorSymbol) == nil {
+            let accessorOwnerType = extensionReceiverType ?? ownerSymbol.flatMap { owner in
+                guard let ownerInfo = sema.symbols.symbol(owner),
+                      [.class, .interface, .enumClass, .object, .annotationClass].contains(ownerInfo.kind)
+                else { return nil }
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: owner, args: [], nullability: .nonNull
+                )))
+            }
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: accessorOwnerType,
+                    parameterTypes: accessorKind == .setter ? [propertyType] : [],
+                    returnType: accessorKind == .setter ? sema.types.unitType : propertyType
+                ),
+                for: syntheticAccessorSymbol
+            )
+        }
 
         let kirID = arena.appendDecl(
             .function(
@@ -172,7 +283,7 @@ extension MemberLowerer {
                     returnType: returnType,
                     body: body,
                     isSuspend: false,
-                    isInline: false
+                    isInline: !(semanticSignature?.reifiedTypeParameterIndices.isEmpty ?? true)
                 )
             )
         )
@@ -203,9 +314,9 @@ extension MemberLowerer {
         interner: StringInterner
     ) -> KIRInstruction {
         let dispatchReceiver: KIRExprID? = if let symbol,
-            sema.symbols.memberExtensionOwnerSymbol(for: symbol) != nil
+            let owner = sema.symbols.memberExtensionOwnerSymbol(for: symbol)
         {
-            driver.ctx.activeImplicitReceiverExprID()
+            driver.ctx.localValue(for: owner) ?? driver.ctx.activeImplicitReceiverExprID()
         } else {
             nil
         }
@@ -269,6 +380,7 @@ extension MemberLowerer {
     private func loadDelegateHandle(
         delegateStorageSymbol: SymbolID,
         ownerSymbol: SymbolID?,
+        receiverExprID: KIRExprID?,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -279,7 +391,7 @@ extension MemberLowerer {
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface,
            let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[delegateStorageSymbol],
-           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+           let receiverValue = receiverExprID ?? driver.ctx.activeImplicitReceiverExprID()
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
@@ -287,7 +399,7 @@ extension MemberLowerer {
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
-                arguments: [receiverExprID, offsetExpr],
+                arguments: [receiverValue, offsetExpr],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -379,33 +491,13 @@ extension MemberLowerer {
         interner: StringInterner,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
-        let propertyNameExprID = arena.appendExpr(
-            .stringLiteral(propertyName),
-            type: sema.types.stringType
+        driver.emitKPropertyStubCreate(
+            propertySymbol: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            emit: &body
         )
-        body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
-        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
-        let returnTypeSig = interner.intern(
-            sema.types.displayName(of: propertyType, symbols: sema.symbols, interner: interner)
-        )
-        let returnTypeExprID = arena.appendExpr(
-            .stringLiteral(returnTypeSig),
-            type: sema.types.stringType
-        )
-        body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
-        let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType)
-        body.append(
-            .call(
-                symbol: nil,
-                callee: interner.intern("__kk_kproperty_stub_create"),
-                arguments: [propertyNameExprID, returnTypeExprID],
-                result: kPropertyExprID,
-                canThrow: false,
-                thrownResult: nil
-            )
-        )
-        return kPropertyExprID
     }
 
     /// Lower a property getter or setter body as a synthetic KIR function.
@@ -487,6 +579,21 @@ extension MemberLowerer {
             )
         }
 
+        let contextParameters = zip(
+            semanticSignature?.contextParameterSymbols ?? [],
+            semanticSignature?.contextParameterTypes ?? []
+        ).map { symbol, type in
+            let parameter = KIRParameter(symbol: symbol, type: type)
+            let value = arena.appendExpr(.symbolRef(symbol), type: type)
+            driver.ctx.setLocalDeclaredType(type, for: symbol)
+            driver.ctx.setLocalValue(value, for: symbol)
+            return (parameter: parameter, value: value, type: type)
+        }
+        params.append(contentsOf: contextParameters.map(\.parameter))
+        let contextReceiverValues = contextParameters.map { parameter in
+            KIRLoweringContext.ContextReceiverValue(type: parameter.type, exprID: parameter.value)
+        }
+
         let returnType: TypeID
         let accessorName: InternedString
         switch accessorKind {
@@ -514,11 +621,17 @@ extension MemberLowerer {
         var typeTokenBindings: [(SymbolID, KIRExprID)] = []
         if let signature = semanticSignature {
             for index in signature.reifiedTypeParameterIndices.sorted() where index < signature.typeParameterSymbols.count {
-                let token = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: signature.typeParameterSymbols[index])
-                params.append(KIRParameter(symbol: token, type: sema.types.intType))
-                let value = arena.appendExpr(.symbolRef(token), type: sema.types.intType)
-                driver.ctx.setLocalValue(value, for: token)
-                typeTokenBindings.append((token, value))
+                let typeParameter = signature.typeParameterSymbols[index]
+                let tokens = [
+                    SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameter),
+                    SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParameter),
+                ]
+                for token in tokens {
+                    params.append(KIRParameter(symbol: token, type: sema.types.intType))
+                    let value = arena.appendExpr(.symbolRef(token), type: sema.types.intType)
+                    driver.ctx.setLocalValue(value, for: token)
+                    typeTokenBindings.append((token, value))
+                }
             }
         }
         var body: KIRLoweringEmitContext = [.beginBlock]
@@ -528,6 +641,9 @@ extension MemberLowerer {
         }
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
+        }
+        for parameter in contextParameters {
+            body.append(.constValue(result: parameter.value, value: .symbolRef(parameter.parameter.symbol)))
         }
         // KSP-CAP-018: an accessor body is its own KIR function with its own
         // scope, so an outer local captured by an object literal has to be
@@ -543,6 +659,7 @@ extension MemberLowerer {
             instructions: &body.instructions
         )
 
+        driver.ctx.withContextReceiverValues(contextReceiverValues) {
         switch accessorBody {
         case let .block(exprIDs, _):
             var lastValue: KIRExprID?
@@ -591,6 +708,7 @@ extension MemberLowerer {
         case .unit:
             body.append(.returnUnit)
         }
+        }
         body.append(.endBlock)
 
         // Use a synthetic symbol derived from the property symbol for the accessor.
@@ -620,6 +738,9 @@ extension MemberLowerer {
                         )))
                     }
                 },
+                contextReceiverTypes: semanticSignature?.contextReceiverTypes ?? [],
+                contextParameterSymbols: semanticSignature?.contextParameterSymbols ?? [],
+                contextParameterTypes: semanticSignature?.contextParameterTypes ?? [],
                 parameterTypes: accessorKind == .setter ? [propertyType] : [],
                 returnType: returnType,
                 canThrow: true,

@@ -186,6 +186,8 @@ extension InlineLoweringPass {
             }
         }
 
+        body = KIRExternalLoopJump.resolvingTargets(in: body)
+
         if !preserveNonLocalReturns {
             if function.isInline, body.contains(where: {
                 if case .beginNonLocalReturnScope = $0 { return true }

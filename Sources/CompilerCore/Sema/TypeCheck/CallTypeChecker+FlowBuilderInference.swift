@@ -22,15 +22,6 @@ extension CallTypeChecker {
         ]
     }
 
-    func flowBuilderEmitHasReceiverMember(ctx: TypeInferenceContext) -> Bool {
-        guard let receiverType = ctx.implicitReceiverType else { return false }
-        return !driver.helpers.collectMemberFunctionCandidates(
-            named: ctx.interner.intern("emit"),
-            receiverType: ctx.sema.types.makeNonNullable(receiverType),
-            sema: ctx.sema, interner: ctx.interner
-        ).isEmpty
-    }
-
     func flowBuilderElementType(_ type: TypeID?, ctx: TypeInferenceContext) -> TypeID? {
         guard let type,
               case let .classType(classType) = ctx.sema.types.kind(of: type),

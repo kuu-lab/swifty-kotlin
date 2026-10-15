@@ -255,16 +255,81 @@ extension CallTypeChecker {
         guard case let .functionType(functionType) = sema.types.kind(of: nonNullCalleeType) else {
             return nil
         }
-        let receiverArgOffset: Int = switch arityPolicy {
-        case .receiverNeverExplicit:
-            0
-        case .receiverOptionallyExplicit:
-            (functionType.receiver != nil && argTypes.count == functionType.params.count + 1) ? 1 : 0
-        case .receiverRequiredExplicit:
-            functionType.receiver != nil ? 1 : 0
+        let contextTypes = functionType.contextReceivers
+        let availableContextTypes = ctx.contextReceiverTypes
+            + ctx.implicitReceiverStack.map(\.type)
+            + ctx.outerReceiverTypes.map(\.type)
+            + (ctx.implicitReceiverType.map { [$0] } ?? [])
+        func hasImplicitContextValues() -> Bool {
+            contextTypes.allSatisfy { requiredType in
+                if sema.types.typeContainsAnyTypeParam(requiredType) {
+                    return !availableContextTypes.isEmpty
+                }
+                return availableContextTypes.contains { availableType in
+                    sema.types.isSubtype(
+                        sema.types.makeNonNullable(availableType),
+                        sema.types.makeNonNullable(requiredType)
+                    )
+                }
+            }
         }
+        func receiverOffset(for argumentCount: Int) -> Int? {
+            switch arityPolicy {
+            case .receiverNeverExplicit:
+                return 0
+            case .receiverOptionallyExplicit:
+                guard functionType.receiver != nil else { return 0 }
+                if argumentCount == functionType.params.count + 1 { return 1 }
+                if argumentCount == functionType.params.count { return 0 }
+                return nil
+            case .receiverRequiredExplicit:
+                return functionType.receiver == nil ? 0 : 1
+            }
+        }
+        func argumentsMatch(contextArgumentCount: Int, receiverOffset: Int) -> Bool {
+            guard contextArgumentCount + receiverOffset + functionType.params.count == argTypes.count else {
+                return false
+            }
+            func contextArgumentMatches(at index: Int, expected: TypeID) -> Bool {
+                let expression = args[index].expr
+                let actual = argTypes[index]
+                if isLambdaOrCallableRefArg(expression, ast: ast)
+                    || integerLiteralFitsParameter(expression, parameterType: expected, ctx: ctx)
+                    || sema.types.typeContainsAnyTypeParam(actual)
+                    || sema.types.typeContainsAnyTypeParam(expected)
+                {
+                    return true
+                }
+                return sema.types.isSubtype(
+                    sema.types.makeNonNullable(actual),
+                    sema.types.makeNonNullable(expected)
+                )
+            }
+            for index in 0 ..< contextArgumentCount
+                where !contextArgumentMatches(at: index, expected: contextTypes[index])
+            {
+                return false
+            }
+            return true
+        }
+        let layout: (contextArgumentCount: Int, receiverOffset: Int)? = {
+            if !contextTypes.isEmpty,
+               argTypes.count >= contextTypes.count,
+               let offset = receiverOffset(for: argTypes.count - contextTypes.count),
+               argumentsMatch(contextArgumentCount: contextTypes.count, receiverOffset: offset)
+            {
+                return (contextTypes.count, offset)
+            }
+            guard hasImplicitContextValues(),
+                  let offset = receiverOffset(for: argTypes.count),
+                  argumentsMatch(contextArgumentCount: 0, receiverOffset: offset)
+            else {
+                return nil
+            }
+            return (0, offset)
+        }()
         guard !args.contains(where: { $0.label != nil || $0.isSpread }),
-              functionType.params.count + receiverArgOffset == argTypes.count
+              let layout
         else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
@@ -274,6 +339,8 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        let contextArgumentCount = layout.contextArgumentCount
+        let receiverArgOffset = layout.receiverOffset
         var parameterMapping: [Int: Int] = [:]
         func contextualizedArgumentType(at index: Int, parameterType: TypeID) -> TypeID {
             guard isLambdaOrCallableRefArg(args[index].expr, ast: ast)
@@ -282,25 +349,33 @@ extension CallTypeChecker {
             }
             return driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: parameterType)
         }
+        for contextIndex in 0 ..< contextArgumentCount {
+            let argumentType = contextualizedArgumentType(at: contextIndex, parameterType: contextTypes[contextIndex])
+            emitCallableValueArgumentConstraint(
+                left: argumentType,
+                right: contextTypes[contextIndex],
+                range: ast.arena.exprRange(args[contextIndex].expr) ?? range,
+                ctx: ctx
+            )
+        }
         if receiverArgOffset == 1, let receiverType = functionType.receiver {
-            let argumentType = contextualizedArgumentType(at: 0, parameterType: receiverType)
+            let receiverIndex = contextArgumentCount
+            let argumentType = contextualizedArgumentType(at: receiverIndex, parameterType: receiverType)
             // Safe receiver invocation checks null before entering the call.
             // An assertion on the receiver expression would run before that branch.
             if case .safeMemberCall = ast.arena.expr(id) {} else {
-                driver.recordPlatformNullAssertion(args[0].expr, sourceType: argumentType, targetType: receiverType)
+                driver.recordPlatformNullAssertion(args[receiverIndex].expr, sourceType: argumentType, targetType: receiverType)
             }
             emitCallableValueArgumentConstraint(
                 left: argumentType,
                 right: receiverType,
-                range: ast.arena.exprRange(args[0].expr) ?? range,
+                range: ast.arena.exprRange(args[receiverIndex].expr) ?? range,
                 ctx: ctx
             )
         }
         for paramIndex in functionType.params.indices {
-            let argIndex = paramIndex + receiverArgOffset
-            if receiverArgOffset == 0 {
-                parameterMapping[argIndex] = paramIndex
-            }
+            let argIndex = paramIndex + receiverArgOffset + contextArgumentCount
+            parameterMapping[argIndex] = paramIndex
             let argumentType = contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex])
             driver.recordPlatformNullAssertion(args[argIndex].expr, sourceType: argumentType,
                                                targetType: functionType.params[paramIndex])
@@ -346,7 +421,9 @@ extension CallTypeChecker {
                 target: callableTarget,
                 functionType: nonNullCalleeType,
                 parameterMapping: parameterMapping,
-                extensionCallableExpr: extensionCallableExpr
+                extensionCallableExpr: extensionCallableExpr,
+                contextArgumentCount: contextArgumentCount,
+                receiverArgumentOffset: receiverArgOffset
             )
         )
         if let callableTarget {

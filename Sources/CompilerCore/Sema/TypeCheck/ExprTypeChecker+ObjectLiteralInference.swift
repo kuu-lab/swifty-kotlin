@@ -533,7 +533,20 @@ extension ExprTypeChecker {
                     diagnostics: ctx.sema.diagnostics
                 )
             }
-            let declaredType = propertyDecl.type.map(resolvePropertyType) ?? sema.types.anyType
+            var declaredType = propertyDecl.type.map(resolvePropertyType) ?? sema.types.anyType
+            if propertyDecl.isSynthesizedPrimaryConstructorProperty,
+               let constructor = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern("<init>")])
+                   .compactMap({ sema.symbols.functionSignature(for: $0) }).first,
+               let index = constructor.valueParameterSymbols.firstIndex(where: {
+                   sema.symbols.symbol($0)?.name == propertyDecl.name
+               }), constructor.valueParameterIsVararg.indices.contains(index),
+               constructor.valueParameterIsVararg[index], constructor.parameterTypes.indices.contains(index),
+               let array = primitiveVarargArrayType(elementType: constructor.parameterTypes[index],
+                                                   sema: sema, interner: interner) {
+                // Match named-class headers using the resolved element type,
+                // including aliases, nullable elements, and shadowed primitive names.
+                declaredType = array
+            }
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
             if let setterVisibility = propertyDecl.setter?.visibility {
                 sema.symbols.setPropertySetterVisibility(setterVisibility, for: propertySymbol)
@@ -599,7 +612,10 @@ extension ExprTypeChecker {
             // in its own `$delegate_<name>` field; the property symbol itself
             // gets no storage slot.
             if propertyDecl.delegateExpression != nil {
-                let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                let extensionSuffix = propertyDecl.receiverType == nil ? "" : "_extension_\(propertySymbol.rawValue)"
+                let delegateStorageName = interner.intern(
+                    "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+                )
                 let delegateStorageSymbol = sema.symbols.define(
                     kind: .field,
                     name: delegateStorageName,
@@ -699,6 +715,7 @@ extension ExprTypeChecker {
             if let getter = propertyDecl.getter, getter.body != .unit {
                 inferredType = driver.declChecker.typeCheckGetter(
                     getter,
+                    property: propertyDecl,
                     symbol: propertySymbol,
                     inferredPropertyType: declaredType ?? inferredType,
                     accessorCtx: accessorCtx,

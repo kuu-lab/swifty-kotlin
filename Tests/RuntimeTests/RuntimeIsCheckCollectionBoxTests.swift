@@ -144,6 +144,30 @@ struct RuntimeIsCheckCollectionBoxTests {
     }
 
     @Test
+    func arraysExposeIterableAndSequenceIteratorTables() throws {
+        let array = kk_array_new(1)
+        var thrown = 0
+        _ = kk_array_set(array, 0, 42, &thrown)
+        #expect(thrown == 0)
+
+        for interfaceName in ["kotlin.collections.Iterable", "kotlin.sequences.Sequence"] {
+            let interfaceID = Int(runtimeStableNominalTypeID(fqName: interfaceName))
+            let pointer = kk_itable_lookup_dynamic(array, interfaceID, 0)
+            try #require(pointer != 0, "Array must expose (interfaceName).iterator()")
+            let iterator = unsafeBitCast(
+                pointer,
+                to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            let rawIterator = iterator(array, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_iterator_hasNext(rawIterator, &thrown) == 1)
+            #expect(kk_iterator_next(rawIterator, &thrown) == 42)
+            #expect(kk_iterator_hasNext(rawIterator, &thrown) == 0)
+            #expect(thrown == 0)
+        }
+    }
+
+    @Test
     func indexingIterableHasIdentityAndIteratorDispatch() throws {
         let list = registerRuntimeObject(RuntimeListBox(elements: [9]))
         let raw = registerRuntimeObject(RuntimeIndexingIterableBox(listRaw: list) as AnyObject)

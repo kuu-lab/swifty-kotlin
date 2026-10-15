@@ -982,8 +982,6 @@ extension KIRLoweringDriver {
             value: delegateValue, valueType: delegateType,
             shared: shared, body: &body
         )
-        let propertyName = sema.symbols.symbol(propSymbol)?.name
-            ?? shared.interner.intern("")
         let thisRefExprID: KIRExprID
         if let receiver = ctx.activeImplicitReceiverExprID() {
             thisRefExprID = receiver
@@ -993,9 +991,11 @@ extension KIRLoweringDriver {
             thisRefExprID = nullExpr
         }
         let kPropertyExprID = emitKPropertyStubCreate(
-            propertyName: propertyName,
-            propertyType: sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType,
-            shared: shared, emit: &body
+            propertySymbol: propSymbol,
+            sema: sema,
+            arena: arena,
+            interner: shared.interner,
+            emit: &body
         )
         let provideDelegateName = shared.interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType

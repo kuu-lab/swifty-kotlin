@@ -284,6 +284,18 @@ extension CallLowerer {
             )
         }
         var finalArgIDs = callNormalized.arguments
+        if let chosen,
+           let signature = sema.symbols.functionSignature(for: chosen),
+           !signature.contextParameterTypes.isEmpty
+        {
+            let contextArguments = signature.contextParameterTypes.compactMap {
+                contextArgumentValue(
+                    matching: $0, callExprID: exprID, signature: signature,
+                    callBinding: callBinding, sema: sema, arena: arena
+                )
+            }
+            finalArgIDs.insert(contentsOf: contextArguments, at: 0)
+        }
         var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
         var implicitReceiverRuntimeCallee: InternedString?
         // Compiler-generated lambdas/local functions use the compiler ABI
@@ -354,37 +366,89 @@ extension CallLowerer {
             if let callableValueCallBinding,
                case let .functionType(functionType) = sema.types.kind(
                    of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
-               ),
-               functionType.receiver != nil,
-               // `finalArgIDs` here is `[closure] + normalizedArgs`.
-               // When the receiver was already supplied positionally
-               // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
-               // elements and finalArgIDs.count is params.count + 2 -- there
-               // is no missing receiver slot to fill from the ambient scope.
-               finalArgIDs.count == functionType.params.count + 1
+               )
             {
-                // A receiver-function value invoked as `block()` inside a
-                // receiver scope uses the active implicit receiver as its
-                // dispatch receiver (e.g. the bodies of T.run and T.apply).
-                let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
-                    .flatMap { driver.ctx.localValue(for: $0) }
-                    ?? driver.ctx.activeImplicitReceiverExprID()
-                if let implicitReceiver { finalArgIDs.insert(implicitReceiver, at: 1) }
+                let contextArguments = callableValueCallBinding.contextArgumentCount == 0
+                    ? functionType.contextReceivers.compactMap {
+                        contextArgumentValue(
+                            matching: $0, callExprID: exprID, sema: sema, arena: arena
+                        )
+                    }
+                    : []
+                finalArgIDs.insert(contentsOf: contextArguments, at: 1)
+                if functionType.receiver != nil, callableValueCallBinding.receiverArgumentOffset == 0 {
+                    // A receiver-function value invoked without a positional
+                    // receiver uses the active implicit receiver. Context
+                    // arguments precede that receiver in the callable ABI.
+                    let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
+                        .flatMap { driver.ctx.localValue(for: $0) }
+                        ?? driver.ctx.activeImplicitReceiverExprID()
+                    if let implicitReceiver {
+                        finalArgIDs.insert(
+                            implicitReceiver,
+                            at: 1 + callableValueCallBinding.contextArgumentCount + contextArguments.count
+                        )
+                    }
+                }
             }
         }
         if callableInvokeCallee == nil, let loweredCallable {
+            var implicitReceiverArgument: KIRExprID?
             if let callableValueCallBinding,
                case let .functionType(functionType) = sema.types.kind(
                    of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                ),
                functionType.receiver != nil,
-               finalArgIDs.count == functionType.params.count {
-                let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
+               callableValueCallBinding.receiverArgumentOffset == 0 {
+                implicitReceiverArgument = sema.bindings.implicitExtensionReceiver(for: exprID)
                     .flatMap { driver.ctx.localValue(for: $0) }
                     ?? driver.ctx.activeImplicitReceiverExprID()
-                if let implicitReceiver { finalArgIDs.insert(implicitReceiver, at: 0) }
+            }
+            let contextArguments: [KIRExprID] = if let callableValueCallBinding,
+                                                   callableValueCallBinding.contextArgumentCount == 0,
+                                                   case let .functionType(functionType) = sema.types.kind(
+                                                       of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
+                                                   )
+            {
+                functionType.contextReceivers.compactMap {
+                    contextArgumentValue(
+                        matching: $0, callExprID: exprID, sema: sema, arena: arena
+                    )
+                }
+            } else {
+                []
+            }
+            finalArgIDs.insert(contentsOf: contextArguments, at: 0)
+            if let implicitReceiverArgument {
+                finalArgIDs.insert(
+                    implicitReceiverArgument,
+                    at: (callableValueCallBinding?.contextArgumentCount ?? 0) + contextArguments.count
+                )
             }
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
+        } else if callableInvokeCallee == nil,
+                  let chosen,
+                  sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true
+        {
+            // A local function may be called from a lifted constructor lambda
+            // whose context has its free variables but no callable-value
+            // metadata. Rebuild the direct-call environment from Sema's
+            // declaration-time capture list.
+            var captureArguments: [KIRExprID] = []
+            for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: chosen) {
+                guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                    for: capturedSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) else {
+                    assertionFailure("BuildKIRPhase: missing local function capture '\(capturedSymbol)'")
+                    continue
+                }
+                captureArguments.append(captureValue)
+            }
+            finalArgIDs.insert(contentsOf: captureArguments, at: 0)
         } else if let chosen,
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
@@ -940,23 +1004,40 @@ extension CallLowerer {
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
             if let arrayResultTypeID {
-                let typeIDExpr = arena.appendExpr(
-                    .intLiteral(arrayResultTypeID),
-                    type: sema.types.intType
-                )
-                instructions.append(.constValue(
-                    result: typeIDExpr,
-                    value: .intLiteral(arrayResultTypeID)
-                ))
-                let taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_array_tag_type"),
-                    arguments: [callResult, typeIDExpr],
-                    result: taggedResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                let taggedResult: KIRExprID
+                if loweredCalleeName == interner.intern("kk_array_of_nulls") {
+                    // This intrinsic allocates a fresh reference array, so its
+                    // call-site result type is reliable component metadata.
+                    // Inlined collection bridges such as toTypedArray() reach
+                    // this path through arrayOfNulls<T>.
+                    taggedResult = appendRuntimeArrayComponentTag(
+                        callResult,
+                        arrayType: boundType ?? arena.exprType(result),
+                        context: driver.ctx,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                } else {
+                    let typeIDExpr = arena.appendExpr(
+                        .intLiteral(arrayResultTypeID),
+                        type: sema.types.intType
+                    )
+                    instructions.append(.constValue(
+                        result: typeIDExpr,
+                        value: .intLiteral(arrayResultTypeID)
+                    ))
+                    taggedResult = arena.appendTemporary(type: boundType ?? arena.exprType(result))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_tag_type"),
+                        arguments: [callResult, typeIDExpr],
+                        result: taggedResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 // Nominal return tagging is existing erased-Array behavior.
                 // Actual components belong to allocation/copy sites: an
                 // untagged legacy/erased array cannot be proven by return type.

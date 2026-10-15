@@ -1,4 +1,4 @@
-// KUU-1983: Primitive KClass supertypes are direct parents; Number keeps Serializable.
+// KUU-2175: Kotlin 2.4.20 includes Serializable among boxed primitive KClass supertypes.
 import kotlin.reflect.*
 
 fun main() {

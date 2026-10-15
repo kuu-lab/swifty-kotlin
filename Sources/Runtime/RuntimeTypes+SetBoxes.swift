@@ -271,15 +271,13 @@ final class RuntimeSetBox {
                           let value = map.rawValue(at: index) else { return false }
                     return value == entry.value
                 }
-                guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
-                      let entry = tryCast(pointer, to: RuntimePairBox.self),
-                      entry.mutableMapRaw == backingMapRaw,
-                      let index = map.index(ofRawKey: entry.mutableMapKey),
+                guard let entry = runtimeMapEntryValues(rawValue: rawValue) ?? runtimeSourceMapEntryValues(rawValue),
+                      let index = map.index(ofRawKey: entry.key),
                       let currentValue = map.rawValue(at: index)
                 else {
                     return false
                 }
-                return runtimeValuesEqual(entry.secondValue, RuntimeValue(raw: currentValue))
+                return runtimeValuesEqual(entry.value, currentValue)
             case .keys:
                 return map.index(ofRawKey: rawValue) != nil
             }

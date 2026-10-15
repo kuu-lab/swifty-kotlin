@@ -187,7 +187,7 @@ public final class CodegenPhase: CompilerPhase {
         var manifestDict: [String: Any] = [
             "formatVersion": 2,
             "moduleName": ctx.options.moduleName,
-            "kotlinLanguageVersion": "2.3.10",
+            "kotlinLanguageVersion": "2.4.20",
             "compilerVersion": CompilerBuildInfo.version,
             "sourceVarargStorageABI": "array-v1",
             "target": targetString,

@@ -90,8 +90,18 @@ struct InlineLabelAllocator {
     /// order. Instructions carrying no label are returned as they are.
     mutating func relocate(_ instructions: [KIRInstruction]) -> [KIRInstruction] {
         var labelIDs: Set<Int32> = []
+        let locallyDefinedLabels = Set(instructions.compactMap { instruction -> Int32? in
+            if case let .label(id) = instruction { return id }
+            return nil
+        })
         for instruction in instructions {
             labelIDs.formUnion(KIRLabelRelocation.labelIDs(of: instruction))
+            if case let .jump(target) = instruction,
+               let externalTarget = KIRExternalLoopJump.label(for: target),
+               locallyDefinedLabels.contains(externalTarget)
+            {
+                labelIDs.insert(externalTarget)
+            }
         }
         guard !labelIDs.isEmpty else { return instructions }
 
