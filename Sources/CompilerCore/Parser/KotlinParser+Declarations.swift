@@ -516,6 +516,9 @@ extension KotlinParser {
     /// when another declaration token follows it.
     private func enumBodyStartsDeclaration() -> Bool {
         let kind = stream.peek().kind
+        if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
+            return true
+        }
         if kind == .symbol(.at) {
             // An annotation can prefix either an enum entry or a member
             // declaration. Look through the annotation before deciding which

@@ -93,6 +93,9 @@ public final class BindingTable {
     /// call, so KIR lowering can apply named-argument / default / vararg
     /// normalization exactly like an ordinary constructor call.
     public private(set) var constructorDelegationCallBindings: [SymbolID: CallBinding] = [:]
+    /// Constructor selected for each enum entry, keyed by the entry field
+    /// symbol because enum-entry arguments have no standalone call ExprID.
+    public private(set) var enumEntryConstructorBindings: [SymbolID: CallBinding] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
@@ -322,6 +325,7 @@ public final class BindingTable {
         if !callableTargets.isEmpty { return false }
         if !constructorDelegationTargets.isEmpty { return false }
         if !constructorDelegationCallBindings.isEmpty { return false }
+        if !enumEntryConstructorBindings.isEmpty { return false }
         if !callableValueCalls.isEmpty { return false }
         if !isCheckTargetTypes.isEmpty { return false }
         if !castTargetTypes.isEmpty { return false }
@@ -437,6 +441,7 @@ public final class BindingTable {
         worker.callableTargets = callableTargets
         worker.constructorDelegationTargets = constructorDelegationTargets
         worker.constructorDelegationCallBindings = constructorDelegationCallBindings
+        worker.enumEntryConstructorBindings = enumEntryConstructorBindings
         worker.callableValueCalls = callableValueCalls
         worker.isCheckTargetTypes = isCheckTargetTypes
         worker.castTargetTypes = castTargetTypes
@@ -577,6 +582,10 @@ public final class BindingTable {
     public func bindConstructorDelegationCall(_ ctorSymbol: SymbolID, binding: CallBinding) {
         constructorDelegationTargets[ctorSymbol] = binding.chosenCallee
         constructorDelegationCallBindings[ctorSymbol] = binding
+    }
+
+    public func bindEnumEntryConstructor(_ entrySymbol: SymbolID, binding: CallBinding) {
+        enumEntryConstructorBindings[entrySymbol] = binding
     }
 
     public func bindCallableValueCall(_ expr: ExprID, binding: CallableValueCallBinding) {
@@ -924,6 +933,10 @@ public final class BindingTable {
 
     public func constructorDelegationCallBinding(for ctorSymbol: SymbolID) -> CallBinding? {
         constructorDelegationCallBindings[ctorSymbol]
+    }
+
+    public func enumEntryConstructorBinding(for entrySymbol: SymbolID) -> CallBinding? {
+        enumEntryConstructorBindings[entrySymbol]
     }
 
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {
