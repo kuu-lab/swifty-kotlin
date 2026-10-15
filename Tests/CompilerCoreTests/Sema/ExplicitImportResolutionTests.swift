@@ -259,6 +259,10 @@ struct ExplicitImportResolutionTests {
     func samePackageOverloadDoesNotHideExplicitlyImportedFunction(useArtifact: Bool) throws {
         let sources = [
             """
+            package imported
+            fun choose(value: Any): String = "imported"
+            """,
+            """
             package repro
             fun min(first: Int, second: Int, third: Int): Int = first + second + third
             """,
@@ -266,10 +270,13 @@ struct ExplicitImportResolutionTests {
             package repro
             import kotlin.math.min
             import kotlin.math.min as min2
+            import imported.choose
             fun minimum2(first: Int, second: Int): Int = min(first, second)
             fun minimum3(first: Int, second: Int, third: Int): Int = min(first, second, third)
             fun minimumAlias2(first: Int, second: Int): Int = min2(first, second)
             fun minimumQualified2(first: Int, second: Int): Int = kotlin.math.min(first, second)
+            fun choose(value: String): String = "same-package"
+            fun chooseResult(): String = choose("value")
             """,
         ]
 
@@ -289,6 +296,9 @@ struct ExplicitImportResolutionTests {
             let aliasedCall = try #require(selectedCall(
                 named: "min2", inFunction: "minimumAlias2", ast: ast, sema: sema, interner: ctx.interner
             ))
+            let priorityCall = try #require(selectedCall(
+                named: "choose", inFunction: "chooseResult", ast: ast, sema: sema, interner: ctx.interner
+            ))
 
             #expect(twoArgumentCall.fqName == "kotlin.math.min")
             #expect(twoArgumentCall.arity == 2)
@@ -296,6 +306,22 @@ struct ExplicitImportResolutionTests {
             #expect(threeArgumentCall.arity == 3)
             #expect(aliasedCall.fqName == "kotlin.math.min")
             #expect(aliasedCall.arity == 2)
+            #expect(priorityCall.fqName == "imported.choose")
+        }
+    }
+
+    @Test
+    func samePackageFunctionStillRequiresAnExplicitImport() throws {
+        let source = """
+        package repro
+        fun min(first: Int, second: Int, third: Int): Int = first + second + third
+        fun minimum2(first: Int, second: Int): Int = min(first, second)
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0002" }, "Expected the missing-import call to remain inapplicable: \(errors)")
         }
     }
 
