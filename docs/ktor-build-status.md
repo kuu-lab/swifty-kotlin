@@ -129,6 +129,12 @@ golden mismatch が出る。これは `git checkout -- Sources` した素の状�
 
 ## IO-F03: 固定版 ktor-io macOS source set（2026-10-16）
 
+KUU-2404 は bundled coroutine source に top-level `kotlinx.coroutines.IO` を追加する。
+固定版 Ktor 3.6.0 の POSIX actual source はこの名前を import する一方、bundled stdlib の利用側からは
+`internal` 宣言を import できないため、KSwiftK の互換 alias は `public` とする。alias の getter は
+`Dispatchers.IO` を返すため dispatcher identity と挙動は既存 API と共有される。upstream
+kotlinx-coroutines 1.11.0 Native source の `internal` 宣言より可視性が広い互換面である。
+
 KUU-1824 の consumer 調査では、Ktor 3.6.0 tag を次の commit に固定した。
 Ktor の version catalog が宣言する依存は Kotlin 2.3.21、kotlinx-io 0.9.1、kotlinx-coroutines 1.11.0、
 atomicfu 0.33.0。

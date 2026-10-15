@@ -2,6 +2,42 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
+    func testKtorPosixIODispatcherUsesBundledIO(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlinSources(
+            [
+                """
+                package io.ktor.utils.io
+                import kotlinx.coroutines.CoroutineDispatcher
+                expect fun ioDispatcher(): CoroutineDispatcher
+                """,
+                """
+                package io.ktor.utils.io
+                import kotlinx.coroutines.CoroutineDispatcher
+                import kotlinx.coroutines.Dispatchers
+                import kotlinx.coroutines.IO
+
+                public actual fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
+                """,
+                """
+                import io.ktor.utils.io.ioDispatcher
+                import kotlinx.coroutines.Dispatchers
+                import kotlinx.coroutines.IO
+
+                fun main() {
+                    val dispatcher = ioDispatcher()
+                    println(dispatcher === IO)
+                    println(dispatcher === Dispatchers.IO)
+                    println(IO === Dispatchers.IO)
+                }
+                """,
+            ],
+            expectedOutput: "true\ntrue\ntrue\n",
+            moduleName: "KtorPOSIXIODispatcher",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
     func testKtorIOReadStringCoverage(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             try diffCaseSource("kotlinx_io_read_string_charset.kt", file: #filePath),
