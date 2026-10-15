@@ -438,6 +438,7 @@ extension ExprTypeChecker {
             diagnostics: ctx.sema.diagnostics,
             baseLocals: outerLocalsSnapshot
         )
+        let explicitSuperclassSymbol = driver.declChecker.explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         driver.declChecker.typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
@@ -445,6 +446,7 @@ extension ExprTypeChecker {
             diagnostics: ctx.sema.diagnostics,
             ownerSymbol: classSymbol,
             hasPrimaryConstructor: hasPrimaryConstructor,
+            explicitSuperclassSymbol: explicitSuperclassSymbol,
             baseLocals: outerLocalsSnapshot
         )
         driver.declChecker.typeCheckInitBlocks(
