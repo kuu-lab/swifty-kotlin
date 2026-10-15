@@ -87,6 +87,16 @@ func runtimeHandleUncaughtCoroutineException(
     FileHandle.standardError.write(Data(text.utf8))
 }
 
+/// Public kotlinx.coroutines entry point for reporting an unhandled failure.
+@_cdecl("kk_handle_coroutine_exception")
+public func kk_handle_coroutine_exception(_ contextRaw: Int, _ exceptionRaw: Int) -> Int {
+    runtimeHandleUncaughtCoroutineException(
+        context: resolveToCoroutineContext(contextRaw),
+        exception: exceptionRaw
+    )
+    return 0
+}
+
 /// Append a throwable's header + saved native frames, then its `Suppressed:`
 /// and `Caused by:` chains (same order as the Kotlin-side
 /// `collectThrowableTraceLines` used by `Throwable.stackTraceToString`), to
