@@ -672,7 +672,7 @@ extension ExprTypeChecker {
             } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
                 expectedFunctionType = sema.types.make(.functionType(functionType))
                 expectedSamInterfaceType = nil
-            } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+            } else if let samFT = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
                 expectedFunctionType = sema.types.make(.functionType(samFT))
                 expectedSamInterfaceType = expectedType
             } else {
@@ -1184,7 +1184,7 @@ extension ExprTypeChecker {
     ) {
         guard let expectedType,
               resultType == expectedType,
-              let samFunctionType = driver.helpers.samFunctionType(for: expectedType, sema: sema)
+              let samFunctionType = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema)
         else {
             return
         }
@@ -1252,7 +1252,7 @@ extension ExprTypeChecker {
             }
             return expectedType
         }
-        if let samFunctionType = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+        if let samFunctionType = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
             // Same check against the SAM signature for a fun-interface
             // expected type (`useSam(C::v)`): adopt the interface type only
             // when the reference's function view matches the SAM.

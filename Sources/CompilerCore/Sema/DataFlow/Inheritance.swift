@@ -1079,6 +1079,8 @@ extension DataFlowSemaPhase {
     /// that the class does not override. These are used for itable layout and KIR lowering.
     private struct DelegationDispatchKey {
         let name: InternedString
+        // Member-extension overloads may differ only by their extension receiver.
+        let extensionReceiverType: TypeID?
         let parameterTypes: [TypeID]
         let methodTypeParameters: [SymbolID]
         let methodUpperBounds: [[TypeID]]
@@ -1093,6 +1095,17 @@ extension DataFlowSemaPhase {
                 alphaAlignedMethodType(type, sourceParameters: methodTypeParameters,
                                        targetParameters: other.methodTypeParameters, types: types)
             }
+            let extensionReceiversMatch: Bool
+            if let extensionReceiverType, let otherReceiverType = other.extensionReceiverType {
+                extensionReceiversMatch = methodIdentityParameterTypesMatch(
+                    candidateParameterTypes: [otherReceiverType],
+                    interfaceParameterTypes: [aligned(extensionReceiverType)],
+                    types: types
+                )
+            } else {
+                extensionReceiversMatch = extensionReceiverType == nil && other.extensionReceiverType == nil
+            }
+            guard extensionReceiversMatch else { return false }
             return methodIdentityParameterTypesMatch(candidateParameterTypes: other.parameterTypes,
                                                      interfaceParameterTypes: parameterTypes.map(aligned), types: types)
                 && methodUpperBoundSetsMatch(methodUpperBounds.map { $0.map(aligned) }, other.methodUpperBounds, types: types)
@@ -1102,11 +1115,13 @@ extension DataFlowSemaPhase {
     private func delegationDispatchKey(
         for method: SemanticSymbol,
         signature: FunctionSignature,
+        extensionReceiverType: TypeID?,
         parameterTypes: [TypeID]? = nil,
         methodUpperBounds: [[TypeID]]
     ) -> DelegationDispatchKey {
         return DelegationDispatchKey(
             name: method.name,
+            extensionReceiverType: extensionReceiverType,
             parameterTypes: parameterTypes ?? signature.parameterTypes,
             methodTypeParameters: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)),
             methodUpperBounds: methodUpperBounds,
@@ -1171,6 +1186,8 @@ extension DataFlowSemaPhase {
                   let signature = symbols.functionSignature(for: funSymbol)
             else { continue }
             classMethodKeys.append(delegationDispatchKey(for: method, signature: signature,
+                                                         extensionReceiverType: symbols.memberExtensionOwnerSymbol(for: funSymbol) == nil
+                                                             ? nil : signature.receiverType,
                                                          methodUpperBounds: methodTypeParameterBounds(signature, types: types)))
         }
         var classPropertyNames: Set<InternedString> = []
@@ -1232,6 +1249,13 @@ extension DataFlowSemaPhase {
                         guard let ifaceSig = symbols.functionSignature(for: memberSym.id) else { continue }
                         let key = delegationDispatchKey(
                             for: memberSym, signature: ifaceSig,
+                            extensionReceiverType: symbols.memberExtensionOwnerSymbol(for: memberSym.id) == nil
+                                ? nil
+                                : ifaceSig.receiverType.map {
+                                    substituteDelegationType(
+                                        $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                                    )
+                                },
                             parameterTypes: ifaceSig.parameterTypes.map {
                                 substituteDelegationType(
                                     $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
@@ -1361,13 +1385,18 @@ extension DataFlowSemaPhase {
     ) {
         let methodName = methodSym.name
         let forwardingFQName = classFQName + [methodName]
+        let isMemberExtension = symbols.memberExtensionOwnerSymbol(for: methodSym.id) != nil
+        var forwardingFlags: SymbolFlags = [.synthetic, .overrideMember]
+        if isMemberExtension {
+            forwardingFlags.insert(.memberExtension)
+        }
         let forwardingSymbol = symbols.define(
             kind: .function,
             name: methodName,
             fqName: forwardingFQName,
             declSite: range,
             visibility: methodSym.visibility,
-            flags: [.synthetic, .overrideMember]
+            flags: forwardingFlags
         )
         symbols.setParentSymbol(classSymbol, for: forwardingSymbol)
 
@@ -1425,6 +1454,11 @@ extension DataFlowSemaPhase {
         let parameterTypes = ifaceSig.parameterTypes.map {
             substitute($0)
         }
+        let receiverType = if isMemberExtension, let interfaceReceiverType = ifaceSig.receiverType {
+            substitute(interfaceReceiverType)
+        } else {
+            classType
+        }
         let returnType = substitute(ifaceSig.returnType)
 
         var paramSymbols: [SymbolID] = []
@@ -1447,7 +1481,7 @@ extension DataFlowSemaPhase {
         }
 
         let forwardingSig = FunctionSignature(
-            receiverType: classType,
+            receiverType: receiverType,
             parameterTypes: parameterTypes,
             returnType: returnType,
             isSuspend: ifaceSig.isSuspend,

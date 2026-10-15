@@ -381,7 +381,13 @@ extension CallTypeChecker {
             args: interfaceArgs,
             nullability: .nonNull
         )))
-        guard let samFT = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else {
+        let samFT: FunctionType?
+        if case .callableRef = ctx.ast.arena.expr(argExpr) {
+            samFT = driver.helpers.samCallableReferenceFunctionType(for: interfaceType, sema: sema)
+        } else {
+            samFT = driver.helpers.samFunctionType(for: interfaceType, sema: sema)
+        }
+        guard let samFT else {
             return nil
         }
         let samFTTypeID = sema.types.make(.functionType(samFT))
