@@ -12,7 +12,9 @@ extension CallLowerer {
             return nil
         }
 
-        let valueArity = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+        let valueArity = functionType.contextReceivers.count
+            + functionType.params.count
+            + (functionType.receiver == nil ? 0 : 1)
 
         if functionType.isSuspend {
             switch valueArity {

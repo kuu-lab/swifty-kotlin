@@ -82,6 +82,52 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
     }
 
     @Test
+    func testO2ContextFunctionInvokeUsesContextReceiverArity() throws {
+        let wrappers = [1, 22].map { arity in
+            let types = (0 ..< arity).map { "T\($0)" }
+            let values = (0 ..< arity).map { "v\($0)" }
+            let typeParameters = (types + ["R"]).joined(separator: ", ")
+            let valueParameters = (0 ..< arity)
+                .map { "v\($0): T\($0)" }
+                .joined(separator: ", ")
+            let contextTypes = types.joined(separator: ", ")
+            let contextValues = values.joined(separator: ", ")
+            return """
+            inline fun <\(typeParameters)> context\(arity)(
+                \(valueParameters),
+                block: context(\(contextTypes)) () -> R
+            ): R = block(\(contextValues))
+            """
+        }
+        let source = wrappers.joined(separator: "\n") + "\nfun main() {}\n"
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let options = CompilerOptions(
+                moduleName: "ContextFunctionInvokeArity",
+                inputs: [path],
+                outputPath: outputBase,
+                emit: .executable,
+                target: TargetTriple.hostDefault(),
+                optLevel: .O2,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false,
+                entryPointFQName: "main"
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try CompilerTestSupport.runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func testCodegenCompilesNamedContextParametersAndAccessors() throws {
         let source = """
         import kotlin.ExperimentalContextParameters
