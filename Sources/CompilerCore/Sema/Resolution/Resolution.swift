@@ -876,7 +876,10 @@ extension OverloadResolver {
             parameterMapping: parameterMapping,
             defaultArgumentOwner: defaultArgumentOwner,
             effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
-            usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true)
+            usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true),
+            isLowPriorityInOverloadResolution: ctx.symbols.annotations(for: candidate).contains {
+                $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+            }
         ))
     }
 
@@ -1367,11 +1370,18 @@ extension OverloadResolver {
                 range: call.range
             )
         }
-        if viable.count == 1 {
-            return viable[0].toResolvedCall()
+        // Low-priority overloads participate only when no applicable
+        // regular-priority candidate exists. Apply this after viability so an
+        // inapplicable regular overload cannot suppress the low-priority set.
+        let regularPriorityCandidates = viable.filter { candidate in
+            !candidate.isLowPriorityInOverloadResolution
+        }
+        let priorityFiltered = regularPriorityCandidates.isEmpty ? viable : regularPriorityCandidates
+        if priorityFiltered.count == 1 {
+            return priorityFiltered[0].toResolvedCall()
         }
         if let chosen = pickMostSpecific(
-            viable,
+            priorityFiltered,
             call: call,
             typeSystem: typeSystem,
             preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity
@@ -1426,6 +1436,7 @@ extension OverloadResolver {
         let defaultArgumentOwner: SymbolID?
         let effectiveDefaultValues: [Bool]
         let usesVararg: Bool
+        let isLowPriorityInOverloadResolution: Bool
 
         func toResolvedCall() -> ResolvedCall {
             ResolvedCall(
