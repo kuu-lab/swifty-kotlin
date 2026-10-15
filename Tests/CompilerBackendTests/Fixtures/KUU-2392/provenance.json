@@ -1,0 +1,6 @@
+{
+  "source": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/compiler/testData/codegen/box/classLiteral/java/javaPrimitiveType.kt",
+  "commit": "679366a83f99851b42f64795f10ed803ff011c73",
+  "sha256": "ff6e16292c58bf07817c8eafc1b3663ca2a609399b1c77aafe5b88cd9ff75651",
+  "license": "Apache-2.0"
+}

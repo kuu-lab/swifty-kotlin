@@ -9,14 +9,25 @@ private external fun <T> __classToString(type: Class<T>): String
 @KsSymbolName("__kk_assertions_enabled")
 private external fun __assertionsEnabled(): Boolean
 
+@KsSymbolName("__kk_java_class_get_constructor")
+private external fun <T> __getConstructor(
+    type: Class<T>,
+    parameterTypes: Array<out Class<*>>
+): Constructor<T>
 @KsSymbolName("__kk_class_declared_constructors")
 private external fun __declaredConstructors(value: Class<*>): Array<Constructor<*>>
 
 @KsSymbolName("__kk_class_for_name")
 private external fun __classForName(className: String): Class<*>
+@KsSymbolName("__kk_class_canonical_name")
+private external fun <T> __classCanonicalName(type: Class<T>): String?
 
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
+    /** Returns the JVM canonical name of this class token, or null when unavailable. */
+    public val canonicalName: String?
+        get() = __classCanonicalName(this)
+
     /**
      * Returns the native runtime's loader used for resource lookup.
      */
@@ -30,6 +41,9 @@ public class Class<T> {
      */
     public fun desiredAssertionStatus(): Boolean = __assertionsEnabled()
 
+    /** Returns the public constructor matching [parameterTypes]. */
+    public fun getConstructor(vararg parameterTypes: Class<*>): Constructor<T> =
+        __getConstructor(this, parameterTypes)
     /** Returns the constructors registered for this class token. */
     public fun getDeclaredConstructors(): Array<Constructor<*>> = __declaredConstructors(this)
 
