@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import TestStdlibCache
 import Testing
 
 /// KSP-496 follow-up: `inferCallableRefExpr` (`ExprTypeChecker+NameLambdaAndCallableRefInference.swift`)
@@ -114,6 +115,70 @@ struct PropertyCallableReferenceDefaultTypeTests {
             "c::v without an expected type should infer KProperty0<Int>, got fqName \(symbol.fqName.map { ctx.interner.resolve($0) })"
         )
         #expect(args.count == 1, "KProperty0 takes one type argument (value).")
+    }
+
+    @Test func testBoundGenericMemberPropertyReferenceSpecializesCapturedReceiverType() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        fun box(): String {
+            var methodVar = "OK"
+
+            fun localMethod(): String {
+                return lazy { methodVar }::value.get()
+            }
+
+            return localMethod()
+        }
+
+        fun minimized(): String = lazy { "OK" }::value.get()
+        fun directRead(): String = lazy { "OK" }.value
+
+        class ConcreteBox(val value: String)
+        fun nonGenericBoundReference(): String = ConcreteBox("OK")::value.get()
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        try #require(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let inputPath = try #require(ctx.options.inputs.first)
+        let inputFileID = try #require(ctx.sourceManager.fileID(forPath: inputPath))
+        let references = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case .callableRef = expr,
+                  ast.arena.exprRange(exprID)?.start.file == inputFileID
+            else { return nil }
+            return exprID
+        }
+        try #require(references.count == 3)
+
+        for reference in references {
+            let (symbol, args) = try classTypeSymbol(for: reference, sema: sema)
+            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KProperty0"])
+            try #require(args.count == 1)
+            #expect(args[0] == .invariant(sema.types.stringType))
+            #expect(!sema.types.typeContainsAnyTypeParam(try #require(sema.bindings.exprTypes[reference])))
+        }
+    }
+
+    @Test(arguments: [
+        "val ref: KProperty0<Int> = Box(\"OK\")::value",
+        "val ref: KProperty1<Box<String>, String> = Box(\"OK\")::value",
+    ])
+    func rejectsIncompatibleBoundGenericPropertyReference(declaration: String) throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KProperty0
+        import kotlin.reflect.KProperty1
+        class Box<T>(val value: T)
+        fun main() { \(declaration) }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+        })
     }
 
     @Test func testUnboundMutablePropertyReferenceInfersKMutableProperty1WithoutExpectedType() throws {

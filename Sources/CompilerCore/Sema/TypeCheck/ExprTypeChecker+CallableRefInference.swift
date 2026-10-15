@@ -389,6 +389,10 @@ extension ExprTypeChecker {
                     receiverType: nonNullReceiver,
                     sema: sema
                 ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil {
+                    // `lookupMemberProperty` has already substituted the
+                    // receiver's arguments into the property type. Keep that
+                    // specialized value type even for a bound reference, whose
+                    // `ownerType` remains nil to preserve KProperty0 arity.
                     return bindPropertyCallableRef(
                         id,
                         propertySymbol: property.symbol,
@@ -396,7 +400,8 @@ extension ExprTypeChecker {
                         isUnbound: unboundClassType != nil,
                         expectedType: expectedType,
                         sema: sema,
-                        interner: interner
+                        interner: interner,
+                        resolvedPropertyType: property.type
                     )
                 }
                 // REFL-EXTPROP: a package-level extension property (e.g. `val
@@ -1265,6 +1270,17 @@ extension ExprTypeChecker {
             return expectedType
         }
         guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
+            return inferredType
+        }
+        guard isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner) else {
+            return expectedType
+        }
+        // Keep the reference's actual shape when a concrete KPropertyN
+        // expectation has the wrong arity or type arguments. The enclosing
+        // expression's subtype check then emits the mismatch diagnostic.
+        if sema.types.typeContainsAnyTypeParam(expectedType)
+            || !sema.types.isSubtype(inferredType, expectedType)
+        {
             return inferredType
         }
         return expectedType
