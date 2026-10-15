@@ -541,6 +541,7 @@ extension CallTypeChecker {
                 expectedType: nil,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
             if selection.diagnostic == nil, let chosen = selection.chosenCallee {
@@ -601,6 +602,7 @@ extension CallTypeChecker {
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
             return validateConstructorTypeInference(
@@ -628,6 +630,7 @@ extension CallTypeChecker {
             implicitReceiverType: implicitReceiverType,
             candidateArgumentTypes: candidateArgumentTypes,
             ignoringLambdaReturnTypeArgumentIndices: inputOnlyLambdaIndices,
+            resultIsDiscarded: ctx.isCallResultDiscarded,
             ctx: ctx.sema
         )
         let viableSymbols = probe.viableCandidates.map(\.symbol)
@@ -638,6 +641,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -648,6 +652,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -669,6 +674,7 @@ extension CallTypeChecker {
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -694,6 +700,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }
@@ -704,6 +711,7 @@ extension CallTypeChecker {
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 candidateArgumentTypes: candidateArgumentTypes,
+                resultIsDiscarded: ctx.isCallResultDiscarded,
                 ctx: ctx.sema
             )
         }

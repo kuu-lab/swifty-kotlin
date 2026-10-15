@@ -317,13 +317,17 @@ final class ExprTypeChecker {
 
         case let .call(calleeID, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
-            return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: ctx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
+            var callCtx = ctx
+            callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: callCtx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
 
         case let .memberCall(receiverID, calleeName, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            var callCtx = ctx
+            callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             return driver.callChecker.inferMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
-                args: args, range: range, ctx: ctx, locals: &locals,
+                args: args, range: range, ctx: callCtx, locals: &locals,
                 expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
 
@@ -585,9 +589,11 @@ final class ExprTypeChecker {
 
         case let .safeMemberCall(receiverID, calleeName, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            var callCtx = ctx
+            callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
-                args: args, range: range, ctx: ctx, locals: &locals,
+                args: args, range: range, ctx: callCtx, locals: &locals,
                 expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
 

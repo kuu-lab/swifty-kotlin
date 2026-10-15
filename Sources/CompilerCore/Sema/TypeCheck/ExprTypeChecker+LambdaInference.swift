@@ -279,6 +279,7 @@ extension ExprTypeChecker {
             ctx
         }
         bodyCtx = bodyCtx.enteringLambdaBody(id)
+        bodyCtx.isUnitCoercionContext = expectedFunctionType?.returnType == sema.types.unitType
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
            bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol
