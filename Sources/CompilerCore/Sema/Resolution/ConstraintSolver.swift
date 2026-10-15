@@ -180,9 +180,9 @@ final class ConstraintSolver {
             if lowers.isEmpty {
                 candidate = typeSystem.glb(uppers)
             } else if uppers.isEmpty {
-                candidate = typeSystem.inferenceLubRetainingCommonComparable(lowers)
+                candidate = typeSystem.inferenceLubRetainingSharedSupertypes(lowers)
             } else {
-                let lowerCandidate = typeSystem.inferenceLubRetainingCommonComparable(lowers)
+                let lowerCandidate = typeSystem.inferenceLubRetainingSharedSupertypes(lowers)
                 let upperCandidate = typeSystem.glb(uppers)
                 guard typeSystem.isSubtype(lowerCandidate, upperCandidate) else {
                     let blameRange = firstRelevantBlameRange(for: variable, relations: constraints)
