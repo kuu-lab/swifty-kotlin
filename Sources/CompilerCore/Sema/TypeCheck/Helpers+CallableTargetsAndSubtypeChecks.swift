@@ -1,6 +1,19 @@
 
 // Callable target resolution and nominal subtype helpers.
 
+struct ContextualCallableReferenceBinding {
+    let functionType: TypeID
+    let typeArguments: [TypeID]
+    let parameterMapping: [Int: Int]
+    let requiresAdapter: Bool
+}
+
+private struct CallableReferenceFunctionShape {
+    let functionType: TypeID
+    let parameterMapping: [Int: Int]
+    let requiresAdapter: Bool
+}
+
 extension TypeCheckHelpers {
     func isNominalSubtype(
         _ candidate: SymbolID,
@@ -291,7 +304,21 @@ extension TypeCheckHelpers {
         let contextualMatches = matches(expectedFunctionType)
         let matching = contextualMatches.isEmpty && matchingExpectedType != expectedFunctionType
             ? matches(matchingExpectedType) : contextualMatches
+        func isAdapter(_ symbolID: SymbolID) -> Bool {
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return contextualCallableReferenceBinding(
+                for: signature,
+                bindReceiver: bindReceiver,
+                boundReceiver: boundReceiverType.map { (symbolID, $0) },
+                expectedFunctionType: expectedFunctionType,
+                postponedReturnTypeParameter: postponedReturnTypeParameter,
+                interner: interner,
+                sema: sema
+            )?.requiresAdapter == true
+        }
         if let matched = matching.first(where: {
+            !isAdapter($0) && sema.symbols.functionSignature(for: $0)?.typeParameterSymbols.isEmpty == true
+        }) ?? matching.first(where: { !isAdapter($0) }) ?? matching.first(where: {
             sema.symbols.functionSignature(for: $0)?.typeParameterSymbols.isEmpty == true
         }) ?? matching.first {
             return matched
@@ -335,17 +362,135 @@ extension TypeCheckHelpers {
         interner: StringInterner? = nil,
         allowScalarVarargAdaptation: Bool = true,
         sema: SemaModule
-    ) -> (functionType: TypeID, typeArguments: [TypeID])? {
-        func attempt(packVarargs: Bool) -> (functionType: TypeID, typeArguments: [TypeID])? {
+    ) -> ContextualCallableReferenceBinding? {
+        func functionShapes() -> [CallableReferenceFunctionShape] {
             let callableType = callableFunctionType(
                 for: signature,
                 bindReceiver: bindReceiver,
                 boundReceiver: boundReceiver,
                 specializeGenericReceiver: false,
-                packVarargs: packVarargs,
+                packVarargs: false,
                 interner: interner,
                 sema: sema
             )
+            guard let expectedFunctionType,
+                  case let .functionType(expected) = sema.types.kind(of: expectedFunctionType),
+                  case let .functionType(base) = sema.types.kind(of: callableType)
+            else {
+                let packedCallableType = callableFunctionType(
+                    for: signature,
+                    bindReceiver: bindReceiver,
+                    boundReceiver: boundReceiver,
+                    specializeGenericReceiver: false,
+                    packVarargs: true,
+                    interner: interner,
+                    sema: sema
+                )
+                return [CallableReferenceFunctionShape(
+                    functionType: packedCallableType,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: signature.parameterTypes.indices.map { ($0, $0) }),
+                    requiresAdapter: false
+                )]
+            }
+
+            let types = sema.types
+            let receiverOffset = !bindReceiver && signature.receiverType != nil ? 1 : 0
+            let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
+            let expectedValueArity = expectedArity - receiverOffset
+            guard expectedValueArity >= 0 else { return [] }
+            let parameterCount = signature.parameterTypes.count
+            let hasDefaults = OverloadResolver.normalizeFlags(
+                signature.valueParameterHasDefaultValues, count: parameterCount
+            )
+            let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: parameterCount)
+            func canOmitTrailingParameters(from firstIndex: Int) -> Bool {
+                guard (0 ... parameterCount).contains(firstIndex) else { return false }
+                return (firstIndex ..< parameterCount).allSatisfy { hasDefaults[$0] || isVararg[$0] }
+            }
+            func makeShape(
+                sourceParameterCount: Int,
+                scalarVarargCount: Int? = nil
+            ) -> CallableReferenceFunctionShape {
+                var params = Array(base.params.prefix(receiverOffset + sourceParameterCount))
+                var mapping = Dictionary(uniqueKeysWithValues: (0 ..< sourceParameterCount).map { ($0, $0) })
+                if let scalarVarargCount,
+                   let varargIndex = isVararg.firstIndex(of: true)
+                {
+                    let scalarType = base.params[receiverOffset + varargIndex]
+                    params = Array(base.params.prefix(receiverOffset + varargIndex))
+                        + Array(repeating: scalarType, count: scalarVarargCount)
+                    mapping = Dictionary(uniqueKeysWithValues: (0 ..< varargIndex).map { ($0, $0) })
+                    for argumentIndex in varargIndex ..< varargIndex + scalarVarargCount {
+                        mapping[argumentIndex] = varargIndex
+                    }
+                } else if let varargIndex = isVararg.firstIndex(of: true), varargIndex < sourceParameterCount {
+                    let index = receiverOffset + varargIndex
+                    let elementType = base.params[index]
+                    if let interner {
+                        params[index] = primitiveVarargArrayType(
+                            elementType: signature.parameterTypes[varargIndex], sema: sema, interner: interner
+                        ) ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+                            ?? elementType
+                    }
+                }
+                let functionType = types.make(.functionType(FunctionType(
+                    contextReceivers: base.contextReceivers,
+                    receiver: base.receiver,
+                    params: params,
+                    returnType: base.returnType,
+                    isSuspend: base.isSuspend,
+                    isCallableReference: base.isCallableReference,
+                    nullability: base.nullability,
+                    throws: base.throws
+                )))
+                return CallableReferenceFunctionShape(
+                    functionType: functionType,
+                    parameterMapping: mapping,
+                    requiresAdapter: scalarVarargCount != nil || sourceParameterCount != parameterCount
+                )
+            }
+
+            guard let varargIndex = isVararg.firstIndex(of: true) else {
+                guard expectedValueArity <= parameterCount,
+                      canOmitTrailingParameters(from: expectedValueArity)
+                else { return [] }
+                return [makeShape(sourceParameterCount: expectedValueArity)]
+            }
+
+            var shapes: [CallableReferenceFunctionShape] = []
+            if expectedValueArity <= parameterCount,
+               canOmitTrailingParameters(from: expectedValueArity)
+            {
+                shapes.append(makeShape(sourceParameterCount: expectedValueArity))
+            }
+            guard allowScalarVarargAdaptation,
+                  expectedValueArity > varargIndex,
+                  (varargIndex + 1 ..< parameterCount).allSatisfy({ hasDefaults[$0] })
+            else { return shapes }
+
+            let expectedInputs = (expected.receiver.map { [$0] } ?? []) + expected.params
+            let expectedVarargIndex = receiverOffset + varargIndex
+            let arrayShapedVarargContext: Bool = if let interner,
+                                                    expectedInputs.indices.contains(expectedVarargIndex),
+                                                    case let .classType(arrayType) = types.kind(of: types.makeNonNullable(
+                                                        expectedInputs[expectedVarargIndex]
+                                                    )),
+                                                    let arraySymbol = sema.symbols.symbol(arrayType.classSymbol)
+            {
+                arraySymbol.fqName.map(interner.resolve) == ["kotlin", "Array"]
+            } else {
+                false
+            }
+            guard !arrayShapedVarargContext else { return shapes }
+            shapes.append(makeShape(
+                sourceParameterCount: expectedValueArity,
+                scalarVarargCount: expectedValueArity - varargIndex
+            ))
+            return shapes
+        }
+
+        func attempt(shape: CallableReferenceFunctionShape) -> ContextualCallableReferenceBinding? {
+            let callableType = shape.functionType
             let inferredType = expectedFunctionType.flatMap { expected in
                 unitCoercedCallableReferenceType(callableType, expectedFunctionType: expected, sema: sema)
             } ?? callableType
@@ -360,7 +505,12 @@ extension TypeCheckHelpers {
                 guard callableReferenceTypeMatches(
                     inferredType, expected: expectedFunctionType, postponedReturn: postponedReturnTypeParameter, sema: sema
                 ) else { return nil }
-                return (inferredType, [])
+                return ContextualCallableReferenceBinding(
+                    functionType: inferredType,
+                    typeArguments: [],
+                    parameterMapping: shape.parameterMapping,
+                    requiresAdapter: shape.requiresAdapter
+                )
             }
             let resolver = OverloadResolver()
             var constraints: [VariableConstraint]
@@ -502,27 +652,17 @@ extension TypeCheckHelpers {
                 guard let variable = typeVars[symbol], let argument = solution.substitution[variable] else { return nil }
                 arguments.append(argument)
             }
-            return (specializedType, arguments)
+            return ContextualCallableReferenceBinding(
+                functionType: specializedType,
+                typeArguments: arguments,
+                parameterMapping: shape.parameterMapping,
+                requiresAdapter: shape.requiresAdapter
+            )
         }
-        if let packed = attempt(packVarargs: true) { return packed }
-        guard allowScalarVarargAdaptation, signature.valueParameterIsVararg.contains(true) else { return nil }
-        if let interner, let expectedFunctionType,
-           case let .functionType(expected) = sema.types.kind(of: expectedFunctionType) {
-            let receiverOffset = !bindReceiver && signature.receiverType != nil ? 1 : 0
-            let arrayShapedVarargContext = signature.parameterTypes.indices.contains { index in
-                guard signature.valueParameterIsVararg.indices.contains(index), signature.valueParameterIsVararg[index],
-                      expected.params.indices.contains(index + receiverOffset),
-                      case let .classType(array) = sema.types.kind(of: sema.types.makeNonNullable(expected.params[index + receiverOffset]))
-                else { return false }
-                return sema.symbols.symbol(array.classSymbol)?.fqName == [interner.intern("kotlin"), interner.intern("Array")]
-            }
-            // Kotlin treats Array-shaped context as the vararg's packed
-            // parameter. A failed packed match cannot recover by interpreting
-            // that same Array as one scalar element, including a concrete
-            // nested-array element declaration. Normal scalar calls are separate.
-            if arrayShapedVarargContext { return nil }
+        for shape in functionShapes() {
+            if let result = attempt(shape: shape) { return result }
         }
-        return attempt(packVarargs: false)
+        return nil
     }
 
     private func callableReferenceTypeMatches(
