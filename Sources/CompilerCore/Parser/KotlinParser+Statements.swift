@@ -54,7 +54,9 @@ extension KotlinParser {
             } else {
                 hasContextDeclarationPrefix = true
             }
+            let isAnonymousFunction = isAnonymousFunctionExpressionStart()
             if isDeclarationStart(token.kind), hasContextDeclarationPrefix, !isObjectExpressionStart(token),
+               !isAnonymousFunction,
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
                 children.append(.node(parseDeclaration()))
@@ -707,6 +709,11 @@ extension KotlinParser {
         }
     }
 
+    func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
+        stream.peek(offset).kind == .keyword(.fun)
+            && stream.peek(offset + 1).kind == .symbol(.lParen)
+    }
+
     /// A modifier keyword (`suspend`, `private`, ...) or the `context` soft
     /// keyword is ambiguous the same way `object` is (see
     /// `isObjectExpressionStart` above): it can introduce a genuine
@@ -808,7 +815,7 @@ extension KotlinParser {
             // identifier in an expression. In `fun f() =\n value\n fun g() = 0`,
             // the next `fun` is a separate declaration, not one modified by
             // `value`; otherwise `f` loses its expression body.
-            let isAnonymousFunction = token.kind == .keyword(.fun) && stream.peek(cursor + 1).kind == .symbol(.lParen)
+            let isAnonymousFunction = isAnonymousFunctionExpressionStart(at: cursor)
             let isAnonymousObject = token.kind == .keyword(.object)
                 && (stream.peek(cursor + 1).kind == .symbol(.lBrace) || stream.peek(cursor + 1).kind == .symbol(.colon))
             let startsDeclaration = isDeclarationStart(token.kind) && !isAnonymousFunction && !isAnonymousObject
@@ -920,7 +927,7 @@ extension KotlinParser {
     /// Defers to `startsGenuineDeclaration` lookahead only for ambiguous modifier /
     /// `context` prefixes, trusting the caller's own check otherwise.
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
-        let isAnonymousFunction = token.kind == .keyword(.fun) && stream.peek(1).kind == .symbol(.lParen)
+        let isAnonymousFunction = isAnonymousFunctionExpressionStart()
         guard isAmbiguousDeclarationPrefix(token) || isAnonymousFunction else {
             return true
         }
