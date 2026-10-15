@@ -1,6 +1,12 @@
 
 extension BuildASTPhase.ExpressionParser {
     private func parseControlFlowBodyExpression() -> ExprID? {
+        if let token = current(), token.kind == .symbol(.semicolon) {
+            _ = consume()
+            return astArena.appendExpr(
+                .blockExpr(statements: [], trailingExpr: nil, range: token.range)
+            )
+        }
         if matches(.symbol(.at)) {
             guard let operand = parseAnnotatedExpression({
                 if self.matches(.symbol(.lBrace)) {
@@ -457,16 +463,19 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        if matches(.symbol(.lParen)) {
+        if matches(.symbol(.lParen)) || matches(.symbol(.lBracket)) {
             let savedIndex = index
+            let closingKind: TokenKind = matches(.symbol(.lBracket))
+                ? .symbol(.rBracket)
+                : .symbol(.rParen)
             _ = consume()
 
             var destructuringNames: [InternedString?] = []
-            var foundCloseParen = false
+            var foundClosingDelimiter = false
             while let token = current() {
-                if token.kind == .symbol(.rParen) {
+                if token.kind == closingKind {
                     _ = consume()
-                    foundCloseParen = true
+                    foundClosingDelimiter = true
                     break
                 }
                 if token.kind == .symbol(.comma) {
@@ -485,7 +494,7 @@ extension BuildASTPhase.ExpressionParser {
                         _ = consume()
                         while let t = current(),
                               t.kind != .symbol(.comma),
-                              t.kind != .symbol(.rParen)
+                              t.kind != closingKind
                         {
                             _ = consume()
                         }
@@ -495,7 +504,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
             }
 
-            if foundCloseParen, !destructuringNames.isEmpty {
+            if foundClosingDelimiter, !destructuringNames.isEmpty {
                 guard consumeIf(.keyword(.in)) != nil else {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
@@ -585,7 +594,16 @@ extension BuildASTPhase.ExpressionParser {
         }
         let bodyStartIndex = index
 
-        var body = parseControlFlowBodyExpression()
+        // In `do while (condition);`, the condition keyword immediately
+        // follows `do`; parsing it as a nested while expression would lose
+        // the do-while loop and skip its condition entirely.
+        var body: ExprID?
+        if matches(.keyword(.while)) {
+            let emptyRange = SourceRange(start: doToken.range.end, end: doToken.range.end)
+            body = astArena.appendExpr(.blockExpr(statements: [], trailingExpr: nil, range: emptyRange))
+        } else {
+            body = parseControlFlowBodyExpression()
+        }
 
         if !matches(.keyword(.while)),
            let whileIndex = findDoWhileConditionKeyword(startingAt: bodyStartIndex),

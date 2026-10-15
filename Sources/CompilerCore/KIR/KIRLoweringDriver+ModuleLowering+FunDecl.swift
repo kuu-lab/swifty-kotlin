@@ -44,7 +44,17 @@ extension KIRLoweringDriver {
         let returnType = signature?.returnType ?? sema.types.unitType
         var body: KIRLoweringEmitContext = [.beginBlock]
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
-        lowerFunDeclBody(function, shared: shared, body: &body)
+        let contextValues = signature.map { signature in
+            zip(signature.contextParameterSymbols, signature.contextParameterTypes).map { symbol, type in
+                KIRLoweringContext.ContextReceiverValue(
+                    type: type,
+                    exprID: arena.appendExpr(.symbolRef(symbol), type: type)
+                )
+            }
+        } ?? []
+        ctx.withContextReceiverValues(contextValues) {
+            lowerFunDeclBody(function, shared: shared, body: &body)
+        }
         body.append(.endBlock)
         // Auto-inline functions that have function-type parameters (receiver lambdas etc.)
         // so that lambda arguments are expanded at the call site, matching Kotlin semantics.
@@ -88,6 +98,12 @@ extension KIRLoweringDriver {
                     symbol: receiverSymbol,
                     exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
                 )
+            }
+            for (contextSymbol, contextType) in zip(
+                signature.contextParameterSymbols,
+                signature.contextParameterTypes
+            ) {
+                params.append(KIRParameter(symbol: contextSymbol, type: contextType))
             }
             let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {

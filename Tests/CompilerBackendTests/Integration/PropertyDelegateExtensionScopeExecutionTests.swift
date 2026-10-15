@@ -5,6 +5,37 @@ import Testing
 @Suite(.serialized)
 struct PropertyDelegateExtensionScopeExecutionTests {
     @Test(arguments: [0, 2])
+    func memberExtensionGetValueInDelegatingClass(optimization: Int) throws {
+        TestStdlibCache.shared.prepare()
+        let source = """
+        import kotlin.reflect.KProperty
+
+        class Delegate {
+        }
+
+        class A {
+            operator fun Delegate.getValue(t: Any?, p: KProperty<*>): Int = 1
+            val prop: Int by Delegate()
+        }
+
+        fun box(): String {
+            return if (A().prop == 1) "OK" else "fail"
+        }
+
+        fun main() {
+            print(box())
+        }
+        """
+        try compileAndRunKotlinSources(
+            [source],
+            expectedOutput: "OK", moduleName: "KUU2135MemberExtensionDelegate",
+            allowDefaultStdlibLibrary: true,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            expectedStderr: "", requireNoCompilerDiagnostics: true
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func lazyWithoutShadowingExtensions(optimization: Int) throws {
         TestStdlibCache.shared.prepare()
         try compileAndRunKotlinSources(

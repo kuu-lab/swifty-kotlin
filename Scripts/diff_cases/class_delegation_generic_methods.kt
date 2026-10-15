@@ -33,6 +33,10 @@ class ShadowImpl<T> : Shadow<T> {
 }
 class ShadowDelegate<T>(base: Shadow<T>) : Shadow<T> by base
 
+// KUU-2102: the interface type argument must reach the delegated method parameter.
+interface A<T> { fun foo(t: T): String }
+class Derived(a: A<Int>) : A<Int> by a
+
 fun main() {
     println(Delegate(EchoImpl()).echo(7))
     val concrete = Delegate(EchoImpl())
@@ -54,4 +58,8 @@ fun main() {
     println(generic.transform(17) { it + 1 })
     println(OverrideDelegate<CharSequence>(GenericImpl<CharSequence>()).echo(19))
     println(ShadowDelegate<Int>(ShadowImpl<Int>()).identity("shadow"))
+    val obj = object : A<Int> {
+        override fun foo(t: Int): String = if (t == 42) "OK" else "Fail $t"
+    }
+    println(Derived(obj).foo(42))
 }

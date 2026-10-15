@@ -444,7 +444,9 @@ final class TypeCheckDriver {
                     )
                     sema.bindings.mergeIndependentScalarExpressions(
                         types: result.expressionTypes, identifiers: result.identifierSymbols,
-                        typeMapping: typeMapping, symbolMapping: symbolMapping
+                        typeMapping: typeMapping,
+                        sourceDeclaredExpectedTypeExpressions: result.sourceDeclaredExpectedTypeExpressions,
+                        symbolMapping: symbolMapping
                     )
                     for diagnostic in result.diagnostics { diagnostics.emit(diagnostic) }
                     sema.independentBodyCount += 1

@@ -228,6 +228,20 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
         if objBox.backingSetBox == nil {
             if let overridden = runtimeObjectHashCodeOverride(value) {
+                if let entry = runtimeSourceMapEntryValues(value) {
+                    let structuralHash = Int(Int32(truncatingIfNeeded: kk_any_hashCode(entry.key, 0))
+                        ^ Int32(truncatingIfNeeded: kk_any_hashCode(entry.value, 0)))
+                    let identityHash = Int(Int32(truncatingIfNeeded: kk_native_identityHashCode(entry.key))
+                        ^ Int32(truncatingIfNeeded: kk_native_identityHashCode(entry.value)))
+                    if overridden == structuralHash || overridden == identityHash {
+                        // Source wrappers preserve either entry hash policy.
+                        // Match native content hashing without weakening its collision resistance.
+                        hasher.combine(14)
+                        runtimeElementKeyHash(entry.key, into: &hasher, depth: depth + 1)
+                        runtimeElementKeyHash(entry.value, into: &hasher, depth: depth + 1)
+                        return
+                    }
+                }
                 hasher.combine(16)
                 hasher.combine(overridden)
                 return

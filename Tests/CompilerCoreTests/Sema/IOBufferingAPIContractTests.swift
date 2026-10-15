@@ -52,7 +52,7 @@ struct IOBufferingAPIContractTests {
             let manifest = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: directory.appendingPathComponent("manifest.json"))) as? [String: Any])
             try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
-            try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+            try #require(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
             records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
         }
         try runSema(ctx)
@@ -206,7 +206,7 @@ struct IOBufferingAPIContractTests {
             let manifest = try #require(JSONSerialization.jsonObject(with: Data(contentsOf:
                 directory.appendingPathComponent("manifest.json"))) as? [String: Any])
             try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
-            try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+            try #require(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
             try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
             records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
             let ownerRecord = try #require(records.first { $0.kind == .class && $0.fqName == "kotlinx.io.EOFException" })

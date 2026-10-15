@@ -188,6 +188,19 @@ struct CodegenBackendVirtualDispatchTests {
         try assertKotlinOutput(source, moduleName: "OpenClassVirtualDispatchRuntime", expected: "dog\ncat\nbase\n")
     }
 
+    @Test
+    func testKuu2091CastInitializerKeepsOriginalInterfaceDispatch() throws {
+        let source = try diffCaseSource("kuu_2091_smartcast_after_as_bridge.kt")
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU2091CastInitializerVtableDispatch",
+                expected: "OK\n",
+                optLevel: optLevel
+            )
+        }
+    }
+
     // BUG-156: the interface method implemented by the abstract base must be
     // reachable through the concrete subclass' itable, and the base's
     // unqualified `compute()` must reach the subclass override.

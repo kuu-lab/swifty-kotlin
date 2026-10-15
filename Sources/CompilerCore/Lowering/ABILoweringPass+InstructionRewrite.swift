@@ -95,6 +95,59 @@ extension ABILoweringPass {
                 return false
             }
         }
+        // Context parameters are ordinary hidden ABI parameters after any
+        // dispatch/extension receiver and before source value parameters.
+        // Normalize them separately so they do not shift onto the first
+        // source parameter below (for example, Int context + Array argument).
+        for (contextIndex, contextType) in signature.contextParameterTypes.enumerated() {
+            let argumentIndex = receiverOffset + contextIndex
+            guard arguments.indices.contains(argumentIndex),
+                  let argumentType = intrinsicArgType(arguments[argumentIndex], arena: module.arena, types: types)
+            else {
+                continue
+            }
+            if let unboxed = unboxNullableEnum(arguments[argumentIndex], to: contextType) {
+                boxedArguments[argumentIndex] = unboxed
+                continue
+            }
+            if let unboxed = unboxPrimitive(arguments[argumentIndex], to: contextType) {
+                boxedArguments[argumentIndex] = unboxed
+                continue
+            }
+            if let boxCallee = boxingCallee(
+                argType: argumentType,
+                paramType: contextType,
+                callee: callee,
+                types: types,
+                interner: interner,
+                boxingCalleeTable: boxingCalleeTable,
+                symbols: symbols,
+                boxTypeParamBoundary: boxTypeParamArguments,
+                preferStaticPrimitive: true
+            ) {
+                let boxedResult = module.arena.appendTemporary(type: contextType)
+                emitBoxCallWithValueClassTag(
+                    boxCallee: boxCallee,
+                    value: arguments[argumentIndex],
+                    rawSourceKind: types.kind(of: argumentType),
+                    result: boxedResult,
+                    resultType: contextType,
+                    types: types,
+                    symbols: symbols,
+                    interner: interner,
+                    arena: module.arena,
+                    sema: sema,
+                    cache: cache,
+                    into: &newBody
+                )
+                boxedArguments[argumentIndex] = boxedResult
+            }
+        }
+        // A statically called member whose receiver is an interface (an
+        // interface default method, or a callable-reference dispatch thunk)
+        // dispatches through `this`'s itable, so an enum receiver -- a raw
+        // ordinal until something widens it -- must arrive as its box, the
+        // same way an enum value argument for an interface parameter does.
         if receiverOffset > 0, arguments.indices.contains(receiverIndex),
            case let receiver = arguments[receiverIndex],
            let receiverType = signature.receiverType,
@@ -123,7 +176,7 @@ extension ABILoweringPass {
         let parameterTypes = signature.parameterTypes
         let varargFlags = signature.valueParameterIsVararg
         for argIndex in arguments.indices {
-            let paramIndex = argIndex - receiverOffset
+            let paramIndex = argIndex - receiverOffset - signature.contextParameterTypes.count
             guard paramIndex >= 0, paramIndex < parameterTypes.count else {
                 continue
             }

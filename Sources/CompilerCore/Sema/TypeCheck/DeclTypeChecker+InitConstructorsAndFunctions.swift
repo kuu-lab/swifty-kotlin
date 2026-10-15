@@ -809,6 +809,7 @@ extension DeclTypeChecker {
             // to context declarations whose receiver came from the context clause.
             if ctx.enclosingClassSymbol == nil,
                signature.receiverType != nil,
+               function.contextReceivers.first?.isContextParameter != true,
                let contextParamName = function.contextReceiverNames.first.flatMap({ $0 })
             {
                 locals[contextParamName] = (receiverType, syntheticThisSymbol, false, true)
@@ -834,15 +835,25 @@ extension DeclTypeChecker {
                 contextReceiverTypes: ctx.contextReceiverTypes + signature.contextReceiverTypes
             )
             let syntheticContextSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            var contextParameterIndex = 0
             for (index, contextReceiver) in function.contextReceivers.enumerated() {
-                guard let name = contextReceiver.name,
-                      index < signature.contextReceiverTypes.count
-                else {
+                guard index < signature.contextReceiverTypes.count else {
                     continue
                 }
+                let parameterSymbol: SymbolID
+                if contextReceiver.isContextParameter {
+                    guard signature.contextParameterSymbols.indices.contains(contextParameterIndex) else {
+                        continue
+                    }
+                    parameterSymbol = signature.contextParameterSymbols[contextParameterIndex]
+                    contextParameterIndex += 1
+                } else {
+                    parameterSymbol = syntheticContextSymbol
+                }
+                guard let name = contextReceiver.name else { continue }
                 locals[name] = (
                     signature.contextReceiverTypes[index],
-                    syntheticContextSymbol,
+                    parameterSymbol,
                     false,
                     true
                 )
@@ -1052,6 +1063,8 @@ extension DeclTypeChecker {
                 FunctionSignature(
                     receiverType: signature.receiverType,
                     contextReceiverTypes: signature.contextReceiverTypes,
+                    contextParameterSymbols: signature.contextParameterSymbols,
+                    contextParameterTypes: signature.contextParameterTypes,
                     parameterTypes: signature.parameterTypes,
                     returnType: bodyType,
                     isSuspend: signature.isSuspend,

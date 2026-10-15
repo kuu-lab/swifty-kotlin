@@ -380,9 +380,8 @@ final class ObjectLiteralLowerer {
             ))
         }
 
+        let initializerScopeSnapshot = driver.ctx.saveScope()
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
-        let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
-        let savedQualifiedThisReceivers = driver.ctx.saveQualifiedThisReceivers()
         if let savedReceiverExprID,
            let receiverType = arena.exprType(savedReceiverExprID),
            let receiverLabel = RuntimeTypeCheckToken.simpleName(
@@ -396,11 +395,21 @@ final class ObjectLiteralLowerer {
                 for: interner.intern(receiverLabel)
             )
         }
-        driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
-        defer {
-            driver.ctx.restoreQualifiedThisReceivers(savedQualifiedThisReceivers)
-            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
+        // KUU-2111: property initializers execute with the new object as the
+        // active receiver, but an unqualified member read can still belong to
+        // the enclosing class. Keep the construction-site receiver available
+        // during this inline initializer pass so field offsets are applied to
+        // the enclosing instance instead of the not-yet-initialized object.
+        if let savedReceiverExprID,
+           let receiverType = arena.exprType(savedReceiverExprID),
+           case let .classType(receiverClass) = sema.types.kind(
+               of: sema.types.makeNonNullable(receiverType)
+           )
+        {
+            driver.ctx.setCapturedOuterReceiver(savedReceiverExprID, for: receiverClass.classSymbol)
         }
+        driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
+        defer { driver.ctx.restoreScope(initializerScopeSnapshot) }
 
         // Property initializers and `init {}` blocks run interleaved in
         // declaration order. An object decl without a recorded order (no
@@ -672,9 +681,16 @@ final class ObjectLiteralLowerer {
         }
     }
 
-    func implicitReceiverExprID(forProperty symbol: SymbolID, sema: SemaModule) -> KIRExprID? {
-        let activeReceiverType = driver.ctx.activeImplicitReceiverSymbol().flatMap {
-            driver.ctx.localDeclaredType(for: $0)
+    func implicitReceiverExprID(
+        forProperty symbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> KIRExprID? {
+        // Once an object literal starts initializing its own properties, the
+        // active receiver value is the object, even though the enclosing
+        // function signature may still have an extension receiver type.
+        let activeReceiverType = driver.ctx.activeImplicitReceiver().flatMap { receiver in
+            driver.ctx.localDeclaredType(for: receiver.symbol) ?? arena.exprType(receiver.exprID)
         } ?? driver.ctx.currentFunctionSymbol.flatMap {
             sema.symbols.functionSignature(for: $0)?.receiverType
         }
@@ -1099,7 +1115,12 @@ final class ObjectLiteralLowerer {
         if let existing = sema.symbols.delegateStorageSymbol(for: propertySymbol) {
             return existing
         }
-        let storageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+        let extensionSuffix = sema.symbols.hasExtensionPropertyReceiver(propertySymbol)
+            ? "_extension_\(propertySymbol.rawValue)"
+            : ""
+        let storageName = interner.intern(
+            "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+        )
         let storageSymbol = sema.symbols.define(
             kind: .field,
             name: storageName,

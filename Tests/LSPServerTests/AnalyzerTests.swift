@@ -24,7 +24,7 @@ struct AnalyzerTests {
             "moduleName": "KSwiftKStdlib",
             "libraryKind": "stdlib",
             "stdlibManifestHash": BundledStdlib.manifestHash(),
-            "kotlinLanguageVersion": "2.3.10",
+            "kotlinLanguageVersion": "2.4.20",
             "target": "\(target.arch)-\(target.vendor)-\(target.os)",
             "compilerVersion": "0.1.0",
             "metadata": "metadata.bin",

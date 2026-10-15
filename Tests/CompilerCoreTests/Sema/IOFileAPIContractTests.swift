@@ -67,7 +67,7 @@ struct IOFileAPIContractTests {
             let manifest = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
             #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
             #expect(manifest["formatVersion"] as? Int == 2)
-            #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+            #expect(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
             #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
         }
         return ctx

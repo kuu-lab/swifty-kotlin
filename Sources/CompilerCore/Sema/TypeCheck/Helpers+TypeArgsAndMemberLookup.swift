@@ -486,9 +486,10 @@ extension TypeCheckHelpers {
 
         func dispatchTypes(
             _ declaredTypes: [TypeID],
-            owner: SymbolID
+            owner: SymbolID,
+            from receiver: TypeID? = nil
         ) -> [TypeID] {
-            let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+            let nonNullReceiver = sema.types.makeNonNullable(receiver ?? receiverType)
             guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner),
                   let ownerTypeArgs = sema.types.liftedNominalSupertypeArgs(
@@ -531,6 +532,63 @@ extension TypeCheckHelpers {
                     typeVarBySymbol: typeVarBySymbol
                 )
             }
+        }
+
+        func mostSpecificIntersectionReturnCandidates(
+            _ candidates: [(symbol: SymbolID, owner: SymbolID, depth: Int)],
+            alignedMethodParameters: [SymbolID]
+        ) -> [(symbol: SymbolID, owner: SymbolID, depth: Int)] {
+            guard case let .intersection(parts) = sema.types.kind(of: receiverType),
+                  candidates.count > 1
+            else {
+                return candidates
+            }
+
+            let returnTypes: [(symbol: SymbolID, type: TypeID)] = candidates.compactMap { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate.symbol) else {
+                    return nil
+                }
+                let matchingParts = parts.filter {
+                    allNominalSymbols(of: $0, types: sema.types, symbols: sema.symbols, interner: interner)
+                        .contains(candidate.owner)
+                }
+                guard matchingParts.count == 1,
+                      let specializedReturnType = dispatchTypes(
+                          [signature.returnType], owner: candidate.owner, from: matchingParts[0]
+                      ).first
+                else {
+                    return nil
+                }
+                let methodParameters = Array(
+                    signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+                )
+                guard methodParameters.count == alignedMethodParameters.count else {
+                    return nil
+                }
+                let alignedReturnType = alphaAlignedMethodType(
+                    specializedReturnType,
+                    sourceParameters: methodParameters,
+                    targetParameters: alignedMethodParameters,
+                    types: sema.types
+                )
+                return (candidate.symbol, alignedReturnType)
+            }
+            guard returnTypes.count == candidates.count else {
+                return candidates
+            }
+
+            // Intersection members with the same parameter signature are ordered by
+            // covariant return type, so a String-returning member beats an Any?-returning one.
+            let lessSpecificSymbols = Set(returnTypes.compactMap { candidate -> SymbolID? in
+                let hasMoreSpecificReturn = returnTypes.contains { other in
+                    other.symbol != candidate.symbol
+                        && sema.types.isSubtype(other.type, candidate.type)
+                        && !sema.types.isSubtype(candidate.type, other.type)
+                }
+                return hasMoreSpecificReturn ? candidate.symbol : nil
+            })
+            let filtered = candidates.filter { !lessSpecificSymbols.contains($0.symbol) }
+            return filtered.isEmpty ? candidates : filtered
         }
 
         func appendCandidates(
@@ -672,7 +730,10 @@ extension TypeCheckHelpers {
                 }
                 return ownerSymbol.kind == .class || ownerSymbol.kind == .enumClass || ownerSymbol.kind == .object
             }
-            let winners = classBacked.isEmpty ? mostSpecificAtDepth : classBacked
+            let winners = mostSpecificIntersectionReturnCandidates(
+                classBacked.isEmpty ? mostSpecificAtDepth : classBacked,
+                alignedMethodParameters: methodParametersByKey[key] ?? []
+            )
             // A superclass can implement an interface without a declaration in
             // the leaf class. Keep its concrete candidate, but project the
             // interface defaults into this receiver's use-site scope only.

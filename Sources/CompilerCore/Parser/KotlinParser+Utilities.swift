@@ -136,7 +136,10 @@ extension KotlinParser {
     }
 
     func parseBalancedGroup(
-        opening: Symbol, closing: Symbol, allowsConstructorParameters: Bool = false
+        opening: Symbol,
+        closing: Symbol,
+        allowsConstructorParameters: Bool = false,
+        allowsWhenSubjectVariable: Bool = false
     ) -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -151,6 +154,9 @@ extension KotlinParser {
         var constructorParameterPrefixEnd: Int?
         var constructorTypeArgumentDepth = 0
         var constructorInDefaultValue = false
+        let whenSubjectVariablePrefixEnd = allowsWhenSubjectVariable
+            ? lookaheadWhenSubjectVariablePrefixEnd()
+            : nil
         var closingSymbols = [closing]
         while !stream.atEOF() {
             let token = stream.peek()
@@ -168,8 +174,10 @@ extension KotlinParser {
                 && constructorParameterPrefixEnd.map { stream.index < $0 } == true
             let isConstructorDefaultExpressionStart = parsesConstructorParameters
                 && constructorInDefaultValue && startsAnonymousConstructorDefault()
+            let isWhenSubjectVariablePrefix = whenSubjectVariablePrefixEnd.map { stream.index < $0 } == true
             if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token),
-               !isConstructorParameterPrefix, !isConstructorDefaultExpressionStart {
+               !isConstructorParameterPrefix, !isConstructorDefaultExpressionStart,
+               !isWhenSubjectVariablePrefix {
                 break
             }
 
@@ -215,6 +223,54 @@ extension KotlinParser {
             range: stream.peek().rangeIfAvailable
         )
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
+    }
+
+    /// Recognizes only the declaration prefix of a `when` subject so a valid
+    /// multiline `val` does not look like an unrelated declaration boundary.
+    /// Stop at the assignment; the initializer is scanned by the group parser.
+    private func lookaheadWhenSubjectVariablePrefixEnd() -> Int? {
+        guard stream.peek().kind == .keyword(.val),
+              isWhenSubjectVariableName(stream.peek(1)) else {
+            return nil
+        }
+
+        var offset = 2
+        guard stream.peek(offset).kind == .symbol(.colon) else {
+            return stream.peek(offset).kind == .symbol(.assign) ? stream.index + offset : nil
+        }
+
+        offset += 1
+        var depth = BracketDepth()
+        var work = 0
+        while true {
+            guard consumeDeclarationLookaheadWork(&work, at: offset) else { return nil }
+            let token = stream.peek(offset)
+            guard token.kind != .eof else { return nil }
+            let atTypeTopLevel = depth.isTopLevel && depth.angle == 0
+            if atTypeTopLevel {
+                if token.kind == .symbol(.assign) { return stream.index + offset }
+                if token.kind == .symbol(.rParen) || token.kind == .symbol(.lBrace)
+                    || token.kind == .symbol(.comma) {
+                    return nil
+                }
+                if hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
+                    return nil
+                }
+            }
+            depth.track(token.kind)
+            offset += 1
+        }
+    }
+
+    private func isWhenSubjectVariableName(_ token: Token) -> Bool {
+        switch token.kind {
+        case .identifier, .backtickedIdentifier, .softKeyword:
+            return true
+        case let .keyword(keyword):
+            return Self.isDeclarationModifierKeyword(keyword)
+        default:
+            return false
+        }
     }
 
     private func startsAnonymousConstructorDefault() -> Bool {
@@ -971,8 +1027,9 @@ enum ParserBoundaryPolicy {
     }
 
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
-        // Both class and property delegation require an expression after `by`.
-        if kind == .softKeyword(.by) {
+        // Both class and property delegation require an expression after `by`;
+        // a cast may also continue a block-bodied expression after its closing brace.
+        if kind == .softKeyword(.by) || kind == .keyword(.as) {
             return true
         }
         if case let .symbol(symbol) = kind {

@@ -214,7 +214,9 @@ extension KotlinParser {
         _ = consumeToken(into: &children, range: &range)
 
         if case .symbol(.lParen) = stream.peek().kind {
-            let subjectGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            let subjectGroup = parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsWhenSubjectVariable: true
+            )
             children.append(.node(subjectGroup))
             range.append(arena.node(subjectGroup).range)
         }

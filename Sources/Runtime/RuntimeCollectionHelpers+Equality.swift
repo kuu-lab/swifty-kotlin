@@ -154,6 +154,9 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
     }
+    if let callableReferenceEquality = runtimeCallableReferenceValuesEqual(lhs, rhs) {
+        return callableReferenceEquality
+    }
     let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs)
     let lhsIsObjectPointer = runtimeStorage.withGCLock { state in
@@ -191,14 +194,25 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
     }
+    // Result uses a dedicated runtime box rather than RuntimeObjectBox. Keep
+    // its value-class equality semantics on erased Any paths, matching the
+    // wrapped-value hashCode handling in RuntimeNumericCompat.
+    if let lhsResult = tryCast(lhsPtr, to: RuntimeResultBox.self),
+       let rhsResult = tryCast(rhsPtr, to: RuntimeResultBox.self)
+    {
+        guard lhsResult.isSuccess == rhsResult.isSuccess else { return false }
+        let lhsValue = lhsResult.isSuccess ? lhsResult.value : lhsResult.exception
+        let rhsValue = rhsResult.isSuccess ? rhsResult.value : rhsResult.exception
+        return runtimeValuesEqual(lhsValue, rhsValue)
+    }
     if runtimeIsMapEntry(rawValue: lhs) || runtimeIsMapEntry(rawValue: rhs) {
         if runtimeIsIdentityMapEntry(lhs) {
             guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
                   let rhsEntry = runtimeIdentityMapEntryValues(rhs) else { return false }
             return lhsEntry.key == rhsEntry.key && lhsEntry.value == rhsEntry.value
         }
-        guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs),
-              let rhsEntry = runtimeMapEntryValues(rawValue: rhs)
+        guard let lhsEntry = runtimeMapEntryValues(rawValue: lhs) ?? runtimeSourceMapEntryValues(lhs),
+              let rhsEntry = runtimeMapEntryValues(rawValue: rhs) ?? runtimeSourceMapEntryValues(rhs)
         else {
             return false
         }

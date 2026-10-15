@@ -77,6 +77,32 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
+    // KUU-2111: an outer class property read by an anonymous object's inline
+    // property initializer must use the enclosing instance, not the new object.
+    @Test
+    func testCodegenObjectLiteralPropertyInitializerCapturesOuterImmutableProperty() throws {
+        let source = """
+        interface T {
+            fun result(): String
+        }
+        class A(val x: String) {
+            fun foo(): T = object : T {
+                val bar = x
+                override fun result(): String = bar
+            }
+        }
+        fun main() {
+            println(A("OK").foo().result())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralPropertyInitializerCapturesOuterProperty",
+            expected: "OK\n"
+        )
+    }
+
     @Test
     func testCodegenObjectLiteralMemberFunctionCallsEnclosingPrivateMember() throws {
         let source = """

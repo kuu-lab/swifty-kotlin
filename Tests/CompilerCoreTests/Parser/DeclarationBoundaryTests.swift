@@ -555,6 +555,26 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(source, kind: .funDecl) == 1)
     }
 
+    @Test(arguments: [
+        "val t2 = when (val y = peek()) { else -> y }",
+        "val t2: Map<String, Int> = when (val y = peek()) { else -> y }",
+    ])
+    func nestedWhenSubjectVariableDoesNotTriggerUnterminatedGroupWarning(subject: String) {
+        let source = """
+        fun main() {
+            when (
+                \(subject)
+            ) {
+                else -> t2
+            }
+        }
+        """
+        let parsed = parse(source)
+
+        #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" },
+                "\(parsed.diagnostics.diagnostics)")
+    }
+
     @Test
     func contextParameterAndLocalMemberCallsAreNotParsedAsDeclarationPrefixes() {
         let parsed = parse("""

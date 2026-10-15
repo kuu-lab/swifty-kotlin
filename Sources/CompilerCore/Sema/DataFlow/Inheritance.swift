@@ -1551,14 +1551,30 @@ extension DataFlowSemaPhase {
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
+        var overriddenNames = collectOverriddenMemberNames(
+            for: symbol,
+            decl: decl,
+            ast: ast,
+            symbols: symbols
+        )
+        // A data object synthesizes `toString()` unless a final inherited implementation wins.
+        if symbolInfo.kind == .object,
+           symbolInfo.flags.contains(.dataType),
+           let toStringName = symbols.children(ofFQName: symbolInfo.fqName).compactMap({ memberID -> InternedString? in
+               guard let member = symbols.symbol(memberID),
+                     member.kind == .function,
+                     member.name == interner.intern("toString"),
+                     member.flags.contains(.synthetic)
+               else {
+                   return nil
+               }
+               return member.name
+           }).first {
+            overriddenNames.insert(toStringName)
+        }
         let missingMembers = unimplementedAbstractMembers(
             for: symbol,
-            overriddenNames: collectOverriddenMemberNames(
-                for: symbol,
-                decl: decl,
-                ast: ast,
-                symbols: symbols
-            ),
+            overriddenNames: overriddenNames,
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols,
             interner: interner

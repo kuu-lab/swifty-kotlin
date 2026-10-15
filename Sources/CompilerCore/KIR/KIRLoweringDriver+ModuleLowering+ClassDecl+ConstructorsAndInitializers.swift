@@ -91,6 +91,17 @@ extension KIRLoweringDriver {
     ) -> KIRLoweringEmitContext {
         let sema = shared.sema
         var body: KIRLoweringEmitContext = [.beginBlock]
+        // Constructing a class is an active use of that class on the JVM.
+        // Run its companion initializer before superclass or instance init code.
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol) {
+            emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: companionSymbol,
+                arena: shared.arena,
+                sema: sema,
+                interner: shared.interner,
+                instructions: &body.instructions
+            )
+        }
         if let receiverBinding = ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
@@ -971,8 +982,6 @@ extension KIRLoweringDriver {
             value: delegateValue, valueType: delegateType,
             shared: shared, body: &body
         )
-        let propertyName = sema.symbols.symbol(propSymbol)?.name
-            ?? shared.interner.intern("")
         let thisRefExprID: KIRExprID
         if let receiver = ctx.activeImplicitReceiverExprID() {
             thisRefExprID = receiver
@@ -982,9 +991,11 @@ extension KIRLoweringDriver {
             thisRefExprID = nullExpr
         }
         let kPropertyExprID = emitKPropertyStubCreate(
-            propertyName: propertyName,
-            propertyType: sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType,
-            shared: shared, emit: &body
+            propertySymbol: propSymbol,
+            sema: sema,
+            arena: arena,
+            interner: shared.interner,
+            emit: &body
         )
         let provideDelegateName = shared.interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType

@@ -78,6 +78,16 @@ extension KotlinParser {
                     leadingRange: modifierRange.value
                 )
             }
+            if case .symbol(.lBrace) = stream.peek().kind {
+                let body = parseBlock()
+                modifierChildren.append(.node(body))
+                modifierRange.append(childRange(.node(body)))
+                return arena.appendNode(
+                    kind: .statement,
+                    range: modifierRange.value ?? invalidRange,
+                    modifierChildren
+                )
+            }
             return parseDeclaration()
         default:
             if !modifierChildren.isEmpty {

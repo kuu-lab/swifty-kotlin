@@ -337,7 +337,12 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.currentLambdaAllowsNonLocalBreakContinue = allowsNonLocalReturn
         driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
+        if allowsNonLocalReturn {
+            driver.ctx.enclosingLoopControlStack = scopeSnapshot.enclosingLoopControlStack + scopeSnapshot.loopControlStack
+            driver.ctx.nextLoopLabel = max(scopeSnapshot.nextLoopLabel, 10000)
+        }
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -529,6 +534,7 @@ final class LambdaLowerer {
             if case .nonLocalReturn = instruction { return true }
             return false
         }
+        let hasNonLocalLoopJump = sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
 
         let lambdaDecl = arena.appendDecl(
             .function(
@@ -540,7 +546,7 @@ final class LambdaLowerer {
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
                     isInline: false,
-                    isInlineOnly: hasNonLocalReturn
+                    isInlineOnly: hasNonLocalReturn || hasNonLocalLoopJump
                 )
             )
         )
@@ -752,7 +758,12 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.currentLambdaAllowsNonLocalBreakContinue = allowsNonLocalReturn
         driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
+        if allowsNonLocalReturn {
+            driver.ctx.enclosingLoopControlStack = scopeSnapshot.enclosingLoopControlStack + scopeSnapshot.loopControlStack
+            driver.ctx.nextLoopLabel = max(scopeSnapshot.nextLoopLabel, 10000)
+        }
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 
@@ -816,6 +827,7 @@ final class LambdaLowerer {
             if case .nonLocalReturn = instruction { return true }
             return false
         }
+        let hasNonLocalLoopJump = sema.bindings.loopJumpLambdaPaths.values.contains { $0.contains(exprID) }
 
         // Create optimized function declaration
         let lambdaDecl = arena.appendDecl(
@@ -828,7 +840,7 @@ final class LambdaLowerer {
                     body: lambdaBody,
                     isSuspend: effectiveIsSuspend,
                     isInline: true, // Mark as inline for better optimization
-                    isInlineOnly: hasNonLocalReturn
+                    isInlineOnly: hasNonLocalReturn || hasNonLocalLoopJump
                 )
             )
         )

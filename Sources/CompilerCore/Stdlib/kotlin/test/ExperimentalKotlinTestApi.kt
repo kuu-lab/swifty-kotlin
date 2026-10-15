@@ -7,9 +7,9 @@
 
 package kotlin.test
 
-// KUU-1693 requests this Kotlin 2.4 marker as a compatibility extension to the
-// Kotlin 2.3.10 surface. Omit SinceKotlin("2.4") so it is usable on that target.
+// KUU-1693 adds the Kotlin 2.4 experimental testing APIs to the supported target.
 /** Marks experimental kotlin.test APIs that require explicit opt-in. */
+@SinceKotlin("2.4")
 @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @Retention(AnnotationRetention.BINARY)
 @kotlin.annotation.Target(

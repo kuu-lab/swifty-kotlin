@@ -14,7 +14,7 @@ Kotlin ソースで stdlib を実装するための設計メモ。TODO.md の Ph
 - `HeaderHelpers+Synthetic*`（規模は `Scripts/loc_report.sh` の `header_helpers_synthetic_total_lines` が正。
   2026-07-06 時点で 121 ファイル / 約8.2万行）を、(a) 削除・(b) Kotlin 移行・(c) 真の組込残留の
   3分類（§9）に沿って縮減する
-- 挙動の正は **kotlinc 2.3.10**。`Scripts/diff_kotlinc.sh` を回帰 oracle とする
+- 挙動の正は **kotlinc 2.4.20**。`Scripts/diff_kotlinc.sh` を回帰 oracle とする
 - ランタイム ABI 表面を「ユーザーコードから直接呼ばれる `kk_*`」から
   「stdlib Kotlin 層だけが呼ぶ `__kk_*` ブリッジ」へ縮小する
 
@@ -905,6 +905,17 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    reuses `kk_unbox_int`. Generic/implicit/safe reads and an overridden
    `toString()` are covered by `generic_enum_name_ordinal.kt` and the
    source/artifact O0/O2 backend regression.
+   KUU-2067 adds one private metadata bridge, `__kk_enum_set_class`, to
+   recover a classifier from the existing `java.lang.Class` handle forms.
+   Enum boxing records classifier IDs as metadata so the immutable Class
+   token remains valid after the original entry is released, without requiring
+   the optional full reflection records. No object handle is retained there.
+   Enum bounds, element checks, mutation, and declaration-order iteration
+   remain in bundled `java/util/EnumSet.kt`. The existing `kk_unbox_int`
+   bridge reads the boxed ordinal; no new collection storage bridge is added.
+   `__kk_*` increases by one, and its RuntimeABISpec registration updates the
+   canonical `specVersion` hash. The facade implements `noneOf` and the
+   MutableSet surface; the other EnumSet factories and clone are out of scope.
    KUU-1761 adds one private host-information bridge,
    `__kk_io_fs_temporary_directory` (reason: syscall). Kotlin cannot query the
    host environment or `NSTemporaryDirectory`; path construction and separator

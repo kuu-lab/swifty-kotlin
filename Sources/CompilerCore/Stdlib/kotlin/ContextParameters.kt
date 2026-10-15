@@ -29,13 +29,13 @@ public annotation class ExperimentalContextParameters
 // shape; they are never executed.
 
 @ExperimentalContextParameters
-public inline fun <T, R> context(with: T, block: context(T) () -> R): R = block()
+public inline fun <T, R> context(with: T, block: context(T) () -> R): R = block(with)
 
 @ExperimentalContextParameters
-public inline fun <A, B, R> context(a: A, b: B, block: context(A, B) () -> R): R = block()
+public inline fun <A, B, R> context(a: A, b: B, block: context(A, B) () -> R): R = block(a, b)
 
 @ExperimentalContextParameters
-public inline fun <A, B, C, R> context(a: A, b: B, c: C, block: context(A, B, C) () -> R): R = block()
+public inline fun <A, B, C, R> context(a: A, b: B, c: C, block: context(A, B, C) () -> R): R = block(a, b, c)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, R> context(
@@ -44,7 +44,7 @@ public inline fun <A, B, C, D, R> context(
     c: C,
     d: D,
     block: context(A, B, C, D) () -> R
-): R = block()
+): R = block(a, b, c, d)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, R> context(
@@ -54,7 +54,7 @@ public inline fun <A, B, C, D, E, R> context(
     d: D,
     e: E,
     block: context(A, B, C, D, E) () -> R
-): R = block()
+): R = block(a, b, c, d, e)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, R> context(
@@ -65,7 +65,7 @@ public inline fun <A, B, C, D, E, F, R> context(
     e: E,
     f: F,
     block: context(A, B, C, D, E, F) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, R> context(
@@ -77,7 +77,7 @@ public inline fun <A, B, C, D, E, F, G, R> context(
     f: F,
     g: G,
     block: context(A, B, C, D, E, F, G) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, R> context(
@@ -90,7 +90,7 @@ public inline fun <A, B, C, D, E, F, G, H, R> context(
     g: G,
     h: H,
     block: context(A, B, C, D, E, F, G, H) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, R> context(
@@ -104,7 +104,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, R> context(
     h: H,
     i: I,
     block: context(A, B, C, D, E, F, G, H, I) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, R> context(
@@ -119,7 +119,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, R> context(
     i: I,
     j: J,
     block: context(A, B, C, D, E, F, G, H, I, J) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, R> context(
@@ -135,7 +135,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, R> context(
     j: J,
     k: K,
     block: context(A, B, C, D, E, F, G, H, I, J, K) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, R> context(
@@ -152,7 +152,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, R> context(
     k: K,
     l: L,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, R> context(
@@ -170,7 +170,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, R> context(
     l: L,
     m: M,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, R> context(
@@ -189,7 +189,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, R> context(
     m: M,
     n: N,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R> context(
@@ -209,7 +209,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R> context(
     n: N,
     o: O,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, R> context(
@@ -230,7 +230,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, R> context(
     o: O,
     p: P,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> context(
@@ -252,7 +252,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> context
     p: P,
     q: Q,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, R> context(
@@ -275,7 +275,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, R> cont
     q: Q,
     s: S,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, R> context(
@@ -299,7 +299,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, R> c
     s: S,
     t: T,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, R> context(
@@ -324,7 +324,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, R
     t: T,
     u: U,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t, u)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V, R> context(
@@ -350,7 +350,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V
     u: U,
     v: V,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t, u, v)
 
 @ExperimentalContextParameters
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V, W, R> context(
@@ -377,7 +377,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V
     v: V,
     w: W,
     block: context(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V, W) () -> R
-): R = block()
+): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t, u, v, w)
 
 @ExperimentalContextParameters
 public inline fun <A> contextOf(): A =

@@ -13,6 +13,24 @@ import Testing
 /// treats the null sentinel correctly) instead of kk_op_eq/ne, while a
 /// non-null primitive comparison keeps using the cheaper kk_op_eq/ne path.
 extension LoweringPassRegressionTests {
+    @Test
+    func testGenericCallsBoxContextualLongIntegerLiteralsAsLong() throws {
+        let source = """
+        fun <T> eq(a: T, b: T): Boolean = a == b
+        fun longResult(): Long = 0L
+
+        fun main() {
+            eq(0, 0L)
+            eq(0, longResult())
+            val value: Long = 0
+            eq(0, value)
+        }
+        """
+        let callees = try loweredCallees(for: source, function: "main", includeStdlib: false)
+        #expect(callees.filter { $0 == RuntimeCall.boxLongNonnullStatic.name }.count == 6, "Every Long argument to eq must be boxed as Long: \(callees)")
+        #expect(!callees.contains(RuntimeCall.boxIntStatic.name), "A Long-context integer literal must not be boxed as Int: \(callees)")
+    }
+
     @Test(arguments: ["raw", "amount", "amount()"])
     func testNullableValueClassSafeAccessBoxesNonNullLongResult(member: String) throws {
         let source = """
@@ -184,6 +202,18 @@ extension LoweringPassRegressionTests {
         let callees = try loweredCallees(for: source, function: "checkNonNullDoubleNotEqualsZero")
         #expect(callees.contains(RuntimeCall.opDne.name), "Non-null Double != 0.0 should keep the IEEE-754 kk_op_dne path, got: \(callees)")
         #expect(!callees.contains(RuntimeCall.nullablePrimitiveNe.name), "Non-null Double != 0.0 should not need null-aware equality, got: \(callees)")
+    }
+
+    @Test(arguments: ["a == b", "b == a", "a != b", "b != a"])
+    func testNonNullDoubleEqualityAgainstAnyBoxesFloatingOperand(comparison: String) throws {
+        let source = """
+        fun compare(a: Double, b: Any?): Boolean = \(comparison)
+        """
+        let callees = try loweredCallees(for: source, function: "compare", includeStdlib: false)
+        let equalityCallee = comparison.contains("!=") ? RuntimeCall.structuralNe.name : RuntimeCall.structuralEq.name
+        #expect(callees.contains(RuntimeCall.boxDoubleNonnullStatic.name), "A raw Double compared with Any? must keep its runtime type through boxing: \(callees)")
+        #expect(callees.contains(equalityCallee), "Double/Any? equality must use structural equality, got: \(callees)")
+        #expect(!callees.contains("kk_op_deq"), "Double/Any? equality must not use numeric equality, got: \(callees)")
     }
 
     @Test

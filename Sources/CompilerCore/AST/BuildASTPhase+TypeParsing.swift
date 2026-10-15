@@ -115,15 +115,26 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> [ContextReceiverDecl] {
         let allTokens = collectTokens(from: nodeID, in: arena)
-        // Context receivers are declaration modifiers, so they always precede `fun`.
+        // Context clauses are declaration modifiers, so they precede `fun`, `val`, or `var`.
         // Restricting the scan keeps a `context(...)` function type in the parameter
         // list — or a function literally named `context` — from being mistaken for
-        // a declaration-level context receiver.
-        let tokens = if let funIndex = allTokens.firstIndex(where: { $0.kind == .keyword(.fun) }) {
-            Array(allTokens[..<funIndex])
+        // a declaration-level context clause.
+        let declarationIndex = allTokens.firstIndex(where: { token in
+            token.kind == .keyword(.fun) || token.kind == .keyword(.val) || token.kind == .keyword(.var)
+        })
+        let tokens = if let declarationIndex {
+            Array(allTokens[..<declarationIndex])
         } else {
             allTokens
         }
+        return parseContextReceivers(from: tokens, interner: interner, astArena: astArena)
+    }
+
+    func parseContextReceivers(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> [ContextReceiverDecl] {
         guard let contextIndex = tokens.firstIndex(where: { $0.kind == .softKeyword(.context) }) else {
             return []
         }
@@ -143,14 +154,18 @@ extension BuildASTPhase {
                 depth -= 1
                 if depth == 0 {
                     if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                        items.append(ContextReceiverDecl(name: item.name, type: item.ref))
+                        items.append(ContextReceiverDecl(
+                            name: item.name, type: item.ref, isContextParameter: item.isContextParameter
+                        ))
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
                 if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                    items.append(ContextReceiverDecl(name: item.name, type: item.ref))
+                    items.append(ContextReceiverDecl(
+                        name: item.name, type: item.ref, isContextParameter: item.isContextParameter
+                    ))
                 }
                 current.removeAll(keepingCapacity: true)
             } else {
@@ -168,12 +183,14 @@ extension BuildASTPhase {
         from tokens: [Token],
         interner: StringInterner,
         astArena: ASTArena
-    ) -> (name: InternedString?, ref: TypeRefID)? {
+    ) -> (name: InternedString?, ref: TypeRefID, isContextParameter: Bool)? {
         var name: InternedString?
         var typeTokens = tokens
+        var isContextParameter = false
         if typeTokens.count > 2,
            typeTokens[1].kind == .symbol(.colon)
         {
+            isContextParameter = true
             switch typeTokens[0].kind {
             case let .identifier(ident):
                 if interner.resolve(ident) != "_" {
@@ -190,7 +207,7 @@ extension BuildASTPhase {
         guard let ref = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
             return nil
         }
-        return (name, ref)
+        return (name, ref, isContextParameter)
     }
 
     func declarationReturnType(

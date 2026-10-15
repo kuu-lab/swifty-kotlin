@@ -328,14 +328,25 @@ extension CallTypeChecker {
             }
             let constructorElementType = explicitTypeArgs.first
                 ?? expectedCollectionArgs.first
-                ?? (resolvedName == "HashSet" ? argTypes.first.flatMap { argumentType in
+                ?? (["HashSet", "LinkedHashSet"].contains(resolvedName) ? argTypes.first.flatMap { argumentType in
                     guard case let .classType(argumentClassType) = sema.types.kind(
                         of: sema.types.makeNonNullable(argumentType)
-                    ),
-                    let firstArgument = argumentClassType.args.first
-                    else {
-                        return nil
+                    ) else { return nil }
+                    let elementArgument: TypeArg?
+                    if resolvedName == "LinkedHashSet" {
+                        // Copy construction must retain the Collection element
+                        // even when an enclosing generic call supplies no hint.
+                        guard argTypes.count == 1,
+                              let collection = sema.symbols.lookup(fqName: [
+                                knownNames.kotlin, knownNames.collections, interner.intern("Collection")
+                              ]) else { return nil }
+                        elementArgument = sema.types.liftedNominalSupertypeArgs(
+                            from: argumentClassType.classSymbol, childArgs: argumentClassType.args, to: collection
+                        )?.first
+                    } else {
+                        elementArgument = argumentClassType.args.first
                     }
+                    guard let firstArgument = elementArgument else { return nil }
                     return switch firstArgument {
                     case let .invariant(type), let .in(type), let .out(type): type
                     case .star: sema.types.anyType

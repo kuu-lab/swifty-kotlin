@@ -6,6 +6,31 @@ import Testing
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - ABI Boxing/Unboxing Tests
 
+    @Test(arguments: ["__kk_set_contains", "__kk_map_get", "__kk_mutable_set_remove", "__kk_mutable_map_remove"])
+    func enumLookupKeysUseInsertionBoxing(callee: String) throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let name = interner.intern("Kind")
+        let owner = symbols.define(kind: .enumClass, name: name, fqName: [name],
+                                   declSite: nil, visibility: .public, flags: [])
+        let enumType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+        let pass = ABILoweringPass()
+        let table = BoxingCalleeTable(interner: interner)
+        let boxed = pass.boxingCallee(
+            argType: enumType, paramType: types.anyType, callee: interner.intern(callee),
+            types: types, interner: interner, boxingCalleeTable: table, symbols: symbols,
+            boxTypeParamBoundary: true
+        )
+        let insertion = pass.boxingCallee(
+            argType: enumType, paramType: types.anyType, callee: interner.intern("__kk_mutable_set_add"),
+            types: types, interner: interner, boxingCalleeTable: table, symbols: symbols,
+            boxTypeParamBoundary: true
+        )
+        #expect(boxed != nil)
+        #expect(boxed == insertion)
+    }
+
     @Test(arguments: [PrimitiveType.int, .long, .uint, .ulong, .float, .double], [false, true])
     func testABILoweringUnboxesErasedPrimitiveCallSlot(primitive: PrimitiveType, isReceiver: Bool) throws {
         let interner = StringInterner()

@@ -359,10 +359,24 @@ public struct FunDecl: Codable {
 public struct ContextReceiverDecl: Codable {
     public let name: InternedString?
     public let type: TypeRefID
+    public let isContextParameter: Bool
 
-    public init(name: InternedString? = nil, type: TypeRefID) {
+    public init(name: InternedString? = nil, type: TypeRefID, isContextParameter: Bool? = nil) {
         self.name = name
         self.type = type
+        self.isContextParameter = isContextParameter ?? (name != nil)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, type, isContextParameter
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(InternedString.self, forKey: .name)
+        type = try container.decode(TypeRefID.self, forKey: .type)
+        isContextParameter = try container.decodeIfPresent(Bool.self, forKey: .isContextParameter)
+            ?? (name != nil)
     }
 }
 
@@ -432,6 +446,7 @@ public struct PropertyDecl: Codable {
     public let delegateBody: FunctionBody?
     public let delegateBodyParams: [InternedString]
     public let receiverType: TypeRefID?
+    public let contextReceivers: [ContextReceiverDecl]
     public let isSynthesizedPrimaryConstructorProperty: Bool
     public let explicitBackingField: ExplicitBackingField?
 
@@ -454,6 +469,7 @@ public struct PropertyDecl: Codable {
         delegateBody: FunctionBody? = nil,
         delegateBodyParams: [InternedString] = [],
         receiverType: TypeRefID? = nil,
+        contextReceivers: [ContextReceiverDecl] = [],
         isSynthesizedPrimaryConstructorProperty: Bool = false,
         explicitBackingField: ExplicitBackingField? = nil
     ) {
@@ -471,8 +487,39 @@ public struct PropertyDecl: Codable {
         self.delegateBody = delegateBody
         self.delegateBodyParams = delegateBodyParams
         self.receiverType = receiverType
+        self.contextReceivers = contextReceivers
         self.isSynthesizedPrimaryConstructorProperty = isSynthesizedPrimaryConstructorProperty
         self.explicitBackingField = explicitBackingField
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case range, name, modifiers, annotations, typeParams, type, isVar, initializer
+        case getter, setter, delegateExpression, delegateBody, delegateBodyParams
+        case receiverType, contextReceivers, isSynthesizedPrimaryConstructorProperty
+        case explicitBackingField
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        name = try container.decode(InternedString.self, forKey: .name)
+        modifiers = try container.decode(Modifiers.self, forKey: .modifiers)
+        annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
+        typeParams = try container.decodeIfPresent([TypeParamDecl].self, forKey: .typeParams) ?? []
+        type = try container.decodeIfPresent(TypeRefID.self, forKey: .type)
+        isVar = try container.decodeIfPresent(Bool.self, forKey: .isVar) ?? false
+        initializer = try container.decodeIfPresent(ExprID.self, forKey: .initializer)
+        getter = try container.decodeIfPresent(PropertyAccessorDecl.self, forKey: .getter)
+        setter = try container.decodeIfPresent(PropertyAccessorDecl.self, forKey: .setter)
+        delegateExpression = try container.decodeIfPresent(ExprID.self, forKey: .delegateExpression)
+        delegateBody = try container.decodeIfPresent(FunctionBody.self, forKey: .delegateBody)
+        delegateBodyParams = try container.decodeIfPresent([InternedString].self, forKey: .delegateBodyParams) ?? []
+        receiverType = try container.decodeIfPresent(TypeRefID.self, forKey: .receiverType)
+        contextReceivers = try container.decodeIfPresent([ContextReceiverDecl].self, forKey: .contextReceivers) ?? []
+        isSynthesizedPrimaryConstructorProperty = try container.decodeIfPresent(
+            Bool.self, forKey: .isSynthesizedPrimaryConstructorProperty
+        ) ?? false
+        explicitBackingField = try container.decodeIfPresent(ExplicitBackingField.self, forKey: .explicitBackingField)
     }
 }
 
