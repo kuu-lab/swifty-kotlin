@@ -4,6 +4,10 @@ public struct CallBinding {
     public let parameterMapping: [Int: Int]
     /// The interface default source in an inherited class use-site scope.
     public let defaultArgumentOwner: SymbolID?
+    /// The selected lexical dispatch receiver for a member-extension call.
+    /// Most call sites track this separately by expression; synthetic calls
+    /// such as for-in convention calls carry it with the binding instead.
+    public let dispatchReceiverSymbol: SymbolID?
     /// Whether a callable-reference wrapper must adapt its fixed function
     /// arity to this declaration's defaults or vararg parameter.
     public let isCallableReferenceAdapter: Bool
@@ -13,12 +17,14 @@ public struct CallBinding {
         substitutedTypeArguments: [TypeID],
         parameterMapping: [Int: Int],
         defaultArgumentOwner: SymbolID? = nil,
+        dispatchReceiverSymbol: SymbolID? = nil,
         isCallableReferenceAdapter: Bool = false
     ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
         self.defaultArgumentOwner = defaultArgumentOwner
+        self.dispatchReceiverSymbol = dispatchReceiverSymbol
         self.isCallableReferenceAdapter = isCallableReferenceAdapter
     }
 }

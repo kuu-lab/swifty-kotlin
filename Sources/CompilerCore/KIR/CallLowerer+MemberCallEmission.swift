@@ -48,6 +48,7 @@ extension CallLowerer {
     func memberExtensionDispatchReceiver(
         for callee: SymbolID,
         callExprID: ExprID?,
+        dispatchReceiverSymbol: SymbolID? = nil,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -72,6 +73,11 @@ extension CallLowerer {
                     instructions: &instructions
                 )
             }
+        }
+        if let selected = dispatchReceiverSymbol.flatMap({ driver.ctx.localValue(for: $0) }),
+           let resolved = resolveToOwner(selected)
+        {
+            return resolved
         }
         if let marked = callExprID
             .flatMap({ sema.bindings.implicitReceiverOuterReceiver(for: $0) })
