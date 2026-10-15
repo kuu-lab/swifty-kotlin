@@ -151,13 +151,23 @@ extension ExprTypeChecker {
             })
 
         let classFQName = fqNamePrefix + [classDecl.name]
+        var classFlags: SymbolFlags = [.synthetic]
+        classFlags.formUnion(SymbolFlags(modifiers: classDecl.modifiers))
+        // Abstract and sealed classes are implicitly open, matching the
+        // flags assigned to class declarations during header collection.
+        if classDecl.modifiers.contains(.abstract) {
+            classFlags.insert(.openType)
+        }
+        if classDecl.modifiers.contains(.sealed) {
+            classFlags.formUnion([.abstractType, .openType])
+        }
         let classSymbol = sema.symbols.define(
             kind: .class,
             name: classDecl.name,
             fqName: classFQName,
             declSite: classDecl.range,
             visibility: .private,
-            flags: classDecl.modifiers.contains(.data) ? [.synthetic, .dataType] : [.synthetic]
+            flags: classFlags
         )
         sema.bindings.bindDecl(declID, symbol: classSymbol)
         sema.symbols.setSourceFileID(ctx.currentFileID, for: classSymbol)
