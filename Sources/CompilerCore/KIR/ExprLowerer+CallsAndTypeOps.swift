@@ -78,12 +78,10 @@ extension ExprLowerer {
             if path.count == 1,
                let tokenSymbol = reifiedTypeTokenSymbol(for: last, sema: sema)
             {
-                if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
-                    return tokenValue
-                }
-                let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
-                instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
-                return tokenExpr
+                return lowerReifiedTypeCheckTokenExpr(
+                    tokenSymbol: tokenSymbol, nullable: nullable, intType: intType,
+                    interner: interner, arena: arena, instructions: &instructions
+                )
             }
             if let symbol = sema.symbols.lookup(fqName: path),
                let nominal = sema.symbols.symbol(symbol),
@@ -144,17 +142,43 @@ extension ExprLowerer {
            symbolInfo.flags.contains(.reifiedTypeParameter),
            let tokenSymbol = reifiedTypeTokenSymbol(for: symbolInfo.name, sema: sema)
         {
-            if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
-                return tokenValue
-            }
-            let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
-            instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
-            return tokenExpr
+            return lowerReifiedTypeCheckTokenExpr(
+                tokenSymbol: tokenSymbol, nullable: typeParam.nullability == .nullable, intType: intType,
+                interner: interner, arena: arena, instructions: &instructions
+            )
         }
         let encoded = RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: interner)
         let tokenExpr = arena.appendExpr(.intLiteral(encoded), type: intType)
         instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encoded)))
         return tokenExpr
+    }
+
+    /// The hidden token carries the call-site T, while an explicit T? adds
+    /// nullability at the use site even when that call-site type is non-null.
+    private func lowerReifiedTypeCheckTokenExpr(
+        tokenSymbol: SymbolID,
+        nullable: Bool,
+        intType: TypeID,
+        interner: StringInterner,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let token: KIRExprID
+        if let local = driver.ctx.localValue(for: tokenSymbol) {
+            token = local
+        } else {
+            token = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
+            instructions.append(.constValue(result: token, value: .symbolRef(tokenSymbol)))
+        }
+        guard nullable else { return token }
+        let flag = arena.appendExpr(.intLiteral(RuntimeTypeCheckToken.nullableFlag), type: intType)
+        instructions.append(.constValue(result: flag, value: .intLiteral(RuntimeTypeCheckToken.nullableFlag)))
+        let result = arena.appendTemporary(type: intType)
+        instructions.append(.call(
+            symbol: nil, callee: interner.intern("kk_bitwise_or"), arguments: [token, flag],
+            result: result, canThrow: false, thrownResult: nil
+        ))
+        return result
     }
 
     func reifiedTypeTokenSymbol(
