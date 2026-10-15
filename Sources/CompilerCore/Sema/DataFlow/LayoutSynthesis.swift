@@ -253,6 +253,13 @@ extension DataFlowSemaPhase {
                     case .field:
                         return id
                     case .property:
+                        // Member extension properties are implemented by
+                        // accessors that receive both the enclosing instance
+                        // and the extension receiver; they never occupy an
+                        // instance field slot.
+                        guard !symbols.hasExtensionPropertyReceiver(id) else {
+                            return nil
+                        }
                         // Properties with a dedicated backing field (custom
                         // getter/setter bodies referencing `field`, or Kotlin 2.0
                         // explicit backing fields) store their value in that
