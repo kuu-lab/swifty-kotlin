@@ -102,6 +102,9 @@ public extension RuntimeABISpec {
         abiParitySpec("__kk_class_kotlin", parameters: [
             p("classRaw", .intptr),
         ], isThrowing: false),
+        abiParitySpec("__kk_class_declared_constructors", parameters: [
+            p("classRaw", .intptr),
+        ], isThrowing: false),
         abiParitySpec("__kk_kclass_java_primitive_type", parameters: [
             p("kclassRaw", .intptr),
         ], isThrowing: false),

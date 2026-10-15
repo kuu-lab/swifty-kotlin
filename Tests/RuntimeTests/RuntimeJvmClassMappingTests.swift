@@ -34,4 +34,29 @@ struct RuntimeJvmClassMappingTests {
         #expect(__kk_class_kotlin(javaClass) == __kk_kclass_create(2, 0))
         #expect(__kk_class_kotlin(__kk_any_javaClass(kk_box_int(42))) == __kk_kclass_create(3, 0))
     }
+
+    @Test func kClassJavaMappingPreservesRepresentedClassifier() {
+        let kclass = __kk_kclass_create(0x123406, runtimeMakeStringRaw("test.Sample"))
+        let javaClass = __kk_any_javaClass(kclass)
+
+        #expect(runtimeObjectTypeID(rawValue: javaClass) == runtimeStableNominalTypeID(fqName: "java.lang.Class"))
+        #expect(__kk_class_kotlin(javaClass) == kclass)
+    }
+
+    @Test func javaClassDeclaredConstructorsReturnsRegisteredHandles() {
+        let kclass = __kk_kclass_create(0x123407, runtimeMakeStringRaw("test.Sample"))
+        let constructor = __kk_kconstructor_create(
+            runtimeMakeStringRaw("<init>"),
+            0,
+            runtimeMakeStringRaw("test.Sample"),
+            0,
+            1,
+            runtimeMakeStringRaw("PUBLIC"),
+            kclass
+        )
+        let javaClass = __kk_any_javaClass(kclass)
+        let constructors = __kk_class_declared_constructors(javaClass)
+
+        #expect(runtimeArrayBox(from: constructors)?.elements == [constructor])
+    }
 }
