@@ -34,6 +34,53 @@ import Testing
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func superclassDelegationSatisfiesDerivedInterfaceMembers() throws {
+        let ctx = makeContextFromSource("""
+        interface ImmutableCollection<out E> : Collection<E>
+        interface ImmutableSet<out E> : Set<E>, ImmutableCollection<E>
+        open class ImmutableCollectionAdapter<E>(private val impl: Collection<E>) :
+            ImmutableCollection<E>, Collection<E> by impl
+        open class IntermediateAdapter<E>(impl: Collection<E>) : ImmutableCollectionAdapter<E>(impl)
+        class ImmutableSetAdapter<E>(impl: Set<E>) :
+            ImmutableSet<E>, ImmutableCollectionAdapter<E>(impl)
+        class DeepImmutableSetAdapter<E>(impl: Set<E>) :
+            ImmutableSet<E>, IntermediateAdapter<E>(impl)
+        class DirectImmutableSetAdapter<E>(impl: Set<E>) :
+            ImmutableSet<E>, Set<E> by impl
+        class ExplicitImmutableSetAdapter<E>(private val impl: Set<E>) :
+            ImmutableSet<E>, ImmutableCollectionAdapter<E>(impl) {
+            override fun containsAll(elements: Collection<E>): Boolean = impl.containsAll(elements)
+        }
+        """)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func inheritedDelegationDoesNotHideReabstractedOrUnrelatedMembers() throws {
+        let ctx = makeContextFromSource("""
+        interface ImmutableCollection<out E> : Collection<E>
+        interface ImmutableSet<out E> : Set<E>, ImmutableCollection<E>
+        interface ReabstractedSet<out E> : ImmutableSet<E> {
+            abstract override fun containsAll(elements: Collection<E>): Boolean
+        }
+        interface NeedsValue { fun required(): Int }
+        open class ImmutableCollectionAdapter<E>(private val impl: Collection<E>) :
+            ImmutableCollection<E>, Collection<E> by impl
+        class ReabstractedAdapter<E>(impl: Set<E>) :
+            ReabstractedSet<E>, ImmutableCollectionAdapter<E>(impl)
+        class MissingUnrelatedMember(impl: Set<Int>) :
+            ImmutableSet<Int>, ImmutableCollectionAdapter<Int>(impl), NeedsValue
+        """)
+        try runSema(ctx)
+
+        let abstractErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ABSTRACT" }
+        #expect(abstractErrors.count == 2, "Got: \(abstractErrors)")
+        #expect(abstractErrors.contains { $0.message.contains("containsAll") })
+        #expect(abstractErrors.contains { $0.message.contains("required") })
+    }
+
     @Test func objectDelegateExpressionIsPreservedAndReceivesExpectedType() throws {
         let ctx = try Self.positiveContext.get()
         let ast = try #require(ctx.ast)
