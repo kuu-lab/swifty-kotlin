@@ -70,6 +70,36 @@ struct UseSiteVarianceFlowTests {
     }
 
     @Test
+    func testProjectedReceiverAcceptsUnsafeVarianceMemberParameters() throws {
+        let source = """
+        open class A<out K> {
+            fun foo(value: @UnsafeVariance K): K = value
+            fun fooNullable(value: @UnsafeVariance K?): K? = value
+        }
+
+        class Derived<out K> : A<K>()
+
+        class Multi<out K, out V> {
+            fun fooBoth(key: @UnsafeVariance K, value: @UnsafeVariance V): K = key
+        }
+
+        fun test(a: A<*>): Any? = a.foo("OK")
+        fun inherited(a: Derived<*>): Any? = a.foo("OK")
+        fun nullable(a: A<*>): Any? = a.fooNullable(null)
+        fun multiple(a: Multi<*, *>): Any? = a.fooBoth("K", "V")
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-VARIANCE", in: ctx)
+        }
+    }
+
+    @Test
     func testUseSiteInProjectionOnInDeclaredParameterIsAccepted() throws {
         // KUU-1381: a use-site `in` on an `in`-declared parameter is a redundant
         // projection — kotlinc accepts it and `Sink<in X>` behaves like `Sink<X>`.

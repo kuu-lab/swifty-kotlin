@@ -1171,12 +1171,20 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine? = nil,
         resolvedParameterTypes: [TypeID]? = nil,
         fallbackType: TypeID
-    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool], paramAllowsNonLocalReturn: [Bool]) {
+    ) -> (
+        paramTypes: [TypeID],
+        paramSymbols: [SymbolID],
+        paramHasDefaultValues: [Bool],
+        paramIsVararg: [Bool],
+        paramAllowsNonLocalReturn: [Bool],
+        paramUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>]
+    ) {
         var paramTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         var paramHasDefaultValues: [Bool] = []
         var paramIsVararg: [Bool] = []
         var paramAllowsNonLocalReturn: [Bool] = []
+        var paramUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>] = []
         for (index, valueParam) in valueParams.enumerated() {
             let paramFQName = localNamespaceFQName + [valueParam.name]
             let paramSymbol = symbols.define(
@@ -1204,11 +1212,32 @@ extension DataFlowSemaPhase {
             ) ?? fallbackType
             paramTypes.append(resolvedType)
             paramSymbols.append(paramSymbol)
+            paramUnsafeVarianceTypeParameterSymbols.append(unsafeVarianceTypeParameterSymbols(
+                in: valueParam.type,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                sourceManager: sourceManager,
+                localTypeParameters: localTypeParameters,
+                relativeOwnerFQName: relativeOwnerFQName,
+                currentPackageFQName: currentPackageFQName,
+                imports: imports,
+                diagnostics: diagnostics,
+                usageRange: declSite
+            ))
             paramHasDefaultValues.append(valueParam.hasDefaultValue)
             paramIsVararg.append(valueParam.isVararg)
             paramAllowsNonLocalReturn.append(!valueParam.isCrossinline && !valueParam.isNoinline)
         }
-        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg, paramAllowsNonLocalReturn)
+        return (
+            paramTypes,
+            paramSymbols,
+            paramHasDefaultValues,
+            paramIsVararg,
+            paramAllowsNonLocalReturn,
+            paramUnsafeVarianceTypeParameterSymbols
+        )
     }
 
     func collectFunctionTypeParameters(

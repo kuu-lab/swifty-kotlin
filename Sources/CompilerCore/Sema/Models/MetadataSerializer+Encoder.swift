@@ -568,6 +568,7 @@ package final class MetadataEncoder {
         var callableTypeParameterSignatures: [String] = []
         var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
@@ -589,6 +590,13 @@ package final class MetadataEncoder {
             isInfix = symbol.flags.contains(.infixFunction)
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
+            let typeParameterIndexBySymbol = Dictionary(uniqueKeysWithValues: signature.typeParameterSymbols.enumerated().map {
+                ($0.element, $0.offset)
+            })
+            valueParameterUnsafeVarianceTypeParameterIndices = signature.valueParameterUnsafeVarianceTypeParameterSymbols.map {
+                unsafeVarianceSymbols in
+                unsafeVarianceSymbols.compactMap { typeParameterIndexBySymbol[$0] }.sorted()
+            }
             let callsInPlaceEffects = symbols.contractCallsInPlaceEffects(for: symbol.id)
             if !callsInPlaceEffects.isEmpty {
                 valueParameterCallsInPlaceKinds = signature.valueParameterSymbols.map { paramSymbol in
@@ -992,6 +1000,7 @@ package final class MetadataEncoder {
             callableTypeParameterSignatures: callableTypeParameterSignatures,
             inputOnlyTypeParameterIndices: inputOnlyTypeParameterIndices,
             valueParameterIsVararg: valueParameterIsVararg,
+            valueParameterUnsafeVarianceTypeParameterIndices: valueParameterUnsafeVarianceTypeParameterIndices,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
@@ -1242,6 +1251,14 @@ package final class MetadataEncoder {
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
+                }
+                if record.valueParameterUnsafeVarianceTypeParameterIndices.contains(where: { !$0.isEmpty }) {
+                    let entries = record.valueParameterUnsafeVarianceTypeParameterIndices.enumerated().compactMap { index, typeParameterIndices in
+                        typeParameterIndices.isEmpty
+                            ? nil
+                            : "\(index):\(typeParameterIndices.map(String.init).joined(separator: ","))"
+                    }.joined(separator: ";")
+                    fields.append("unsafeVarianceParams=\(entries)")
                 }
                 if !record.valueParameterAllowsNonLocalReturn.isEmpty {
                     let mask = record.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }.joined()
