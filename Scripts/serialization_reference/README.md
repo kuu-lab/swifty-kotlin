@@ -155,6 +155,23 @@ names unchanged. Automatic `SerialName` wire names, generated serializers,
 inherited descriptor annotations and inheritance-conflict validation remain
 work in KUU-1724, along with the other annotations and serialization modules.
 
+## JSON primitive tree API (KUU-2324)
+
+`JsonElement.kt` implements the primitive JSON tree slice: `JsonElement`,
+`JsonPrimitive`, the singleton `JsonNull`, primitive factories (including
+unsigned values), `jsonPrimitive` / `jsonNull`, string rendering, and the
+primitive boolean/numeric/content conversion properties. The overlay maps the
+implemented JVM and KLIB declarations to `SerializationJsonPrimitiveTests`.
+The reference fixture checks the same value and conversion contract against
+published serialization 1.10.0 JVM artifacts. `JsonObject`, `JsonArray`, the
+JSON parser/builders, unquoted literals, and generated serializers remain
+separate work under KUU-1724.
+The bundled-source O2 lane is deferred because the existing KUU-2241
+`Function6.invoke` lowering bug also rejects a minimal `hello.kt` when the
+entire bundled stdlib is compiled at O2. This slice covers bundled-source O0,
+and cache/separate-library consumers at O0 and O2; source O2 should be restored
+after KUU-2241 is fixed.
+
 ## Property annotation API compatibility (KUU-1755)
 
 `--case property-annotations` runs the actual `Required`, `Transient`, and
