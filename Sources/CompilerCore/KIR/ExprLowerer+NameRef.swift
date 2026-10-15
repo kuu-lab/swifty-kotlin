@@ -722,10 +722,15 @@ extension ExprLowerer {
                symInfo.kind == .property,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                sema.symbols.symbol(ownerSymbol)?.kind == .object,
-               sema.symbols.propertyHasCustomGetter(for: symbol)
-                   || sema.symbols.extensionPropertyGetterAccessor(for: symbol) != nil
-                   || sema.symbols.classDelegationForwardingPropertyInfo(for: symbol) != nil
+               driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
             {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: ownerSymbol,
+                    arena: arena,
+                    sema: sema,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 let ownerType = sema.types.make(.classType(ClassType(
                     classSymbol: ownerSymbol,
                     args: [],
