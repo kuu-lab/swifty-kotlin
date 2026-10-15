@@ -9,6 +9,12 @@ private external fun __assertionsEnabled(): Boolean
 @KsSymbolName("__kk_class_declared_constructors")
 private external fun __declaredConstructors(value: Class<*>): Array<Constructor<*>>
 
+@KsSymbolName("__kk_class_declared_constructor")
+private external fun <T> __declaredConstructor(
+    value: Class<T>,
+    parameterTypes: Array<out Class<*>>
+): Constructor<T>
+
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     /**
@@ -20,4 +26,8 @@ public class Class<T> {
 
     /** Returns the constructors registered for this class token. */
     public fun getDeclaredConstructors(): Array<Constructor<*>> = __declaredConstructors(this)
+
+    /** Returns the declared constructor with the supplied parameter classes. */
+    public fun getDeclaredConstructor(vararg parameterTypes: Class<*>): Constructor<T> =
+        __declaredConstructor(this, parameterTypes)
 }

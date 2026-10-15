@@ -1100,6 +1100,36 @@ extension KIRLoweringDriver {
                 thrownResult: nil
             ))
 
+            let reflectedParameterTypes = (ownerInfo.kind == .enumClass
+                ? [sema.types.stringType, sema.types.intType]
+                : []) + signature.parameterTypes
+            for (index, parameterType) in reflectedParameterTypes.enumerated() {
+                let parameterIndexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
+                body.append(.constValue(
+                    result: parameterIndexExpr,
+                    value: .intLiteral(Int64(index))
+                ))
+                let parameterTypeToken = RuntimeTypeCheckToken.encode(
+                    type: parameterType,
+                    sema: sema,
+                    interner: interner
+                )
+                let parameterTypeTokenExpr = arena.appendExpr(.intLiteral(parameterTypeToken), type: intType)
+                body.append(.constValue(
+                    result: parameterTypeTokenExpr,
+                    value: .intLiteral(parameterTypeToken)
+                ))
+                let parameterTypeResult = arena.appendTemporary(type: intType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("__kk_kconstructor_set_parameter_type"),
+                    arguments: [registrationResult, parameterIndexExpr, parameterTypeTokenExpr],
+                    result: parameterTypeResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+
             let knownNames = KnownCompilerNames(interner: interner)
             let isAtomicFactory = sema.symbols.parentSymbol(for: ctorSymbol)
                 .flatMap { sema.symbols.symbol($0) }

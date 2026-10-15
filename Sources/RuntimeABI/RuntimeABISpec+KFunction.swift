@@ -337,6 +337,17 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Reflection"
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kconstructor_set_parameter_type",
+            parameters: [
+                RuntimeABIParameter(name: "constructorRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
     ]
 
     /// Callable reference type identity functions (REFL-003).

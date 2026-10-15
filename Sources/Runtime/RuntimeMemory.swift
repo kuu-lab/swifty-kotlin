@@ -135,6 +135,42 @@ public func __kk_class_declared_constructors(_ classRaw: Int) -> Int {
     return registerRuntimeObject(array)
 }
 
+@_cdecl("__kk_class_declared_constructor")
+public func __kk_class_declared_constructor(_ classRaw: Int, _ parameterTypesRaw: Int) -> Int {
+    guard let classBox = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self),
+          let parameterTypes = runtimeArrayBox(from: parameterTypesRaw)
+    else {
+        runtimeStructuredPanic("invalid Java Class constructor lookup")
+    }
+
+    let requestedTypeTokens = parameterTypes.elements.map { parameterClassRaw -> Int in
+        guard let parameterClass = resolveRuntimeHandle(parameterClassRaw, as: RuntimeJavaClassBox.self) else {
+            runtimeStructuredPanic("invalid constructor parameter Class handle")
+        }
+        return parameterClass.typeToken
+    }
+    let requestedJavaTypeTokens = requestedTypeTokens.map(normalizedJavaClassTypeToken)
+    let classKotlin = __kk_kclass_create(classBox.typeToken, classBox.nameHint)
+    for constructorRaw in runtimeKConstructorRegistry.constructors(for: classKotlin) {
+        guard let constructor = resolveRuntimeHandle(constructorRaw, as: RuntimeKConstructorBox.self),
+              constructor.parameterTypeTokens.count == requestedJavaTypeTokens.count
+        else {
+            continue
+        }
+        let matches = zip(constructor.parameterTypeTokens, requestedJavaTypeTokens).allSatisfy { expected, actual in
+            guard let expected else { return false }
+            return normalizedJavaClassTypeToken(expected) == actual
+        }
+        if matches { return constructorRaw }
+    }
+
+    runtimeStructuredPanic("NoSuchMethodException: no declared constructor matches the requested parameter classes")
+}
+
+private func normalizedJavaClassTypeToken(_ token: Int) -> Int64 {
+    Int64(truncatingIfNeeded: token) & ~RuntimeTypeTokenEncoding.nullableBit
+}
+
 @_cdecl("__kk_kclass_java_primitive_type")
 public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
