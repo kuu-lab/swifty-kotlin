@@ -12,6 +12,12 @@ private external fun __declaredConstructors(value: Class<*>): Array<Constructor<
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     /**
+     * Returns the native runtime's loader used for resource lookup.
+     */
+    public val classLoader: ClassLoader?
+        get() = getSystemClassLoader()
+
+    /**
      * Returns the process-wide Native assertion policy used by kotlin.assert.
      * Assertions default to enabled. KK_ASSERTIONS_ENABLED takes precedence over
      * KOTLIN_ASSERTIONS_ENABLED; neither class nor package overrides are modeled.
