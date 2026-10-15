@@ -723,19 +723,54 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ClassMemberScope {
         let sema = ctx.sema
-        let companionScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
+        func insertCompanionMembers(of classSymbol: SymbolID, into scope: BaseScope) {
+            guard let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
+                  let companion = sema.symbols.symbol(companionSymbol)
+            else {
+                return
+            }
             for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
                 guard let member = sema.symbols.symbol(memberSymbol),
                       member.kind == .property || member.kind == .field || member.kind == .function
                 else {
                     continue
                 }
-                companionScope.insert(memberSymbol)
+                scope.insert(memberSymbol)
             }
         }
+
+        // A class inherits the unqualified companion shorthand of its class
+        // supertypes. Keep each superclass in its own scope so the nearest
+        // companion wins while lookup continues through the rest of the chain.
+        var companionScopeParent: Scope = ctx.scope
+        if let owner = sema.symbols.symbol(ownerSymbol), owner.kind == .class || owner.kind == .object {
+            var inheritedClassSymbols: [SymbolID] = []
+            var classQueue = sema.symbols.directSupertypes(for: ownerSymbol).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            }
+            var visitedClasses: Set<SymbolID> = [ownerSymbol]
+            while !classQueue.isEmpty {
+                let superclass = classQueue.removeFirst()
+                guard visitedClasses.insert(superclass).inserted,
+                      sema.symbols.symbol(superclass)?.kind == .class
+                else {
+                    continue
+                }
+                inheritedClassSymbols.append(superclass)
+                classQueue.append(contentsOf: sema.symbols.directSupertypes(for: superclass).filter {
+                    sema.symbols.symbol($0)?.kind == .class
+                })
+            }
+
+            for superclass in inheritedClassSymbols.reversed() {
+                let inheritedCompanionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
+                insertCompanionMembers(of: superclass, into: inheritedCompanionScope)
+                companionScopeParent = inheritedCompanionScope
+            }
+        }
+        let companionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
+        insertCompanionMembers(of: ownerSymbol, into: companionScope)
+
         let classScope = ClassMemberScope(
             parent: companionScope,
             symbols: sema.symbols,
