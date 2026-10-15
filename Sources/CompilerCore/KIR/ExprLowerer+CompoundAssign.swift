@@ -623,6 +623,18 @@ extension ExprLowerer {
                     storeField(resultID)
                 }
             } else {
+                if sema.symbols.symbol(symbol)?.kind == .object {
+                    // A bare object receiver is lowered directly from its
+                    // singleton symbol here, so preserve the lazy-init guard
+                    // that ordinary name-reference lowering would emit.
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: symbol,
+                        arena: arena,
+                        sema: sema,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
                 if let storageID = driver.ctx.localValue(for: symbol) {
                     // Compute lhs op rhs and update storage in place so the value
                     // persists across loop iterations.

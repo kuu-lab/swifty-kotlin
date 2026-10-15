@@ -1,4 +1,19 @@
 extension TypeCheckDriver {
+    func registerInferredReturnFunction(
+        for declarationID: DeclID,
+        context: TypeInferenceContext
+    ) {
+        guard case let .funDecl(function)? = ast.arena.decl(declarationID),
+              function.returnType == nil,
+              case .expr = function.body,
+              let symbol = sema.bindings.declSymbols[declarationID]
+        else { return }
+        inferredReturnFunctions[symbol] = (
+            function,
+            context.with(currentDeclSymbol: symbol)
+        )
+    }
+
     /// Infer a source function in its declaration's scope before overload
     /// resolution consumes its return type. In particular, a later extension
     /// such as `fun Parser<Char>.string() = map { it.toString() }` must not

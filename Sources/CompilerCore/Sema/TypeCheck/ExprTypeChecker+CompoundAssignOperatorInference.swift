@@ -9,7 +9,9 @@ extension ExprTypeChecker {
         ctx: TypeInferenceContext,
         requireUnitReturn: Bool,
         emitDiagnostics: Bool = true,
-        bindCall: Bool = true
+        bindCall: Bool = true,
+        allowFallbackOnNoViableOverload: Bool = false,
+        inferCandidateReturnTypes: Bool = false
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -53,6 +55,13 @@ extension ExprTypeChecker {
             return nil
         }
 
+        if inferCandidateReturnTypes {
+            // A bare object operator can be an expression-bodied member whose
+            // return type is still the header's `Any` placeholder. Infer only
+            // on this path before deciding whether `plusAssign` returns Unit.
+            driver.inferFunctionReturnTypesIfNeeded(for: operatorCandidates)
+        }
+
         let resolved = ctx.resolver.resolveCall(
             candidates: operatorCandidates,
             call: CallExpr(
@@ -71,6 +80,9 @@ extension ExprTypeChecker {
             return nil
         }
         if let diagnostic = resolved.diagnostic {
+            if allowFallbackOnNoViableOverload, diagnostic.code == "KSWIFTK-SEMA-0002" {
+                return nil
+            }
             if emitDiagnostics {
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(exprID, type: sema.types.errorType)
@@ -323,6 +335,101 @@ extension ExprTypeChecker {
         )
         sema.bindings.bindExprType(id, type: sema.types.errorType)
         return true
+    }
+
+    /// Resolves a named singleton object as the immutable receiver of a bare
+    /// compound assignment, e.g. `Registry += entry`.
+    private func inferObjectCompoundAssignExpr(
+        _ id: ExprID,
+        op: CompoundAssignOp,
+        valueExpr: ExprID,
+        originalValueType: TypeID,
+        objectSymbol: SemanticSymbol,
+        receiverType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        sema.bindings.bindIdentifier(id, symbol: objectSymbol.id)
+        driver.helpers.checkDeprecation(
+            for: objectSymbol.id,
+            sema: sema,
+            interner: interner,
+            range: range,
+            diagnostics: sema.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: objectSymbol.id,
+            ctx: ctx,
+            range: range,
+            diagnostics: sema.diagnostics
+        )
+
+        let valueType = contextualCompoundAssignmentValueType(
+            op: op,
+            receiverType: receiverType,
+            valueExpr: valueExpr,
+            originalType: originalValueType,
+            range: range,
+            ctx: ctx,
+            locals: &locals
+        )
+        if let resolvedType = inferIncrementDecrementIfNeeded(
+            exprID: id,
+            op: op,
+            receiverType: receiverType,
+            isMutable: false,
+            range: range,
+            ctx: ctx
+        ) {
+            return resolvedType
+        }
+
+        if let resolvedType = bindCompoundAssignmentOperatorCall(
+            exprID: id,
+            op: op,
+            receiverType: receiverType,
+            valueType: valueType,
+            range: range,
+            ctx: ctx,
+            requireUnitReturn: true,
+            allowFallbackOnNoViableOverload: true,
+            inferCandidateReturnTypes: true
+        ) {
+            return resolvedType
+        }
+        if let resolvedType = bindCompoundAssignmentOperatorCall(
+            exprID: id,
+            op: op,
+            receiverType: receiverType,
+            valueType: valueType,
+            range: range,
+            ctx: ctx,
+            requireUnitReturn: false,
+            inferCandidateReturnTypes: true
+        ) {
+            guard resolvedType != sema.types.errorType else {
+                return resolvedType
+            }
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0014",
+                "Val cannot be reassigned.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+
+        let operatorName = operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)[0]
+        sema.diagnostics.error(
+            "KSWIFTK-SEMA-0002",
+            "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+            range: range
+        )
+        sema.bindings.bindExprType(id, type: sema.types.errorType)
+        return sema.types.errorType
     }
 
     func inferCompoundAssignExpr(
@@ -632,6 +739,22 @@ extension ExprTypeChecker {
             _ = resultType // top-level property type not updated in locals
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
+        }
+
+        if let scopeVisibleObject = candidates.first(where: { $0.kind == .object }),
+           let objectType = resolveTypeForCandidate(scopeVisibleObject, sema: sema)
+        {
+            return inferObjectCompoundAssignExpr(
+                id,
+                op: op,
+                valueExpr: valueExpr,
+                originalValueType: valueType,
+                objectSymbol: scopeVisibleObject,
+                receiverType: objectType,
+                range: range,
+                ctx: ctx,
+                locals: &locals
+            )
         }
 
         if !dslBlockedIDs.isEmpty {
