@@ -1598,6 +1598,15 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
+    // Top-level extension functions can be parented by their receiver type for
+    // lookup, but they are static functions and do not occupy virtual slots.
+    // Keep member extensions eligible because their dispatch receiver is the
+    // enclosing owner rather than the extension receiver.
+    if sema.symbols.functionSignature(for: callee)?.receiverType != nil,
+       sema.symbols.memberExtensionOwnerSymbol(for: callee) == nil
+    {
+        return nil
+    }
     // Private members cannot be overridden and are omitted from a user
     // library's exported dispatch metadata. Their own bodies must call them
     // directly even when the enclosing class has known subclasses.

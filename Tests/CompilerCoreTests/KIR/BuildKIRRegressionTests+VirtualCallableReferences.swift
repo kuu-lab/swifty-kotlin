@@ -71,6 +71,31 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
+    func testListMaxByExtensionCallKeepsStaticDispatch() throws {
+        let ctx = makeContextFromSource("""
+        fun <T, R : Comparable<R>> largest(xs: List<T>, selector: (T) -> R): T = xs.maxBy(selector)
+        """)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let maxByCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> KIRInstruction? in
+                switch instruction {
+                case let .call(_, callee, _, _, _, _, _, _) where ctx.interner.resolve(callee) == "maxBy":
+                    return instruction
+                case let .virtualCall(_, callee, _, _, _, _, _, _) where ctx.interner.resolve(callee) == "maxBy":
+                    return instruction
+                default:
+                    return nil
+                }
+            }
+        }
+        #expect(maxByCalls.contains { if case .call = $0 { return true }; return false })
+        #expect(!maxByCalls.contains { if case .virtualCall = $0 { return true }; return false })
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     private func virtualCalls(
         named name: String,
         in module: KIRModule,
