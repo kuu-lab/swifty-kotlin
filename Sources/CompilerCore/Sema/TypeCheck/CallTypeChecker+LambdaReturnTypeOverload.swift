@@ -16,10 +16,12 @@ extension CallTypeChecker {
         guard !paths.isEmpty else { return [] }
         return Set(candidates.filter { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
-                  ctx.sema.symbols.functionSignature(for: candidate)?.receiverType == nil,
                   let owner = ctx.sema.symbols.parentSymbol(for: candidate),
                   ctx.sema.symbols.symbol(owner)?.kind == .object,
-                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                  let receiverType = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  case let .classType(receiverClass) = ctx.sema.types.kind(of: receiverType),
+                  receiverClass.classSymbol == owner
             else { return false }
             return paths.contains(symbol.fqName)
         })
