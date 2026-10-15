@@ -6,6 +6,45 @@ extension CallLowerer {
         sema.symbols.memberExtensionOwnerSymbol(for: callee)
     }
 
+    func contextArgumentValue(
+        matching requestedType: TypeID,
+        callExprID: ExprID?,
+        signature: FunctionSignature? = nil,
+        callBinding: CallBinding? = nil,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> KIRExprID? {
+        var resolvedType = requestedType
+        if let signature, let callBinding {
+            let typeVariables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var substitution: [TypeVarID: TypeID] = [:]
+            for (symbol, argument) in zip(signature.typeParameterSymbols, callBinding.substitutedTypeArguments) {
+                if let variable = typeVariables[symbol] {
+                    substitution[variable] = argument
+                }
+            }
+            resolvedType = sema.types.substituteTypeParameters(
+                in: requestedType,
+                substitution: substitution,
+                typeVarBySymbol: typeVariables
+            )
+        }
+        if let value = driver.ctx.contextReceiverValue(matching: resolvedType, sema: sema) {
+            return value
+        }
+
+        let markedReceiver = callExprID.flatMap { sema.bindings.implicitReceiverOuterReceiver(for: $0) }
+            .flatMap { driver.ctx.localValue(for: $0) }
+            ?? callExprID.flatMap { sema.bindings.implicitExtensionReceiver(for: $0) }
+                .flatMap { driver.ctx.localValue(for: $0) }
+        let candidates = [markedReceiver, driver.ctx.activeImplicitReceiverExprID()].compactMap { $0 }
+        let target = sema.types.makeNonNullable(resolvedType)
+        return candidates.first { candidate in
+            guard let candidateType = arena.exprType(candidate) else { return false }
+            return sema.types.isSubtype(sema.types.makeNonNullable(candidateType), target)
+        }
+    }
+
     func memberExtensionDispatchReceiver(
         for callee: SymbolID,
         callExprID: ExprID?,
@@ -90,6 +129,19 @@ extension CallLowerer {
             interner: interner, instructions: &instructions
         ) { result.insert(receiver, at: 0) }
         let binding = callExprID.flatMap { sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0] }
+        if let signature = sema.symbols.functionSignature(for: accessor),
+           !signature.contextParameterTypes.isEmpty
+        {
+            let contextArguments = signature.contextParameterTypes.compactMap {
+                contextArgumentValue(
+                    matching: $0, callExprID: callExprID, signature: signature,
+                    callBinding: binding, sema: sema, arena: arena
+                )
+            }
+            let receiverCount = (signature.receiverType == nil ? 0 : 1)
+                + (memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil ? 0 : 1)
+            result.insert(contentsOf: contextArguments, at: min(receiverCount, result.count))
+        }
         appendReifiedTypeTokens(chosenCallee: accessor, callBinding: binding, sema: sema,
                                        interner: interner, arena: arena, instructions: &instructions, arguments: &result)
         return result
@@ -390,6 +442,20 @@ extension CallLowerer {
         }
         if let memberExtensionDispatchReceiver {
             finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
+        }
+        if let chosenCallee,
+           let signature = sema.symbols.functionSignature(for: chosenCallee),
+           !signature.contextParameterTypes.isEmpty
+        {
+            let contextArguments = signature.contextParameterTypes.compactMap {
+                contextArgumentValue(
+                    matching: $0, callExprID: callExprID, signature: signature,
+                    callBinding: callBinding, sema: sema, arena: arena
+                )
+            }
+            let receiverCount = (signature.receiverType == nil ? 0 : 1)
+                + (memberExtensionDispatchReceiver == nil ? 0 : 1)
+            finalArguments.insert(contentsOf: contextArguments, at: min(receiverCount, finalArguments.count))
         }
         if let chosenCallee,
            let localValue = driver.ctx.localValue(for: chosenCallee),

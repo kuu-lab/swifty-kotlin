@@ -32,10 +32,11 @@ struct CodegenBackendKotlinVersionTests {
             println(baseline.compareTo(KotlinVersion(2, 1)) > 0)
             println(baseline < KotlinVersion(2, 2, 0))
             println(baseline.isAtLeast(2, 1, 21))
+            println(KotlinVersion.CURRENT.toString())
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "KotlinVersionComparisonHelpers", expected: "true\ntrue\ntrue\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "KotlinVersionComparisonHelpers", expected: "true\ntrue\ntrue\nfalse\n2.4.20\n")
     }
 }
 #endif

@@ -522,24 +522,42 @@ extension BuildASTPhase {
         var nestedObjects: [DeclID] = []
         var companionObject: DeclID?
         var pendingMemberAnnotations: [AnnotationNode] = []
+        var pendingMemberContextReceivers: [ContextReceiverDecl] = []
 
         for child in arena.children(of: bodyBlockID) {
             guard case let .node(childID) = child else {
                 pendingMemberAnnotations = []
+                pendingMemberContextReceivers = []
                 continue
             }
             if arena.node(childID).kind == .statement {
-                pendingMemberAnnotations = declarationPrefixAnnotations(
+                let tokens = collectTokens(from: childID, in: arena)
+                let parsedContextReceivers = parseContextReceivers(
+                    from: tokens, interner: interner, astArena: astArena
+                )
+                if !parsedContextReceivers.isEmpty {
+                    pendingMemberContextReceivers = parsedContextReceivers
+                } else if tokens.first?.kind != .symbol(.at) {
+                    pendingMemberContextReceivers = []
+                }
+                if let annotations = declarationPrefixAnnotations(
                     from: childID, in: arena, interner: interner
-                ) ?? []
+                ) {
+                    pendingMemberAnnotations = annotations
+                } else if parsedContextReceivers.isEmpty, tokens.first?.kind != .symbol(.at) {
+                    pendingMemberAnnotations = []
+                }
                 continue
             }
             let prefixedAnnotations = pendingMemberAnnotations
+            let prefixedContextReceivers = pendingMemberContextReceivers
             pendingMemberAnnotations = []
+            pendingMemberContextReceivers = []
             processMemberChild(
                 childID,
                 in: arena, interner: interner, astArena: astArena,
                 prefixedAnnotations: prefixedAnnotations,
+                prefixedContextReceivers: prefixedContextReceivers,
                 functions: &functions, properties: &properties,
                 nestedClasses: &nestedClasses, nestedObjects: &nestedObjects,
                 companionObject: &companionObject
@@ -591,6 +609,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena,
         prefixedAnnotations: [AnnotationNode],
+        prefixedContextReceivers: [ContextReceiverDecl],
         functions: inout [DeclID],
         properties: inout [DeclID],
         nestedClasses: inout [DeclID],
@@ -602,11 +621,15 @@ extension BuildASTPhase {
         case .funDecl:
             let funDecl = makeFunDecl(
                 from: childID, in: arena, interner: interner,
-                astArena: astArena, prefixedAnnotations: prefixedAnnotations
+                astArena: astArena, prefixedAnnotations: prefixedAnnotations,
+                prefixedContextReceivers: prefixedContextReceivers
             )
             functions.append(astArena.appendDecl(.funDecl(funDecl)))
         case .propertyDecl:
-            let propDecl = makePropertyDecl(from: childID, in: arena, interner: interner, astArena: astArena)
+            let propDecl = makePropertyDecl(
+                from: childID, in: arena, interner: interner, astArena: astArena,
+                prefixedContextReceivers: prefixedContextReceivers
+            )
             properties.append(astArena.appendDecl(.propertyDecl(propDecl)))
         case .classDecl:
             let classDecl = makeClassDecl(from: childID, in: arena, interner: interner, astArena: astArena)

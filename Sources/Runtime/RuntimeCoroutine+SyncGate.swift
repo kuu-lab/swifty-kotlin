@@ -348,9 +348,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
             resumeSignalPending = false
             let loop = eventLoop
             let scheduler = blockingScheduler
+            let inlineResume = resumesInline
             stateLock.unlock()
             if let scheduler {
                 scheduler.enqueueResume { boxedContinuation.invoke() }
+                return
+            }
+            if inlineResume {
+                boxedContinuation.invoke()
                 return
             }
             // Signal already arrived — re-queue the continuation immediately.

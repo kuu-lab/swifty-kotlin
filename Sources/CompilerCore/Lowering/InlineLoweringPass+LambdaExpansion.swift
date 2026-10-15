@@ -281,7 +281,6 @@ extension InlineLoweringPass {
                 labelRemap[id] = labels.allocateScratchLabel()
             }
         }
-
         for instruction in lambdaFunction.body {
             guard budget.permitsOutput(lowered.instructions.count, arena: module.arena) else { return nil }
             let outputStart = lowered.instructions.count
@@ -303,7 +302,13 @@ extension InlineLoweringPass {
                 lowered.append(.label(labelRemap[id] ?? id))
 
             case let .jump(target):
-                lowered.append(.jump(labelRemap[target] ?? target))
+                let remappedTarget: Int32
+                if let externalTarget = KIRExternalLoopJump.label(for: target) {
+                    remappedTarget = KIRExternalLoopJump.marker(for: labelRemap[externalTarget] ?? externalTarget)
+                } else {
+                    remappedTarget = labelRemap[target] ?? target
+                }
+                lowered.append(.jump(remappedTarget))
 
             case let .jumpIfEqual(lhs, rhs, target):
                 lowered.append(
@@ -367,6 +372,66 @@ extension InlineLoweringPass {
                     outputCount: lowered.instructions.count, arena: module.arena
                 ) else { return nil }
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
+                if let symbol,
+                   let nestedInlineTarget = allFunctionsBySymbol[symbol],
+                   nestedInlineTarget.isInline
+                {
+                    let inlineExpansion: InlineExpansion? = {
+                        let previousAncestry = budget.ancestry
+                        budget.ancestry = lambdaAncestry
+                        defer { budget.ancestry = previousAncestry }
+                        return expandInlineCall(
+                            inlineTarget: nestedInlineTarget,
+                            arguments: resolvedArgs,
+                            allFunctionsBySymbol: allFunctionsBySymbol,
+                            module: module,
+                            ctx: ctx,
+                            callerBody: lambdaFunction.body,
+                            labels: &labels,
+                            expansionBudget: budget
+                        )
+                    }()
+                    guard let inlineExpansion else {
+                        let loweredResult = result.map { expr -> KIRExprID in
+                            InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
+                        }
+                        let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
+                            InlineExprCloning.cloneOrReuseExpr(expr, localExprMap: &localExprMap, in: module.arena)
+                        }
+                        lowered.append(.call(
+                            symbol: symbol,
+                            callee: callee,
+                            arguments: resolvedArgs,
+                            result: loweredResult,
+                            canThrow: canThrow,
+                            thrownResult: loweredThrownResult,
+                            isSuperCall: isSuperCall,
+                            qualifiedSuperType: qualifiedSuperType
+                        ))
+                        continue
+                    }
+                    let remappedExpansion = inlineExpansion.remappingExternalLoopTargets(using: labelRemap)
+                    hasNonLocalReturn = hasNonLocalReturn || remappedExpansion.hasNonLocalReturn
+                    hasNormalReturn = hasNormalReturn || remappedExpansion.hasNormalReturn
+                    appendInlinedLambdaExpansion(
+                        remappedExpansion,
+                        callThrownResult: thrownResult,
+                        localExprMap: localExprMap,
+                        labels: &labels,
+                        callAncestries: &callAncestries,
+                        into: &lowered
+                    )
+                    if let result {
+                        if let inlineReturn = remappedExpansion.returnedExpr {
+                            localExprMap[result] = inlineReturn
+                        } else {
+                            let unitExpr = module.arena.appendExpr(.unit, type: nil)
+                            lowered.append(.constValue(result: unitExpr, value: .unit))
+                            localExprMap[result] = unitExpr
+                        }
+                    }
+                    continue
+                }
                 if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(ctx.interner.resolve(callee)),
                    let callableExpr = resolvedArgs.first,
                    let nestedLambdaFunction = resolveLambdaFunction(
@@ -382,7 +447,7 @@ extension InlineLoweringPass {
                         aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
                     )
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
-                    if let lambdaExpansion = expandLambdaBody(
+                    if let rawLambdaExpansion = expandLambdaBody(
                         lambdaFunction: nestedLambdaFunction,
                         arguments: fullArgs,
                         module: module,
@@ -391,6 +456,7 @@ extension InlineLoweringPass {
                         labels: &labels,
                         expansionBudget: budget
                     ) {
+                        let lambdaExpansion = rawLambdaExpansion.remappingExternalLoopTargets(using: labelRemap)
                         hasNonLocalReturn = hasNonLocalReturn || lambdaExpansion.hasNonLocalReturn
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         appendInlinedLambdaExpansion(

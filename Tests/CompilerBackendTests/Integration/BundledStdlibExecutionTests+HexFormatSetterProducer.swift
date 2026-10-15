@@ -77,7 +77,7 @@ private func hex1767UserLibrarySnapshot(_ directory: URL) throws -> Hex1767Artif
     let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
     try #require(manifest["moduleName"] as? String == "KUU1767SetterProducer")
     try #require(manifest["formatVersion"] as? Int == 2)
-    try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+    try #require(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
     let objects = try #require(manifest["objects"] as? [String])
     try #require(!objects.isEmpty)
     for object in objects {

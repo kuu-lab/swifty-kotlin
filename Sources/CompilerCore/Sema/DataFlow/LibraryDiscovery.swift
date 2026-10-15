@@ -266,7 +266,8 @@ extension DataFlowSemaPhase {
             isValid = false
         }
 
-        let supportedLanguageVersions: Set = ["2.3.10"]
+        // Accept the prior target so libraries built before the 2.4.20 upgrade remain importable.
+        let supportedLanguageVersions: Set = ["2.3.10", "2.4.20"]
         if let langVersion = manifest.kotlinLanguageVersion {
             if !supportedLanguageVersions.contains(langVersion) {
                 diagnostics.error(

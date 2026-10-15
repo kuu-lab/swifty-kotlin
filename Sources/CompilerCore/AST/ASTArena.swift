@@ -19,6 +19,7 @@ public struct ASTArenaSnapshot: Codable {
     public let incrementDecrementCachedValues: [ExprID: ExprID]
     public let expressionAnnotations: [ExprID: [AnnotationNode]]
     public let anonymousFunctionExpressions: Set<ExprID>
+    public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
 
     private enum CodingKeys: String, CodingKey {
         case declarations
@@ -39,6 +40,7 @@ public struct ASTArenaSnapshot: Codable {
         case incrementDecrementCachedValues
         case expressionAnnotations
         case anonymousFunctionExpressions
+        case localFunContextReceivers
     }
 
     public init(
@@ -59,7 +61,8 @@ public struct ASTArenaSnapshot: Codable {
         nonFunctionLambdaLabels: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
         expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
-        anonymousFunctionExpressions: Set<ExprID> = []
+        anonymousFunctionExpressions: Set<ExprID> = [],
+        localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -79,6 +82,7 @@ public struct ASTArenaSnapshot: Codable {
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
         self.expressionAnnotations = expressionAnnotations
         self.anonymousFunctionExpressions = anonymousFunctionExpressions
+        self.localFunContextReceivers = localFunContextReceivers
     }
 
     public init(from decoder: Decoder) throws {
@@ -121,6 +125,9 @@ public struct ASTArenaSnapshot: Codable {
         anonymousFunctionExpressions = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .anonymousFunctionExpressions
         ) ?? []
+        localFunContextReceivers = try container.decodeIfPresent(
+            [ExprID: [ContextReceiverDecl]].self, forKey: .localFunContextReceivers
+        ) ?? [:]
     }
 }
 
@@ -205,6 +212,7 @@ public final class ASTArena: @unchecked Sendable {
     // Prefix annotations belong to the operand without changing its AST shape.
     private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
     private var _anonymousFunctionExpressions: Set<ExprID> = []
+    private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
 
     public var decls: [Decl] {
         lock.lock()
@@ -239,6 +247,7 @@ public final class ASTArena: @unchecked Sendable {
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
         _expressionAnnotations = snapshot.expressionAnnotations
         _anonymousFunctionExpressions = snapshot.anonymousFunctionExpressions
+        _localFunContextReceivers = snapshot.localFunContextReceivers
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -262,7 +271,8 @@ public final class ASTArena: @unchecked Sendable {
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
             expressionAnnotations: _expressionAnnotations,
-            anonymousFunctionExpressions: _anonymousFunctionExpressions
+            anonymousFunctionExpressions: _anonymousFunctionExpressions,
+            localFunContextReceivers: _localFunContextReceivers
         )
     }
 
@@ -307,6 +317,9 @@ public final class ASTArena: @unchecked Sendable {
         }
         for (key, value) in snapshot.expressionAnnotations {
             _expressionAnnotations[remapper.remap(key)] = value.map { remapper.remap($0) }
+        }
+        for (key, value) in snapshot.localFunContextReceivers {
+            _localFunContextReceivers[remapper.remap(key)] = value.map { remapper.remap($0) }
         }
         _anonymousFunctionExpressions.formUnion(snapshot.anonymousFunctionExpressions.map { remapper.remap($0) })
         _infixCallExpressions.formUnion(snapshot.infixCallExpressions.map { remapper.remap($0) })
@@ -355,6 +368,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _anonymousFunctionExpressions.contains(exprID)
+    }
+
+    public func setLocalFunContextReceivers(_ receivers: [ContextReceiverDecl], for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _localFunContextReceivers[exprID] = receivers
+    }
+
+    public func localFunContextReceivers(for exprID: ExprID) -> [ContextReceiverDecl] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _localFunContextReceivers[exprID] ?? []
     }
 
     public func setCallableRefReceiverTypeRef(_ exprID: ExprID, typeRef: TypeRefID) {

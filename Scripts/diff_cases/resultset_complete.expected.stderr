@@ -76,6 +76,9 @@ Scripts/diff_cases/resultset_complete.kt:94:13: error KSWIFTK-SEMA-0024: Unresol
 Scripts/diff_cases/resultset_complete.kt:97:20: error KSWIFTK-SEMA-0024: Unresolved member function 'getMetaData'.
     val metaData = resultSet.getMetaData()
                    ^
+Scripts/diff_cases/resultset_complete.kt:129:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(metaData.isReadOnly(1)) // true for our implementation
+            ^
 Scripts/diff_cases/resultset_complete.kt:133:5: error KSWIFTK-SEMA-0024: Unresolved member function 'beforeFirst'.
     resultSet.beforeFirst()
     ^

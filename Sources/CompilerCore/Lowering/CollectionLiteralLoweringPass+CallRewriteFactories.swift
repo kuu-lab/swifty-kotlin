@@ -201,12 +201,30 @@ extension CollectionLiteralConstructionLoweringPass {
         // 0 args → empty collection; 1 int arg (capacity) → checked empty ArrayList / empty collection;
         // 1 collection arg → copy.
         if isStdlibArrayListConstructor(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
-            if arguments.count == 1,
-               isCollectionCopyConstructorArgument(arguments[0], module: module, ctx: ctx) {
+            let constructorArguments: [KIRExprID]
+            let resolvedCopyConstructor: Bool
+            if let symbol, let sema = ctx.sema,
+               sema.symbols.symbol(symbol)?.kind == .constructor,
+               let signature = sema.symbols.functionSignature(for: symbol) {
+                // Ordinary resolved constructors include the allocated receiver.
+                // The replacement factory allocates its own backing storage.
+                constructorArguments = arguments.count == signature.parameterTypes.count + 1
+                    ? Array(arguments.dropFirst()) : arguments
+                resolvedCopyConstructor = signature.parameterTypes.count == 1
+                    && resolveClassTypeSymbol(signature.parameterTypes[0], sema: sema)?.symbol.fqName == [
+                        lookup.kotlinName, ctx.interner.intern("collections"), ctx.interner.intern("Collection"),
+                    ]
+            } else {
+                constructorArguments = arguments
+                resolvedCopyConstructor = false
+            }
+            if constructorArguments.count == 1,
+               resolvedCopyConstructor
+                || isCollectionCopyConstructorArgument(constructorArguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkCollectionToArrayListName,
-                    arguments: [arguments[0]],
+                    arguments: [constructorArguments[0]],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -215,11 +233,11 @@ extension CollectionLiteralConstructionLoweringPass {
                 return true
             }
 
-            if arguments.count == 1 {
+            if constructorArguments.count == 1 {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: ctx.interner.intern("__kk_array_list_new_checked"),
-                    arguments: arguments,
+                    arguments: constructorArguments,
                     result: result,
                     canThrow: true,
                     thrownResult: thrownResult

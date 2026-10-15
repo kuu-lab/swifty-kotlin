@@ -23,7 +23,7 @@ private external fun <E> __kkMutableSetRemove(set: MutableSet<E>, element: E): B
 @KsSymbolName("__kk_mutable_set_clear")
 private external fun <E> __kkMutableSetClear(set: MutableSet<E>)
 
-@KsSymbolName("__kk_mutable_set_addAll")
+@KsSymbolName("__kk_mutable_collection_addAll_throwing")
 private external fun <E> __kkMutableSetAddAll(
     set: MutableSet<E>,
     elements: Collection<out E>

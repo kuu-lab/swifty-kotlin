@@ -89,6 +89,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
         validateWorkerExecuteJobs(ast: ast, sema: sema, ctx: ctx)
 
         let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
+        validateLoopJumpLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
         validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
         driver.validateSuspensionContexts(
             inlineLambdaArguments: inlineLambdaArguments,
@@ -201,6 +202,17 @@ final class TypeCheckSemaPhase: CompilerPhase {
             guard case let .indexedCompoundAssign(_, _, _, value, _) = ast.arena.expr(exprID) else { continue }
             recordLambdaArguments([value], binding: binding.call)
         }
+        // Intrinsic Array(size, init) calls have no selected function binding,
+        // but their initializer is inlined just like the bundled factory body.
+        for (callExprID, kind) in sema.bindings.stdlibSpecialCallKinds where kind == .arrayConstructor {
+            guard case let .call(_, _, args, _) = ast.arena.expr(callExprID),
+                  args.count == 2,
+                  case .lambdaLiteral = ast.arena.expr(args[1].expr)
+            else {
+                continue
+            }
+            inlineLambdaArguments.insert(args[1].expr)
+        }
         return (inlineLambdaArguments, suspendLambdaArguments)
     }
 
@@ -255,6 +267,34 @@ final class TypeCheckSemaPhase: CompilerPhase {
             + objectDecl.nestedObjects
         {
             collectObjectLiteralDeclTree(childDeclID, ast: ast, into: &declsToSkip)
+        }
+    }
+
+    /// Non-local loop jumps are legal only when every lambda boundary between
+    /// the jump and its loop target belongs to an inline parameter that allows
+    /// non-local control flow. The selected call binding is available only
+    /// after body inference, so the initial checker records these candidate
+    /// paths and this pass reports rejected ones here.
+    private func validateLoopJumpLambdaPaths(
+        ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine, inlineLambdaArguments: Set<ExprID>
+    ) {
+        for exprID in sema.bindings.loopJumpLambdaPaths.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let lambdaPath = sema.bindings.loopJumpLambdaPaths[exprID],
+                  !lambdaPath.allSatisfy({ inlineLambdaArguments.contains($0) })
+            else { continue }
+            let code: String
+            let message: String
+            switch ast.arena.expr(exprID) {
+            case .breakExpr:
+                code = "KSWIFTK-SEMA-0018"
+                message = "'break' is only allowed inside loop bodies."
+            case .continueExpr:
+                code = "KSWIFTK-SEMA-0019"
+                message = "'continue' is only allowed inside loop bodies."
+            default:
+                continue
+            }
+            diagnostics.error(code, message, range: ast.arena.exprRange(exprID))
         }
     }
 }

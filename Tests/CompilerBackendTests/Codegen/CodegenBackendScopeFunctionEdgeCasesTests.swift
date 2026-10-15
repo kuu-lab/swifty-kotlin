@@ -80,5 +80,94 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
             )
         }
     }
+
+    @Test
+    func testCodegenCompilesNamedContextParametersAndAccessors() throws {
+        let source = """
+        import kotlin.ExperimentalContextParameters
+
+        var seen = ""
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(prefix: String)
+        fun render(value: String): String = prefix + value
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(index: Int)
+        fun selected(values: Array<String>): String = values[index]
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(prefix: String)
+        var current: String
+            get() = prefix
+            set(value) { seen = prefix + value }
+
+        class ContextHolder {
+            @OptIn(ExperimentalContextParameters::class)
+            context(prefix: String)
+            fun render(value: String): String = prefix + value
+
+            @OptIn(ExperimentalContextParameters::class)
+            context(prefix: String)
+            var current: String
+                get() = prefix
+                set(value) { seen = prefix + value }
+        }
+
+        @OptIn(ExperimentalContextParameters::class)
+        fun main() {
+            context(prefix: String)
+            fun localRender(value: String): String = prefix + value
+
+            println(context("I") { render("K") })
+            println(context(1) { selected(arrayOf("A", "B")) })
+            println(context("L") { localRender("K") })
+            val renderRef: context(String) (String) -> String = ::render
+            println(context("C") { renderRef("K") })
+            val holder = ContextHolder()
+            println(context("M") { holder.render("K") })
+            context("O") {
+                current = "K"
+                println(current)
+                println(seen)
+            }
+            context("P") {
+                holder.current = "K"
+                println(holder.current)
+                println(seen)
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "NamedContextParameters",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+                ==
+                """
+                IK
+                B
+                LK
+                CK
+                MK
+                O
+                OK
+                P
+                PK
+                """
+                + "\n"
+            )
+        }
+    }
 }
 #endif

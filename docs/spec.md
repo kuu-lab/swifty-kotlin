@@ -10,7 +10,7 @@
 
 前提（この仕様書で固定する基準）：
 
-* **Kotlin 2.3.10 の stable 範囲**を対象（公式 Grammar は “latest stable で experimental 無効ルール除外” を明示） ([Kotlin][1])
+* **Kotlin 2.4.20 の stable 範囲**を対象（公式 Grammar は “latest stable で experimental 無効ルール除外” を明示） ([Kotlin][1])
 * セマンティクスは Kotlin/Core を基準（式・宣言・型・オーバーロード解決） ([Kotlin][2])
 * Coroutines は Kotlin spec の CPS 変換モデルを実装（`Continuation<T>` 追加引数 + `Any?` 戻り、suspend/return 判定） ([Kotlin][3])
 * 実行環境は **macOS のみ**。開発は Xcode 26（Swift 6.2）を基準 ([Apple Developer][4])
@@ -1017,7 +1017,7 @@ Foo.kklib/
 {
   "formatVersion": 2,
   "moduleName": "Foo",
-  "kotlinLanguageVersion": "2.3.10",
+  "kotlinLanguageVersion": "2.4.20",
   "compilerVersion": "0.1.0",
   "target": "arm64-apple-macosx",
   "objects": ["objects/Foo_0.o"],
@@ -1322,7 +1322,7 @@ zero continuation を呼出元の continuation で置換する。owner 版の `o
 ## J18.1 基本方針
 
 * 曖昧な挙動（診断の文言/順序など）は、この仕様書で決め打ちしない。
-  代わりに **参照 `kotlinc 2.3.10` と差分テスト**して一致させ、仕様を固める。
+  代わりに **参照 `kotlinc 2.4.20` と差分テスト**して一致させ、仕様を固める。
 
 ## J18.2 テスト種類（最低ライン）
 

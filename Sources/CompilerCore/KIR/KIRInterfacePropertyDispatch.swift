@@ -534,12 +534,61 @@ func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection
                 continue
             }
 
+            // An implementation such as `String` has a more specific setter
+            // ABI than the erased type parameter in `A<T>.set(T)`. Register a
+            // bridge with the interface ABI, just as the getter path does for
+            // generic return types.
+            var registeredSetter = implSetter
+            if let interfaceParameter = sema.symbols.propertyType(for: setterSlot.propertySymbol) {
+                let interfaceReceiver = sema.types.make(.classType(ClassType(
+                    classSymbol: interfaceSymbol, args: [], nullability: .nonNull
+                )))
+                let implementationProperty = sema.symbols.propertySymbol(forAccessor: implSetter)
+                let implementationFn = arena.function(for: implSetter)
+                let implementationOwner = implementationProperty.flatMap {
+                    sema.symbols.parentSymbol(for: $0)
+                }
+                let implementationReceiver = implementationFn?.params.first?.type
+                    ?? implementationOwner.flatMap { owner in
+                        sema.symbols.symbol(owner).map {
+                            sema.types.make(.classType(ClassType(
+                                classSymbol: $0.id, args: [], nullability: .nonNull
+                            )))
+                        }
+                    }
+                let implementationParameter = implementationFn?.params.last?.type
+                    ?? implementationProperty.flatMap { sema.symbols.propertyType(for: $0) }
+                if let implementationReceiver, let implementationParameter {
+                    let implementationSignature = sema.symbols.functionSignature(for: implSetter)
+                    registeredSetter = itableBridgeSymbolForMethod(
+                        interfaceMethod: setterSlot.propertySymbol,
+                        implementation: implSetter,
+                        nominalSymbol: nominalSymbol,
+                        interfaceSignature: FunctionSignature(
+                            receiverType: interfaceReceiver,
+                            parameterTypes: [interfaceParameter],
+                            returnType: sema.types.unitType,
+                            canThrow: true
+                        ),
+                        implementationSignature: FunctionSignature(
+                            receiverType: implementationReceiver,
+                            parameterTypes: [implementationParameter],
+                            returnType: implementationFn?.returnType ?? sema.types.unitType,
+                            canThrow: implementationSignature?.canThrow ?? true
+                        ),
+                        arena: arena,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
+            }
+
             let methodSlot = Int64(setterSlot.slot)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
             instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
 
-            let methodFnExpr = arena.appendExpr(.symbolRef(implSetter), type: intType)
-            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implSetter)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(registeredSetter), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredSetter)))
 
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(

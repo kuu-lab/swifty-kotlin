@@ -33,6 +33,7 @@ struct CallArgumentParsingTests {
         "f(value = 1, other = 2)", "f(*items, 2)", "f(1 + 2)",
         "f(a to b)", "f(1L, 2u, 3UL, 4f)", "f(g(1, 2).size, 3)",
         "obj?.f<Int>(1, 2)", "f(1) { 2 }", "f({ 1 }, ({ 2 }))",
+        "println(f(b = { 2 }(), a = { 3 }()))",
     ])
     func acceptsValidArguments(_ source: String) throws {
         let lexed = lex(source)
@@ -45,6 +46,20 @@ struct CallArgumentParsingTests {
         #expect(parser.parse() != nil)
         #expect(lexed.diagnostics.diagnostics.isEmpty)
         #expect(parser.current() == nil)
+    }
+
+    @Test
+    func frontendAcceptsNamedArgumentsWithImmediatelyInvokedLambdas() throws {
+        let source = """
+        fun f(a: Int, b: Int) = a * 10 + b
+        fun main() {
+            println(f(b = { 2 }(), a = { 3 }()))
+        }
+        """
+        let (_, context) = try buildASTModule(from: source, includeStdlib: false)
+        #expect(!context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0015"
+        })
     }
 
     @Test(arguments: [

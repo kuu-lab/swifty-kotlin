@@ -494,6 +494,7 @@ extension LocalDeclTypeChecker {
         _ id: ExprID,
         name: InternedString,
         typeParams: [TypeParamDecl] = [],
+        contextReceivers: [ContextReceiverDecl] = [],
         receiverTypeRef: TypeRefID? = nil,
         valueParams: [ValueParamDecl],
         returnTypeRef: TypeRefID?,
@@ -562,6 +563,41 @@ extension LocalDeclTypeChecker {
                 $0, ast: ast, sema: sema, interner: interner, scope: localFunctionScope,
                 diagnostics: ctx.sema.diagnostics, inferenceContext: functionTypeContext, usageRange: range
             )
+        }
+        let contextReceiverTypes = contextReceivers.compactMap { contextReceiver in
+            driver.helpers.resolveTypeRef(
+                contextReceiver.type,
+                ast: ast,
+                sema: sema,
+                interner: interner,
+                scope: localFunctionScope,
+                diagnostics: ctx.sema.diagnostics,
+                inferenceContext: functionTypeContext,
+                usageRange: range
+            )
+        }
+        let contextParameterDeclarations: [
+            (declaration: ContextReceiverDecl, symbol: SymbolID, type: TypeID)
+        ] = contextReceivers.enumerated().compactMap { index, declaration
+            -> (declaration: ContextReceiverDecl, symbol: SymbolID, type: TypeID)? in
+            guard declaration.isContextParameter, contextReceiverTypes.indices.contains(index) else {
+                return nil
+            }
+            let symbol = sema.symbols.define(
+                kind: .valueParameter,
+                name: declaration.name ?? interner.intern("$contextParameter\(index)"),
+                fqName: [
+                    interner.intern("__localfun_\(id.rawValue)"),
+                    name,
+                    interner.intern("$context"),
+                    interner.intern("$\(index)"),
+                ],
+                declSite: range,
+                visibility: .private,
+                flags: []
+            )
+            sema.symbols.setPropertyType(contextReceiverTypes[index], for: symbol)
+            return (declaration: declaration, symbol: symbol, type: contextReceiverTypes[index])
         }
         var parameterTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
@@ -636,6 +672,9 @@ extension LocalDeclTypeChecker {
 
         let signature = FunctionSignature(
             receiverType: receiverType,
+            contextReceiverTypes: contextReceiverTypes,
+            contextParameterSymbols: contextParameterDeclarations.map(\.symbol),
+            contextParameterTypes: contextParameterDeclarations.map(\.type),
             parameterTypes: parameterTypes,
             returnType: resolvedReturnType,
             isSuspend: isSuspend,
@@ -650,6 +689,7 @@ extension LocalDeclTypeChecker {
         sema.symbols.setFunctionSignature(signature, for: funSymbol)
 
         let funType = sema.types.make(.functionType(FunctionType(
+            contextReceivers: contextParameterDeclarations.map(\.type),
             receiver: receiverType,
             params: parameterTypes,
             returnType: resolvedReturnType,
@@ -684,6 +724,9 @@ extension LocalDeclTypeChecker {
             flowState: DataFlowState(),
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
+        bodyCtx = bodyCtx.with(
+            contextReceiverTypes: ctx.contextReceiverTypes + contextParameterDeclarations.map(\.type)
+        )
         bodyCtx.suspensionContext = SuspensionContext(function: funSymbol)
         if let receiverType {
             let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: funSymbol)
@@ -699,6 +742,11 @@ extension LocalDeclTypeChecker {
             )
             sema.symbols.setPropertyType(localType, for: paramSymbols[i])
             bodyLocals[param.name] = (localType, paramSymbols[i], false, true)
+        }
+        for parameter in contextParameterDeclarations {
+            if let parameterName = parameter.declaration.name {
+                bodyLocals[parameterName] = (parameter.type, parameter.symbol, false, true)
+            }
         }
         bodyLocals[name] = (funType, funSymbol, false, true)
         let inferredBodyType: TypeID
@@ -730,6 +778,9 @@ extension LocalDeclTypeChecker {
         if returnTypeRef == nil, case .expr = body, inferredBodyType != sema.types.errorType {
             let inferredSignature = FunctionSignature(
                 receiverType: receiverType,
+                contextReceiverTypes: contextReceiverTypes,
+                contextParameterSymbols: contextParameterDeclarations.map(\.symbol),
+                contextParameterTypes: contextParameterDeclarations.map(\.type),
                 parameterTypes: parameterTypes,
                 returnType: inferredBodyType,
                 isSuspend: isSuspend,
@@ -745,6 +796,7 @@ extension LocalDeclTypeChecker {
         }
         let finalReturnType = sema.symbols.functionSignature(for: funSymbol)?.returnType ?? resolvedReturnType
         let finalFunType = sema.types.make(.functionType(FunctionType(
+            contextReceivers: contextParameterDeclarations.map(\.type),
             receiver: receiverType,
             params: parameterTypes,
             returnType: finalReturnType,

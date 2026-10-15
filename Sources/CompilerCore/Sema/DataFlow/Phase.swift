@@ -593,6 +593,15 @@ final class DataFlowSemaPhase: CompilerPhase {
                 diagnostics: ctx.diagnostics, interner: ctx.interner
             )
         }
+        withSubPhaseTiming("collectDataObjectToString", timer: ctx.phaseTimer) {
+            collectDataObjectToStringAfterInheritance(
+                ast: ast,
+                symbols: symbols,
+                bindings: bindings,
+                types: types,
+                interner: ctx.interner
+            )
+        }
         withSubPhaseTiming("registerChannelSendChannelSubtype", timer: ctx.phaseTimer) {
             registerChannelSendChannelSubtype(symbols: symbols, types: types, interner: ctx.interner)
         }

@@ -786,17 +786,31 @@ extension CallLowerer {
             let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
             let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
+            let isReferenceNotEqual = op == .notEqual && [lhsTypeID, rhsTypeID].contains { typeID in
+                guard let typeID else { return false }
+                switch sema.types.kind(of: typeID) {
+                case .stringStruct, .classType, .any, .typeParam:
+                    return true
+                default:
+                    return false
+                }
+            }
             // `!=` on a *nullable* Double?/Float? must stay null-aware: a
             // null operand can never be IEEE-compared, and the runtime null
             // sentinel's bit pattern equals -0.0, so kk_op_dne/fne's fixed
             // IEEE comparison would treat a genuine null as -0.0. Defer to
             // the generic `.binary` path below (op == .notEqual falls through
             // this switch unchanged), which OperatorLoweringPass routes
-            // through the null-aware kk_nullable_primitive_ne instead.
+            // through the null-aware kk_nullable_primitive_ne instead. A
+            // reference operand also stays on that generic path: widening
+            // Any? to Double would make a boxed Int compare numerically.
             let isNullableFloatingPointNotEqual = op == .notEqual
                 && ((lhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false)
                     || (rhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false))
-            if (lhsIsFloatingPoint || rhsIsFloatingPoint), !isNullableFloatingPointNotEqual {
+            if (lhsIsFloatingPoint || rhsIsFloatingPoint),
+               !isNullableFloatingPointNotEqual,
+               !isReferenceNotEqual
+            {
                 // BUG-258: a mixed comparison (e.g. `aDouble <= 1`) must widen
                 // the non-floating-point side to the same floating-point type
                 // before comparing -- kk_op_d*/kk_op_f* interpret both

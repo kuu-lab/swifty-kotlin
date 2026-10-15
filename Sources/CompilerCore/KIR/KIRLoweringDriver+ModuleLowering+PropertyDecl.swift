@@ -74,7 +74,7 @@ extension KIRLoweringDriver {
             declIDs: &declIDs
         )
 
-        if propertyDecl.delegateExpression != nil, !isExtensionProperty {
+        if propertyDecl.delegateExpression != nil {
             lowerPropertyDelegate(
                 propertyDecl, symbol: symbol, propType: propType,
                 isThreadLocal: isThreadLocal,
@@ -293,7 +293,11 @@ extension KIRLoweringDriver {
         if let existing = sema.symbols.delegateStorageSymbol(for: symbol) {
             return existing
         }
-        let storageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+        let propertyName = interner.resolve(propertyDecl.name)
+        let extensionSuffix = sema.symbols.hasExtensionPropertyReceiver(symbol)
+            ? "_extension_\(symbol.rawValue)"
+            : ""
+        let storageName = interner.intern("$delegate_\(propertyName)\(extensionSuffix)")
         let fqName = (sema.symbols.symbol(symbol)?.fqName.dropLast() ?? []) + [storageName]
         let storageSymbol = sema.symbols.define(
             kind: .field, name: storageName, fqName: Array(fqName),

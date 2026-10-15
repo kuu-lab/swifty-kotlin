@@ -14,6 +14,33 @@ private struct ResolvedPropertyDelegateSignature {
 }
 
 extension DeclTypeChecker {
+    private func bindPropertyContextParameters(
+        _ property: PropertyDecl,
+        accessorSymbol: SymbolID,
+        sema: SemaModule,
+        locals: inout LocalBindings
+    ) -> [TypeID] {
+        guard let signature = sema.symbols.functionSignature(for: accessorSymbol) else {
+            return []
+        }
+        let declarations = property.contextReceivers.filter(\.isContextParameter)
+        for index in declarations.indices {
+            guard signature.contextParameterSymbols.indices.contains(index),
+                  signature.contextParameterTypes.indices.contains(index),
+                  let name = declarations[index].name
+            else {
+                continue
+            }
+            locals[name] = (
+                signature.contextParameterTypes[index],
+                signature.contextParameterSymbols[index],
+                false,
+                true
+            )
+        }
+        return signature.contextReceiverTypes
+    }
+
     /// - Parameter baseLocals: Seeds the accessor body's local-name resolution
     ///   with bindings from an enclosing scope, mirroring
     ///   `typeCheckFunctionDecl`'s parameter of the same name. Empty for
@@ -24,6 +51,7 @@ extension DeclTypeChecker {
     ///   (KSP-CAP-001/KSP-CAP-018).
     func typeCheckGetter(
         _ getter: PropertyAccessorDecl,
+        property: PropertyDecl,
         symbol: SymbolID,
         inferredPropertyType: TypeID?,
         accessorCtx: TypeInferenceContext,
@@ -41,18 +69,28 @@ extension DeclTypeChecker {
                 receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
             )
         }
+        let accessorSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+        let contextTypes = bindPropertyContextParameters(
+            property,
+            accessorSymbol: accessorSymbol,
+            sema: sema,
+            locals: &getterLocals
+        )
+        let getterContext = accessorCtx.with(
+            contextReceiverTypes: accessorCtx.contextReceiverTypes + contextTypes
+        )
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
         }
         let getterType = inferFunctionBodyType(
-            getter.body, ctx: accessorCtx.copying(
+            getter.body, ctx: getterContext.copying(
                 lambdaLabelStack: [],
                 lambdaReturnScopes: [],
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: inferredPropertyType,
-                enclosingFunctionSymbol: sema.symbols.extensionPropertyGetterAccessor(for: symbol)
-                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol),
+                enclosingFunctionSymbol: accessorSymbol,
                 enclosingLambdaExprIDs: []
             ), locals: &getterLocals,
             expectedType: inferredPropertyType
@@ -118,9 +156,19 @@ extension DeclTypeChecker {
         // factory's type argument from except the declared property type, so
         // feed it back in as the expected delegate type (`Lazy<String>` /
         // `ReadWriteProperty<Any?, String>`).
-        let expectedDelegateType = inferredPropertyType.flatMap { valueType in
-            stdlibDelegateInterfaceType(
+        let expectedDelegateType = inferredPropertyType.flatMap { valueType -> TypeID? in
+            if let stdlibType = stdlibDelegateInterfaceType(
                 of: valueType, kind: stdlibDelegateKind, sema: sema, interner: interner
+            ) {
+                return stdlibType
+            }
+            guard stdlibDelegateKind == .custom,
+                  customDelegateFactoryReturnsReadWriteProperty(delegateExpr, ctx: ctx)
+            else {
+                return nil
+            }
+            return readWritePropertyDelegateInterfaceType(
+                of: valueType, sema: sema, interner: interner
             )
         }
         let delegateType = driver.inferExpr(
@@ -153,7 +201,8 @@ extension DeclTypeChecker {
             expectedType: getValueExpectedType,
             range: delegateCallRange,
             ctx: ctx,
-            locals: locals
+            locals: locals,
+            fallbackReceiverType: expectedDelegateType
         )
         // Tracks whether getValue/setValue were actually resolved for the *effective*
         // delegate type (see below: provideDelegate, when present, fully supersedes
@@ -200,7 +249,8 @@ extension DeclTypeChecker {
                 expectedType: nil,
                 range: delegateCallRange,
                 ctx: ctx,
-                locals: locals
+                locals: locals,
+                fallbackReceiverType: expectedDelegateType
             )
             setValueDiagnosticReported = setValueResolution?.diagnostic != nil
             if let setValueResolution,
@@ -401,10 +451,28 @@ extension DeclTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: LocalBindings,
-        allowNonOperatorMemberOverride: Bool = false
+        allowNonOperatorMemberOverride: Bool = false,
+        fallbackReceiverType: TypeID? = nil
     ) -> PropertyDelegateFunctionResolution? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let isMemberConventionCandidate: (SymbolID) -> Bool = { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function
+            else {
+                return false
+            }
+            if symbol.flags.contains(.operatorFunction) {
+                return true
+            }
+            // Kotlin permits an override to omit `operator` when the
+            // overridden declaration introduced the operator convention.
+            // This exception is limited to member overrides; a same-named
+            // non-operator extension is never a delegate convention.
+            return allowNonOperatorMemberOverride
+                && symbol.flags.contains(.overrideMember)
+                && !symbol.flags.contains(.synthetic)
+        }
         let memberCandidates = driver.helpers
             .collectMemberFunctionCandidates(
                 named: name,
@@ -412,29 +480,15 @@ extension DeclTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            .filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
-                      symbol.kind == .function
-                else {
-                    return false
-                }
-                if symbol.flags.contains(.operatorFunction) {
-                    return true
-                }
-                // Kotlin permits an override to omit `operator` when the
-                // overridden declaration introduced the operator convention.
-                // This exception is limited to member overrides; a same-named
-                // non-operator extension is never a delegate convention.
-                return allowNonOperatorMemberOverride
-                    && symbol.flags.contains(.overrideMember)
-                    && !symbol.flags.contains(.synthetic)
-            }
+            .filter(isMemberConventionCandidate)
 
         func resolve(
             _ candidates: [SymbolID],
-            dispatchReceiverTypes: [TypeID] = []
+            dispatchReceiverTypes: [TypeID] = [],
+            callReceiverType: TypeID? = nil
         ) -> PropertyDelegateFunctionResolution? {
             guard !candidates.isEmpty else { return nil }
+            let callReceiverType = callReceiverType ?? receiverType
             let call = CallExpr(
                 range: range,
                 calleeName: name,
@@ -445,7 +499,7 @@ extension DeclTypeChecker {
                 candidates: candidates,
                 call: call,
                 expectedType: expectedType,
-                implicitReceiverType: receiverType,
+                implicitReceiverType: callReceiverType,
                 ctx: ctx.sema
             )
             guard !probe.viableCandidates.isEmpty else {
@@ -455,7 +509,7 @@ extension DeclTypeChecker {
                 candidates: candidates,
                 call: call,
                 expectedType: expectedType,
-                implicitReceiverType: receiverType,
+                implicitReceiverType: callReceiverType,
                 ctx: ctx.sema
             )
             return PropertyDelegateFunctionResolution(
@@ -470,6 +524,31 @@ extension DeclTypeChecker {
                 ctx.sema.diagnostics.emit(diagnostic)
             }
             return memberResolution
+        }
+
+        // A generic factory returning an anonymous implementation can infer
+        // its type argument from the property type, while the anonymous
+        // class's recorded supertype still mentions the factory's source type
+        // parameter. Resolve an interface member against the contextual
+        // interface instantiation as a fallback so that type argument reaches
+        // getValue/setValue substitution. KIR dispatches this abstract symbol
+        // through the delegate's runtime interface table.
+        if let fallbackReceiverType,
+           fallbackReceiverType != receiverType,
+           let fallbackMemberResolution = resolve(
+               driver.helpers.collectMemberFunctionCandidates(
+                   named: name,
+                   receiverType: fallbackReceiverType,
+                   sema: sema,
+                   interner: interner
+               ).filter(isMemberConventionCandidate),
+               callReceiverType: fallbackReceiverType
+           )
+        {
+            if let diagnostic = fallbackMemberResolution.diagnostic {
+                sema.diagnostics.emit(diagnostic)
+            }
+            return fallbackMemberResolution
         }
 
         // Local functions live in LocalBindings rather than the lexical symbol
@@ -777,18 +856,80 @@ extension DeclTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        guard kind != .custom,
-              let ownerSymbol = sema.symbols.lookup(
-                  fqName: stdlibDelegateInterfaceFQName(for: kind).map { interner.intern($0) }
-              )
-        else {
+        guard kind != .custom else {
             return nil
         }
-        let args: [TypeArg] = kind == .lazy
-            ? [.out(valueType)]
-            : [.in(sema.types.makeNullable(sema.types.anyType)), .invariant(valueType)]
+        if kind != .lazy {
+            return readWritePropertyDelegateInterfaceType(
+                of: valueType, sema: sema, interner: interner
+            )
+        }
+        guard let ownerSymbol = sema.symbols.lookup(
+            fqName: stdlibDelegateInterfaceFQName(for: kind).map { interner.intern($0) }
+        ) else {
+            return nil
+        }
         return sema.types.make(.classType(ClassType(
-            classSymbol: ownerSymbol, args: args, nullability: .nonNull
+            classSymbol: ownerSymbol, args: [.out(valueType)], nullability: .nonNull
+        )))
+    }
+
+    /// A custom factory can use the property's declared type to infer its
+    /// generic arguments when its result implements `ReadWriteProperty`. Keep
+    /// this contextual type away from other custom delegates, whose convention
+    /// methods need not implement the marker interface.
+    private func customDelegateFactoryReturnsReadWriteProperty(
+        _ delegateExpr: ExprID?,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let delegateExpr,
+              case let .call(callee, _, arguments, _) = ctx.ast.arena.expr(delegateExpr),
+              arguments.isEmpty,
+              case let .nameRef(name, _) = ctx.ast.arena.expr(callee),
+              let readWriteProperty = sema.symbols.lookup(
+                  fqName: ["kotlin", "properties", "ReadWriteProperty"].map(ctx.interner.intern)
+              )
+        else {
+            return false
+        }
+        let candidates = ctx.cachedScopeLookup(name).filter { candidate in
+            ctx.cachedSymbol(candidate)?.kind == .function
+        }
+        let zeroArgumentCandidates = ctx.filterByVisibility(candidates).visible.filter { candidate in
+            sema.symbols.functionSignature(for: candidate)?.parameterTypes.isEmpty == true
+        }
+        if zeroArgumentCandidates.count == 1 {
+            driver.inferFunctionReturnTypesIfNeeded(for: zeroArgumentCandidates)
+        }
+        return zeroArgumentCandidates.contains { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+            let nominalReturns = driver.helpers.allNominalSymbols(
+                of: signature.returnType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: ctx.interner
+            )
+            return nominalReturns.contains {
+                sema.types.isNominalSubtypeSymbol($0, of: readWriteProperty)
+            }
+        }
+    }
+
+    private func readWritePropertyDelegateInterfaceType(
+        of valueType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let ownerSymbol = sema.symbols.lookup(
+            fqName: ["kotlin", "properties", "ReadWriteProperty"].map(interner.intern)
+        ) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol,
+            args: [.in(sema.types.makeNullable(sema.types.anyType)), .invariant(valueType)],
+            nullability: .nonNull
         )))
     }
 
@@ -823,6 +964,17 @@ extension DeclTypeChecker {
                 receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
             )
         }
+        let accessorSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
+            ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+        let contextTypes = bindPropertyContextParameters(
+            property,
+            accessorSymbol: accessorSymbol,
+            sema: sema,
+            locals: &setterLocals
+        )
+        let setterContext = accessorCtx.with(
+            contextReceiverTypes: accessorCtx.contextReceiverTypes + contextTypes
+        )
         let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
             ?? symbol
         setterLocals[interner.intern("field")] = (
@@ -836,13 +988,12 @@ extension DeclTypeChecker {
             finalPropertyType, setterValueSymbol, true, true
         )
         let setterType = inferFunctionBodyType(
-            setter.body, ctx: accessorCtx.copying(
+            setter.body, ctx: setterContext.copying(
                 lambdaLabelStack: [],
                 lambdaReturnScopes: [],
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: sema.types.unitType,
-                enclosingFunctionSymbol: sema.symbols.extensionPropertySetterAccessor(for: symbol)
-                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol),
+                enclosingFunctionSymbol: accessorSymbol,
                 enclosingLambdaExprIDs: []
             ), locals: &setterLocals,
             expectedType: sema.types.unitType

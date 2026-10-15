@@ -37,6 +37,7 @@ struct LoweringPassRegressionTests {
         case arraySet = "kk_array_set"
         case boxIntStatic = "kk_box_int_static"
         case boxLongNonnullStatic = "kk_box_long_nonnull_static"
+        case boxDoubleNonnullStatic = "kk_box_double_nonnull_static"
         case coroutineCallDirectSuspend = "kk_coroutine_call_direct_suspend"
         case coroutineCallSuspendWrapper = "kk_coroutine_call_suspend_wrapper"
         case coroutineContinuationNew = "kk_coroutine_continuation_new"

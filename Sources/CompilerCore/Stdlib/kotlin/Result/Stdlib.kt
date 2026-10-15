@@ -53,6 +53,22 @@ public class Result<out T> {
     public fun exceptionOrNull(): Throwable? =
         __kkRuntimeResultExceptionOrNull(this)
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        val otherResult = other as? Result<*> ?: return false
+        val success = isSuccess
+        if (success != otherResult.isSuccess) return false
+        return if (success) {
+            getOrNull() == otherResult.getOrNull()
+        } else {
+            exceptionOrNull() == otherResult.exceptionOrNull()
+        }
+    }
+
+    override fun hashCode(): Int =
+        if (isSuccess) getOrNull()?.hashCode() ?: 0
+        else exceptionOrNull()?.hashCode() ?: 0
+
     public inline fun <R> map(transform: (T) -> R): Result<R> =
         if (isSuccess) Result.success(transform(getOrThrow())) else this as Result<R>
 

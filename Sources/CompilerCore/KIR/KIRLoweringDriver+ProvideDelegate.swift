@@ -1,14 +1,14 @@
 extension KIRLoweringDriver {
-    /// Emits a `__kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
+    /// Emits the stable KProperty object shared by all operations on a delegated property.
     func emitKPropertyStubCreate(
-        propertyName: InternedString,
-        propertyType: TypeID,
-        shared: KIRLoweringSharedContext,
+        propertySymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
         emit body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        let sema = shared.sema
-        let interner = shared.interner
-        let arena = shared.arena
+        let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
+        let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         let propertyNameExprID = arena.appendExpr(
             .stringLiteral(propertyName),
             type: sema.types.stringType
@@ -22,13 +22,26 @@ extension KIRLoweringDriver {
             type: sema.types.stringType
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
+        let qualifiedName = sema.symbols.symbol(propertySymbol)?.fqName
+            .map(interner.resolve)
+            .joined(separator: ".") ?? interner.resolve(propertyName)
+        let receiverTypeSig = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
+            .map { sema.types.displayName(of: $0, symbols: sema.symbols, interner: interner) } ?? ""
+        let identity = interner.intern(
+            "delegate-property:\(qualifiedName):receiver=\(receiverTypeSig):return=\(interner.resolve(returnTypeSig))"
+        )
+        let identityExprID = arena.appendExpr(
+            .stringLiteral(identity),
+            type: sema.types.stringType
+        )
+        body.append(.constValue(result: identityExprID, value: .stringLiteral(identity)))
         let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(
             .call(
                 symbol: nil,
-                callee: interner.intern("__kk_kproperty_stub_create"),
-                arguments: [propertyNameExprID, returnTypeExprID],
+                callee: interner.intern("__kk_kproperty_stub_create_cached"),
+                arguments: [propertyNameExprID, returnTypeExprID, identityExprID],
                 result: kPropertyExprID,
                 canThrow: false,
                 thrownResult: nil
@@ -69,11 +82,12 @@ extension KIRLoweringDriver {
         initInstructions.append(.constValue(result: thisRefExprID, value: .null))
 
         // Build a KProperty<*> stub.
-        let propertyName = sema.symbols.symbol(symbol)?.name ?? interner.intern("")
-        let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
         let kPropertyExprID = emitKPropertyStubCreate(
-            propertyName: propertyName, propertyType: propType,
-            shared: shared, emit: &initInstructions
+            propertySymbol: symbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            emit: &initInstructions
         )
 
         // Call provideDelegate(thisRef, kProperty) on the raw delegate.

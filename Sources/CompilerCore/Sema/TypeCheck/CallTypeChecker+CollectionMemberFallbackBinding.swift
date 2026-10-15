@@ -388,12 +388,25 @@ extension CallTypeChecker {
             )
         }
         if (memberName == "add" || memberName == "remove"), args.count == 1 {
-            _ = driver.inferExpr(
+            let argumentType = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
                 locals: &locals,
                 expectedType: receiverElementType
             )
+            // This fast path bypasses normal overload argument validation.
+            // Insertion must still respect the mutable collection's element type.
+            if memberName == "add",
+               isMutableCollectionReceiverFlag || isMutableListReceiver || isMutableSetReceiver,
+               !sema.types.isSubtype(argumentType, receiverElementType) {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Argument type mismatch: expected '\(sema.types.renderType(receiverElementType))', got '\(sema.types.renderType(argumentType))'.",
+                    range: ctx.ast.arena.exprRange(args[0].expr)
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
         }
         if memberName == "addAll", args.count == 1 {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)

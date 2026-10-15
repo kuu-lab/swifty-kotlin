@@ -204,6 +204,18 @@ extension LoweringPassRegressionTests {
         #expect(!callees.contains(RuntimeCall.nullablePrimitiveNe.name), "Non-null Double != 0.0 should not need null-aware equality, got: \(callees)")
     }
 
+    @Test(arguments: ["a == b", "b == a", "a != b", "b != a"])
+    func testNonNullDoubleEqualityAgainstAnyBoxesFloatingOperand(comparison: String) throws {
+        let source = """
+        fun compare(a: Double, b: Any?): Boolean = \(comparison)
+        """
+        let callees = try loweredCallees(for: source, function: "compare", includeStdlib: false)
+        let equalityCallee = comparison.contains("!=") ? RuntimeCall.structuralNe.name : RuntimeCall.structuralEq.name
+        #expect(callees.contains(RuntimeCall.boxDoubleNonnullStatic.name), "A raw Double compared with Any? must keep its runtime type through boxing: \(callees)")
+        #expect(callees.contains(equalityCallee), "Double/Any? equality must use structural equality, got: \(callees)")
+        #expect(!callees.contains("kk_op_deq"), "Double/Any? equality must not use numeric equality, got: \(callees)")
+    }
+
     @Test
     func testTwoNullableLongsUsesNullablePrimitiveEquality() throws {
         let source = """
