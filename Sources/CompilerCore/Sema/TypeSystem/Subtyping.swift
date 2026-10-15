@@ -696,7 +696,9 @@ extension TypeSystem {
     }
 
     func isNominalSubtypeSymbol(_ candidate: SymbolID, of base: SymbolID) -> Bool {
-        if candidate == base {
+        // A superclass edge may name an actual class while the use site names
+        // its linked expect class.
+        if candidate == base || areLinkedExpectActualClassSymbols(candidate, base) {
             return true
         }
         var queue = directNominalSupertypes(for: candidate)
@@ -705,7 +707,7 @@ extension TypeSystem {
         while head < queue.count {
             let current = queue[head]
             head += 1
-            if current == base {
+            if current == base || areLinkedExpectActualClassSymbols(current, base) {
                 return true
             }
             if visited.insert(current).inserted {

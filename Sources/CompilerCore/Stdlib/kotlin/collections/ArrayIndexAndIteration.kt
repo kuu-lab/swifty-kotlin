@@ -20,6 +20,8 @@ public fun ByteArray.lastIndex(): Int = this.size - 1
 
 public fun ByteArray.indices(): IntRange = 0..this.lastIndex()
 
+public fun ByteArray.isEmpty(): Boolean = this.size == 0
+
 public fun CharArray.lastIndex(): Int = this.size - 1
 
 public fun CharArray.indices(): IntRange = 0..this.lastIndex()

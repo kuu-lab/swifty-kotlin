@@ -11,11 +11,12 @@ func resolvedExplicitTypeArgument(at index: Int, in explicitTypeArgs: [TypeID]) 
 }
 
 extension CallTypeChecker {
-    /// A single outer candidate supplies an unambiguous expected type for
-    /// each nested call argument. Member calls need this context too: their
-    /// arguments are first inferred to collect candidates, then prepared again
-    /// after the selected receiver and candidate set are known.
-    func prepareSingleCandidateNestedCallExpectedTypes(
+    /// A single outer candidate, or multiple candidates that agree on an
+    /// argument type, supplies an unambiguous expected type for each nested
+    /// call argument. Member calls need this context too: their arguments are
+    /// first inferred to collect candidates, then prepared again after the
+    /// selected receiver and candidate set are known.
+    func prepareUnambiguousNestedCallExpectedTypes(
         args: [CallArgument],
         callRange: SourceRange,
         candidates: [SymbolID],
@@ -31,24 +32,32 @@ extension CallTypeChecker {
             else { return nil }
             return (signature, mapping)
         }
-        guard mappedCandidates.count == 1,
-              let (signature, parameterMapping) = mappedCandidates.first
-        else {
-            return
-        }
-        let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        guard !mappedCandidates.isEmpty else { return }
         for index in args.indices {
-            guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast),
-                  let parameterIndex = parameterMapping[index],
-                  parameterIndex < signature.parameterTypes.count,
-                  let parameterType = contextualCallArgumentType(
-                      args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
-                  ),
-                  !ctx.resolver.containsTypeVariable(
-                      parameterType,
-                      typeVarBySymbol: typeVarBySymbol,
-                      typeSystem: ctx.sema.types
-                  )
+            guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast) else { continue }
+            let contextualTypes = mappedCandidates.compactMap { signature, parameterMapping -> TypeID? in
+                guard let parameterIndex = parameterMapping[index],
+                      parameterIndex < signature.parameterTypes.count,
+                      let parameterType = contextualCallArgumentType(
+                          args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                      )
+                else {
+                    return nil
+                }
+                let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                guard !ctx.resolver.containsTypeVariable(
+                    parameterType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                )
+                else {
+                    return nil
+                }
+                return parameterType
+            }
+            guard contextualTypes.count == mappedCandidates.count,
+                  let parameterType = contextualTypes.first,
+                  contextualTypes.allSatisfy({ $0 == parameterType })
             else {
                 continue
             }
@@ -484,7 +493,7 @@ extension CallTypeChecker {
         }
         // With multiple candidates, their parameter types may differ and must
         // not steer a shared argument toward one overload.
-        prepareSingleCandidateNestedCallExpectedTypes(
+        prepareUnambiguousNestedCallExpectedTypes(
             args: args,
             callRange: callRange,
             candidates: candidates,

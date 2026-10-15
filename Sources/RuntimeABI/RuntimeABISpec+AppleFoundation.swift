@@ -42,6 +42,25 @@ public extension RuntimeABISpec {
             RuntimeABIParameter(name: "handle", type: .intptr),
             RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ], returnType: .intptr, section: "AppleFoundation"),
+        RuntimeABIFunctionSpec(name: "__kk_foundation_mutable_data_create", parameters: [
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "AppleFoundation"),
+        RuntimeABIFunctionSpec(name: "__kk_foundation_mutable_data_append", parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "bytes", type: .intptr),
+            RuntimeABIParameter(name: "length", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "AppleFoundation"),
+        RuntimeABIFunctionSpec(name: "__kk_foundation_string_data_using_encoding", parameters: [
+            RuntimeABIParameter(name: "text", type: .intptr),
+            RuntimeABIParameter(name: "encoding", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "AppleFoundation"),
+        RuntimeABIFunctionSpec(name: "__kk_foundation_string_from_data", parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "encoding", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "AppleFoundation"),
         RuntimeABIFunctionSpec(name: "__kk_foundation_error_create", parameters: [
             RuntimeABIParameter(name: "domain", type: .intptr),
             RuntimeABIParameter(name: "code", type: .intptr),

@@ -1316,6 +1316,7 @@ struct BundledDeclarationIndex: Sendable {
         let text = interner.intern("text")
         let io = interner.intern("io")
         let reflect = interner.intern("reflect")
+        let native = interner.intern("native")
 
         let defaultImportPackages: [[InternedString]] = [
             [kotlin, collections],
@@ -1326,6 +1327,7 @@ struct BundledDeclarationIndex: Sendable {
             [kotlin],
             [kotlin, reflect],
             [kotlin, interner.intern("jvm")],
+            [kotlin, native],
             [interner.intern("java"), interner.intern("lang")],
         ]
 
