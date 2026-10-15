@@ -1210,7 +1210,10 @@ extension OverloadResolver {
                case .functionType = typeSystem.kind(of: argType),
                let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
             {
-                constraintParameterType = typeSystem.make(.functionType(samFunction))
+                constraintParameterType = typeSystem.withNullability(
+                    typeSystem.nullability(of: paramType),
+                    for: typeSystem.make(.functionType(samFunction))
+                )
             } else {
                 constraintParameterType = paramType
             }
