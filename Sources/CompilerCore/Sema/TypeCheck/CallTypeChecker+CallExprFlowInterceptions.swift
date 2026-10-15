@@ -146,12 +146,13 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        // The flow-builder collector is closer in the implicit-receiver tower
+        // than any enclosing class member named `emit`.
         if ctx.isFlowBuilderLambdaScope,
            let calleeName,
            calleeName == knownNames.emit,
            args.count == 1,
-           locals[calleeName] == nil,
-           !flowBuilderEmitHasReceiverMember(ctx: ctx)
+           locals[calleeName] == nil
         {
             let emittedType = driver.inferExpr(
                 args[0].expr, ctx: ctx, locals: &locals,

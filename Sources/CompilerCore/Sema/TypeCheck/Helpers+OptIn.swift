@@ -60,6 +60,18 @@ extension TypeCheckHelpers {
                 isAnnotationConstruction = true
             }
         }
+        if let symbolKind = ctx.sema.symbols.symbol(symbolID)?.kind,
+           (symbolKind == .function || symbolKind == .property),
+           let owner = ctx.sema.symbols.parentSymbol(for: symbolID),
+           let ownerKind = ctx.sema.symbols.symbol(owner)?.kind,
+           (ownerKind == .class || ownerKind == .interface || ownerKind == .object || ownerKind == .enumClass)
+        {
+            var markers = Set(requirements.map(\.markerSymbol))
+            for requirement in requiredOptInRequirements(for: owner, ctx: ctx)
+                where markers.insert(requirement.markerSymbol).inserted {
+                requirements.append(requirement)
+            }
+        }
         // Signature types remain dynamic: expression bodies can refine a header's
         // placeholder after the annotation cache has already been populated.
         // An annotation application's synthetic factory call checks the annotation

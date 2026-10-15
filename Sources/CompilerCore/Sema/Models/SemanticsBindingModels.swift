@@ -4,12 +4,22 @@ public struct CallBinding {
     public let parameterMapping: [Int: Int]
     /// The interface default source in an inherited class use-site scope.
     public let defaultArgumentOwner: SymbolID?
+    /// Whether a callable-reference wrapper must adapt its fixed function
+    /// arity to this declaration's defaults or vararg parameter.
+    public let isCallableReferenceAdapter: Bool
 
-    public init(chosenCallee: SymbolID, substitutedTypeArguments: [TypeID], parameterMapping: [Int: Int], defaultArgumentOwner: SymbolID? = nil) {
+    public init(
+        chosenCallee: SymbolID,
+        substitutedTypeArguments: [TypeID],
+        parameterMapping: [Int: Int],
+        defaultArgumentOwner: SymbolID? = nil,
+        isCallableReferenceAdapter: Bool = false
+    ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
         self.parameterMapping = parameterMapping
         self.defaultArgumentOwner = defaultArgumentOwner
+        self.isCallableReferenceAdapter = isCallableReferenceAdapter
     }
 }
 

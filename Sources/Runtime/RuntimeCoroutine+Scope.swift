@@ -653,7 +653,12 @@ public func kk_coroutine_scope_async_with_cont(
         task.completionJob.continuationState = state
         runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw, continuation: continuation,
-            scope: childScope, job: task.completionJob, onFinished: runtimeAsyncTaskCompletion(task)
+            scope: childScope, job: task.completionJob,
+            onFinished: { result, thrown in
+                runtimeFinishScopedAsyncTask(
+                    task, childScope: childScope, result: result, thrown: thrown
+                )
+            }
         )
     }
 }
@@ -720,8 +725,30 @@ public func kk_coroutine_scope_async(
             captures: captures,
             outThrown: &thrown
         )
-        runtimeAsyncTaskCompletion(task)(result, thrown)
+        runtimeFinishScopedAsyncTask(
+            task, childScope: childScope, result: result, thrown: thrown
+        )
     }
+}
+
+/// A DeferredCoroutine completes only after its own children finish. This is
+/// separate from the parent scope's wait: nested builders belong to the async
+/// task's child scope and must not outlive the deferred result.
+private func runtimeFinishScopedAsyncTask(
+    _ task: RuntimeAsyncTask,
+    childScope: RuntimeCoroutineScope,
+    result: Int,
+    thrown: Int
+) {
+    let priorChildFailure = childScope.childFailureSnapshot()
+    if thrown != 0 {
+        childScope.cancel(message: "async failed", cause: thrown)
+    }
+    let childFailure = childScope.waitForChildren()
+    let failure = priorChildFailure != 0 ? priorChildFailure
+        : (childFailure != 0 && (thrown == 0 || runtimeCoroutineIsCancellationResult(thrown))
+            ? childFailure : thrown)
+    runtimeAsyncTaskCompletion(task)(result, failure)
 }
 
 // Launch shares the task scheduling/Job ABI with async, but owns a child

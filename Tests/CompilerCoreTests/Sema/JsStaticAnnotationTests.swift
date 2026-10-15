@@ -225,6 +225,9 @@
             #expect(invalid.diagnostics.diagnostics.filter {
                 $0.code == "KSWIFTK-SEMA-JS-ANNOTATION-TOO-MANY-ARGUMENTS" && $0.severity == .error
             }.count == 2, "Both JS annotations have zero-argument declarations: \(invalid.diagnostics.diagnostics)")
+            #expect(!invalid.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0022" && $0.message == "Unresolved reference 'kotlin'."
+            }, "Annotation construction should not re-resolve the qualified package name: \(invalid.diagnostics.diagnostics)")
             #expect(invalid.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" && $0.severity == .error
             }, "\(invalid.diagnostics.diagnostics)")

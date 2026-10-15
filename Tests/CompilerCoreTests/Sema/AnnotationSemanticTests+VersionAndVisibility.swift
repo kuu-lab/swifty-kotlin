@@ -1480,9 +1480,11 @@ extension AnnotationSemanticTests {
         }
 
         #expect(
-            errors.contains { $0.message.contains("createInstance") },
-            "An unbound reference to the generic extension should be rejected; bind a KClass receiver to inspect its name"
+            errors.contains { $0.message.contains("createInstance") }
+                && errors.contains { $0.message.contains("name") },
+            "Reject the unbound reference and keep the unresolved member diagnostic: \(errors)"
         )
+        #expect(errors.count == 2, "Expected both unresolved references: \(errors)")
     }
 
     @Test func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {

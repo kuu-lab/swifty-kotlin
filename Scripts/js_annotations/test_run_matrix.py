@@ -22,6 +22,9 @@ ERROR_CODE = "KSWIFTK-TEST-ERROR"
 DIAGNOSTIC_MAP = {
     "schemaVersion": 1,
     "codes": {WARNING_CODE: "TEST_WARNING", ERROR_CODE: "TEST_ERROR"},
+    "messageOverrides": {
+        ERROR_CODE: {"Unresolved import path.": "TEST_IMPORT"},
+    },
 }
 
 
@@ -265,6 +268,52 @@ class MatrixRunnerRegressionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.read_summary()["counts"]["failed"], 0)
 
+    def test_message_override_is_applied_in_all_modes(self) -> None:
+        expected = [{"severity": "error", "kind": "TEST_IMPORT"}]
+        diagnostics = [{
+            "code": ERROR_CODE,
+            "severityLabel": "error",
+            "message": "Unresolved import path.",
+        }]
+        expectations = self.write_case(
+            "negative_import", expected_stdout=None, compile_exit=1, expected_diagnostics=expected
+        )
+        result = self.run_matrix(expectations, compile_exit=1, diagnostics=diagnostics)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.read_summary()["counts"]["failed"], 0)
+
+    def test_unmapped_diagnostic_with_same_severity_is_recorded_without_crashing(self) -> None:
+        expectations = self.write_case(
+            "negative_unmapped",
+            expected_stdout=None,
+            compile_exit=1,
+            expected_diagnostics=[{"severity": "error", "kind": "TEST_ERROR"}],
+        )
+        diagnostics = [
+            {"code": ERROR_CODE, "severityLabel": "error"},
+            {"code": "KSWIFTK-TEST-UNMAPPED", "severityLabel": "error"},
+        ]
+        result = self.run_matrix(expectations, compile_exit=1, diagnostics=diagnostics)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertNotIn("TypeError", result.stdout + result.stderr)
+        summary = self.read_summary()
+        self.assertEqual(summary["counts"]["failed"], 4)
+        case_result = json.loads(
+            (
+                self.latest_run()
+                / "cases/negative_unmapped/source-injection-O0/result.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertIn("unknown_diagnostic_code:KSWIFTK-TEST-UNMAPPED", case_result["failureReasons"])
+        self.assertIn("compile_diagnostics_mismatch", case_result["failureReasons"])
+        self.assertEqual(
+            case_result["actualDiagnosticCounts"],
+            [
+                {"severity": "error", "kind": None, "count": 1},
+                {"severity": "error", "kind": "TEST_ERROR", "count": 1},
+            ],
+        )
+
     def test_missing_marker_diagnostic_in_one_mode_is_a_failure(self) -> None:
         expected = [{"severity": "warning", "kind": "TEST_WARNING"}] * 3
         diagnostics = [{"code": WARNING_CODE, "severityLabel": "warning"}] * 3
@@ -326,7 +375,7 @@ class MatrixRunnerRegressionTests(unittest.TestCase):
         contract_pairs = tuple(
             (path.resolve(), mapping.resolve()) for path, mapping in run_matrix.DEFAULT_CONTRACT_PAIRS
         )
-        document, _ = run_matrix.load_contract_sets(contract_pairs)
+        document, _, _ = run_matrix.load_contract_sets(contract_pairs)
         self.assertEqual(run_matrix.validate_required_sentinels(document["cases"]), [])
 
         for case_id, mutation, expected_error in (

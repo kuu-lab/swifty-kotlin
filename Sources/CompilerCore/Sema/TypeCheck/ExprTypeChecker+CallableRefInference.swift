@@ -19,13 +19,13 @@ extension ExprTypeChecker {
         return ctx.filterByVisibility(ctorSymbols).0
     }
 
-    private func bindReifiedCallableReference(
-        _ expression: ExprID, target: SymbolID, arguments: [TypeID],
+    private func bindCallableReferenceBinding(
+        _ expression: ExprID, target: SymbolID, specialization: ContextualCallableReferenceBinding,
         range: SourceRange, ctx: TypeInferenceContext
     ) {
         guard let signature = ctx.sema.symbols.functionSignature(for: target) else { return }
-        for index in signature.reifiedTypeParameterIndices.sorted() where index < arguments.count {
-            if case let .typeParam(parameter) = ctx.sema.types.kind(of: arguments[index]),
+        for index in signature.reifiedTypeParameterIndices.sorted() where index < specialization.typeArguments.count {
+            if case let .typeParam(parameter) = ctx.sema.types.kind(of: specialization.typeArguments[index]),
                ctx.sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) != true {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-REIFIED", "Cannot use an unreified type parameter as a reified type argument.", range: range
@@ -33,7 +33,10 @@ extension ExprTypeChecker {
             }
         }
         ctx.sema.bindings.bindCallableReference(expression, binding: CallBinding(
-            chosenCallee: target, substitutedTypeArguments: arguments, parameterMapping: [:]
+            chosenCallee: target,
+            substitutedTypeArguments: specialization.typeArguments,
+            parameterMapping: specialization.parameterMapping,
+            isCallableReferenceAdapter: specialization.requiresAdapter
         ))
     }
 
@@ -786,6 +789,7 @@ extension ExprTypeChecker {
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen)
         {
+            var contextualSpecialization: ContextualCallableReferenceBinding?
             var inferredType = driver.helpers.callableFunctionType(
                 for: signature,
                 bindReceiver: isBoundReceiver,
@@ -831,9 +835,7 @@ extension ExprTypeChecker {
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
-                        bindReifiedCallableReference(
-                            id, target: chosen, arguments: specialization.typeArguments, range: range, ctx: ctx
-                        )
+                        contextualSpecialization = specialization
                     } else {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-INFER", "Cannot infer type arguments for reified callable reference.", range: range
@@ -850,9 +852,10 @@ extension ExprTypeChecker {
                               postponedReturnTypeParameter: postponedReturnParameter, interner: interner, sema: sema
                           ) {
                     inferredType = specialization.functionType
+                    contextualSpecialization = specialization
                     resultType = inferredType
                 } else if !sema.types.typeContainsAnyTypeParam(concreteResult) {
-                    if let specializedType = driver.helpers.contextualCallableFunctionType(
+                    if let specialization = driver.helpers.contextualCallableReferenceBinding(
                         for: signature,
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
@@ -860,7 +863,8 @@ extension ExprTypeChecker {
                         interner: interner,
                         sema: sema
                     ) {
-                        inferredType = specializedType
+                        inferredType = specialization.functionType
+                        contextualSpecialization = specialization
                     } else {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-TYPE-0001",
@@ -868,7 +872,15 @@ extension ExprTypeChecker {
                             range: range
                         )
                     }
-                    resultType = resultTypePreservingSuspendConversionSource(concreteResult)
+                    // Keep the selected reference's concrete function type.
+                    // `expectedFunctionType` may be an input-only placeholder
+                    // such as `(Char) -> Any?` synthesized while an overloaded
+                    // call compares HOF candidates. Widening the reference to
+                    // that placeholder hides its real return type from the
+                    // enclosing overload resolver.
+                    resultType = resultTypePreservingSuspendConversionSource(
+                        expectedSamInterfaceType ?? inferredType
+                    )
                 } else {
                     resultType = inferredType
                 }
@@ -882,9 +894,7 @@ extension ExprTypeChecker {
                            expectedFunctionType: nil, interner: interner, sema: sema
                        ) {
                         inferredType = specialization.functionType
-                        bindReifiedCallableReference(
-                            id, target: chosen, arguments: specialization.typeArguments, range: range, ctx: ctx
-                        )
+                        contextualSpecialization = specialization
                     } else {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-INFER", "Reified callable reference requires contextual type arguments.", range: range
@@ -907,6 +917,13 @@ extension ExprTypeChecker {
                 sema.bindings.markSamConversion(id)
                 sema.bindings.bindSamInterfaceType(id, type: expectedSamInterfaceType)
                 sema.bindings.bindSamUnderlyingFunctionType(id, type: expectedFunctionType ?? inferredType)
+            }
+            if let contextualSpecialization,
+               contextualSpecialization.requiresAdapter || !contextualSpecialization.typeArguments.isEmpty
+            {
+                bindCallableReferenceBinding(
+                    id, target: chosen, specialization: contextualSpecialization, range: range, ctx: ctx
+                )
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

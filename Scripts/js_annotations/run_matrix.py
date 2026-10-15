@@ -238,16 +238,24 @@ def validate_required_sentinels(cases: list[dict[str, Any]]) -> list[str]:
 
 def load_contract_sets(
     contract_pairs: tuple[tuple[Path, Path], ...],
-) -> tuple[dict[str, Any], dict[str, str]]:
+) -> tuple[dict[str, Any], dict[str, str], dict[str, dict[str, str]]]:
     merged_cases: dict[str, dict[str, Any]] = {}
     code_to_kind: dict[str, str] = {}
+    message_overrides: dict[str, dict[str, str]] = {}
     for expectations_path, diagnostic_map_path in contract_pairs:
-        document, mapping = candidate.load_contract_files(expectations_path, diagnostic_map_path)
+        document, mapping, overrides = candidate.load_contract_files(expectations_path, diagnostic_map_path)
         for code, kind in mapping.items():
             prior_kind = code_to_kind.get(code)
             if prior_kind is not None and prior_kind != kind:
                 raise ValueError(f"diagnostic code has conflicting kinds: {code}")
             code_to_kind[code] = kind
+        for code, code_overrides in overrides.items():
+            merged_overrides = message_overrides.setdefault(code, {})
+            for message, kind in code_overrides.items():
+                prior_kind = merged_overrides.get(message)
+                if prior_kind is not None and prior_kind != kind:
+                    raise ValueError(f"diagnostic message has conflicting kinds: {code}: {message}")
+                merged_overrides[message] = kind
 
         for original_case in document["cases"]:
             if not isinstance(original_case, dict) or not isinstance(original_case.get("id"), str):
@@ -274,7 +282,7 @@ def load_contract_sets(
                     raise ValueError(f"duplicate case has conflicting {field}: {case_id}")
             previous["_expectationSources"].extend(case["_expectationSources"])
 
-    return {"schemaVersion": 1, "cases": list(merged_cases.values())}, code_to_kind
+    return {"schemaVersion": 1, "cases": list(merged_cases.values())}, code_to_kind, message_overrides
 
 
 def expected_run_signature(record: dict[str, Any]) -> tuple[Any, ...]:
@@ -317,6 +325,7 @@ def run_matrix_case(
     optimization: str,
     compiler_env: dict[str, str],
     code_to_kind: dict[str, str],
+    message_overrides: dict[str, dict[str, str]],
     compile_timeout: float,
     run_timeout: float,
 ) -> dict[str, Any]:
@@ -403,7 +412,7 @@ def run_matrix_case(
         try:
             raw_diagnostics = candidate.diagnostic_json(compile_result["stderr"])
             actual_diagnostics, unknown_codes = candidate.canonical_diagnostics(
-                raw_diagnostics, code_to_kind
+                raw_diagnostics, code_to_kind, message_overrides
             )
             record["actualDiagnostics"] = actual_diagnostics
             for code in unknown_codes:
@@ -414,6 +423,7 @@ def run_matrix_case(
             compile_result["stderr"],
             compile_contract.get("diagnostics"),
             code_to_kind,
+            message_overrides,
             record,
         )
 
@@ -610,7 +620,7 @@ def main(argv: list[str] | None = None) -> int:
     fatal_reason: str | None = None
     selected: list[dict[str, Any]] = []
     try:
-        document, code_to_kind = load_contract_sets(contract_pairs)
+        document, code_to_kind, message_overrides = load_contract_sets(contract_pairs)
         summary["expectationInputs"] = [
             {"path": str(path), "sha256": candidate.sha256_file(path)}
             for path, _ in contract_pairs
@@ -622,6 +632,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, json.JSONDecodeError) as error:
         document = {"cases": []}
         code_to_kind = {}
+        message_overrides = {}
         fatal_reason = "contract_input_invalid"
         summary["contractError"] = str(error)
 
@@ -726,6 +737,7 @@ def main(argv: list[str] | None = None) -> int:
                         optimization=optimization,
                         compiler_env=compiler_env,
                         code_to_kind=code_to_kind,
+                        message_overrides=message_overrides,
                         compile_timeout=args.compile_timeout,
                         run_timeout=args.run_timeout,
                     )

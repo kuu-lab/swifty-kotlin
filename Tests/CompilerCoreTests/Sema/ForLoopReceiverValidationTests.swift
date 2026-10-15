@@ -74,4 +74,30 @@ struct ForLoopReceiverValidationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
+    func acceptsSquareBracketDestructuringInForLoop() throws {
+        let ctx = makeContextFromSource("""
+        data class C(val first: Int, val second: Int)
+        fun main() {
+            for ([a, b] in arrayOf(C(1, 2))) {
+                println(a)
+                println(b)
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let names = ast.arena.exprs.compactMap { expression -> [InternedString?]? in
+            guard case let .forDestructuringExpr(names, _, _, _) = expression,
+                  names.map({ $0.map(ctx.interner.resolve) }) == ["a", "b"]
+            else {
+                return nil
+            }
+            return names
+        }.first
+        #expect(names?.map { $0.map(ctx.interner.resolve) } == ["a", "b"])
+    }
+
 }

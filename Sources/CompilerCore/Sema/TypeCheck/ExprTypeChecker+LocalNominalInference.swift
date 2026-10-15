@@ -303,6 +303,26 @@ extension ExprTypeChecker {
         for propertySymbol in propertySymbolsByDecl.values {
             classScope.insert(propertySymbol)
         }
+        if let compilationContext = driver.compilationContext {
+            DataFlowSemaPhase().collectMemberHeaders(
+                members: MemberDeclarations(
+                    functions: [],
+                    properties: [],
+                    nestedClasses: classDecl.nestedClasses,
+                    nestedObjects: classDecl.nestedObjects
+                ),
+                owner: OwnerContext(fqName: classFQName, symbol: classSymbol, type: classType),
+                sourceFileID: ctx.currentFileID,
+                ctx: compilationContext,
+                ast: ast,
+                symbols: sema.symbols,
+                types: sema.types,
+                bindings: sema.bindings,
+                scope: classScope,
+                diagnostics: sema.diagnostics,
+                interner: interner
+            )
+        }
         // Synthetic local owners do not encode lexical nesting in their FQ
         // names. Preserve every surrounding class, including other locals.
         var lexicalEnclosingFQNames: [[InternedString]] = []
@@ -313,6 +333,25 @@ extension ExprTypeChecker {
                 lexicalEnclosingFQNames.append(owner.fqName)
             }
             lexicalScope = scope.parent
+        }
+        var nestedEnclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
+        nestedEnclosingClassScopes.append(classFQName)
+        if let sourceFile = ast.file(for: ctx.currentFileID) {
+            for nestedDeclID in classDecl.nestedClasses + classDecl.nestedObjects {
+                DataFlowSemaPhase().bindInheritanceEdges(
+                    declID: nestedDeclID,
+                    currentPackage: sourceFile.packageFQName,
+                    imports: sourceFile.imports,
+                    enclosingTypeParameters: [:],
+                    enclosingClassScopes: nestedEnclosingClassScopes,
+                    ast: ast,
+                    symbols: sema.symbols,
+                    bindings: sema.bindings,
+                    types: sema.types,
+                    diagnostics: sema.diagnostics,
+                    interner: interner
+                )
+            }
         }
         sema.bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
         DataFlowSemaPhase().registerPrimaryConstructorPropertyAnnotations(
@@ -357,6 +396,23 @@ extension ExprTypeChecker {
             implicitReceiverType: classType,
             enclosingClassSymbol: classSymbol
         )
+
+        for nestedClassDeclID in classDecl.nestedClasses {
+            driver.declChecker.typeCheckNestedClassDecl(
+                declID: nestedClassDeclID,
+                ctx: classCtx,
+                solver: driver.solver,
+                diagnostics: sema.diagnostics
+            )
+        }
+        for nestedObjectDeclID in classDecl.nestedObjects {
+            driver.declChecker.typeCheckNestedObjectDecl(
+                nestedObjectDeclID,
+                ctx: classCtx,
+                solver: driver.solver,
+                diagnostics: sema.diagnostics
+            )
+        }
 
         // Constructor-parameter locals shadow outer locals of the same name
         // (Kotlin scopes header params inside `<init>`/init blocks/
@@ -465,6 +521,32 @@ extension ExprTypeChecker {
             sema: sema
         )
 
+        var pendingNestedNominalDecls = classDecl.nestedClasses + classDecl.nestedObjects
+        var nestedNominalSymbols: [SymbolID] = []
+        while let nestedDeclID = pendingNestedNominalDecls.popLast() {
+            guard let nestedSymbol = sema.bindings.declSymbols[nestedDeclID],
+                  let nestedDecl = ast.arena.decl(nestedDeclID)
+            else {
+                continue
+            }
+            nestedNominalSymbols.append(nestedSymbol)
+            switch nestedDecl {
+            case let .classDecl(nestedClass):
+                pendingNestedNominalDecls.append(contentsOf: nestedClass.nestedClasses + nestedClass.nestedObjects)
+                if let companionObject = nestedClass.companionObject {
+                    pendingNestedNominalDecls.append(companionObject)
+                }
+            case let .interfaceDecl(nestedInterface):
+                pendingNestedNominalDecls.append(contentsOf: nestedInterface.nestedClasses + nestedInterface.nestedObjects)
+                if let companionObject = nestedInterface.companionObject {
+                    pendingNestedNominalDecls.append(companionObject)
+                }
+            case let .objectDecl(nestedObject):
+                pendingNestedNominalDecls.append(contentsOf: nestedObject.nestedClasses + nestedObject.nestedObjects)
+            default:
+                break
+            }
+        }
         synthesizeLocalNominalLayout(
             ownerSymbol: classSymbol,
             memberFunctionDecls: classDecl.memberFunctions,
@@ -476,6 +558,13 @@ extension ExprTypeChecker {
             declRange: classDecl.range,
             subjectDescription: "Class '\(interner.resolve(classDecl.name))'",
             ctx: ctx
+        )
+        DataFlowSemaPhase().synthesizeNominalLayouts(
+            for: nestedNominalSymbols,
+            symbols: sema.symbols,
+            types: sema.types,
+            interner: interner,
+            diagnostics: sema.diagnostics
         )
         return classSymbol
     }

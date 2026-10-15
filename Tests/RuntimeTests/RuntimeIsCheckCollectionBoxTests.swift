@@ -28,12 +28,17 @@ struct RuntimeIsCheckCollectionBoxTests {
             : runtimeMutableMapEntryNew(mapRaw: map, key: 1, value: 2)
         let mutableEntryID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap.MutableEntry"))
         let entryID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry"))
+        #expect(runtimeObjectTypeID(rawValue: entry) == Int64(mutableEntryID))
         #expect(kk_op_is(entry, token("kotlin.collections.MutableMap.MutableEntry")) == 1)
         #expect(kk_op_is(entry, token("kotlin.collections.Map.Entry")) == 1)
+        #expect(runtimeMapEntryValues(rawValue: entry)?.key == 1)
+        #expect(runtimeMapEntryValues(rawValue: entry)?.value == 2)
+        var thrown = 0
+        #expect(kk_op_cast(entry, token("kotlin.collections.MutableMap.MutableEntry"), &thrown) == entry)
+        #expect(thrown == 0)
         let pointer = kk_itable_lookup_dynamic(entry, mutableEntryID, 0)
         try #require(pointer != 0)
         let setValue = unsafeBitCast(pointer, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-        var thrown = 0
         #expect(setValue(entry, 4, &thrown) == 2)
         #expect(thrown == 0)
         #expect(kk_map_get(map, 1) == 4)
@@ -145,6 +150,30 @@ struct RuntimeIsCheckCollectionBoxTests {
         #expect(thrown == 0)
         #expect(kk_op_is(iter, token("kotlin.collections.Iterator")) == 1)
         #expect(try iteratorMethod(iter, slot: 1)(iter, &thrown) == 4)
+    }
+
+    @Test
+    func arraysExposeIterableAndSequenceIteratorTables() throws {
+        let array = kk_array_new(1)
+        var thrown = 0
+        _ = kk_array_set(array, 0, 42, &thrown)
+        #expect(thrown == 0)
+
+        for interfaceName in ["kotlin.collections.Iterable", "kotlin.sequences.Sequence"] {
+            let interfaceID = Int(runtimeStableNominalTypeID(fqName: interfaceName))
+            let pointer = kk_itable_lookup_dynamic(array, interfaceID, 0)
+            try #require(pointer != 0, "Array must expose (interfaceName).iterator()")
+            let iterator = unsafeBitCast(
+                pointer,
+                to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            let rawIterator = iterator(array, &thrown)
+            #expect(thrown == 0)
+            #expect(kk_iterator_hasNext(rawIterator, &thrown) == 1)
+            #expect(kk_iterator_next(rawIterator, &thrown) == 42)
+            #expect(kk_iterator_hasNext(rawIterator, &thrown) == 0)
+            #expect(thrown == 0)
+        }
     }
 
     @Test

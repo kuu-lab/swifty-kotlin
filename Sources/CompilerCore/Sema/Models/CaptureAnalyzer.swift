@@ -47,7 +47,6 @@ struct CaptureAnalyzer {
         }
 
         var captured: Set<SymbolID> = []
-
         func recordCapture(for targetExprID: ExprID) {
             guard let symbol = sema.bindings.identifierSymbol(for: targetExprID),
                   outerSymbols.contains(symbol)
@@ -123,6 +122,21 @@ struct CaptureAnalyzer {
                 visit(value)
 
             case let .call(callee, _, args, _):
+                var isLocalFunctionCall = false
+                let calleeSymbol = sema.bindings.callBinding(for: currentExprID)?.chosenCallee
+                    ?? sema.bindings.identifierSymbol(for: callee)
+                if let calleeSymbol,
+                   sema.symbols.symbol(calleeSymbol)?.flags.contains(.localFunction) == true
+                {
+                    isLocalFunctionCall = true
+                    // Lifted local functions receive their free variables as
+                    // leading call arguments. Preserve those dependencies in
+                    // the enclosing nominal so constructor lambdas can
+                    // forward the environment after the function is lifted.
+                    captured.formUnion(sema.bindings.localFunctionCaptureSymbols(for: calleeSymbol).filter {
+                        outerSymbols.contains($0)
+                    })
+                }
                 // A call that resolved on an outer implicit receiver needs the
                 // enclosing `this` captured so the receiver value reaches the
                 // member body's lowering.
@@ -148,7 +162,9 @@ struct CaptureAnalyzer {
                 {
                     captured.insert(owner)
                 }
-                visit(callee)
+                if !isLocalFunctionCall {
+                    visit(callee)
+                }
                 for arg in args {
                     visit(arg.expr)
                 }

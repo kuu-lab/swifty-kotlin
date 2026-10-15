@@ -94,6 +94,62 @@ public operator fun ShortArray.iterator(): ShortIterator {
     }
 }
 
+public operator fun BooleanArray.iterator(): BooleanIterator {
+    val array = this
+    return object : BooleanIterator() {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun nextBoolean(): Boolean {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+public operator fun CharArray.iterator(): CharIterator {
+    val array = this
+    return object : CharIterator() {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun nextChar(): Char {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+public operator fun DoubleArray.iterator(): DoubleIterator {
+    val array = this
+    return object : DoubleIterator() {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun nextDouble(): Double {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
+public operator fun FloatArray.iterator(): FloatIterator {
+    val array = this
+    return object : FloatIterator() {
+        private var index = 0
+
+        override fun hasNext(): Boolean = index < array.size
+
+        override fun nextFloat(): Float {
+            if (!hasNext()) throw NoSuchElementException()
+            return array[index++]
+        }
+    }
+}
+
 @ExperimentalUnsignedTypes
 public operator fun UByteArray.iterator(): Iterator<UByte> {
     val array = this

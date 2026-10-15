@@ -106,6 +106,13 @@ struct StringReplaceFirstCharOverloadTests {
             Issue.record("Char::titlecase should bind to a callable target")
             return
         }
+        guard let titlecaseRefTypeID = sema.bindings.exprType(for: titlecaseRefExprID),
+              case let .functionType(titlecaseRefType) = sema.types.kind(of: titlecaseRefTypeID)
+        else {
+            Issue.record("Char::titlecase should retain its concrete function type")
+            return
+        }
+        #expect(titlecaseRefType.returnType == sema.types.stringType)
         #expect(titlecaseTarget.fqName.map(ctx.interner.resolve) == ["kotlin", "text", "titlecase"])
         #expect(sema.symbols.functionSignature(for: titlecaseTargetID)?.receiverType == sema.types.charType)
         let charSequenceSymbol = try #require(

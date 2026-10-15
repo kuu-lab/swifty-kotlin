@@ -27,7 +27,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func bindInheritanceEdges(
+    func bindInheritanceEdges(
         declID: DeclID,
         currentPackage: [InternedString],
         imports: [ImportDecl],
