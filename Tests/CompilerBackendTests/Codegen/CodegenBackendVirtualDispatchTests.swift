@@ -7,6 +7,43 @@ import Testing
 @Suite
 struct CodegenBackendVirtualDispatchTests {
 
+    @Test func testExpectedTypeSelectsSameNamedPropertyOrFunction() throws {
+        let source = """
+        import kotlin.reflect.KProperty1
+
+        class A {
+            val x: Int = 1
+            fun x(): String = "OK"
+        }
+
+        fun main() {
+            val property: KProperty1<A, Int> = A::x
+            val propertyFunction: (A) -> Int = A::x
+            val function: (A) -> String = A::x
+            val value = A()
+            println(property.get(value))
+            println(propertyFunction(value))
+            println(function(value))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU2315PropertyFunctionCallableReferenceSource",
+            expected: "1\n1\nOK\n",
+            optLevel: .O0,
+            allowDefaultStdlibLibrary: false
+        )
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU2315PropertyFunctionCallableReferenceArtifact",
+                expected: "1\n1\nOK\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: true
+            )
+        }
+    }
+
     @Test(arguments: [true, false])
     func testNestedObjectGenericReturnUsesErasedDispatchABI(allowDefaultStdlibLibrary: Bool) throws {
         for optLevel in [OptimizationLevel.O0, .O2] {

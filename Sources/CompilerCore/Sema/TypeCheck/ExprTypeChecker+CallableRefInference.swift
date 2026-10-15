@@ -356,6 +356,7 @@ extension ExprTypeChecker {
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
+        var unboundMemberPropertyCandidate: (symbol: SymbolID, ownerType: TypeID, type: TypeID)?
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
             // `Any` is represented by a builtin TypeID, while its compiler-provided
@@ -391,16 +392,29 @@ extension ExprTypeChecker {
                     interner: interner
                 )
             }
+            let memberProperty = driver.helpers.lookupMemberProperty(
+                named: member,
+                receiverType: nonNullReceiver,
+                sema: sema
+            )
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
+                if unboundClassType != nil,
+                   let memberProperty,
+                   sema.symbols.extensionPropertyReceiverType(for: memberProperty.symbol) == nil
+                {
+                    unboundMemberPropertyCandidate = (
+                        memberProperty.symbol,
+                        nonNullReceiver,
+                        memberProperty.type
+                    )
+                }
             } else {
                 // Property references use the same inheritance-aware lookup as
                 // ordinary member reads (for example MutableList<Int>::size).
-                if let property = driver.helpers.lookupMemberProperty(
-                    named: member,
-                    receiverType: nonNullReceiver,
-                    sema: sema
-                ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil {
+                if let property = memberProperty,
+                   sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil
+                {
                     // `lookupMemberProperty` has already substituted the
                     // receiver's arguments into the property type. Keep that
                     // specialized value type even for a bound reference, whose
@@ -773,6 +787,65 @@ extension ExprTypeChecker {
             expectedSamInterfaceType = nil
         }
 
+        let unboundMemberPropertyReferenceType: TypeID? = if let candidate = unboundMemberPropertyCandidate {
+            kPropertyReferenceType(
+                ownerType: candidate.ownerType,
+                valueType: candidate.type,
+                isMutable: sema.symbols.symbol(candidate.symbol)?.flags.contains(.mutable) == true,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        if let candidate = unboundMemberPropertyCandidate,
+           let expectedType,
+           isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner),
+           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           sema.types.isSubtype(propertyReferenceType, expectedType)
+        {
+            return bindPropertyCallableRef(
+                id,
+                propertySymbol: candidate.symbol,
+                ownerType: candidate.ownerType,
+                isUnbound: true,
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                resolvedPropertyType: candidate.type
+            )
+        }
+        if let candidate = unboundMemberPropertyCandidate,
+           let expectedFunctionType,
+           !sema.types.typeContainsAnyTypeParam(expectedFunctionType),
+           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           sema.types.isSubtype(propertyReferenceType, expectedFunctionType),
+           !candidates.contains(where: { driver.inferredReturnFunctions[$0] != nil })
+        {
+            let functionCandidateMatches = candidates.contains { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                return driver.helpers.contextualCallableReferenceBinding(
+                    for: signature,
+                    bindReceiver: false,
+                    expectedFunctionType: expectedFunctionType,
+                    interner: interner,
+                    sema: sema
+                ) != nil
+            }
+            if !functionCandidateMatches {
+                return bindPropertyCallableRef(
+                    id,
+                    propertySymbol: candidate.symbol,
+                    ownerType: candidate.ownerType,
+                    isUnbound: true,
+                    expectedType: expectedType,
+                    sema: sema,
+                    interner: interner,
+                    resolvedPropertyType: candidate.type
+                )
+            }
+        }
+
         // `Type::toString` as a `(Type) -> String` value: the zero-argument
         // `toString()` has no member symbol (only the `toString(radix)`
         // overload is declared), so every candidate is an arity mismatch.
@@ -876,6 +949,23 @@ extension ExprTypeChecker {
             interner: interner,
             sema: sema
         )
+        if chosen == nil,
+           let candidate = unboundMemberPropertyCandidate,
+           let expectedFunctionType,
+           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           sema.types.isSubtype(propertyReferenceType, expectedFunctionType)
+        {
+            return bindPropertyCallableRef(
+                id,
+                propertySymbol: candidate.symbol,
+                ownerType: candidate.ownerType,
+                isUnbound: true,
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                resolvedPropertyType: candidate.type
+            )
+        }
 
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen)
