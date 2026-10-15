@@ -160,6 +160,47 @@ extension ExprLowerer {
             ))
             return result
         }
+        // Enum-entry properties are owned by their entry field in Sema, but
+        // use the containing enum's ordinal-keyed side storage at runtime.
+        if let symbol = sema.bindings.identifierSymbols[exprID]
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+           let propertyInfo = sema.symbols.symbol(symbol),
+           propertyInfo.kind == .property,
+           let entryField = sema.symbols.parentSymbol(for: symbol),
+           driver.callLowerer.enumClassOwnerSymbol(forEntryField: entryField, sema: sema) != nil,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        {
+            let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
+            let result = arena.appendTemporary(type: resultType)
+            if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
+                let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                driver.callLowerer.appendPropertyGetterCall(
+                    getterSymbol: getterSymbol,
+                    receiver: receiverExprID,
+                    callExprID: exprID,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                return result
+            }
+            if let getterPlaceholder = driver.callLowerer.enumPropertyGetterPlaceholder(
+                for: symbol, sema: sema, interner: interner
+            ) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: getterPlaceholder,
+                    arguments: [receiverExprID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
         // STDLIB-004: Implicit receiver member access (e.g. `length` inside
         // `run { length }` resolves as `this.length`).
         if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],

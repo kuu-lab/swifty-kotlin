@@ -612,6 +612,28 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
+        // KUU-2380: enum-entry properties are owned by the entry field in
+        // Sema, while their backing slots and getter helpers belong to the
+        // containing enum class. Resolve that owner before the nominal
+        // instance-layout path treats the ordinal receiver as an object.
+        if enumClassOwnerSymbol(forEntryField: ownerSymbol, sema: sema) != nil,
+           let propertyInfo = sema.symbols.symbol(propertySymbol),
+           propertyInfo.kind == .property,
+           let getterPlaceholder = enumPropertyGetterPlaceholder(
+               for: propertySymbol, sema: sema, interner: interner
+           )
+        {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: getterPlaceholder,
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         guard ownerInfo.kind == .class || ownerInfo.kind == .interface
             || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
         else {
@@ -1758,6 +1780,23 @@ extension CallLowerer {
         }
         let ownerFQName = Array(field.fqName.dropLast())
         return sema.symbols.lookupAll(fqName: ownerFQName).contains { candidate in
+            sema.symbols.symbol(candidate)?.kind == .enumClass
+        }
+    }
+
+    func enumClassOwnerSymbol(forEntryField fieldSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+        guard isEnumEntryField(fieldSymbol, sema: sema),
+              let fieldInfo = sema.symbols.symbol(fieldSymbol)
+        else {
+            return nil
+        }
+        if let parentSymbol = sema.symbols.parentSymbol(for: fieldSymbol),
+           sema.symbols.symbol(parentSymbol)?.kind == .enumClass
+        {
+            return parentSymbol
+        }
+        let ownerFQName = Array(fieldInfo.fqName.dropLast())
+        return sema.symbols.lookupAll(fqName: ownerFQName).first { candidate in
             sema.symbols.symbol(candidate)?.kind == .enumClass
         }
     }

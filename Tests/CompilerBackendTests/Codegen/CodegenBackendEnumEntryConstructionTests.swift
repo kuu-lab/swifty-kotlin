@@ -295,6 +295,43 @@ struct CodegenBackendEnumEntryConstructionTests {
         )
     }
 
+    @Test
+    func testEntryBodyStoredPropertiesAreReadableFromOverrides() throws {
+        let source = """
+        enum class Direction() {
+            NORTH {
+                val someSpecialValue = "OK"
+                override fun f() = someSpecialValue
+            },
+            SOUTH { override fun f() = "LITERAL" };
+            val bodyValue = "CLASS"
+            fun readBodyValue() = bodyValue
+            abstract fun f(): String
+        }
+
+        enum class X {
+            B {
+                val value2 = "OK"
+                override val value = { value2 }
+            };
+            abstract val value: () -> String
+        }
+
+        fun main() {
+            println(Direction.NORTH.f())
+            println(Direction.SOUTH.f())
+            println(Direction.NORTH.readBodyValue())
+            println(X.B.value())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "EnumEntryBodyPropertyOverride",
+            expected: "OK\nLITERAL\nCLASS\nOK\n"
+        )
+    }
+
     /// The itable getter registered for an interface property overridden by
     /// an enum constructor property used to read an instance field offset
     /// from the ordinal box and trip `kk_array_get_inbounds`.
