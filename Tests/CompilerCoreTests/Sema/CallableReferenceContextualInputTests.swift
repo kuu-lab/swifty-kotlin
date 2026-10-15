@@ -83,5 +83,34 @@ struct CallableReferenceContextualInputTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "Invalid reference must be rejected: \(use)")
     }
+
+    @Test func reduceSelectsPrimitiveOperatorReferenceFromElementType() throws {
+        let ctx = makeContextFromSource("""
+        fun listProduct(values: List<Long>): Long = values.reduce(Long::times)
+        fun iterableProduct(values: Iterable<Long>): Long = values.reduce(Long::times)
+        fun listSum(values: List<Long>): Long = values.reduce(Long::plus)
+        fun explicitIterableProduct(values: Iterable<Long>): Long = values.reduce<Long, Long>(Long::times)
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let operations = ast.arena.exprs.indices.compactMap { index -> BinaryOp? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case .callableRef = ast.arena.expr(id) else { return nil }
+            return sema.bindings.primitiveOperatorCallableRef(for: id)
+        }
+        #expect(operations == [.multiply, .multiply, .add, .multiply])
+    }
+
+    @Test func reduceRejectsPrimitiveOperatorReferenceForWrongElementType() throws {
+        let ctx = makeContextFromSource("""
+        fun invalid(values: List<Int>): Int = values.reduce(Long::times)
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError, "A Long operator must not satisfy an Int reducer.")
+    }
 }
 #endif
