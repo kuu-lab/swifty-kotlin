@@ -905,8 +905,7 @@ extension CallLowerer {
     ) -> InternedString? {
         guard let info = sema.symbols.symbol(propertySymbol),
               info.kind == .property,
-              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
-              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+              let ownerSymbol = enumClassOwnerSymbol(forProperty: propertySymbol, sema: sema)
         else {
             return nil
         }
@@ -916,6 +915,14 @@ extension CallLowerer {
             propertyName: info.name,
             interner: interner
         )
+    }
+
+    func enumClassOwnerSymbol(forProperty propertySymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+        guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol) else { return nil }
+        if sema.symbols.symbol(ownerSymbol)?.kind == .enumClass {
+            return ownerSymbol
+        }
+        return enumClassOwnerSymbol(forEntryField: ownerSymbol, sema: sema)
     }
 
     func memberPropertyUsesSetterAccessor(
