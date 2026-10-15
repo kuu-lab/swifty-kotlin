@@ -38,8 +38,8 @@ struct CoroutineContextElementKeySourceTests {
         }
     }
 
-    @Test
-    func contextIndexInfersElementFromCompanionKey() throws {
+    @Test(arguments: [false, true])
+    func contextIndexInfersElementFromCompanionKey(useLibrary: Bool) throws {
         let source = """
         import kotlin.coroutines.*
         import kotlinx.coroutines.*
@@ -58,6 +58,11 @@ struct CoroutineContextElementKeySourceTests {
             val found: Job? = ctx[Job]
         }
 
+        fun concreteEmptyContext() {
+            val job: Job? = EmptyCoroutineContext[Job]
+            val interceptor: ContinuationInterceptor? = EmptyCoroutineContext[ContinuationInterceptor]
+        }
+
         @OptIn(ExperimentalCoroutinesApi::class)
         fun main() = runBlocking {
             val job: Job? = coroutineContext[Job]
@@ -65,7 +70,7 @@ struct CoroutineContextElementKeySourceTests {
             val explicitId: CoroutineId? = coroutineContext[CoroutineId.Key]
         }
         """
-        let ctx = makeContextFromSource(source)
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: useLibrary)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
@@ -76,15 +81,22 @@ struct CoroutineContextElementKeySourceTests {
             else { return nil }
             return ExprID(rawValue: Int32(index))
         }
-        #expect(accesses.count == 9)
+        #expect(accesses.count == 11)
+        var concreteEmptyAccesses = 0
         for access in accesses {
             let binding = try #require(sema.bindings.callBinding(for: access))
             let callee = try #require(sema.symbols.symbol(binding.chosenCallee))
-            #expect(callee.fqName.map(ctx.interner.resolve) == ["kotlin", "coroutines", "CoroutineContext", "get"])
+            let calleeFQName = callee.fqName.map(ctx.interner.resolve)
+            if calleeFQName == ["kotlin", "coroutines", "EmptyCoroutineContext", "get"] {
+                concreteEmptyAccesses += 1
+            } else {
+                #expect(calleeFQName == ["kotlin", "coroutines", "CoroutineContext", "get"])
+            }
             #expect(binding.substitutedTypeArguments.count == 1)
             let element = try #require(binding.substitutedTypeArguments.first)
             #expect(sema.bindings.exprTypes[access] == sema.types.makeNullable(element))
         }
+        #expect(concreteEmptyAccesses == 2)
     }
 
     @Test(arguments: ["", "Named"])

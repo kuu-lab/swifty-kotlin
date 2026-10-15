@@ -195,8 +195,9 @@ extension DataFlowSemaPhase {
     }
 
     /// Ordered declarations matching `id`'s member (name, arity, suspend,
-    /// parameter types) at the nearest supertype level that declares any —
-    /// the BFS portion of the original `resolve` walk, unchanged. Mirrors
+    /// alpha-aligned method type parameters, bounds, and parameter types) at
+    /// the nearest supertype level that declares any — the BFS portion of the
+    /// original `resolve` walk, unchanged. Mirrors
     /// `findAllInheritedMembers`: once a level declares the member, deeper
     /// ancestors are earlier overrides of the same logical member, not
     /// independent candidates, so the BFS stops at the first level with
@@ -228,9 +229,22 @@ extension DataFlowSemaPhase {
                       let candidateSig = symbols.functionSignature(for: candidateID),
                       candidateSig.parameterTypes.count == paramCount,
                       candidateSig.isSuspend == signature.isSuspend,
-                      isOverrideVtableParameterMatch(
-                          candidateParameterTypes: candidateSig.parameterTypes,
-                          overrideParameterTypes: signature.parameterTypes,
+                      methodUpperBoundsMatch(
+                          source: candidateSig,
+                          target: signature,
+                          sourceOwner: symbols.parentSymbol(for: candidateID),
+                          targetOwner: ownerID,
+                          types: types
+                      ),
+                      methodIdentityParameterTypesMatch(
+                          candidateParameterTypes: signature.parameterTypes,
+                          interfaceParameterTypes: alignedMethodParameterTypes(
+                              source: candidateSig,
+                              target: signature,
+                              sourceOwner: symbols.parentSymbol(for: candidateID),
+                              instanceOwner: ownerID,
+                              types: types
+                          ),
                           types: types
                       )
                 else { continue }

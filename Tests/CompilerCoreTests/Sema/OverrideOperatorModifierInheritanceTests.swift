@@ -48,6 +48,33 @@ struct OverrideOperatorModifierInheritanceTests {
     }
 
     @Test
+    func modifierPropagatesThroughGenericMethodParameters() throws {
+        let source = """
+        interface Element
+        interface Token<T : Element>
+        class Item : Element {
+            companion object Key : Token<Item>
+        }
+        interface Context {
+            operator fun <T : Element> get(key: Token<T>): T?
+        }
+        class Empty : Context {
+            override fun <T : Element> get(key: Token<T>): T? = null
+        }
+        fun lookup(): Item? = Empty()[Item]
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let get = try #require(sema.symbols.lookupAll(
+            fqName: [ctx.interner.intern("Empty"), ctx.interner.intern("get")]
+        ).first)
+        #expect(sema.symbols.symbol(get)?.flags.contains(.operatorFunction) == true)
+    }
+
+    @Test
     func nonOperatorOverrideStaysNonOperator() throws {
         let source = """
         open class A { open fun plus(n: Int) = n }
