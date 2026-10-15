@@ -46,6 +46,10 @@ public struct CallableValueCallBinding {
     public let functionType: TypeID
     public let parameterMapping: [Int: Int]
     public let extensionCallableExpr: ExprID?
+    /// The callable value used by an unqualified `invoke(...)` on an implicit
+    /// function-typed receiver. The source AST still has `invoke` as its callee,
+    /// so KIR needs this receiver expression to lower the function value.
+    public let implicitInvokeReceiverExpr: ExprID?
     public let contextArgumentCount: Int
     public let receiverArgumentOffset: Int
 
@@ -54,6 +58,7 @@ public struct CallableValueCallBinding {
         functionType: TypeID,
         parameterMapping: [Int: Int],
         extensionCallableExpr: ExprID? = nil,
+        implicitInvokeReceiverExpr: ExprID? = nil,
         contextArgumentCount: Int = 0,
         receiverArgumentOffset: Int = 0
     ) {
@@ -61,6 +66,7 @@ public struct CallableValueCallBinding {
         self.functionType = functionType
         self.parameterMapping = parameterMapping
         self.extensionCallableExpr = extensionCallableExpr
+        self.implicitInvokeReceiverExpr = implicitInvokeReceiverExpr
         self.contextArgumentCount = contextArgumentCount
         self.receiverArgumentOffset = receiverArgumentOffset
     }

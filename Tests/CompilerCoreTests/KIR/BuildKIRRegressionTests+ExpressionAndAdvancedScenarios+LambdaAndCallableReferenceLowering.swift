@@ -341,6 +341,47 @@ extension BuildKIRRegressionTests {
         #expect(storedCaptures.first == storedCaptures.last, "Both receiver captures must store the same Counter instance.")
     }
 
+    @Test func testBuildKIRUnqualifiedInvokeUsesImplicitFunctionReceiver() throws {
+        let runtime = try RuntimeNames()
+        let ctx = makeContextFromSource("""
+        fun <A, T> ((A) -> T).toProvider(arg: () -> A): () -> T = { invoke(arg()) }
+
+        fun main() {
+            val f: (Int) -> String = { "v$it" }
+            println(f.toProvider { 3 }())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let invokeName = ctx.interner.intern(try runtime.functionInvoke(arity: 1))
+        let lambda = try #require(findAllKIRFunctions(in: module).first { function in
+            function.body.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return callee == invokeName
+            }
+        })
+        let invokeArguments = try #require(lambda.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == invokeName
+            else { return nil }
+            return arguments
+        }.first)
+        guard let receiverArgument = invokeArguments.first,
+              case let .symbolRef(receiverSymbol)? = module.arena.expr(receiverArgument),
+              let receiverParameter = lambda.params.first(where: { $0.symbol == receiverSymbol })
+        else {
+            Issue.record("Expected invoke() to use the captured function-typed extension receiver.")
+            return
+        }
+        guard case .functionType = sema.types.kind(of: receiverParameter.type) else {
+            Issue.record("Expected invoke()'s receiver parameter to have a function type.")
+            return
+        }
+    }
+
     @Test func testBuildKIRCollectionSourceHOFLambdaHasElementParameter() throws {
         let source = """
         fun main(): Int {
