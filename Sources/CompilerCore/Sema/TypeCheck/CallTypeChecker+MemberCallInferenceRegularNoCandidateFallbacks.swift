@@ -155,6 +155,8 @@ extension CallTypeChecker {
             if !invokeCandidates.isEmpty {
                 let prepared = prepareCallArguments(
                     args: args, callRange: range, candidates: invokeCandidates,
+                    contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                        ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,
                     receiverType: propResult.type, ctx: ctx, locals: &locals
                 )

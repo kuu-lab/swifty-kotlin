@@ -318,7 +318,8 @@ extension CallTypeChecker {
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: argumentExpectedTypeOverrides,
-            contextualCallResultType: expectedType,
+            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                ? sema.types.unitType : expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
@@ -445,7 +446,8 @@ extension CallTypeChecker {
                     callRange: range,
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
-                    contextualCallResultType: expectedType,
+                    contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                        ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,
                     receiverType: effectiveReceiverType,
                     ctx: ctx,

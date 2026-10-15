@@ -829,6 +829,7 @@ extension DeclTypeChecker {
             enclosingLambdaExprIDs: [],
             currentDeclSymbol: symbol
         )
+        functionCtx.isUnitCoercionContext = signature.returnType == sema.types.unitType
         functionCtx.suspensionContext = SuspensionContext(function: symbol)
         if !signature.contextReceiverTypes.isEmpty {
             functionCtx = functionCtx.with(
