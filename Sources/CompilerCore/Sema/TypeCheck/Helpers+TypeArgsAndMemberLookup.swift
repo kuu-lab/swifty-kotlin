@@ -319,8 +319,27 @@ extension TypeCheckHelpers {
     ) -> [TypeID] {
         guard !typeArgRefs.isEmpty else { return [] }
         return typeArgRefs.map { typeRefID in
-            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
+            guard !isExplicitTypeInferencePlaceholder(typeRefID, ast: ast, interner: interner) else {
+                // Keep the argument's position while leaving its type variable to normal call inference.
+                return TypeID.invalid
+            }
+            return resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
         }
+    }
+
+    func isExplicitTypeInferencePlaceholder(
+        _ typeRefID: TypeRefID,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .named(path, args, nullable) = ast.arena.typeRef(typeRefID),
+              path.count == 1,
+              args.isEmpty,
+              !nullable
+        else {
+            return false
+        }
+        return interner.resolve(path[0]) == "_"
     }
 
     /// Check if an expression is a terminating expression (return/throw) for elvis guard narrowing.
