@@ -423,6 +423,20 @@ extension LambdaLowerer {
         // pointer directly to the runtime HOF implementation.
         let isCollectionHOFReference = sema.bindings.isCollectionHOFLambdaExpr(exprID)
         let needsHOFWrapper = isCollectionHOFReference && reifiedThunk == nil
+        // Keep the referenced function's Kotlin ABI and adapt it through a
+        // callable thunk that can use the runtime's flat String callback ABI.
+        let needsTopLevelStringReturnWrapper: Bool = {
+            guard driver.ctx.topLevelPropertyCallableReferenceInitializerExprID == exprID,
+                  sema.bindings.callableRefKind(for: exprID) == .functionRef,
+                  captureArguments.isEmpty,
+                  let boundType,
+                  case let .functionType(functionType) = sema.types.kind(of: boundType),
+                  case .stringStruct = sema.types.kind(of: functionType.returnType)
+            else {
+                return false
+            }
+            return true
+        }()
         // Imported inline bodies and local auto-inline HOFs may have no native
         // entry point. A reference must point at an emitted thunk whose call
         // can be expanded by InlineLowering, including forward declarations.
@@ -627,11 +641,15 @@ extension LambdaLowerer {
                 isInline: false
             )))
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
-        } else if let callTargetSymbol, needsHOFWrapper || needsInlineWrapper {
+        } else if let callTargetSymbol,
+                  needsHOFWrapper || needsInlineWrapper || needsTopLevelStringReturnWrapper
+        {
             // HOF callbacks use a closure parameter. Ordinary inline references
             // keep the Kotlin signature and pass each bound capture directly.
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
-            callableName = syntheticLambdaName(for: exprID, interner: interner)
+            callableName = needsTopLevelStringReturnWrapper
+                ? interner.intern("kk_top_level_string_callable_ref_\(exprID.rawValue)")
+                : syntheticLambdaName(for: exprID, interner: interner)
 
             let targetName = callTargetName
                 ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner)
