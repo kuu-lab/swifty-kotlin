@@ -474,6 +474,63 @@ extension CallLowerer {
         let intType = sema.types.intType
         let stringType = sema.types.stringType
 
+        func javaTypeName(_ type: TypeID) -> String {
+            switch sema.types.kind(of: type) {
+            case .error, .any:
+                return "java.lang.Object"
+            case .unit, .platformUnit:
+                return "void"
+            case .nullableUnit:
+                return "kotlin.Unit"
+            case .nothing:
+                return "java.lang.Void"
+            case .stringStruct:
+                return "java.lang.String"
+            case let .primitive(primitive, _):
+                switch primitive {
+                case .boolean: return "boolean"
+                case .char: return "char"
+                case .int: return "int"
+                case .long: return "long"
+                case .float: return "float"
+                case .double: return "double"
+                case .byte: return "byte"
+                case .short: return "short"
+                case .uint: return "kotlin.UInt"
+                case .ulong: return "kotlin.ULong"
+                case .ubyte: return "kotlin.UByte"
+                case .ushort: return "kotlin.UShort"
+                }
+            case let .classType(classType):
+                guard let typeSymbol = sema.symbols.symbol(classType.classSymbol) else {
+                    return "java.lang.Object"
+                }
+                let name = typeSymbol.fqName.map(interner.resolve).joined(separator: ".")
+                return name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
+            case .typeParam, .intersection:
+                return "java.lang.Object"
+            case let .functionType(functionType):
+                let arity = functionType.contextReceivers.count
+                    + (functionType.receiver == nil ? 0 : 1)
+                    + functionType.params.count
+                let prefix = functionType.isSuspend ? "kotlin.coroutines.SuspendFunction" : "kotlin.jvm.functions.Function"
+                return "\(prefix)\(arity)"
+            case .kClassType:
+                return "kotlin.reflect.KClass"
+            }
+        }
+
+        func descriptor(parameterTypes: [TypeID], returnType: TypeID) -> String {
+            let parameterTokens = parameterTypes.map { type in
+                let token = RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner)
+                    & ~RuntimeTypeCheckToken.nullableFlag
+                return String(token)
+            }
+            let returnToken = RuntimeTypeCheckToken.encode(type: returnType, sema: sema, interner: interner)
+                & ~RuntimeTypeCheckToken.nullableFlag
+            return "\(parameterTokens.joined(separator: ","))|\(returnToken)|\(javaTypeName(returnType))"
+        }
+
         func register(name: String, signature: String, flags: Int64 = 0) {
             let internedName = interner.intern(name)
             let nameExpr = arena.appendExpr(.stringLiteral(internedName), type: stringType)
@@ -501,12 +558,9 @@ extension CallLowerer {
             switch child.kind {
             case .function:
                 guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
-                let parameterNames = signature.parameterTypes.map {
-                    sema.types.displayName(of: $0, symbols: sema.symbols, interner: interner)
-                }
                 register(
                     name: interner.resolve(child.name),
-                    signature: parameterNames.joined(separator: ",")
+                    signature: descriptor(parameterTypes: signature.parameterTypes, returnType: signature.returnType)
                 )
             case .property:
                 guard let propertyType = sema.symbols.propertyType(for: childID) else { continue }
@@ -521,17 +575,18 @@ extension CallLowerer {
                 } else {
                     getterName = "get"
                 }
-                let returnType = sema.types.displayName(
-                    of: propertyType, symbols: sema.symbols, interner: interner
-                )
-                register(name: getterName, signature: "()->\(returnType)")
+                register(name: getterName, signature: descriptor(parameterTypes: [], returnType: propertyType))
 
                 let hasRuntimePropertyAnnotation = sema.symbols.annotations(for: childID).contains { annotation in
                     annotation.useSiteTarget == nil
                         && resolvedAnnotationRetention(annotation, symbols: sema.symbols, interner: interner) != .source
                 }
                 if hasRuntimePropertyAnnotation {
-                    register(name: "\(getterName)$annotations", signature: "()->kotlin.Unit", flags: 1)
+                    register(
+                        name: "\(getterName)$annotations",
+                        signature: descriptor(parameterTypes: [], returnType: sema.types.unitType),
+                        flags: 1
+                    )
                 }
             default:
                 continue

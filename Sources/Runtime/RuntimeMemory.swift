@@ -92,10 +92,12 @@ public func __kk_runtime_maxMemory() -> Int {
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
+    let javaNameOverride: String?
 
-    init(typeToken: Int, nameHint: Int = 0) {
+    init(typeToken: Int, nameHint: Int = 0, javaNameOverride: String? = nil) {
         self.typeToken = typeToken
         self.nameHint = nameHint
+        self.javaNameOverride = javaNameOverride
     }
 }
 
