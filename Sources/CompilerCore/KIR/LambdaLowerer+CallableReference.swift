@@ -178,7 +178,9 @@ extension LambdaLowerer {
             return nil
         }
 
+        let samMethodReceiverType = samFunctionType.receiver
         let samMethodParamTypes = samFunctionType.params
+        let samMethodInputTypes = (samMethodReceiverType.map { [$0] } ?? []) + samMethodParamTypes
         let returnType = samFunctionType.returnType
 
         let thunkName = interner.intern("kk_sam_ref_thunk_\(exprID.rawValue)")
@@ -197,7 +199,7 @@ extension LambdaLowerer {
                 type: arena.exprType(captureExpr) ?? sema.types.anyType
             )
         }
-        let valueParams: [KIRParameter] = samMethodParamTypes.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = samMethodInputTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
                 type: type
@@ -277,6 +279,7 @@ extension LambdaLowerer {
             lambdaName: thunkName,
             lambdaReturnType: returnType,
             captureBindings: captureBindings,
+            samMethodReceiverType: samMethodReceiverType,
             samMethodParamTypes: samMethodParamTypes,
             sema: sema,
             arena: arena,

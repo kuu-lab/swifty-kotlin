@@ -1588,7 +1588,10 @@ private func kirFindMatchingMethod(
         if let interfaceSignature, let candidateSignature,
            kirMethodSignatureMatches(source: interfaceSignature, target: candidateSignature,
                                      sourceOwner: sema.symbols.parentSymbol(for: interfaceMethod),
-                                     targetOwner: nominal, instanceOwner: instanceOwner, types: sema.types)
+                                     targetOwner: nominal, instanceOwner: instanceOwner,
+                                     sourceIsMemberExtension: sema.symbols.memberExtensionOwnerSymbol(for: interfaceMethod) != nil,
+                                     targetIsMemberExtension: sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                                     types: sema.types)
         {
             return candidate
         }
@@ -1616,12 +1619,39 @@ func kirMethodSignatureMatches(
     sourceOwner: SymbolID?,
     targetOwner: SymbolID,
     instanceOwner: SymbolID,
+    sourceIsMemberExtension: Bool,
+    targetIsMemberExtension: Bool,
     types: TypeSystem
 ) -> Bool {
     guard source.isSuspend == target.isSuspend,
+          sourceIsMemberExtension == targetIsMemberExtension,
           methodUpperBoundsMatch(source: source, target: target, sourceOwner: sourceOwner,
                                  targetOwner: targetOwner, instanceOwner: instanceOwner, types: types)
     else { return false }
+    if sourceIsMemberExtension {
+        guard let sourceReceiverType = source.receiverType,
+              let targetReceiverType = target.receiverType
+        else { return false }
+        let sourceMethodParameters = Array(source.typeParameterSymbols.dropFirst(source.classTypeParameterCount))
+        let targetMethodParameters = Array(target.typeParameterSymbols.dropFirst(target.classTypeParameterCount))
+        let specializedSourceReceiver = specializeMethodOwnerType(
+            sourceReceiverType, owner: sourceOwner, instanceOwner: instanceOwner, types: types
+        )
+        let alignedSourceReceiver = alphaAlignedMethodType(
+            specializedSourceReceiver,
+            sourceParameters: sourceMethodParameters,
+            targetParameters: targetMethodParameters,
+            types: types
+        )
+        let specializedTargetReceiver = specializeMethodOwnerType(
+            targetReceiverType, owner: targetOwner, instanceOwner: instanceOwner, types: types
+        )
+        guard methodIdentityParameterTypesMatch(
+            candidateParameterTypes: [specializedTargetReceiver],
+            interfaceParameterTypes: [alignedSourceReceiver],
+            types: types
+        ) else { return false }
+    }
     let alignedSource = alignedMethodParameterTypes(source: source, target: target,
                                                     sourceOwner: sourceOwner, instanceOwner: instanceOwner, types: types)
     let specializedTarget = target.parameterTypes.map {
