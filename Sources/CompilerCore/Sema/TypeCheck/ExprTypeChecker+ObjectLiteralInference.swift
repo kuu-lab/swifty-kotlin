@@ -922,7 +922,21 @@ extension ExprTypeChecker {
             }
             return symbol.kind != .interface
         }
-        let inheritedLayout = superClass.flatMap { sema.symbols.nominalLayout(for: $0) }
+        // Local nominals collect their supertype edges during body inference,
+        // where a paired class may still resolve to its common expect symbol.
+        // Preserve that semantic edge, but inherit the storage and dispatch
+        // layout from the linked actual declaration when one is available.
+        let layoutSuperClass = superClass.flatMap { superClassID in
+            guard let expectSymbol = sema.symbols.symbol(superClassID),
+                  expectSymbol.flags.contains(.expectDeclaration),
+                  let actualSymbolID = sema.symbols.actualSymbol(for: superClassID),
+                  sema.symbols.symbol(actualSymbolID)?.kind == expectSymbol.kind
+            else {
+                return superClassID
+            }
+            return actualSymbolID
+        }
+        let inheritedLayout = layoutSuperClass.flatMap { sema.symbols.nominalLayout(for: $0) }
         var fieldOffsets = inheritedLayout?.fieldOffsets ?? [:]
         let objectHeaderWords = inheritedLayout?.objectHeaderWords ?? 2
         var nextFieldOffset = (fieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1
@@ -1079,7 +1093,7 @@ extension ExprTypeChecker {
                 itableSlots: itableSlots,
                 vtableSize: nextVtableSlot,
                 itableSize: nextItableSlot,
-                superClass: superClass
+                superClass: layoutSuperClass
             ),
             for: ownerSymbol
         )
