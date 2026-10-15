@@ -52,6 +52,55 @@ struct FunctionValueSamConversionTests {
         #expect(try #require(ctx.sema).bindings.samConversionExprs.count == 1)
     }
 
+    @Test func nullableFunctionValuesConvertToNullableSam() throws {
+        let ctx = makeSamContext("""
+        fun interface Action { fun run() }
+        fun take(action: Action?) {}
+        fun test(action: (() -> Unit)?): Unit = take(action)
+        fun testNull(): Unit {
+            val action: (() -> Unit)? = null
+            take(action)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+
+        let sema = try #require(ctx.sema)
+        #expect(sema.bindings.samConversionExprs.count == 2)
+        for expr in sema.bindings.samConversionExprs {
+            guard let sourceType = sema.bindings.exprType(for: expr) else {
+                Issue.record("Missing source function type")
+                continue
+            }
+            #expect(sema.types.nullability(of: sourceType) == .nullable)
+            guard let interfaceType = sema.bindings.samInterfaceType(for: expr) else {
+                Issue.record("Missing target SAM interface type")
+                continue
+            }
+            #expect(sema.types.nullability(of: interfaceType) == .nullable)
+            guard let underlyingType = sema.bindings.samUnderlyingFunctionType(for: expr) else {
+                Issue.record("Missing underlying SAM function type")
+                continue
+            }
+            #expect(sema.types.nullability(of: underlyingType) == .nonNull)
+        }
+    }
+
+    @Test func nullableFunctionValuesRequireNullableCompatibleSamTarget() throws {
+        let ctx = makeSamContext("""
+        fun interface Action { fun run() }
+        fun interface TypedAction { fun run(n: Int): Int }
+        fun takeNonNull(action: Action) {}
+        fun takeTyped(action: TypedAction?) {}
+        fun invalidNullability(action: (() -> Unit)?) = takeNonNull(action)
+        fun invalidSignature(action: (() -> Unit)?) = takeTyped(action)
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(try #require(ctx.sema).bindings.samConversionExprs.isEmpty)
+    }
+
     @Test(arguments: ["(String) -> Int", "(Int) -> String", "() -> Int", "((Int) -> Int)?", "suspend (Int) -> Int"])
     func incompatibleFunctionValuesAreRejected(type: String) throws {
         let ctx = makeSamContext("""

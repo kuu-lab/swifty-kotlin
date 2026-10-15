@@ -8,6 +8,22 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test
+    func anonymousFunctionAtLambdaBlockStartIsAnExpression() {
+        let parsed = parse("""
+        fun host() {
+            val maker: () -> (() -> Int) = { fun () = 1 }
+            val named: () -> Int = {
+                fun local() = 2
+                local()
+            }
+        }
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
     @Test(arguments: ["; ", "\n", ";\n", ";\n;"])
     func topLevelFunctionSeparatorsDoNotMakeFileAScript(separator: String) {
         let source = """
@@ -140,6 +156,21 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
     }
 
+    @Test(arguments: ["1", "fallback()"])
+    func expressionBodyElseBranchCanStartOnTheNextLine(elseExpression: String) {
+        let parsed = parse("""
+        fun fallback(): Int = 1
+        fun target(x: Boolean): Int = if (x) 0 else
+            \(elseExpression)
+        fun after(): Int = 2
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .statement) == 0)
+    }
+
     @Test(arguments: [
         "var count = 0\ncount = count + 1\ncount",
         "val count = 1\ncount",
@@ -181,6 +212,36 @@ struct DeclarationBoundaryTests {
 
         #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
+    func multilineEnumPrimaryConstructorParametersDoNotEndDeclaration() {
+        let parsed = parse("""
+        enum class Spacing(
+            val horizontal: Int,
+            val vertical: Int
+        ) {
+            SINGLE(1, 1),
+            DOUBLE(2, 2)
+        }
+        fun after() = 3
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .enumEntry) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func unterminatedMultilineEnumPrimaryConstructorRecoversAtNextDeclaration() {
+        let parsed = parse("""
+        enum class Broken(
+            val value: Int
+        fun after() = 3
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
     }
 
     @Test

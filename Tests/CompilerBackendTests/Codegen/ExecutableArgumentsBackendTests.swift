@@ -170,6 +170,28 @@ struct ExecutableArgumentsBackendTests {
         }
     }
 
+    @Test
+    func argumentsEntryArrayConversionsHandleEmptyAndMultipleArguments() throws {
+        let source = """
+        fun main(args: Array<String>) {
+            println("size=${args.size}")
+            println(args.asList())
+            println(args.toList())
+            println(args.joinToString())
+            for (arg in args) println("arg=$arg")
+        }
+        """
+        try withExecutable(source: source, library: true, level: .O2) { output in
+            let empty = try run(output, [], label: "empty", expectedStdout: "size=0\n[]\n[]\n\n")
+            try #require(empty.exitCode == 0 && empty.stderr.isEmpty)
+            let multiple = try run(
+                output, ["alpha", "日本語"], label: "multiple",
+                expectedStdout: "size=2\n[alpha, 日本語]\n[alpha, 日本語]\nalpha, 日本語\narg=alpha\narg=日本語\n"
+            )
+            try #require(multiple.exitCode == 0 && multiple.stderr.isEmpty)
+        }
+    }
+
     // These two cells exercise the selected args entry's startup guard. The
     // existing noargs ModuleStartup regression covers other-main calls.
     @Test(arguments: [false, true])

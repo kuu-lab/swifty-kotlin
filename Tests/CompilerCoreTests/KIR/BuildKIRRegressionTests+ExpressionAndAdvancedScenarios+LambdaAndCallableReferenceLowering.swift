@@ -100,6 +100,27 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test(arguments: [1, 2, 22])
+    func testBuildKIRUsesContextReceiverCountForFunctionInvokeABI(arity: Int) throws {
+        let contextTypes = Array(repeating: "Int", count: arity).joined(separator: ", ")
+        let parameters = (0 ..< arity).map { "context\($0): Int" }.joined(separator: ", ")
+        let arguments = (0 ..< arity).map { "context\($0)" }.joined(separator: ", ")
+        let source = """
+        fun invokeContext(block: context(\(contextTypes)) () -> Int, \(parameters)): Int = block(\(arguments))
+        fun main() = 0
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "invokeContext", in: module, interner: ctx.interner)
+        let call = try #require(
+            kirCalls(to: .functionInvoke(arity: arity), in: body, interner: ctx.interner).first
+        )
+        #expect(call.arguments.count == arity + 1)
+    }
+
     @Test func testBuildKIRCompareValuesByVarargSelectorsAreMaterialized() throws {
         let runtime = try RuntimeNames()
         let ctx = makeContextFromSource("""

@@ -306,6 +306,21 @@ extension LambdaLowerer {
     ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
 
+        // REFL-PRIMOP: `Boolean::not` has no backing member symbol or receiver
+        // value, so synthesize its intrinsic unary wrapper before symbol lookup.
+        if let unaryOp = sema.bindings.primitiveUnaryOperatorCallableRef(for: exprID) {
+            return lowerPrimitiveUnaryOperatorCallableRef(
+                exprID,
+                op: unaryOp,
+                memberName: memberName,
+                boundType: boundType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+
         // REFL-PRIMOP: `Int::plus`/`Int::times` (see Sema's
         // `bindPrimitiveOperatorCallableRef`) have no backing symbol and no
         // real receiver *value* (the receiver names a primitive type, not an
@@ -1346,6 +1361,104 @@ extension LambdaLowerer {
         body.append(.constValue(result: rhsExpr, value: .symbolRef(rhsParam.symbol)))
         let opResult = arena.appendTemporary(type: returnType)
         body.append(.binary(op: kirOp, lhs: lhsExpr, rhs: rhsExpr, result: opResult))
+        body.append(.returnValue(opResult))
+        body.append(.endBlock)
+
+        let wrapperDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: callableSymbol,
+                    name: callableName,
+                    params: wrapperParams,
+                    returnType: returnType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
+
+        let callableType = boundType ?? sema.types.anyType
+        let callableExpr = arena.appendExpr(.symbolRef(callableSymbol), type: callableType)
+        instructions.append(.constValue(result: callableExpr, value: .symbolRef(callableSymbol)))
+        driver.ctx.registerCallableValue(
+            callableExpr,
+            symbol: callableSymbol,
+            callee: callableName,
+            captureArguments: []
+        )
+
+        if needsHOFWrapper {
+            return callableExpr
+        }
+
+        if let refKind = sema.bindings.callableRefKind(for: exprID) {
+            let taggedExpr = emitCallableRefTypeTag(
+                callableExpr: callableExpr,
+                callableType: callableType,
+                refKind: refKind,
+                memberName: memberName,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            driver.ctx.registerCallableValue(
+                taggedExpr,
+                symbol: callableSymbol,
+                callee: callableName,
+                captureArguments: []
+            )
+            return taggedExpr
+        }
+
+        return callableExpr
+    }
+
+    /// Builds the wrapper function and REFL-003 tag for a primitive unary
+    /// callable reference (`Boolean::not`). Its body uses the same raw KIR
+    /// unary operation as the ordinary Boolean `!` expression.
+    private func lowerPrimitiveUnaryOperatorCallableRef(
+        _ exprID: ExprID,
+        op: UnaryOp,
+        memberName: InternedString,
+        boundType: TypeID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard op == .not else {
+            fatalError("Unreachable: Sema only records .not primitive-unary refs")
+        }
+
+        let needsHOFWrapper = sema.bindings.isCollectionHOFLambdaExpr(exprID)
+        let callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+        let callableName = syntheticLambdaName(for: exprID, interner: interner)
+
+        let functionType = boundType.flatMap { typeID -> FunctionType? in
+            guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
+            return ft
+        }
+        let operandType = functionType?.params.first ?? sema.types.booleanType
+        let returnType = functionType?.returnType ?? sema.types.booleanType
+
+        let closureParam = needsHOFWrapper ? KIRParameter(
+            symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
+            type: sema.types.intType
+        ) : nil
+        let valueParam = KIRParameter(
+            symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 0),
+            type: operandType
+        )
+        let wrapperParams = (closureParam.map { [$0] } ?? []) + [valueParam]
+
+        var body: [KIRInstruction] = [.beginBlock]
+        let operandExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
+        body.append(.constValue(result: operandExpr, value: .symbolRef(valueParam.symbol)))
+        let opResult = arena.appendTemporary(type: returnType)
+        body.append(.unary(op: .not, operand: operandExpr, result: opResult))
         body.append(.returnValue(opResult))
         body.append(.endBlock)
 

@@ -38,7 +38,7 @@ struct EnumSetClassHandleTests {
         #expect(__kk_enum_set_class(__kk_kclass_create(Int(RuntimeTypeTokenEncoding.stringBase), 0)) == runtimeNullSentinelInt)
         let classID = runtimeStableNominalTypeID(fqName: "EnumSetBridgeNonEnum")
         let token = (classID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
-        let javaClass = registerRuntimeObject(RuntimeJavaClassBox(typeToken: Int(token)))
+        let javaClass = registerRuntimeObject(RuntimeJavaClassBox(typeToken: Int(token), displayText: "class TestEnum"))
         #expect(__kk_enum_set_class(javaClass) == runtimeNullSentinelInt)
     }
 }

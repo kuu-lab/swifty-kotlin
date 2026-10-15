@@ -130,7 +130,7 @@ extension CallTypeChecker {
             let returnType = sequenceBuilderReturnType(
                 lambdaExprID: argumentExprID,
                 expectedType: expectedType,
-                explicitElementType: explicitTypeArgs.first,
+                explicitElementType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs),
                 ctx: ctx,
                 locals: locals,
                 sema: sema,
@@ -154,7 +154,7 @@ extension CallTypeChecker {
             let refinedReturnType = sequenceBuilderReturnType(
                 lambdaExprID: argumentExprID,
                 expectedType: expectedType,
-                explicitElementType: explicitTypeArgs.first,
+                explicitElementType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs),
                 ctx: ctx,
                 locals: locals,
                 sema: sema,
@@ -219,7 +219,7 @@ extension CallTypeChecker {
             let returnType = iteratorBuilderReturnType(
                 lambdaExprID: argumentExprID,
                 expectedType: expectedType,
-                explicitElementType: explicitTypeArgs.first,
+                explicitElementType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs),
                 ctx: ctx,
                 locals: locals,
                 sema: sema,
@@ -243,7 +243,7 @@ extension CallTypeChecker {
             let refinedReturnType = iteratorBuilderReturnType(
                 lambdaExprID: argumentExprID,
                 expectedType: expectedType,
-                explicitElementType: explicitTypeArgs.first,
+                explicitElementType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs),
                 ctx: ctx,
                 locals: locals,
                 sema: sema,
