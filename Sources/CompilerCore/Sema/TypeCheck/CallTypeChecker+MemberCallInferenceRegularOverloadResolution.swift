@@ -55,10 +55,12 @@ extension CallTypeChecker {
                       guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                           return false
                       }
-                      if case .functionType = sema.types.kind(of: receiver) {
+                      switch sema.types.kind(of: sema.types.makeNonNullable(receiver)) {
+                      case .functionType, .typeParam:
                           return true
+                      default:
+                          return false
                       }
-                      return false
                   })
             else {
                 return nil
@@ -318,7 +320,8 @@ extension CallTypeChecker {
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: argumentExpectedTypeOverrides,
-            contextualCallResultType: expectedType,
+            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                ? sema.types.unitType : expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
@@ -445,7 +448,8 @@ extension CallTypeChecker {
                     callRange: range,
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
-                    contextualCallResultType: expectedType,
+                    contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                        ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,
                     receiverType: effectiveReceiverType,
                     ctx: ctx,

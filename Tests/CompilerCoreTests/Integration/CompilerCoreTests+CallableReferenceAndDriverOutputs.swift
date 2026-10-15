@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import TestStdlibCache
 import Testing
 
 extension CompilerCoreTests {
@@ -821,6 +822,84 @@ extension CompilerCoreTests {
         for (ref, op) in zip(refs, [BinaryOp.add, .multiply, .add, .multiply]) {
             #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == op)
         }
+    }
+
+    @Test func testBooleanNotReferenceInfersUnaryIntrinsicFunctionType() throws {
+        let source = """
+        val invert: (Boolean) -> Boolean = Boolean::not
+        val inferredInvert = Boolean::not
+        fun use(value: Boolean): Boolean = invert(value)
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 2)
+
+        for ref in refs {
+            #expect(sema.bindings.primitiveUnaryOperatorCallableRef(for: ref) == .not)
+            #expect(sema.bindings.callableRefKind(for: ref) == .functionRef)
+            let refType = try #require(sema.bindings.exprTypes[ref])
+            guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+                Issue.record("Boolean::not should infer a function type.")
+                continue
+            }
+            #expect(functionType.params == [sema.types.booleanType])
+            #expect(functionType.returnType == sema.types.booleanType)
+        }
+    }
+
+    @Test func testBooleanNotIntrinsicReferenceDoesNotAdmitOtherNamesOrReceivers() throws {
+        let source = """
+        val missing: (Boolean) -> Boolean = Boolean::missing
+        val otherBooleanMember: (Boolean) -> Boolean = Boolean::plus
+        val otherReceiver: (Int) -> Boolean = Int::not
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0022" }.count == 3)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 3)
+        for ref in refs {
+            #expect(sema.bindings.primitiveUnaryOperatorCallableRef(for: ref) == nil)
+        }
+    }
+
+    @Test func testBooleanNotIntrinsicReferenceChecksItsExpectedSignature() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        val invalid: (Int) -> Boolean = Boolean::not
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0022" })
     }
 
     /// A bound reference to a method of a generic interface instantiation

@@ -30,6 +30,14 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Collection fast paths must check inputs when their result type comes
     /// from a speculative superclass hint rather than the inputs themselves.
     var validatesLiftedHintCollectionArguments = false
+    /// The current call expression is in statement position and its result is
+    /// discarded. This lets generic call inference apply Kotlin's Unit-coercion
+    /// rules without weakening calls whose values are consumed by expressions.
+    var isCallResultDiscarded = false
+    /// The surrounding function or lambda body is expected to produce Unit.
+    /// A discarded call may pass Unit to its lambda arguments only in this
+    /// context; ordinary statements in non-Unit functions keep natural types.
+    var isUnitCoercionContext = false
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]

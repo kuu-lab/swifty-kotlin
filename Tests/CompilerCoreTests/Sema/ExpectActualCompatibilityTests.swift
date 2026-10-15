@@ -327,6 +327,35 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    @Test func testClassNameCallResolvesCompanionAddedByActual() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            expect abstract class Charset
+            """,
+            """
+            package x
+            actual abstract class Charset {
+                companion object {
+                    fun forName(name: String): Charset = throw Exception(name)
+                }
+            }
+            fun lookup(name: String): Charset = Charset.forName(name)
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Actual-only companion members must resolve through the expect class: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let actualMethod = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("x"), ctx.interner.intern("Charset"),
+            ctx.interner.intern("Companion"), ctx.interner.intern("forName"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == false })
+        #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == actualMethod })
+    }
+
     @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
         let ctx = makeContextFromSource(
             """

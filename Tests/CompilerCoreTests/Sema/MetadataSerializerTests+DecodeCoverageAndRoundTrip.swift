@@ -19,6 +19,8 @@ extension MetadataSerializerTests {
             ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: .nonNull),
             ContractImplicationEffect(parameterIndex: 1, returnCondition: .returnsNotNull, argumentCondition: .booleanTrue),
             ContractImplicationEffect(parameterIndex: 0, returnCondition: .normally, argumentCondition: .booleanFalse),
+            ContractImplicationEffect(target: .extensionReceiver, returnCondition: .returnsTrue,
+                argumentCondition: .isType, targetTypeSignature: "Ltest_Error;"),
         ]
         let record = MetadataRecord(kind: .function, fqName: "test.present", contractImplicationEffects: effects)
         let decoded = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)

@@ -13,6 +13,8 @@ struct JvmClassMappingTests {
         fun <T : Any> generic(type: java.lang.Class<T>): KClass<T> = type.kotlin
         fun <T : Any> genericPrimitive(type: KClass<T>): java.lang.Class<T>? = type.javaPrimitiveType
         fun javaType(type: java.lang.Class<String>): java.lang.Class<String> = type
+        fun javaVoid(value: Void): java.lang.Void = value
+        fun primitiveVoid(type: KClass<Void>): java.lang.Class<Void>? = type.javaPrimitiveType
         fun kotlinType(type: KClass<Int>): KClass<Int> = type
         fun objectClass(value: String): java.lang.Class<String> = value.javaClass
         fun main() {}

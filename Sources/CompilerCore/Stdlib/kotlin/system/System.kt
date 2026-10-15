@@ -28,5 +28,11 @@ public object System {
 
     public fun processStartNanos(): Long = __processStartNanos()
 
+    public fun getProperty(propertyName: String): String? =
+        java.lang.System.getProperty(propertyName)
+
+    public fun getProperty(propertyName: String, defaultValue: String): String =
+        java.lang.System.getProperty(propertyName, defaultValue)
+
     public fun exit(status: Int): Unit = java.lang.System.exit(status)
 }

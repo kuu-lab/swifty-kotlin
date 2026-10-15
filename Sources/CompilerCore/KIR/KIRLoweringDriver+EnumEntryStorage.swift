@@ -155,6 +155,27 @@ extension KIRLoweringDriver {
                 isMutable: property.isVar
             ))
         }
+        // Enum values are represented by ordinals, so delegated-property
+        // handles need per-entry side storage just like ordinary body fields.
+        // Key the initialization slot by the source property symbol because
+        // emitDelegatePropertyInitializer stores through that symbol.
+        for declID in classDecl.memberProperties {
+            guard let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(property) = decl,
+                  property.delegateExpression != nil,
+                  let propertySymbol = sema.bindings.declSymbols[declID],
+                  let delegateStorageSymbol = sema.symbols.delegateStorageSymbol(for: propertySymbol),
+                  let storageSymbol = sema.symbols.symbol(delegateStorageSymbol)
+            else {
+                continue
+            }
+            bodyStoredPropertySymbols[storageSymbol.name] = propertySymbol
+            addStoredProperty(EnumStoredProperty(
+                name: storageSymbol.name,
+                type: sema.types.anyType,
+                isMutable: false
+            ))
+        }
         let entryBodyProperties: [[EnumEntryBodyProperty]] = classDecl.enumEntries.map { entry in
             entry.memberProperties.compactMap { declID in
                 guard let decl = ast.arena.decl(declID),
