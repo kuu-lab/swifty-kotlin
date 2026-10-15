@@ -186,9 +186,28 @@ struct CatchClauseTypeResolutionTests {
         let (ctx, paths) = try sharedCatchTypeResolutionCtx()
         #expect(
             try catchParamClassSymbol(in: ctx, path: paths[4]) ==
-                requireClassSymbol(["java", "io", "IOException"], in: ctx)
+                requireClassSymbol(["kotlinx", "io", "IOException"], in: ctx)
         )
         assertNoDiagnostic("KSWIFTK-SEMA-0085", in: diagnosticsForPath(paths[4], in: ctx))
+    }
+
+    @Test func testUnqualifiedNoClassDefFoundErrorCatchResolvesToKotlinError() throws {
+        try withTemporaryFiles(contents: [
+            """
+                fun probe(block: () -> Unit) {
+                    try { block() } catch (_: NoClassDefFoundError) {}
+                }
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            #expect(
+                try catchParamClassSymbol(in: ctx, path: paths[0]) ==
+                    requireClassSymbol(["kotlin", "Error"], in: ctx)
+            )
+            assertNoDiagnostic("KSWIFTK-SEMA-0085", in: diagnosticsForPath(paths[0], in: ctx))
+        }
     }
 
     @Test(arguments: qualifiedCatchTypeNames.indices)
@@ -210,7 +229,10 @@ struct CatchClauseTypeResolutionTests {
             return
         }
         #expect(parsedPath.map { ctx.interner.resolve($0) } == expectedPath)
-        #expect(try catchParamClassSymbol(in: ctx, path: path) == requireClassSymbol(expectedPath, in: ctx))
+        let expectedClassPath = typeName == "java.io.IOException"
+            ? ["kotlinx", "io", "IOException"]
+            : expectedPath
+        #expect(try catchParamClassSymbol(in: ctx, path: path) == requireClassSymbol(expectedClassPath, in: ctx))
         #expect(diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }.isEmpty)
     }
 
