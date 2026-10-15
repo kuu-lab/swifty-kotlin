@@ -118,6 +118,9 @@
             #expect(diagnostics.filter {
                 $0.code == "KSWIFTK-SEMA-JS-ANNOTATION-TOO-MANY-ARGUMENTS" && $0.severity == .error
             }.count == 2, "JsExport and its marker take no arguments: \(diagnostics)")
+            #expect(!diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0022" && $0.message == "Unresolved reference 'kotlin'."
+            }, "Annotation construction should not re-resolve the qualified package name: \(diagnostics)")
             #expect(diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" && $0.severity == .error
             }, "\(diagnostics)")
@@ -176,6 +179,24 @@
             #expect(!ctx.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning
             }, "\(ctx.diagnostics.diagnostics)")
+        }
+
+        @Test
+        func classOptInMarkerAlsoAppliesToMemberPropertyAccess() throws {
+            let ctx = makeContextFromSource("""
+            package jscontract
+
+            @kotlin.js.ExperimentalJsExport
+            class ExportedBox(val value: Int = 7)
+
+            fun readExportedValue(): Int = ExportedBox().value
+            """)
+            try runSema(ctx)
+
+            let warnings = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning
+            }
+            #expect(warnings.count == 2, "Expected opt-in warnings for both the constructor and member property: \(ctx.diagnostics.diagnostics)")
         }
 
         @Test

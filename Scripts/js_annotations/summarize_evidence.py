@@ -31,7 +31,7 @@ def classify(cell: dict[str, Any] | None) -> str:
 
 
 def aggregate(evidence: dict[str, Any], stages: list[dict[str, Any]]) -> dict[str, Any]:
-    document, _ = run_matrix.load_contract_sets(run_matrix.DEFAULT_CONTRACT_PAIRS)
+    document, _, _ = run_matrix.load_contract_sets(run_matrix.DEFAULT_CONTRACT_PAIRS)
     required = [case for case in document["cases"] if "native-compat" in case.get("lanes", [])]
     records = {case["id"]: case for case in evidence.get("cases", [])}
     failures = list(evidence.get("failureReasons", []))

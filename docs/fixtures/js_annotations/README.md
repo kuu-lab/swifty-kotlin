@@ -13,6 +13,7 @@ candidate-only runner の製品実装・CI 接続は KUU-1612 以降の担当で
 | `expectations.json` | 固定した source/consumer hash、診断、stdout/stderr/終了コード、native 契約、provenance |
 | `evidence/reference-results.json` | Kotlin/JS の実コンパイル/実行記録。native PASS を意味しない |
 | `evidence/sources.json` | v2.3.10 commit 固定の根拠リンクと raw source SHA-256 |
+| `evidence/kuu-1480-diff-case-before-removal.kt` | KUU-1480 の移設前 `Scripts/diff_cases/js_annotations.kt` の監査 snapshot。SHA-256 は `c0907499c4fb7b25f062cf84e9763e673621a7ae8c0a1243a1cbc783713c4a03` |
 | `evidence/native_observations.export.d.mts` | 統合 fixture から生成した TypeScript 宣言の保存例 |
 | `capture_reference.py` | 監査用の再採取/期待値比較。KSwiftK や JVM compile/run reference を実行しない |
 

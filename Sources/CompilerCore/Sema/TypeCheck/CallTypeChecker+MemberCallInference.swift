@@ -47,6 +47,23 @@ extension CallTypeChecker {
         } else {
             receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
         }
+        if args.isEmpty,
+           !ctx.ast.arena.isExplicitCall(id),
+           let receiverExpr = ctx.ast.arena.expr(receiverID),
+           case .callableRef = receiverExpr,
+           let receiverRange = ctx.ast.arena.exprRange(receiverID),
+           ctx.sema.diagnostics.diagnostics.contains(where: {
+               $0.code == "KSWIFTK-SEMA-0022"
+                   && $0.primaryRange == receiverRange
+                   && $0.message.hasPrefix("Unresolved reference '::")
+           }) {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0022",
+                "Unresolved reference '\(ctx.interner.resolve(calleeName))'.",
+                range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+        }
         if !safeCall, receiverType != ctx.sema.types.errorType {
             receiverType = resolveSuperMemberReceiverType(
                 receiverID: receiverID,
