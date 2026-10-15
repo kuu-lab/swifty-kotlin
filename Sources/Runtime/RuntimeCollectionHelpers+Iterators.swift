@@ -303,10 +303,50 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
         registerMutableIterableItable(raw: raw, ifaceSlot: 2)
+        registerRuntimeSetMemberItables(raw: raw)
     } else if type(of: box) == RuntimeArrayBox.self {
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
     }
+}
+
+private let runtimeSetSizeItableThunk: @convention(c) (Int) -> Int = { setRaw in
+    kk_set_size(setRaw)
+}
+
+private let runtimeSetContainsItableThunk: @convention(c) (Int, Int) -> Int = { setRaw, element in
+    kk_set_contains(setRaw, element)
+}
+
+/// Runtime set boxes participate in the Collection/Set itable paths used by
+/// interface-typed member calls. Source objects register their own overrides;
+/// these entries preserve the storage-backed behavior for factory boxes.
+private func registerRuntimeSetMemberItables(raw: Int) {
+    let collectionSlot = 3
+    let collectionTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection"))
+    _ = kk_object_register_itable_iface(raw, collectionTypeID, collectionSlot)
+    _ = kk_object_register_itable_method(
+        raw,
+        collectionSlot,
+        4,
+        unsafeBitCast(runtimeSetSizeItableThunk, to: Int.self)
+    )
+
+    let setSlot = 4
+    let setTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Set"))
+    _ = kk_object_register_itable_iface(raw, setTypeID, setSlot)
+    _ = kk_object_register_itable_method(
+        raw,
+        setSlot,
+        1,
+        unsafeBitCast(runtimeSetContainsItableThunk, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw,
+        setSlot,
+        3,
+        unsafeBitCast(runtimeSetSizeItableThunk, to: Int.self)
+    )
 }
 
 

@@ -782,6 +782,9 @@ extension CallLowerer {
         )
         let usesRuntimeSetMember = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
+        let usesRuntimeSetContains = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
+            && interner.resolve(calleeName) == "contains"
+            && isSetLikeType(receiverType, sema: sema, interner: interner)
         let usesRuntimeProgressionMember = runtimeProgressionMemberCallee.map { $0 == loweredCallee } == true
         let rangeInterfaceCallee = closedRangeInterfaceRuntimeName(
             memberName: interner.resolve(calleeName),
@@ -1112,6 +1115,7 @@ extension CallLowerer {
             kirIsRuntimeBridgedCallee($0, sema: sema)
         } ?? false
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || usesRuntimeSetContains
             || listIteratorInheritedDispatch
             || isImportedLibraryLink
             || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true

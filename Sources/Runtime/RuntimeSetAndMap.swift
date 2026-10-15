@@ -1,3 +1,5 @@
+import Foundation
+
 /// Attach identity-key storage to a source-allocated IdentityHashMap.
 @_cdecl("__kk_identity_hash_map_init")
 public func kk_identity_hash_map_init(_ mapRaw: Int) -> Int {
@@ -123,10 +125,29 @@ public func kk_linked_hash_set_init(_ setRaw: Int) -> Int {
 
 @_cdecl("__kk_set_size")
 public func kk_set_size(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return runtimeSourceCollectionSize(setRaw) ?? 0
+    if let pointer = UnsafeMutableRawPointer(bitPattern: setRaw),
+       runtimeIsObjectPointer(pointer),
+       let set = tryCast(pointer, to: RuntimeSetBox.self)
+    {
+        return set.count
     }
-    return set.count
+
+    // Source-allocated HashSet subclasses keep their elements in a backing
+    // RuntimeSetBox, but their Set.size itable getter must remain observable.
+    // The inherited HashSet getter re-enters this bridge; on that recursive
+    // call, use the backing storage as the base implementation.
+    let threadDictionary = Thread.current.threadDictionary
+    let dispatchKey = "KSwiftK.RuntimeSetSizeDispatch.\(setRaw)"
+    if threadDictionary[dispatchKey] != nil {
+        return runtimeSetBox(from: setRaw)?.count ?? 0
+    }
+    threadDictionary[dispatchKey] = true
+    defer { threadDictionary.removeObject(forKey: dispatchKey) }
+
+    return runtimeSourceSetSize(setRaw)
+        ?? runtimeSourceCollectionSize(setRaw)
+        ?? runtimeSetBox(from: setRaw)?.count
+        ?? 0
 }
 
 @_cdecl("__kk_set_contains")
