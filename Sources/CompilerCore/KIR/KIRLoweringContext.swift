@@ -30,6 +30,8 @@ final class KIRLoweringContext {
     /// Lambda param name → symbol for resolving nameRef when identifierSymbols is unbound
     /// (e.g. collection HOF lambdas inferred via fallback).
     var lambdaParamNameToSymbol: [InternedString: SymbolID] = [:]
+    /// JVM file facade names attached to lambda function values for Native reflection.
+    var lambdaEnclosingClassNamesByFileID: [FileID: String] = [:]
     var currentImplicitReceiverExprID: KIRExprID?
     var currentImplicitReceiverSymbol: SymbolID?
     /// Qualified receiver values that remain visible while an inline object
@@ -713,6 +715,7 @@ final class KIRLoweringContext {
     }
 
     func resetModuleState() {
+        lambdaEnclosingClassNamesByFileID.removeAll(keepingCapacity: true)
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
         callableValueInfoByExprID.removeAll(keepingCapacity: true)
         syntheticLambdaSymbolsByExprID.removeAll(keepingCapacity: true)

@@ -1,4 +1,6 @@
 
+import Foundation
+
 extension KIRLoweringDriver {
     func lowerModule(
         ast: ASTModule,
@@ -6,6 +8,17 @@ extension KIRLoweringDriver {
         compilationCtx: CompilationContext
     ) -> KIRModule {
         ctx.resetModuleState()
+        for file in ast.sortedFiles {
+            let path = compilationCtx.sourceManager.path(of: file.fileID)
+            guard !path.isEmpty, !path.hasPrefix("__bundled_") else { continue }
+            let fileStem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+            guard let firstCharacter = fileStem.first else { continue }
+            let facadeName = firstCharacter.uppercased() + String(fileStem.dropFirst()) + "Kt"
+            let packageName = file.packageFQName.map(compilationCtx.interner.resolve).joined(separator: ".")
+            ctx.lambdaEnclosingClassNamesByFileID[file.fileID] = packageName.isEmpty
+                ? facadeName
+                : "\(packageName).\(facadeName)"
+        }
         ctx.lazyThreadSafetyMode = compilationCtx.options.lazyThreadSafetyMode
         ctx.initializeSyntheticLambdaSymbolAllocator(
             sema: sema,

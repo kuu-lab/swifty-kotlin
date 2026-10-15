@@ -20,4 +20,20 @@ public class Class<T> {
 
     /** Returns the constructors registered for this class token. */
     public fun getDeclaredConstructors(): Array<Constructor<*>> = __declaredConstructors(this)
+
+    @KsSymbolName("__kk_class_get_name")
+    private external fun __classGetName(): String
+
+    @KsSymbolName("__kk_class_get_enclosing_class")
+    private external fun __classGetEnclosingClass(): Class<*>?
+
+    public fun getName(): String = __classGetName()
+
+    public fun getEnclosingClass(): Class<*>? = __classGetEnclosingClass()
+
+    public fun getEnclosingConstructor(): Constructor<*>? = null
+
+    public fun getEnclosingMethod(): java.lang.reflect.Method? = null
+
+    public fun getDeclaringClass(): Class<*>? = null
 }

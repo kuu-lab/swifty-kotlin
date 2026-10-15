@@ -59,4 +59,22 @@ struct RuntimeJvmClassMappingTests {
 
         #expect(runtimeArrayBox(from: constructors)?.elements == [constructor])
     }
+
+    @Test func lambdaJavaClassRetainsItsEnclosingFileFacade() {
+        let functionPointer = 0x12345
+        let className = runtimeMakeStringRaw("LambdaInPackageKt")
+        __kk_function_set_enclosing_class(functionPointer, className)
+
+        let functionValue = kk_function_create_0(functionPointer, 0, nil)
+        let javaClass = __kk_any_javaClass(functionValue)
+        let enclosingClass = __kk_class_get_enclosing_class(javaClass)
+
+        #expect(enclosingClass != runtimeNullSentinelInt)
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_class_get_name(enclosingClass))) == "LambdaInPackageKt")
+        #expect(__kk_class_get_enclosing_class(enclosingClass) == runtimeNullSentinelInt)
+
+        _ = runtimeReleaseObject(javaClass)
+        _ = runtimeReleaseObject(enclosingClass)
+        _ = runtimeReleaseObject(functionValue)
+    }
 }
