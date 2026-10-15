@@ -157,6 +157,36 @@ extension ExprLowerer {
                 return nil
             }
 
+            func appendOperatorCall(
+                calleeName: InternedString,
+                arguments: [KIRExprID],
+                result: KIRExprID
+            ) {
+                if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
+                    chosenCallee: callBinding.chosenCallee,
+                    calleeName: calleeName,
+                    receiverExpr: nil,
+                    loweredReceiverID: lhs,
+                    isSuperCall: false,
+                    finalArguments: arguments,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                ) {
+                    instructions.append(virtualInstruction)
+                } else {
+                    instructions.append(.call(
+                        symbol: callBinding.chosenCallee,
+                        callee: calleeName,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+            }
+
             if ast.arena.isIncrementDecrement(exprID) {
                 let callResult = arena.appendTemporary(type: resultType)
                 let operatorName = op == .plusAssign ? "inc" : "dec"
@@ -168,14 +198,11 @@ extension ExprLowerer {
                 } else {
                     interner.intern(operatorName)
                 }
-                instructions.append(.call(
-                    symbol: callBinding.chosenCallee,
-                    callee: loweredCalleeName,
+                appendOperatorCall(
+                    calleeName: loweredCalleeName,
                     arguments: [lhs],
-                    result: callResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    result: callResult
+                )
                 return callResult
             }
 
@@ -220,14 +247,11 @@ extension ExprLowerer {
             } else {
                 interner.intern(op.kotlinFunctionName)
             }
-            instructions.append(.call(
-                symbol: callBinding.chosenCallee,
-                callee: loweredCalleeName,
+            appendOperatorCall(
+                calleeName: loweredCalleeName,
                 arguments: finalArguments,
-                result: callResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                result: callResult
+            )
             return callResult
         }
         if let symbol = sema.bindings.identifierSymbols[exprID] {
