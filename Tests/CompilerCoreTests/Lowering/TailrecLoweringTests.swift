@@ -776,7 +776,9 @@ struct TailrecLoweringTests {
     }
 
     @Test
-    func testTailrecUnitIfStatementIsLoweredToLoop() throws {
+    func testTailrecUnitIfStatementWithSyntheticJoinValueIsLoweredToLoop() throws {
+        // The statement-form branch materializes a fresh Unit value after the
+        // recursive call, then copies it into the if-expression join temporary.
         let result = try lowerTailrecSource(
             """
             tailrec fun unitLoop(n: Int) { if (n > 0) unitLoop(n - 1) }

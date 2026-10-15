@@ -143,7 +143,10 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: parameterExpectedType
                 )
-                argTypes.append(CallArg.source(argument, type: inferredType, callRange: range, ast: ctx.ast))
+                let resolutionType = ctx.sema.bindings.isSamConversion(argument.expr)
+                    ? ctx.sema.bindings.samUnderlyingFunctionType(for: argument.expr) ?? inferredType
+                    : inferredType
+                argTypes.append(CallArg.source(argument, type: resolutionType, callRange: range, ast: ctx.ast))
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: narrowedSamCandidates,
@@ -178,6 +181,9 @@ extension CallTypeChecker {
                 range: range,
                 diagnostics: ctx.sema.diagnostics
             )
+            bindResolvedSamLambdaArguments(
+                args, chosen: chosen, resolved: resolved, ast: ctx.ast, sema: ctx.sema
+            )
             return bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: ctx.sema)
         }
 
@@ -196,6 +202,38 @@ extension CallTypeChecker {
         }
 
         return nil
+    }
+
+    private func bindResolvedSamLambdaArguments(
+        _ args: [CallArgument],
+        chosen: SymbolID,
+        resolved: ResolvedCall,
+        ast: ASTModule,
+        sema: SemaModule
+    ) {
+        guard let signature = sema.symbols.functionSignature(for: chosen) else { return }
+        let typeVars = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (argumentIndex, argument) in args.enumerated() {
+            guard case .lambdaLiteral = ast.arena.expr(argument.expr),
+                  sema.bindings.isSamConversion(argument.expr),
+                  let parameterIndex = resolved.parameterMapping[argumentIndex],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else {
+                continue
+            }
+            let interfaceType = sema.types.substituteTypeParameters(
+                in: signature.parameterTypes[parameterIndex],
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: typeVars
+            )
+            guard let samFunction = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else {
+                continue
+            }
+            let functionType = sema.types.make(.functionType(samFunction))
+            sema.bindings.bindExprType(argument.expr, type: interfaceType)
+            sema.bindings.bindSamInterfaceType(argument.expr, type: interfaceType)
+            sema.bindings.bindSamUnderlyingFunctionType(argument.expr, type: functionType)
+        }
     }
 
     /// `Tr(f)` where `f` is a local of function type: the synthetic SAM
@@ -403,37 +441,50 @@ extension CallTypeChecker {
             }
             interfaceType = aliasType
         } else {
-            let interfaceArgs: [TypeArg]
-            if explicitTypeArgs.isEmpty {
-                if let expectedType,
-                   let expectedClassType = resolveClassType(expectedType, sema: sema),
-                   expectedClassType.classSymbol == interfaceSymID
-                {
-                    interfaceArgs = expectedClassType.args
+            let inferredInterfaceArgs: [TypeArg]
+            if let expectedType,
+               let expectedClassType = resolveClassType(expectedType, sema: sema),
+               expectedClassType.classSymbol == interfaceSymID
+            {
+                inferredInterfaceArgs = expectedClassType.args
+            } else {
+                let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
+                    interfaceSymID,
+                    typeParameters: interfaceTypeParameters,
+                    argExpr: argExpr,
+                    ctx: ctx
+                )
+                if annotationArgs.count == interfaceTypeParameters.count {
+                    inferredInterfaceArgs = annotationArgs
                 } else {
-                    let annotationArgs = inferInterfaceArgsFromLambdaAnnotations(
+                    inferredInterfaceArgs = inferInterfaceArgsFromLambdaReturnType(
                         interfaceSymID,
                         typeParameters: interfaceTypeParameters,
                         argExpr: argExpr,
-                        ctx: ctx
-                    )
-                    if annotationArgs.count == interfaceTypeParameters.count {
-                        interfaceArgs = annotationArgs
-                    } else {
-                        interfaceArgs = inferInterfaceArgsFromLambdaReturnType(
-                            interfaceSymID,
-                            typeParameters: interfaceTypeParameters,
-                            argExpr: argExpr,
-                            ctx: ctx,
-                            locals: locals
-                        ) ?? annotationArgs
-                    }
+                        ctx: ctx,
+                        locals: locals
+                    ) ?? annotationArgs
                 }
+            }
+
+            let interfaceArgs: [TypeArg]
+            if explicitTypeArgs.isEmpty {
+                interfaceArgs = inferredInterfaceArgs
             } else {
                 guard explicitTypeArgs.count == interfaceTypeParameters.count else {
                     return nil
                 }
-                interfaceArgs = explicitTypeArgs.map { .invariant($0) }
+                var mergedArgs: [TypeArg] = []
+                for index in interfaceTypeParameters.indices {
+                    if let explicit = resolvedExplicitTypeArgument(at: index, in: explicitTypeArgs) {
+                        mergedArgs.append(.invariant(explicit))
+                    } else if inferredInterfaceArgs.indices.contains(index) {
+                        mergedArgs.append(inferredInterfaceArgs[index])
+                    } else {
+                        return nil
+                    }
+                }
+                interfaceArgs = mergedArgs
             }
             interfaceType = sema.types.make(.classType(ClassType(
                 classSymbol: interfaceSymID,
@@ -441,7 +492,13 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
         }
-        guard let samFT = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else {
+        let samFT: FunctionType?
+        if case .callableRef = ctx.ast.arena.expr(argExpr) {
+            samFT = driver.helpers.samCallableReferenceFunctionType(for: interfaceType, sema: sema)
+        } else {
+            samFT = driver.helpers.samFunctionType(for: interfaceType, sema: sema)
+        }
+        guard let samFT else {
             return nil
         }
         let samFTTypeID = sema.types.make(.functionType(samFT))

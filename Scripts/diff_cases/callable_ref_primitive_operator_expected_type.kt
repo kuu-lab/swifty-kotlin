@@ -1,6 +1,9 @@
 fun applyInt(op: (Int, Int) -> Int): Int = op(2, 3)
 fun intPlus(): (Int, Int) -> Int = Int::plus
 fun longTimes(): (Long, Long) -> Long = Long::times
+fun product(values: List<Long>): Long = values.reduce(Long::times)
+fun iterableProduct(values: Iterable<Long>): Long = values.reduce(Long::times)
+fun iterableSum(values: Iterable<Long>): Long = values.reduce(Long::plus)
 
 fun main() {
     val plus: (Int, Int) -> Int = Int::plus
@@ -15,4 +18,7 @@ fun main() {
     println(listOf(1, 2, 3).reduce(Int::times))
     println(listOf(1L, 2L, 3L).fold(0L, Long::plus))
     println(listOf(1L, 2L, 3L).reduce(Long::times))
+    println(product(listOf(2L, 3L, 4L)))
+    println(iterableProduct(listOf(2L, 3L, 4L)))
+    println(iterableSum(listOf(2L, 3L, 4L)))
 }

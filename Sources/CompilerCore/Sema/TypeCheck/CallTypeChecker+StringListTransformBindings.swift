@@ -84,7 +84,7 @@ extension CallTypeChecker {
         let charSequenceType = syntheticCharSequenceType(sema: sema) ?? sema.types.stringType
         let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
             params: [charSequenceType],
-            returnType: explicitTypeArgs.first ?? sema.types.anyType,
+            returnType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType,
             isSuspend: false,
             nullability: .nonNull
         )))
@@ -97,7 +97,7 @@ extension CallTypeChecker {
         }
         sema.bindings.markCollectionHOFLambdaExpr(args[lambdaArgIndex].expr)
         _ = driver.inferExpr(args[lambdaArgIndex].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-        let bodyType = explicitTypeArgs.first
+        let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
             ?? inferredLambdaReturnType(argExpr: args[lambdaArgIndex].expr, ast: ast, sema: sema)
         guard let chosen = sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),

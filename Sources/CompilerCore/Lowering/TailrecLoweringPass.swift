@@ -341,16 +341,19 @@ final class TailrecLoweringPass: LoweringPass {
     /// Expression bodies (`= if (c) acc else f(..)`, `= when { .. }`) lower to
     /// `call -> copy(callResult, joinTemp) -> jump/label ... -> returnValue(joinTemp)`,
     /// so only `label`, `jump`, and `copy` of the call result (or of a value
-    /// already aliasing it) may sit between the call and the return. Any other
-    /// instruction (a store, a call, a conditional jump, exception plumbing of
-    /// `try`/`finally`) means work remains after the call and the call is not a
-    /// tail call.
+    /// already aliasing it) may sit between the call and the return. Unit-valued
+    /// statement branches can also materialize a fresh `unit` constant and copy
+    /// it into the join temporary before `returnUnit`; those pure instructions
+    /// do not make the recursive call non-tail. Any other instruction (a store,
+    /// a call, a conditional jump, exception plumbing of `try`/`finally`) means
+    /// work remains after the call and the call is not a tail call.
     private func tailReturnIndex(
         body: [KIRInstruction],
         callIndex: Int,
         callResult: KIRExprID?
     ) -> Int? {
         var aliases: Set<KIRExprID> = []
+        var unitValues: Set<KIRExprID> = []
         if let callResult { aliases.insert(callResult) }
         var visited: Set<Int> = []
         var index = callIndex + 1
@@ -365,8 +368,16 @@ final class TailrecLoweringPass: LoweringPass {
                 }) else { return nil }
                 index = targetIndex
             case let .copy(from, to):
-                guard aliases.contains(from) else { return nil }
-                aliases.insert(to)
+                if aliases.contains(from) {
+                    aliases.insert(to)
+                } else if unitValues.contains(from) {
+                    unitValues.insert(to)
+                } else {
+                    return nil
+                }
+                index += 1
+            case let .constValue(result, .unit):
+                unitValues.insert(result)
                 index += 1
             case let .returnValue(value):
                 return aliases.contains(value) ? index : nil

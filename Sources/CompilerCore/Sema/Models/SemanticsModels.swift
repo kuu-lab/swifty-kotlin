@@ -81,6 +81,29 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let legacyReifiedClassTokenABI = SymbolFlags(rawValue: 1 << 28)
 }
 
+extension SymbolFlags {
+    init(modifiers: Modifiers) {
+        self.init(rawValue: 0)
+        // Value-class status is declaration-kind-specific and is assigned by
+        // class header collection rather than from modifiers alone.
+        if modifiers.contains(.suspend) { insert(.suspendFunction) }
+        if modifiers.contains(.inline) { insert(.inlineFunction) }
+        if modifiers.contains(.operator) { insert(.operatorFunction) }
+        if modifiers.contains(.infix) { insert(.infixFunction) }
+        if modifiers.contains(.sealed) { insert(.sealedType) }
+        if modifiers.contains(.data) { insert(.dataType) }
+        if modifiers.contains(.inner) { insert(.innerClass) }
+        if modifiers.contains(.abstract) { insert(.abstractType) }
+        if modifiers.contains(.open) { insert(.openType) }
+        if modifiers.contains(.const) { insert(.constValue) }
+        if modifiers.contains(.override) { insert(.overrideMember) }
+        if modifiers.contains(.final) { insert(.finalMember) }
+        if modifiers.contains(.expect) { insert(.expectDeclaration) }
+        if modifiers.contains(.actual) { insert(.actualDeclaration) }
+        if modifiers.contains(.lateinit) { insert(.lateinitProperty) }
+    }
+}
+
 public struct SemanticSymbol: Sendable {
     public let id: SymbolID
     public let kind: SymbolKind
@@ -133,6 +156,10 @@ public struct FunctionSignature: Hashable, Sendable {
     public let isSuspend: Bool
     public let canThrow: Bool
     public let valueParameterSymbols: [SymbolID]
+    /// Per-value-parameter type parameters whose use is explicitly marked
+    /// `@UnsafeVariance`. The annotation is type-use metadata, so keep the
+    /// resolved type-parameter symbols after resolving the parameter type.
+    public let valueParameterUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>]
     public let valueParameterHasDefaultValues: [Bool]
     public let valueParameterIsVararg: [Bool]
     /// Whether a function parameter may carry non-local returns from a lambda
@@ -160,6 +187,7 @@ public struct FunctionSignature: Hashable, Sendable {
         isSuspend: Bool = false,
         canThrow: Bool = false,
         valueParameterSymbols: [SymbolID] = [],
+        valueParameterUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
@@ -179,6 +207,7 @@ public struct FunctionSignature: Hashable, Sendable {
         self.isSuspend = isSuspend
         self.canThrow = canThrow
         self.valueParameterSymbols = valueParameterSymbols
+        self.valueParameterUnsafeVarianceTypeParameterSymbols = valueParameterUnsafeVarianceTypeParameterSymbols
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn

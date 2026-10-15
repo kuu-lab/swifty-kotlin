@@ -328,13 +328,20 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        if lookup.mutableMapConstructorNames.contains(callee),
-           isStdlibCollectionConstructor(symbol: symbol, className: callee, result: result, module: module, ctx: ctx) {
+        if let mapConstructorName = stdlibMutableMapConstructorName(
+            symbol: symbol,
+            callee: callee,
+            result: result,
+            lookup: lookup,
+            arena: module.arena,
+            sema: ctx.sema,
+            interner: ctx.interner
+        ) {
             // KUU-556: LinkedHashMap is now a real HashMap subclass, so its
             // constructor gets its own runtime tag (kkLinkedHashMapOfName)
             // instead of sharing the generic kkMapOfName every other mutable
             // map factory still uses.
-            let constructorCallee = callee == lookup.hashMapName
+            let constructorCallee = mapConstructorName == lookup.hashMapName
                 ? lookup.kkHashMapOfName
                 : lookup.kkLinkedHashMapOfName
             // Create an empty mutable map first
@@ -345,7 +352,24 @@ extension CollectionLiteralConstructionLoweringPass {
             let nullExpr2 = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: nullExpr2, value: .intLiteral(0)))
 
-            if arguments.count == 1, state.mapExprIDs.contains(arguments[0].rawValue) {
+            let copyArgument: KIRExprID?
+            if let symbol,
+               ctx.sema?.symbols.symbol(symbol)?.kind == .constructor,
+               let signature = ctx.sema?.symbols.functionSignature(for: symbol) {
+                if signature.parameterTypes.count == 1,
+                   let argument = arguments.last,
+                   state.mapExprIDs.contains(argument.rawValue) {
+                    copyArgument = argument
+                } else {
+                    copyArgument = nil
+                }
+            } else if arguments.count == 1,
+                      state.mapExprIDs.contains(arguments[0].rawValue) {
+                copyArgument = arguments[0]
+            } else {
+                copyArgument = nil
+            }
+            if let copyArgument {
                 // Copy constructor: HashMap(otherMap) — only when arg is map-typed
                 // 1. Create empty map into the result
                 loweredBody.append(.call(
@@ -362,7 +386,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMutableMapPutAllName,
-                    arguments: result.map { [$0, arguments[0]] } ?? [arguments[0]],
+                    arguments: result.map { [$0, copyArgument] } ?? [copyArgument],
                     result: putAllResult,
                     canThrow: false,
                     thrownResult: nil

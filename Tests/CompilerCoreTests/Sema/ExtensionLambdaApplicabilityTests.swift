@@ -4,6 +4,46 @@ import TestStdlibCache
 
 @Suite
 struct ExtensionLambdaApplicabilityTests {
+    @Test
+    func genericIterableOnEachTrailingLambdaUsesReceiverElementType() throws {
+        try withTemporaryFile(contents: """
+        package fixture
+        class Outcome<V, E>(val value: V, val error: E?)
+
+        fun <V, E> Iterable<Outcome<V, E>>.simpleEach(
+            action: (Outcome<V, E>) -> Unit
+        ): Iterable<Outcome<V, E>> = onEach { item -> action(item) }
+
+        fun <V, E> iterableOnEach(
+            values: Iterable<Outcome<V, E>>,
+            action: (Outcome<V, E>) -> Unit
+        ): Iterable<Outcome<V, E>> {
+            values.onEach { item: Outcome<V, E> -> action(item) }
+            values.onEach(action)
+            values.forEach(action)
+            return values
+        }
+
+        fun <V, E> iterableOnEachIndexed(
+            values: Iterable<Outcome<V, E>>
+        ): Iterable<Outcome<V, E>> = values.onEachIndexed { index, item ->
+            val value: V = item.value
+            val error: E? = item.error
+            print(index)
+        }
+
+        fun listOnEach(
+            values: List<Outcome<Int, String>>
+        ): List<Outcome<Int, String>> = values.onEach { item -> print(item.value) }
+
+        fun stringOnEach(value: String): String = value.onEach { char: Char -> print(char) }
+        """) { path in
+            let ctx = try context(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test(arguments: [true, false])
     func iterableAggregateSurvivesInapplicableListOverload(includeListOverload: Bool) throws {
         let source = """

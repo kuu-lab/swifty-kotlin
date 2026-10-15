@@ -14,6 +14,7 @@ public struct ASTArenaSnapshot: Codable {
     public let operatorFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
+    public let incrementDecrementValueExpressions: Set<ExprID>
     public let callResultCompoundAssignmentBlocks: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
@@ -35,6 +36,7 @@ public struct ASTArenaSnapshot: Codable {
         case operatorFunctionExpressions
         case explicitCallExpressions
         case incrementDecrementExpressions
+        case incrementDecrementValueExpressions
         case callResultCompoundAssignmentBlocks
         case nonFunctionLambdaLabels
         case incrementDecrementCachedValues
@@ -57,6 +59,7 @@ public struct ASTArenaSnapshot: Codable {
         operatorFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
+        incrementDecrementValueExpressions: Set<ExprID> = [],
         callResultCompoundAssignmentBlocks: Set<ExprID> = [],
         nonFunctionLambdaLabels: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
@@ -77,6 +80,7 @@ public struct ASTArenaSnapshot: Codable {
         self.operatorFunctionExpressions = operatorFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
+        self.incrementDecrementValueExpressions = incrementDecrementValueExpressions
         self.callResultCompoundAssignmentBlocks = callResultCompoundAssignmentBlocks
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
@@ -107,6 +111,10 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
+        ) ?? []
+        incrementDecrementValueExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .incrementDecrementValueExpressions
         ) ?? []
         callResultCompoundAssignmentBlocks = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .callResultCompoundAssignmentBlocks
@@ -199,6 +207,8 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
+    /// Tracks prefix increment/decrement nodes whose value is the updated value.
+    private var _incrementDecrementValueExpressions: Set<ExprID> = []
     /// Synthetic call-result assignment blocks preserve outer data flow while
     /// keeping their receiver temporary in a separate lexical scope.
     private var _callResultCompoundAssignmentBlocks: Set<ExprID> = []
@@ -242,6 +252,7 @@ public final class ASTArena: @unchecked Sendable {
         _operatorFunctionExpressions = snapshot.operatorFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
+        _incrementDecrementValueExpressions = snapshot.incrementDecrementValueExpressions
         _callResultCompoundAssignmentBlocks = snapshot.callResultCompoundAssignmentBlocks
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
@@ -267,6 +278,7 @@ public final class ASTArena: @unchecked Sendable {
             operatorFunctionExpressions: _operatorFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
+            incrementDecrementValueExpressions: _incrementDecrementValueExpressions,
             callResultCompoundAssignmentBlocks: _callResultCompoundAssignmentBlocks,
             nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
@@ -327,6 +339,7 @@ public final class ASTArena: @unchecked Sendable {
         _operatorFunctionExpressions.formUnion(snapshot.operatorFunctionExpressions.map { remapper.remap($0) })
         _explicitCallExpressions.formUnion(snapshot.explicitCallExpressions.map { remapper.remap($0) })
         _incrementDecrementExpressions.formUnion(snapshot.incrementDecrementExpressions.map { remapper.remap($0) })
+        _incrementDecrementValueExpressions.formUnion(snapshot.incrementDecrementValueExpressions.map { remapper.remap($0) })
         _callResultCompoundAssignmentBlocks.formUnion(snapshot.callResultCompoundAssignmentBlocks.map { remapper.remap($0) })
         _nonFunctionLambdaLabels.formUnion(snapshot.nonFunctionLambdaLabels.map { remapper.remap($0) })
         return remapper
@@ -649,10 +662,17 @@ public final class ASTArena: @unchecked Sendable {
         return _callResultCompoundAssignmentBlocks.contains(exprID)
     }
 
-    public func markIncrementDecrement(_ exprID: ExprID, cachedValue: ExprID? = nil) {
+    public func markIncrementDecrement(
+        _ exprID: ExprID,
+        cachedValue: ExprID? = nil,
+        returnsValue: Bool = false
+    ) {
         lock.lock()
         defer { lock.unlock() }
         _incrementDecrementExpressions.insert(exprID)
+        if returnsValue {
+            _incrementDecrementValueExpressions.insert(exprID)
+        }
         if let cachedValue {
             _incrementDecrementCachedValues[exprID] = cachedValue
         }
@@ -668,6 +688,12 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _incrementDecrementExpressions.contains(exprID)
+    }
+
+    public func incrementDecrementReturnsValue(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _incrementDecrementValueExpressions.contains(exprID)
     }
 
     public func markNonFunctionLambdaLabel(_ exprID: ExprID) {

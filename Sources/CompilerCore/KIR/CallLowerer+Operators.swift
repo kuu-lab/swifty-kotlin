@@ -1412,9 +1412,9 @@ extension CallLowerer {
     }
 
     private func isEnumEntry(_ symbol: SymbolID, sema: SemaModule) -> Bool {
-        guard let parent = sema.symbols.parentSymbol(for: symbol) else {
+        guard let entry = sema.symbols.symbol(symbol) else {
             return false
         }
-        return sema.symbols.symbol(parent)?.kind == .enumClass
+        return sema.symbols.enumOwnerSymbol(for: entry) != nil
     }
 }

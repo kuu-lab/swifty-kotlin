@@ -11,4 +11,9 @@ package kotlin
 // synthetic self-registration.
 public fun interface Comparator<in T> {
     public fun compare(a: T, b: T): Int
+
+    public companion object {
+        public fun <T> comparingInt(selector: (T) -> Int): Comparator<T> =
+            Comparator { a, b -> selector(a).compareTo(selector(b)) }
+    }
 }

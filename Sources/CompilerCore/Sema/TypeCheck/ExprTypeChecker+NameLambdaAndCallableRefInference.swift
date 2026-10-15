@@ -550,7 +550,7 @@ extension ExprTypeChecker {
         return nil
     }
 
-    private func resolveTypeForCandidate(_ symbol: SemanticSymbol, sema: SemaModule) -> TypeID? {
+    func resolveTypeForCandidate(_ symbol: SemanticSymbol, sema: SemaModule) -> TypeID? {
         if let signature = sema.symbols.functionSignature(for: symbol.id) {
             return signature.returnType
         }

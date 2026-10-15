@@ -125,6 +125,44 @@ struct PropertyAccessorParsingTests {
     }
 
     @Test
+    func topLevelTypedBlockGetterRetainsItsInitializerAndBody() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        var value: String = "OK"
+            get(): String { return "OK" }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(topLevelProperty(named: "value", in: ast, interner: ctx.interner))
+        #expect(property.initializer != nil)
+        #expect(property.setter == nil)
+        guard case let .block(statements, _) = property.getter?.body else {
+            Issue.record("The typed top-level getter must remain attached to its property")
+            return
+        }
+        #expect(statements.count == 1)
+    }
+
+    @Test(arguments: [
+        "object { val inner: Int get() = 42 }",
+        "run { 42 }",
+    ])
+    func topLevelTypedBlockGetterKeepsInitializerBlockOwnership(_ initializer: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val completion: Any = \(initializer)
+            get(): Any { return "OK" }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(topLevelProperty(named: "completion", in: ast, interner: ctx.interner))
+        #expect(property.initializer != nil)
+        guard case let .block(statements, _) = property.getter?.body else {
+            Issue.record("The typed getter block must stay separate from its initializer block")
+            return
+        }
+        #expect(statements.count == 1)
+    }
+
+    @Test
     func explicitEmptySetterRetainsAnEmptyBlockBody() throws {
         let (ast, ctx) = try buildASTModule(from: """
         class C {

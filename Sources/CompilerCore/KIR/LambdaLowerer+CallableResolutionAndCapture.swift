@@ -447,12 +447,24 @@ extension LambdaLowerer {
            let symbol = sema.symbols.symbol(symbolID),
            symbol.kind == .property || symbol.kind == .field,
            let parentID = sema.symbols.parentSymbol(for: symbolID),
-           let parent = sema.symbols.symbol(parentID),
-           parent.kind == .class || parent.kind == .object || parent.kind == .interface
+           let parent = sema.symbols.symbol(parentID)
         {
-            if excludingReceiverType == nil || memberNeedsOuterReceiver(
-                owner: parentID, excluding: excludingReceiverType, outerReceiverType: outerReceiverType, sema: sema
-            ) {
+            let memberOwner: SymbolID?
+            if parent.kind == .class || parent.kind == .object || parent.kind == .interface {
+                memberOwner = parentID
+            } else if symbol.kind == .property {
+                // Enum-entry body properties are parented by the entry field
+                // in Sema, but their implicit receiver is the enum value.
+                memberOwner = driver.callLowerer.enumClassOwnerSymbol(forEntryField: parentID, sema: sema)
+            } else {
+                memberOwner = nil
+            }
+            if let memberOwner,
+               excludingReceiverType == nil || memberNeedsOuterReceiver(
+                   owner: memberOwner, excluding: excludingReceiverType,
+                   outerReceiverType: outerReceiverType, sema: sema
+               )
+            {
                 return true
             }
         }

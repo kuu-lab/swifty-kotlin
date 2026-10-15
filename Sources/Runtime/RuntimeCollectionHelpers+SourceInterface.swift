@@ -1,6 +1,9 @@
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
 )
+private let runtimeSetSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Set"
+)
 private let runtimeMapInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
@@ -20,6 +23,7 @@ private let runtimeSourceMapEntryInterfaceTypeID = runtimeStableNominalTypeID(
 // own vtable method count (2 slots) is untouched by KSP-960, which only
 // changes Collection's synthetic member registration.
 private let runtimeCollectionSizeGetterSlot = 4
+private let runtimeSetSizeGetterSlot = 3
 private let runtimeCollectionIsEmptyMethodSlot = 0
 private let runtimeListIteratorAtMethodSlot = 1
 private let runtimeListSubListMethodSlot = 2
@@ -76,6 +80,28 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     let result = fn(rawValue, &thrown)
     if thrown != 0 {
         runtimeStructuredPanic("Collection.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// Dispatch a source-defined Set.size override through Set's property getter
+/// slot. This differs from Collection.size because Set redeclares the property.
+@inline(__always)
+func runtimeSourceSetSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeSetSizeInterfaceTypeID),
+        runtimeSetSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Set.size dispatch threw exception handle \(thrown)")
     }
     return result
 }

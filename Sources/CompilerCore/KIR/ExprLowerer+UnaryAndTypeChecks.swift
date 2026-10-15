@@ -146,6 +146,22 @@ extension ExprLowerer {
         return negatedResult
     }
 
+    /// A plain T may admit null through its upper bounds even when its type
+    /// parameter node has no explicit `?`. Follow dependent bounds as well.
+    private func castTypeRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
+        var visited: Set<SymbolID> = []
+        func requiresNonNull(_ type: TypeID) -> Bool {
+            guard sema.types.nullability(of: type) == .nonNull else { return false }
+            if case let .typeParam(parameter) = sema.types.kind(of: type) {
+                guard visited.insert(parameter.symbol).inserted else { return false }
+                return sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+                    .contains(where: requiresNonNull)
+            }
+            return sema.types.isDefinitelyNonNull(type)
+        }
+        return requiresNonNull(type)
+    }
+
     func lowerAsCastExpr(
         exprToCast: ExprID,
         typeRefID: TypeRefID,
@@ -212,19 +228,28 @@ extension ExprLowerer {
         // has no runtime type information to check against — Sema allows
         // this (with an "unchecked cast" warning) but only rejects `is T`
         // for non-reified T (KSWIFTK-SEMA-0084), matching Kotlin/JVM, where
-        // `as T` under erasure is a pure "trust me" annotation for the type
-        // checker with no runtime checkcast at all. Passing this through to
+        // `as T` under erasure needs no classifier checkcast. Its non-null
+        // upper-bound contract still requires a null assertion. Passing it to
         // `kk_op_cast` would encode an `unknownBase` token, which
         // `kk_op_is` always reports as a mismatch — turning every such cast
-        // into an unconditional ClassCastException. Pass the value through
-        // unchanged instead.
+        // into an unconditional ClassCastException. Preserve the value and
+        // check only the null contract instead.
         if let targetType = sema.bindings.castTargetType(for: exprID),
            case let .typeParam(typeParam) = sema.types.kind(of: targetType),
            let typeParamSymbol = sema.symbols.symbol(typeParam.symbol),
            !typeParamSymbol.flags.contains(.reifiedTypeParameter)
         {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            instructions.append(.copy(from: operandID, to: result))
+            let operandIsNonNull = sema.bindings.exprType(for: exprToCast).map {
+                castTypeRequiresNonNull($0, sema: sema)
+            } ?? false
+            // A check on a statically non-null value is redundant and can
+            // misread an unboxed Long.MIN_VALUE after inline specialization.
+            if !isSafe, !operandIsNonNull, castTypeRequiresNonNull(targetType, sema: sema) {
+                instructions.append(.nullAssert(operand: operandID, result: result))
+            } else {
+                instructions.append(.copy(from: operandID, to: result))
+            }
             return result
         }
         let typeToken: KIRExprID = if let targetType = sema.bindings.castTargetType(for: exprID) {

@@ -127,6 +127,50 @@ golden mismatch が出る。これは `git checkout -- Sources` した素の状�
 の残存範囲だと考えている（詳細は `equal-constraint-lub-glb-pollution-bug` メモリファイル参照）。
 別タスクとして spawn_task 済み。
 
+## IO-F03: 固定版 ktor-io macOS source set（2026-10-16）
+
+KUU-1824 の consumer 調査では、Ktor 3.6.0 tag を次の commit に固定した。
+Ktor の version catalog が宣言する依存は Kotlin 2.3.21、kotlinx-io 0.9.1、kotlinx-coroutines 1.11.0、
+atomicfu 0.33.0。
+
+| 入力 | 固定値 |
+|---|---|
+| Ktor 3.6.0 | `111c5807d0a9004c8e0f17ae01e12a71aae56a29` |
+| kotlinx-io 0.9.1 | `362bdc35e159bad6da1e08101c8321792d762281` |
+| kotlinx-coroutines 1.11.0 | `8564f65764d3d05893cec026c6e94250e2b23874` |
+| Kotlin target | `arm64-apple-macosx` |
+| Ktor source set | `common`, `nonJvm`, `jvmAndPosix`, `posix`, `darwin`（63 files） |
+
+fresh stdlib `.kklib` を用意し、上記5つの `ktor-io` source root を1つの library として compile する。
+以下の source root とオプションを使い、`-O0` と `-O2` をそれぞれ実行する。
+
+```bash
+KTOR_ROOT=/path/to/ktor-at-111c5807
+STDLIB_KKLIB=/path/to/fresh-stdlib.kklib
+roots=(common nonJvm jvmAndPosix posix darwin)
+sources=()
+for root in "${roots[@]}"; do
+  while IFS= read -r file; do sources+=("$file"); done \
+    < <(find "$KTOR_ROOT/ktor-io/$root/src" -type f -name '*.kt' | sort)
+done
+
+.build/debug/kswiftc --emit library -m ktor_io_macos -O0 \
+  --target arm64-apple-macosx --stdlib-library "$STDLIB_KKLIB" \
+  -I "$STDLIB_KKLIB" -o /tmp/ktor-io-macos-O0.kklib "${sources[@]}"
+```
+
+2026-10-16 の O0/O2 compile はどちらも 63 files に対して 103 diagnostics で停止し、library artifact は生成されなかった。
+Ktor `common` source だけの compile は成功したが、expect declaration に actual がないため consumer library としては使えず、
+packet / stream / channel / ByteString の consumer compile・link・run はまだできていない。
+
+調査中に見つけた `expect class` にない `actual` companion member の class-name call 解決を修正し、
+`Charset.forName` / `Charset.isSupported` の unresolved を除去した。回帰は
+`Tests/CompilerCoreTests/Sema/ExpectActualCompatibilityTests.swift` に追加した。
+残る platform blockers は [KUU-2339](https://linear.app/kuu/issue/KUU-2339)、
+[KUU-2403](https://linear.app/kuu/issue/KUU-2403)、
+[KUU-2404](https://linear.app/kuu/issue/KUU-2404) に記録し、KUU-1824 の dependency に設定した。
+この結果は compile probe であり、consumer O0/O2 の link・実行・データ一致・非ハング検証の完了を意味しない。
+
 ## まとめ
 
 Ktor が今すぐビルドできる状態にはなっていない。今回直したのは実在する Kotlin コードで踏む

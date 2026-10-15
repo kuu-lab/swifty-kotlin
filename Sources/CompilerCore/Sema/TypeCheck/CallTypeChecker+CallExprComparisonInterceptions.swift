@@ -211,7 +211,7 @@ extension CallTypeChecker {
         {
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
-            let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
+            let elementType: TypeID = if let explicitT = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                 explicitT
             } else if let expectedType,
                       case let .classType(classType) = sema.types.kind(of: expectedType),
@@ -300,7 +300,7 @@ extension CallTypeChecker {
         {
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName)
-            let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
+            let elementType: TypeID = if let explicitT = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                 explicitT
             } else if let expectedType,
                       case let .classType(classType) = sema.types.kind(of: expectedType),
@@ -312,8 +312,8 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
-            let keyType: TypeID = if explicitTypeArgs.count >= 2 {
-                explicitTypeArgs[1]
+            let keyType: TypeID = if let explicit = resolvedExplicitTypeArgument(at: 1, in: explicitTypeArgs) {
+                explicit
             } else {
                 sema.types.anyType
             }
@@ -398,7 +398,7 @@ extension CallTypeChecker {
                ctx: ctx
            ) != nil
         {
-            let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
+            let elementType: TypeID = if let explicitT = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                 explicitT
             } else if let expectedType,
                       case let .classType(classType) = sema.types.kind(of: expectedType),
@@ -489,7 +489,7 @@ extension CallTypeChecker {
                 // Resolve the Comparator<T> return type.
                 // The lambda selector has signature (T) -> Comparable<*>.
                 // T is inferred from explicit type args, calling context, or defaults to Any.
-                let elementType: TypeID = if let explicitT = explicitTypeArgs.first {
+                let elementType: TypeID = if let explicitT = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                     explicitT
                 } else if let expectedType,
                     case let .classType(classType) = sema.types.kind(of: expectedType),
@@ -575,7 +575,7 @@ extension CallTypeChecker {
                    fqComponents: ["kotlin", "comparisons", calleeNameStr],
                    ctx: ctx
                ) != nil {
-                let elementType: TypeID = if let explicitTypeArg = explicitTypeArgs.first {
+                let elementType: TypeID = if let explicitTypeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                     explicitTypeArg
                 } else if let expectedType,
                     case let .classType(classType) = sema.types.kind(of: expectedType),
@@ -679,9 +679,9 @@ extension CallTypeChecker {
                     let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                         sema.types.makeNonNullable($0)
                     }
-                    let elementType = explicitTypeArgs.first
+                    let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                         ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
-                    let keyType = explicitTypeArgs.count >= 2 ? explicitTypeArgs[1] : inferredKeyType
+                    let keyType = resolvedExplicitTypeArgument(at: 1, in: explicitTypeArgs) ?? inferredKeyType
                     let comparatorType = sema.types.make(.classType(ClassType(
                         classSymbol: comparatorSymbol,
                         args: [.invariant(keyType)],
@@ -721,7 +721,7 @@ extension CallTypeChecker {
                 let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                     sema.types.makeNonNullable($0)
                 }
-                let elementType = explicitTypeArgs.first
+                let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                     ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],

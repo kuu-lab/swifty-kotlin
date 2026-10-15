@@ -2,6 +2,7 @@
 extension TypeCheckHelpers {
     private struct MemberDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
+        let extensionReceiverType: TypeID?
         let parameterTypes: [TypeID]
         let methodTypeParameterCount: Int
         let methodUpperBounds: [[TypeID]]
@@ -318,8 +319,27 @@ extension TypeCheckHelpers {
     ) -> [TypeID] {
         guard !typeArgRefs.isEmpty else { return [] }
         return typeArgRefs.map { typeRefID in
-            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
+            guard !isExplicitTypeInferencePlaceholder(typeRefID, ast: ast, interner: interner) else {
+                // Keep the argument's position while leaving its type variable to normal call inference.
+                return TypeID.invalid
+            }
+            return resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
         }
+    }
+
+    func isExplicitTypeInferencePlaceholder(
+        _ typeRefID: TypeRefID,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .named(path, args, nullable) = ast.arena.typeRef(typeRefID),
+              path.count == 1,
+              args.isEmpty,
+              !nullable
+        else {
+            return false
+        }
+        return interner.resolve(path[0]) == "_"
     }
 
     /// Check if an expression is a terminating expression (return/throw) for elvis guard narrowing.
@@ -630,12 +650,18 @@ extension TypeCheckHelpers {
                     }
                 }
                 let methodParameters = Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+                let extensionReceiverType: TypeID? = if sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil {
+                    nil
+                } else {
+                    dispatchTypes([signatureReceiverType], owner: owner).first
+                }
                 let parameterTypes = dispatchTypes(signature.parameterTypes, owner: owner)
                 let upperBounds = methodTypeParameterBounds(signature, types: sema.types).map {
                     dispatchTypes($0, owner: owner)
                 }
                 var key = MemberDispatchKey(
                     name: calleeName,
+                    extensionReceiverType: extensionReceiverType,
                     parameterTypes: parameterTypes,
                     methodTypeParameterCount: methodParameters.count,
                     methodUpperBounds: upperBounds,
@@ -650,6 +676,17 @@ extension TypeCheckHelpers {
                         alphaAlignedMethodType(type, sourceParameters: methodParameters,
                                                targetParameters: targetParameters, types: sema.types)
                     }
+                    let extensionReceiverMatches: Bool
+                    if let extensionReceiverType, let existingReceiverType = existing.extensionReceiverType {
+                        extensionReceiverMatches = methodIdentityParameterTypesMatch(
+                            candidateParameterTypes: [existingReceiverType],
+                            interfaceParameterTypes: [aligned(extensionReceiverType)],
+                            types: sema.types
+                        )
+                    } else {
+                        extensionReceiverMatches = extensionReceiverType == nil && existing.extensionReceiverType == nil
+                    }
+                    guard extensionReceiverMatches else { return false }
                     return methodIdentityParameterTypesMatch(candidateParameterTypes: existing.parameterTypes,
                                                              interfaceParameterTypes: parameterTypes.map(aligned), types: sema.types)
                         && methodUpperBoundSetsMatch(upperBounds.map { $0.map(aligned) }, existing.methodUpperBounds, types: sema.types)
@@ -700,24 +737,23 @@ extension TypeCheckHelpers {
         }
 
         var candidates: [SymbolID] = []
-        var overrideDepthByShape: [String: Int] = [:]
-        for grouped in candidatesByKey.values {
+        var overrideDepthByKey: [MemberDispatchKey: Int] = [:]
+        for key in keyOrder {
+            guard let grouped = candidatesByKey[key] else { continue }
             for candidate in grouped {
                 guard sema.symbols.symbol(candidate.symbol)?.flags.contains(.overrideMember) == true,
-                      let signature = sema.symbols.functionSignature(for: candidate.symbol)
+                      sema.symbols.functionSignature(for: candidate.symbol) != nil
                 else {
                     continue
                 }
-                let shape = "\(signature.parameterTypes.count)#\(signature.isSuspend)"
-                overrideDepthByShape[shape] = min(overrideDepthByShape[shape] ?? candidate.depth, candidate.depth)
+                overrideDepthByKey[key] = min(overrideDepthByKey[key] ?? candidate.depth, candidate.depth)
             }
         }
         for key in keyOrder {
             guard let grouped = candidatesByKey[key], !grouped.isEmpty else {
                 continue
             }
-            let shape = "\(key.parameterTypes.count)#\(key.isSuspend)"
-            if let overrideDepth = overrideDepthByShape[shape],
+            if let overrideDepth = overrideDepthByKey[key],
                grouped.allSatisfy({ $0.depth > overrideDepth })
             {
                 continue

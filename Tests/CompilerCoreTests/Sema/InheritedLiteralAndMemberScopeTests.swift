@@ -166,6 +166,96 @@ struct InheritedLiteralAndMemberScopeTests {
         #expect(ranges.count == 2)
     }
 
+    @Test(arguments: [false, true])
+    func classOverrideDoesNotHideSameArityInheritedInterfaceOverload(library: Bool) throws {
+        let source = """
+        class JsonObject
+        class JsonArray
+        interface Parser<in IN: Any, out OUT: Any> { fun parse(source: IN): OUT }
+        interface MultiParser<in IN: Any, out OUT: Any> { fun parse(source: IN): Collection<OUT> }
+        interface JsonParser<T: Any> : Parser<JsonObject, T>, MultiParser<JsonArray, T> {
+            override fun parse(source: JsonArray): Collection<T> = emptyList()
+        }
+        class ProjectInfoJsonParser : JsonParser<String> {
+            override fun parse(source: JsonObject): String = "OK"
+        }
+        class ExplicitJsonParser : JsonParser<String> {
+            override fun parse(source: JsonObject): String = "OK"
+            override fun parse(source: JsonArray): Collection<String> = emptyList()
+        }
+        fun inheritedArray(parser: ProjectInfoJsonParser) { parser.parse(JsonArray()) }
+        fun inheritedObject(parser: ProjectInfoJsonParser) { parser.parse(JsonObject()) }
+        fun explicitArray(parser: ExplicitJsonParser) { parser.parse(JsonArray()) }
+        fun explicitObject(parser: ExplicitJsonParser) { parser.parse(JsonObject()) }
+        fun baseInterface(parser: MultiParser<JsonArray, String>) { parser.parse(JsonArray()) }
+        """
+        let ctx = try context([source], library: library)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics
+            .filter { $0.severity == .error }
+            .map { "\($0.code): \($0.message)" }
+        #expect(errors.isEmpty, "\(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let path = try #require(ctx.options.inputs.first)
+        var resolvedCalls: [(offset: Int, owner: String, parameterType: String)] = []
+        for (index, expr) in ast.arena.exprs.enumerated() {
+            guard case let .memberCall(_, name, _, _, _) = expr,
+                  ctx.interner.resolve(name) == "parse" else { continue }
+            let id = ExprID(rawValue: Int32(index))
+            guard let range = ast.arena.exprRange(id), ctx.sourceManager.path(of: range.start.file) == path else {
+                continue
+            }
+            guard let binding = sema.bindings.callBinding(for: id),
+                  let callee = sema.symbols.symbol(binding.chosenCallee),
+                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                  let parameterType = signature.parameterTypes.first
+            else {
+                Issue.record("Expected each parse call to resolve to a member with a parameter")
+                continue
+            }
+            let parameterTypeName: String
+            switch sema.types.kind(of: parameterType) {
+            case let .classType(classType):
+                guard let parameter = sema.symbols.symbol(classType.classSymbol) else {
+                    Issue.record("Expected a declared parameter type for each parse call")
+                    continue
+                }
+                parameterTypeName = parameter.fqName.map(ctx.interner.resolve).joined(separator: ".")
+            case let .typeParam(typeParameter):
+                guard let parameter = sema.symbols.symbol(typeParameter.symbol) else {
+                    Issue.record("Expected a declared type parameter for each parse call")
+                    continue
+                }
+                parameterTypeName = ctx.interner.resolve(parameter.name)
+            default:
+                Issue.record("Expected a class or type parameter for each parse call")
+                continue
+            }
+            resolvedCalls.append((
+                range.start.offset,
+                callee.fqName.map(ctx.interner.resolve).joined(separator: "."),
+                parameterTypeName
+            ))
+        }
+        resolvedCalls.sort { $0.offset < $1.offset }
+        #expect(resolvedCalls.map(\.owner) == [
+            "JsonParser.parse",
+            "ProjectInfoJsonParser.parse",
+            "ExplicitJsonParser.parse",
+            "ExplicitJsonParser.parse",
+            "MultiParser.parse",
+        ])
+        #expect(resolvedCalls.map(\.parameterType) == [
+            "JsonArray",
+            "JsonObject",
+            "JsonArray",
+            "JsonObject",
+            "IN",
+        ])
+    }
+
     @Test(arguments: [false, true], [false, true])
     func fallbackPreservesFilePrivateExtensionVisibility(library: Bool, sameFile: Bool) throws {
         let declaration = """

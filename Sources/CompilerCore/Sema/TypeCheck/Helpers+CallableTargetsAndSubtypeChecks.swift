@@ -65,6 +65,7 @@ extension TypeCheckHelpers {
         for signature: FunctionSignature,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        unboundReceiverType: TypeID? = nil,
         specializeGenericReceiver: Bool = true,
         packVarargs: Bool = true,
         interner: StringInterner? = nil,
@@ -124,7 +125,7 @@ extension TypeCheckHelpers {
                     ?? params[index]
             }
         }
-        if !bindReceiver, let receiverType = signature.receiverType {
+        if !bindReceiver, let receiverType = unboundReceiverType ?? signature.receiverType {
             params.insert(boundReceiver?.receiverType ?? receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
@@ -244,6 +245,7 @@ extension TypeCheckHelpers {
         expectedType: TypeID?,
         bindReceiver: Bool,
         boundReceiverType: TypeID? = nil,
+        unboundReceiverType: TypeID? = nil,
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
         sema: SemaModule
@@ -292,6 +294,7 @@ extension TypeCheckHelpers {
                     for: signature,
                     bindReceiver: bindReceiver,
                     boundReceiver: boundReceiverType.map { (symbolID, $0) },
+                    unboundReceiverType: unboundReceiverType,
                     expectedFunctionType: expected,
                     postponedReturnTypeParameter: postponedReturnTypeParameter,
                     interner: interner,
@@ -310,6 +313,7 @@ extension TypeCheckHelpers {
                 for: signature,
                 bindReceiver: bindReceiver,
                 boundReceiver: boundReceiverType.map { (symbolID, $0) },
+                unboundReceiverType: unboundReceiverType,
                 expectedFunctionType: expectedFunctionType,
                 postponedReturnTypeParameter: postponedReturnTypeParameter,
                 interner: interner,
@@ -341,6 +345,7 @@ extension TypeCheckHelpers {
         for signature: FunctionSignature,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        unboundReceiverType: TypeID? = nil,
         expectedFunctionType: TypeID,
         interner: StringInterner? = nil,
         allowScalarVarargAdaptation: Bool = true,
@@ -348,6 +353,7 @@ extension TypeCheckHelpers {
     ) -> TypeID? {
         contextualCallableReferenceBinding(
             for: signature, bindReceiver: bindReceiver, boundReceiver: boundReceiver,
+            unboundReceiverType: unboundReceiverType,
             expectedFunctionType: expectedFunctionType, interner: interner,
             allowScalarVarargAdaptation: allowScalarVarargAdaptation, sema: sema
         )?.functionType
@@ -357,6 +363,7 @@ extension TypeCheckHelpers {
         for signature: FunctionSignature,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        unboundReceiverType: TypeID? = nil,
         expectedFunctionType: TypeID?,
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
@@ -368,6 +375,7 @@ extension TypeCheckHelpers {
                 for: signature,
                 bindReceiver: bindReceiver,
                 boundReceiver: boundReceiver,
+                unboundReceiverType: unboundReceiverType,
                 specializeGenericReceiver: false,
                 packVarargs: false,
                 interner: interner,
@@ -381,6 +389,7 @@ extension TypeCheckHelpers {
                     for: signature,
                     bindReceiver: bindReceiver,
                     boundReceiver: boundReceiver,
+                    unboundReceiverType: unboundReceiverType,
                     specializeGenericReceiver: false,
                     packVarargs: true,
                     interner: interner,
@@ -394,7 +403,7 @@ extension TypeCheckHelpers {
             }
 
             let types = sema.types
-            let receiverOffset = !bindReceiver && signature.receiverType != nil ? 1 : 0
+            let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) ? 1 : 0
             let expectedArity = (expected.receiver == nil ? 0 : 1) + expected.params.count
             let expectedValueArity = expectedArity - receiverOffset
             guard expectedValueArity >= 0 else { return [] }

@@ -311,7 +311,7 @@ extension LoweringPassRegressionTests {
     // MARK: - DATA-003: hashCode() synthesis for data classes
 
     @Test(arguments: [
-        "Int", "Array", "ByteArray", "ShortArray", "IntArray", "LongArray",
+        "Int", "Double", "Long", "ULong", "Array", "ByteArray", "ShortArray", "IntArray", "LongArray",
         "FloatArray", "DoubleArray", "BooleanArray", "CharArray",
         "UByteArray", "UShortArray", "UIntArray", "ULongArray",
     ], [false, true])
@@ -340,6 +340,10 @@ extension LoweringPassRegressionTests {
 
         let intType = types.make(.primitive(.int, .nonNull))
         var propertyType = nullable ? types.makeNullable(intType) : intType
+        if let primitive: PrimitiveType = ["Double": .double, "Long": .long, "ULong": .ulong][propertyTypeName] {
+            let rawType = types.make(.primitive(primitive, .nonNull))
+            propertyType = nullable ? types.makeNullable(rawType) : rawType
+        }
         var expectedArrayHashSymbol: SymbolID?
         let contentHashName = interner.intern("contentHashCode")
         let contentHashFQName = [interner.intern("kotlin"), interner.intern("collections"), contentHashName]
@@ -484,6 +488,23 @@ extension LoweringPassRegressionTests {
         } else {
             #expect(callees.filter { $0 == RuntimeCall.anyHashCode.name }.count == 2)
             #expect(!callees.contains("contentHashCode"))
+        }
+
+        if ["Double", "Long", "ULong"].contains(propertyTypeName), !nullable {
+            let boxName = "kk_box_" + propertyTypeName.lowercased() + "_nonnull"
+            #expect(callees.filter { $0 == boxName }.count == 2)
+            let boxedResults = Set(hashCodeFn.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                      interner.resolve(callee) == boxName else { return nil }
+                return result
+            })
+            let hashArguments = hashCodeFn.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      interner.resolve(callee) == RuntimeCall.anyHashCode.name else { return nil }
+                return arguments.first
+            }
+            #expect(hashArguments.count == 2)
+            #expect(hashArguments.allSatisfy { boxedResults.contains($0) })
         }
 
         // With 2 properties, should use 31 * result + hash pattern

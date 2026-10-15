@@ -175,6 +175,9 @@ extension BuildASTPhase {
         guard let first = nextHead.first else {
             return false
         }
+        if first.kind == .keyword(.while), isDoWhileExpressionPrefix(previousTail) {
+            return true
+        }
         if first.kind.isLabelName,
            nextHead.dropFirst().first?.kind == .symbol(.at) {
             return false
@@ -195,6 +198,24 @@ extension BuildASTPhase {
             return true
         }
         return false
+    }
+
+    /// A newline before `while` keeps it attached to a preceding do-loop body.
+    private static func isDoWhileExpressionPrefix<C: BidirectionalCollection>(
+        _ tokens: C
+    ) -> Bool where C.Element == Token {
+        var index = tokens.startIndex
+        while index < tokens.endIndex {
+            guard tokens[index].kind.isLabelName else { break }
+            let afterName = tokens.index(after: index)
+            guard afterName < tokens.endIndex,
+                  tokens[afterName].kind == .symbol(.at)
+            else {
+                break
+            }
+            index = tokens.index(after: afterName)
+        }
+        return index < tokens.endIndex && tokens[index].kind == .keyword(.do)
     }
 
     private static func isDeclarationAssignmentContinuation<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {

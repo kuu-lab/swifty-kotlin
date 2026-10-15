@@ -39,6 +39,9 @@ package struct MetadataRecord {
     package let callableTypeParameterSignatures: [String]
     package let inputOnlyTypeParameterIndices: Set<Int>
     package let valueParameterIsVararg: [Bool]
+    /// Declaration-order type-parameter indices allowed by `@UnsafeVariance`
+    /// for each value parameter.
+    package let valueParameterUnsafeVarianceTypeParameterIndices: [[Int]]
     /// Per-parameter flags indicating whether a function-type argument may
     /// contain a non-local return when the callable is inline-expanded.
     package let valueParameterAllowsNonLocalReturn: [Bool]
@@ -154,6 +157,7 @@ package struct MetadataRecord {
         callableTypeParameterSignatures: [String] = [],
         inputOnlyTypeParameterIndices: Set<Int> = [],
         valueParameterIsVararg: [Bool] = [],
+        valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
@@ -217,6 +221,7 @@ package struct MetadataRecord {
         self.callableTypeParameterSignatures = callableTypeParameterSignatures
         self.inputOnlyTypeParameterIndices = inputOnlyTypeParameterIndices
         self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterUnsafeVarianceTypeParameterIndices = valueParameterUnsafeVarianceTypeParameterIndices
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds

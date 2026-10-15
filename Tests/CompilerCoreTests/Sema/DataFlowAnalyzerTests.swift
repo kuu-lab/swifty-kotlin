@@ -262,6 +262,23 @@ struct DataFlowAnalyzerTests {
         _ = symbols.define(kind: .field, name: redName, fqName: [enumName, redName], declSite: nil, visibility: .public)
         _ = symbols.define(kind: .field, name: greenName, fqName: [enumName, greenName], declSite: nil, visibility: .public)
         _ = symbols.define(kind: .field, name: blueName, fqName: [enumName, blueName], declSite: nil, visibility: .public)
+        let delegatedPropertyName = interner.intern("label")
+        let delegatedProperty = symbols.define(
+            kind: .property,
+            name: delegatedPropertyName,
+            fqName: [enumName, delegatedPropertyName],
+            declSite: nil,
+            visibility: .public
+        )
+        let delegateStorageName = interner.intern("$delegate_label")
+        let delegateStorage = symbols.define(
+            kind: .field,
+            name: delegateStorageName,
+            fqName: [enumName, delegateStorageName],
+            declSite: nil,
+            visibility: .private
+        )
+        symbols.setDelegateStorageSymbol(delegateStorage, for: delegatedProperty)
 
         let enumType = types.make(.classType(ClassType(classSymbol: enumSym)))
 

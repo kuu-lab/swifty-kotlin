@@ -107,10 +107,37 @@ extension TypeCheckHelpers {
         for expectedType: TypeID,
         sema: SemaModule
     ) -> FunctionType? {
+        return specializedSamFunctionType(
+            for: expectedType, includeMemberExtensionReceiver: false, sema: sema
+        )
+    }
+
+    /// Callable references used for a member-extension SAM need the extension
+    /// receiver in their function view. Ordinary SAM lambda inference keeps
+    /// using `samFunctionType` so its receiver-lambda behavior stays unchanged.
+    func samCallableReferenceFunctionType(
+        for expectedType: TypeID,
+        sema: SemaModule
+    ) -> FunctionType? {
+        return specializedSamFunctionType(
+            for: expectedType, includeMemberExtensionReceiver: true, sema: sema
+        )
+    }
+
+    private func specializedSamFunctionType(
+        for expectedType: TypeID,
+        includeMemberExtensionReceiver: Bool,
+        sema: SemaModule
+    ) -> FunctionType? {
         guard let classType = resolveClassType(expectedType, sema: sema) else {
             return nil
         }
-        guard let signature = samMethodSignature(for: classType.classSymbol, sema: sema) else {
+        guard let interface = sema.symbols.symbol(classType.classSymbol),
+              interface.kind == .interface,
+              interface.flags.contains(.funInterface),
+              let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols),
+              let signature = sema.symbols.functionSignature(for: method)
+        else {
             return nil
         }
         var ownerSymbol = classType.classSymbol
@@ -154,6 +181,10 @@ extension TypeCheckHelpers {
             )
         }
         return FunctionType(
+            receiver: includeMemberExtensionReceiver
+                && sema.symbols.memberExtensionOwnerSymbol(for: method) != nil
+                ? signature.receiverType.map(substitute)
+                : nil,
             params: signature.parameterTypes.map(substitute),
             returnType: substitute(signature.returnType),
             isSuspend: signature.isSuspend,

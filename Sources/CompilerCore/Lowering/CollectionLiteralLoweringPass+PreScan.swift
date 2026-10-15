@@ -172,11 +172,23 @@ extension CollectionLiteralLoweringSupport {
         state: inout CollectionRewriteState
     ) {
         guard let result else { return }
-        if (lookup.mutableSetConstructorNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)),
+        let mutableMapConstructorName = stdlibMutableMapConstructorName(
+            symbol: symbol,
+            callee: callee,
+            result: result,
+            lookup: lookup,
+            arena: arena,
+            sema: sema,
+            interner: interner
+        )
+        if lookup.mutableSetConstructorNames.contains(callee),
            !isStdlibCollectionConstructor(
                symbol: symbol, className: callee, result: result,
                arena: arena, sema: sema, interner: interner
            ) {
+            return
+        }
+        if lookup.mutableMapConstructorNames.contains(callee), mutableMapConstructorName == nil {
             return
         }
         if lookup.listFactoryNames.contains(callee) || lookup.mutableListConstructorNames.contains(callee)
@@ -198,7 +210,7 @@ extension CollectionLiteralLoweringSupport {
                     || callee == lookup.kkTreeSetNewCollectionName
                     || callee == lookup.kkTreeSetNewSortedSetName {
             state.setExprIDs.insert(result.rawValue)
-        } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
+        } else if lookup.mapFactoryNames.contains(callee) || mutableMapConstructorName != nil
                     || callee == lookup.kkMapOfName
                     // java.util.TreeMap construction and the sortedMapOf
                     // factory produce RuntimeMapBox results — KUU-1361.

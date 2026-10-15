@@ -184,7 +184,8 @@ extension KotlinParser {
             into: &children,
             range: &range,
             includeBlock: kind == .classDecl || kind == .interfaceDecl || kind == .objectDecl,
-            allowsClassHeaderColon: kind == .classDecl
+            allowsClassHeaderColon: kind == .classDecl,
+            allowsClassDelegation: kind == .classDecl || kind == .objectDecl
         )
 
         return arena.appendNode(
@@ -280,6 +281,20 @@ extension KotlinParser {
             range.append(childRange(.node(body)))
         } else {
             parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
+            // A block on the next line still belongs to a function whose
+            // header has no expression body or explicit terminator.
+            if case .symbol(.lBrace) = stream.peek().kind,
+               hasLeadingNewline(stream.peek()),
+               lastConsumedToken?.kind != .symbol(.semicolon),
+               !children.contains(where: { child in
+                   guard case let .token(tokenID) = child else { return false }
+                   return arena.token(tokenID)?.kind == .symbol(.assign)
+               })
+            {
+                let body = parseBlock()
+                children.append(.node(body))
+                range.append(childRange(.node(body)))
+            }
         }
 
         return arena.appendNode(
@@ -436,7 +451,9 @@ extension KotlinParser {
             }
         }
         if case .symbol(.lParen) = stream.peek().kind {
-            let params = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            let params = parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsConstructorParameters: true
+            )
             children.append(.node(params))
             range.append(childRange(.node(params)))
         }
@@ -502,6 +519,9 @@ extension KotlinParser {
     /// when another declaration token follows it.
     private func enumBodyStartsDeclaration() -> Bool {
         let kind = stream.peek().kind
+        if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
+            return true
+        }
         if kind == .symbol(.at) {
             // An annotation can prefix either an enum entry or a member
             // declaration. Look through the annotation before deciding which
@@ -642,7 +662,8 @@ extension KotlinParser {
 
     func parsePostDeclarationTail(
         into children: inout [SyntaxChild], range: inout RangeAccumulator,
-        includeBlock: Bool, allowsClassHeaderColon: Bool = false
+        includeBlock: Bool, allowsClassHeaderColon: Bool = false,
+        allowsClassDelegation: Bool = false
     ) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
@@ -658,7 +679,10 @@ extension KotlinParser {
         if hasLeadingNewline(next), isDeclarationStart(next.kind) {
             return
         }
-        parseTail(inBlock: false, into: &children, range: &range, allowsClassHeaderColon: allowsClassHeaderColon)
+        parseTail(
+            inBlock: false, into: &children, range: &range,
+            allowsClassHeaderColon: allowsClassHeaderColon, allowsClassDelegation: allowsClassDelegation
+        )
         // Header scanning may stop at a newline after constructor parameters or
         // supertypes. The following brace still belongs to this declaration,
         // unless a terminator or an already parsed body has ended it.

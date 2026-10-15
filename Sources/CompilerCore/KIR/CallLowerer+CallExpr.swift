@@ -314,8 +314,10 @@ extension CallLowerer {
         {
             return lowered
         }
+        let callableValueCallBinding = sema.bindings.callableValueCalls[exprID]
+        let callableValueExpr = callableValueCallBinding?.implicitInvokeReceiverExpr ?? calleeExpr
         let loweredCalleeExprID = driver.lowerExpr(
-            calleeExpr,
+            callableValueExpr,
             ast: ast,
             sema: sema,
             arena: arena,
@@ -329,7 +331,6 @@ extension CallLowerer {
             ?? chosen.flatMap { symbol in
                 driver.ctx.localValue(for: symbol).flatMap { driver.ctx.callableValueInfo(for: $0) }
             }
-        let callableValueCallBinding = sema.bindings.callableValueCalls[exprID]
         let sourceCalleeName: InternedString = if let callee = ast.arena.expr(calleeExpr), case let .nameRef(name, _) = callee {
             name
         } else if let loweredCallable {

@@ -1,4 +1,4 @@
-Scripts/diff_cases/connection_validation.kt:6:1: error KSWIFTK-SEMA-0024: Unresolved import path.
+Scripts/diff_cases/connection_validation.kt:6:1: error KSWIFTK-SEMA-UNRESOLVED-IMPORT: Unresolved import path.
 import kotlin.concurrent.thread
 ^
 Scripts/diff_cases/connection_validation.kt:114:19: error KSWIFTK-SEMA-0025: Unresolved type 'Thread'.

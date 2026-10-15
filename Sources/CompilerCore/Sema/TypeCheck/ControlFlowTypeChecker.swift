@@ -2,6 +2,11 @@
 final class ControlFlowTypeChecker {
     unowned let driver: TypeCheckDriver
 
+    private struct ResolvedLoopOperator {
+        let call: ResolvedCall
+        let dispatchReceiverSymbol: SymbolID?
+    }
+
     init(driver: TypeCheckDriver) {
         self.driver = driver
     }
@@ -65,56 +70,36 @@ final class ControlFlowTypeChecker {
         }
 
         let iteratorName = interner.intern("iterator")
-        let iteratorCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let iteratorResolution = resolveLoopOperator(
             named: iteratorName,
             receiverType: nonNullIterableType,
-            sema: sema,
-            interner: interner
-        ).filter { candidate in
-            guard let symbol = sema.symbols.symbol(candidate),
-                  symbol.flags.contains(.operatorFunction),
-                  (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
-                  let signature = sema.symbols.functionSignature(for: candidate)
-            else {
-                return false
-            }
-            return signature.parameterTypes.isEmpty
-        }
-
+            range: range,
+            excludesUnbackedSynthetic: true,
+            ctx: ctx
+        )
         let iteratorCall: CallBinding?
         let iteratorType: TypeID
-        if !iteratorCandidates.isEmpty {
-            let iteratorResolved = ctx.resolver.resolveCall(
-                candidates: iteratorCandidates,
-                call: CallExpr(range: range, calleeName: iteratorName, args: []),
-                expectedType: nil,
-                implicitReceiverType: nonNullIterableType,
-                ctx: ctx.sema
-            )
-
-            if let diagnostic = iteratorResolved.diagnostic {
+        if let iteratorResolution {
+            if let diagnostic = iteratorResolution.call.diagnostic {
                 ctx.sema.diagnostics.emit(diagnostic)
                 return sema.types.errorType
             }
 
-            guard let iteratorChosen = iteratorResolved.chosenCallee,
+            guard let iteratorChosen = iteratorResolution.call.chosenCallee,
                   let iteratorSignature = sema.symbols.functionSignature(for: iteratorChosen)
             else {
                 return nil
             }
 
-            iteratorCall = CallBinding(
-                chosenCallee: iteratorChosen,
-                substitutedTypeArguments: iteratorResolved.substitutedTypeArguments
-                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map { _, value in value },
-                parameterMapping: iteratorResolved.parameterMapping
+            iteratorCall = makeLoopOperatorCallBinding(
+                from: iteratorResolution,
+                chosenCallee: iteratorChosen
             )
 
             iteratorType = substituteResolvedType(
                 iteratorSignature.returnType,
                 signature: iteratorSignature,
-                substitutedTypeArguments: iteratorResolved.substitutedTypeArguments,
+                substitutedTypeArguments: iteratorResolution.call.substitutedTypeArguments,
                 sema: sema
             )
         } else if isDirectIteratorType(nonNullIterableType, sema: sema, interner: interner) {
@@ -128,81 +113,45 @@ final class ControlFlowTypeChecker {
         }
 
         let hasNextName = interner.intern("hasNext")
-        let hasNextCandidates = driver.helpers.collectMemberFunctionCandidates(
+        let nextName = interner.intern("next")
+        let hasNextResolution = resolveLoopOperator(
             named: hasNextName,
             receiverType: iteratorType,
-            sema: sema,
-            interner: interner
-        ).filter { candidate in
-            guard let symbol = sema.symbols.symbol(candidate),
-                  symbol.flags.contains(.operatorFunction),
-                  let signature = sema.symbols.functionSignature(for: candidate)
-            else {
-                return false
-            }
-            return signature.parameterTypes.isEmpty
-        }
-
-        let nextName = interner.intern("next")
-        let nextCandidates = driver.helpers.collectMemberFunctionCandidates(
+            range: range,
+            excludesUnbackedSynthetic: false,
+            ctx: ctx
+        )
+        let nextResolution = resolveLoopOperator(
             named: nextName,
             receiverType: iteratorType,
-            sema: sema,
-            interner: interner
-        ).filter { candidate in
-            guard let symbol = sema.symbols.symbol(candidate),
-                  symbol.flags.contains(.operatorFunction),
-                  let signature = sema.symbols.functionSignature(for: candidate)
-            else {
-                return false
-            }
-            return signature.parameterTypes.isEmpty
-        }
+            range: range,
+            excludesUnbackedSynthetic: false,
+            ctx: ctx
+        )
 
-        guard !hasNextCandidates.isEmpty, !nextCandidates.isEmpty else {
+        guard let hasNextResolution, let nextResolution else {
             return nil
         }
 
-        let hasNextResolved = ctx.resolver.resolveCall(
-            candidates: hasNextCandidates,
-            call: CallExpr(range: range, calleeName: hasNextName, args: []),
-            expectedType: nil,
-            implicitReceiverType: iteratorType,
-            ctx: ctx.sema
-        )
-        let nextResolved = ctx.resolver.resolveCall(
-            candidates: nextCandidates,
-            call: CallExpr(range: range, calleeName: nextName, args: []),
-            expectedType: nil,
-            implicitReceiverType: iteratorType,
-            ctx: ctx.sema
-        )
-
-        if let diagnostic = hasNextResolved.diagnostic ?? nextResolved.diagnostic {
+        if let diagnostic = hasNextResolution.call.diagnostic ?? nextResolution.call.diagnostic {
             ctx.sema.diagnostics.emit(diagnostic)
             return sema.types.errorType
         }
 
-        guard let hasNextChosen = hasNextResolved.chosenCallee,
-              let nextChosen = nextResolved.chosenCallee,
+        guard let hasNextChosen = hasNextResolution.call.chosenCallee,
+              let nextChosen = nextResolution.call.chosenCallee,
               let nextSignature = sema.symbols.functionSignature(for: nextChosen)
         else {
             return nil
         }
 
-        let hasNextCall = CallBinding(
-            chosenCallee: hasNextChosen,
-            substitutedTypeArguments: hasNextResolved.substitutedTypeArguments
-                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                .map { _, value in value },
-            parameterMapping: hasNextResolved.parameterMapping
+        let hasNextCall = makeLoopOperatorCallBinding(
+            from: hasNextResolution,
+            chosenCallee: hasNextChosen
         )
-        let nextCall = CallBinding(
-            chosenCallee: nextChosen,
-            substitutedTypeArguments: nextResolved.substitutedTypeArguments
-                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                .map { _, value in value },
-            parameterMapping: nextResolved.parameterMapping
+        let nextCall = makeLoopOperatorCallBinding(
+            from: nextResolution,
+            chosenCallee: nextChosen
         )
 
         let elementType = TypeCheckHelpers().mapEntryElementType(
@@ -212,7 +161,7 @@ final class ControlFlowTypeChecker {
         ) ?? substituteResolvedType(
             nextSignature.returnType,
             signature: nextSignature,
-            substitutedTypeArguments: nextResolved.substitutedTypeArguments,
+            substitutedTypeArguments: nextResolution.call.substitutedTypeArguments,
             sema: sema
         )
 
@@ -227,6 +176,119 @@ final class ControlFlowTypeChecker {
             )
         )
         return elementType
+    }
+
+    private func resolveLoopOperator(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        range: SourceRange,
+        excludesUnbackedSynthetic: Bool,
+        ctx: TypeInferenceContext
+    ) -> ResolvedLoopOperator? {
+        let sema = ctx.sema
+        func isZeroArgumentOperator(_ candidate: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.flags.contains(.operatorFunction),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  !symbol.flags.contains(.synthetic)
+                    || !excludesUnbackedSynthetic
+                    || sema.symbols.isSourceBackedSymbol(candidate)
+            else {
+                return false
+            }
+            return true
+        }
+
+        let receiverCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName,
+            receiverType: receiverType,
+            sema: sema,
+            interner: ctx.interner
+        )
+        let directCandidates = receiverCandidates.filter { candidate in
+            sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+                && isZeroArgumentOperator(candidate)
+        }
+        let visibleDirectCandidates = ctx.filterByVisibility(directCandidates).visible
+        if !visibleDirectCandidates.isEmpty {
+            let call = CallExpr(range: range, calleeName: calleeName, args: [])
+            return ResolvedLoopOperator(
+                call: ctx.resolver.resolveCall(
+                    candidates: visibleDirectCandidates,
+                    call: call,
+                    expectedType: nil,
+                    implicitReceiverType: receiverType,
+                    ctx: sema
+                ),
+                dispatchReceiverSymbol: nil
+            )
+        }
+
+        for dispatchReceiver in ctx.implicitReceiverMemberLookupEntries() {
+            let candidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: dispatchReceiver.type,
+                sema: sema,
+                interner: ctx.interner
+            ).filter { candidate in
+                sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil
+                    && isZeroArgumentOperator(candidate)
+            }
+            let dslVisibleCandidates = candidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
+            let visibleCandidates = ctx.filterByVisibility(dslVisibleCandidates).visible
+            guard !visibleCandidates.isEmpty else {
+                continue
+            }
+
+            let call = CallExpr(
+                range: range,
+                calleeName: calleeName,
+                args: [],
+                dispatchReceiverTypes: [dispatchReceiver.type]
+            )
+            let viableCandidates = ctx.resolver.probeCall(
+                candidates: visibleCandidates,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                ctx: sema
+            ).viableCandidates.map(\.symbol)
+            guard !viableCandidates.isEmpty else {
+                continue
+            }
+
+            let resolved = ctx.resolver.resolveCall(
+                candidates: viableCandidates,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                preserveMemberExtensionAmbiguity: true,
+                ctx: sema
+            )
+            if resolved.chosenCallee != nil || resolved.diagnostic != nil {
+                return ResolvedLoopOperator(
+                    call: resolved,
+                    dispatchReceiverSymbol: dispatchReceiver.symbol
+                )
+            }
+        }
+        return nil
+    }
+
+    private func makeLoopOperatorCallBinding(
+        from resolution: ResolvedLoopOperator,
+        chosenCallee: SymbolID
+    ) -> CallBinding {
+        CallBinding(
+            chosenCallee: chosenCallee,
+            substitutedTypeArguments: resolution.call.substitutedTypeArguments
+                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                .map { _, value in value },
+            parameterMapping: resolution.call.parameterMapping,
+            defaultArgumentOwner: resolution.call.defaultArgumentOwner,
+            dispatchReceiverSymbol: resolution.dispatchReceiverSymbol
+        )
     }
 
     private func substituteResolvedType(
@@ -528,7 +590,7 @@ final class ControlFlowTypeChecker {
             case .forDestructuringExpr(_, let iterable, let body, _):
                 if visit(iterable, loopLabelStack: loopLabelStack) { return true }
                 var nestedStack = loopLabelStack
-                nestedStack.append(nil)
+                nestedStack.append(ast.arena.loopLabel(for: exprID))
                 return visit(body, loopLabelStack: nestedStack)
             case .ifExpr(let condition, let thenExpr, let elseExpr, _):
                 if visit(condition, loopLabelStack: loopLabelStack) { return true }

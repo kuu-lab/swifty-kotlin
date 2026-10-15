@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import TestStdlibCache
 import Testing
 
 extension CompilerCoreTests {
@@ -517,6 +518,54 @@ extension CompilerCoreTests {
         #expect(sema.symbols.parentSymbol(for: ctor) == nestedClass)
     }
 
+    /// KUU-2343: an unbound inner-constructor reference takes its enclosing
+    /// instance before the constructor's declared value parameters.
+    @Test func testUnboundInnerConstructorReferenceUsesOuterAsLeadingArgument() throws {
+        let source = """
+        class Sample { inner class SS(val value: String) }
+        fun make(): Sample.SS {
+            val make: (Sample, String) -> Sample.SS = Sample::SS
+            return make(Sample(), "OK")
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let outerClass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Sample")]))
+        let innerClass = try #require(sema.symbols.lookup(
+            fqName: ["Sample", "SS"].map(ctx.interner.intern)
+        ))
+        let constructor = try #require(sema.bindings.identifierSymbols[ref])
+        #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+        #expect(sema.symbols.parentSymbol(for: constructor) == innerClass)
+        #expect(sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true)
+        #expect(sema.bindings.isUnboundCallableRef(ref))
+
+        let type = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            Issue.record("Expected an unbound inner-constructor function type.")
+            return
+        }
+        #expect(function.params.count == 2)
+        guard case let .classType(outerParameter) = sema.types.kind(of: function.params[0]),
+              case let .classType(innerResult) = sema.types.kind(of: function.returnType)
+        else {
+            Issue.record("Expected the outer class parameter and inner class result.")
+            return
+        }
+        #expect(outerParameter.classSymbol == outerClass)
+        #expect(function.params[1] == sema.types.stringType)
+        #expect(innerResult.classSymbol == innerClass)
+    }
+
     /// KUU-917: a bare reference in an extension body binds its receiver,
     /// including members inherited through an interface.
     @Test func testExtensionBareMemberReferenceBindsImplicitReceiver() throws {
@@ -773,6 +822,84 @@ extension CompilerCoreTests {
         for (ref, op) in zip(refs, [BinaryOp.add, .multiply, .add, .multiply]) {
             #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == op)
         }
+    }
+
+    @Test func testBooleanNotReferenceInfersUnaryIntrinsicFunctionType() throws {
+        let source = """
+        val invert: (Boolean) -> Boolean = Boolean::not
+        val inferredInvert = Boolean::not
+        fun use(value: Boolean): Boolean = invert(value)
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 2)
+
+        for ref in refs {
+            #expect(sema.bindings.primitiveUnaryOperatorCallableRef(for: ref) == .not)
+            #expect(sema.bindings.callableRefKind(for: ref) == .functionRef)
+            let refType = try #require(sema.bindings.exprTypes[ref])
+            guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+                Issue.record("Boolean::not should infer a function type.")
+                continue
+            }
+            #expect(functionType.params == [sema.types.booleanType])
+            #expect(functionType.returnType == sema.types.booleanType)
+        }
+    }
+
+    @Test func testBooleanNotIntrinsicReferenceDoesNotAdmitOtherNamesOrReceivers() throws {
+        let source = """
+        val missing: (Boolean) -> Boolean = Boolean::missing
+        val otherBooleanMember: (Boolean) -> Boolean = Boolean::plus
+        val otherReceiver: (Int) -> Boolean = Int::not
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0022" }.count == 3)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 3)
+        for ref in refs {
+            #expect(sema.bindings.primitiveUnaryOperatorCallableRef(for: ref) == nil)
+        }
+    }
+
+    @Test func testBooleanNotIntrinsicReferenceChecksItsExpectedSignature() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        val invalid: (Int) -> Boolean = Boolean::not
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0022" })
     }
 
     /// A bound reference to a method of a generic interface instantiation
