@@ -1,10 +1,26 @@
 extension KotlinLexer {
+    /// Returns the UTF-8 length of an identifier scalar at the given byte offset.
+    func templateIdentifierScalarByteLength(at position: Int, isStart: Bool) -> Int? {
+        guard position < byteCount() else { return nil }
+        let firstByte = byte(at: position)
+        if firstByte < 0x80 {
+            let isIdentifierByte = isStart ? isIdentifierStart(firstByte) : isIdentifierContinue(firstByte)
+            return isIdentifierByte ? 1 : nil
+        }
+
+        let scalarPrefix = text(from: position ..< min(position + 4, byteCount()))
+        guard let scalar = scalarPrefix.unicodeScalars.first else { return nil }
+        let properties = scalar.properties
+        let isIdentifierScalar = isStart ? properties.isIDStart : properties.isIDContinue
+        return isIdentifierScalar ? scalar.utf8.count : nil
+    }
+
     func scanIdentifier(leadingTrivia: [TriviaPiece], start: Int) -> Token {
         scanIdentifierCore(start: start, leadingTrivia: leadingTrivia)
     }
 
     func scanTemplateName(leadingTrivia: [TriviaPiece], start: Int) -> Token? {
-        guard start < byteCount(), isIdentifierStart(byte(at: start)), byte(at: start) != 0x24 else {
+        guard templateIdentifierScalarByteLength(at: start, isStart: true) != nil else {
             return nil
         }
         return scanTemplateNameCore(start: start, leadingTrivia: leadingTrivia)
@@ -15,8 +31,10 @@ extension KotlinLexer {
     /// template references like `"$i$j"` are parsed as two separate names.
     private func scanTemplateNameCore(start: Int, leadingTrivia: [TriviaPiece]) -> Token {
         var cursor = start
-        while cursor < byteCount(), isIdentifierContinue(byte(at: cursor)), byte(at: cursor) != 0x24 {
-            cursor += 1
+        while cursor < byteCount(),
+              let scalarByteLength = templateIdentifierScalarByteLength(at: cursor, isStart: false)
+        {
+            cursor += scalarByteLength
         }
         let name = text(from: start ..< cursor)
         offset = cursor

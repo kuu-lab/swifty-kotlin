@@ -1,0 +1,123 @@
+#if canImport(Testing)
+@testable import CompilerCore
+@testable import CompilerBackend
+@testable import CompilerTestSupport
+import Testing
+
+@Suite
+struct CodegenBackendMemberExtensionForLoopTests {
+    @Test
+    func memberExtensionsImplementAllForLoopOperators() throws {
+        let source = """
+        class It {}
+        class C {}
+        class X {
+            private var available = true
+            operator fun It.hasNext() = if (available) { available = false; true } else false
+            operator fun It.next() = 5
+            operator fun C.iterator(): It = It()
+
+            fun test() {
+                for (i in C()) {
+                    foo(i)
+                }
+            }
+        }
+
+        fun foo(x: Int) { println(x) }
+
+        fun box(): String {
+            X().test()
+            return "OK"
+        }
+
+        fun main() { println(box()) }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberExtensionForLoopAllOperators",
+            expected: "5\nOK\n"
+        )
+    }
+
+    @Test
+    func memberExtensionNextWorksWithMemberIteratorAndHasNext() throws {
+        let source = """
+        class It {
+            var hasNext = true
+            operator fun hasNext() = if (hasNext) { hasNext = false; true } else false
+        }
+
+        class C {
+            operator fun iterator(): It = It()
+        }
+
+        class X {
+            operator fun It.next() = 5
+
+            fun test() {
+                for (i in C()) {
+                    foo(i)
+                }
+            }
+        }
+
+        fun foo(x: Int) { println(x) }
+
+        fun box(): String {
+            X().test()
+            return "OK"
+        }
+
+        fun main() { println(box()) }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberExtensionForLoopNext",
+            expected: "5\nOK\n"
+        )
+    }
+
+    @Test
+    func directMemberPriorityAndExplicitMemberExtensionCallsArePreserved() throws {
+        let source = """
+        class It {}
+        class C {
+            operator fun iterator(): It = It()
+        }
+        class Other
+        class X {
+            private var available = true
+
+            operator fun Other.iterator(): It = It()
+            operator fun C.iterator(): It = error("member extension must lose to C.iterator")
+            operator fun It.hasNext() = if (available) { available = false; true } else false
+            operator fun It.next() = 5
+
+            fun testForIn() {
+                for (value in C()) println(value)
+            }
+
+            fun testExplicitCalls() {
+                available = true
+                val iterator = Other().iterator()
+                check(iterator.hasNext())
+                check(iterator.next() == 5)
+            }
+        }
+
+        fun main() {
+            val x = X()
+            x.testForIn()
+            x.testExplicitCalls()
+            println("OK")
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberExtensionForLoopPriority",
+            expected: "5\nOK\n"
+        )
+    }
+}
+#endif

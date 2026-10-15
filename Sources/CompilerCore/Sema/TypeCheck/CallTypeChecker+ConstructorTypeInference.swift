@@ -47,8 +47,8 @@ extension CallTypeChecker {
                         }
                     }
                 } ?? false
-                let hasExplicitEvidence = explicitTypeArgs.indices.contains(parameterIndex)
-                    && sema.types.typeContainsTypeParam(explicitTypeArgs[parameterIndex], symbol: symbol)
+                let hasExplicitEvidence = resolvedExplicitTypeArgument(at: parameterIndex, in: explicitTypeArgs)
+                    .map { sema.types.typeContainsTypeParam($0, symbol: symbol) } ?? false
                 let hasArgumentEvidence = args.indices.contains { argumentIndex in
                     guard let parameterIndex = resolved.parameterMapping[argumentIndex],
                           signature.parameterTypes.indices.contains(parameterIndex),

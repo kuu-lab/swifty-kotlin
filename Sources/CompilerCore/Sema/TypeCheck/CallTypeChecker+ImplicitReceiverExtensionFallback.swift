@@ -5,7 +5,11 @@ extension CallTypeChecker {
         named name: InternedString,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
-        let candidates = ctx.cachedScopeLookup(name)
+        let candidates = scopeCallCandidatesWithExplicitImportOverloads(
+            named: name,
+            candidates: ctx.cachedScopeLookup(name),
+            ctx: ctx
+        )
         guard !candidates.isEmpty else { return candidates }
         func matchesReceiver(_ candidate: SymbolID, receiverType: TypeID) -> Bool {
             guard let receiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
@@ -46,6 +50,58 @@ extension CallTypeChecker {
             }
         }
         return candidates
+    }
+
+    /// Same-package top-level non-extension functions and explicitly imported
+    /// top-level non-extension functions with the same name participate in one
+    /// overload set. Ordinary scope lookup stops at the package declaration,
+    /// so restore the explicit imports before overload resolution can reject
+    /// them by arity.
+    private func scopeCallCandidatesWithExplicitImportOverloads(
+        named name: InternedString,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        guard let file = ctx.currentASTFile else {
+            return candidates
+        }
+        let matchingImports = file.imports.filter {
+            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
+        }
+        guard !matchingImports.isEmpty,
+              candidates.contains(where: { candidate in
+                  guard let symbol = sema.symbols.symbol(candidate),
+                        symbol.kind == .function,
+                        !symbol.flags.contains(.localFunction),
+                        Array(symbol.fqName.dropLast()) == file.packageFQName,
+                        let signature = sema.symbols.functionSignature(for: candidate)
+                  else {
+                      return false
+                  }
+                  return signature.receiverType == nil
+              })
+        else {
+            return candidates
+        }
+
+        var result = candidates
+        var seen = Set(candidates)
+        for importDecl in matchingImports {
+            for imported in sema.symbols.lookupAll(fqName: importDecl.path) {
+                guard let symbol = sema.symbols.symbol(imported),
+                      symbol.kind == .function,
+                      !ctx.isExpectDeclarationSupersededByActual(imported),
+                      let signature = sema.symbols.functionSignature(for: imported),
+                      signature.receiverType == nil,
+                      seen.insert(imported).inserted
+                else {
+                    continue
+                }
+                result.append(imported)
+            }
+        }
+        return result
     }
 
     private func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {

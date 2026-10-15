@@ -6,6 +6,7 @@ extension LambdaLowerer {
         lambdaName: InternedString,
         lambdaReturnType: TypeID,
         captureBindings: [(capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID)],
+        samMethodReceiverType: TypeID? = nil,
         samMethodParamTypes: [TypeID],
         sema: SemaModule,
         arena: KIRArena,
@@ -62,13 +63,17 @@ extension LambdaLowerer {
         }
 
         let methodName = samMethod.info.name
+        var methodFlags: SymbolFlags = [.synthetic]
+        if samMethodReceiverType != nil {
+            methodFlags.insert(.memberExtension)
+        }
         let methodSymbol = sema.symbols.define(
             kind: .function,
             name: methodName,
             fqName: wrapperFQName + [methodName],
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: methodFlags
         )
         sema.symbols.setParentSymbol(wrapperSymbol, for: methodSymbol)
 
@@ -87,7 +92,7 @@ extension LambdaLowerer {
         }
         sema.symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: wrapperType,
+                receiverType: samMethodReceiverType ?? wrapperType,
                 parameterTypes: samMethodParamTypes,
                 returnType: lambdaReturnType,
                 isSuspend: samMethod.signature.isSuspend,
@@ -133,10 +138,28 @@ extension LambdaLowerer {
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: wrapperType)
         driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverExpr)
 
+        let extensionReceiverSymbol = samMethodReceiverType.map { _ in
+            driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: methodSymbol)
+        }
+        let extensionReceiverExpr: KIRExprID? = if let extensionReceiverSymbol, let samMethodReceiverType {
+            arena.appendExpr(.symbolRef(extensionReceiverSymbol), type: samMethodReceiverType)
+        } else {
+            nil
+        }
         let methodParams = [KIRParameter(symbol: receiverSymbol, type: wrapperType)]
+            + (extensionReceiverSymbol.map { symbol in
+                [KIRParameter(symbol: symbol, type: samMethodReceiverType ?? sema.types.anyType)]
+            } ?? [])
             + zip(methodParamSymbols, samMethodParamTypes).map { KIRParameter(symbol: $0.0, type: $0.1) }
         var methodBody: [KIRInstruction] = [.beginBlock]
         methodBody.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+        if let extensionReceiverSymbol, let extensionReceiverExpr {
+            methodBody.append(.constValue(
+                result: extensionReceiverExpr,
+                value: .symbolRef(extensionReceiverSymbol)
+            ))
+            driver.ctx.setImplicitReceiver(symbol: extensionReceiverSymbol, exprID: extensionReceiverExpr)
+        }
 
         var loadedCaptureExprs: [KIRExprID] = []
         for (index, fieldSymbol) in captureFieldSymbols.enumerated() {
@@ -163,12 +186,13 @@ extension LambdaLowerer {
             methodBody.append(.constValue(result: expr, value: .symbolRef(symbol)))
             return expr
         }
+        let samMethodInputExprs = (extensionReceiverExpr.map { [$0] } ?? []) + loweredMethodParamExprs
 
         let callResult = arena.appendTemporary(type: lambdaReturnType)
         methodBody.append(.call(
             symbol: lambdaSymbol,
             callee: lambdaName,
-            arguments: loadedCaptureExprs + loweredMethodParamExprs,
+            arguments: loadedCaptureExprs + samMethodInputExprs,
             result: callResult,
             canThrow: true,
             thrownResult: nil
@@ -328,7 +352,6 @@ extension LambdaLowerer {
             ))
         }
 
-        _ = samMethodParamTypes
         return wrapperValue
     }
 

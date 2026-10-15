@@ -58,7 +58,10 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
 
 /// Renders class handles consistently across Any.toString, printing, and collections.
 func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
-    "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
+    if let arrayName = runtimeArrayKClassQualifiedName(typeToken: box.typeToken) {
+        return "class \(arrayName)"
+    }
+    return "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
 }
 
 

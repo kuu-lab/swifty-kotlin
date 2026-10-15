@@ -192,6 +192,11 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
             | RuntimeTypeTokenEncoding.nominalBase
         return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(annotation.annotationFQName))
     }
+    if runtimeArrayBoxExcludingObjects(from: value) != nil,
+       let arrayClass = runtimeArrayKClassIdentity(rawValue: value)
+    {
+        return __kk_kclass_create(arrayClass.typeToken, arrayClass.nameHint)
+    }
     if let typeID = runtimeObjectTypeID(rawValue: value) {
         let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
             | RuntimeTypeTokenEncoding.nominalBase

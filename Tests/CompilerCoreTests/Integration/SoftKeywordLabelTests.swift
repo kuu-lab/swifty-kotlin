@@ -67,6 +67,24 @@ import Testing
         #expect(ctx.interner.resolve(label) == name.replacingOccurrences(of: "`", with: ""))
     }
 
+    @Test func valueExpressionLabelsDoNotBecomeNameReferences() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        fun box(): String {
+            var s1 = (l1@ "s")
+            val s2 = (l2@ if (l3@ true) s1 else null)
+            return if (s2 == "s") "OK" else "fail"
+        }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let labels = Set(["l1", "l2", "l3"].map(ctx.interner.intern))
+        let labelReferences = ast.arena.exprs.compactMap { expression -> InternedString? in
+            guard case let .nameRef(name, _) = expression, labels.contains(name) else { return nil }
+            return name
+        }
+        #expect(labelReferences.isEmpty, "Expression labels must not remain as value references")
+    }
+
     @Test(arguments: ["catch", "finally"])
     func labelAfterTryIsANewStatement(name: String) throws {
         let (ast, ctx) = try buildASTModule(from: """

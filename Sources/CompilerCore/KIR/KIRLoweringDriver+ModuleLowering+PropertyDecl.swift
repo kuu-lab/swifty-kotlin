@@ -205,6 +205,11 @@ extension KIRLoweringDriver {
         ctx.resetScopeForFunction()
         ctx.beginCallableLoweringScope()
         var initInstructions: KIRLoweringEmitContext = []
+        let previousInitializerExprID = ctx.topLevelPropertyCallableReferenceInitializerExprID
+        ctx.topLevelPropertyCallableReferenceInitializerExprID = initializer
+        defer {
+            ctx.topLevelPropertyCallableReferenceInitializerExprID = previousInitializerExprID
+        }
         let initValue = lowerExpr(initializer, shared: shared, emit: &initInstructions)
         let globalRef = arena.appendExpr(.symbolRef(symbol), type: propType)
         initInstructions.append(.constValue(result: globalRef, value: .symbolRef(symbol)))

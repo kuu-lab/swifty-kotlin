@@ -572,14 +572,14 @@ extension TypeSystem {
         return result
     }
 
-    /// Retains a common `Comparable<*>` while inferring from lower bounds.
+    /// Retains shared type-parameter upper bounds and `Comparable<*>` while
+    /// inferring from lower bounds.
     ///
     /// `lub` intentionally keeps its conservative `Any` fallback for callers
-    /// that need the existing nominal-only behavior. This is deliberately not
-    /// a general common-supertype search: generic argument inference only
-    /// retains the platform-neutral built-in interface needed for mixed
-    /// comparable values. Other nominal LUB work remains with `lub`.
-    func inferenceLubRetainingCommonComparable(_ types: [TypeID]) -> TypeID {
+    /// that need the existing nominal-only behavior. This is not a general
+    /// hierarchy search: inference only retains upper bounds declared by the
+    /// input type parameters and the platform-neutral comparable interface.
+    func inferenceLubRetainingSharedSupertypes(_ types: [TypeID]) -> TypeID {
         let fallback = lub(types)
         guard fallback == anyType || fallback == nullableAnyType else {
             return fallback
@@ -592,6 +592,10 @@ extension TypeSystem {
         }
         guard filtered.count > 1 else {
             return fallback
+        }
+
+        if let sharedUpperBound = inferenceLubRetainingCommonTypeParameterUpperBounds(filtered) {
+            return sharedUpperBound
         }
 
         let resultNullability: Nullability = types.contains { nullability(of: $0) == .nullable }
@@ -609,6 +613,57 @@ extension TypeSystem {
             return fallback
         }
         return comparable
+    }
+
+    /// Uses declared type-parameter bounds when several inputs share a more
+    /// specific supertype than `Any`. For example, both `A : T` and `B : T`
+    /// can contribute `T` as the element type for `listOf(a, b)`.
+    private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {
+        guard types.count > 1, let symbolTable else { return nil }
+
+        var candidates: [TypeID] = []
+        var pending = types
+        var visitedParameters: Set<SymbolID> = []
+        while let input = pending.popLast() {
+            guard case let .typeParam(parameter) = kind(of: input) else { continue }
+            if let capture = parameter.capture {
+                if !candidates.contains(capture.upper) {
+                    candidates.append(capture.upper)
+                }
+                continue
+            }
+            guard visitedParameters.insert(parameter.symbol).inserted else { continue }
+
+            for bound in symbolTable.typeParameterUpperBounds(for: parameter.symbol) {
+                let candidate = parameter.nullability == .nullable ? makeNullable(bound) : bound
+                if !candidates.contains(candidate) {
+                    candidates.append(candidate)
+                }
+                if case .typeParam = kind(of: candidate) {
+                    pending.append(candidate)
+                }
+            }
+        }
+
+        let commonBounds = candidates.filter { candidate in
+            types.allSatisfy { isSubtype($0, candidate) }
+        }
+        guard !commonBounds.isEmpty else { return nil }
+
+        // Keep only the most specific shared bounds. An intersection retains
+        // every independent common constraint while remaining a valid LUB.
+        var mostSpecific: [TypeID] = []
+        for candidate in commonBounds {
+            if mostSpecific.contains(where: { isSubtype($0, candidate) }) {
+                continue
+            }
+            mostSpecific.removeAll { isSubtype(candidate, $0) }
+            mostSpecific.append(candidate)
+        }
+        if mostSpecific.count == 1 {
+            return mostSpecific[0]
+        }
+        return make(.intersection(mostSpecific))
     }
 
     public func glb(_ types: [TypeID]) -> TypeID {

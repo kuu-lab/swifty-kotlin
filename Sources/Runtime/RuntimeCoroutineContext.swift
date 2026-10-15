@@ -517,14 +517,16 @@ public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
 }
 
 /// Invoke a CoroutineExceptionHandler with a context and exception.
-public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ exceptionRaw: Int) {
+@_cdecl("kk_exception_handler_invoke")
+public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ exceptionRaw: Int) -> Int {
     guard handlerRaw != 0,
           let ptr = UnsafeMutableRawPointer(bitPattern: handlerRaw),
           let handler = tryCast(ptr, to: RuntimeExceptionHandlerBox.self)
     else {
-        return
+        return 0
     }
     handler.handler(contextRaw, exceptionRaw)
+    return 0
 }
 
 /// Compose two CoroutineContext elements using the + operator.

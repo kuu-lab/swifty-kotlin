@@ -63,14 +63,19 @@ extension KIRLoweringDriver {
         // state machine at the call site. Such functions compile as standalone CPS
         // coroutines instead, which handle post-suspension control flow correctly.
         let autoInline = shouldAutoInlineFunction(function, parameterTypes: params.map(\.type), types: sema.types)
-        let effectiveInline: Bool = function.isInline || autoInline
+        let explicitlyInlineOnly = function.annotations.contains {
+            KnownCompilerAnnotation.inlineOnly.matches($0.name)
+        }
+        let effectiveInline: Bool = function.isInline || autoInline || explicitlyInlineOnly
+        // Kotlin's InlineOnly annotation says this body exists for inlining but
+        // must not become a standalone native entry point.
         // Calls to kotlin.context are compiler intrinsics and are expanded at
         // each call site. Emitting their generic source bodies would invoke a
         // context-function parameter through the ordinary Function0 ABI while
         // also passing its context receivers as arguments, producing invalid IR.
         let isContextIntrinsic = function.isInline
             && sema.symbols.symbol(symbol)?.fqName.map(shared.interner.resolve) == ["kotlin", "context"]
-        let isInlineOnly = (!function.isInline && autoInline) || isContextIntrinsic
+        let isInlineOnly = explicitlyInlineOnly || (!function.isInline && autoInline) || isContextIntrinsic
         let kirID = arena.appendDecl(.function(KIRFunction(
             symbol: symbol, name: function.name, params: params,
             returnType: returnType, body: Array(body),

@@ -14,7 +14,6 @@ fun main() {
     println(r is ClosedRange<*>)
     println(r is OpenEndRange<*>)
     println(r is Iterable<*>)
-    println(r is List<*>)
 
     val ur = 1u..5u
     println(ur is UIntRange)

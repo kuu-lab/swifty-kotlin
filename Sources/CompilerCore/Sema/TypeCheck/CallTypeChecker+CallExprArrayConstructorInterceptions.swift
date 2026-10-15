@@ -111,7 +111,7 @@ extension CallTypeChecker {
                         types: sema.types,
                         interner: interner,
                         elementType: {
-                            if let explicitTypeArg = explicitTypeArgs.first {
+                            if let explicitTypeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) {
                                 explicitTypeArg
                             } else if let kotlinArraySymbol = sema.symbols.lookup(
                                 fqName: [interner.intern("kotlin"), interner.intern("Array")]
@@ -163,7 +163,7 @@ extension CallTypeChecker {
             {
                 elementReturnType = aliasElementType
             } else if isKotlinArray,
-               let explicitTypeArg = explicitTypeArgs.first
+               let explicitTypeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
             {
                 elementReturnType = explicitTypeArg
             } else if isKotlinArray,
@@ -282,7 +282,12 @@ extension CallTypeChecker {
         for alias in aliases {
             let typeParameters = sema.symbols.typeAliasTypeParameters(for: alias)
             let aliasTypeArgs: [TypeArg] = if !explicitTypeArgs.isEmpty {
-                explicitTypeArgs.map(TypeArg.invariant)
+                explicitTypeArgs.enumerated().map { index, type in
+                    if type == TypeID.invalid, typeParameters.indices.contains(index) {
+                        return .invariant(sema.types.make(.typeParam(TypeParamType(symbol: typeParameters[index]))))
+                    }
+                    return .invariant(type)
+                }
             } else if !typeParameters.isEmpty,
                       let expectedType,
                       case let .classType(expectedClassType) = sema.types.kind(of: expectedType)

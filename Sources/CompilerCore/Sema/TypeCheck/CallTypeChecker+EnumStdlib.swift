@@ -76,7 +76,9 @@ extension CallTypeChecker {
             return nil
         }
         let typeArg: TypeID
-        if explicitTypeArgs.isEmpty, intrinsic == .enumValues, args.isEmpty {
+        if resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) == nil,
+           intrinsic == .enumValues, args.isEmpty
+        {
             // Reuse generic return-type constraints, including use-site variance,
             // rather than stripping a projection from the expected Array type.
             let resolved = ctx.resolver.resolveCall(
@@ -96,8 +98,10 @@ extension CallTypeChecker {
                 return nil
             }
             typeArg = inferred
-        } else if explicitTypeArgs.count == 1 {
-            typeArg = explicitTypeArgs[0]
+        } else if explicitTypeArgs.count == 1,
+                  let explicitTypeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
+        {
+            typeArg = explicitTypeArg
         } else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",

@@ -6,7 +6,7 @@
 /// (driver-less passes such as collection-factory rewriting).
 final class KIRNominalDispatchCache {
     private var vtableImplementationsByNominal: [SymbolID: [(slot: Int, dispatchMethod: SymbolID, implementation: SymbolID)]] = [:]
-    private var vtableAccessorImplementationsByNominal: [SymbolID: [(slot: Int, implementation: SymbolID)]] = [:]
+    private var vtableAccessorImplementationsByNominal: [SymbolID: [(slot: Int, dispatchAccessor: SymbolID, implementation: SymbolID)]] = [:]
     private var transitiveInterfaceSupertypesByNominal: [SymbolID: [SymbolID]] = [:]
     /// Nominal → interface method → implementation the nominal must expose:
     /// the `kirFindOverrideMethod` result, or the method itself when no
@@ -38,7 +38,7 @@ final class KIRNominalDispatchCache {
     func vtablePropertyAccessorImplementations(
         for nominalSymbol: SymbolID,
         sema: SemaModule
-    ) -> [(slot: Int, implementation: SymbolID)] {
+    ) -> [(slot: Int, dispatchAccessor: SymbolID, implementation: SymbolID)] {
         if let cached = vtableAccessorImplementationsByNominal[nominalSymbol] {
             return cached
         }
@@ -660,7 +660,7 @@ func appendValueClassAnyToStringRegistration<C: RangeReplaceableCollection>(
 func kirVtablePropertyAccessorImplementations(
     for nominalSymbol: SymbolID,
     sema: SemaModule
-) -> [(slot: Int, implementation: SymbolID)] {
+) -> [(slot: Int, dispatchAccessor: SymbolID, implementation: SymbolID)] {
     guard let layout = sema.symbols.nominalLayout(for: nominalSymbol) else {
         return []
     }
@@ -681,7 +681,7 @@ func kirVtablePropertyAccessorImplementations(
         return []
     }
 
-    var bestBySlot: [Int: (distance: Int, implementation: SymbolID)] = [:]
+    var candidatesBySlot: [Int: [(distance: Int, accessor: SymbolID)]] = [:]
     for (accessorSymbol, slot) in layout.vtableSlots where virtualSlots.contains(slot) {
         guard let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(accessorSymbol),
               let owner = sema.symbols.parentSymbol(for: decoded.property),
@@ -689,34 +689,44 @@ func kirVtablePropertyAccessorImplementations(
         else {
             continue
         }
-        if let current = bestBySlot[slot] {
-            let isMoreSpecific = distance < current.distance
-            let isStableTieBreak = distance == current.distance
-                && accessorSymbol.rawValue > current.implementation.rawValue
-            if isMoreSpecific || isStableTieBreak {
-                bestBySlot[slot] = (distance, accessorSymbol)
-            }
-        } else {
-            bestBySlot[slot] = (distance, accessorSymbol)
-        }
+        candidatesBySlot[slot, default: []].append((distance, accessorSymbol))
     }
 
-    return bestBySlot
-        .map { slot, entry in
-            let implementation: SymbolID = switch SyntheticSymbolScheme.decodedPropertyAccessor(entry.implementation) {
+    return candidatesBySlot
+        .compactMap { slot, candidates in
+            // Keep the root-most declaration as the slot ABI contract and the
+            // closest declaration as the function pointer to dispatch to.
+            guard let dispatchAccessor = candidates.max(by: { lhs, rhs in
+                lhs.distance == rhs.distance
+                    ? lhs.accessor.rawValue < rhs.accessor.rawValue
+                    : lhs.distance < rhs.distance
+            }),
+                let implementationAccessor = candidates.min(by: { lhs, rhs in
+                    lhs.distance == rhs.distance
+                        ? lhs.accessor.rawValue > rhs.accessor.rawValue
+                        : lhs.distance < rhs.distance
+                })
+            else {
+                return nil
+            }
+            let implementation: SymbolID = switch SyntheticSymbolScheme.decodedPropertyAccessor(implementationAccessor.accessor) {
             case let .some(decoded):
                 switch decoded.kind {
                 case .getter:
                     sema.symbols.extensionPropertyGetterAccessor(for: decoded.property)
-                        ?? entry.implementation
+                        ?? implementationAccessor.accessor
                 case .setter:
                     sema.symbols.extensionPropertySetterAccessor(for: decoded.property)
-                        ?? entry.implementation
+                        ?? implementationAccessor.accessor
                 }
             case .none:
-                entry.implementation
+                implementationAccessor.accessor
             }
-            return (slot: slot, implementation: implementation)
+            return (
+                slot: slot,
+                dispatchAccessor: dispatchAccessor.accessor,
+                implementation: implementation
+            )
         }
         .sorted { lhs, rhs in
             if lhs.slot != rhs.slot { return lhs.slot < rhs.slot }
@@ -756,6 +766,54 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
                 getter: implementation.implementation,
                 nominalSymbol: nominalSymbol,
                 driver: driver,
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
+        } else if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(
+            implementation.dispatchAccessor
+        ),
+            decoded.kind == .getter,
+            let propertyType = sema.symbols.propertyType(for: decoded.property),
+            let propertyOwner = sema.symbols.parentSymbol(for: decoded.property)
+        {
+            let interfaceReceiver = sema.types.make(.classType(ClassType(
+                classSymbol: propertyOwner, args: [], nullability: .nonNull
+            )))
+            let interfaceSignature = FunctionSignature(
+                receiverType: interfaceReceiver,
+                parameterTypes: [],
+                returnType: propertyType,
+                canThrow: true
+            )
+
+            let implementationFunction = arena.function(for: implementation.implementation)
+            let implementationMetadata = sema.symbols.functionSignature(for: implementation.implementation)
+            let implementationProperty = sema.symbols.propertySymbol(forAccessor: implementation.implementation)
+            let implementationPropertyType = implementationProperty.flatMap {
+                sema.symbols.propertyType(for: $0)
+            }
+            let implementationReceiver = implementationFunction?.params.first?.type
+                ?? implementationMetadata?.receiverType
+                ?? sema.types.make(.classType(ClassType(
+                    classSymbol: nominalSymbol, args: [], nullability: .nonNull
+                )))
+            let implementationSignature = FunctionSignature(
+                receiverType: implementationReceiver,
+                parameterTypes: [],
+                returnType: implementationFunction?.returnType
+                    ?? implementationMetadata?.returnType
+                    ?? implementationPropertyType
+                    ?? propertyType,
+                canThrow: implementationMetadata?.canThrow ?? true
+            )
+            accessorFn = itableBridgeSymbolForMethod(
+                interfaceMethod: implementation.dispatchAccessor,
+                implementation: implementation.implementation,
+                nominalSymbol: nominalSymbol,
+                driver: driver,
+                interfaceSignature: interfaceSignature,
+                implementationSignature: implementationSignature,
                 arena: arena,
                 sema: sema,
                 interner: interner
@@ -1588,7 +1646,10 @@ private func kirFindMatchingMethod(
         if let interfaceSignature, let candidateSignature,
            kirMethodSignatureMatches(source: interfaceSignature, target: candidateSignature,
                                      sourceOwner: sema.symbols.parentSymbol(for: interfaceMethod),
-                                     targetOwner: nominal, instanceOwner: instanceOwner, types: sema.types)
+                                     targetOwner: nominal, instanceOwner: instanceOwner,
+                                     sourceIsMemberExtension: sema.symbols.memberExtensionOwnerSymbol(for: interfaceMethod) != nil,
+                                     targetIsMemberExtension: sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                                     types: sema.types)
         {
             return candidate
         }
@@ -1616,12 +1677,39 @@ func kirMethodSignatureMatches(
     sourceOwner: SymbolID?,
     targetOwner: SymbolID,
     instanceOwner: SymbolID,
+    sourceIsMemberExtension: Bool,
+    targetIsMemberExtension: Bool,
     types: TypeSystem
 ) -> Bool {
     guard source.isSuspend == target.isSuspend,
+          sourceIsMemberExtension == targetIsMemberExtension,
           methodUpperBoundsMatch(source: source, target: target, sourceOwner: sourceOwner,
                                  targetOwner: targetOwner, instanceOwner: instanceOwner, types: types)
     else { return false }
+    if sourceIsMemberExtension {
+        guard let sourceReceiverType = source.receiverType,
+              let targetReceiverType = target.receiverType
+        else { return false }
+        let sourceMethodParameters = Array(source.typeParameterSymbols.dropFirst(source.classTypeParameterCount))
+        let targetMethodParameters = Array(target.typeParameterSymbols.dropFirst(target.classTypeParameterCount))
+        let specializedSourceReceiver = specializeMethodOwnerType(
+            sourceReceiverType, owner: sourceOwner, instanceOwner: instanceOwner, types: types
+        )
+        let alignedSourceReceiver = alphaAlignedMethodType(
+            specializedSourceReceiver,
+            sourceParameters: sourceMethodParameters,
+            targetParameters: targetMethodParameters,
+            types: types
+        )
+        let specializedTargetReceiver = specializeMethodOwnerType(
+            targetReceiverType, owner: targetOwner, instanceOwner: instanceOwner, types: types
+        )
+        guard methodIdentityParameterTypesMatch(
+            candidateParameterTypes: [specializedTargetReceiver],
+            interfaceParameterTypes: [alignedSourceReceiver],
+            types: types
+        ) else { return false }
+    }
     let alignedSource = alignedMethodParameterTypes(source: source, target: target,
                                                     sourceOwner: sourceOwner, instanceOwner: instanceOwner, types: types)
     let specializedTarget = target.parameterTypes.map {

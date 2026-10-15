@@ -15,6 +15,9 @@ public object Runtime {
     @KsSymbolName("__kk_runtime_maxMemory")
     private external fun __maxMemory(): Long
 
+    @KsSymbolName("__kk_runtime_availableProcessors")
+    private external fun __availableProcessors(): Int
+
     public fun getRuntime(): Runtime = __getRuntime()
 
     public fun totalMemory(): Long = __totalMemory()
@@ -22,4 +25,6 @@ public object Runtime {
     public fun freeMemory(): Long = __freeMemory()
 
     public fun maxMemory(): Long = __maxMemory()
+
+    public fun availableProcessors(): Int = __availableProcessors()
 }

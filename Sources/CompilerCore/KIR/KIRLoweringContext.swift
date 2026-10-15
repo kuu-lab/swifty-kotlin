@@ -30,6 +30,8 @@ final class KIRLoweringContext {
     /// Lambda param name → symbol for resolving nameRef when identifierSymbols is unbound
     /// (e.g. collection HOF lambdas inferred via fallback).
     var lambdaParamNameToSymbol: [InternedString: SymbolID] = [:]
+    /// JVM file facade names attached to lambda function values for Native reflection.
+    var lambdaEnclosingClassNamesByFileID: [FileID: String] = [:]
     var currentImplicitReceiverExprID: KIRExprID?
     var currentImplicitReceiverSymbol: SymbolID?
     /// Qualified receiver values that remain visible while an inline object
@@ -86,6 +88,9 @@ final class KIRLoweringContext {
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
+    /// Callable-reference expression currently lowered as a top-level
+    /// property initializer, if the initializer is exactly that expression.
+    var topLevelPropertyCallableReferenceInitializerExprID: ExprID?
     /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI
     /// (source literal was marked via `markCoroutineLauncherLambdaExpr` and
     /// carries an explicit receiver). Launcher-continuation rewrites must
@@ -710,6 +715,7 @@ final class KIRLoweringContext {
     }
 
     func resetModuleState() {
+        lambdaEnclosingClassNamesByFileID.removeAll(keepingCapacity: true)
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
         callableValueInfoByExprID.removeAll(keepingCapacity: true)
         syntheticLambdaSymbolsByExprID.removeAll(keepingCapacity: true)

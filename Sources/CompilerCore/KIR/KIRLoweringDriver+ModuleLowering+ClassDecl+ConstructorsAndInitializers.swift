@@ -1280,7 +1280,7 @@ extension KIRLoweringDriver {
     ) {
         guard let ownerInfo = sema.symbols.symbol(ownerSymbol) else { return }
         let intType = sema.types.intType
-        let childSymbols = sema.symbols.children(ofFQName: ownerInfo.fqName)
+        let childSymbols = sema.symbols.children(of: ownerSymbol)
         for childID in childSymbols {
             guard let childSym = sema.symbols.symbol(childID) else { continue }
             let isDataClassComponent = isSyntheticDataClassComponent(

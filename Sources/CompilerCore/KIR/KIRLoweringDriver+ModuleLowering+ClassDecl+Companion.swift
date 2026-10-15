@@ -250,6 +250,14 @@ extension KIRLoweringDriver {
                     continue
                 }
                 if property.delegateExpression != nil {
+                    emitDelegatePropertyInitializer(
+                        propertyDecl: property,
+                        propSymbol: propertySymbol,
+                        sema: sema,
+                        arena: arena,
+                        shared: shared,
+                        body: &body
+                    )
                     continue
                 }
                 guard let initializer = property.initializer else {

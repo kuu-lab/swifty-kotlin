@@ -44,6 +44,65 @@ private final class RuntimeArrayComponentTypes: @unchecked Sendable {
 
 private let runtimeArrayComponentTypes = RuntimeArrayComponentTypes()
 
+func runtimeJavaArrayClassName(rawValue: Int) -> String? {
+    guard let array = runtimeArrayBoxExcludingObjects(from: rawValue) else { return nil }
+
+    if let kind = runtimePrimitiveArrayElementKind(rawValue: rawValue) {
+        let descriptor: String = switch kind {
+        case .boolean: "Z"
+        case .byte, .uByte: "B"
+        case .char: "C"
+        case .double: "D"
+        case .float: "F"
+        case .int, .uInt: "I"
+        case .long, .uLong: "J"
+        case .short, .uShort: "S"
+        }
+        return "[\(descriptor)"
+    }
+
+    let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    guard runtimeArrayTypeIDs(rawValue: rawValue).contains(arrayTypeID) else { return nil }
+    let component = array.componentType.flatMap(runtimeJavaArrayComponentDescriptor)
+        ?? "Ljava.lang.Object;"
+    return "[\(component)"
+}
+
+private func runtimeJavaArrayComponentDescriptor(_ componentID: Int) -> String? {
+    guard let component = runtimeArrayComponentTypes.descriptor(componentID) else { return nil }
+    let token = Int64(truncatingIfNeeded: component.classifier)
+    let base = token & RuntimeTypeTokenEncoding.baseMask
+    let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    if base == RuntimeTypeTokenEncoding.nominalBase,
+       payload == runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    {
+        let element = component.element == 0
+            ? "Ljava.lang.Object;"
+            : runtimeJavaArrayComponentDescriptor(component.element) ?? "Ljava.lang.Object;"
+        return "[\(element)"
+    }
+
+    let qualifiedName = runtimeJavaQualifiedName(typeToken: component.classifier)
+    if let primitiveArrayDescriptor = runtimeJavaPrimitiveArrayDescriptor(qualifiedName) {
+        return "[\(primitiveArrayDescriptor)"
+    }
+    return "L\(runtimeJavaBinaryNameForTypeToken(component.classifier));"
+}
+
+private func runtimeJavaPrimitiveArrayDescriptor(_ qualifiedName: String) -> String? {
+    switch qualifiedName {
+    case "kotlin.BooleanArray": "Z"
+    case "kotlin.ByteArray", "kotlin.UByteArray": "B"
+    case "kotlin.CharArray": "C"
+    case "kotlin.DoubleArray": "D"
+    case "kotlin.FloatArray": "F"
+    case "kotlin.IntArray", "kotlin.UIntArray": "I"
+    case "kotlin.LongArray", "kotlin.ULongArray": "J"
+    case "kotlin.ShortArray", "kotlin.UShortArray": "S"
+    default: nil
+    }
+}
+
 @_cdecl("__kk_array_component_type")
 public func __kk_array_component_type(_ classifier: Int, _ element: Int) -> Int {
     runtimeArrayComponentTypes.intern(classifier: classifier, element: element)

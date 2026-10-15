@@ -680,7 +680,8 @@ extension CallTypeChecker {
                 }
                 return [:]
             }(),
-            contextualCallResultType: expectedType,
+            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                ? sema.types.unitType : expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: memberLookupType,
             ctx: ctx,
