@@ -466,7 +466,7 @@ extension DataEnumSealedSynthesisPass {
             uniqueKeysWithValues: entries.enumerated().map { ($1.id, $0) }
         )
         let dispatchPrefix = "$enumEntryDispatch$"
-        let dispatchSymbols = sema.symbols.children(ofFQName: owner.fqName)
+        let dispatchSymbols = sema.symbols.children(of: owner.id)
             .compactMap { sema.symbols.symbol($0) }
             .filter { symbol in
                 symbol.kind == .function
