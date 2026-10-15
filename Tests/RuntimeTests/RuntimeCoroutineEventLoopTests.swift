@@ -313,6 +313,29 @@ struct RuntimeCoroutineEventLoopTests {
         #expect(log.snapshot() == ["external", "queued", "yield"])
     }
 
+    @Test func testPendingPublicBuilderResumeRunsInlineWhenInstalled() throws {
+        let continuation = kk_create_coroutine_unintercepted(1, 0)
+        defer { _ = kk_coroutine_state_exit(continuation, 0) }
+        let state = try #require(runtimeContinuationState(from: continuation))
+        state.resumesInline = true
+        let log = EventLoopTestLog()
+        let installationGate = NSRecursiveLock()
+
+        state.signalResume()
+        #expect(log.snapshot().isEmpty)
+
+        installationGate.lock()
+        state.installResumeContinuation {
+            installationGate.lock()
+            defer { installationGate.unlock() }
+            log.record("resumed")
+        }
+        let resumedBeforeUnlock = log.snapshot()
+        installationGate.unlock()
+
+        #expect(resumedBeforeUnlock == ["resumed"])
+    }
+
     @Test func testRunDrainsTasksInEnqueueOrder() {
         let loop = RuntimeEventLoop()
         let log = EventLoopTestLog()

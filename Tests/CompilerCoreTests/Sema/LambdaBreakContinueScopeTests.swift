@@ -5,12 +5,9 @@ import Testing
 
 /// Sema-surface tests for the control-flow scope of lambda bodies.
 ///
-/// BUG-253: non-local `break`/`continue` (stable since Kotlin 2.2) is not
-/// implemented in Lowering, so a jump that has to leave the lambda is silently
-/// dropped — the enclosing loop keeps running. `enteringLambdaBody()` resets
-/// the loop stacks so such a jump is rejected by `KSWIFTK-SEMA-0018` /
-/// `KSWIFTK-SEMA-0019` instead of miscompiling. A loop *inside* the lambda
-/// re-enters loop scope and must keep compiling.
+/// Non-local `break`/`continue` is legal only through inline parameters that
+/// allow non-local control flow. Ordinary, `crossinline`, and `noinline`
+/// lambda boundaries remain isolated from their enclosing loops.
 @Suite
 struct LambdaBreakContinueScopeTests {
 
@@ -92,6 +89,80 @@ struct LambdaBreakContinueScopeTests {
                 }
             }
 
+            """,
+
+            // 6: break through a normal inline parameter is legal
+            """
+            package sample6
+            inline fun runInline(block: () -> Unit) { block() }
+            fun g() {
+                while (true) {
+                    runInline { break }
+                }
+            }
+
+            """,
+
+            // 7: continue through a normal inline parameter is legal
+            """
+            package sample7
+            inline fun runInline(block: () -> Unit) { block() }
+            fun g() {
+                var count = 0
+                while (count < 2) {
+                    runInline { count += 1; continue }
+                }
+            }
+
+            """,
+
+            // 8: a labeled break may target a loop across an inline lambda
+            """
+            package sample8
+            inline fun runInline(block: () -> Unit) { block() }
+            fun g() {
+                outer@ while (true) {
+                    runInline { break@outer }
+                }
+            }
+
+            """,
+
+            // 9: a labeled continue may target a loop across an inline lambda
+            """
+            package sample9
+            inline fun runInline(block: () -> Unit) { block() }
+            fun g() {
+                var count = 0
+                outer@ while (count < 2) {
+                    runInline { count += 1; continue@outer }
+                }
+            }
+
+            """,
+
+            // 10: crossinline still rejects non-local break
+            """
+            package sample10
+            inline fun runInline(crossinline block: () -> Unit) { block() }
+            fun g() {
+                while (true) {
+                    runInline { break }
+                }
+            }
+
+            """,
+
+            // 11: noinline still rejects non-local continue
+            """
+            package sample11
+            inline fun runInline(noinline block: () -> Unit) { block() }
+            fun g() {
+                while (true) {
+                    runInline { continue }
+                }
+            }
+
             """
         ]
 
@@ -145,6 +216,22 @@ struct LambdaBreakContinueScopeTests {
                 #expect(
                     !diags.contains(where: { $0.severity == .error }),
                     "the lambda's own loop must absorb the break: \(diags.map { "\($0.code): \($0.message)" })"
+                )
+            }
+            // 6-9: normal inline parameters admit non-local loop jumps.
+            for index in 6 ... 9 {
+                let diags = diagnosticsForPath(paths[index], in: ctx)
+                #expect(
+                    !diags.contains(where: { $0.severity == .error }),
+                    "non-local loop jumps through an inline parameter must compile: \(diags.map { "\($0.code): \($0.message)" })"
+                )
+            }
+            // 10-11: crossinline/noinline parameters still reject non-local jumps.
+            for (index, code) in [(10, "KSWIFTK-SEMA-0018"), (11, "KSWIFTK-SEMA-0019")] {
+                let diags = diagnosticsForPath(paths[index], in: ctx)
+                #expect(
+                    diags.contains(where: { $0.code == code && $0.severity == .error }),
+                    "non-local jump through a restricted inline parameter must be rejected: \(diags.map { "\($0.code): \($0.message)" })"
                 )
             }
         }

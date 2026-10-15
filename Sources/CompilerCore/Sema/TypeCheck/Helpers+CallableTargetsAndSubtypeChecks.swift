@@ -128,6 +128,7 @@ extension TypeCheckHelpers {
             params.insert(boundReceiver?.receiverType ?? receiverType, at: 0)
         }
         return sema.types.make(.functionType(FunctionType(
+            contextReceivers: signature.contextParameterTypes,
             params: params,
             returnType: returnType,
             isSuspend: signature.isSuspend,
@@ -162,6 +163,35 @@ extension TypeCheckHelpers {
             isCallableReference: true,
             nullability: function.nullability,
             throws: function.throws
+        )))
+    }
+
+    /// Returns the non-suspend comparison type for a callable reference that
+    /// Kotlin adapts to a suspend function parameter. The conversion remains
+    /// argument-only; this type is used for overload matching and constraints.
+    func suspendConvertedCallableReferenceExpectedType(
+        _ callableType: TypeID,
+        expectedFunctionType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        let types = sema.types
+        guard case let .functionType(callable) = types.kind(of: callableType),
+              callable.isCallableReference,
+              types.suspendConversionType(from: callableType, to: expectedFunctionType) != nil,
+              case let .functionType(expected) = types.kind(of: expectedFunctionType),
+              expected.isSuspend
+        else {
+            return nil
+        }
+        return types.make(.functionType(FunctionType(
+            contextReceivers: expected.contextReceivers,
+            receiver: expected.receiver,
+            params: expected.params,
+            returnType: expected.returnType,
+            isSuspend: false,
+            isCallableReference: expected.isCallableReference,
+            nullability: expected.nullability,
+            throws: expected.throws
         )))
     }
 
@@ -465,6 +495,11 @@ extension TypeCheckHelpers {
                 unitCoercedCallableReferenceType(callableType, expectedFunctionType: expected, sema: sema)
             } ?? callableType
             let types = sema.types
+            let constraintExpectedFunctionType = expectedFunctionType.flatMap { expected in
+                suspendConvertedCallableReferenceExpectedType(
+                    inferredType, expectedFunctionType: expected, sema: sema
+                )
+            } ?? expectedFunctionType
             let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             guard !typeVars.isEmpty else {
                 guard callableReferenceTypeMatches(
@@ -505,7 +540,7 @@ extension TypeCheckHelpers {
                 }
             } else if let expectedFunctionType {
                 constraints = resolver.decomposeSubtypeConstraint(
-                    subtype: inferredType, supertype: expectedFunctionType,
+                    subtype: inferredType, supertype: constraintExpectedFunctionType ?? expectedFunctionType,
                     typeVarBySymbol: typeVars, typeSystem: types, blameRange: nil
                 )
             } else { constraints = [] }
@@ -634,12 +669,15 @@ extension TypeCheckHelpers {
         _ actualType: TypeID, expected: TypeID?, postponedReturn: SymbolID?, sema: SemaModule
     ) -> Bool {
         guard let expected else { return true }
+        let matchingExpected = suspendConvertedCallableReferenceExpectedType(
+            actualType, expectedFunctionType: expected, sema: sema
+        ) ?? expected
         guard let postponedReturn,
               case let .functionType(actual) = sema.types.kind(of: actualType),
-              case let .functionType(context) = sema.types.kind(of: expected),
+              case let .functionType(context) = sema.types.kind(of: matchingExpected),
               case let .typeParam(parameter) = sema.types.kind(of: context.returnType),
               parameter.symbol == postponedReturn
-        else { return sema.types.isSubtype(actualType, expected) }
+        else { return sema.types.isSubtype(actualType, matchingExpected) }
         for bound in sema.symbols.typeParameterUpperBounds(for: postponedReturn)
             where !sema.types.typeContainsAnyTypeParam(bound) {
             let resultBound = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound

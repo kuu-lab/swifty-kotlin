@@ -446,6 +446,7 @@ public final class BuildASTPhase: CompilerPhase {
         // passed to `blockExpressions` so script mode doesn't also nest them
         // as shadowing local decls inside the synthesized `main()` body.
         var materializedDeclNodeIDs: Set<NodeID> = []
+        var pendingContextReceivers: [ContextReceiverDecl] = []
         let rootNode = cst.node(root)
         let fileAnnotations = declarationAnnotations(from: root, in: cst, interner: interner)
             .filter { $0.useSiteTarget == "file" }
@@ -455,6 +456,10 @@ public final class BuildASTPhase: CompilerPhase {
                 continue
             }
             let node = cst.node(nodeID)
+            let prefixedContextReceivers = node.kind == .statement ? [] : pendingContextReceivers
+            if node.kind != .statement {
+                pendingContextReceivers = []
+            }
 
             switch node.kind {
             case .packageHeader:
@@ -485,12 +490,18 @@ public final class BuildASTPhase: CompilerPhase {
                 materializedDeclNodeIDs.insert(nodeID)
 
             case .funDecl:
-                let decl = Decl.funDecl(makeFunDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
+                let decl = Decl.funDecl(makeFunDecl(
+                    from: nodeID, in: cst, interner: interner, astArena: arena,
+                    prefixedContextReceivers: prefixedContextReceivers
+                ))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
                 materializedDeclNodeIDs.insert(nodeID)
 
             case .propertyDecl where !isScript:
-                let decl = Decl.propertyDecl(makePropertyDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
+                let decl = Decl.propertyDecl(makePropertyDecl(
+                    from: nodeID, in: cst, interner: interner, astArena: arena,
+                    prefixedContextReceivers: prefixedContextReceivers
+                ))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 
             case .typeAliasDecl:
@@ -507,6 +518,17 @@ public final class BuildASTPhase: CompilerPhase {
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 
             default:
+                if node.kind == .statement {
+                    let tokens = collectTokens(from: nodeID, in: cst)
+                    let parsedContextReceivers = parseContextReceivers(
+                        from: tokens, interner: interner, astArena: arena
+                    )
+                    if !parsedContextReceivers.isEmpty {
+                        pendingContextReceivers = parsedContextReceivers
+                    } else if tokens.first?.kind != .symbol(.at) {
+                        pendingContextReceivers = []
+                    }
+                }
                 continue
             }
         }

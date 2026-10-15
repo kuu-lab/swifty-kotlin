@@ -4,6 +4,7 @@ struct IndependentBodyResult: @unchecked Sendable {
     let declaration: DeclID
     let expressionTypes: [ExprID: TypeID]
     let identifierSymbols: [ExprID: SymbolID]
+    let sourceDeclaredExpectedTypeExpressions: Set<ExprID>
     let diagnostics: [Diagnostic]
     let newTypes: [TypeKind]
     let initialTypeCount: Int
@@ -91,6 +92,8 @@ private final class IndependentFileWork: @unchecked Sendable {
                     identifierSymbols[expression] = target
                 }
             }
+            let sourceDeclaredExpectedTypeExpressions =
+                driver.sema.bindings.sourceDeclaredExpectedTypeExprIDs.intersection(Set(expressions))
             // Only ordinary scalar local allocations are admitted. Lambda
             // synthetic parameters, objects, captures and pending metadata need
             // their own delta contracts; they remain on the module driver.
@@ -98,12 +101,15 @@ private final class IndependentFileWork: @unchecked Sendable {
                   localSymbols.count == expectedLocals,
                   localSymbols.allSatisfy({ driver.isIndependentScalarType($0.type) }),
                   identifierSymbols.values.allSatisfy(ownedSymbols.contains),
-                  driver.sema.bindings.hasOnlyIndependentScalarBindings,
+                  driver.sema.bindings.hasOnlyIndependentScalarBindings(
+                    allowingSourceDeclaredExpectedTypeExprIDs: Set(expressions)
+                  ),
                   driver.diagnostics.diagnostics.isEmpty
             else { return [] }
             results.append(IndependentBodyResult(
                 declaration: declaration, expressionTypes: expressionTypes,
                 identifierSymbols: identifierSymbols,
+                sourceDeclaredExpectedTypeExpressions: sourceDeclaredExpectedTypeExpressions,
                 diagnostics: Array(driver.diagnostics.diagnostics.dropFirst(checkpoint)),
                 newTypes: driver.sema.types.workerTypeKinds(since: initialTypeCount),
                 initialTypeCount: initialTypeCount,
@@ -174,8 +180,12 @@ extension TypeCheckDriver {
                 break
             case let .nameRef(name, _):
                 referencedNames.insert(name)
-            case let .localDecl(name, _, type, initializer, delegated, lateinit, _):
-                guard type == nil, !delegated, !lateinit, let initializer else { return nil }
+            case let .localDecl(name, _, _, initializer, delegated, lateinit, _):
+                // The worker result is admitted only after resolved local
+                // symbols and every binding side table pass the scalar-delta
+                // checks below. That lets explicit annotations participate
+                // without trusting an unresolved TypeRef here.
+                guard !delegated, !lateinit, let initializer else { return nil }
                 names.insert(name)
                 pending.append(initializer)
             case let .localAssign(name, value, _):

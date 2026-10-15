@@ -1,5 +1,3 @@
-// DIFF_CANDIDATE_ONLY: Experimental lazy-message APIs are marked SinceKotlin("2.4"); the reference compiler targets Kotlin 2.3.10.
-// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: kotlin_test_families_lazy.expected
 // Reference: JetBrains/kotlin revision 150f34458460c5d688ba80e13f269ca6715f32b4.
 @file:OptIn(kotlin.ExperimentalUnsignedTypes::class, kotlin.test.ExperimentalKotlinTestApi::class)
 import kotlin.test.*

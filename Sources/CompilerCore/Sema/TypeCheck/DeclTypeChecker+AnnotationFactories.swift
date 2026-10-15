@@ -20,11 +20,30 @@ extension DeclTypeChecker {
 
             // Header-only compiler annotations do not have a callable constructor.
             let annotationFQName = sema.symbols.symbol(annotationSymbol)?.fqName ?? []
+            let annotationFQNameText = annotationFQName.map(ctx.interner.resolve).joined(separator: ".")
             let constructors = sema.symbols.lookupAll(fqName: annotationFQName + [ctx.interner.intern("<init>")])
                 .compactMap { sema.symbols.symbol($0) }
             guard constructors.contains(where: {
                 $0.declSite != nil || sema.symbols.externalLinkName(for: $0.id) != nil
             }) else { continue }
+
+            // These Kotlin/JS annotations are validated from their annotation
+            // records by the JS-specific Sema validators below. Replaying a
+            // fully-qualified annotation name as an ordinary expression can
+            // spuriously report the package root as unresolved when invalid
+            // arguments already have a precise annotation diagnostic.
+            let hasDedicatedJSArgumentValidation = switch annotationFQNameText {
+            case "kotlin.js.JsFileName":
+                true
+            case "kotlin.js.JsExport", "kotlin.js.ExperimentalJsExport",
+                 "kotlin.js.JsStatic", "kotlin.js.ExperimentalJsStatic":
+                !annotation.arguments.isEmpty
+            case "kotlin.js.ExperimentalJsFileName":
+                annotation.useSiteTarget == "file" && !annotation.arguments.isEmpty
+            default:
+                false
+            }
+            if hasDedicatedJSArgumentValidation { continue }
 
             if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))

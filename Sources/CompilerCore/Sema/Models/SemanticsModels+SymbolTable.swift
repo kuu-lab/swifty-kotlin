@@ -100,6 +100,7 @@ public final class SymbolTable {
     private var parentSymbols: [SymbolID: SymbolID] = [:]
     private var backingFieldSymbols: [SymbolID: SymbolID] = [:]
     private var delegateStorageSymbols: [SymbolID: SymbolID] = [:]
+    private var delegatePropertiesByStorageSymbol: [SymbolID: SymbolID] = [:]
     private var delegateGetValueSymbols: [SymbolID: SymbolID] = [:]
     private var delegateSetValueSymbols: [SymbolID: SymbolID] = [:]
     private var delegateProvideDelegateSymbols: [SymbolID: SymbolID] = [:]
@@ -215,6 +216,7 @@ public final class SymbolTable {
         worker.parentSymbols = parentSymbols
         worker.backingFieldSymbols = backingFieldSymbols
         worker.delegateStorageSymbols = delegateStorageSymbols
+        worker.delegatePropertiesByStorageSymbol = delegatePropertiesByStorageSymbol
         worker.delegateGetValueSymbols = delegateGetValueSymbols
         worker.delegateSetValueSymbols = delegateSetValueSymbols
         worker.delegateProvideDelegateSymbols = delegateProvideDelegateSymbols
@@ -1011,10 +1013,15 @@ public final class SymbolTable {
 
     public func setDelegateStorageSymbol(_ storage: SymbolID, for property: SymbolID) {
         delegateStorageSymbols[property] = storage
+        delegatePropertiesByStorageSymbol[storage] = property
     }
 
     public func delegateStorageSymbol(for property: SymbolID) -> SymbolID? {
         delegateStorageSymbols[property]
+    }
+
+    public func delegateProperty(forStorageSymbol storage: SymbolID) -> SymbolID? {
+        delegatePropertiesByStorageSymbol[storage]
     }
 
     public func setDelegateGetValueSymbol(_ accessor: SymbolID, for property: SymbolID) {

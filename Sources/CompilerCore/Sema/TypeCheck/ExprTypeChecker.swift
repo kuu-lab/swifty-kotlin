@@ -120,34 +120,50 @@ final class ExprTypeChecker {
 
         case let .breakExpr(label, range):
             if ctx.loopDepth == 0 {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0018",
-                    "'break' is only allowed inside loop bodies.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0018",
+                        "'break' is only allowed inside loop bodies.",
+                        range: range
+                    )
+                }
             } else if let label, !ctx.loopLabelStack.contains(label) {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0097",
-                    "'break' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0097",
+                        "'break' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
+                        range: range
+                    )
+                }
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
 
         case let .continueExpr(label, range):
             if ctx.loopDepth == 0 {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0019",
-                    "'continue' is only allowed inside loop bodies.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0019",
+                        "'continue' is only allowed inside loop bodies.",
+                        range: range
+                    )
+                }
             } else if let label, !ctx.loopLabelStack.contains(label) {
-                ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0098",
-                    "'continue' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
-                    range: range
-                )
+                if let lambdaPath = ctx.lambdaPathForEnclosingLoopJump(label: label) {
+                    sema.bindings.bindLoopJump(id, lambdaPath: lambdaPath)
+                } else {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0098",
+                        "'continue' with label '@\(interner.resolve(label))' does not reference a valid enclosing loop.",
+                        range: range
+                    )
+                }
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
@@ -523,8 +539,11 @@ final class ExprTypeChecker {
                     )
                 }
             }
-            // Smart cast: after `x as T`, narrow x to intersection of original & T (P5-97/P5-100)
-            if !isSafe,
+            // A standalone `x as T` statement narrows later uses of x. When
+            // the cast value is consumed (for example, `val y = x as T`),
+            // only that expression has the target type; x keeps its flow type.
+            if isStatementContext,
+               !isSafe,
                let castSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(castVarName, _) = castSubjectExpr,
                let castLocal = locals[castVarName],
@@ -676,7 +695,20 @@ final class ExprTypeChecker {
             return resultType
 
         case let .localFunDecl(name, receiverTypeRef, valueParams, returnTypeRef, body, isSuspend, range, typeParams):
-            return driver.localDeclChecker.inferLocalFunDeclExpr(id, name: name, typeParams: typeParams, receiverTypeRef: receiverTypeRef, valueParams: valueParams, returnTypeRef: returnTypeRef, body: body, isSuspend: isSuspend, range: range, ctx: ctx, locals: &locals)
+            return driver.localDeclChecker.inferLocalFunDeclExpr(
+                id,
+                name: name,
+                typeParams: typeParams,
+                contextReceivers: ast.arena.localFunContextReceivers(for: id),
+                receiverTypeRef: receiverTypeRef,
+                valueParams: valueParams,
+                returnTypeRef: returnTypeRef,
+                body: body,
+                isSuspend: isSuspend,
+                range: range,
+                ctx: ctx,
+                locals: &locals
+            )
 
         case let .localNominalDecl(declID, range):
             return inferLocalNominalDeclExpr(id, declID: declID, range: range, ctx: ctx, locals: &locals)

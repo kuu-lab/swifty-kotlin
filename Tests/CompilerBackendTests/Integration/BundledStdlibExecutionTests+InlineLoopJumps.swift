@@ -1,0 +1,100 @@
+import Testing
+
+extension BundledStdlibExecutionTests {
+    @Test(arguments: [true, false])
+    func testKUU2127InlineLambdaBreakContinue(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            inline fun invokeBlock(block: () -> Unit) { block() }
+
+            fun breakFromInline(): Int {
+                var count = 0
+                outer@ while (count < 1) {
+                    invokeBlock { count += 1; break@outer }
+                    count += 100
+                }
+                return count
+            }
+
+            fun continueFromNestedInline(): Int {
+                var count = 0
+                outer@ while (count < 3) {
+                    invokeBlock { invokeBlock { count += 1; continue@outer } }
+                    count += 100
+                }
+                return count
+            }
+
+            fun continueThroughFinally(): Int {
+                var iteration = 0
+                var count = 0
+                outer@ while (iteration < 2) {
+                    invokeBlock {
+                        try {
+                            iteration += 1
+                            count += 1
+                            continue@outer
+                        } finally {
+                            count += 100
+                        }
+                    }
+                    count += 1000
+                }
+                return count
+            }
+
+            fun breakThroughFinally(): Int {
+                var count = 0
+                outer@ while (count < 1) {
+                    invokeBlock {
+                        try {
+                            count += 1
+                            break@outer
+                        } finally {
+                            count += 100
+                        }
+                    }
+                    count += 1000
+                }
+                return count
+            }
+
+            fun nestedFinally(): Int {
+                var count = 0
+                outer@ for (outerIteration in 0..1) {
+                    invokeBlock {
+                        try {
+                            count += 1
+                            for (innerIteration in 0..1) {
+                                invokeBlock {
+                                    try {
+                                        count += 10
+                                        continue
+                                    } finally {
+                                        count += 1000
+                                    }
+                                }
+                            }
+                            continue@outer
+                        } finally {
+                            count += 10000
+                        }
+                    }
+                }
+                return count
+            }
+
+            fun main() {
+                println(breakFromInline())
+                println(continueFromNestedInline())
+                println(continueThroughFinally())
+                println(breakThroughFinally())
+                println(nestedFinally())
+            }
+            """,
+            expectedOutput: "1\n3\n202\n101\n24042\n",
+            moduleName: "KUU2127InlineLambdaBreakContinue",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+}

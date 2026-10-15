@@ -621,7 +621,7 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
             if objectDecl.modifiers.contains(.data) {
-                collectSyntheticToString(
+                collectSyntheticHashCode(
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
                     ownerType: objectType,
@@ -672,6 +672,20 @@ extension DataFlowSemaPhase {
                     usageRange: funDecl.range
                 )
             }
+            let contextParams = collectValueParameters(
+                contextParameterValueDeclarations(funDecl.contextReceivers, interner: interner),
+                localNamespaceFQName: localNamespaceFQName + [interner.intern("$context")],
+                declSite: funDecl.range,
+                ast: ast, symbols: symbols, types: types,
+                interner: interner,
+                sourceManager: sourceManager,
+                localTypeParameters: typeParamResult.localTypeParameters,
+                relativeOwnerFQName: package,
+                currentPackageFQName: package,
+                imports: file.imports,
+                diagnostics: diagnostics,
+                fallbackType: anyType
+            )
             let explicitReceiverType = resolveTypeRef(
                 funDecl.receiverType,
                 ast: ast,
@@ -686,10 +700,10 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: funDecl.range
             )
-            // Top-level context functions use the first context receiver as their
-            // hidden receiver parameter in KIR. Member declarations are registered
-            // separately and keep the owning class as `receiverType`.
-            let receiverType = explicitReceiverType ?? contextReceiverTypes.first
+            // Legacy context receivers use the first context as their hidden
+            // receiver. Named context parameters remain ordinary hidden values.
+            let hasContextParameters = funDecl.contextReceivers.contains(where: \.isContextParameter)
+            let receiverType = explicitReceiverType ?? (hasContextParameters ? nil : contextReceiverTypes.first)
             let params = collectValueParameters(
                 funDecl.valueParams,
                 localNamespaceFQName: localNamespaceFQName,
@@ -734,6 +748,8 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: receiverType,
                     contextReceiverTypes: contextReceiverTypes,
+                    contextParameterSymbols: contextParams.paramSymbols,
+                    contextParameterTypes: contextParams.paramTypes,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,
@@ -852,6 +868,37 @@ extension DataFlowSemaPhase {
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: symbol)
 
+            let propertyContextReceiverTypes = propertyDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    sourceManager: sourceManager,
+                    localTypeParameters: typeParamResult.localTypeParameters,
+                    relativeOwnerFQName: package,
+                    currentPackageFQName: package,
+                    imports: file.imports,
+                    diagnostics: diagnostics,
+                    usageRange: propertyDecl.range
+                )
+            }
+            let propertyContextParams = collectValueParameters(
+                contextParameterValueDeclarations(propertyDecl.contextReceivers, interner: interner),
+                localNamespaceFQName: fqName + [interner.intern("$context")],
+                declSite: propertyDecl.range,
+                ast: ast, symbols: symbols, types: types,
+                interner: interner,
+                sourceManager: sourceManager,
+                localTypeParameters: typeParamResult.localTypeParameters,
+                relativeOwnerFQName: package,
+                currentPackageFQName: package,
+                imports: file.imports,
+                diagnostics: diagnostics,
+                fallbackType: types.anyType
+            )
+
             if let getter = propertyDecl.getter, getter.body != .unit {
                 symbols.setPropertyHasCustomGetter(true, for: symbol)
             }
@@ -883,6 +930,9 @@ extension DataFlowSemaPhase {
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: receiverType,
+                        contextReceiverTypes: propertyContextReceiverTypes,
+                        contextParameterSymbols: propertyContextParams.paramSymbols,
+                        contextParameterTypes: propertyContextParams.paramTypes,
                         parameterTypes: [],
                         returnType: resolvedType,
                         typeParameterSymbols: typeParamResult.typeParameterSymbols,
@@ -906,6 +956,61 @@ extension DataFlowSemaPhase {
                     symbols.setFunctionSignature(
                         FunctionSignature(
                             receiverType: receiverType,
+                            contextReceiverTypes: propertyContextReceiverTypes,
+                            contextParameterSymbols: propertyContextParams.paramSymbols,
+                            contextParameterTypes: propertyContextParams.paramTypes,
+                            parameterTypes: [resolvedType],
+                            returnType: unitType,
+                            typeParameterSymbols: typeParamResult.typeParameterSymbols,
+                            reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
+                            typeParameterUpperBoundsList: upperBounds
+                        ),
+                        for: setterSymbol
+                    )
+                    symbols.setParentSymbol(symbol, for: setterSymbol)
+                    symbols.setExtensionPropertySetterAccessor(setterSymbol, for: symbol)
+                }
+            }
+
+            if propertyDecl.receiverType == nil, !propertyContextParams.paramSymbols.isEmpty {
+                let getterSymbol = symbols.define(
+                    kind: .function,
+                    name: interner.intern("get"),
+                    fqName: fqName + [interner.intern("$get")],
+                    declSite: propertyDecl.range,
+                    visibility: visibility(from: propertyDecl.modifiers),
+                    flags: [.synthetic]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        contextReceiverTypes: propertyContextReceiverTypes,
+                        contextParameterSymbols: propertyContextParams.paramSymbols,
+                        contextParameterTypes: propertyContextParams.paramTypes,
+                        parameterTypes: [],
+                        returnType: resolvedType,
+                        typeParameterSymbols: typeParamResult.typeParameterSymbols,
+                        reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
+                        typeParameterUpperBoundsList: upperBounds
+                    ),
+                    for: getterSymbol
+                )
+                symbols.setParentSymbol(symbol, for: getterSymbol)
+                symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: symbol)
+
+                if propertyDecl.isVar {
+                    let setterSymbol = symbols.define(
+                        kind: .function,
+                        name: interner.intern("set"),
+                        fqName: fqName + [interner.intern("$set")],
+                        declSite: propertyDecl.range,
+                        visibility: visibility(from: propertyDecl.modifiers),
+                        flags: [.synthetic]
+                    )
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            contextReceiverTypes: propertyContextReceiverTypes,
+                            contextParameterSymbols: propertyContextParams.paramSymbols,
+                            contextParameterTypes: propertyContextParams.paramTypes,
                             parameterTypes: [resolvedType],
                             returnType: unitType,
                             typeParameterSymbols: typeParamResult.typeParameterSymbols,

@@ -74,6 +74,34 @@ public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> In
     return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
 }
 
+/// Returns one KProperty stub per delegated declaration so getValue, setValue,
+/// and provideDelegate observe the same property identity across accesses.
+@_cdecl("__kk_kproperty_stub_create_cached")
+public func kk_kproperty_stub_create_cached(
+    _ nameStr: Int,
+    _ returnTypeStr: Int,
+    _ identityStr: Int
+) -> Int {
+    guard let identity = runtimeStringFromRaw(identityStr) else {
+        return kk_kproperty_stub_create(nameStr, returnTypeStr)
+    }
+    return runtimeStorage.withDelegatedPropertyStubLock {
+        if let cached = runtimeStorage.withMetadataLock({ $0.delegatedPropertyStubCache[identity] }) {
+            return cached
+        }
+
+        registerReflectionRuntimeTypeMetadata()
+        let created = registerRuntimeObject(
+            RuntimeKPropertyStub(name: nameStr, returnType: returnTypeStr),
+            typeID: kPropertyRuntimeTypeID
+        )
+        return runtimeStorage.withMetadataLock { state in
+            state.delegatedPropertyStubCache[identity] = created
+            return created
+        }
+    }
+}
+
 // (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 / STDLIB-REFLECT-062 (KProperty 完全メタデータ実装)
 // __kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility} は全て同タスクに紐付く。
 // STDLIB-REFLECT-062: extended create with full KProperty metadata

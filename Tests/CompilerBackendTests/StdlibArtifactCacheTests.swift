@@ -42,7 +42,7 @@ struct StdlibArtifactCacheTests {
         #expect(manifest["formatVersion"] as? Int == 2)
         #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
         #expect(manifest["libraryKind"] as? String == "stdlib")
-        #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+        #expect(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
         #expect(manifest["target"] as? String == "\(TargetTriple.hostDefault().arch)-\(TargetTriple.hostDefault().vendor)-\(TargetTriple.hostDefault().os)")
         #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
     }
@@ -385,7 +385,7 @@ struct StdlibArtifactCacheTests {
             "formatVersion": compact ? 2 : 1,
             "moduleName": "KSwiftKStdlib",
             "libraryKind": "stdlib",
-            "kotlinLanguageVersion": "2.3.10",
+            "kotlinLanguageVersion": "2.4.20",
             "compilerVersion": CompilerBuildInfo.version,
             "target": "\(target.arch)-\(target.vendor)-\(target.os)",
             "stdlibManifestHash": BundledStdlib.manifestHash(),

@@ -514,8 +514,8 @@ jobs:
             optimization_flags: "-O2"
             optimization_suffix: " O2"
     env:
-      KOTLIN_VERSION: "2.3.10"
-      KOTLIN_COMPILER_SHA256: "c8d546f9ff433b529fb0ad43feceb39831040cae2ca8d17e7df46364368c9a9e"
+      KOTLIN_VERSION: "2.4.20"
+      KOTLIN_COMPILER_SHA256: "59e9ca74c7904ef2c122b12114937673ccce68de820a663f0ed66ccf8799e0b7"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

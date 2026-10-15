@@ -23,7 +23,8 @@ final class SemaBodyWorker: @unchecked Sendable {
         let resolver = OverloadResolver()
         resolver.cacheContext = cache
         driver = TypeCheckDriver(
-            ast: parent.ast.makeSemaWorkerAST(), sema: sema, sourceManager: parent.sourceManager,
+            ast: parent.ast.makeSemaWorkerAST(), sema: sema,
+            compilationContext: parent.compilationContext, sourceManager: parent.sourceManager,
             solver: ConstraintSolver(), resolver: resolver, dataFlow: DataFlowAnalyzer(),
             interner: interner, diagnostics: diagnostics, semaCacheContext: cache,
             useNewInference: parent.useNewInference,

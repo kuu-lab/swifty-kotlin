@@ -7,16 +7,46 @@ struct SuspendConversionTests {
     @Test func acceptsFunctionValuesAndInfersGenericSignature() throws {
         let source = """
         fun consume(action: suspend (Int) -> Unit) {}
-        fun <T, R> generic(value: T, action: suspend (T) -> R): R = TODO()
+        fun <T, R> generic(value: T, fallback: R, action: suspend (T) -> R): R = fallback
         fun forward(action: (Int) -> Unit, transform: (Int) -> String) {
             consume(action)
-            val result: String = generic(3, transform)
+            val result: String = generic(3, "unused", transform)
         }
         """
         try withTemporaryFiles(contents: [source]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+        }
+    }
+
+    @Test func acceptsCallableReferencesForSuspendConversionAndUnitCoercion() throws {
+        let source = """
+        fun consume(action: suspend () -> Unit) {}
+        fun regularUnit() {}
+        fun regularString(): String = "ignored"
+        fun forward() {
+            consume(::regularUnit)
+            consume(::regularString)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+        }
+    }
+
+    @Test func rejectsSuspendCallableReferenceForRegularFunctionType() throws {
+        let source = """
+        fun consume(action: () -> Unit) {}
+        suspend fun suspended() {}
+        fun forward() { consume(::suspended) }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
         }
     }
 
@@ -30,7 +60,7 @@ struct SuspendConversionTests {
     ])
     func rejectsIncompatibleArgumentsAndImplicitSubtyping(declaration: String) throws {
         try withTemporaryFiles(contents: ["fun consume(action: suspend (Int) -> Unit) {}\n" + declaration]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             #expect(ctx.diagnostics.hasError)
         }

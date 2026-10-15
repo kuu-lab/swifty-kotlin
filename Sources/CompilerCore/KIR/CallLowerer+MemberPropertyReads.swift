@@ -331,18 +331,13 @@ extension CallLowerer {
         // side (memberPropertyUsesSetterAccessor in
         // CallLowerer+MemberAssignment.swift) already do.
         //
-        // Deliberately narrower than `memberPropertyUsesAccessor`: a
-        // delegated property (`by lazy { ... }`) also reports "uses an
-        // accessor" there, but object-member delegated properties don't yet
-        // have a real getter-accessor symbol to call (unlike class-instance
-        // delegates, which resolve through a different path before reaching
-        // here) -- routing them through this branch panics with a vtable/
-        // itable lookup failure. Leave delegated object properties on the
-        // pre-existing `loadGlobal` fallback below until that gap is fixed
-        // (BUG-265).
+        // Object-member delegated properties have generated getter accessors
+        // too. Reading their backing global bypasses getValue and can return a
+        // stale default value after setValue has updated the delegate.
         if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
             || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
             || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
+            || sema.symbols.delegateGetValueSymbol(for: propertySymbol) != nil
         {
             let receiverID: KIRExprID
             let receiverIsUnboundNameRef: Bool

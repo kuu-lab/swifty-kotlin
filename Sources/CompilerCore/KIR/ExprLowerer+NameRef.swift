@@ -178,14 +178,28 @@ extension ExprLowerer {
                 return localValue
             }
             let receiverExprID: KIRExprID
-            if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+            if let symbol = sema.bindings.identifierSymbols[exprID],
+               let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+               let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+               let activeReceiverType = arena.exprType(activeReceiver),
+               sema.types.isSubtype(
+                   sema.types.makeNonNullable(activeReceiverType),
+                   sema.types.makeNonNullable(extensionReceiverType)
+               )
+            {
+                // Member extension property references have two implicit
+                // receivers. The outer-receiver binding names the dispatch
+                // receiver; the active receiver supplies the extension value.
+                receiverExprID = activeReceiver
+            } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
             {
                 receiverExprID = capturedReceiver
             } else if let symbol = sema.bindings.identifierSymbols[exprID],
                let capturedReceiver = driver.objectLiteralLowerer.implicitReceiverExprID(
                    forProperty: symbol,
-                   sema: sema
+                   sema: sema,
+                   arena: arena
                )
             {
                 receiverExprID = capturedReceiver
@@ -444,12 +458,20 @@ extension ExprLowerer {
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[symbol]
             {
+                let fieldReceiverExprID = resolveOuterChainValue(
+                    from: receiverExprID,
+                    to: ownerSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) ?? receiverExprID
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_get_inbounds"),
-                    arguments: [receiverExprID, offsetExpr],
+                    arguments: [fieldReceiverExprID, offsetExpr],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -820,7 +842,8 @@ extension ExprLowerer {
                sym.kind == .property || sym.kind == .field || sym.kind == .backingField,
                let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                    forProperty: symbol,
-                   sema: sema
+                   sema: sema,
+                   arena: arena
                ),
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
@@ -884,7 +907,8 @@ extension ExprLowerer {
                sym.kind == .property,
                let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                    forProperty: symbol,
-                   sema: sema
+                   sema: sema,
+                   arena: arena
                ),
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
@@ -971,7 +995,6 @@ extension ExprLowerer {
             // to the precompiled getter accessor instead.
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
-               sym.flags.contains(.importedLibrary),
                sema.symbols.propertyHasCustomGetter(for: symbol),
                sema.symbols.extensionPropertyReceiverType(for: symbol) == nil,
                let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),

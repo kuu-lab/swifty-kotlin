@@ -167,7 +167,9 @@ def diagnostic_json(stderr: bytes) -> list[dict[str, Any]]:
 
 
 def canonical_diagnostics(
-    diagnostics: list[dict[str, Any]], code_to_kind: dict[str, str]
+    diagnostics: list[dict[str, Any]],
+    code_to_kind: dict[str, str],
+    message_overrides: dict[str, dict[str, str]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     result: list[dict[str, Any]] = []
     unknown_codes: list[str] = []
@@ -182,13 +184,16 @@ def canonical_diagnostics(
             raise ValueError("diagnostic is missing a code or severity")
         severity = severity.lower()
         kind = code_to_kind.get(code)
+        message = diagnostic.get("message")
+        if isinstance(message, str):
+            kind = (message_overrides or {}).get(code, {}).get(message, kind)
         if kind is None:
             unknown_codes.append(code)
         result.append({"severity": severity, "kind": kind, "code": code})
     return result, sorted(set(unknown_codes))
 
 
-def diagnostic_counts(items: list[dict[str, Any]]) -> Counter[tuple[str, str]]:
+def diagnostic_counts(items: list[dict[str, Any]]) -> Counter[tuple[str, str | None]]:
     return Counter((item["severity"], item["kind"]) for item in items)
 
 
@@ -241,6 +246,7 @@ def compare_compile_diagnostics(
     stderr: bytes,
     expected: Any,
     code_to_kind: dict[str, str],
+    message_overrides: dict[str, dict[str, str]],
     record: dict[str, Any],
 ) -> None:
     if expected is None:
@@ -248,7 +254,7 @@ def compare_compile_diagnostics(
         return
     try:
         raw_diagnostics = diagnostic_json(stderr)
-        actual, unknown_codes = canonical_diagnostics(raw_diagnostics, code_to_kind)
+        actual, unknown_codes = canonical_diagnostics(raw_diagnostics, code_to_kind, message_overrides)
     except (UnicodeDecodeError, ValueError) as error:
         add_failure(record, "diagnostics_unparseable")
         record["diagnosticsParseError"] = str(error)
@@ -266,6 +272,11 @@ def compare_compile_diagnostics(
         return
 
     known_kinds = set(code_to_kind.values())
+    known_kinds.update(
+        kind
+        for overrides in message_overrides.values()
+        for kind in overrides.values()
+    )
     for kind in sorted({kind for _, kind in expected_counts if kind not in known_kinds}):
         add_failure(record, f"unmapped_expected_diagnostic_kind:{kind}")
 
@@ -278,13 +289,15 @@ def compare_compile_diagnostics(
         ]
         record["actualDiagnosticCounts"] = [
             {"severity": severity, "kind": kind, "count": count}
-            for (severity, kind), count in sorted(actual_counts.items())
+            for (severity, kind), count in sorted(
+                actual_counts.items(), key=lambda item: (item[0][0], item[0][1] or "")
+            )
         ]
 
 
 def load_contract_files(
     expectations_path: Path, diagnostic_map_path: Path
-) -> tuple[dict[str, Any], dict[str, str]]:
+) -> tuple[dict[str, Any], dict[str, str], dict[str, dict[str, str]]]:
     document = json.loads(expectations_path.read_text(encoding="utf-8"))
     if not isinstance(document, dict) or document.get("schemaVersion") != 1:
         raise ValueError("expectations.json must use schemaVersion 1")
@@ -301,7 +314,20 @@ def load_contract_files(
         for code, kind in code_to_kind.items()
     ):
         raise ValueError("diagnostic map codes must map KSWIFTK diagnostic codes to names")
-    return document, code_to_kind
+    raw_message_overrides = mapping_document.get("messageOverrides", {})
+    if not isinstance(raw_message_overrides, dict):
+        raise ValueError("diagnostic map messageOverrides must map codes to message maps")
+    message_overrides: dict[str, dict[str, str]] = {}
+    for code, overrides in raw_message_overrides.items():
+        if (
+            not isinstance(code, str)
+            or not code.startswith("KSWIFTK-")
+            or not isinstance(overrides, dict)
+            or any(not isinstance(message, str) or not isinstance(kind, str) for message, kind in overrides.items())
+        ):
+            raise ValueError("diagnostic map messageOverrides entries are invalid")
+        message_overrides[code] = overrides
+    return document, code_to_kind, message_overrides
 
 
 def select_cases(
@@ -401,6 +427,7 @@ def run_case(
     stdlib_library: Path,
     compiler_env: dict[str, str],
     code_to_kind: dict[str, str],
+    message_overrides: dict[str, dict[str, str]],
     compile_timeout: float,
     run_timeout: float,
 ) -> dict[str, Any]:
@@ -468,6 +495,7 @@ def run_case(
             compile_result["stderr"],
             compile_contract.get("diagnostics"),
             code_to_kind,
+            message_overrides,
             record,
         )
 
@@ -589,7 +617,7 @@ def main(argv: list[str] | None = None) -> int:
     fatal_reason: str | None = None
     selected: list[dict[str, Any]] = []
     try:
-        document, code_to_kind = load_contract_files(expectations_path, diagnostic_map_path)
+        document, code_to_kind, message_overrides = load_contract_files(expectations_path, diagnostic_map_path)
         summary["expectationsSha256"] = sha256_file(expectations_path)
         summary["diagnosticMapSha256"] = sha256_file(diagnostic_map_path)
     except (OSError, ValueError, json.JSONDecodeError) as error:
@@ -598,6 +626,7 @@ def main(argv: list[str] | None = None) -> int:
         summary["error"] = str(error)
         document = {"cases": []}
         code_to_kind = {}
+        message_overrides = {}
 
     if fatal_reason is None:
         selected, excluded, invalid = select_cases(document["cases"], args.case_ids)
@@ -666,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
                 stdlib_library=stdlib_library,
                 compiler_env=compiler_env,
                 code_to_kind=code_to_kind,
+                message_overrides=message_overrides,
                 compile_timeout=args.compile_timeout,
                 run_timeout=args.run_timeout,
             )

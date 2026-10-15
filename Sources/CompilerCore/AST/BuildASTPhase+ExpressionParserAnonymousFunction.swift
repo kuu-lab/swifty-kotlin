@@ -1,5 +1,38 @@
 
 extension BuildASTPhase.ExpressionParser {
+    func hasContextParameterAnonymousFunctionPrefix() -> Bool {
+        guard index + 1 < tokens.count,
+              tokens[index].kind == .softKeyword(.context),
+              tokens[index + 1].kind == .symbol(.lParen)
+        else {
+            return false
+        }
+        var depth = 0
+        var cursor = index + 1
+        while cursor < tokens.count {
+            switch tokens[cursor].kind {
+            case .symbol(.lParen): depth += 1
+            case .symbol(.rParen):
+                depth -= 1
+                if depth == 0 {
+                    cursor += 1
+                    while cursor < tokens.count,
+                          case let .keyword(keyword) = tokens[cursor].kind,
+                          KotlinParser.isDeclarationModifierKeyword(keyword)
+                    {
+                        cursor += 1
+                    }
+                    return cursor + 1 < tokens.count
+                        && tokens[cursor].kind == .keyword(.fun)
+                        && tokens[cursor + 1].kind == .symbol(.lParen)
+                }
+            default: break
+            }
+            cursor += 1
+        }
+        return false
+    }
+
     /// Unlike a lambda literal, an unlabeled `return` inside an anonymous
     /// function always returns from the anonymous function itself — never a
     /// non-local return to an enclosing named function — regardless of
@@ -19,14 +52,46 @@ extension BuildASTPhase.ExpressionParser {
     /// A `label@ fun(...)` prefix reuses the label as the synthetic function
     /// name so `return@label` resolves like a function-name labeled return.
     func parseAnonymousFunctionLiteral(label: InternedString? = nil) -> ExprID? {
-        guard let funToken = current(), case .keyword(.fun) = funToken.kind else {
+        let expressionStartIndex = index
+        var functionStartIndex = index
+        if hasContextParameterAnonymousFunctionPrefix() {
+            var depth = 0
+            var cursor = index + 1
+            while cursor < tokens.count {
+                switch tokens[cursor].kind {
+                case .symbol(.lParen): depth += 1
+                case .symbol(.rParen):
+                    depth -= 1
+                    if depth == 0 {
+                        functionStartIndex = cursor + 1
+                        while functionStartIndex < tokens.count,
+                              case let .keyword(keyword) = tokens[functionStartIndex].kind,
+                              KotlinParser.isDeclarationModifierKeyword(keyword)
+                        {
+                            functionStartIndex += 1
+                        }
+                        break
+                    }
+                default: break
+                }
+                if functionStartIndex != index { break }
+                cursor += 1
+            }
+        }
+        guard functionStartIndex < tokens.count,
+              case .keyword(.fun) = tokens[functionStartIndex].kind
+        else {
             return nil
         }
-        guard peek(1)?.kind == .symbol(.lParen) else {
+        guard tokens.indices.contains(functionStartIndex + 1),
+              tokens[functionStartIndex + 1].kind == .symbol(.lParen)
+        else {
             return nil
         }
 
-        let startIndex = index
+        index = functionStartIndex
+        let startIndex = functionStartIndex
+        let funToken = tokens[functionStartIndex]
         _ = consume()
         skipBalancedParenthesisIfNeeded()
 
@@ -47,7 +112,7 @@ extension BuildASTPhase.ExpressionParser {
         if matches(.symbol(.assign)) {
             _ = consume()
             guard let body = parseExpression(minPrecedence: 0) else {
-                index = startIndex
+                index = expressionStartIndex
                 return nil
             }
             expressionBody = body
@@ -55,7 +120,7 @@ extension BuildASTPhase.ExpressionParser {
             skipBalancedBraceIfNeeded()
             expressionBody = nil
         } else {
-            index = startIndex
+            index = expressionStartIndex
             return nil
         }
         let endIndex = index
@@ -64,7 +129,8 @@ extension BuildASTPhase.ExpressionParser {
             "__AnonymousFunction_\(funToken.range.start.file.rawValue)_\(funToken.range.start.offset)"
         )
         let nameToken = Token(kind: .identifier(syntheticName), range: funToken.range)
-        var synthTokens: [Token] = [funToken, nameToken]
+        var synthTokens = Array(tokens[expressionStartIndex..<functionStartIndex])
+        synthTokens.append(contentsOf: [funToken, nameToken])
         synthTokens.append(contentsOf: tokens[(startIndex + 1)..<(expressionBody == nil ? endIndex : headerEndIndex)])
 
         let phase = BuildASTPhase(diagnostics: diagnostics)
@@ -74,11 +140,11 @@ extension BuildASTPhase.ExpressionParser {
                 astArena.exprRange(body).map { .expr(body, $0) }
             }
         ) else {
-            index = startIndex
+            index = expressionStartIndex
             return nil
         }
 
-        let range = SourceRange(start: funToken.range.start, end: tokens[endIndex - 1].range.end)
+        let range = SourceRange(start: tokens[expressionStartIndex].range.start, end: tokens[endIndex - 1].range.end)
         let callableRefID = astArena.appendExpr(.callableRef(receiver: nil, member: syntheticName, range: range))
         let function = astArena.appendExpr(.blockExpr(statements: [localFunExprID], trailingExpr: callableRefID, range: range))
         astArena.markAnonymousFunction(function)

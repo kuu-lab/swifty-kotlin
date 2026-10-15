@@ -180,6 +180,24 @@ extension OverloadResolver {
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         ctx: SemaModule
     ) -> ResolvedCall {
+        let result = resolveCallWithoutJavaWarnings(
+            candidates: candidates, call: call, expectedType: expectedType,
+            implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes, ctx: ctx
+        )
+        if let chosen = result.chosenCallee {
+            warnJavaCollectionsNullableArguments(call, expectedType: expectedType, chosen: chosen, ctx: ctx)
+        }
+        return result
+    }
+
+    private func resolveCallWithoutJavaWarnings(
+        candidates: [SymbolID],
+        call: CallExpr,
+        expectedType: TypeID?,
+        implicitReceiverType: TypeID? = nil,
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        ctx: SemaModule
+    ) -> ResolvedCall {
         // --- cache lookup ---
         // Per-candidate argument overrides bypass the shared cache key.
         guard candidateArgumentTypes.isEmpty, call.typeAliasConstructor == nil, let cache = cacheContext else {
@@ -327,6 +345,12 @@ extension OverloadResolver {
         } else {
             implicitReceiverType
         }
+
+        let javaMapArgument = javaCollectionsMapArgument(fqName: symbol.fqName, signature: signature, call: call, ctx: ctx)
+        guard javaMapArgument.compatible else { return .rejected }
+        let mappedCall = javaMapArgument.replacement.map { call.replacingArgumentTypes([0: $0]) } ?? call
+        let call = javaCollectionsCall(mappedCall, fqName: symbol.fqName, signature: signature, ctx: ctx)
+
         let typeVarBySymbol = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
 
         // Apply explicit type argument constraints if provided.
@@ -705,7 +729,7 @@ extension OverloadResolver {
         var substitution: [TypeVarID: TypeID]
         switch solveResult {
         case let .success(value):
-            substitution = value
+            substitution = javaCollectionsSubstitution(value, fqName: symbol.fqName, signature: signature, ctx: ctx)
         case let .constraintFailure(diagnostic):
             return .constraintFailure(diagnostic)
         case .rejected:

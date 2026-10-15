@@ -62,7 +62,7 @@ SwiftPM sandbox の制約がある場合は通常の権限あるターミナル�
 
 ## 証拠と未達項目
 
-KUU-1616 の保存記録 `fixtures/js_annotations/evidence/native-matrix-results.json` は
+KUU-1616 の過去の保存記録 `fixtures/js_annotations/evidence/native-matrix-results.json` は
 **56 pass / 52 fail / 0 timeout / 0 not-run**。全27 fixture は四経路で同じ結果だったが、
 13 fixture の native 契約検証が成功していない。
 adapter 未対応による失敗と製品の契約不一致を、同じ「未実装」と判断しない。別の focused 記録の12/12成功で、
@@ -83,7 +83,8 @@ adapter 未対応による失敗と製品の契約不一致を、同じ「未実
 | `marker_no_opt_in` | OPT_IN_USAGE の warning 3件 | 同 warning 2件 | marker requirement の伝播・利用地点を照合 |
 | `collection_marker_fqn` | compile exit1、定数/参照 error 2件 | compile exit0、診断0件 | 無効 FQN の受理を照合 |
 
-これらが残る間、KUU-1480 の SKIP 解除は **needs attention**。
+これらは上記の過去 matrix で観測された不一致であり、その時点では KUU-1480 の SKIP 解除は
+**needs attention** だった。
 
 2026-10-13 JST の最初のローカル実行は Runtime の packaged SwiftPM build が
 `sandbox_apply: Operation not permitted` となったため中断した。stdlib artifact の生成は
@@ -125,14 +126,67 @@ compiler/source/artifact/manifest hash、期待値/map hash は `matrix-results.
 compile と run の stdout/stderr/終了コード/timeout は matrix directory の各 process 記録にある。
 過去の記録の集約だけを現在の compiler の再実行と呼ばない。
 
+2026-10-15 JST の統合後ローカル candidate-only 実行は `run_ci.py` の exit 0 で完了し、
+runner 回帰3本と native 27 fixture × source/artifact × O0/O2 の108セルがすべて PASS、
+fail / timeout / not-run は0、経路間不一致は0、`skipRemovalReady` は `true` だった。
+`KOTLINC=/__codex_missing_kotlinc JAVA_BIN=/__codex_missing_java` を指定しており、
+JVM reference は実行経路にない。run directory は
+`.artifacts/js_annotations_ci/20261014T191310.036137Z-b64c599e/`、matrix は
+`matrix/20261014T191321.536958Z-b13578d1/`。
+revision は `3c22b11e547b755dda56dd05e921e17bd8056084`、CompilerCore source tree hash は
+`5ac1f34132d6894abfbd7e58969cce62940c1e8f0e58352af5b54d4efd5ff427`、compiler SHA256 は
+`a0d9cac1239aa2ed6ab29c2ae3f57931ccbc9a02d6837b8243dccbcb97eed867`。
+fresh 1849-file artifact SHA256 は `cfdfd80867af93a15754f15ff30f2d563bbd605857b763169f7804d7096860b7`、
+manifest SHA256 は `4968c760ccd9d5699772443be1a8b1a4cda0d995b9b69d856d992167c8efda3d`。
+実行環境は macOS 27 / Apple Swift 6.4 arm64。
+このrevisionには #9027 / #9041 の変更を積んでいる。当時 #9038 は merge queue 待ちのため含めず、
+同PRが扱う unchecked cast warning は、このローカル実行では redundant cast の除去で回避している。
+#9038 はその後 2026-10-15 JST に merge された。
+
+2026-10-15 JST に同 revision `34858c2b01701c2f3caf8d12056779131de0c802` の hosted job を実行した。
+[workflow run 38624667409](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409) の
+[専用 job](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409/job/116067141702)
+は成功し、summary は `status=pass`, `case-runs=108`, `failed=0`, `inconsistent=0`, `excluded=3`。
+pass 108、fail / timeout / not-run はすべて0で、`SKIP removal ready: true`。
+source/artifact × O0/O2 の全27 native fixture が一致し、runner 回帰の
+`test_run_candidate`, `test_run_matrix`, `test_summarize_evidence` も exit 0 だった。
+除外された `original`, `js_dynamic_views`, `views_dynamic` は native lane 対象外として記録されている。
+matrix run ID は `20261014T195255.092494Z-1e003c9e`、hosted release compiler は Apple Swift 6.3.3。
+`KOTLINC` と `JAVA_BIN` はどちらも `/not-used-by-js-annotations` に設定され、JVM reference は起動していない。
+
+evidence artifact は [js-annotations-evidence-38624667409 (ID 11927057209)](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38624667409/artifacts/11927057209)。
+upload SHA-256 は `f80c2901f652069c875aac97256cff064c38ed8c886cf479f76a110caa65d004`、
+size は 788982642 bytes。release compiler artifact `kswiftc-release-38624667409` は
+SHA-256 `0258ecc706cffebc9bc98cf63ff10e8c52926f0c3fe073fe1a4e47537487d6f1` を検証してから実行した。
+この hosted run では別 job `Build debug Swift test bundle once` の一般 candidate-only diff 検証が10件失敗し、
+通常の kotlinc diff shard job も失敗したため、nightly workflow 全体を green とは扱わない。
+専用 JS annotation job の成功はそれらの結果と分けて記録する。
+
+### 移設後の hosted 再実行
+
+`Scripts/diff_cases/js_annotations.kt` を audit snapshot へ移して削除した revision
+`a9b9bbda0b8dc7d2f2e8f2a7d7382b84f58cfe2b` でも、2026-10-15 JST に同じ専用 job を再実行した。
+[workflow run 38635184807](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38635184807) の
+[専用 job](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38635184807/job/116101899388)
+は成功し、summary は `status=pass`, `case-runs=108`, `failed=0`, `inconsistent=0`, `excluded=3`。
+pass 108、fail / timeout / not-run はすべて0、`SKIP removal ready: true`。
+runner 回帰3本もすべて exit 0。matrix run ID は `20261014T210139.885569Z-502d3953`、
+evidence directory は `20261014T210131.230155Z-65dcbfc4`。
+JVM reference を起動しないよう `KOTLINC` / `JAVA_BIN` は未存在の指定先に固定した。
+
+移設後 evidence artifact は
+[js-annotations-evidence-38635184807 (ID 11929923733)](https://github.com/kuu-lab/swifty-kotlin/actions/runs/38635184807/artifacts/11929923733)。
+upload SHA-256 は `e756996e35109235e304ade0d3cba02b994f1c92e719957524dffa7a9baae7c0`、
+size は 788982207 bytes。この run も一般 candidate-only diff verification と kotlinc diff shard が失敗し、
+nightly workflow 全体は failure。専用 JS annotation job の pass および PR の必須 checks pass とは区別する。
+
 集約器は compile/runtime timeout を `timeout`、artifact build 失敗によって開始できなかった
 fixture を `not-run`、実行した契約不一致を `fail` とする。artifact build 自身の timeout は
 上位の `failureReasons` と stdlib-build process 記録に残す。期待した compile failure の後の
 runtime は `not_applicable` であり、未実行の肯定 runtime を PASS にするものではない。
 
-KSwiftK JS emission/consumer、全 Swift suite、全 diff corpus はこの専用コマンドでは未実行。
-CI の実 run URL はブランチを push して workflow を実行した後に追加する。
-workflow の静的接続と、実際にホストされた CI で実行された証拠は別である。
+KSwiftK JS emission/consumer、全 Swift suite、全 diff corpus はこの専用 job では未実行。
+run URL、summary、evidence artifact は上記 hosted job の記録を参照する。
 
 ## KUU-1480 が実行する解除手順
 
@@ -142,12 +196,16 @@ workflow の静的接続と、実際にホストされた CI で実行された�
    `evidence.json` の `skipRemovalReady: true` が必要。失敗/timeout/not-run が残れば解除しない。
 3. ブランチ上で `nightly-full.yml` の専用 job を実行し、run URL、summary、artifact を保存する。
    ローカル成功だけで「CI 実行済み」としない。
-4. 解除時点の `Scripts/diff_cases/js_annotations.kt` を独立した audit snapshot として保存し、
-   hash/provenance を記録する。歴史的 `diagnostics/original.kt` を上書きしない。
+4. 解除時点の `Scripts/diff_cases/js_annotations.kt` を独立した audit snapshot として
+   [`fixtures/js_annotations/evidence/kuu-1480-diff-case-before-removal.kt`](fixtures/js_annotations/evidence/kuu-1480-diff-case-before-removal.kt)
+   に保存する。45行、SHA-256 `c0907499c4fb7b25f062cf84e9763e673621a7ae8c0a1243a1cbc783713c4a03`。
+   歴史的 `diagnostics/original.kt` は上書きしない。
 5. native 肯定観測の owner を `valid/native_observations.kt` と専用 lane に確定し、
    無効 FQN/import/property/reference の各診断を対応表で確認する。JS emission の達成を主張しない。
 6. KUU-1480 の独立 PR で diff case を専用 fixture lane に移設し、旧 diff file を削除する。
    これにより当該 SKIP-DIFF も削除される。タグだけを外して JVM diff に戻さない。
-7. fixture、期待値、必須 sentinel、CI 選択が残っていることを再確認し、移設後も専用 job を実行する。
+7. fixture、期待値、必須 sentinel、CI 選択が残っていることを再確認し、移設後にも専用 job を実行する。
+   実行結果は上記 `移設後の hosted 再実行` に保存した。
 
-KUU-1617 は接続・証拠集約のみを変更し、原 diff case と SKIP-DIFF は保持する。
+KUU-1617 の時点では接続・証拠集約のみを変更し、原 diff case と SKIP-DIFF を保持していた。
+KUU-1480 で上記の native-only lane へ移設した。

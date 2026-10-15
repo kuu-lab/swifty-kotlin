@@ -646,7 +646,7 @@ extension DeclTypeChecker {
         }
     }
 
-    private func typeCheckNestedObjectDecl(
+    func typeCheckNestedObjectDecl(
         _ declID: DeclID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,
@@ -676,7 +676,7 @@ extension DeclTypeChecker {
         }
     }
 
-    private func typeCheckNestedClassDecl(
+    func typeCheckNestedClassDecl(
         declID: DeclID,
         ctx: TypeInferenceContext,
         solver: ConstraintSolver,

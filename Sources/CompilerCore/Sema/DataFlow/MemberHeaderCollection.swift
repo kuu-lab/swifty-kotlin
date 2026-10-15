@@ -330,6 +330,20 @@ extension DataFlowSemaPhase {
                     usageRange: funDecl.range
                 )
             }
+            let contextParams = collectValueParameters(
+                contextParameterValueDeclarations(funDecl.contextReceivers, interner: interner),
+                localNamespaceFQName: localNamespaceFQName + [interner.intern("$context")],
+                declSite: funDecl.range,
+                ast: ast, symbols: symbols, types: types,
+                interner: interner,
+                sourceManager: sourceManager,
+                localTypeParameters: mergedLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                fallbackType: anyType
+            )
 
             var returnType: TypeID = if let explicit = resolveTypeRef(
                 funDecl.returnType,
@@ -357,6 +371,9 @@ extension DataFlowSemaPhase {
 
             if ctx.sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true {
                 returnType = javaThreadLocalReturnType(
+                    returnType, fqName: memberFQName, types: types, interner: interner
+                )
+                returnType = javaCollectionsReturnType(
                     returnType, fqName: memberFQName, types: types, interner: interner
                 )
             }
@@ -411,7 +428,12 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: extensionReceiverType ?? ownerType,
                     contextReceiverTypes: contextReceiverTypes,
-                    parameterTypes: params.paramTypes,
+                    contextParameterSymbols: contextParams.paramSymbols,
+                    contextParameterTypes: contextParams.paramTypes,
+                    parameterTypes: sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
+                        ? javaCollectionsParameterTypes(
+                            params.paramTypes, fqName: memberFQName, types: types, interner: interner
+                        ) : params.paramTypes,
                     returnType: callableReturnType,
                     isSuspend: funDecl.isSuspend,
                     valueParameterSymbols: params.paramSymbols,
@@ -657,6 +679,37 @@ extension DataFlowSemaPhase {
                 symbols.setPropertySetterVisibility(setterVisibility, for: memberSymbol)
             }
 
+            let propertyContextReceiverTypes = propertyDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    sourceManager: sourceManager,
+                    localTypeParameters: propertyTypeParameters,
+                    relativeOwnerFQName: ownerFQName,
+                    currentPackageFQName: sourcePackageFQName,
+                    imports: sourceImports,
+                    diagnostics: diagnostics,
+                    usageRange: propertyDecl.range
+                )
+            }
+            let propertyContextParams = collectValueParameters(
+                contextParameterValueDeclarations(propertyDecl.contextReceivers, interner: interner),
+                localNamespaceFQName: memberFQName + [interner.intern("$context")],
+                declSite: propertyDecl.range,
+                ast: ast, symbols: symbols, types: types,
+                interner: interner,
+                sourceManager: sourceManager,
+                localTypeParameters: propertyTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports,
+                diagnostics: diagnostics,
+                fallbackType: types.anyType
+            )
+
             // Kotlin permits extension properties inside a companion object,
             // such as `val Int.seconds` in `Duration.Companion`. Keep these
             // declarations in the owner scope, but model their receiver and
@@ -690,6 +743,9 @@ extension DataFlowSemaPhase {
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: receiverType,
+                        contextReceiverTypes: propertyContextReceiverTypes,
+                        contextParameterSymbols: propertyContextParams.paramSymbols,
+                        contextParameterTypes: propertyContextParams.paramTypes,
                         parameterTypes: [],
                         returnType: resolvedType,
                         typeParameterSymbols: allPropertyParameters,
@@ -714,6 +770,72 @@ extension DataFlowSemaPhase {
                     symbols.setFunctionSignature(
                         FunctionSignature(
                             receiverType: receiverType,
+                            contextReceiverTypes: propertyContextReceiverTypes,
+                            contextParameterSymbols: propertyContextParams.paramSymbols,
+                            contextParameterTypes: propertyContextParams.paramTypes,
+                            parameterTypes: [resolvedType],
+                            returnType: unitType,
+                            typeParameterSymbols: allPropertyParameters,
+                            reifiedTypeParameterIndices: Set(typeParamResult.reifiedIndices.map { $0 + classTypeParameterSymbols.count }),
+                            typeParameterUpperBoundsList: upperBounds,
+                            classTypeParameterCount: classTypeParameterSymbols.count
+                        ),
+                        for: setterSymbol
+                    )
+                    symbols.setParentSymbol(memberSymbol, for: setterSymbol)
+                    symbols.setExtensionPropertySetterAccessor(setterSymbol, for: memberSymbol)
+                }
+            }
+
+            if propertyDecl.receiverType == nil, !propertyContextParams.paramSymbols.isEmpty {
+                let ownerType = types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol,
+                    args: classTypeParameterSymbols.map {
+                        .invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+                    },
+                    nullability: .nonNull
+                )))
+                let getterSymbol = symbols.define(
+                    kind: .function,
+                    name: interner.intern("get"),
+                    fqName: memberFQName + [interner.intern("$get")],
+                    declSite: propertyDecl.range,
+                    visibility: visibility(from: propertyDecl.modifiers),
+                    flags: [.synthetic]
+                )
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: ownerType,
+                        contextReceiverTypes: propertyContextReceiverTypes,
+                        contextParameterSymbols: propertyContextParams.paramSymbols,
+                        contextParameterTypes: propertyContextParams.paramTypes,
+                        parameterTypes: [],
+                        returnType: resolvedType,
+                        typeParameterSymbols: allPropertyParameters,
+                        reifiedTypeParameterIndices: Set(typeParamResult.reifiedIndices.map { $0 + classTypeParameterSymbols.count }),
+                        typeParameterUpperBoundsList: upperBounds,
+                        classTypeParameterCount: classTypeParameterSymbols.count
+                    ),
+                    for: getterSymbol
+                )
+                symbols.setParentSymbol(memberSymbol, for: getterSymbol)
+                symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: memberSymbol)
+
+                if propertyDecl.isVar {
+                    let setterSymbol = symbols.define(
+                        kind: .function,
+                        name: interner.intern("set"),
+                        fqName: memberFQName + [interner.intern("$set")],
+                        declSite: propertyDecl.range,
+                        visibility: visibility(from: propertyDecl.modifiers),
+                        flags: [.synthetic]
+                    )
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            receiverType: ownerType,
+                            contextReceiverTypes: propertyContextReceiverTypes,
+                            contextParameterSymbols: propertyContextParams.paramSymbols,
+                            contextParameterTypes: propertyContextParams.paramTypes,
                             parameterTypes: [resolvedType],
                             returnType: unitType,
                             typeParameterSymbols: allPropertyParameters,
@@ -813,7 +935,10 @@ extension DataFlowSemaPhase {
             // synthesise getValue/setValue accessor calls.
             // STDLIB-CLASS-010: Abstract properties cannot have delegate expressions
             if propertyDecl.delegateExpression != nil && !propertyDecl.modifiers.contains(.abstract) {
-                let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                let extensionSuffix = propertyDecl.receiverType == nil ? "" : "_extension_\(memberSymbol.rawValue)"
+                let delegateStorageName = interner.intern(
+                    "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+                )
                 let delegateStorageFQName = ownerFQName + [delegateStorageName]
                 let delegateStorageSymbol = symbols.define(
                     kind: .field,
@@ -1584,7 +1709,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         if nestedObject.modifiers.contains(.data) {
-            collectSyntheticToString(
+            collectSyntheticHashCode(
                 ownerSymbol: nestedSymbol,
                 ownerFQName: nestedFQName,
                 ownerType: nestedType,

@@ -31,7 +31,45 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        if !candidates.isEmpty {
+        let availableContextTypes = ctx.contextReceiverTypes
+            + ctx.implicitReceiverStack.map(\.type)
+            + ctx.outerReceiverTypes.map(\.type)
+            + (ctx.implicitReceiverType.map { [$0] } ?? [])
+        let contextApplicableCandidates = candidates.filter { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return true
+            }
+            return signature.contextParameterTypes.allSatisfy { requiredType in
+                if sema.types.typeContainsAnyTypeParam(requiredType) {
+                    return !availableContextTypes.isEmpty
+                }
+                return availableContextTypes.contains { availableType in
+                    sema.types.isSubtype(
+                        sema.types.makeNonNullable(availableType),
+                        sema.types.makeNonNullable(requiredType)
+                    )
+                }
+            }
+        }
+        let resolvedCandidates: [SymbolID]
+        if !contextApplicableCandidates.isEmpty {
+            resolvedCandidates = contextApplicableCandidates
+        } else if let missingType = candidates
+            .compactMap({ sema.symbols.functionSignature(for: $0)?.contextParameterTypes.first })
+            .first
+        {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-CTX-002",
+                "No context value is available for parameter type '\(sema.types.renderType(missingType))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        } else {
+            resolvedCandidates = candidates
+        }
+
+        if !resolvedCandidates.isEmpty {
             // Coroutine builders erase their result type. Resolve arguments first,
             // then recover the actual block result instead of constraining Any.
             let coroutineBuilderNames: Set<String> = [
@@ -50,7 +88,7 @@ extension CallTypeChecker {
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
             }
-            let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains { candidate in
+            let isCoroutineBuilderWithHardcodedAnyReturn = resolvedCandidates.contains { candidate in
                 isCoroutineBuilderCandidate(candidate)
                     && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
                     && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null_throwing"
@@ -68,10 +106,10 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return candidates.contains { candidate in
+                return resolvedCandidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? candidates.lazy.compactMap { candidate -> TypeID? in
+            }?.type ?? resolvedCandidates.lazy.compactMap { candidate -> TypeID? in
                 guard let owner = sema.symbols.parentSymbol(for: candidate),
                       let containingClass = sema.symbols.parentSymbol(for: owner),
                       sema.symbols.companionObjectSymbol(for: containingClass) == owner,
@@ -83,7 +121,7 @@ extension CallTypeChecker {
                 return receiverType
             }.first ?? callImplicitReceiverType
             let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
-                candidates: candidates,
+                candidates: resolvedCandidates,
                 args: args,
                 originalExpectedTypeOverrides: expectedTypeOverrides,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
@@ -92,7 +130,7 @@ extension CallTypeChecker {
             )
             var resolvedImplicitReceiverType = callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
-                candidates: candidates,
+                candidates: resolvedCandidates,
                 args: args,
                 argTypes: argTypes,
                 range: range,
@@ -113,7 +151,7 @@ extension CallTypeChecker {
             // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,
                !knownApplicableImplicitMembers.isEmpty,
-               candidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
+               resolvedCandidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
             {
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -129,7 +167,7 @@ extension CallTypeChecker {
                        range: range,
                        explicitTypeArgs: explicitTypeArgs,
                        expectedType: expectedType,
-                       scopeCandidates: candidates,
+                       scopeCandidates: resolvedCandidates,
                        ctx: ctx
                    )
                 {
@@ -185,7 +223,7 @@ extension CallTypeChecker {
                 if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
                    let calleeName,
                    let recovered = resolveOuterImplicitReceiverExtensionCall(
-                       candidates: candidates,
+                       candidates: resolvedCandidates,
                        args: args,
                        preparedArgs: preparedArgs,
                        range: range,
@@ -224,7 +262,7 @@ extension CallTypeChecker {
                 }
                 if resolved.diagnostic != nil,
                    let retried = retryResolutionReinferringNestedCallArguments(
-                       candidates: candidates,
+                       candidates: resolvedCandidates,
                        args: args,
                        argTypes: argTypes,
                        range: range,
@@ -261,7 +299,7 @@ extension CallTypeChecker {
             // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,
                !knownApplicableImplicitMembers.isEmpty,
-               candidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
+               resolvedCandidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
             {
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)

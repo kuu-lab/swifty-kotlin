@@ -72,17 +72,6 @@ extension ABILoweringPass {
         "__kk_iterator_builder_yield",
     ]
 
-    /// The key-lookup subset of `typeParamBoxingBoundaryCallees`. Their point is to
-    /// keep a primitive key's concrete tag (Char vs Int vs Long); an enum entry is a
-    /// plain object, and `resolveValueClassKind` only models it as an Int for
-    /// unboxing, so boxing it here would not match how library code stored it.
-    static let keyLookupBoundaryCallees: Set<String> = [
-        "__kk_set_contains",
-        "__kk_map_get",
-        "__kk_mutable_set_remove",
-        "__kk_mutable_map_remove",
-    ]
-
     /// True when the call target is a declaration compiled from Kotlin source —
     /// bundled stdlib source in this compilation (no external link name) or the
     /// same declaration imported from a library artifact (`kk_fn_*`). Such a
@@ -134,13 +123,8 @@ extension ABILoweringPass {
         preferStaticPrimitive: Bool = false
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
-        if let callee,
-           ABILoweringPass.keyLookupBoundaryCallees.contains(interner.resolve(callee)),
-           case let .classType(argClass) = types.kind(of: types.makeNonNullable(argType)),
-           symbols?.symbol(argClass.classSymbol)?.kind == .enumClass
-        {
-            return nil
-        }
+        // Enum lookup keys cross the same erased boundary as insertions and
+        // must retain their classifier tag rather than passing a raw ordinal.
         let argKind = resolveValueClassKind(rawArgKind, types: types, symbols: symbols)
         // Resolve the parameter's value-class type to its underlying kind too —
         // otherwise a parameter declared as a value class (e.g. `s: SecondsXYZ`)

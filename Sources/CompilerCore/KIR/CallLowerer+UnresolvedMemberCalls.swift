@@ -136,7 +136,8 @@ extension CallLowerer {
         case "Iterable":
             return interner.intern("__kk_mutable_set_\(operation)_iterable")
         case "Array", "Collection", "MutableCollection":
-            return interner.intern("__kk_mutable_set_\(operation)")
+            return interner.intern(operation == "addAll"
+                ? "__kk_mutable_collection_addAll_throwing" : "__kk_mutable_set_\(operation)")
         default:
             if memberName == "plusAssign" {
                 return interner.intern("__kk_mutable_set_add")
@@ -444,7 +445,7 @@ extension CallLowerer {
         if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "addAll":
-                return interner.intern("__kk_mutable_set_addAll")
+                return interner.intern("__kk_mutable_collection_addAll_throwing")
             case "removeAll":
                 return interner.intern("__kk_mutable_set_removeAll")
             case "retainAll":

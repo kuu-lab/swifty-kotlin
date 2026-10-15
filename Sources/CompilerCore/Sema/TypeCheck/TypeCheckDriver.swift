@@ -57,6 +57,7 @@ final class TypeCheckDriver {
 
     let ast: ASTModule
     let sema: SemaModule
+    let compilationContext: CompilationContext?
     let sourceManager: SourceManager?
     let solver: ConstraintSolver
     let resolver: OverloadResolver
@@ -88,6 +89,7 @@ final class TypeCheckDriver {
     init(
         ast: ASTModule,
         sema: SemaModule,
+        compilationContext: CompilationContext? = nil,
         sourceManager: SourceManager? = nil,
         solver: ConstraintSolver,
         resolver: OverloadResolver,
@@ -102,6 +104,7 @@ final class TypeCheckDriver {
     ) {
         self.ast = ast
         self.sema = sema
+        self.compilationContext = compilationContext
         self.sourceManager = sourceManager
         self.solver = solver
         self.resolver = resolver
@@ -444,7 +447,9 @@ final class TypeCheckDriver {
                     )
                     sema.bindings.mergeIndependentScalarExpressions(
                         types: result.expressionTypes, identifiers: result.identifierSymbols,
-                        typeMapping: typeMapping, symbolMapping: symbolMapping
+                        typeMapping: typeMapping,
+                        sourceDeclaredExpectedTypeExpressions: result.sourceDeclaredExpectedTypeExpressions,
+                        symbolMapping: symbolMapping
                     )
                     for diagnostic in result.diagnostics { diagnostics.emit(diagnostic) }
                     sema.independentBodyCount += 1

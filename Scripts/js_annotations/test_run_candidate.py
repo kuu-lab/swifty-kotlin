@@ -16,7 +16,18 @@ import unittest
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUNNER = SCRIPT_DIR / "run_candidate.py"
 FAKE_COMPILE_CODE = "KSWIFTK-TEST-COMPILE"
-FAKE_DIAGNOSTIC_MAP = {"schemaVersion": 1, "codes": {FAKE_COMPILE_CODE: "TEST_FAILURE"}}
+MESSAGE_DIAGNOSTIC_CODE = "KSWIFTK-TEST-CONTEXT"
+MESSAGE_DIAGNOSTIC_TEXT = "Import path cannot be resolved."
+FAKE_DIAGNOSTIC_MAP = {
+    "schemaVersion": 1,
+    "codes": {
+        FAKE_COMPILE_CODE: "TEST_FAILURE",
+        MESSAGE_DIAGNOSTIC_CODE: "GENERIC_REFERENCE_FAILURE",
+    },
+    "messageOverrides": {
+        MESSAGE_DIAGNOSTIC_CODE: {MESSAGE_DIAGNOSTIC_TEXT: "IMPORT_FAILURE"}
+    },
+}
 
 
 FAKE_COMPILER = r'''#!/usr/bin/env python3
@@ -34,6 +45,35 @@ if mode == "compile-timeout":
 if mode in {"compile-failure", "unknown-diagnostic"}:
     code = "KSWIFTK-TEST-COMPILE" if mode == "compile-failure" else "KSWIFTK-UNMAPPED"
     json.dump({"version": 1, "diagnostics": [{"code": code, "severityLabel": "error"}]}, sys.stderr)
+    sys.stderr.write("\n")
+    raise SystemExit(1)
+if mode == "mixed-unknown-diagnostics":
+    json.dump(
+        {
+            "version": 1,
+            "diagnostics": [
+                {"code": "KSWIFTK-TEST-COMPILE", "severityLabel": "error"},
+                {"code": "KSWIFTK-UNMAPPED", "severityLabel": "error"},
+            ],
+        },
+        sys.stderr,
+    )
+    sys.stderr.write("\n")
+    raise SystemExit(1)
+if mode == "message-mapped":
+    json.dump(
+        {
+            "version": 1,
+            "diagnostics": [
+                {
+                    "code": "KSWIFTK-TEST-CONTEXT",
+                    "severityLabel": "error",
+                    "message": "Import path cannot be resolved.",
+                }
+            ],
+        },
+        sys.stderr,
+    )
     sys.stderr.write("\n")
     raise SystemExit(1)
 
@@ -220,6 +260,50 @@ class CandidateRunnerRegressionTests(unittest.TestCase):
         result = self.run_candidate(expectations)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("unknown_diagnostic_code:KSWIFTK-UNMAPPED", result.stdout)
+
+    def test_mixed_mapped_and_unmapped_diagnostics_are_recorded_without_crashing(self) -> None:
+        expectations = self.write_case(
+            "mixed-unknown-diagnostics",
+            expected_exit=1,
+            expected_diagnostics=[{"severity": "error", "kind": "TEST_FAILURE"}],
+            include_run=False,
+        )
+        result = self.run_candidate(expectations)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("unknown_diagnostic_code:KSWIFTK-UNMAPPED", result.stdout)
+        self.assertNotIn("TypeError", result.stdout + result.stderr)
+        case = self.read_summary()["cases"][0]
+        self.assertEqual(case["status"], "fail")
+        self.assertIn("compile_diagnostics_mismatch", case["failureReasons"])
+        self.assertEqual(
+            case["actualDiagnosticCounts"],
+            [
+                {"severity": "error", "kind": None, "count": 1},
+                {"severity": "error", "kind": "TEST_FAILURE", "count": 1},
+            ],
+        )
+
+    def test_message_specific_diagnostic_mapping_overrides_code_mapping(self) -> None:
+        expectations = self.write_case(
+            "message-mapped",
+            expected_exit=1,
+            expected_diagnostics=[{"severity": "error", "kind": "IMPORT_FAILURE"}],
+            include_run=False,
+        )
+        result = self.run_candidate(expectations)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        case = self.read_summary()["cases"][0]
+        self.assertEqual(case["status"], "pass")
+        self.assertEqual(
+            case["actualDiagnostics"],
+            [
+                {
+                    "severity": "error",
+                    "kind": "IMPORT_FAILURE",
+                    "code": "KSWIFTK-TEST-CONTEXT",
+                }
+            ],
+        )
 
     def test_runtime_failure_is_nonzero(self) -> None:
         expectations = self.write_case("runtime-failure")

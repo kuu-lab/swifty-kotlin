@@ -26,9 +26,11 @@ extension ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
-        instructions.append(.jumpIfEqual(lhs: conditionID, rhs: falseID, target: breakLabel))
+        if sema.bindings.exprTypes[conditionExpr] != sema.types.nothingType {
+            let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
+            instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
+            instructions.append(.jumpIfEqual(lhs: conditionID, rhs: falseID, target: breakLabel))
+        }
 
         driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
         _ = driver.lowerExpr(
@@ -78,7 +80,6 @@ extension ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        _ = driver.ctx.popLoopControl()
 
         instructions.append(.label(continueLabel))
         let conditionID = driver.lowerExpr(
@@ -90,10 +91,13 @@ extension ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
-        instructions.append(.jumpIfEqual(lhs: conditionID, rhs: falseID, target: breakLabel))
-        instructions.append(.jump(bodyLabel))
+        if sema.bindings.exprTypes[conditionExpr] != sema.types.nothingType {
+            let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
+            instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
+            instructions.append(.jumpIfEqual(lhs: conditionID, rhs: falseID, target: breakLabel))
+            instructions.append(.jump(bodyLabel))
+        }
+        _ = driver.ctx.popLoopControl()
         instructions.append(.label(breakLabel))
 
         let resultType = sema.bindings.exprTypes[id] ?? sema.types.unitType

@@ -55,8 +55,15 @@ class F02GateTests(unittest.TestCase):
 
     def test_only_owned_path_prefixes_are_normalized(self):
         work = Path("/private/tmp/f02/lane/run-work")
-        value = b"Path:/private/tmp/f02/lane/run-work/tmp/file\nPath:/tmp/unrelated/file\n"
-        self.assertEqual(matrix.normalized_paths(value, work), b"Path:<tmp>/file\nPath:/tmp/unrelated/file\n")
+        with patch.object(matrix.tempfile, "gettempdir", return_value="/var/f02-apple-temp"):
+            value = (b"Path:/private/tmp/f02/lane/run-work/tmp/file\n"
+                     + b"Path:/var/f02-apple-temp/fixture\n"
+                     + b"Path:/tmp/unrelated/file\n")
+            expected = b"Path:<tmp>/file\nPath:<tmp>/fixture\nPath:/tmp/unrelated/file\n"
+            self.assertEqual(matrix.normalized_paths(value, work), expected)
+        with patch.object(matrix.tempfile, "gettempdir", return_value="/tmp"):
+            value = b"Path:/tmp/fixture\nPath:/tmp/unrelated/file\n"
+            self.assertEqual(matrix.normalized_paths(value, work), value)
 
     def test_batch_ledger_checks_do_not_consume_other_fixture_protocols(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0"]}

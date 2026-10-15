@@ -323,7 +323,12 @@ final class MemberLowerer {
                 if let existingStorage = sema.symbols.delegateStorageSymbol(for: symbol) {
                     delegateStorageSymbol = existingStorage
                 } else {
-                    let delegateStorageName = interner.intern("$delegate_\(interner.resolve(propertyDecl.name))")
+                    let extensionSuffix = sema.symbols.hasExtensionPropertyReceiver(symbol)
+                        ? "_extension_\(symbol.rawValue)"
+                        : ""
+                    let delegateStorageName = interner.intern(
+                        "$delegate_\(interner.resolve(propertyDecl.name))\(extensionSuffix)"
+                    )
                     let delegateStorageFQName = (sema.symbols.symbol(symbol)?.fqName.dropLast() ?? []) + [delegateStorageName]
                     delegateStorageSymbol = sema.symbols.define(
                         kind: .field,
@@ -333,6 +338,7 @@ final class MemberLowerer {
                         visibility: .private,
                         flags: []
                     )
+                    sema.symbols.setDelegateStorageSymbol(delegateStorageSymbol, for: symbol)
                 }
                 let delegateType = sema.types.anyType
                 let delegateKirID = arena.appendDecl(
@@ -631,6 +637,12 @@ final class MemberLowerer {
                     driver.ctx.setLocalDeclaredType(receiverType, for: owner)
                 }
             }
+            for (contextSymbol, contextType) in zip(
+                signature.contextParameterSymbols,
+                signature.contextParameterTypes
+            ) {
+                params.append(KIRParameter(symbol: contextSymbol, type: contextType))
+            }
             let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
                 let effectiveType: TypeID
@@ -679,7 +691,16 @@ final class MemberLowerer {
             interner: interner,
             instructions: &body
         )
-        switch function.body {
+        let contextValues = signature.map { signature in
+            zip(signature.contextParameterSymbols, signature.contextParameterTypes).map { symbol, type in
+                KIRLoweringContext.ContextReceiverValue(
+                    type: type,
+                    exprID: arena.appendExpr(.symbolRef(symbol), type: type)
+                )
+            }
+        } ?? []
+        driver.ctx.withContextReceiverValues(contextValues) {
+            switch function.body {
         case let .block(exprIDs, _):
             var terminatedByReturn = false
             for exprID in exprIDs {
@@ -707,6 +728,7 @@ final class MemberLowerer {
             body.append(.returnValue(value))
         case .unit:
             body.append(.returnUnit)
+            }
         }
         body.append(.endBlock)
         let kirID = arena.appendDecl(.function(KIRFunction(

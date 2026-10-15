@@ -52,7 +52,7 @@ struct JVMInteropNioSourceContractsTests {
         let root = URL(fileURLWithPath: artifact, isDirectory: true)
         let manifest = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent("manifest.json"))) as? [String: Any])
         try #require(manifest["moduleName"] as? String == "KSwiftKStdlib")
-        try #require(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+        try #require(manifest["kotlinLanguageVersion"] as? String == "2.4.20")
         try #require(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
         return (ctx, try hashes(root))
     }
