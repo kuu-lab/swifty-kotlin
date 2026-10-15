@@ -81,6 +81,48 @@ struct JavaLangIllegalArgumentExceptionTests {
         expectedStdout: "bad argument\n")
     }
 
+    @Test(arguments: [0, 2])
+    func javaLangObjectTypeNameUsesKotlinAnyFromArtifact(optimization: Int) throws {
+        try assertJavaLangObjectTypeNameUsesKotlinAny(fromSource: false, optimization: optimization)
+    }
+
+    @Test
+    func javaLangObjectTypeNameUsesKotlinAnyFromSource() throws {
+        try assertJavaLangObjectTypeNameUsesKotlinAny(fromSource: true, optimization: 0)
+    }
+
+    @Test
+    func javaLangObjectTypeNameUsesKotlinAnyFromSourceO2() throws {
+        try assertJavaLangObjectTypeNameUsesKotlinAny(fromSource: true, optimization: 2)
+    }
+
+    private func assertJavaLangObjectTypeNameUsesKotlinAny(fromSource: Bool, optimization: Int) throws {
+        try compileAndRun(sources: ["""
+        class Monitor
+
+        fun box(): String {
+            val obj = Monitor() as java.lang.Object
+            return "OK"
+        }
+
+        fun anyControl(): String {
+            val obj = Monitor() as Any
+            return "OK"
+        }
+
+        fun main() {
+            print(box())
+            print("\\n")
+            print(anyControl())
+            print("\\n")
+        }
+        """],
+        moduleName: "JavaLangObjectTypeMapping",
+        fromSource: fromSource,
+        optimization: optimization,
+        expectedStdout: "OK\nOK\n")
+    }
+
     /// Uses Matrix.kt from https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Matrix.kt.
     @Test
     func pinnedMatrixConsumerKeepsItsOutput() throws {

@@ -4,6 +4,12 @@
 /// detection and lambda ABI marks, then the expected-type and lambda-context
 /// overrides that `prepareCallArguments` consumes.
 /// Extracted from `CallTypeChecker+CallExprInference.swift`.
+func resolvedExplicitTypeArgument(at index: Int, in explicitTypeArgs: [TypeID]) -> TypeID? {
+    guard explicitTypeArgs.indices.contains(index) else { return nil }
+    let type = explicitTypeArgs[index]
+    return type == TypeID.invalid ? nil : type
+}
+
 extension CallTypeChecker {
     /// A single outer candidate supplies an unambiguous expected type for
     /// each nested call argument. Member calls need this context too: their
@@ -420,6 +426,7 @@ extension CallTypeChecker {
                 let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                 var substitution: [TypeVarID: TypeID] = [:]
                 for (index, explicitTypeArg) in explicitTypeArgs.enumerated() {
+                    guard explicitTypeArg != TypeID.invalid else { continue }
                     let symbol = signature.typeParameterSymbols[typeArgOffset + index]
                     guard let typeVar = typeVarBySymbol[symbol] else { continue }
                     substitution[typeVar] = explicitTypeArg

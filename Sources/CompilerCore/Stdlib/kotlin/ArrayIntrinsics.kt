@@ -8,9 +8,9 @@ import kotlin.internal.KsSymbolName
 // (`IntArray(size)`), indexing (`array[i]`), `.size`, and the
 // HOF surface are all resolved by compiler name matching (see
 // `CompilerKnownNames.isArrayLikeName`/`isPrimitiveArrayConstructorTypeName`
-// and `PrimitiveArrayFactoryPredicates.swift`). Source-backed get declarations
-// also expose indexing to callable references; their index expressions still
-// use the compiler intrinsic. Runtime storage is the single untyped `RuntimeArrayBox`
+// and `PrimitiveArrayFactoryPredicates.swift`). Source-backed get/set declarations
+// expose explicit calls as well as indexing, while their bodies still use the
+// compiler's intrinsic indexed-access lowering. Runtime storage is the single untyped `RuntimeArrayBox`
 // (`RuntimeArrayBasics.swift`) for every primitive kind, so these shells stay
 // with a private constructor, matching the `Nothing`/
 // `DeepRecursiveScope` pattern for compiler-intrinsic-backed types that are
@@ -25,47 +25,60 @@ import kotlin.internal.KsSymbolName
 // (deleted).
 public class Array<T> private constructor() {
     public operator fun get(index: Int): T = this[index]
+    public operator fun set(index: Int, value: T) { this[index] = value }
 }
 
 public class BooleanArray private constructor() {
     public operator fun get(index: Int): Boolean = this[index]
+    public operator fun set(index: Int, value: Boolean) { this[index] = value }
 }
 public class ByteArray private constructor() {
     public operator fun get(index: Int): Byte = this[index]
+    public operator fun set(index: Int, value: Byte) { this[index] = value }
 }
 public class CharArray private constructor() {
     public operator fun get(index: Int): Char = this[index]
+    public operator fun set(index: Int, value: Char) { this[index] = value }
 }
 public class DoubleArray private constructor() {
     public operator fun get(index: Int): Double = this[index]
+    public operator fun set(index: Int, value: Double) { this[index] = value }
 }
 public class FloatArray private constructor() {
     public operator fun get(index: Int): Float = this[index]
+    public operator fun set(index: Int, value: Float) { this[index] = value }
 }
 public class IntArray private constructor() {
     public operator fun get(index: Int): Int = this[index]
+    public operator fun set(index: Int, value: Int) { this[index] = value }
 }
 public class LongArray private constructor() {
     public operator fun get(index: Int): Long = this[index]
+    public operator fun set(index: Int, value: Long) { this[index] = value }
 }
 public class ShortArray private constructor() {
     public operator fun get(index: Int): Short = this[index]
+    public operator fun set(index: Int, value: Short) { this[index] = value }
 }
 @ExperimentalUnsignedTypes
 public class UByteArray private constructor() {
     public operator fun get(index: Int): UByte = this[index]
+    public operator fun set(index: Int, value: UByte) { this[index] = value }
 }
 @ExperimentalUnsignedTypes
 public class UShortArray private constructor() {
     public operator fun get(index: Int): UShort = this[index]
+    public operator fun set(index: Int, value: UShort) { this[index] = value }
 }
 @ExperimentalUnsignedTypes
 public class UIntArray private constructor() {
     public operator fun get(index: Int): UInt = this[index]
+    public operator fun set(index: Int, value: UInt) { this[index] = value }
 }
 @ExperimentalUnsignedTypes
 public class ULongArray private constructor() {
     public operator fun get(index: Int): ULong = this[index]
+    public operator fun set(index: Int, value: ULong) { this[index] = value }
 }
 
 // KSP-657: Array factory intrinsics migrated (b-reclass batch 1) from the

@@ -14,6 +14,52 @@ extension LambdaLowerer {
               let samType = sema.bindings.samUnderlyingFunctionType(for: exprID),
               case let .functionType(samFunction) = sema.types.kind(of: samType)
         else { return nil }
+        if functionType.nullability != .nonNull {
+            guard interface.nullability != .nonNull else { return nil }
+            let result = arena.appendTemporary(type: interfaceID)
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: value, target: nonNullLabel))
+            let nullValue = arena.appendExpr(.null, type: interfaceID)
+            instructions.append(.constValue(result: nullValue, value: .null))
+            instructions.append(.copy(from: nullValue, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+
+            let nonNullSourceType = sema.types.makeNonNullable(sema.types.make(.functionType(functionType)))
+            guard case let .functionType(nonNullFunctionType) = sema.types.kind(of: nonNullSourceType) else {
+                return nil
+            }
+            let nonNullValue = arena.appendTemporary(type: nonNullSourceType)
+            instructions.append(.copy(from: value, to: nonNullValue))
+            guard let wrapper = lowerNonNullFunctionValueSamWrapper(
+                exprID, value: nonNullValue, functionType: nonNullFunctionType,
+                interface: interface, samFunction: samFunction, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            ) else { return nil }
+            instructions.append(.copy(from: wrapper, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
+        return lowerNonNullFunctionValueSamWrapper(
+            exprID, value: value, functionType: functionType,
+            interface: interface, samFunction: samFunction, sema: sema,
+            arena: arena, interner: interner, instructions: &instructions
+        )
+    }
+
+    private func lowerNonNullFunctionValueSamWrapper(
+        _ exprID: ExprID,
+        value: KIRExprID,
+        functionType: FunctionType,
+        interface: ClassType,
+        samFunction: FunctionType,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
         let sourceType = sema.types.make(.functionType(functionType))
         let binding = CallableValueCallBinding(target: nil, functionType: sourceType, parameterMapping: [:])
         guard let invoke = driver.callLowerer.runtimeCallableInvokeCallee(

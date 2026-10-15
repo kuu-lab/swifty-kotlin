@@ -25,6 +25,9 @@ extension ExprTypeChecker {
             flags: [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
+        let capturedTypeParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)
+            .sorted { $0.rawValue < $1.rawValue }
+        sema.types.setNominalTypeParameterSymbols(capturedTypeParameters, for: objectSymbol)
         var lexicalEnclosingFQNames: [[InternedString]] = []
         var lexicalScope: Scope? = ctx.scope
         while let scope = lexicalScope as? BaseScope {
@@ -101,5 +104,19 @@ extension ExprTypeChecker {
 
         driver.predeclaredObjectLiteralDecls.insert(declID)
         return objectSymbol
+    }
+
+    func objectLiteralType(for symbol: SymbolID, sema: SemaModule) -> TypeID {
+        let arguments = sema.types.nominalTypeParameterSymbols(for: symbol).map { parameter in
+            TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(
+                symbol: parameter,
+                nullability: .nonNull
+            ))))
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: arguments,
+            nullability: .nonNull
+        )))
     }
 }

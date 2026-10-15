@@ -1589,8 +1589,8 @@ package final class MetadataEncoder {
         let storageOwners = Set(offsets.keys.compactMap { symbols.parentSymbol(for: $0) })
         var exportedPropertyByBackingField: [SymbolID: SymbolID] = [:]
         for owner in storageOwners {
-            guard let ownerSymbol = symbols.symbol(owner) else { continue }
-            for propertyID in symbols.children(ofFQName: ownerSymbol.fqName) {
+            guard symbols.symbol(owner) != nil else { continue }
+            for propertyID in symbols.children(of: owner) {
                 guard let property = symbols.symbol(propertyID), property.kind == .property,
                       !property.fqName.isEmpty,
                       symbols.parentSymbol(for: propertyID) == owner,

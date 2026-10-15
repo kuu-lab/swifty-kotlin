@@ -98,6 +98,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
     let javaNameOverride: String?
+    let canonicalNameOverride: String?
     let className: String?
     let enclosingClassName: String?
     let displayText: String
@@ -106,6 +107,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
         typeToken: Int,
         nameHint: Int = 0,
         javaNameOverride: String? = nil,
+        canonicalNameOverride: String? = nil,
         className: String? = nil,
         enclosingClassName: String? = nil,
         displayText: String? = nil
@@ -113,6 +115,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
         self.typeToken = typeToken
         self.nameHint = nameHint
         self.javaNameOverride = javaNameOverride
+        self.canonicalNameOverride = canonicalNameOverride
         self.className = className
         self.enclosingClassName = enclosingClassName
         self.displayText = displayText
@@ -179,10 +182,63 @@ public func __kk_class_declared_constructors(_ classRaw: Int) -> Int {
     let kclassRaw = __kk_kclass_create(box.typeToken, box.nameHint)
     let constructors = runtimeKConstructorRegistry.constructors(for: kclassRaw)
     let array = RuntimeArrayBox(length: constructors.count)
+    let constructorTypeID = runtimeStableNominalTypeID(fqName: "java.lang.reflect.Constructor")
     for (index, constructorRaw) in constructors.enumerated() {
-        array[index] = constructorRaw
+        array[index] = registerRuntimeObject(
+            RuntimeJavaConstructorBox(callableRaw: constructorRaw, usesDefaultArguments: false),
+            typeID: constructorTypeID
+        )
     }
     return registerRuntimeObject(array)
+}
+
+
+
+@_cdecl("__kk_class_canonical_name")
+public func __kk_class_canonical_name(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    if let canonicalName = box.canonicalNameOverride {
+        return runtimeMakeStringRaw(canonicalName)
+    }
+    let base = Int64(truncatingIfNeeded: box.typeToken) & RuntimeTypeTokenEncoding.baseMask
+    let canonicalName: String?
+    switch base {
+    case RuntimeTypeTokenEncoding.booleanBase:
+        canonicalName = "boolean"
+    case RuntimeTypeTokenEncoding.charBase:
+        canonicalName = "char"
+    case RuntimeTypeTokenEncoding.byteBase:
+        canonicalName = "byte"
+    case RuntimeTypeTokenEncoding.shortBase:
+        canonicalName = "short"
+    case RuntimeTypeTokenEncoding.intBase:
+        canonicalName = "int"
+    case RuntimeTypeTokenEncoding.floatBase:
+        canonicalName = "float"
+    case RuntimeTypeTokenEncoding.longBase:
+        canonicalName = "long"
+    case RuntimeTypeTokenEncoding.doubleBase:
+        canonicalName = "double"
+    case RuntimeTypeTokenEncoding.nullBase:
+        canonicalName = "void"
+    case RuntimeTypeTokenEncoding.anyBase:
+        canonicalName = "java.lang.Object"
+    case RuntimeTypeTokenEncoding.stringBase:
+        canonicalName = "java.lang.String"
+    default:
+        let qualifiedNameRaw = __kk_type_token_qualified_name(box.typeToken, box.nameHint)
+        guard qualifiedNameRaw != 0, qualifiedNameRaw != runtimeNullSentinelInt,
+              let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw)),
+              !qualifiedName.isEmpty, qualifiedName != "Unknown"
+        else {
+            return runtimeNullSentinelInt
+        }
+        canonicalName = runtimeJVMExceptionFQName(from: qualifiedName)
+    }
+    guard let canonicalName else { return runtimeNullSentinelInt }
+    return runtimeMakeStringRaw(canonicalName)
 }
 
 @_cdecl("__kk_kclass_java_primitive_type")
@@ -191,6 +247,7 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         runtimeStructuredPanic("invalid KClass handle")
     }
     let token = box.typeToken
+    var canonicalNameOverride: String?
     // Kotlin's eight value primitives and Nothing (the JVM Void classifier) map
     // to primitive Class handles.
     // Unit and unsigned value classes are reference types on the JVM.
@@ -205,6 +262,7 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         guard name == "java.lang.Void" || name == "kotlin.Nothing" else {
             return runtimeNullSentinelInt
         }
+        canonicalNameOverride = "void"
     }
     if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[token] }) {
         return cached
@@ -213,6 +271,7 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         RuntimeJavaClassBox(
             typeToken: token,
             nameHint: box.nameHint,
+            canonicalNameOverride: canonicalNameOverride,
             displayText: runtimeJavaPrimitiveClassDisplayText(typeToken: token)
         ),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")

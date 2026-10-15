@@ -32,6 +32,54 @@ struct TypeConstraintBoundsTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
+    func whereClauseUpperBoundsApplyToFunctionBodySubtypeChecks() throws {
+        let source = """
+        open class Base
+
+        fun <T> assign(x: T) where T : Base {
+            val base: Base = x
+            val nested: () -> Base = { x }
+        }
+
+        fun <T : Base> assignInline(x: T) {
+            val base: Base = x
+            val nested: () -> Base = { x }
+        }
+
+        fun <T> explicitReturn(x: T): Base where T : Base = x
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Got diagnostics: \(ctx.diagnostics.diagnostics.map { ($0.code, $0.message) })"
+            )
+
+            let sema = try #require(ctx.sema)
+            let baseSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Base")]))
+            let baseType = sema.types.make(.classType(ClassType(classSymbol: baseSymbol)))
+            let function = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("assign")]))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            let parameter = try #require(signature.typeParameterSymbols.first)
+            #expect(sema.symbols.typeParameterUpperBounds(for: parameter) == [baseType])
+        }
+
+        try withTemporaryFile(contents: """
+        open class Base
+        fun <T> assign(x: T) {
+            val base: Base = x
+        }
+        """) { path in
+            let unbounded = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(unbounded)
+            #expect(unbounded.diagnostics.diagnostics.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+            }, "Got diagnostics: \(unbounded.diagnostics.diagnostics.map { ($0.code, $0.message) })")
+        }
+    }
+
     @Test(arguments: [
         "fun <T : Any> bounded(value: T): T = value",
         "fun <T> bounded(value: T): T where T : Any = value",

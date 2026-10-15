@@ -7,6 +7,43 @@ import Testing
 @Suite
 struct CodegenBackendVirtualDispatchTests {
 
+    @Test func testExpectedTypeSelectsSameNamedPropertyOrFunction() throws {
+        let source = """
+        import kotlin.reflect.KProperty1
+
+        class A {
+            val x: Int = 1
+            fun x(): String = "OK"
+        }
+
+        fun main() {
+            val property: KProperty1<A, Int> = A::x
+            val propertyFunction: (A) -> Int = A::x
+            val function: (A) -> String = A::x
+            val value = A()
+            println(property.get(value))
+            println(propertyFunction(value))
+            println(function(value))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU2315PropertyFunctionCallableReferenceSource",
+            expected: "1\n1\nOK\n",
+            optLevel: .O0,
+            allowDefaultStdlibLibrary: false
+        )
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                source,
+                moduleName: "KUU2315PropertyFunctionCallableReferenceArtifact",
+                expected: "1\n1\nOK\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: true
+            )
+        }
+    }
+
     @Test(arguments: [true, false])
     func testNestedObjectGenericReturnUsesErasedDispatchABI(allowDefaultStdlibLibrary: Bool) throws {
         for optLevel in [OptimizationLevel.O0, .O2] {
@@ -42,6 +79,18 @@ struct CodegenBackendVirtualDispatchTests {
                 expected: "12\n12\n8\n8\n12\n14\n9\n8\nSAM!\ncaught\n14\n12\n",
                 optLevel: optLevel,
                 allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test func testNullableFunctionValuesAdaptToNullableSamParameters() throws {
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("nullable_sam_conversion.kt"),
+                moduleName: "NullableFunctionValueSamArtifact",
+                expected: "OK\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: true
             )
         }
     }
