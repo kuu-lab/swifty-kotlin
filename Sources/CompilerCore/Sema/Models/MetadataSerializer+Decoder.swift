@@ -132,6 +132,7 @@ final class MetadataDecoder {
             callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
             inputOnlyTypeParameterIndices: rec.inputOnlyTypeParameterIndices,
             valueParameterIsVararg: rec.valueParameterIsVararg,
+            valueParameterUnsafeVarianceTypeParameterIndices: rec.valueParameterUnsafeVarianceTypeParameterIndices,
             valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
@@ -196,6 +197,7 @@ final class MetadataDecoder {
         var callableTypeParameterSignatures: [String] = []
         var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
@@ -275,6 +277,22 @@ final class MetadataDecoder {
             record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
+        case "unsafeVarianceParams":
+            for entry in value.split(separator: ";") {
+                let parts = entry.split(separator: ":", maxSplits: 1)
+                guard parts.count == 2,
+                      let parameterIndex = Int(parts[0]), parameterIndex >= 0
+                else { continue }
+                let typeParameterIndices = parts[1].split(separator: ",").compactMap { Int($0) }
+                guard !typeParameterIndices.isEmpty else { continue }
+                if record.valueParameterUnsafeVarianceTypeParameterIndices.count <= parameterIndex {
+                    record.valueParameterUnsafeVarianceTypeParameterIndices += Array(
+                        repeating: [],
+                        count: parameterIndex + 1 - record.valueParameterUnsafeVarianceTypeParameterIndices.count
+                    )
+                }
+                record.valueParameterUnsafeVarianceTypeParameterIndices[parameterIndex] = typeParameterIndices
+            }
         case "nonLocal":
             record.valueParameterAllowsNonLocalReturn = value.map { $0 == "1" }
         case "default":

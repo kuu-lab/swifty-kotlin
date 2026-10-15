@@ -185,6 +185,7 @@ extension DataFlowSemaPhase {
                 isMemberExtension: metadataRecord.isMemberExtension,
                 receiverOwnerFQName: receiverOwnerFQName,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
+                valueParameterUnsafeVarianceTypeParameterIndices: metadataRecord.valueParameterUnsafeVarianceTypeParameterIndices,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
@@ -607,6 +608,11 @@ extension DataFlowSemaPhase {
             isSuspend: functionType.isSuspend,
             canThrow: record.canThrow,
             valueParameterSymbols: valueParameterSymbols,
+            valueParameterUnsafeVarianceTypeParameterSymbols: record.valueParameterUnsafeVarianceTypeParameterIndices.map { indices in
+                Set(indices.compactMap { index in
+                    typeParameterSymbols.indices.contains(index) ? typeParameterSymbols[index] : nil
+                })
+            },
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,

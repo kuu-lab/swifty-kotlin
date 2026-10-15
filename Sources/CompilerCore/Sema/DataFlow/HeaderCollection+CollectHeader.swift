@@ -754,6 +754,7 @@ extension DataFlowSemaPhase {
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,
                     valueParameterSymbols: params.paramSymbols,
+                    valueParameterUnsafeVarianceTypeParameterSymbols: params.paramUnsafeVarianceTypeParameterSymbols,
                     valueParameterHasDefaultValues: params.paramHasDefaultValues,
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
