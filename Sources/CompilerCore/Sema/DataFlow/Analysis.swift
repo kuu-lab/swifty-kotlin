@@ -47,6 +47,7 @@ struct DataFlowState: Equatable {
 struct WhenBranchSummary {
     let coveredSymbols: Set<InternedString>
     let coveredTypeSymbols: Set<SymbolID>
+    let negatedTypeCheckTypes: Set<TypeID>
     let hasElse: Bool
     let hasNullCase: Bool
     let hasTrueCase: Bool
@@ -58,10 +59,12 @@ struct WhenBranchSummary {
         hasNullCase: Bool = false,
         hasTrueCase: Bool? = nil,
         hasFalseCase: Bool? = nil,
-        coveredTypeSymbols: Set<SymbolID> = []
+        coveredTypeSymbols: Set<SymbolID> = [],
+        negatedTypeCheckTypes: Set<TypeID> = []
     ) {
         self.coveredSymbols = coveredSymbols
         self.coveredTypeSymbols = coveredTypeSymbols
+        self.negatedTypeCheckTypes = negatedTypeCheckTypes
         self.hasElse = hasElse
         self.hasNullCase = hasNullCase
         self.hasTrueCase = hasTrueCase ?? coveredSymbols.contains(InternedString(rawValue: 1))
@@ -860,8 +863,79 @@ final class DataFlowAnalyzer {
         {
             return true
         }
-        return branches.coveredTypeSymbols.contains {
+        if branches.coveredTypeSymbols.contains(where: {
             TypeCheckHelpers().isNominalSubtype(subtype, of: $0, symbols: sema.symbols)
+        }) {
+            return true
+        }
+        return branches.negatedTypeCheckTypes.contains {
+            isSealedSubtypeDisjointFrom(subtype, targetType: $0, sema: sema)
+        }
+    }
+
+    /// A negated type check covers a sealed subtype only when their nominal
+    /// ranges are provably disjoint. Open types, generic applications, and
+    /// nullable targets can overlap in ways that the symbol graph cannot prove.
+    private func isSealedSubtypeDisjointFrom(
+        _ subtype: SymbolID,
+        targetType: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard case let .classType(targetClassType) = sema.types.kind(of: targetType),
+              targetClassType.nullability == .nonNull,
+              targetClassType.args.isEmpty,
+              sema.types.nominalTypeParameterSymbols(for: targetClassType.classSymbol).isEmpty,
+              sema.types.nominalTypeParameterSymbols(for: subtype).isEmpty
+        else {
+            return false
+        }
+
+        let subtypeType = sema.types.make(.classType(ClassType(
+            classSymbol: subtype,
+            args: [],
+            nullability: .nonNull
+        )))
+        guard !sema.types.isSubtype(subtypeType, targetType),
+              !sema.types.isSubtype(targetType, subtypeType)
+        else {
+            return false
+        }
+
+        let targetSymbol = targetClassType.classSymbol
+        if isClassNominalType(subtype, sema: sema),
+           isClassNominalType(targetSymbol, sema: sema)
+        {
+            // Unrelated classes cannot share instances, even when either class
+            // is open: Kotlin classes have a single superclass.
+            return true
+        }
+        return isClosedNominalType(subtype, sema: sema)
+            || isClosedNominalType(targetSymbol, sema: sema)
+    }
+
+    private func isClassNominalType(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID) else {
+            return false
+        }
+        switch symbol.kind {
+        case .class, .object, .enumClass, .annotationClass:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isClosedNominalType(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID) else {
+            return false
+        }
+        switch symbol.kind {
+        case .class, .object, .enumClass, .annotationClass:
+            return !symbol.flags.contains(.openType)
+                && !symbol.flags.contains(.abstractType)
+                && !symbol.flags.contains(.sealedType)
+        default:
+            return false
         }
     }
 
