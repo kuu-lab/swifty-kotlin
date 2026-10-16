@@ -993,13 +993,12 @@ extension OverloadResolver {
         )
     }
 
-    /// KUU-1195: a nominal subtype that reaches `kotlin.Function.FunctionN`
-    /// through inheritance (e.g. `KProperty0<Int>` via its `() -> V` supertype
-    /// binding) decomposes against a variable-bearing function supertype the
-    /// same way a literal `FunctionN` does — otherwise `KProperty0<Int> <:
-    /// () -> R` would never bind `R`. Only the subtype side looks through
-    /// inheritance: a plain `() -> Int` is not a `KProperty0<Int>`, so the
-    /// supertype direction keeps the direct `nominalFunctionType` check.
+    /// KUU-1195: a nominal subtype that reaches a regular or suspend function
+    /// interface through inheritance decomposes against a variable-bearing
+    /// function supertype the same way a literal function interface does.
+    /// Only the subtype side looks through inheritance: a plain function value
+    /// is not an arbitrary nominal subtype, so the supertype direction keeps
+    /// the direct `nominalFunctionType` check.
     private func nominalFunctionTypeThroughInheritance(
         _ subtype: TypeID,
         matchingArityOf function: FunctionType,
@@ -1009,7 +1008,11 @@ extension OverloadResolver {
             return nil
         }
         let arity = (function.receiver.map { [$0] } ?? []).count + function.params.count
-        guard let lifted = typeSystem.inheritedFunctionNClassType(of: subClass, arity: arity) else {
+        guard let lifted = typeSystem.inheritedFunctionInterfaceClassType(
+            of: subClass,
+            arity: arity,
+            isSuspend: function.isSuspend
+        ) else {
             return nil
         }
         return typeSystem.nominalFunctionType(for: typeSystem.make(.classType(lifted)))

@@ -356,8 +356,8 @@ extension TypeSystem {
                     && (rightClass.classSymbol == kFunctionInterfaceSymbol
                         || rightClass.classSymbol == kCallableInterfaceSymbol))
             else {
-                // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
-                // `kotlin.Function.FunctionN` interface of matching arity.
+                // Function types conform to the synthetic regular or suspend
+                // function interface of matching arity.
                 return functionTypeSubtypeOfFunctionN(leftFunction, rightClass)
             }
             guard nullabilitySubtype(leftFunction.nullability, rightClass.nullability) else {
@@ -382,18 +382,18 @@ extension TypeSystem {
             }
             // KUU-1084: `FunctionN<P1..PN, R>` IS `(P1..PN) -> R` in Kotlin —
             // the nominal form is a subtype of the equivalent function type.
-            if functionNArity(of: leftClass.classSymbol) != nil {
+            if functionInterfaceArity(of: leftClass.classSymbol, isSuspend: rightFunction.isSuspend) != nil {
                 return functionNSubtypeOfFunctionType(leftClass, rightFunction)
             }
-            // KUU-1195: a nominal type that reaches `FunctionN` through
-            // inheritance (e.g. the bundled `KProperty0/1/2` interfaces, whose
-            // `() -> V` / `(T) -> V` / `(D, E) -> V` supertypes are bound to
-            // `Function0/1/2` during inheritance resolution) is likewise a
-            // subtype of the matching function type.
-            if let liftedFunctionN = inheritedFunctionNClassType(
+            // KUU-1195: a nominal type that reaches a function interface
+            // through inheritance (e.g. KProperty0/1/2 or a fun interface
+            // extending a function type) is also a subtype of that function
+            // type when the suspend modifier and arity match.
+            if let liftedFunctionInterface = inheritedFunctionInterfaceClassType(
                 of: leftClass,
-                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count
-            ), functionNSubtypeOfFunctionType(liftedFunctionN, rightFunction) {
+                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count,
+                isSuspend: rightFunction.isSuspend
+            ), functionNSubtypeOfFunctionType(liftedFunctionInterface, rightFunction) {
                 return true
             }
             guard let symbols = symbolTable else { return false }
@@ -1224,13 +1224,24 @@ extension TypeSystem {
         return nil
     }
 
+    private func suspendFunctionNArity(of classSymbol: SymbolID) -> Int? {
+        for (arity, symbolID) in suspendFunctionNInterfaceSymbols where symbolID == classSymbol {
+            return arity
+        }
+        return nil
+    }
+
+    private func functionInterfaceArity(of classSymbol: SymbolID, isSuspend: Bool) -> Int? {
+        isSuspend ? suspendFunctionNArity(of: classSymbol) : functionNArity(of: classSymbol)
+    }
+
     func nominalFunctionType(for type: TypeID) -> FunctionType? {
-        guard case let .classType(classType) = kind(of: type),
-              let arity = functionNArity(of: classType.classSymbol),
-              classType.args.count == arity + 1
-        else {
+        guard case let .classType(classType) = kind(of: type) else {
             return nil
         }
+        let isSuspend = suspendFunctionNArity(of: classType.classSymbol) != nil
+        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: isSuspend),
+              classType.args.count == arity + 1 else { return nil }
         let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
             switch argument {
             case let .invariant(type):
@@ -1247,19 +1258,22 @@ extension TypeSystem {
         return FunctionType(
             params: Array(arguments.prefix(arity)),
             returnType: arguments[arity],
+            isSuspend: isSuspend,
             nullability: classType.nullability
         )
     }
 
-    /// Lifts a nominal class type to the `kotlin.Function.FunctionN`
-    /// interface of the given arity that it reaches through its nominal
-    /// supertype chain (e.g. `KProperty0<Int>` → `Function0<Int>` via the
-    /// `() -> V` supertype binding — KUU-1195), preserving the declared
-    /// projections and the subtype's nullability. `nil` when no `FunctionN`
-    /// ancestor of that arity exists. The walk mirrors
+    /// Lifts a nominal class type to the regular or suspend function interface
+    /// of the given arity that it reaches through its nominal supertype chain,
+    /// preserving the declared projections and the subtype's nullability.
+    /// The walk mirrors
     /// `isNominalSubtypeSymbol`: an explicit worklist with a visited set so a
     /// cyclic `.kklib` supertype graph cannot loop.
-    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+    func inheritedFunctionInterfaceClassType(
+        of classType: ClassType,
+        arity: Int,
+        isSuspend: Bool
+    ) -> ClassType? {
         var visited: Set<SymbolID> = [classType.classSymbol]
         var queue = directNominalSupertypes(for: classType.classSymbol)
         var head = 0
@@ -1267,7 +1281,7 @@ extension TypeSystem {
             let current = queue[head]
             head += 1
             guard visited.insert(current).inserted else { continue }
-            if functionNArity(of: current) == arity,
+            if functionInterfaceArity(of: current, isSuspend: isSuspend) == arity,
                let args = liftedNominalSupertypeArgs(
                    from: classType.classSymbol,
                    childArgs: classType.args,
@@ -1285,18 +1299,20 @@ extension TypeSystem {
         return nil
     }
 
-    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the
-    /// leading parameter, arity must match, each `in` argument accepts the
-    /// parameter (`Ai <: Qi`), and the return type satisfies the `out` argument
-    /// (`S <: B`). `suspend` and context-receiver function types never conform
-    /// to the non-suspend `FunctionN` interfaces.
+    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+        inheritedFunctionInterfaceClassType(of: classType, arity: arity, isSuspend: false)
+    }
+
+    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>` (or its suspend equivalent):
+    /// the receiver counts as the leading parameter, arity and suspend modifier
+    /// must match, and the declared projections must accept the parameter and
+    /// return types.
     private func functionTypeSubtypeOfFunctionN(
         _ function: FunctionType,
         _ classType: ClassType
     ) -> Bool {
-        guard let arity = functionNArity(of: classType.classSymbol),
+        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: function.isSuspend),
               function.contextReceivers.isEmpty,
-              !function.isSuspend,
               nullabilitySubtype(function.nullability, classType.nullability)
         else {
             return false
@@ -1331,18 +1347,15 @@ extension TypeSystem {
         }
     }
 
-    /// `FunctionN<A1..AN, B> <: (Q1..QN) -> S`: arity must match, each
-    /// parameter of the expected function type must be accepted by the
-    /// nominal `in` argument (`Qi <: Ai`), and the nominal `out` return must
-    /// fit the expected return (`B <: S`). Star or opposite-direction
-    /// projections cannot prove either bound, so they are rejected.
+    /// A regular or suspend function interface is a subtype of its matching
+    /// function type: arity and suspend modifier must match, and parameter and
+    /// return projections must prove the corresponding bounds.
     private func functionNSubtypeOfFunctionType(
         _ classType: ClassType,
         _ function: FunctionType
     ) -> Bool {
-        guard let arity = functionNArity(of: classType.classSymbol),
+        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: function.isSuspend),
               function.contextReceivers.isEmpty,
-              !function.isSuspend,
               nullabilitySubtype(classType.nullability, function.nullability)
         else {
             return false

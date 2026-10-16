@@ -367,9 +367,11 @@ extension DataFlowSemaPhase {
             // KSP-682 / KSP-CAP-009: a function-type supertype such as
             // `KProperty0<V> : () -> V` resolves to the kotlin.Function{N}
             // nominal interface so property references inherit invoke(...).
-            // Suspend and context-receiver function types have no nominal
-            // Function{N} equivalent here, so they are left unbound.
-            guard !isSuspend, contextReceiverRefIDs.isEmpty else {
+            // Suspend function types use the corresponding
+            // kotlin.coroutines.SuspendFunction{N} interface, whose invoke
+            // signature retains the suspend modifier. Context-receiver
+            // function types still have no nominal equivalent here.
+            guard contextReceiverRefIDs.isEmpty else {
                 return nil
             }
             var paramTypes: [TypeID] = []
@@ -403,13 +405,19 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols, types: types, interner: interner
             ) else { return nil }
-            let functionFQName = [
-                interner.intern("kotlin"), interner.intern("Function"),
-                interner.intern("Function\(paramTypes.count)"),
-            ]
-            guard let functionSymbol = symbols.lookupAll(fqName: functionFQName)
-                .compactMap({ symbols.symbol($0) })
-                .first(where: { isNominalTypeSymbol($0.kind) })?.id
+            let functionSymbol: SymbolID?
+            if isSuspend {
+                functionSymbol = types.suspendFunctionNInterfaceSymbols[paramTypes.count]
+            } else {
+                let functionFQName = [
+                    interner.intern("kotlin"), interner.intern("Function"),
+                    interner.intern("Function\(paramTypes.count)"),
+                ]
+                functionSymbol = symbols.lookupAll(fqName: functionFQName)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
+            }
+            guard let functionSymbol
             else {
                 return nil
             }
