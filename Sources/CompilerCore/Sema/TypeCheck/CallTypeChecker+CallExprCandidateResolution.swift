@@ -415,6 +415,11 @@ extension CallTypeChecker {
                 sema: sema,
                 dispatchReceiverSymbol: importedDispatchReceiver
             )
+            if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
+                // The contract DSL is compiler-only, but only after ordinary
+                // overload resolution selects kotlin.contracts.contract.
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .contract)
+            }
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionReceiverSymbol)
             }
