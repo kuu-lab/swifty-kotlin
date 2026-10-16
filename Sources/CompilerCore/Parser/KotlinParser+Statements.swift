@@ -965,8 +965,11 @@ extension KotlinParser {
 
     func parseTail(
         inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator,
-        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false,
-        allowsClassDelegation: Bool = false, allowsFunctionWhereClause: Bool = false,
+        allowsDeclarationAssignment: Bool = false,
+        allowsClassHeaderColon: Bool = false,
+        allowsClassDelegation: Bool = false,
+        allowsWhereClauseContinuation: Bool = false,
+        allowsFunctionWhereClause: Bool = false,
         allowsPropertyDelegation: Bool = false
     ) {
         var progress = false
@@ -1096,6 +1099,7 @@ extension KotlinParser {
                         && stream.peek().kind == .softKeyword(.where))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
                     || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
+                    || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {
