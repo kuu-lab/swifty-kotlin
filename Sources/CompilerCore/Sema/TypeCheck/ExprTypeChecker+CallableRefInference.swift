@@ -40,6 +40,42 @@ extension ExprTypeChecker {
         ))
     }
 
+    /// Enum `valueOf` is exposed through the enum class name even though its
+    /// synthetic declaration is owned by the companion object. Kotlin binds
+    /// that singleton receiver implicitly for `EnumType::valueOf`.
+    private func enumCompanionValueOfCallableReference(
+        named member: InternedString,
+        receiverType: TypeID,
+        isUnboundTypeReceiver: Bool,
+        ctx: TypeInferenceContext
+    ) -> (receiverType: TypeID, candidates: [SymbolID])? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard isUnboundTypeReceiver,
+              member == interner.intern("valueOf"),
+              let (_, enumSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+              enumSymbol.kind == .enumClass,
+              let companionSymbol = sema.symbols.companionObjectSymbol(for: enumSymbol.id)
+        else {
+            return nil
+        }
+
+        let companionType = sema.symbols.propertyType(for: companionSymbol)
+            ?? sema.types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        let candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: member,
+            receiverType: companionType,
+            sema: sema,
+            interner: interner
+        )
+        guard !candidates.isEmpty else { return nil }
+        return (companionType, candidates)
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -383,6 +419,7 @@ extension ExprTypeChecker {
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
+        var enumCompanionCallableReferenceReceiverType: TypeID?
         var unboundMemberPropertyCandidate: (symbol: SymbolID, ownerType: TypeID, type: TypeID)?
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
@@ -419,6 +456,14 @@ extension ExprTypeChecker {
                     interner: interner
                 )
             }
+            let enumCompanionValueOf = memberCandidates.isEmpty
+                ? enumCompanionValueOfCallableReference(
+                    named: member,
+                    receiverType: nonNullReceiver,
+                    isUnboundTypeReceiver: unboundClassType != nil,
+                    ctx: ctx
+                )
+                : nil
             let memberProperty = driver.helpers.lookupMemberProperty(
                 named: member,
                 receiverType: nonNullReceiver,
@@ -436,6 +481,12 @@ extension ExprTypeChecker {
                         memberProperty.type
                     )
                 }
+            } else if let enumCompanionValueOf {
+                // `EnumType::valueOf` is a static-style Kotlin reference: the
+                // enum's singleton companion receiver is captured implicitly,
+                // so it does not become a leading function parameter.
+                candidates = enumCompanionValueOf.candidates
+                enumCompanionCallableReferenceReceiverType = enumCompanionValueOf.receiverType
             } else {
                 // Property references use the same inheritance-aware lookup as
                 // ordinary member reads (for example MutableList<Int>::size).
@@ -799,7 +850,8 @@ extension ExprTypeChecker {
         // references (obj::member), the receiver is captured. Ordinary
         // constructor references have no receiver parameter; inner
         // constructors use their enclosing instance as that parameter.
-        let isBoundReceiver = (receiver != nil && unboundClassType == nil)
+        let isBoundReceiver = (receiver != nil
+            && (unboundClassType == nil || enumCompanionCallableReferenceReceiverType != nil))
             || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
             || isImplicitlyBoundMember
 
@@ -935,6 +987,8 @@ extension ExprTypeChecker {
         // Concrete value and type receivers specialize the owner's type parameters.
         let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
+        } else if let enumCompanionCallableReferenceReceiverType {
+            enumCompanionCallableReferenceReceiverType
         } else if receiver != nil && !isConstructorReference {
             effectiveReceiverType
         } else {
@@ -1190,7 +1244,10 @@ extension ExprTypeChecker {
                     sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: implicitBoundReceiver.symbol)
                 }
             }
-            if unboundClassType != nil && (!isConstructorReference || unboundInnerConstructorReceiverType != nil) {
+            if unboundClassType != nil,
+               enumCompanionCallableReferenceReceiverType == nil,
+               (!isConstructorReference || unboundInnerConstructorReceiverType != nil)
+            {
                 sema.bindings.markUnboundCallableRef(id)
             }
             let captures = receiver.map { recv in
