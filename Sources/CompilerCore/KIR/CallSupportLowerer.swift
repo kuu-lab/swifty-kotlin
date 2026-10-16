@@ -426,9 +426,13 @@ final class CallSupportLowerer {
         }
 
         let result = arena.appendTemporary(type: signature.returnType)
+        // The expect declaration owns the default expressions and therefore
+        // this stub, but its paired actual owns the implementation to call.
+        let implementationSymbol = sema.symbols.actualSymbol(for: originalSymbol) ?? originalSymbol
+        let implementationName = sema.symbols.symbol(implementationSymbol)?.name ?? originalName
         let directCallInstruction = KIRInstruction.call(
-            symbol: originalSymbol,
-            callee: originalName,
+            symbol: implementationSymbol,
+            callee: implementationName,
             arguments: callArgs,
             result: result,
             canThrow: false,
@@ -459,8 +463,8 @@ final class CallSupportLowerer {
         // Int64-mask scheme.
         if let receiverExprForCall, signature.receiverType != nil,
            let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
-               chosenCallee: originalSymbol,
-               calleeName: originalName,
+               chosenCallee: implementationSymbol,
+               calleeName: implementationName,
                receiverExpr: nil,
                // Member extensions dispatch on the enclosing owner (the
                // leading `callArgs` entry), not the extension receiver —

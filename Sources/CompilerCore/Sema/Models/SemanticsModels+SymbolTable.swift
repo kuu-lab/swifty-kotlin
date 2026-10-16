@@ -134,6 +134,9 @@ public final class SymbolTable {
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
     private var delegateHasProvideDelegate: Set<SymbolID> = []
     private var expectActualLinks: [SymbolID: SymbolID] = [:]
+    /// Actual functions inherit call-site defaults from their paired expect
+    /// declaration, whose source AST owns the expressions and default stub.
+    private var expectActualDefaultArgumentOwners: [SymbolID: SymbolID] = [:]
     private var contractNonNullEffects: [SymbolID: ContractNonNullEffect] = [:]
     private var contractImplicationEffects: [SymbolID: [ContractImplicationEffect]] = [:]
     private var contractReturnsEffects: [SymbolID: ContractReturnsEffect] = [:]
@@ -248,6 +251,7 @@ public final class SymbolTable {
         worker.constValueExprKinds = constValueExprKinds
         worker.delegateHasProvideDelegate = delegateHasProvideDelegate
         worker.expectActualLinks = expectActualLinks
+        worker.expectActualDefaultArgumentOwners = expectActualDefaultArgumentOwners
         worker.contractNonNullEffects = contractNonNullEffects
         worker.contractImplicationEffects = contractImplicationEffects
         worker.contractReturnsEffects = contractReturnsEffects
@@ -1359,6 +1363,9 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         expectActualLinks[expect] = actual
+        if functionSignatures[expect]?.valueParameterHasDefaultValues.contains(true) == true {
+            expectActualDefaultArgumentOwners[actual] = expect
+        }
     }
 
     /// Returns the `actual` symbol linked to the given `expect` symbol, if any.
@@ -1366,6 +1373,13 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         return expectActualLinks[expect]
+    }
+
+    /// Returns the paired expect that owns an actual function's default values.
+    public func expectActualDefaultArgumentOwner(for actual: SymbolID) -> SymbolID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return expectActualDefaultArgumentOwners[actual]
     }
 
 

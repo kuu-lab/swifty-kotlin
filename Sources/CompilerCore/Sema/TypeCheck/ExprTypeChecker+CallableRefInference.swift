@@ -817,17 +817,26 @@ extension ExprTypeChecker {
             // `.function || .constructor` scope lookup above never finds them
             // -- mirrors the KSP-CAP-006 class+ctor lookup CallTypeChecker.swift
             // uses for a direct call `Foo(...)`.
+            // Fun interfaces take a separate synthetic SAM-factory path because
+            // they have no declared constructor symbol.
             if candidates.isEmpty {
                 let classCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
                     guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
-                    return symbol.kind == .class || symbol.kind == .enumClass
+                    return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .interface
                 }
                 if let classSym = classCandidates.first,
-                   let classSymbol = ctx.cachedSymbol(classSym),
-                   let ctorCandidates = visibleConstructorCandidates(of: classSymbol, ctx: ctx)
+                   let classSymbol = ctx.cachedSymbol(classSym)
                 {
-                    candidates = ctorCandidates
-                    isConstructorReference = true
+                    if classSymbol.kind == .interface, classSymbol.flags.contains(.funInterface) {
+                        if let type = inferFunInterfaceConstructorCallableReference(
+                            id, interfaceSymbol: classSym, expectedType: expectedType, range: range, ctx: ctx
+                        ) {
+                            return type
+                        }
+                    } else if let ctorCandidates = visibleConstructorCandidates(of: classSymbol, ctx: ctx) {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                    }
                 }
             }
         }

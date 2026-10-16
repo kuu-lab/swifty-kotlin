@@ -255,13 +255,14 @@ descriptor evidence.
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must be referenced by that row's upstream tests, and both execution IDs must
-map to the same case in the locked JVM and Native execution catalogs. A manual
-status edit is discarded when outputs are regenerated. `--write` changes only
-the three generated ledger output files and reads the evidence file without
-rewriting it. `--check` verifies upstream snapshots, the test index lock,
-negative guards, evidence, any execution catalogs used by evidence, and
-byte-for-byte output without modifying files.
+must match a method-specific upstream test reference for that row;
+`#suite-reference` discovery metadata cannot authorize an arbitrary case from
+the same file. Both execution IDs must map to the same case in the locked JVM
+and Native execution catalogs. A manual status edit is discarded when outputs
+are regenerated. `--write` changes only the three generated ledger output files
+and reads the evidence file without rewriting it. `--check` verifies upstream
+snapshots, the test index lock, negative guards, evidence, any execution
+catalogs used by evidence, and byte-for-byte output without modifying files.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

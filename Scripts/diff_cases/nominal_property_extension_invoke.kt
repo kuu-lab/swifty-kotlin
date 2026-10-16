@@ -31,7 +31,6 @@ object ObjectPropertyHolder {
 class ExtensionDispatcher {
     operator fun ExtensionTarget.invoke(): String = "dispatch-extension"
 }
-
 fun nullableCall(holder: NullablePropertyHolder?): String? = holder?.value()
 fun localCallControl(): String {
     val value: InvokeTarget = ExtensionTarget()

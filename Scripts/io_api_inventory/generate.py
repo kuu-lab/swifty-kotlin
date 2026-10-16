@@ -393,9 +393,10 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
         return False
     for reference in row.get("upstream_test_refs", "").split(";"):
         reference_path, marker, reference_name = reference.partition("#")
-        if not marker or case_path != reference_path:
+        # A suite mapping is a discovery hint, not row-level execution evidence.
+        if not marker or reference_name == "suite-reference" or case_path != reference_path:
             continue
-        if reference_name == "suite-reference" or case_name == reference_name:
+        if case_name == reference_name:
             return True
     return False
 

@@ -335,6 +335,31 @@ extension LambdaLowerer {
     ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
 
+        if !sema.bindings.isSamConversion(exprID),
+           let interfaceSymbol = sema.bindings.identifierSymbol(for: exprID),
+           let interface = sema.symbols.symbol(interfaceSymbol),
+           interface.kind == .interface,
+           interface.flags.contains(.funInterface),
+           let interfaceType = sema.bindings.samInterfaceType(for: exprID),
+           let samFunctionTypeID = sema.bindings.samUnderlyingFunctionType(for: exprID),
+           case let .functionType(samFunctionType) = sema.types.kind(of: samFunctionTypeID),
+           let callable = lowerFunInterfaceConstructorCallableReference(
+               exprID,
+               memberName: memberName,
+               interfaceSymbol: interfaceSymbol,
+               interfaceType: interfaceType,
+               samFunctionType: samFunctionType,
+               boundType: boundType,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return callable
+        }
+
         // REFL-PRIMOP: `Boolean::not` has no backing member symbol or receiver
         // value, so synthesize its intrinsic unary wrapper before symbol lookup.
         if let unaryOp = sema.bindings.primitiveUnaryOperatorCallableRef(for: exprID) {

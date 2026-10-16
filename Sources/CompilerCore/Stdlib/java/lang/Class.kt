@@ -45,6 +45,9 @@ private external fun __classGetName(type: Class<*>): String
 @KsSymbolName("__kk_class_for_name")
 private external fun __classForName(className: String): Class<*>
 
+@KsSymbolName("__kk_java_class_get_annotations_typed")
+private external fun __classGetAnnotations(type: Class<*>): Array<Annotation>
+
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     /** Returns the JVM canonical name of this class token, or null when unavailable. */
@@ -63,6 +66,10 @@ public class Class<T> {
      * KOTLIN_ASSERTIONS_ENABLED; neither class nor package overrides are modeled.
      */
     public fun desiredAssertionStatus(): Boolean = __assertionsEnabled()
+
+    /** Returns runtime-retained annotations declared on this class or inherited from its superclass. */
+    public val annotations: Array<Annotation>
+        get() = __classGetAnnotations(this)
 
     /** Returns the public constructor matching [parameterTypes]. */
     public fun getConstructor(vararg parameterTypes: Class<*>): Constructor<T> =

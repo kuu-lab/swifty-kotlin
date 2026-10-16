@@ -72,6 +72,7 @@ func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to rec
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
+    private var javaInheritedAnnotationNames: Set<String> = []
 
     func register(typeToken: Int, entry: RuntimeKClassMetadataEntry) {
         lock.lock()
@@ -89,6 +90,25 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return entries[typeToken]
+    }
+
+    func lookup(qualifiedName: String) -> RuntimeKClassMetadataEntry? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.values.first { $0.qualifiedName == qualifiedName }
+    }
+
+    func registerJavaInheritedAnnotation(name: String) {
+        guard !name.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        javaInheritedAnnotationNames.insert(name)
+    }
+
+    func isJavaInheritedAnnotation(name: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return javaInheritedAnnotationNames.contains(name)
     }
 
     func setDisplayName(typeToken: Int, displayName: String) {
@@ -110,6 +130,7 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         entries.removeAll()
+        javaInheritedAnnotationNames.removeAll()
     }
 }
 

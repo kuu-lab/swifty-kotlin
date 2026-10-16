@@ -16,27 +16,10 @@ extension CallTypeChecker {
         let members = driver.helpers.collectMemberFunctionCandidates(
             named: invoke, receiverType: type, sema: sema, interner: ctx.interner
         ).filter(visibleOperator)
-        var firstCandidateTier = members.isEmpty ? nil : members
-        if !members.isEmpty,
-           nominalCallablePropertyCandidatesAcceptArgumentShape(
-               members, receiverType: type, request: request, argTypes: argTypes, locals: locals
-           ) {
-            return members
-        }
-
         let nonNullType = sema.types.makeNonNullable(type)
         let dispatchExtensions = collectDispatchReceiverMemberExtensionCandidates(
             named: invoke, extensionReceiverType: nonNullType, ctx: ctx
         ).filter(visibleOperator)
-        if !dispatchExtensions.isEmpty {
-            if firstCandidateTier == nil { firstCandidateTier = dispatchExtensions }
-            if nominalCallablePropertyCandidatesAcceptArgumentShape(
-                dispatchExtensions, receiverType: type, request: request, argTypes: argTypes, locals: locals
-            ) {
-                return dispatchExtensions
-            }
-        }
-
         let scopedExtensions = ctx.cachedScopeLookup(invoke).filter { candidate in
             guard visibleOperator(candidate),
                   let signature = sema.symbols.functionSignature(for: candidate),
@@ -46,12 +29,14 @@ extension CallTypeChecker {
                 callSiteReceiver: nonNullType, declaredReceiver: declaredReceiver, sema: sema
             )
         }
-        if !scopedExtensions.isEmpty {
-            if firstCandidateTier == nil { firstCandidateTier = scopedExtensions }
+
+        var firstCandidateTier: [SymbolID]?
+        for candidates in [members, dispatchExtensions, scopedExtensions] where !candidates.isEmpty {
+            if firstCandidateTier == nil { firstCandidateTier = candidates }
             if nominalCallablePropertyCandidatesAcceptArgumentShape(
-                scopedExtensions, receiverType: type, request: request, argTypes: argTypes, locals: locals
+                candidates, receiverType: type, request: request, argTypes: argTypes, locals: locals
             ) {
-                return scopedExtensions
+                return candidates
             }
         }
         // Preserve the best diagnostic when every tier has candidates but none
