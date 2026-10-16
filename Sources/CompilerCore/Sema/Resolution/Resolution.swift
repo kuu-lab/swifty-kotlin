@@ -1788,6 +1788,10 @@ extension OverloadResolver {
             }
         }
 
+        if prefersExplicitFunctionTypeParameter(lhs, than: rhs, call: call, typeSystem: typeSystem) {
+            return true
+        }
+
         // If parameter types are not strictly more specific, check whether they
         // are pairwise equivalent and the receiver type is a subtype (override
         // wins over the base class/interface default method).
@@ -1829,6 +1833,60 @@ extension OverloadResolver {
             return !lhs.usesVararg && rhs.usesVararg
         }
         return false
+    }
+
+    /// Prefer a declared function-type parameter over a direct type parameter
+    /// when both candidates infer the same function type for a lambda argument.
+    /// Otherwise a generic value overload such as `fun <T> f(value: T)` ties
+    /// with `fun <T> f(block: () -> T)` after both have been instantiated.
+    private func prefersExplicitFunctionTypeParameter(
+        _ lhs: ViableCandidate,
+        than rhs: ViableCandidate,
+        call: CallExpr,
+        typeSystem: TypeSystem
+    ) -> Bool {
+        guard lhs.instantiatedParameterTypes.count == call.args.count,
+              rhs.instantiatedParameterTypes.count == call.args.count,
+              zip(lhs.instantiatedParameterTypes, rhs.instantiatedParameterTypes).allSatisfy({
+                  typeSystem.isSubtype($0, $1) && typeSystem.isSubtype($1, $0)
+              })
+        else {
+            return false
+        }
+
+        func isFunctionType(_ type: TypeID) -> Bool {
+            if case .functionType = typeSystem.kind(of: typeSystem.makeNonNullable(type)) {
+                return true
+            }
+            return false
+        }
+        func isDirectTypeParameter(_ type: TypeID) -> Bool {
+            if case .typeParam = typeSystem.kind(of: typeSystem.makeNonNullable(type)) {
+                return true
+            }
+            return false
+        }
+
+        var prefersFunctionType = false
+        for argumentIndex in call.args.indices {
+            guard case .functionType = typeSystem.kind(of: call.args[argumentIndex].type),
+                  let lhsParameterIndex = lhs.parameterMapping[argumentIndex],
+                  let rhsParameterIndex = rhs.parameterMapping[argumentIndex],
+                  lhs.signature.parameterTypes.indices.contains(lhsParameterIndex),
+                  rhs.signature.parameterTypes.indices.contains(rhsParameterIndex)
+            else {
+                continue
+            }
+            let lhsDeclaredType = lhs.signature.parameterTypes[lhsParameterIndex]
+            let rhsDeclaredType = rhs.signature.parameterTypes[rhsParameterIndex]
+            if isDirectTypeParameter(lhsDeclaredType), isFunctionType(rhsDeclaredType) {
+                return false
+            }
+            if isFunctionType(lhsDeclaredType), isDirectTypeParameter(rhsDeclaredType) {
+                prefersFunctionType = true
+            }
+        }
+        return prefersFunctionType
     }
 
     private func hasMoreSpecificTypeParameterBounds(
