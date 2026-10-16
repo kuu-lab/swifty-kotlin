@@ -362,7 +362,9 @@ final class ExprTypeChecker {
             let type: TypeID
             switch op {
             case .not:
-                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: boolType)
+                // Resolve an overloaded `not()` from the receiver's own type. The
+                // Boolean constraint belongs only to the built-in Boolean `!`.
+                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
                 let operandType = sema.types.capturedOperatorReceiverType(
                     of: inferredOperand
                 )

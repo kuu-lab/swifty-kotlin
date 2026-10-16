@@ -272,6 +272,18 @@ extension BuildASTPhase {
             switch token.kind {
             case .symbol(.at):
                 return parseAnnotatedExpression { self.parsePrefixUnary() }
+            case .symbol(.bangBang):
+                // At prefix position, Kotlin parses `!!expr` as two logical-not
+                // operators; postfix `!!` remains a null assertion after a value.
+                _ = consume()
+                guard let operand = parsePrefixUnary() else { return nil }
+                let secondBangStart = SourceLocation(file: token.range.start.file, offset: token.range.start.offset + 1)
+                let secondBangRange = SourceRange(start: secondBangStart, end: token.range.end)
+                let innerRange = mergeRanges(secondBangRange, astArena.exprRange(operand), fallback: secondBangRange)
+                let inner = astArena.appendExpr(.unaryExpr(op: .not, operand: operand, range: innerRange))
+                let firstBangRange = SourceRange(start: token.range.start, end: secondBangStart)
+                let range = mergeRanges(firstBangRange, astArena.exprRange(inner), fallback: firstBangRange)
+                return astArena.appendExpr(.unaryExpr(op: .not, operand: inner, range: range))
             case .symbol(.bang):
                 if let next = peek(1), next.kind == .keyword(.is) || next.kind == .keyword(.in) {
                     return parsePostfixOrPrimary()
