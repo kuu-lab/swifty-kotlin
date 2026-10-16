@@ -9,6 +9,10 @@ public struct CallArg {
     /// Source calls distinguish a lambda outside parentheses from ordinary
     /// positional arguments. Nil preserves normalized calls without an AST.
     public let isTrailingLambda: Bool?
+    /// Synthetic operator-set calls bind the assigned value to the setter's
+    /// final parameter, skipping any defaulted parameters between the indices
+    /// and that value.
+    public let bindsToLastParameter: Bool
 
     public init(
         label: InternedString? = nil,
@@ -16,7 +20,8 @@ public struct CallArg {
         type: TypeID,
         signedIntegerLiteral: Int64? = nil,
         unsignedIntegerLiteral: UInt64? = nil,
-        isTrailingLambda: Bool? = nil
+        isTrailingLambda: Bool? = nil,
+        bindsToLastParameter: Bool = false
     ) {
         self.label = label
         self.isSpread = isSpread
@@ -24,6 +29,7 @@ public struct CallArg {
         self.signedIntegerLiteral = signedIntegerLiteral
         self.unsignedIntegerLiteral = unsignedIntegerLiteral
         self.isTrailingLambda = isTrailingLambda
+        self.bindsToLastParameter = bindsToLastParameter
     }
 
     private static func trailingLambdaPosition(

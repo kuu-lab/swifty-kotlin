@@ -10,7 +10,8 @@ private extension CallExpr {
                 type: replacements[index] ?? arg.type,
                 signedIntegerLiteral: arg.signedIntegerLiteral,
                 unsignedIntegerLiteral: arg.unsignedIntegerLiteral,
-                isTrailingLambda: arg.isTrailingLambda
+                isTrailingLambda: arg.isTrailingLambda,
+                bindsToLastParameter: arg.bindsToLastParameter
             )
         }
         return CallExpr(
