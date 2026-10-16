@@ -295,10 +295,17 @@ extension ExprTypeChecker {
         default:
             true
         }
+        let operatorCall = CallExpr(
+            range: range,
+            calleeName: operatorName,
+            args: [CallArg(type: rhs)]
+        )
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
                 names: operatorNames,
                 receiverType: lhs,
+                call: operatorCall,
+                locals: locals,
                 ctx: ctx
             )
         } else {
