@@ -182,18 +182,22 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Re-infer a nested call against each concrete outer overload parameter so
-    /// overload resolution can test each candidate with its own contextual type.
-    /// This avoids eliminating candidates from one eagerly inferred argument type.
+    /// Re-infer nested calls against each outer candidate's parameter type,
+    /// after substituting type variables constrained by the call's other
+    /// arguments or extension receiver. Candidate-specific argument types keep
+    /// an overload's context from being shared with its neighbors.
     func candidateSpecificNestedCallArgumentTypes(
         candidates: [SymbolID],
         args: [CallArgument],
+        originalArgumentTypes: [TypeID],
         originalExpectedTypeOverrides: [Int: TypeID],
+        explicitTypeArgs: [TypeID],
+        implicitReceiverType: TypeID?,
         lambdaLiteralIndices: Set<Int>,
         ctx: TypeInferenceContext,
         locals: LocalBindings
     ) -> CandidateSpecificNestedCallArgumentTypes? {
-        guard candidates.count > 1 else {
+        guard !candidates.isEmpty else {
             return nil
         }
         let nestedArgumentIndices = args.indices.filter { index in
@@ -211,6 +215,52 @@ extension CallTypeChecker {
                 return nil
             }
             let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+
+            var knownArgumentTypes: [Int: TypeID] = [:]
+            for index in args.indices where !lambdaLiteralIndices.contains(index) {
+                guard originalArgumentTypes.indices.contains(index),
+                      let parameterIndex = parameterIndexForCallArgument(
+                          at: index,
+                          label: args[index].label,
+                          in: signature,
+                          sema: ctx.sema
+                      )
+                else {
+                    continue
+                }
+                let argumentType = originalArgumentTypes[index]
+                guard argumentType != ctx.sema.types.errorType,
+                      !typeContainsErrorType(argumentType, sema: ctx.sema),
+                      !typeContainsNothingType(argumentType, sema: ctx.sema),
+                      !typeContainsLeakedTypeParameterArgument(argumentType, sema: ctx.sema)
+                else {
+                    continue
+                }
+                knownArgumentTypes[parameterIndex] = argumentType
+            }
+            var substitution = ctx.resolver.probeArgumentTypeSubstitution(
+                signature: signature,
+                typeVarBySymbol: typeVarBySymbol,
+                knownArgumentTypes: knownArgumentTypes,
+                typeSystem: ctx.sema.types,
+                implicitReceiverType: implicitReceiverType
+            )
+            let explicitTypeArgumentOffset = ctx.sema.symbols.symbol(candidate)?.kind == .constructor
+                ? 0 : signature.classTypeParameterCount
+            for (index, typeArgument) in explicitTypeArgs.enumerated() {
+                guard typeArgument != TypeID.invalid,
+                      signature.typeParameterSymbols.indices.contains(explicitTypeArgumentOffset + index),
+                      let variable = typeVarBySymbol[
+                          signature.typeParameterSymbols[explicitTypeArgumentOffset + index]
+                      ]
+                else {
+                    continue
+                }
+                // Explicit arguments have precedence over constraints inferred
+                // from the call's other arguments.
+                substitution[variable] = typeArgument
+            }
+
             var candidateExpectedTypes: [Int: TypeID] = [:]
             for index in nestedArgumentIndices {
                 guard let parameterIndex = parameterIndexForCallArgument(
@@ -221,7 +271,20 @@ extension CallTypeChecker {
                 ), parameterIndex < signature.parameterTypes.count else {
                     return nil
                 }
-                let expectedType = signature.parameterTypes[parameterIndex]
+                let expectedType: TypeID
+                if let existingOverride = originalExpectedTypeOverrides[index] {
+                    expectedType = existingOverride
+                } else if let parameterType = contextualCallArgumentType(
+                    args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                ) {
+                    expectedType = ctx.sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                } else {
+                    return nil
+                }
                 guard expectedType != ctx.sema.types.errorType,
                       !ctx.resolver.containsTypeVariable(
                           expectedType,
@@ -236,6 +299,14 @@ extension CallTypeChecker {
             expectedTypesByCandidate[candidate] = candidateExpectedTypes
         }
 
+        let hasUnresolvedNestedArgument = nestedArgumentIndices.contains { index in
+            guard originalArgumentTypes.indices.contains(index) else { return false }
+            let argumentType = originalArgumentTypes[index]
+            return argumentType == ctx.sema.types.errorType
+                || typeContainsErrorType(argumentType, sema: ctx.sema)
+                || typeContainsNothingType(argumentType, sema: ctx.sema)
+                || typeContainsLeakedTypeParameterArgument(argumentType, sema: ctx.sema)
+        }
         let hasCandidateSpecificExpectation = nestedArgumentIndices.contains { index in
             var distinctTypes: [TypeID] = []
             for candidate in candidates {
@@ -248,7 +319,7 @@ extension CallTypeChecker {
             }
             return distinctTypes.count > 1
         }
-        guard hasCandidateSpecificExpectation else {
+        guard hasUnresolvedNestedArgument || hasCandidateSpecificExpectation else {
             return nil
         }
 
@@ -292,6 +363,11 @@ extension CallTypeChecker {
                 candidateArgumentTypes[index] = argumentType
             }
             argumentTypesByCandidate[candidate] = candidateArgumentTypes
+        }
+        for index in nestedArgumentIndices {
+            if let argumentRange = ctx.ast.arena.exprRange(args[index].expr) {
+                ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+            }
         }
         return CandidateSpecificNestedCallArgumentTypes(
             argumentTypesByCandidate: argumentTypesByCandidate,

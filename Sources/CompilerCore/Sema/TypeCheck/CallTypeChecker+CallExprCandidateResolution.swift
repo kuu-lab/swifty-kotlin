@@ -121,7 +121,10 @@ extension CallTypeChecker {
             let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
                 candidates: resolvedCandidates,
                 args: args,
+                originalArgumentTypes: argTypes,
                 originalExpectedTypeOverrides: expectedTypeOverrides,
+                explicitTypeArgs: explicitTypeArgs,
+                implicitReceiverType: callImplicitReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 ctx: ctx,
                 locals: locals
@@ -364,12 +367,23 @@ extension CallTypeChecker {
                let expectedTypes = candidateSpecificNestedCallTypes?.expectedTypesByCandidate[chosen]
             {
                 for (index, expectedArgumentType) in expectedTypes.sorted(by: { $0.key < $1.key }) {
-                    _ = driver.inferExpr(
+                    let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    let argumentType = driver.inferExpr(
                         args[index].expr,
                         ctx: ctx,
                         locals: &locals,
                         expectedType: expectedArgumentType
                     )
+                    let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
+                        $0.severity == .error
+                    }
+                    if argumentType != sema.types.errorType,
+                       !typeContainsErrorType(argumentType, sema: sema),
+                       !emittedError,
+                       let argumentRange = ast.arena.exprRange(args[index].expr)
+                    {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                    }
                 }
             }
             // An applicable member keeps precedence even when the surrounding
