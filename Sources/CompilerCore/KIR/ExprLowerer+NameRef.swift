@@ -1190,8 +1190,20 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
-                let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
-                instructions.append(.loadGlobal(result: id, symbol: symbol))
+                // A custom setter gives an object property a distinct backing
+                // field. Its compiler-provided getter reads that field, so a
+                // bare imported property reference must do the same.
+                let storageSymbol: SymbolID
+                if sym.kind == .property,
+                   sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.kind == .object,
+                   let backingField = sema.symbols.backingFieldSymbol(for: symbol)
+                {
+                    storageSymbol = backingField
+                } else {
+                    storageSymbol = symbol
+                }
+                let id = arena.appendExpr(.symbolRef(storageSymbol), type: boundType)
+                instructions.append(.loadGlobal(result: id, symbol: storageSymbol))
                 return wrapLateinitReadIfNeeded(
                     id,
                     symbol: symbol,
