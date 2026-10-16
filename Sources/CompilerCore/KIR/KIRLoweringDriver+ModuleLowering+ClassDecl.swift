@@ -42,7 +42,7 @@ extension KIRLoweringDriver {
         )
         var allDecls = memberDecls
         if sema.symbols.symbol(symbol)?.kind == .enumClass {
-            allDecls.append(contentsOf: memberLowerer.lowerEnumEntryMemberFunctions(
+            allDecls.append(contentsOf: memberLowerer.lowerEnumEntryBodyMembers(
                 classDecl: classDecl,
                 shared: shared,
                 compilationCtx: compilationCtx

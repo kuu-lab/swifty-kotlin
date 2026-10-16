@@ -74,7 +74,32 @@ extension CallLowerer {
                 )
             }
         }
-        if let selected = dispatchReceiverSymbol.flatMap({ driver.ctx.localValue(for: $0) }),
+        let boundDispatchReceiverSymbol = dispatchReceiverSymbol ?? callExprID.flatMap { expression in
+            (sema.bindings.extensionPropertyGetterCalls[expression] ?? sema.bindings.callBindings[expression])?
+                .dispatchReceiverSymbol
+        }
+        if let selectedSymbol = boundDispatchReceiverSymbol,
+           sema.symbols.symbol(selectedSymbol)?.kind == .object
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: selectedSymbol,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let selectedType = sema.types.make(.classType(ClassType(
+                classSymbol: selectedSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let selected = arena.appendExpr(.symbolRef(selectedSymbol), type: selectedType)
+            instructions.append(.constValue(result: selected, value: .symbolRef(selectedSymbol)))
+            if let resolved = resolveToOwner(selected) {
+                return resolved
+            }
+        }
+        if let selected = boundDispatchReceiverSymbol.flatMap({ driver.ctx.localValue(for: $0) }),
            let resolved = resolveToOwner(selected)
         {
             return resolved
@@ -130,11 +155,15 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var result = arguments
+        let binding = callExprID.flatMap {
+            sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0]
+        }
         if let receiver = memberExtensionDispatchReceiver(
-            for: accessor, callExprID: callExprID, sema: sema, arena: arena,
+            for: accessor, callExprID: callExprID,
+            dispatchReceiverSymbol: binding?.dispatchReceiverSymbol,
+            sema: sema, arena: arena,
             interner: interner, instructions: &instructions
         ) { result.insert(receiver, at: 0) }
-        let binding = callExprID.flatMap { sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0] }
         if let signature = sema.symbols.functionSignature(for: accessor),
            !signature.contextParameterTypes.isEmpty
         {
@@ -502,6 +531,18 @@ extension CallLowerer {
                 arguments: finalArguments, result: result,
                 canThrow: false, thrownResult: nil
             ))
+            return
+        }
+        if tryEmitEnumHashCodeCall(
+            chosenCallee: chosenCallee,
+            receiver: receiver,
+            arguments: finalArguments,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
             return
         }
         if tryEmitEnumEntryDispatchCall(

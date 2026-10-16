@@ -243,10 +243,12 @@ extension KotlinParser {
     ) -> NodeID {
         var children: [SyntaxChild] = leadingChildren
         var range = RangeAccumulator(value: leadingRange)
+        var hasTypeParameters = false
 
         _ = consumeToken(into: &children, range: &range)
         if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
             children.append(.node(parseTypeArguments()))
+            hasTypeParameters = true
             if let last = children.last {
                 range.append(childRange(last))
             }
@@ -281,7 +283,13 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
+            parseTail(
+                inBlock: false,
+                into: &children,
+                range: &range,
+                allowsDeclarationAssignment: true,
+                allowsFunctionWhereClause: hasTypeParameters
+            )
             // A block on the next line still belongs to a function whose
             // header has no expression body or explicit terminator.
             if case .symbol(.lBrace) = stream.peek().kind,
@@ -678,7 +686,17 @@ extension KotlinParser {
             return
         }
         let next = stream.peek()
-        if hasLeadingNewline(next), isDeclarationStart(next.kind) {
+        let continuesHeaderAcrossNewline = includeBlock && (
+            next.kind == .symbol(.colon)
+                || next.kind == .symbol(.lessThan)
+                || next.kind == .softKeyword(.where)
+        ) || allowsClassHeaderColon && next.kind == .symbol(.lParen)
+            || allowsClassDelegation && next.kind == .softKeyword(.by)
+        // A body statement after a local class has no class-header role. Stop
+        // before it so the block parser can keep the statement beside the class.
+        let stopsAtNewline = hasLeadingNewline(next)
+            && (includeBlock ? !continuesHeaderAcrossNewline : isDeclarationStart(next.kind))
+        if stopsAtNewline {
             return
         }
         parseTail(

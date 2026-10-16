@@ -279,6 +279,10 @@ struct TypeConstraintBoundsTests {
         fun <T> maxItem(a: T, b: T): T where T : Comparable<T> = if (a > b) a else b
 
         fun <T> processItem(v: T): String where T : Comparable<T>, T : Any = v.toString()
+
+        fun <T> processItemAfterNewline(v: T): String
+            where T : Comparable<T>, T : Any
+            = v.toString()
         """
 
         let ctx = makeContextFromSource(source)
@@ -308,6 +312,9 @@ struct TypeConstraintBoundsTests {
 
         let processItem = try function(named: "processItem")
         #expect(processItem.typeParams.first?.upperBounds.count == 2)
+
+        let processItemAfterNewline = try function(named: "processItemAfterNewline")
+        #expect(processItemAfterNewline.typeParams.first?.upperBounds.count == 2)
     }
 
 

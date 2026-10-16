@@ -24,6 +24,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     var scope: Scope
+    /// The Elvis LHS call may use an enclosing result type to infer its generic
+    /// return type without checking the call's nullable result against it.
+    var isElvisLhsExpectedTypeHint = false
     /// A failed call may retry once using its arguments' natural types while
     /// keeping the outer result constraint in overload resolution.
     var allowsLiftedCallExpectedTypeHints = true
@@ -358,6 +361,22 @@ struct TypeInferenceContext: CustomStringConvertible {
             return entry.symbol
         }
         return nil
+    }
+
+    /// Returns the enum-entry field represented by a qualified enum-entry
+    /// receiver such as `this@X`.
+    func enumEntryReceiverSymbol(forQualifiedThisLabel label: InternedString) -> SymbolID? {
+        guard resolveQualifiedThis(label: label) != nil,
+              let enumSymbol = resolveQualifiedThisReceiverSymbol(label: label),
+              let enumInfo = sema.symbols.symbol(enumSymbol),
+              enumInfo.kind == .enumClass
+        else {
+            return nil
+        }
+        return sema.symbols.lookupAll(fqName: enumInfo.fqName + [label]).first { candidate in
+            sema.symbols.symbol(candidate)?.kind == .field
+                && sema.symbols.parentSymbol(for: candidate) == enumSymbol
+        }
     }
 
     /// Same tower as `implicitReceiverMemberLookupTypes()` but keeps each

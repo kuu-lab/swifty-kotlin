@@ -72,6 +72,66 @@ struct InfixCallModifierTests {
     }
 
     @Test
+    func unsignedPrimitiveCompareToAllowsInfixAndOrdinaryCalls() throws {
+        let source = """
+        infix fun UInt.sameAs(other: UInt): Boolean = this == other
+        fun accepted(ui: UInt, ul: ULong) {
+            ui compareTo 1u
+            ul compareTo 1uL
+            ui compareTo ul
+            ul compareTo ui
+            ui.compareTo(1u)
+            ul.compareTo(1uL)
+            ui sameAs 1u
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let infixCalls = ast.arena.snapshot().infixCallExpressions.filter {
+                guard let range = ast.arena.exprRange($0) else { return false }
+                return ctx.sourceManager.path(of: range.start.file) == path
+            }
+            #expect(infixCalls.count == 5)
+            for id in infixCalls {
+                guard case let .memberCall(receiverID, calleeName, _, _, _) = ast.arena.expr(id),
+                      ctx.interner.resolve(calleeName) == "compareTo"
+                else { continue }
+                let receiverType = sema.bindings.exprType(for: receiverID)
+                #expect(
+                    receiverType == sema.types.uintType || receiverType == sema.types.ulongType,
+                    "Unexpected infix compareTo receiver type: \(receiverType.map { sema.types.kind(of: $0) } as Any)"
+                )
+                #expect(sema.bindings.exprType(for: id) == sema.types.intType)
+            }
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(diagnosticsForPath(path, in: ctx))")
+        }
+    }
+
+    @Test
+    func primitiveCompareToInfixEligibilityRemainsNarrow() throws {
+        let source = """
+        fun rejected(value: Int, small: UByte, ui: UInt, ul: ULong) {
+            value compareTo 1
+            small compareTo 1.toUByte()
+            ui compareTo "not unsigned"
+            ui.compareTo("not unsigned")
+            ul compareTo "not unsigned"
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 5, "Unexpected diagnostics: \(errors)")
+            #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 2)
+            #expect(errors.filter { $0.code != "KSWIFTK-SEMA-0307" }.count == 3)
+        }
+    }
+
+    @Test
     func topLevelFunctionsRemainRejected() throws {
         let source = """
         fun join(a: Int, b: Int): Int = a + b

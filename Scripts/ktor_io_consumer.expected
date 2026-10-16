@@ -1,0 +1,12 @@
+packet
+10:copy-bytes:true
+café
+
+true
+buffered
+true
+true
+true:cancelled
+bytestring
+bytestring
+unsafe-data:unsafe-data

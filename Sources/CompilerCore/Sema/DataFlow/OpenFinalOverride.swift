@@ -279,7 +279,7 @@ extension DataFlowSemaPhase {
             OFODeclInfo(
                 memberFunctions: cls.memberFunctions,
                 memberProperties: cls.memberProperties,
-                nestedClasses: cls.nestedClasses,
+                nestedClasses: cls.nestedClasses + cls.enumEntries.flatMap(\.nestedClasses),
                 declRange: cls.range
             )
         case let .objectDecl(obj):

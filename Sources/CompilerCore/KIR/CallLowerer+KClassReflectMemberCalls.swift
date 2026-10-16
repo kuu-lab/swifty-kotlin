@@ -449,6 +449,149 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+
+        emitJavaClassDeclaredMethodsRegistration(
+            for: classSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Registers Java-shaped method names from this class's own declarations.
+    /// The runtime keys them by type token, so inherited members remain separate.
+    private func emitJavaClassDeclaredMethodsRegistration(
+        for classSymbol: SymbolID,
+        typeTokenExpr: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let owner = sema.symbols.symbol(classSymbol) else { return }
+        let intType = sema.types.intType
+        let stringType = sema.types.stringType
+
+        func javaTypeName(_ type: TypeID) -> String {
+            switch sema.types.kind(of: type) {
+            case .error, .any:
+                return "java.lang.Object"
+            case .unit, .platformUnit:
+                return "void"
+            case .nullableUnit:
+                return "kotlin.Unit"
+            case .nothing:
+                return "java.lang.Void"
+            case .stringStruct:
+                return "java.lang.String"
+            case let .primitive(primitive, _):
+                switch primitive {
+                case .boolean: return "boolean"
+                case .char: return "char"
+                case .int: return "int"
+                case .long: return "long"
+                case .float: return "float"
+                case .double: return "double"
+                case .byte: return "byte"
+                case .short: return "short"
+                case .uint: return "kotlin.UInt"
+                case .ulong: return "kotlin.ULong"
+                case .ubyte: return "kotlin.UByte"
+                case .ushort: return "kotlin.UShort"
+                }
+            case let .classType(classType):
+                guard let typeSymbol = sema.symbols.symbol(classType.classSymbol) else {
+                    return "java.lang.Object"
+                }
+                let name = typeSymbol.fqName.map(interner.resolve).joined(separator: ".")
+                return name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
+            case .typeParam, .intersection:
+                return "java.lang.Object"
+            case let .functionType(functionType):
+                let arity = functionType.contextReceivers.count
+                    + (functionType.receiver == nil ? 0 : 1)
+                    + functionType.params.count
+                let prefix = functionType.isSuspend ? "kotlin.coroutines.SuspendFunction" : "kotlin.jvm.functions.Function"
+                return "\(prefix)\(arity)"
+            case .kClassType:
+                return "kotlin.reflect.KClass"
+            }
+        }
+
+        func descriptor(parameterTypes: [TypeID], returnType: TypeID) -> String {
+            let parameterTokens = parameterTypes.map { type in
+                let token = RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner)
+                    & ~RuntimeTypeCheckToken.nullableFlag
+                return String(token)
+            }
+            let returnToken = RuntimeTypeCheckToken.encode(type: returnType, sema: sema, interner: interner)
+                & ~RuntimeTypeCheckToken.nullableFlag
+            return "\(parameterTokens.joined(separator: ","))|\(returnToken)|\(javaTypeName(returnType))"
+        }
+
+        func register(name: String, signature: String, flags: Int64 = 0) {
+            let internedName = interner.intern(name)
+            let nameExpr = arena.appendExpr(.stringLiteral(internedName), type: stringType)
+            instructions.append(.constValue(result: nameExpr, value: .stringLiteral(internedName)))
+
+            let internedSignature = interner.intern(signature)
+            let signatureExpr = arena.appendExpr(.stringLiteral(internedSignature), type: stringType)
+            instructions.append(.constValue(result: signatureExpr, value: .stringLiteral(internedSignature)))
+
+            let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
+            instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
+
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_java_class_register_declared_method"),
+                arguments: [typeTokenExpr, nameExpr, signatureExpr, flagsExpr],
+                result: arena.appendTemporary(type: intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        for childID in sema.symbols.children(ofFQName: owner.fqName) {
+            guard let child = sema.symbols.symbol(childID) else { continue }
+            switch child.kind {
+            case .function:
+                guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
+                register(
+                    name: interner.resolve(child.name),
+                    signature: descriptor(parameterTypes: signature.parameterTypes, returnType: signature.returnType)
+                )
+            case .property:
+                guard let propertyType = sema.symbols.propertyType(for: childID) else { continue }
+                let propertyName = interner.resolve(child.name)
+                let getterName: String
+                if propertyName.hasPrefix("is"),
+                   propertyName.dropFirst(2).first?.isUppercase == true
+                {
+                    getterName = propertyName
+                } else if let first = propertyName.first {
+                    getterName = "get" + String(first).uppercased() + propertyName.dropFirst()
+                } else {
+                    getterName = "get"
+                }
+                register(name: getterName, signature: descriptor(parameterTypes: [], returnType: propertyType))
+
+                let hasRuntimePropertyAnnotation = sema.symbols.annotations(for: childID).contains { annotation in
+                    annotation.useSiteTarget == nil
+                        && resolvedAnnotationRetention(annotation, symbols: sema.symbols, interner: interner) != .source
+                }
+                if hasRuntimePropertyAnnotation {
+                    register(
+                        name: "\(getterName)$annotations",
+                        signature: descriptor(parameterTypes: [], returnType: sema.types.unitType),
+                        flags: 1
+                    )
+                }
+            default:
+                continue
+            }
+        }
     }
 
     /// KUU-1448: emits the full `emitClassLiteralMetadataRegistrationImpl`

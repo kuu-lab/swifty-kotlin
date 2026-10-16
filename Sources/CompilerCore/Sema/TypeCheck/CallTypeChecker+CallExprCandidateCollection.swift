@@ -317,10 +317,12 @@ extension CallTypeChecker {
                 // any binding of this name. A companion function can therefore
                 // hide its enclosing class's nested classifier even though
                 // Kotlin keeps callable and classifier lookup in separate
-                // namespaces. Recover only the nearest lexical classifier;
-                // constructors still go through the normal visibility and
-                // hidden-deprecation handling below.
-                let classSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
+                // namespaces. Prefer lexical classifiers (including local
+                // declarations), then inherited nested classifiers, before
+                // file-level imports and package declarations. Constructors
+                // still go through normal visibility and hidden-deprecation
+                // handling below.
+                let scopedClassSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                     return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass || symbol.kind == .object
                 }).filter { candidate in
@@ -329,7 +331,19 @@ extension CallTypeChecker {
                     else { return true }
                     return sema.symbols.actualSymbol(for: candidate) == nil
                 }
-                if let classSym = classSymbols.first, let classSymbol = ctx.cachedSymbol(classSym) {
+                let inheritedClassSymbols = inheritedNestedClassifiers(named: calleeName, in: ctx)
+                let localClassSymbol = locals[calleeName].flatMap { local -> SymbolID? in
+                    guard let symbol = ctx.cachedSymbol(local.symbol),
+                          symbol.kind == .class || symbol.kind == .enumClass
+                            || symbol.kind == .annotationClass || symbol.kind == .object
+                    else { return nil }
+                    return local.symbol
+                }
+                let classSym = localClassSymbol
+                    ?? scopedClassSymbols.first(where: { isLexicallyDeclaredClassifier($0, in: ctx) })
+                    ?? inheritedClassSymbols.first
+                    ?? scopedClassSymbols.first
+                if let classSym, let classSymbol = ctx.cachedSymbol(classSym) {
                     if classSymbol.flags.contains(.abstractType) {
                         // P5-112: Prohibit direct instantiation of abstract classes,
                         // but only when there is no other viable candidate (e.g. a

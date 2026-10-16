@@ -612,6 +612,32 @@ extension CallLowerer {
                     implicitReceiver = capturedReceiver
                 }
             }
+            // An inherited member imported through an object keeps its declaring
+            // class as the function owner, so the owner check below cannot find
+            // the singleton from the chosen symbol alone. Sema records the
+            // imported object on the call binding for this lowering path.
+            if memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
+               let importedObject = callBinding?.dispatchReceiverSymbol,
+               sema.symbols.symbol(importedObject)?.kind == .object,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               sema.types.isNominalSubtypeSymbol(importedObject, of: owner)
+            {
+                driver.emitObjectLazyInitGuardIfNeeded(
+                    objectSymbol: importedObject,
+                    arena: arena,
+                    sema: sema,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                let receiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: importedObject,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let receiver = arena.appendExpr(.symbolRef(importedObject), type: receiverType)
+                instructions.append(.constValue(result: receiver, value: .symbolRef(importedObject)))
+                implicitReceiver = receiver
+            }
             // Object member imports bind the singleton even in a scope with
             // an unrelated active receiver. Match only ordinary members;
             // member extensions keep their separately selected receivers.

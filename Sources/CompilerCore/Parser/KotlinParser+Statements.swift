@@ -968,7 +968,8 @@ extension KotlinParser {
         allowsDeclarationAssignment: Bool = false,
         allowsClassHeaderColon: Bool = false,
         allowsClassDelegation: Bool = false,
-        allowsWhereClauseContinuation: Bool = false
+        allowsWhereClauseContinuation: Bool = false,
+        allowsFunctionWhereClause: Bool = false
     ) {
         var progress = false
         var sawAssignment = false
@@ -1067,7 +1068,9 @@ extension KotlinParser {
                 // next line, so that expression bodies like
                 // `= \n try { ... } catch { ... }` or `= 1 +\n    2` are captured
                 // in the same declaration node.
-                if ParserBoundaryPolicy.continuesExpressionAfterNewline(token.kind) {
+                if ParserBoundaryPolicy.continuesExpressionAfterNewline(token.kind)
+                    || (allowsFunctionWhereClause && !sawAssignment && token.kind == .softKeyword(.where))
+                {
                     // But stop if the next line starts a new declaration
                     // (modifier keyword, declaration keyword, context-parameter
                     // prefix, or annotation) — not merely a modifier / `context`
@@ -1089,6 +1092,8 @@ extension KotlinParser {
                 // begin a line only while scanning that supertype list.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
+                    || (allowsFunctionWhereClause && !sawAssignment
+                        && stream.peek().kind == .softKeyword(.where))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
                     || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
                     || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))

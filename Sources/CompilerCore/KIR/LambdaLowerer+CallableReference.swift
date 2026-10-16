@@ -1610,44 +1610,30 @@ extension LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        if refKind == .functionRef, let targetSymbol {
-            let identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: sema.types.intType)
-            instructions.append(.constValue(result: identityTarget, value: .symbolRef(targetSymbol)))
-            let boxedCaptures = identityCaptures.map { capture in
-                let captureType = arena.exprType(capture) ?? sema.types.anyType
-                return boxValueForAnySlot(
-                    capture,
-                    sourceType: captureType,
-                    types: sema.types,
-                    symbols: sema.symbols,
-                    interner: interner,
-                    arena: arena,
-                    requireNonNull: true,
-                    sema: sema,
-                    into: &instructions
-                )
+        let identityTargetSymbol: SymbolID? = {
+            guard let targetSymbol else { return nil }
+            switch refKind {
+            case .functionRef:
+                return targetSymbol
+            case .propertyRef:
+                let propertySymbol = sema.symbols.symbol(targetSymbol)?.kind == .property
+                    ? targetSymbol
+                    : sema.symbols.accessorOwnerProperty(for: targetSymbol)
+                guard let propertySymbol else { return nil }
+                return sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             }
-            let identityCapturesExpr: KIRExprID
-            if boxedCaptures.isEmpty {
-                identityCapturesExpr = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                instructions.append(.constValue(result: identityCapturesExpr, value: .null))
-            } else {
-                identityCapturesExpr = makeReflectionArgumentList(
-                    boxedCaptures,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-            }
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("__kk_callable_ref_set_identity"),
-                arguments: [taggedExpr, identityTarget, identityCapturesExpr],
-                result: nil,
-                canThrow: false,
-                thrownResult: nil
-            ))
+        }()
+        if let identityTargetSymbol {
+            emitCallableReferenceIdentity(
+                callableExpr: taggedExpr,
+                targetSymbol: identityTargetSymbol,
+                captures: identityCaptures,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         if refKind == .functionRef {
             let anonymous = interner.resolve(memberName).hasPrefix("__AnonymousFunction_")
@@ -1662,5 +1648,53 @@ extension LambdaLowerer {
             )
         }
         return taggedExpr
+    }
+
+    func emitCallableReferenceIdentity(
+        callableExpr: KIRExprID,
+        targetSymbol: SymbolID,
+        captures: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let identityTarget = arena.appendExpr(.symbolRef(targetSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: identityTarget, value: .symbolRef(targetSymbol)))
+        let boxedCaptures = captures.map { capture in
+            let captureType = arena.exprType(capture) ?? sema.types.anyType
+            return boxValueForAnySlot(
+                capture,
+                sourceType: captureType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                requireNonNull: true,
+                sema: sema,
+                into: &instructions
+            )
+        }
+        let identityCaptures: KIRExprID
+        if boxedCaptures.isEmpty {
+            identityCaptures = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            instructions.append(.constValue(result: identityCaptures, value: .null))
+        } else {
+            identityCaptures = makeReflectionArgumentList(
+                boxedCaptures,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("__kk_callable_ref_set_identity"),
+            arguments: [callableExpr, identityTarget, identityCaptures],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
     }
 }

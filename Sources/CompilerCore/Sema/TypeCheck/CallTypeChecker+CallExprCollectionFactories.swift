@@ -53,16 +53,30 @@ extension CallTypeChecker {
 
             switch name {
             case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf":
-                if let expectedType = expectedCollectionType(withArity: 1) {
+                let expectedType = expectedCollectionType(withArity: 1)
+                if let expectedType, name != "mutableListOf", name != "arrayListOf" {
                     return (expectedType, typeArgs(from: expectedType))
                 }
                 let elementTypes = name == "listOfNotNull"
-                    ? argTypes.compactMap { type -> TypeID? in
-                        type == sema.types.nullableNothingType ? nil : sema.types.makeNonNullable(type)
+                    ? zip(args, argTypes).compactMap { argument, type -> TypeID? in
+                        let elementType = argument.isSpread
+                            ? driver.helpers.arrayElementType(for: type, sema: sema, interner: interner)
+                            : type
+                        guard let elementType else { return nil }
+                        return elementType == sema.types.nullableNothingType
+                            ? nil : sema.types.makeNonNullable(elementType)
                     }
-                    : argTypes
+                    : zip(args, argTypes).compactMap { argument, type in
+                        argument.isSpread
+                            ? driver.helpers.arrayElementType(for: type, sema: sema, interner: interner)
+                            : type
+                    }
+                let contextualElementType = expectedType.flatMap { typeArgs(from: $0).first }
+                let inferredElementType = elementTypes.isEmpty
+                    ? contextualElementType ?? sema.types.nothingType
+                    : sema.types.lub(elementTypes)
                 let elementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                    ?? (elementTypes.isEmpty ? sema.types.nothingType : sema.types.lub(elementTypes))
+                    ?? inferredElementType
                 let resultType: TypeID
                 if name == "arrayListOf" {
                     resultType = makeSyntheticListConstructorType(
