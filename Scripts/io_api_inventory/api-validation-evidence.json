@@ -1,4 +1,228 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "row_id": "internal-659f2b30aca378db",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "test_input_sha256": "97d61bc9210862772824fa2569c5f2be4bab8eacffd169e6668c2d6d38f908a3",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-11b8ac13bf35acdc",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "test_input_sha256": "4d54243c18b5ae56dcfba91c35c0e8afdabddc6eb6326fbd6de998208fb34192",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_is_empty_jvm_descriptor",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:jvm-descriptor:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:jvm-descriptor:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-fd49c613d2925d70",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e59a228d2d9af85d7c46aa101d43ce63e43d4adcc955ad3ca359982a2b6df54e",
+      "test_input_sha256": "97d61bc9210862772824fa2569c5f2be4bab8eacffd169e6668c2d6d38f908a3",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "io-probe:segment-is-empty:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }

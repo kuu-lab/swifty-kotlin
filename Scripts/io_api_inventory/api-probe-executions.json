@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "executions": [
+    {
+      "subject": "reference",
+      "execution_id": "io-probe:segment-is-empty:reference",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:candidate:source-O0",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:candidate:source-O2",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:candidate:stdlib-library-O0",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:candidate:stdlib-library-O2",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O0",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:candidate:producer-consumer-O2",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"
+    },
+    {
+      "subject": "reference",
+      "execution_id": "io-probe:segment-is-empty:visibility:reference",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:visibility:candidate",
+      "case_id": "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal"
+    },
+    {
+      "subject": "reference",
+      "execution_id": "io-probe:segment-is-empty:jvm-descriptor:reference",
+      "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_is_empty_jvm_descriptor"
+    },
+    {
+      "subject": "candidate",
+      "execution_id": "io-probe:segment-is-empty:jvm-descriptor:candidate",
+      "case_id": "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_is_empty_jvm_descriptor"
+    }
+  ]
+}

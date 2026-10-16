@@ -86,8 +86,7 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
-    def _execution_catalogs(self):
-        case_id = "core/common/test/FooTest.kt#testFoo"
+    def _execution_catalogs(self, case_id="core/common/test/FooTest.kt#testFoo"):
         other_case_id = "core/common/test/BarTest.kt#testBar"
         return {
             "reference": {f"reference-{index}": case_id for index in range(6)}
@@ -96,12 +95,12 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None):
+    def _apply(self, records, row=None, catalogs=None):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(json.dumps({"schema_version": 1, "records": records}), encoding="utf-8")
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
+            catalogs or self._execution_catalogs(),
         )
         return fixture_row
 
@@ -166,6 +165,35 @@ class ValidationEvidenceTests(unittest.TestCase):
         row["upstream_test_refs"] = "core/common/test/FooTest.kt#suite-reference"
         with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
             self._apply([self._record(row)], row)
+
+    def test_exact_local_probe_reference_can_authorize_a_dedicated_case(self):
+        row = copy.deepcopy(self.row)
+        row["upstream_test_refs"] = "core/common/test/FooTest.kt#suite-reference"
+        row["local_test_refs"] = "Tests/CompilerBackendTests/FooTests.swift#testFoo"
+        case_id = row["local_test_refs"]
+        record = self._record(row)
+        for execution in record["executions"]:
+            execution["case_id"] = case_id
+        catalogs = self._execution_catalogs()
+        for catalog in catalogs.values():
+            for execution_id in catalog:
+                if execution_id.endswith("-wrong"):
+                    continue
+                catalog[execution_id] = case_id
+        self.assertEqual(self._apply([record], row, catalogs)["status"], "verified")
+
+    def test_local_file_reference_without_method_does_not_authorize_probe_case(self):
+        row = copy.deepcopy(self.row)
+        row["local_test_refs"] = "Tests/CompilerBackendTests/FooTests.swift"
+        record = self._record(row)
+        record["executions"][0]["case_id"] = "Tests/CompilerBackendTests/FooTests.swift#testFoo"
+        catalogs = self._execution_catalogs()
+        for catalog in catalogs.values():
+            for execution_id in catalog:
+                if not execution_id.endswith("-wrong"):
+                    catalog[execution_id] = "Tests/CompilerBackendTests/FooTests.swift#testFoo"
+        with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
+            self._apply([record], row, catalogs)
 
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)
