@@ -96,7 +96,6 @@ extension CallLowerer {
                 .flatMap { sema.symbols.functionSignature(for: $0)?.returnType },
         ].compactMap { runtimeArrayNominalTypeID($0, sema: sema, interner: interner) }.first
 
-        // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(
             args[0].expr,
             ast: ast,
@@ -107,9 +106,8 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // 2. Create the array: kk_array_new_checked(size) — throws
-        // NegativeArraySizeException for negative sizes instead of silently
-        // clamping to an empty array.
+        // kk_array_new_checked throws NegativeArraySizeException for negative
+        // sizes instead of silently clamping to an empty array.
         var arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
@@ -151,7 +149,6 @@ extension CallLowerer {
         let addCallee = interner.intern("kk_op_add")
         let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
-        // 3. Loop setup: index = 0
         let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
@@ -163,7 +160,6 @@ extension CallLowerer {
         let exitLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(conditionLabel))
 
-        // 4. Loop condition: index < size
         let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
@@ -175,12 +171,10 @@ extension CallLowerer {
         ))
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: exitLabel))
 
-        // 5. Call init lambda with index, get result
         var lambdaResultExpr: KIRExprID?
         if let actionExprNode = ast.arena.expr(args[1].expr),
            case let .lambdaLiteral(_, bodyExpr, _, _) = actionExprNode
         {
-            // Inline the lambda body (same pattern as repeat)
             let lambdaParamSymbol = driver.lambdaLowerer.syntheticLambdaParamSymbol(
                 lambdaExprID: args[1].expr,
                 paramIndex: 0
@@ -203,7 +197,6 @@ extension CallLowerer {
                 driver.ctx.clearLocalValue(for: lambdaParamSymbol)
             }
         } else {
-            // Non-inline: lower the lambda and call it
             let actionExpr = driver.lowerExpr(
                 args[1].expr,
                 ast: ast,
@@ -227,7 +220,6 @@ extension CallLowerer {
             }
         }
 
-        // 6. kk_array_set(array, index, lambdaResult)
         if let lambdaResult = lambdaResultExpr {
             let setResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
@@ -240,7 +232,6 @@ extension CallLowerer {
             ))
         }
 
-        // 7. index = index + 1
         let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
@@ -261,7 +252,6 @@ extension CallLowerer {
         instructions.append(.jump(conditionLabel))
         instructions.append(.label(exitLabel))
 
-        // 8. Return the array
         return arrayExpr
     }
 }
