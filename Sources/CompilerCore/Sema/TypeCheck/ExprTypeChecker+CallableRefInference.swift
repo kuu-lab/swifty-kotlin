@@ -588,7 +588,7 @@ extension ExprTypeChecker {
                 // extensions during scope lookup so only matching candidates
                 // participate in shadowing. Keep member candidates above as
                 // the higher-priority tier.
-                candidates = ctx.scope.lookup(member, matching: { symbolID in
+                func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
                     guard let symbol = ctx.cachedSymbol(symbolID),
                           symbol.kind == .function,
                           !(symbol.flags.contains(.expectDeclaration)
@@ -609,7 +609,26 @@ extension ExprTypeChecker {
                         declaredReceiver: declaredReceiver,
                         sema: sema
                     )
+                }
+                // Local functions can be present in value-position locals even
+                // when this callable-reference scope lookup cannot see them.
+                // Match direct explicit-receiver calls: applicable local
+                // extensions form the nearest candidate tier and shadow
+                // package extensions with the same name.
+                let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
+                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                        && isApplicableExtensionReferenceCandidate(symbolID)
                 })
+                if !localExtensionCandidates.isEmpty {
+                    candidates = localExtensionCandidates
+                } else if let local = locals[member],
+                          ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                          isApplicableExtensionReferenceCandidate(local.symbol)
+                {
+                    candidates = [local.symbol]
+                } else {
+                    candidates = ctx.scope.lookup(member, matching: isApplicableExtensionReferenceCandidate)
+                }
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
                 // has no receiver parameter, so it is folded into the bound

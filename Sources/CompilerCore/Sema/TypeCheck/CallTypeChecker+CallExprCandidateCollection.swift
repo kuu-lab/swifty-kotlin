@@ -230,7 +230,25 @@ extension CallTypeChecker {
             }
             var resolvedFromLocalShadow = false
             let localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
-                ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
+                guard ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true else {
+                    return false
+                }
+                // A local extension function without an implicit receiver is
+                // not callable in this position. Let a same-named local
+                // function value (for example, `val label = receiver::label`)
+                // reach callable-value invocation instead.
+                guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                      let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+                else {
+                    return true
+                }
+                return ctx.implicitReceiverMemberLookupEntries().contains { entry in
+                    extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: entry.type,
+                        declaredReceiver: receiver,
+                        sema: sema
+                    )
+                }
             })
             if !localFunctionCandidates.isEmpty {
                 // Call-position lookup keeps every same-scope local overload,
