@@ -163,6 +163,32 @@ declaration-derived expected-output classification, rather than being described
 as new official Native reference runs. Other boundary/resource/annotation
 contracts and the parent's full upstream execution gate remain separate checks.
 
+KUU-2594 adds the dedicated `buffer-iteration-context-impl` scenario. It checks
+the candidate KLIB property's internal visibility, signature and annotations,
+the private singleton and its methods, then uses a separate consumer to exercise
+the getter and `next`/`getUnchecked` in the callback. It also inspects the pinned
+JVM getter descriptor, synthetic flags and annotations. Run its six candidate
+lanes and the JVM ABI check with:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /tmp/kuu2594-run \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case buffer-iteration-context-impl --separate-cases
+```
+
+The run receipt records the four row IDs, their current implementation/test
+input hashes, candidate KLIB metadata record hashes, reference JVM ABI output,
+and each O0/O2 lane result. The fixture, runner and runner unit test are listed
+as local test inputs for those rows.
+
+Passing this selected scenario does not complete KUU-2594's ledger evidence:
+the row-specific evidence record and its replay checks remain a separate
+requirement. The current evidence gate binds executions to method-specific
+upstream tests; this local probe needs a supported execution ID mapping in
+KUU-2469 before its results can promote the four rows.
+
 ### F02 pre-rebase acceptance snapshot, 2026-10-14
 
 KUU-1822 remains incomplete. The full pre-rebase run used retrieved master
