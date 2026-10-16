@@ -46,6 +46,23 @@ class F02GateTests(unittest.TestCase):
         self.assertFalse(matrix.run_cases_separately([{"id": "ordinary"}], requested=False))
         self.assertTrue(matrix.run_cases_separately([{"id": "ordinary"}], requested=True))
 
+    def test_segment_write_back_data_has_a_direct_view_and_internal_abi_probe(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-write-back-data")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        consumer = case["consumer"].read_text(encoding="utf-8")
+        negative = case["negative_consumer"].read_text(encoding="utf-8")
+        self.assertEqual(
+            case["evidence_case_id"],
+            "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+        )
+        self.assertIn("segment.writeBackData(data, bytesToCommit)", producer)
+        self.assertIn("emptySegment.writeBackData(emptyData, 0)", producer)
+        self.assertIn("segmentWriteBackDataProbe()", consumer)
+        self.assertIn("segment.writeBackData(data, 1)", negative)
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(len(matrix.LANES), 6)
+        self.assertTrue(matrix.run_cases_separately([case], requested=False))
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

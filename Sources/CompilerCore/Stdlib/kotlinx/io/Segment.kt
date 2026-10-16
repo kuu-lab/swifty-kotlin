@@ -368,6 +368,7 @@ public class Segment {
      * container eventually changes from ByteArray to something else.
      */
     @PublishedApi
+    @kotlin.jvm.JvmSynthetic
     @Suppress("UNUSED_PARAMETER")
     internal fun writeBackData(data: ByteArray, bytesToCommit: Int): Unit = Unit
 

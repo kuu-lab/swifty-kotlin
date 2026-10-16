@@ -140,6 +140,14 @@ def scenarios() -> list[dict]:
                   "jvm_class": "kuu2593.segmentisemptyconsumer.ConsumerKt", "reference": "jvm",
                   "evidence_id_prefix": "io-probe:segment-is-empty",
                   "evidence_case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"})
+    segment_write_back_data = HERE / "probes/segment_write_back_data"
+    cases.append({"id": "segment-write-back-data", "producer": [segment_write_back_data / "Producer.kt"],
+                  "consumer": segment_write_back_data / "Consumer.kt",
+                  "negative_consumer": segment_write_back_data / "NegativeConsumer.kt",
+                  "entry": "kuu2588.segmentwritebackdataconsumer.main",
+                  "jvm_class": "kuu2588.segmentwritebackdataconsumer.ConsumerKt", "reference": "jvm",
+                  "evidence_id_prefix": "io-probe:segment-write-back-data",
+                  "evidence_case_id": "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe"})
     return cases
 
 
@@ -398,6 +406,137 @@ def check_segment_is_empty_visibility(
             "commands": {"reference": reference_command, "candidate": candidate_command}}
 
 
+def check_segment_write_back_data_jvm_descriptor(javap: Path, javac: Path, core_jar: Path,
+                                                 kotlin_home: Path, output: Path) -> dict:
+    case_id = "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_write_back_data_jvm_descriptor"
+    probe_directory = output / "segment-write-back-data-jvm-descriptor"
+    probe_directory.mkdir()
+    javap_command = [str(javap), "-p", "-s", "-v", "-classpath", str(core_jar), "kotlinx.io.Segment"]
+    javap_code = execute(javap_command, probe_directory, "javap", 30)
+    if javap_code != 0:
+        raise RuntimeError("javap failed for the pinned kotlinx-io JVM artifact")
+    javap_stdout = (probe_directory / "javap.stdout").read_bytes()
+    javap_text = javap_stdout.decode("utf-8")
+    declarations = list(re.finditer(
+        r"(?m)^\s*public final void writeBackData\(byte\[\], int\);$", javap_text,
+    ))
+    if len(declarations) != 1:
+        raise RuntimeError("pinned JVM Segment must contain exactly one public writeBackData(byte[], int)")
+    start = declarations[0].end()
+    next_member = re.search(r"(?m)^\s{2}(?:public|protected|private) .+;$", javap_text[start:])
+    method_block = javap_text[start:start + next_member.start()] if next_member else javap_text[start:]
+    if "descriptor: ([BI)V" not in method_block:
+        raise RuntimeError("pinned JVM writeBackData descriptor is not ([BI)V")
+    if "ACC_PUBLIC" not in method_block or "ACC_FINAL" not in method_block or "ACC_SYNTHETIC" not in method_block:
+        raise RuntimeError("pinned JVM writeBackData lacks public/final/synthetic method flags")
+    if "kotlin.PublishedApi" not in method_block:
+        raise RuntimeError("pinned JVM writeBackData lacks the PublishedApi annotation")
+    if "writeBackData$default" in javap_text:
+        raise RuntimeError("writeBackData must not expose a default-argument wrapper")
+
+    api_path = HERE / "upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.api"
+    api_text = api_path.read_text(encoding="utf-8")
+    api_signature = "public final synthetic fun writeBackData ([BI)V"
+    if api_signature not in api_text:
+        raise RuntimeError("pinned JVM API dump no longer records the Segment.writeBackData descriptor")
+    ledger_path = HERE / "api-inventory.tsv"
+    with ledger_path.open(encoding="utf-8", newline="") as stream:
+        rows = [row for row in csv.DictReader(stream, delimiter="\t")
+                if row.get("row_id") == "jvm-7f25e02165e30b43"]
+    if len(rows) != 1:
+        raise RuntimeError("Segment.writeBackData JVM API row is missing or duplicated")
+    row = rows[0]
+    if (row["signature"] != api_signature or row["owner_issue"] != "KUU-2588"
+            or "PublishedApi" not in row["annotations"] or "JvmSynthetic" not in row["annotations"]
+            or row["status"] not in {"unverified", "verified"}):
+        raise RuntimeError("generated Segment.writeBackData JVM ledger row does not match the pinned declaration")
+
+    source_path = ROOT / "Sources/CompilerCore/Stdlib/kotlinx/io/Segment.kt"
+    source = source_path.read_text(encoding="utf-8")
+    source_declaration = re.search(
+        r"(?ms)@PublishedApi\s+@kotlin\.jvm\.JvmSynthetic\s+@Suppress\(\"UNUSED_PARAMETER\"\)\s+"
+        r"internal fun writeBackData\(data: ByteArray, bytesToCommit: Int\): Unit\s*=\s*Unit",
+        source,
+    )
+    if source_declaration is None:
+        raise RuntimeError("candidate Segment.writeBackData source shape or annotations do not match upstream")
+
+    java_source = probe_directory / "SegmentWriteBackDataJavaConsumer.java"
+    java_source.write_text(
+        "import kotlinx.io.Segment;\n"
+        "final class SegmentWriteBackDataJavaConsumer {\n"
+        "  static void call(Segment segment, byte[] data) { segment.writeBackData(data, 1); }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    javac_command = [
+        str(javac), "-J-Duser.language=en", "-J-Duser.country=US",
+        "-classpath", str(core_jar) + os.pathsep + str(kotlin_home / "lib/kotlin-stdlib.jar"),
+        "-d", str(probe_directory), str(java_source),
+    ]
+    javac_code = execute(javac_command, probe_directory, "javac", 30,
+                         {"JAVA_HOME": str(javac.resolve().parent.parent)})
+    javac_stdout = (probe_directory / "javac.stdout").read_bytes()
+    javac_stderr = (probe_directory / "javac.stderr").read_bytes()
+    javac_diagnostic = (javac_stdout + javac_stderr).decode("utf-8", errors="replace").lower()
+    if javac_code == 0 or "writebackdata" not in javac_diagnostic or "cannot find symbol" not in javac_diagnostic:
+        raise RuntimeError("javac did not reject the synthetic writeBackData method for Java callers")
+
+    return {
+        "case_id": case_id,
+        "reference": {"execution_id": "io-probe:segment-write-back-data:jvm-descriptor:reference",
+                      "result": "PASS", "exit_code": 0,
+                      "javap_stdout_sha256": hashlib.sha256(javap_stdout).hexdigest(),
+                      "javac_diagnostic_sha256": hashlib.sha256(javac_stdout + javac_stderr).hexdigest(),
+                      "javac_rejection_exit_code": javac_code, "api_dump_sha256": sha(api_path)},
+        "candidate": {"execution_id": "io-probe:segment-write-back-data:jvm-descriptor:candidate",
+                      "result": "PASS", "exit_code": 0, "row_id": row["row_id"],
+                      "signature": row["signature"], "owner_issue": row["owner_issue"],
+                      "source_shape": "internal ByteArray/Int -> Unit with PublishedApi and JvmSynthetic"},
+        "javap_command": javap_command,
+        "javac_command": javac_command,
+    }
+
+
+def check_segment_write_back_data_visibility(
+    compiler: Path, stdlib: Path, negative_consumer: Path, kotlin_home: Path,
+    java: Path, core_jar: Path, output: Path, timeout: float,
+) -> dict:
+    case_id = "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal"
+    reference_directory = output / "segment-write-back-data-reference-visibility"
+    candidate_directory = output / "segment-write-back-data-candidate-visibility"
+    reference_directory.mkdir()
+    candidate_directory.mkdir()
+    reference_jar = reference_directory / "negative.jar"
+    reference_command = [str((kotlin_home / "bin/kotlinc").resolve()), str(negative_consumer),
+                         "-classpath", str(core_jar), "-d", str(reference_jar)]
+    reference_code = execute(reference_command, reference_directory, "compile", timeout,
+                             {"JAVA_HOME": str(java.resolve().parent.parent)})
+    candidate_output = candidate_directory / "negative"
+    candidate_command = [str(compiler), "-O0", "--no-incremental", "--stdlib-library", str(stdlib),
+                         str(negative_consumer), "-o", str(candidate_output)]
+    candidate_code = execute(candidate_command, candidate_directory, "compile", timeout)
+    results = {}
+    for subject, code, directory, execution_id in (
+        ("reference", reference_code, reference_directory,
+         "io-probe:segment-write-back-data:visibility:reference"),
+        ("candidate", candidate_code, candidate_directory,
+         "io-probe:segment-write-back-data:visibility:candidate"),
+    ):
+        stdout = (directory / "compile.stdout").read_bytes()
+        stderr = (directory / "compile.stderr").read_bytes()
+        diagnostic = (stdout + stderr).decode("utf-8", errors="replace").lower()
+        if code == 0 or "writebackdata" not in diagnostic or not any(
+            marker in diagnostic for marker in ("internal", "invisible", "visibility")
+        ):
+            raise RuntimeError(f"{subject} compiler did not reject the unsuppressed internal writeBackData call")
+        results[subject] = {"execution_id": execution_id, "result": "PASS", "exit_code": 0,
+                            "rejection_exit_code": code,
+                            "diagnostic_sha256": hashlib.sha256(stdout + stderr).hexdigest()}
+    return {"case_id": case_id, **results,
+            "commands": {"reference": reference_command, "candidate": candidate_command}}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, required=True)
@@ -488,7 +627,30 @@ def main(argv: list[str] | None = None) -> int:
                 compiler, stdlib, segment_case["negative_consumer"], args.kotlin_home.resolve(),
                 args.java.resolve(), core_jar, output, args.compile_timeout,
             )
-            summary["api_probe_checks"] = {"jvm_descriptor": descriptor, "internal_visibility": visibility}
+            summary.setdefault("api_probe_checks", {})["segment-is-empty"] = {
+                "jvm_descriptor": descriptor, "internal_visibility": visibility,
+            }
+        segment_write_back_data_case = next(
+            (case for case in selected if case["id"] == "segment-write-back-data"), None
+        )
+        if segment_write_back_data_case is not None:
+            core_jar = next((jar for jar in jars if jar.name.startswith("kotlinx-io-core-jvm-")), None)
+            if core_jar is None:
+                raise RuntimeError("the locked kotlinx-io core JVM artifact is required for Segment probes")
+            javap = args.java.resolve().parent / "javap"
+            javac = args.java.resolve().parent / "javac"
+            if not javap.is_file() or not javac.is_file():
+                raise RuntimeError("javap and javac from the locked Java 21 runtime are required for Segment ABI verification")
+            descriptor = check_segment_write_back_data_jvm_descriptor(
+                javap, javac, core_jar, args.kotlin_home.resolve(), output,
+            )
+            visibility = check_segment_write_back_data_visibility(
+                compiler, stdlib, segment_write_back_data_case["negative_consumer"],
+                args.kotlin_home.resolve(), args.java.resolve(), core_jar, output, args.compile_timeout,
+            )
+            summary.setdefault("api_probe_checks", {})["segment-write-back-data"] = {
+                "jvm_descriptor": descriptor, "internal_visibility": visibility,
+            }
         def record_lane(case: dict, expected: bytes, directory: Path, route: str, optimization: str) -> None:
             print(f"RUN {case['id']} {route} {optimization}", flush=True)
             try:

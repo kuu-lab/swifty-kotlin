@@ -1269,6 +1269,12 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 def owner_for(row: dict) -> str:
     if row.get("row_id") in {
+        "internal-17908c26346d6e53",
+        "jvm-7f25e02165e30b43",
+        "klib-d5ac857d4e96b1ad",
+    }:
+        return "KUU-2588"
+    if row.get("row_id") in {
         "internal-659f2b30aca378db",
         "jvm-11b8ac13bf35acdc",
         "klib-fd49c613d2925d70",
@@ -1558,6 +1564,20 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     direct_probe_refs = {
+        "internal-17908c26346d6e53": [
+            "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+            "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal",
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSegmentWriteBackDataMetadataTests.swift#freshStdlibKlibRetainsPublishedSyntheticInternalMethodShape",
+        ],
+        "klib-d5ac857d4e96b1ad": [
+            "Scripts/io_api_inventory/probes/segment_write_back_data/Producer.kt#segmentWriteBackDataProbe",
+            "Scripts/io_api_inventory/probes/segment_write_back_data/NegativeConsumer.kt#segmentWriteBackDataMustRemainInternal",
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSegmentWriteBackDataMetadataTests.swift#freshStdlibKlibRetainsPublishedSyntheticInternalMethodShape",
+        ],
+        "jvm-7f25e02165e30b43": [
+            "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_write_back_data_jvm_descriptor",
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSegmentWriteBackDataMetadataTests.swift#freshStdlibKlibRetainsPublishedSyntheticInternalMethodShape",
+        ],
         "internal-659f2b30aca378db": [
             "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
             "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal",

@@ -284,6 +284,26 @@ python3 Scripts/io_api_inventory/run_f02_matrix.py \
   --java /path/to/java21/bin/java --dependencies .runtime-build/deps
 ```
 
+The `Segment.writeBackData(ByteArray, Int)` probe calls the internal member
+directly with a writable view and both positive and zero `bytesToCommit` values.
+It checks that the call returns `Unit` without committing `Segment.limit`, then
+that the caller's explicit commit exposes the modified bytes. The external
+consumer matrix covers source, freshly built stdlib KLIB, and independent
+producer/consumer routes at O0/O2. A negative Kotlin consumer checks internal
+visibility; the pinned JVM artifact probe checks descriptor `([BI)V`, public,
+final, and synthetic flags, the `PublishedApi` annotation, the absence of a
+default wrapper, and Java source rejection. A targeted Swift test checks the
+fresh KLIB declaration's member owner, two required parameters, internal
+visibility, and `PublishedApi`/`JvmSynthetic` annotations.
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --case segment-write-back-data \
+  --output /tmp/kuu-2588-segment-write-back-data \
+  --kotlin-home /path/to/kotlin-2.3.10 \
+  --java /path/to/java21/bin/java --dependencies .runtime-build/deps
+```
+
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```
