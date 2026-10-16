@@ -68,6 +68,33 @@ struct CompactMetadataIndexTests {
         }
     }
 
+    @Test func inheritedConstructorVisibilitySurvivesEveryMetadataLayout() throws {
+        let record = MetadataRecord(
+            kind: .constructor, visibility: .protected,
+            constructorVisibilityInherited: true,
+            mangledName: "_nested_init", fqName: "demo.Owner.Nested.init"
+        )
+        let encoder = MetadataEncoder()
+        let layouts = [
+            Data(encoder.serialize([record]).utf8),
+            Data(encoder.serializeIndexed([record]).utf8),
+            encoder.serializeCompactIndexed([record]),
+        ]
+        for data in layouts {
+            let decoded = try #require(MetadataDecoder().decode(data).first)
+            #expect(decoded.constructorVisibilityInherited)
+        }
+
+        let file = try #require(IndexedMetadataFile(data: encoder.serializeCompactIndexed([record])))
+        let indexRecord = try #require(file.entries.first?.compactRecord)
+        #expect(indexRecord.constructorVisibilityInherited)
+        let imported = try #require(DataFlowSemaPhase().makeImportedLibraryIndexRecord(
+            indexRecord, path: "test", diagnostics: DiagnosticEngine(),
+            interner: StringInterner(), nominalTypeParametersByFQName: [:]
+        ))
+        #expect(imported.constructorVisibilityInherited)
+    }
+
     @Test(arguments: [MetadataModality.final, .open, .abstract])
     func modalityAndMinimalDefaultsRoundTrip(modality: MetadataModality) throws {
         let record = MetadataRecord(kind: .class, fqName: "demo.C", modality: modality)
@@ -118,7 +145,8 @@ struct CompactMetadataIndexTests {
         for (offset, value) in [
             (header, UInt32.max), (header + 4, UInt32.max), (header + 8, UInt32.max),
             (header + 12, UInt32(79)), (header + 16, UInt32.max),
-            (table + 20, UInt32(1 << 21)), (table + 20, UInt32(5 << 18)), (table + 20, UInt32(3 << 16)),
+            (table + 20, UInt32(1 << 21)), (table + 20, UInt32(1 << 22)),
+            (table + 20, UInt32(5 << 18)), (table + 20, UInt32(3 << 16)),
             (table + 24, UInt32(16)), (table + 28, UInt32(4)),
             (table + 32, UInt32.max), (table + 32, UInt32(0)),
         ] {

@@ -21,6 +21,7 @@ extension DataFlowSemaPhase {
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
         let visibility: Visibility
+        let constructorVisibilityInherited: Bool
         let mangledName: String
         let fqName: [InternedString]
         let arity: Int
@@ -99,6 +100,7 @@ extension DataFlowSemaPhase {
         init(
             kind: SymbolKind,
             visibility: Visibility = .public,
+            constructorVisibilityInherited: Bool = false,
             mangledName: String = "",
             fqName: [InternedString] = [],
             arity: Int = 0,
@@ -164,6 +166,7 @@ extension DataFlowSemaPhase {
         ) {
             self.kind = kind
             self.visibility = visibility
+            self.constructorVisibilityInherited = constructorVisibilityInherited
             self.mangledName = mangledName
             self.fqName = fqName
             self.arity = arity

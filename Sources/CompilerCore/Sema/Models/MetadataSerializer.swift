@@ -11,6 +11,7 @@ package enum MetadataModality: String {
 package struct MetadataRecord {
     package let kind: SymbolKind
     package let visibility: Visibility
+    package let constructorVisibilityInherited: Bool
     let mangledName: String
     package let fqName: String
     package let arity: Int
@@ -139,6 +140,7 @@ package struct MetadataRecord {
     init(
         kind: SymbolKind,
         visibility: Visibility = .public,
+        constructorVisibilityInherited: Bool = false,
         mangledName: String = "",
         fqName: String = "",
         arity: Int = 0,
@@ -202,6 +204,7 @@ package struct MetadataRecord {
     ) {
         self.kind = kind
         self.visibility = visibility
+        self.constructorVisibilityInherited = constructorVisibilityInherited
         self.mangledName = mangledName
         self.fqName = fqName
         self.arity = arity

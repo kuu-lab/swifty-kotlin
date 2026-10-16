@@ -117,6 +117,7 @@ final class MetadataDecoder {
         return MetadataRecord(
             kind: kind,
             visibility: rec.visibility,
+            constructorVisibilityInherited: rec.constructorVisibilityInherited,
             mangledName: mangledName,
             fqName: rec.fqName,
             arity: rec.arity,
@@ -184,6 +185,7 @@ final class MetadataDecoder {
     private struct MutableMetadataRecord {
         var fqName: String = ""
         var visibility: Visibility = .public
+        var constructorVisibilityInherited: Bool = false
         var arity: Int = 0
         var isSuspend: Bool = false
         var isInline: Bool = false
@@ -257,6 +259,8 @@ final class MetadataDecoder {
             case "protected": .protected
             default: .private
             }
+        case "constructorVisibilityInherited":
+            record.constructorVisibilityInherited = value == "1" || value == "true"
         case "arity":
             record.arity = Int(value) ?? Int.max
         case "suspend":
