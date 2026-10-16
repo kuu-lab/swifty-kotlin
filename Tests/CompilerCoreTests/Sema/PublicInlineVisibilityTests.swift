@@ -126,6 +126,20 @@ struct PublicInlineVisibilityTests {
             }
             """, false),
             ("""
+            inline fun drive(crossinline block: Int.() -> Unit) {
+                val worker = object { fun run() { block(1) } }
+                worker.run()
+            }
+            fun box(): String { drive { }; return "OK" }
+            """, false),
+            ("""
+            fun drive(block: Int.() -> Unit) {
+                val worker = object { fun run() { block(1) } }
+                worker.run()
+            }
+            fun box(): String { drive { }; return "OK" }
+            """, false),
+            ("""
             @Suppress("NON_PUBLIC_CALL_FROM_PUBLIC_INLINE")
             inline fun exposed(): Int = hidden()
             private fun hidden(): Int = 1

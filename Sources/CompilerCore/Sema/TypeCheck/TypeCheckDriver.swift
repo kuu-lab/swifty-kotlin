@@ -188,6 +188,7 @@ final class TypeCheckDriver {
               ctx.visibilityChecker.isPublicAPI(caller),
               let binding = sema.bindings.callBinding(for: id),
               let callee = sema.symbols.symbol(binding.chosenCallee),
+              !isInlineBodyAnonymousObjectMethod(callee, caller: caller),
               !ctx.visibilityChecker.isPublicAPI(callee, allowProtected: false),
               let range = ast.arena.exprRange(id),
               !diagnostics.diagnostics.contains(where: {
@@ -199,6 +200,22 @@ final class TypeCheckDriver {
             "Public-API inline function cannot access non-public-API declaration '\(interner.resolve(callee.name))'.",
             range: range
         )
+    }
+
+    private func isInlineBodyAnonymousObjectMethod(_ callee: SemanticSymbol, caller: SemanticSymbol) -> Bool {
+        guard callee.kind == .function,
+              let ownerID = sema.symbols.parentSymbol(for: callee.id),
+              let owner = sema.symbols.symbol(ownerID),
+              owner.kind == .class,
+              owner.flags.contains(.synthetic),
+              interner.resolve(owner.name).hasPrefix("__ObjectLiteral_"),
+              let callerRange = caller.declSite,
+              let ownerRange = owner.declSite,
+              callerRange.contains(ownerRange)
+        else {
+            return false
+        }
+        return true
     }
 
     func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile], frontendJobs: Int = 1) throws {
