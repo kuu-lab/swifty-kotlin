@@ -3,7 +3,7 @@
 /// writes (intersection, for initialization on every normal constructor exit).
 final class ValPropertyInitializationChecker {
     private enum Exit: Hashable {
-        case normal, returned, thrown
+        case normal, returned, lambdaReturned, thrown
         case broken(InternedString?), continued(InternedString?)
     }
     private struct State: Hashable {
@@ -60,6 +60,8 @@ final class ValPropertyInitializationChecker {
     private var immutableFields: Set<SymbolID> = []
     private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
+    private var inlineLambdaBodyDepth = 0
+    private var deferredLambdaBodyDepth = 0
 
     init(ast: ASTModule, sema: SemaModule, interner: StringInterner) {
         self.ast = ast
@@ -306,7 +308,15 @@ final class ValPropertyInitializationChecker {
             }
         case let .returnExpr(value, _, _):
             if let value { visit(value) }
-            flow.exit(.returned)
+            if inlineLambdaBodyDepth > deferredLambdaBodyDepth {
+                if sema.bindings.lambdaReturnTargets[id] != nil {
+                    flow.exit(.lambdaReturned)
+                } else if sema.bindings.functionReturnLambdaPaths[id] != nil {
+                    flow.exit(.returned)
+                }
+            } else {
+                flow.exit(.returned)
+            }
         case let .throwExpr(value, _):
             visit(value); flow.exit(.thrown)
         case let .breakExpr(label, _): flow.exit(.broken(label))
@@ -351,15 +361,17 @@ final class ValPropertyInitializationChecker {
             } else { visit(rhs) }
         case let .call(callee, _, args, _), let .memberCall(callee, _, _, args, _):
             visit(callee)
-            visitArguments(args, flow: &flow, permitsInitialization: permitsInitialization)
+            visitArguments(args, callExprID: id, flow: &flow, permitsInitialization: permitsInitialization)
         case let .safeMemberCall(receiver, _, _, args, _):
             visit(receiver)
             var called = flow
-            visitArguments(args, flow: &called, permitsInitialization: permitsInitialization)
+            visitArguments(args, callExprID: id, flow: &called, permitsInitialization: permitsInitialization)
             flow.merge(called)
         case let .lambdaLiteral(_, body, _, _):
             var deferred = Flow(entry)
+            deferredLambdaBodyDepth += 1
             walk(body, flow: &deferred, permitsInitialization: false)
+            deferredLambdaBodyDepth -= 1
         case let .localFunDecl(_, _, _, _, body, _, _, _):
             var deferred = Flow(entry)
             walk(body, flow: &deferred, permitsInitialization: false)
@@ -424,9 +436,49 @@ final class ValPropertyInitializationChecker {
         flow.merge(iteration)
     }
 
-    private func visitArguments(_ args: [CallArgument], flow: inout Flow, permitsInitialization: Bool) {
-        for argument in args {
-            walk(argument.expr, flow: &flow, permitsInitialization: permitsInitialization)
+    private func visitArguments(
+        _ args: [CallArgument],
+        callExprID: ExprID,
+        flow: inout Flow,
+        permitsInitialization: Bool
+    ) {
+        for (argumentIndex, argument) in args.enumerated() {
+            guard deferredLambdaBodyDepth == 0,
+                  allowsNonLocalReturn(argumentIndex: argumentIndex, callExprID: callExprID),
+                  case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(argument.expr),
+                  let entry = flow.paths[.normal]
+            else {
+                walk(argument.expr, flow: &flow, permitsInitialization: permitsInitialization)
+                continue
+            }
+
+            // An inline callback may exit the constructor from inside its body.
+            // Keep that path separate from normal callback completion, since an
+            // inline function is not necessarily required to invoke its callback.
+            var callback = Flow(entry)
+            inlineLambdaBodyDepth += 1
+            walk(body, flow: &callback, permitsInitialization: true)
+            inlineLambdaBodyDepth -= 1
+
+            if let localReturn = callback.paths.removeValue(forKey: .lambdaReturned) {
+                callback.merge(localReturn, at: .normal)
+            }
+            if let normal = callback.paths[.normal] {
+                flow.merge(normal, at: .normal)
+            }
+            if let returned = callback.paths[.returned] {
+                flow.merge(returned, at: .returned)
+            }
         }
+    }
+
+    private func allowsNonLocalReturn(argumentIndex: Int, callExprID: ExprID) -> Bool {
+        guard let binding = sema.bindings.callBinding(for: callExprID),
+              sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
+              let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+        else { return false }
+        let parameterIndex = binding.parameterMapping[argumentIndex] ?? argumentIndex
+        return !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+            || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
     }
 }

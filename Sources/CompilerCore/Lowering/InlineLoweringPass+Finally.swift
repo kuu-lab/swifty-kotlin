@@ -13,7 +13,8 @@ extension InlineLoweringPass {
     /// Resolve cleanup after expansion, without crossing the named return target.
     func resolveNonLocalReturnScopes(
         _ body: [KIRInstruction], locations: [SourceRange?],
-        arena: KIRArena, unitType: TypeID?, returnType: TypeID? = nil
+        arena: KIRArena, unitType: TypeID?, returnType: TypeID? = nil,
+        bareReturnValue: KIRExprID? = nil
     ) -> (body: [KIRInstruction], locations: [SourceRange?]) {
         var scopes: [ReturnScope] = []
         var suspended: [[(Int, ReturnScope)]] = []
@@ -73,18 +74,20 @@ extension InlineLoweringPass {
             if let cleanup = cleanupScopes(to: destination).last,
                let index = routes[cleanup.value]?.firstIndex(where: { $0.destination == destination }),
                let route = routes[cleanup.value]?[index] {
-                let returned = value ?? arena.appendExpr(.unit, type: unitType)
+                let returned = value ?? bareReturnValue ?? arena.appendExpr(.unit, type: unitType)
                 output.append(.copy(from: returned, to: route.value))
                 if let discriminator = discriminators[cleanup.value] {
                     output.append(.constValue(result: discriminator, value: .intLiteral(Int64(index))))
                 }
                 output.append(.jump(cleanup.target))
             } else if let destination, let scope = scopes.last(where: { $0.value == destination }) {
-                let returned = value ?? arena.appendExpr(.unit, type: unitType)
+                let returned = value ?? bareReturnValue ?? arena.appendExpr(.unit, type: unitType)
                 output.append(.copy(from: returned, to: scope.value))
                 output.append(.jump(scope.target))
             } else if let value {
                 output.append(.returnValue(value))
+            } else if let bareReturnValue {
+                output.append(.returnValue(bareReturnValue))
             } else {
                 output.append(.returnUnit)
             }

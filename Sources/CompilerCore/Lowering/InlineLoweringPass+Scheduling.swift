@@ -195,9 +195,19 @@ extension InlineLoweringPass {
             }) {
                 module.inlineBodiesBeforeFinallyLowering[function.symbol] = body
             }
+            let bareConstructorReturnValue: KIRExprID? = if ctx.sema?.symbols.symbol(function.symbol)?.kind == .constructor,
+                                                             let receiver = function.params.first
+            {
+                // Constructor calls return the allocated instance even though
+                // Kotlin's source-level bare return carries no value.
+                module.arena.appendExpr(.symbolRef(receiver.symbol), type: receiver.type)
+            } else {
+                nil
+            }
             let resolved = resolveNonLocalReturnScopes(
                 body, locations: locations, arena: module.arena,
-                unitType: unitType, returnType: function.returnType
+                unitType: unitType, returnType: function.returnType,
+                bareReturnValue: bareConstructorReturnValue
             )
             body = resolved.body
             locations = resolved.locations

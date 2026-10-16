@@ -482,7 +482,24 @@ extension DeclTypeChecker {
                 ctx: constructorCtx,
                 locals: &locals
             )
-            _ = inferFunctionBodyType(ctor.body, ctx: constructorCtx, locals: &locals, expectedType: nil)
+            let constructorBodyContext: TypeInferenceContext
+            if let currentCtorSymbolID {
+                constructorBodyContext = constructorCtx.copying(
+                    lambdaDepth: 0,
+                    enclosingFunctionReturnType: sema.types.unitType,
+                    enclosingFunctionSymbol: currentCtorSymbolID,
+                    enclosingLambdaExprIDs: [],
+                    currentDeclSymbol: currentCtorSymbolID
+                )
+            } else {
+                constructorBodyContext = constructorCtx
+            }
+            _ = inferFunctionBodyType(
+                ctor.body,
+                ctx: constructorBodyContext,
+                locals: &locals,
+                expectedType: nil
+            )
         }
     }
 
