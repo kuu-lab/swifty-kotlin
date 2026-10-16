@@ -677,22 +677,34 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             }
-            candidates = ctx.cachedScopeLookup(member).filter { symbolID in
-                guard let symbol = ctx.cachedSymbol(symbolID) else {
+            let localFunctionCandidates = ctx.scope.lookup(member, matching: { symbolID in
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.flags.contains(.localFunction),
+                      symbol.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
                     return false
                 }
-                // A bare `::name` cannot reference an extension function —
-                // kotlinc reports `unresolved reference`; only `Type::ext`,
-                // `obj::ext`, and the implicit-receiver bound form (handled
-                // via `implicitMemberCandidates`) reach extensions.
-                return symbol.kind == .constructor
-                    || (symbol.kind == .function
-                        && !driver.helpers.declaresExtensionReceiver(
-                            symbolID,
-                            sema: sema,
-                            interner: interner
-                        ))
-            }
+                return signature.receiverType == nil
+            })
+            candidates = localFunctionCandidates.isEmpty
+                ? ctx.cachedScopeLookup(member).filter { symbolID in
+                    guard let symbol = ctx.cachedSymbol(symbolID) else {
+                        return false
+                    }
+                    // A bare `::name` cannot reference an extension function —
+                    // kotlinc reports `unresolved reference`; only `Type::ext`,
+                    // `obj::ext`, and the implicit-receiver bound form (handled
+                    // via `implicitMemberCandidates`) reach extensions.
+                    return symbol.kind == .constructor
+                        || (symbol.kind == .function
+                            && !driver.helpers.declaresExtensionReceiver(
+                                symbolID,
+                                sema: sema,
+                                interner: interner
+                            ))
+                }
+                : localFunctionCandidates
             if candidates.isEmpty,
                let local = locals[member],
                let localSymbol = ctx.cachedSymbol(local.symbol),

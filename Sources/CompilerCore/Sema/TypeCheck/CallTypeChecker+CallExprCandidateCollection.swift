@@ -227,10 +227,19 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             var resolvedFromLocalShadow = false
+            let localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+                ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
+            })
+            if !localFunctionCandidates.isEmpty {
+                // Call-position lookup keeps every same-scope local overload,
+                // even when a value with the same name occupies the value namespace.
+                candidates = localFunctionCandidates
+                resolvedFromLocalShadow = true
+            }
             // Lambda parameters carry synthetic (negative) symbol IDs with no
             // symbol-table entry, so a missing symbol must not skip the shadow
             // check: such a local is still a value that hides same-named functions.
-            if let local = locals[calleeName] {
+            if localFunctionCandidates.isEmpty, let local = locals[calleeName] {
                 let localSymbolKind = ctx.cachedSymbol(local.symbol)?.kind
                 let localIsCallableValue: Bool = {
                     if case .functionType = sema.types.kind(of: local.type) {

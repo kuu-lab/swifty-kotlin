@@ -778,6 +778,12 @@ extension LocalDeclTypeChecker {
             nullability: .nonNull
         )))
 
+        // Local functions share the lexical call namespace, where same-named
+        // declarations form an overload set. Keep them in scope separately
+        // from local values, which use `LocalBindings` for value-position lookup.
+        ctx.scope.insert(funSymbol)
+        ctx.semaCacheContext?.invalidateScopeLookups()
+
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
         let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
         ctx.dataFlow.localStability.currentLocalFunctionScope = id
@@ -915,7 +921,13 @@ extension LocalDeclTypeChecker {
             )
         )
 
-        locals[name] = (finalFunType, funSymbol, false, true)
+        let existingLocalIsValue: Bool = {
+            guard let existingLocal = locals[name] else { return false }
+            return sema.symbols.symbol(existingLocal.symbol)?.flags.contains(.localFunction) != true
+        }()
+        if !existingLocalIsValue {
+            locals[name] = (finalFunType, funSymbol, false, true)
+        }
         sema.bindings.bindIdentifier(id, symbol: funSymbol)
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
