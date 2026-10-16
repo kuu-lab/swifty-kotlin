@@ -487,7 +487,7 @@ public final class CompilerDriver {
                     availableSymbols: availableSymbols,
                     depended: &depended
                 )
-                for memberID in entry.memberFunctions {
+                for memberID in entry.memberFunctions + entry.memberProperties + entry.nestedClasses {
                     collectDeclDependencies(
                         declID: memberID,
                         ast: ast,

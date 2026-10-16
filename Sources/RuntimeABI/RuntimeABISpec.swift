@@ -118,6 +118,7 @@ public enum RuntimeABISpec {
         delegateFunctions,
         dispatchBridgeFunctions,
         durationFunctions,
+        enumFunctions,
         exceptionFunctions,
         fileIOFunctions,
         fileSystemExceptionFunctions,

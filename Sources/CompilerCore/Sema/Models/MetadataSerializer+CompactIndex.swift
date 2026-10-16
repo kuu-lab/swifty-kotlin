@@ -25,6 +25,7 @@ struct CompactMetadataIndexRecord {
     var isInfix: Bool { flags & (1 << 3) != 0 }
     var isOverride: Bool { flags & (1 << 4) != 0 }
     var isMemberExtension: Bool { flags & (1 << 5) != 0 }
+    var constructorVisibilityInherited: Bool { flags & (1 << 21) != 0 }
     var isMutable: Bool { flags & (1 << 6) != 0 }
     var isDataClass: Bool { flags & (1 << 7) != 0 }
     var isOpenClass: Bool { flags & (1 << 8) != 0 }
@@ -51,7 +52,9 @@ struct CompactMetadataIndexRecord {
     /// shell shape directly, without allocating a generic MetadataRecord.
     var record: MetadataRecord {
         MetadataRecord(
-            kind: kind, visibility: visibility, mangledName: mangledName, fqName: fqName,
+            kind: kind, visibility: visibility,
+            constructorVisibilityInherited: constructorVisibilityInherited,
+            mangledName: mangledName, fqName: fqName,
             arity: arity,
             isSuspend: isSuspend,
             isInline: isInline,
@@ -145,9 +148,10 @@ enum CompactMetadataIndex {
                 guard let offsetValue = integer(UInt64.self),
                       let lengthValue = integer(UInt64.self),
                       let arityValue = integer(UInt32.self),
-                      let flags = integer(UInt32.self), flags >> 21 == 0, ((flags >> 16) & 3) != 3,
+                      let flags = integer(UInt32.self), flags >> 22 == 0, ((flags >> 16) & 3) != 3,
                       ((flags >> 18) & 7) <= 4,
                       let kindID = integer(UInt32.self), kindID < kinds.count,
+                      flags & (1 << 21) == 0 || kinds[Int(kindID)] == .constructor,
                       let visibilityID = integer(UInt32.self), visibilityID < visibilities.count,
                       offsetValue <= UInt64(bytes.count - bodyStart), lengthValue > 0,
                       lengthValue <= UInt64(bytes.count - bodyStart) - offsetValue
@@ -221,6 +225,7 @@ extension MetadataEncoder {
             if callable && record.isOperator { flags |= 1 << 2 }
             if callable && record.isInfix { flags |= 1 << 3 }
             if callable && record.isOverride { flags |= 1 << 4 }
+            if record.kind == .constructor, record.constructorVisibilityInherited { flags |= 1 << 21 }
             if record.isMemberExtension { flags |= 1 << 5 }
             if property && record.isMutable { flags |= 1 << 6 }
             if record.isDataClass { flags |= 1 << 7 }

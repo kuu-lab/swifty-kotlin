@@ -672,6 +672,9 @@ struct DeclarationPositionValidator {
             for declID in entry.memberProperties {
                 validate(declID: declID, site: entrySite)
             }
+            for declID in entry.nestedClasses {
+                validate(declID: declID, site: entrySite)
+            }
         }
     }
 

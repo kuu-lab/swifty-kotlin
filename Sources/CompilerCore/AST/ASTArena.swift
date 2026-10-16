@@ -13,6 +13,7 @@ public struct ASTArenaSnapshot: Codable {
     public let infixFunctionExpressions: Set<ExprID>
     public let operatorFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
+    public let receiverExpressionArgsCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
     public let incrementDecrementValueExpressions: Set<ExprID>
     public let callResultCompoundAssignmentBlocks: Set<ExprID>
@@ -35,6 +36,7 @@ public struct ASTArenaSnapshot: Codable {
         case infixFunctionExpressions
         case operatorFunctionExpressions
         case explicitCallExpressions
+        case receiverExpressionArgsCallExpressions
         case incrementDecrementExpressions
         case incrementDecrementValueExpressions
         case callResultCompoundAssignmentBlocks
@@ -58,6 +60,7 @@ public struct ASTArenaSnapshot: Codable {
         infixFunctionExpressions: Set<ExprID> = [],
         operatorFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
+        receiverExpressionArgsCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
         incrementDecrementValueExpressions: Set<ExprID> = [],
         callResultCompoundAssignmentBlocks: Set<ExprID> = [],
@@ -79,6 +82,7 @@ public struct ASTArenaSnapshot: Codable {
         self.infixFunctionExpressions = infixFunctionExpressions
         self.operatorFunctionExpressions = operatorFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
+        self.receiverExpressionArgsCallExpressions = receiverExpressionArgsCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.incrementDecrementValueExpressions = incrementDecrementValueExpressions
         self.callResultCompoundAssignmentBlocks = callResultCompoundAssignmentBlocks
@@ -108,6 +112,10 @@ public struct ASTArenaSnapshot: Codable {
         infixFunctionExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixFunctionExpressions) ?? []
         operatorFunctionExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .operatorFunctionExpressions) ?? []
         explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
+        receiverExpressionArgsCallExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .receiverExpressionArgsCallExpressions
+        ) ?? []
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
@@ -204,6 +212,9 @@ public final class ASTArena: @unchecked Sendable {
     private var _infixCallExpressions: Set<ExprID> = []
     private var _infixFunctionExpressions: Set<ExprID> = []
     private var _operatorFunctionExpressions: Set<ExprID> = []
+    /// Marks `receiver.(expression)(args)` calls, which require a function type
+    /// with an explicit extension receiver.
+    private var _receiverExpressionArgsCallExpressions: Set<ExprID> = []
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
@@ -251,6 +262,7 @@ public final class ASTArena: @unchecked Sendable {
         _infixFunctionExpressions = snapshot.infixFunctionExpressions
         _operatorFunctionExpressions = snapshot.operatorFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
+        _receiverExpressionArgsCallExpressions = snapshot.receiverExpressionArgsCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _incrementDecrementValueExpressions = snapshot.incrementDecrementValueExpressions
         _callResultCompoundAssignmentBlocks = snapshot.callResultCompoundAssignmentBlocks
@@ -277,6 +289,7 @@ public final class ASTArena: @unchecked Sendable {
             infixFunctionExpressions: _infixFunctionExpressions,
             operatorFunctionExpressions: _operatorFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
+            receiverExpressionArgsCallExpressions: _receiverExpressionArgsCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
             incrementDecrementValueExpressions: _incrementDecrementValueExpressions,
             callResultCompoundAssignmentBlocks: _callResultCompoundAssignmentBlocks,
@@ -338,6 +351,7 @@ public final class ASTArena: @unchecked Sendable {
         _infixFunctionExpressions.formUnion(snapshot.infixFunctionExpressions.map { remapper.remap($0) })
         _operatorFunctionExpressions.formUnion(snapshot.operatorFunctionExpressions.map { remapper.remap($0) })
         _explicitCallExpressions.formUnion(snapshot.explicitCallExpressions.map { remapper.remap($0) })
+        _receiverExpressionArgsCallExpressions.formUnion(snapshot.receiverExpressionArgsCallExpressions.map { remapper.remap($0) })
         _incrementDecrementExpressions.formUnion(snapshot.incrementDecrementExpressions.map { remapper.remap($0) })
         _incrementDecrementValueExpressions.formUnion(snapshot.incrementDecrementValueExpressions.map { remapper.remap($0) })
         _callResultCompoundAssignmentBlocks.formUnion(snapshot.callResultCompoundAssignmentBlocks.map { remapper.remap($0) })
@@ -649,6 +663,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _explicitCallExpressions.contains(exprID)
+    }
+
+    public func markReceiverExpressionArgsCall(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _receiverExpressionArgsCallExpressions.insert(exprID)
+    }
+
+    public func isReceiverExpressionArgsCall(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _receiverExpressionArgsCallExpressions.contains(exprID)
     }
 
     public func markCallResultCompoundAssignmentBlock(_ exprID: ExprID) {

@@ -279,7 +279,7 @@ extension DataFlowSemaPhase {
             OFODeclInfo(
                 memberFunctions: cls.memberFunctions,
                 memberProperties: cls.memberProperties,
-                nestedClasses: cls.nestedClasses,
+                nestedClasses: cls.nestedClasses + cls.enumEntries.flatMap(\.nestedClasses),
                 declRange: cls.range
             )
         case let .objectDecl(obj):
@@ -393,6 +393,7 @@ extension DataFlowSemaPhase {
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
                     parameterTypes: memberMeta.parameterTypes,
                     returnType: memberMeta.returnType,
                     ctx: ctx
@@ -750,18 +751,57 @@ extension DataFlowSemaPhase {
         memberName: InternedString,
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
         parameterTypes: [TypeID]?,
         returnType: TypeID?,
         ctx: OpenFinalOverrideContext
     ) {
-        let parent = findInheritedMember(
-            named: memberName,
-            for: ownerSymbol,
-            symbols: ctx.symbols,
-            parameterTypes: parameterTypes
-        )
+        let childSymbol = ctx.symbols.symbol(memberSymbol)
+        let isFunction = childSymbol?.kind == .function
+        let isMemberExtension = isFunction && childSymbol?.flags.contains(.memberExtension) == true
+        let parent: OFOInheritedMember?
+        if isMemberExtension {
+            parent = findInheritedFunction(
+                named: memberName,
+                for: ownerSymbol,
+                childMember: memberSymbol,
+                requireMatchingSignature: true,
+                ctx: ctx
+            ) ?? findInheritedFunction(
+                named: memberName,
+                for: ownerSymbol,
+                childMember: memberSymbol,
+                requireMatchingSignature: false,
+                ctx: ctx
+            )
+        } else {
+            parent = findInheritedMember(
+                named: memberName,
+                for: ownerSymbol,
+                symbols: ctx.symbols,
+                parameterTypes: parameterTypes
+            )
+        }
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else {
+            return
+        }
+
+        if isFunction,
+           (isMemberExtension || parentSym.flags.contains(.memberExtension)),
+           !overrideFunctionSignatureMatches(
+               childMember: memberSymbol,
+               parentMember: parent.memberID,
+               childOwner: ownerSymbol,
+               requireCovariantReturn: false,
+               ctx: ctx
+           ) {
+            let name = ctx.interner.resolve(memberName)
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-OVERRIDE-SIGNATURE",
+                "Override of '\(name)' has an incompatible function signature. Method type parameter bounds, extension receiver, context/value parameter types, and suspend modifier must match.",
+                range: memberRange
+            )
             return
         }
 
@@ -810,20 +850,13 @@ extension DataFlowSemaPhase {
         }
         let parentReturnType = parentSignature.returnType
 
-        // Skip check if this member is overloaded in the parent hierarchy.
-        // With name-only lookup, findInheritedMember may match a different overload
-        // than the one actually being overridden, producing false positives for valid
-        // covariant overrides (e.g. base has foo(Int): Int and foo(String): String;
-        // child overrides foo(String): String with return type String).
-        let allParentMembers = findAllInheritedMembers(
-            named: memberName,
-            for: ownerSymbol,
-            symbols: ctx.symbols
-        )
-        guard allParentMembers.count == 1 else {
-            // Multiple overloads with this name: skip covariance check to avoid
-            // false positives. A future signature-aware lookup will handle this.
-            return
+        if !parentSymbol.flags.contains(.memberExtension) {
+            let allParentMembers = findAllInheritedMembers(
+                named: memberName,
+                for: ownerSymbol,
+                symbols: ctx.symbols
+            )
+            guard allParentMembers.count == 1 else { return }
         }
 
         // Enhanced covariance check for generic types
@@ -831,7 +864,7 @@ extension DataFlowSemaPhase {
            typeContainsAnyTypeParam(childReturnType, types: ctx.types) {
             let parentOwnerClass = ctx.symbols.parentSymbol(for: parentSymbol.id)
             let childSignature = getFunctionMemberMatching(
-                parentSignature,
+                parentMember: parentSymbol,
                 named: memberName,
                 in: ownerSymbol,
                 ctx: ctx
@@ -883,19 +916,18 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         guard let parentSignature = ctx.symbols.functionSignature(for: parentSymbol.id),
-              let childSymbol = getFunctionMemberMatching(parentSignature, named: memberName, in: ownerSymbol, ctx: ctx),
+              let childSymbol = getFunctionMemberMatching(parentMember: parentSymbol, named: memberName, in: ownerSymbol, ctx: ctx),
               let childSignature = ctx.symbols.functionSignature(for: childSymbol) else {
             return
         }
 
-        // Skip check if this member is overloaded in the parent hierarchy
-        let allParentMembers = findAllInheritedMembers(
-            named: memberName,
-            for: ownerSymbol,
-            symbols: ctx.symbols
-        )
-        guard allParentMembers.count == 1 else {
-            return
+        if !parentSymbol.flags.contains(.memberExtension) {
+            let allParentMembers = findAllInheritedMembers(
+                named: memberName,
+                for: ownerSymbol,
+                symbols: ctx.symbols
+            )
+            guard allParentMembers.count == 1 else { return }
         }
 
         let parentExceptions = parentSignature.canThrow
@@ -1132,20 +1164,161 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Pick the overriding overload in the child that matches the parent signature (Kotlin override rules).
+    /// Pick the overriding overload whose complete signature matches the parent after alpha-alignment.
     private func getFunctionMemberMatching(
-        _ parentSignature: FunctionSignature,
+        parentMember: SemanticSymbol,
         named memberName: InternedString,
         in ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) -> SymbolID? {
         for childID in childFunctions(named: memberName, in: ownerSymbol, ctx: ctx) {
-            guard let childSig = ctx.symbols.functionSignature(for: childID) else { continue }
-            if signaturesMatch(child: childSig, parent: parentSignature, ctx: ctx) {
+            let childIsMemberExtension = ctx.symbols.symbol(childID)?.flags.contains(.memberExtension) == true
+            let matches = if childIsMemberExtension || parentMember.flags.contains(.memberExtension) {
+                overrideFunctionSignatureMatches(
+                    childMember: childID,
+                    parentMember: parentMember.id,
+                    childOwner: ownerSymbol,
+                    requireCovariantReturn: true,
+                    ctx: ctx
+                )
+            } else if let childSignature = ctx.symbols.functionSignature(for: childID),
+                      let parentSignature = ctx.symbols.functionSignature(for: parentMember.id) {
+                signaturesMatch(child: childSignature, parent: parentSignature, ctx: ctx)
+            } else {
+                false
+            }
+            if matches {
                 return childID
             }
         }
         return nil
+    }
+
+    private func signaturesMatch(
+        child: FunctionSignature,
+        parent: FunctionSignature,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        guard child.parameterTypes.count == parent.parameterTypes.count else { return false }
+        for (childParam, parentParam) in zip(child.parameterTypes, parent.parameterTypes) {
+            if !ctx.types.isSubtype(parentParam, childParam) { return false }
+        }
+        return ctx.types.isSubtype(child.returnType, parent.returnType)
+            && child.isSuspend == parent.isSuspend
+    }
+
+    private func findInheritedFunction(
+        named memberName: InternedString,
+        for childOwner: SymbolID,
+        childMember: SymbolID,
+        requireMatchingSignature: Bool,
+        ctx: OpenFinalOverrideContext
+    ) -> OFOInheritedMember? {
+        var visited: Set<SymbolID> = [childOwner]
+        var queue = ctx.symbols.directSupertypes(for: childOwner)
+
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted,
+                  let owner = ctx.symbols.symbol(current)
+            else { continue }
+
+            for candidateID in ctx.symbols.children(ofFQName: owner.fqName) {
+                guard let candidate = ctx.symbols.symbol(candidateID),
+                      candidate.fqName == owner.fqName + [candidate.name],
+                      candidate.kind == .function,
+                      candidate.name == memberName,
+                      !candidate.flags.contains(.extensionMemberAlias)
+                else { continue }
+
+                if !requireMatchingSignature || overrideFunctionSignatureMatches(
+                    childMember: childMember,
+                    parentMember: candidateID,
+                    childOwner: childOwner,
+                    requireCovariantReturn: false,
+                    ctx: ctx
+                ) {
+                    return OFOInheritedMember(
+                        memberID: candidateID,
+                        ownerName: owner.name,
+                        ownerIsInterface: owner.kind == .interface
+                    )
+                }
+            }
+
+            queue.append(contentsOf: ctx.symbols.directSupertypes(for: current))
+        }
+        return nil
+    }
+
+    private func overrideFunctionSignatureMatches(
+        childMember: SymbolID,
+        parentMember: SymbolID,
+        childOwner: SymbolID,
+        requireCovariantReturn: Bool,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        guard let childSignature = ctx.symbols.functionSignature(for: childMember),
+              let parentSignature = ctx.symbols.functionSignature(for: parentMember),
+              let parentOwner = ctx.symbols.parentSymbol(for: parentMember),
+              let child = ctx.symbols.symbol(childMember),
+              let parent = ctx.symbols.symbol(parentMember),
+              child.flags.contains(.memberExtension) == parent.flags.contains(.memberExtension),
+              childSignature.isSuspend == parentSignature.isSuspend,
+              methodUpperBoundsMatch(
+                  source: parentSignature,
+                  target: childSignature,
+                  sourceOwner: parentOwner,
+                  targetOwner: childOwner,
+                  instanceOwner: childOwner,
+                  types: ctx.types
+              )
+        else { return false }
+
+        let parentMethodParameters = Array(
+            parentSignature.typeParameterSymbols.dropFirst(parentSignature.classTypeParameterCount)
+        )
+        let childMethodParameters = Array(
+            childSignature.typeParameterSymbols.dropFirst(childSignature.classTypeParameterCount)
+        )
+        func alignParentType(_ type: TypeID) -> TypeID {
+            let specialized = specializeMethodOwnerType(
+                type,
+                owner: parentOwner,
+                instanceOwner: childOwner,
+                types: ctx.types
+            )
+            return alphaAlignedMethodType(
+                specialized,
+                sourceParameters: parentMethodParameters,
+                targetParameters: childMethodParameters,
+                types: ctx.types
+            )
+        }
+
+        if child.flags.contains(.memberExtension) {
+            guard let childReceiver = childSignature.receiverType,
+                  let parentReceiver = parentSignature.receiverType,
+                  methodIdentityParameterTypesMatch(
+                      candidateParameterTypes: [childReceiver],
+                      interfaceParameterTypes: [alignParentType(parentReceiver)],
+                      types: ctx.types
+                  )
+            else { return false }
+        }
+
+        guard methodIdentityParameterTypesMatch(
+            candidateParameterTypes: childSignature.contextReceiverTypes,
+            interfaceParameterTypes: parentSignature.contextReceiverTypes.map(alignParentType),
+            types: ctx.types
+        ), methodIdentityParameterTypesMatch(
+            candidateParameterTypes: childSignature.parameterTypes,
+            interfaceParameterTypes: parentSignature.parameterTypes.map(alignParentType),
+            types: ctx.types
+        ) else { return false }
+
+        guard requireCovariantReturn else { return true }
+        return ctx.types.isSubtype(childSignature.returnType, alignParentType(parentSignature.returnType))
     }
 
     private func validateVisibilityExpansion(
@@ -1549,22 +1722,4 @@ extension DataFlowSemaPhase {
         return results
     }
 
-    private func signaturesMatch(child: FunctionSignature, parent: FunctionSignature, ctx: OpenFinalOverrideContext) -> Bool {
-        guard child.parameterTypes.count == parent.parameterTypes.count else {
-            return false
-        }
-
-        for (childParam, parentParam) in zip(child.parameterTypes, parent.parameterTypes) {
-            // swiftlint:disable:next for_where
-            if !ctx.types.isSubtype(parentParam, childParam) {
-                return false
-            }
-        }
-
-        if !ctx.types.isSubtype(child.returnType, parent.returnType) {
-            return false
-        }
-
-        return child.isSuspend == parent.isSuspend
-    }
 }

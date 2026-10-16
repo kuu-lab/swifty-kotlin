@@ -20,6 +20,27 @@ struct TypeSystemTests {
     }
 
     @Test
+    func testStarProjectionWithNullableAnyUpperBoundUsesNullableAny() {
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        types.symbolTable = symbols
+        let name = StringInterner().intern("T")
+        let parameter = symbols.define(
+            kind: .typeParameter,
+            name: name,
+            fqName: [name],
+            declSite: nil,
+            visibility: .private
+        )
+        symbols.setTypeParameterUpperBounds([types.nullableAnyType], for: parameter)
+
+        #expect(types.capturedTypeForStarProjection(
+            parameter: parameter,
+            ownerTypeParameters: [parameter]
+        ) == types.nullableAnyType)
+    }
+
+    @Test
     func testBuiltInTypeIDsAreDistinct() {
         let ts = TypeSystem()
         let ids: [TypeID] = [ts.errorType, ts.unitType, ts.nothingType, ts.anyType, ts.nullableAnyType]

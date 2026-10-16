@@ -39,6 +39,12 @@ extension BuildASTPhase.ExpressionParser {
         return parseLabeledTrailingLambda()
     }
 
+    func parseLambdaLiteralWithPostfixSuffixes(label: InternedString) -> ExprID? {
+        let lambdaStartIndex = index
+        guard let lambda = parseLambdaLiteral(label: label) else { return nil }
+        return parsePostfixSuffixes(lambda, receiverStartIndex: lambdaStartIndex)
+    }
+
     func parsePostfixOrPrimary() -> ExprID? {
         let receiverStartIndex = index
         guard let expr = parsePrimary() else {
@@ -169,6 +175,48 @@ extension BuildASTPhase.ExpressionParser {
             let isDot = isSafeDot || matches(.symbol(.dot))
             guard isDot else {
                 break
+            }
+            if !isSafeDot, peek(1)?.kind == .symbol(.lParen) {
+                let savedIndex = index
+                guard let dotToken = consume(),
+                      consumeIf(.symbol(.lParen)) != nil,
+                      let callee = parseExpression(minPrecedence: 0),
+                      let calleeClose = consumeIf(.symbol(.rParen))
+                else {
+                    index = savedIndex
+                    break
+                }
+
+                // `receiver.(expression)(args)` invokes a receiver-function
+                // value. Keep the expression as the callee and put the
+                // explicit receiver first among its arguments; call lowering
+                // evaluates the callee before arguments, matching Kotlin's
+                // specified side-effect order.
+                var args = [CallArgument(expr: expr)]
+                var callEndRange = calleeClose.range
+                if matches(.symbol(.lParen)), let open = consume() {
+                    args.append(contentsOf: parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(callee)))
+                    let close = consumeIf(.symbol(.rParen))
+                    callEndRange = close?.range ?? open.range
+                    if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(callee)) {
+                        args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
+                        callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
+                    }
+                } else if let trailingStart = current(),
+                          let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(callee))
+                {
+                    args.append(CallArgument(isTrailingLambda: true, expr: trailingLambda))
+                    callEndRange = astArena.exprRange(trailingLambda) ?? trailingStart.range
+                } else {
+                    index = savedIndex
+                    break
+                }
+
+                let range = mergeRanges(astArena.exprRange(expr), callEndRange, fallback: dotToken.range)
+                let call = astArena.appendExpr(.call(callee: callee, typeArgs: [], args: args, range: range))
+                astArena.markReceiverExpressionArgsCall(call)
+                expr = call
+                continue
             }
             guard let dotToken = consume(),
                   let memberToken = consume(),

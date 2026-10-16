@@ -804,9 +804,16 @@ final class ControlFlowTypeChecker {
                 elseType: elseType,
                 ctx: ctx
             )
-            resolvedType = joinedRangeType ?? sema.types.lub(contextualizeLongBranchLiterals(
+            let contextualizedTypes = contextualizeLongBranchLiterals(
                 expressions: [thenExpr, elseExpr], types: [thenType, elseType], ctx: ctx
-            ))
+            )
+            let inferredType = joinedRangeType ?? sema.types.lub(contextualizedTypes)
+            resolvedType = contextualizeBranchJoin(
+                inferredType,
+                branchTypes: contextualizedTypes,
+                expectedType: expectedType,
+                ctx: ctx
+            )
             // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
             // never completes normally, so it vacuously satisfies initialization:
             // control only reaches the code after the `if` through whichever

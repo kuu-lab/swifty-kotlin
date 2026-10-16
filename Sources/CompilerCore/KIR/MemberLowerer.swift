@@ -404,7 +404,7 @@ final class MemberLowerer {
                 )
                 var nestedAllDecls = nestedAll
                 if sema.symbols.symbol(symbol)?.kind == .enumClass {
-                    nestedAllDecls.append(contentsOf: lowerEnumEntryMemberFunctions(
+                    nestedAllDecls.append(contentsOf: lowerEnumEntryBodyMembers(
                         classDecl: nested,
                         shared: KIRLoweringSharedContext(
                             ast: ast,
@@ -520,22 +520,28 @@ final class MemberLowerer {
         return (directMembers, allDecls)
     }
 
-    /// Lowers functions declared in enum entry bodies as ordinary functions
-    /// whose receiver is the ordinal-backed enum value. They are emitted as
-    /// module declarations, but are intentionally not added to the enum's
-    /// direct member list because entry bodies are reached through the enum
-    /// dispatch helpers synthesized later.
-    func lowerEnumEntryMemberFunctions(
+    /// Lowers functions, computed property accessors, and nested classes
+    /// declared in enum entry bodies. They use the ordinal-backed enum value
+    /// as their receiver and are emitted as module declarations.
+    func lowerEnumEntryBodyMembers(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
         compilationCtx: CompilationContext?
     ) -> [KIRDeclID] {
         var declIDs: [KIRDeclID] = []
-        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty {
+        for entry in classDecl.enumEntries {
+            let accessorProperties = entry.memberProperties.filter { declID in
+                guard case let .propertyDecl(property)? = shared.ast.arena.decl(declID) else { return false }
+                return property.getter.map { $0.body != .unit } == true
+                    || property.setter.map { $0.body != .unit } == true
+            }
+            guard !entry.memberFunctions.isEmpty || !accessorProperties.isEmpty || !entry.nestedClasses.isEmpty else {
+                continue
+            }
             declIDs.append(contentsOf: lowerMemberDecls(
                 memberFunctions: entry.memberFunctions,
-                memberProperties: [],
-                nestedClasses: [],
+                memberProperties: accessorProperties,
+                nestedClasses: entry.nestedClasses,
                 nestedObjects: [],
                 shared: shared,
                 compilationCtx: compilationCtx

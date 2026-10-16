@@ -4,7 +4,7 @@ import java.lang.Class
 import kotlin.internal.KsSymbolName
 import kotlin.reflect.KClass
 
-// Convert the classifier retained by KClass into its JVM-shaped Class facade.
+// Preserve the classifier token when converting a KClass handle to Java Class.
 @KsSymbolName("__kk_kclass_java_class")
 private external fun <T : Any> __javaFromKClass(value: KClass<T>): Class<T>
 

@@ -210,6 +210,51 @@ struct BlockExpressionTests {
         }
     }
 
+    @Test
+    func testLocalFunctionInsideControlFlowBlockRemainsADeclaration() throws {
+        let source = """
+        fun outer(): Int {
+            fun local() = 1
+            val branch = if (true) {
+                fun local() = 42
+                local()
+            } else {
+                0
+            }
+            var count = 0
+            while (count < 1) {
+                fun local() = 7
+                count = local()
+            }
+            val callback: () -> Int = {
+                if (true) {
+                    fun local() = 11
+                    local()
+                } else {
+                    0
+                }
+            }
+            return branch + count + callback() + local()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runFrontend(ctx)
+            let ast = try #require(ctx.ast)
+            let localFunctionBlocks = ast.arena.exprs.compactMap { expr -> [ExprID]? in
+                guard case let .blockExpr(statements, _, _) = expr else { return nil }
+                let declarations = statements.filter { exprID in
+                    if case .localFunDecl = ast.arena.expr(exprID) { return true }
+                    return false
+                }
+                return declarations.isEmpty ? nil : declarations
+            }
+
+            #expect(localFunctionBlocks.count >= 3, "Expected local functions in if, while and lambda-nested if blocks")
+            #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     // MARK: - Local function bodies must preserve semicolon splits inside nested blocks
 
     /// Compiles `source`, finds the top-level function `outerName`, and returns

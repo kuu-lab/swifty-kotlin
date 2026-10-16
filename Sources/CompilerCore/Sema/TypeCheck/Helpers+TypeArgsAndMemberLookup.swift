@@ -737,6 +737,8 @@ extension TypeCheckHelpers {
         }
 
         var candidates: [SymbolID] = []
+        // Overrides hide inherited declarations only for the same dispatch key;
+        // arity alone would drop unrelated overloads with the same parameter count.
         var overrideDepthByKey: [MemberDispatchKey: Int] = [:]
         for key in keyOrder {
             guard let grouped = candidatesByKey[key] else { continue }
@@ -876,7 +878,7 @@ extension TypeCheckHelpers {
                 return (
                     candidate,
                     resolveMemberPropertyType(
-                        propType,
+                        propertyReadType(for: candidate, declaredType: propType, sema: sema) ?? propType,
                         receiverType: receiverType,
                         ownerSymbol: owner,
                         sema: sema
@@ -884,6 +886,72 @@ extension TypeCheckHelpers {
                 )
             }
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+        return nil
+    }
+
+    /// Returns the source-visible value type for a stable property read.
+    /// An immutable property with a synthesized getter keeps the declared
+    /// property type for its API while its explicit backing field can retain a
+    /// more specific initializer type for reads in the same compilation.
+    func propertyReadType(
+        for property: SymbolID,
+        declaredType: TypeID? = nil,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let propertySymbol = sema.symbols.symbol(property),
+              propertySymbol.kind == .property,
+              !propertySymbol.flags.contains(.mutable),
+              !propertySymbol.flags.contains(.openType),
+              !propertySymbol.flags.contains(.abstractType),
+              !propertySymbol.flags.contains(.importedLibrary),
+              !sema.symbols.propertyHasCustomGetter(for: property),
+              let declaredType = declaredType ?? sema.symbols.propertyType(for: property)
+        else {
+            return declaredType
+        }
+        guard let backingField = sema.symbols.backingFieldSymbol(for: property),
+              let backingFieldType = sema.symbols.propertyType(for: backingField),
+              sema.types.isSubtype(backingFieldType, declaredType)
+        else {
+            return declaredType
+        }
+        return backingFieldType
+    }
+
+    /// Looks up a property declared directly in the body of an enum entry.
+    /// Its entry field owns the declaration, while the receiver still has the
+    /// containing enum's runtime type.
+    func lookupEnumEntryMemberProperty(
+        named calleeName: InternedString,
+        entrySymbol: SymbolID,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        guard let entryInfo = sema.symbols.symbol(entrySymbol),
+              entryInfo.kind == .field,
+              let enumOwner = sema.symbols.parentSymbol(for: entrySymbol),
+              sema.symbols.symbol(enumOwner)?.kind == .enumClass
+        else {
+            return nil
+        }
+        for candidate in sema.symbols.lookupAll(fqName: entryInfo.fqName + [calleeName]) {
+            guard sema.symbols.parentSymbol(for: candidate) == entrySymbol,
+                  let candidateInfo = sema.symbols.symbol(candidate),
+                  candidateInfo.kind == .property || candidateInfo.kind == .field,
+                  let propertyType = sema.symbols.propertyType(for: candidate)
+            else {
+                continue
+            }
+            return (
+                candidate,
+                resolveMemberPropertyType(
+                    propertyType,
+                    receiverType: receiverType,
+                    ownerSymbol: enumOwner,
+                    sema: sema
+                )
+            )
         }
         return nil
     }
@@ -930,7 +998,10 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
-                substitution[typeVar] = sema.types.nullableAnyType
+                substitution[typeVar] = sema.types.capturedTypeForStarProjection(
+                    parameter: typeParamSymbol,
+                    ownerTypeParameters: ownerTypeParamSymbols
+                )
             }
         }
 

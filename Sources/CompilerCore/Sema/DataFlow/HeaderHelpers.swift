@@ -619,6 +619,41 @@ extension DataFlowSemaPhase {
         }
     }
 
+    func checkAndReportDuplicateExtensionPropertyReceiver(
+        propertySymbol: SymbolID,
+        receiverType: TypeID,
+        fqName: [InternedString],
+        range: SourceRange?,
+        newFlags: SymbolFlags,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        let matchingDeclarations = symbols.lookupAll(fqName: fqName).compactMap { id -> SemanticSymbol? in
+            guard id != propertySymbol,
+                  let existing = symbols.symbol(id),
+                  existing.kind == .property,
+                  !existing.flags.contains(.synthetic),
+                  symbols.hasExtensionPropertyReceiver(id),
+                  symbols.extensionPropertyReceiverType(for: id) == receiverType
+            else {
+                return nil
+            }
+            return existing
+        }
+        guard !matchingDeclarations.isEmpty else { return }
+        if matchingDeclarations.count == 1,
+           let existing = matchingDeclarations.first,
+           isCompatibleExpectActualPair(newKind: .property, newFlags: newFlags, existing: existing)
+        {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Duplicate declaration in the same package scope.",
+            range: range
+        )
+    }
+
     private func hasUserDeclaredFunction(
         fqName: [InternedString],
         receiverType: TypeID,
@@ -817,8 +852,9 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
-                ? [.synthetic, .overrideMember] : [.synthetic]
+            // Synthesized equals replaces Any.equals in the vtable, including
+            // when the class has an explicit superclass implementation.
+            flags: [.synthetic, .overrideMember]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")

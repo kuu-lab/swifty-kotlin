@@ -125,6 +125,7 @@ let package = Package(
                 "GoldenCases",
                 "Klib/Fixtures",
                 "Fixtures/Atomicfu",
+                "Fixtures/KUU-2210",
             ]
         ),
         .testTarget(

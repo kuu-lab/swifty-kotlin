@@ -89,10 +89,13 @@ extension CallTypeChecker {
         _ id: ExprID,
         chosen initialCallee: SymbolID,
         resolved: ResolvedCall,
-        sema: SemaModule
+        sema: SemaModule,
+        dispatchReceiverSymbol: SymbolID? = nil
     ) -> TypeID {
         let chosen = nullableConsoleCallee(id, chosen: initialCallee, sema: sema)
         bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
+        let resolvedDispatchReceiver = dispatchReceiverSymbol
+            ?? importedObjectDispatchReceiverSymbol(for: id, callee: chosen, sema: sema)
         sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -101,7 +104,8 @@ extension CallTypeChecker {
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                     .map(\.value),
                 parameterMapping: resolved.parameterMapping,
-                defaultArgumentOwner: resolved.defaultArgumentOwner
+                defaultArgumentOwner: resolved.defaultArgumentOwner,
+                dispatchReceiverSymbol: resolvedDispatchReceiver
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -179,6 +183,64 @@ extension CallTypeChecker {
         return returnType
     }
 
+    /// Recover the singleton named by an explicit import for an ordinary
+    /// member, member extension, or member-extension-property accessor.
+    func importedObjectDispatchReceiverSymbol(
+        for expression: ExprID,
+        callee: SymbolID,
+        sema: SemaModule
+    ) -> SymbolID? {
+        guard let symbol = sema.symbols.symbol(callee),
+              let range = driver.ast.arena.exprRange(expression),
+              let file = driver.ast.file(for: range.start.file)
+        else {
+            return nil
+        }
+        let sourceName: InternedString?
+        switch driver.ast.arena.expr(expression) {
+        case let .call(calleeExpr, _, _, _):
+            if case let .nameRef(name, _) = driver.ast.arena.expr(calleeExpr) {
+                sourceName = name
+            } else {
+                sourceName = nil
+            }
+        case let .memberCall(_, name, _, _, _), let .safeMemberCall(_, name, _, _, _):
+            sourceName = name
+        default:
+            sourceName = nil
+        }
+        guard let sourceName else { return nil }
+
+        let accessorProperty = sema.symbols.accessorOwnerProperty(for: callee)
+            ?? sema.symbols.parentSymbol(for: callee).flatMap { parent in
+                sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+            }
+        let importedMemberName = accessorProperty.flatMap { sema.symbols.symbol($0)?.name } ?? symbol.name
+        let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: callee)
+            ?? accessorProperty.flatMap { sema.symbols.parentSymbol(for: $0) }
+            ?? sema.symbols.parentSymbol(for: callee)
+        guard let dispatchOwner,
+              let ownerInfo = sema.symbols.symbol(dispatchOwner),
+              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
+        else {
+            return nil
+        }
+
+        for importDecl in file.imports where !importDecl.isWildcard
+            && (importDecl.alias ?? importDecl.path.last) == sourceName
+            && importDecl.path.last == importedMemberName
+        {
+            let importedObjects = sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+            if let object = importedObjects.first(where: { object in
+                sema.symbols.symbol(object)?.kind == .object
+                    && sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)
+            }) {
+                return object
+            }
+        }
+        return nil
+    }
+
     /// Native console metadata retains a String-specialized overload. Java
     /// platform Strings must use its nullable Any? sibling so printing an empty
     /// peek does not introduce a non-null parameter assertion.
@@ -217,10 +279,7 @@ extension CallTypeChecker {
     /// argument 0 is that receiver or the first ordinary parameter.
     enum CallableValueArityPolicy {
         /// The callee type's receiver (if any) is never read from `argTypes`.
-        /// Matches the original, receiver-unaware behavior. Used by the
-        /// member-property callable-invocation sugar (`receiver.prop(args)`),
-        /// which is unrelated to explicit-receiver call forms and must not
-        /// change behavior.
+        /// The receiver, if required, comes from an implicit call context.
         case receiverNeverExplicit
         /// A bare call (`ef(...)`) accepts either the historical shape, where
         /// the receiver comes from an active implicit-receiver scope
@@ -229,11 +288,19 @@ extension CallTypeChecker {
         /// positionally as argument 0 (`argTypes.count == params.count + 1`,
         /// e.g. `ef(3, 4)`).
         case receiverOptionallyExplicit
+        /// A member property's dispatch receiver supplies a receiver-function
+        /// value's receiver when it has the required type; otherwise a
+        /// receiver can be supplied as argument 0 (`holder.f(3)`).
+        case receiverExplicitOrMemberDispatch(TypeID)
         /// An explicit `.invoke(...)` member call has no implicit-receiver
         /// concept: when the callee type has a receiver, it must always be
         /// supplied positionally as argument 0 (`ef.invoke(3, 4)`); there is
         /// no arity at which it may be omitted (`ef.invoke(4)` is invalid).
         case receiverRequiredExplicit
+        /// `receiver.(expression)(...)` requires the callee type itself to
+        /// declare an extension receiver; a plain function's first parameter
+        /// cannot stand in for it.
+        case receiverMustBePresent
     }
 
     func inferCallableValueInvocation(
@@ -282,8 +349,25 @@ extension CallTypeChecker {
                 if argumentCount == functionType.params.count + 1 { return 1 }
                 if argumentCount == functionType.params.count { return 0 }
                 return nil
+            case let .receiverExplicitOrMemberDispatch(dispatchReceiverType):
+                guard let functionReceiver = functionType.receiver else {
+                    return argumentCount == functionType.params.count ? 0 : nil
+                }
+                if argumentCount == functionType.params.count + 1 { return 1 }
+                guard argumentCount == functionType.params.count,
+                      sema.types.isSubtype(
+                          sema.types.makeNonNullable(dispatchReceiverType),
+                          functionReceiver
+                      )
+                else {
+                    return nil
+                }
+                return 0
             case .receiverRequiredExplicit:
                 return functionType.receiver == nil ? 0 : 1
+            case .receiverMustBePresent:
+                guard functionType.receiver != nil else { return nil }
+                return 1
             }
         }
         func argumentsMatch(contextArgumentCount: Int, receiverOffset: Int) -> Bool {

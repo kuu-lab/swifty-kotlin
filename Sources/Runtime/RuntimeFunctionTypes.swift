@@ -82,6 +82,7 @@ func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
 private struct RuntimeCallableReferenceIdentity {
     let targetRaw: Int
     let arity: Int
+    let kind: RuntimeCallableRefKind
     let isSuspend: Bool
     let modifierFlags: Int
     let captures: [Int]
@@ -89,7 +90,6 @@ private struct RuntimeCallableReferenceIdentity {
 
 private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCallableReferenceIdentity? {
     guard let metadata = runtimeStorage.withDelegateLock({ $0.callableRefMetadataByValue[rawValue] }),
-          metadata.kind == .function,
           metadata.identityTargetRaw != 0
     else {
         return nil
@@ -97,6 +97,7 @@ private func runtimeCallableReferenceIdentity(from rawValue: Int) -> RuntimeCall
     return RuntimeCallableReferenceIdentity(
         targetRaw: metadata.identityTargetRaw,
         arity: metadata.arity,
+        kind: metadata.kind,
         isSuspend: metadata.isSuspend,
         modifierFlags: metadata.modifierFlags,
         captures: metadata.identityCaptures
@@ -110,6 +111,7 @@ func runtimeCallableReferenceValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool? {
     guard let lhsIdentity, let rhsIdentity,
           lhsIdentity.targetRaw == rhsIdentity.targetRaw,
           lhsIdentity.arity == rhsIdentity.arity,
+          lhsIdentity.kind == rhsIdentity.kind,
           lhsIdentity.isSuspend == rhsIdentity.isSuspend,
           lhsIdentity.modifierFlags == rhsIdentity.modifierFlags,
           lhsIdentity.captures.count == rhsIdentity.captures.count
@@ -127,6 +129,9 @@ func runtimeCallableReferenceHashCode(_ rawValue: Int) -> Int? {
     hash = 31 &* hash &+ Int32(identity.arity)
     hash = 31 &* hash &+ (identity.isSuspend ? 1 : 0)
     hash = 31 &* hash &+ Int32(truncatingIfNeeded: identity.modifierFlags)
+    if identity.kind == .property {
+        hash = 31 &* hash &+ 1
+    }
     for capture in identity.captures {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(capture))
     }
