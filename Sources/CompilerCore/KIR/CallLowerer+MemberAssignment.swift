@@ -725,6 +725,22 @@ extension CallLowerer {
                 } else {
                     sema.symbols.symbol(callBinding.chosenCallee)?.name ?? interner.intern(op.kotlinFunctionName)
                 }
+                let resolvedMemberName = sema.symbols.symbol(callBinding.chosenCallee)
+                    .map { interner.resolve($0.name) }
+                    ?? interner.resolve(loweredCalleeName)
+                if emitRuntimeBackedCollectionMemberCallIfNeeded(
+                    memberName: resolvedMemberName,
+                    receiverType: propType,
+                    chosenCallee: callBinding.chosenCallee,
+                    arguments: finalArguments,
+                    result: callResult,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    return returnType == sema.types.unitType ? nil : callResult
+                }
                 instructions.append(.call(
                     symbol: callBinding.chosenCallee,
                     callee: loweredCalleeName,
