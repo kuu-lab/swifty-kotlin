@@ -32,7 +32,8 @@ extension OverloadResolver {
         return CallExpr(
             range: call.range, calleeName: call.calleeName, args: call.args,
             explicitTypeArgs: call.explicitTypeArgs.map { javaCollectionsFlexibleArgument($0, types: ctx.types) },
-            dispatchReceiverTypes: call.dispatchReceiverTypes
+            dispatchReceiverTypes: call.dispatchReceiverTypes,
+            elvisLhsExpectedTypeHint: call.elvisLhsExpectedTypeHint
         )
     }
 
