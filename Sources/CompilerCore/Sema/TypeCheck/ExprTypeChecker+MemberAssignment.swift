@@ -14,37 +14,40 @@ extension ExprTypeChecker {
             receiver, currentType: inferredReceiver, ast: ctx.ast, sema: sema
         ) ?? inferredReceiver
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        if let member = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema) {
+        if let member = driver.helpers.lookupMemberPropertyForWrite(
+            named: name, receiverType: nonNullReceiver, sema: sema
+        ) {
+            let writeSymbol = member.writeSymbol ?? member.symbol
             // Resolve the write type before inferring the RHS, including contextual
             // integer literals and lambdas. The read type is unsafe for projections.
             let writeType = driver.helpers.memberPropertyWriteType(
-                symbol: member.symbol, receiverType: nonNullReceiver, fallback: member.type, sema: sema
+                symbol: writeSymbol, receiverType: nonNullReceiver, fallback: member.type, sema: sema
             )
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
-            sema.bindings.bindIdentifier(id, symbol: member.symbol)
+            sema.bindings.bindIdentifier(id, symbol: writeSymbol)
             driver.helpers.checkDeprecation(
-                for: member.symbol,
+                for: writeSymbol,
                 sema: sema,
                 interner: ctx.interner,
                 range: range,
                 diagnostics: sema.diagnostics
             )
             driver.helpers.checkOptIn(
-                for: member.symbol,
+                for: writeSymbol,
                 ctx: ctx,
                 range: range,
                 diagnostics: sema.diagnostics
             )
-            if let property = sema.symbols.symbol(member.symbol) {
+            if let property = sema.symbols.symbol(writeSymbol) {
                 if !ctx.visibilityChecker.isAccessible(property, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol) {
                     driver.helpers.emitVisibilityError(
                         for: property, name: ctx.interner.resolve(name), range: range, diagnostics: sema.diagnostics
                     )
-                } else if !property.flags.contains(.mutable),
+                } else if member.writeSymbol == nil,
                           !(ctx.allowsValPropertyInitialization && isInitializingOwnProperty(receiver, property: member.symbol, ctx: ctx)) {
                     sema.diagnostics.error("KSWIFTK-SEMA-0014", "Val cannot be reassigned.", range: range)
                 } else {
-                    if let visibility = sema.symbols.propertySetterVisibility(for: member.symbol) {
+                    if let visibility = sema.symbols.propertySetterVisibility(for: writeSymbol) {
                         let setter = SemanticSymbol(
                             id: property.id, kind: property.kind, name: property.name, fqName: property.fqName,
                             declSite: property.declSite, visibility: visibility, flags: property.flags

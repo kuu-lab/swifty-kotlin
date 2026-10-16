@@ -366,12 +366,12 @@ extension CallLowerer {
         let propType: TypeID = {
             guard let propertySymbol,
                   let receiverType = sema.bindings.exprTypes[receiverExpr],
-                  let specialized = TypeCheckHelpers().lookupMemberProperty(
+                  let specialized = TypeCheckHelpers().lookupMemberPropertyForWrite(
                       named: calleeName,
                       receiverType: sema.types.makeNonNullable(receiverType),
                       sema: sema
                   ),
-                  specialized.symbol == propertySymbol
+                  (specialized.writeSymbol ?? specialized.symbol) == propertySymbol
             else {
                 return declaredPropType
             }
