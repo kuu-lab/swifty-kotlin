@@ -316,8 +316,10 @@ extension CallTypeChecker {
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
                         resolver: ctx.resolver, sema: sema, ctx: ctx
                     ).type
+                    // Keep the reference's concrete return type for final call
+                    // inference; the outer result is only an upper constraint.
                     let contextualType = contextualCallableArgumentType(
-                        expectation, callResultType: contextualCallResultType,
+                        expectation, callResultType: nil,
                         candidates: candidates, sema: sema
                     )
                     if let contextualType, expectedTypeCandidates.count == 1,
