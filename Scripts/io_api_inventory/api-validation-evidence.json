@@ -8,7 +8,7 @@
         "jvm-b7a5748618f52f9c",
         "klib-4ee0099543291bca"
       ],
-      "candidate_sha": "6513a848ae82f3f63f4c118df5d729f857daada6",
+      "candidate_sha": "765b4570f2470110771a814f92f2113259f0124b",
       "candidate_base_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
       "upstream_version": "0.9.1",
       "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
@@ -24,11 +24,11 @@
         "Scripts/kotlinx_io_upstream/unsafe/segment-write-context-shape.expected.json": "ea82b90133dc1f1212caa16489cadc127f545c09821aae71a9e1e6307ccbc832",
         "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt": "51e8bb1ba396f6d29904c0c321f213fff0dafcdab0c7d807dbefa8787acc601d",
         "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt": "4810a7746ef960dec2542cce9804ad91dc1823914b8ae462966e69b61bab81ec",
-        "Tests/CompilerCoreTests/Sema/KotlinxIOSegmentWriteContextShapeTests.swift": "4ae4a331e60e0abd491af798dd2f68134d6baf25bbb8ae52efee527edaac7f72",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOSegmentWriteContextShapeTests.swift": "3e00e0b885d464f0ef71e84e2285c312a85493ec8bf5e10555078671f0efcaf7",
         "Sources/CompilerCore/Stdlib/kotlinx/io/unsafe/UnsafeBufferOperations.kt": "5408178957f740512a095dabab21e44f431bb4fb89999969c35af3a4abecfbd8",
-        "Sources/CompilerCore/Sema/Models/MetadataSerializer+Encoder.swift": "ea12a9991ff414d14f124856523c9226a227739ebb6ab0d83abdc35f3dbaca75",
-        "Scripts/io_api_inventory/source-declarations.json": "5264eb9556713b13ab5d9a27003b9b47d87501d54d6e4bc6ee34e9a1f401fbe8",
-        "Scripts/io_api_inventory/upstream-lock.json": "f27c5e92b752345315e6c90d2135e4ea64c67f3f67941b7f9502c83b996bc66d",
+        "Sources/CompilerCore/Sema/Models/MetadataSerializer+Encoder.swift": "4272811d707eb38a222135b6822260220a6a4aed8efdf305fb758e11ac5c5ea2",
+        "Scripts/io_api_inventory/source-declarations.json": "e73059d11d32d85bd4ac6038e15b5f21bdd4c02fb93cc127276b378e909855c3",
+        "Scripts/io_api_inventory/upstream-lock.json": "ba67982fe9ba523a7f1ce527c3ddde523d674ae2942472c9b17fa489180bfac1",
         "Scripts/io_api_inventory/generate.py": "7c1036037f9c9a860068123b8756c2116763034177f644708d7051eb2db9e6f8",
         "Scripts/io_api_inventory/test_validation_evidence.py": "efff7f21226bad8b900d94555203b7bee282569ca58e4fc6d3e96067bc2878cf"
       },
@@ -37,10 +37,10 @@
         "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.klib.api": "667b85c08144ad34edf289c593a55f39b5862623726a8bb23e4f0b7b3b4e2780",
         "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/common/src/unsafe/UnsafeBufferOperations.kt": "62189c1be10f120323fb85d026a38bcbe3e45e0409ca3e90f57dc046c56b157c"
       },
-      "probe_input_sha256": "5ff572b20bf2daf0a87221702c27d35da2fc8cbbb80f18b351d16cb5c300a58f",
+      "probe_input_sha256": "2cd5ad21c8311cf53df5455826613423d40f5f39b6e3aec11c3c5286ec0345a6",
       "upstream_input_sha256": "f55d07675b8e6e46a9141ea800f85a2797131a08bd17d6a112c4e66c1c0348c9",
-      "candidate_stdlib_manifest_hash": "07190c78b8191ef7",
-      "candidate_stdlib_tree_sha256": "a42c38c8a2c6c12feb3022a67b26d00f2dbd6780e9e85bf5500de263eb551bd4",
+      "candidate_stdlib_manifest_hash": "20075b11789b0373",
+      "candidate_stdlib_tree_sha256": "d39ea0eafeae4b5e0dd9f3b9e19d10960d90cb69865355a654f0ebaee9d6b400",
       "candidate_stdlib_build_command": ".build/debug/kswiftc --stdlib-only --emit library -o .artifacts/diff_kotlinc/KSwiftKStdlib.kklib",
       "ledger_status_reason": "No method-specific upstream test is mapped to either row; this direct shape audit does not promote behavioral status.",
       "related_findings": [
@@ -59,8 +59,8 @@
         "test_count": 4,
         "passed": 4,
         "failed": 0,
-        "summary": "sourceInterfaceAndMemberShapeMatchesPinnedViews passed; generatedKlibInterfaceAndMemberShapeMatchesPinnedViews passed; interfaceUseRequiresUnsafeIoApiOptIn passed 2 cases.\nTest run with 3 tests in 1 suite passed after 141.340 seconds.\nAll tests passed.\n",
-        "summary_sha256": "888c959dbc6f21d15384234cb8db49a7031cb21d31feea574539a56e62846096"
+        "summary": "sourceInterfaceAndMemberShapeMatchesPinnedViews passed after 32.339 seconds; generatedKlibInterfaceAndMemberShapeMatchesPinnedViews passed after 2.894 seconds; interfaceUseRequiresUnsafeIoApiOptIn passed 2 cases after 32.275 seconds.\nTest run with 3 tests in 1 suite passed after 67.509 seconds.\nAll tests passed.\n",
+        "summary_sha256": "f60c67e1a1a2c4620ce08135b225bf59f9a584ea7d63465caa63c0a6a122c1af"
       },
       "lanes": [
         {
