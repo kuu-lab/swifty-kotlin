@@ -617,7 +617,8 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: iterable, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: body, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
-        case let .memberAssign(receiverExpr, _, valueExpr, _):
+        case let .memberAssign(receiverExpr, _, valueExpr, _),
+             let .safeMemberAssign(receiverExpr, _, valueExpr, _):
             collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: valueExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
@@ -920,7 +921,8 @@ extension LambdaLowerer {
             return containsImplicitReceiverReference(in: iterable, ast: ast)
                 || containsImplicitReceiverReference(in: body, ast: ast)
 
-        case let .memberAssign(receiverExpr, _, valueExpr, _):
+        case let .memberAssign(receiverExpr, _, valueExpr, _),
+             let .safeMemberAssign(receiverExpr, _, valueExpr, _):
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
                 || containsImplicitReceiverReference(in: valueExpr, ast: ast)
 

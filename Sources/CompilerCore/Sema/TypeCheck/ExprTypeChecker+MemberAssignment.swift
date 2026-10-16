@@ -6,7 +6,8 @@ extension ExprTypeChecker {
         value: ExprID,
         range: SourceRange,
         ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        isSafeCall: Bool = false
     ) -> TypeID {
         let sema = ctx.sema
         let inferredReceiver = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
@@ -61,7 +62,7 @@ extension ExprTypeChecker {
                     )
                 }
             }
-            if sema.types.nullability(of: receiverType) == .nullable {
+            if !isSafeCall, sema.types.nullability(of: receiverType) == .nullable {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0026",
                     "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
@@ -73,7 +74,12 @@ extension ExprTypeChecker {
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
             let errorsBeforeResolution = sema.diagnostics.errorCount
             let setter = driver.callChecker.resolveExtensionPropertySetter(
-                id: id, calleeName: name, range: range, receiverType: receiverType, valueType: valueType, ctx: ctx
+                id: id,
+                calleeName: name,
+                range: range,
+                receiverType: isSafeCall ? nonNullReceiver : receiverType,
+                valueType: valueType,
+                ctx: ctx
             )
             if setter == nil, sema.diagnostics.errorCount == errorsBeforeResolution {
                 sema.diagnostics.error(

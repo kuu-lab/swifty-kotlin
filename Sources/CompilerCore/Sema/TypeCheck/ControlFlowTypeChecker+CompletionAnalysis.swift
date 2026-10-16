@@ -25,7 +25,8 @@ extension ControlFlowTypeChecker {
         case let .localAssign(_, value, _), let .compoundAssign(_, _, value, _),
              let .destructuringDecl(_, _, value, _):
             return completes(value)
-        case let .memberAssign(receiver, _, value, _), let .memberCompoundAssign(_, receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _), let .safeMemberAssign(receiver, _, value, _),
+             let .memberCompoundAssign(_, receiver, _, value, _):
             return completes(receiver) && completes(value)
         case let .indexedAssign(receiver, indices, value, _),
              let .indexedCompoundAssign(_, receiver, indices, value, _):

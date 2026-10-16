@@ -894,7 +894,8 @@ public final class CompilerDriver {
             collectExpr(value)
         case .returnExpr(value: nil, _, _):
             break
-        case let .memberAssign(receiver, callee, value, _):
+        case let .memberAssign(receiver, callee, value, _),
+             let .safeMemberAssign(receiver, callee, value, _):
             collectName(callee)
             collectExpr(receiver)
             collectExpr(value)

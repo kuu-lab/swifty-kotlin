@@ -388,6 +388,8 @@ struct ASTIDRemapper {
             .localAssign(name: remap(name), value: remap(value), range: range)
         case let .memberAssign(receiver, callee, value, range):
             .memberAssign(receiver: remap(receiver), callee: remap(callee), value: remap(value), range: range)
+        case let .safeMemberAssign(receiver, callee, value, range):
+            .safeMemberAssign(receiver: remap(receiver), callee: remap(callee), value: remap(value), range: range)
         case let .indexedAssign(receiver, indices, value, range):
             .indexedAssign(receiver: remap(receiver), indices: indices.map { remap($0) }, value: remap(value), range: range)
         case let .call(callee, typeArgs, args, range):

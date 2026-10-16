@@ -406,6 +406,7 @@ struct DeclarationPositionValidator {
              .throwExpr(let value, _):
             [value]
         case .memberAssign(let receiver, _, let value, _),
+             .safeMemberAssign(let receiver, _, let value, _),
              .memberCompoundAssign(_, let receiver, _, let value, _):
             [receiver, value]
         case .indexedAssign(let receiver, let indices, let value, _),

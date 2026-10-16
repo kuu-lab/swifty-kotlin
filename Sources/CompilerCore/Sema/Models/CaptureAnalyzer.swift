@@ -110,7 +110,8 @@ struct CaptureAnalyzer {
                 recordCapture(for: currentExprID)
                 visit(value)
 
-            case let .memberAssign(receiver, _, value, _):
+            case let .memberAssign(receiver, _, value, _),
+                 let .safeMemberAssign(receiver, _, value, _):
                 visit(receiver)
                 visit(value)
 
