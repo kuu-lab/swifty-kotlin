@@ -46,6 +46,20 @@ class F02GateTests(unittest.TestCase):
         self.assertIn('println("committed:"', generated["Consumer.kt"])
         self.assertEqual(generator.expression("Byte", "b3"), "4.toByte()")
 
+    def test_systemfilesystem_binding_uses_a_dedicated_property_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "systemfilesystem-binding")
+        self.assertEqual(
+            case["probe_case_id"],
+            "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+        )
+        source = case["fixture"].read_text(encoding="utf-8")
+        self.assertIn("val first: FileSystem = SystemFileSystem", source)
+        self.assertIn("val second: FileSystem = SystemFileSystem", source)
+        self.assertIn("first === second", source)
+        self.assertIn("first.exists(Path(\".\"))", source)
+        for unrelated in ("SystemTemporaryDirectory", "SystemPathSeparator"):
+            self.assertNotIn(unrelated, source)
+
     def test_missing_default_call_and_duplicate_row_cannot_pass(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0", "a:1"]}
         complete = b"BEGIN:a\nCALL:a:0\nCALL-END:a:0\nCALL:a:1\nCALL-END:a:1\nEND:a\n"
