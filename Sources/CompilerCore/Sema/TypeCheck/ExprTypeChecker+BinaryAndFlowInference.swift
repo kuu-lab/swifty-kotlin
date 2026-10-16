@@ -372,24 +372,35 @@ extension ExprTypeChecker {
             }
         }
         // `collectOperatorCandidates` deliberately excludes primitive receivers
-        // from member lookup for non-range operators (Int/Long/etc. never have
-        // an applicable arithmetic *member*), but that also hides a
-        // user-declared extension such as `operator fun Int.times(v: Vec)`:
-        // extension functions aren't members, so they can't be found that way
-        // regardless of receiver type. Only search scope for one when the RHS
-        // isn't itself numeric, or a Char operand has no builtin arithmetic
-        // overload — this leaves built-in arithmetic (and the
-        // member-wins behavior `operator_extension.kt` checks) unaffected.
-        if operatorCandidates.isEmpty,
-           lhsIsPrimitive,
-           [.add, .subtract, .multiply, .divide, .modulo].contains(op)
-        {
+        // from member lookup for non-range operators. That also hides scoped
+        // operator extensions because they aren't members. Search for those
+        // extensions in the existing arithmetic fallback cases and for nullable
+        // primitive comparisons, where a user `compareTo` must run before the
+        // built-in primitive comparison path.
+        let isComparisonOperator: Bool = switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            true
+        default:
+            false
+        }
+        let isNullablePrimitiveReceiver: Bool = if case .primitive(_, .nullable) = sema.types.kind(of: lhs) {
+            true
+        } else {
+            false
+        }
+        if operatorCandidates.isEmpty, lhsIsPrimitive {
             let rhsIsNumeric = if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(rhs)) { true } else { false }
-            if !rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
+            let isPrimitiveArithmeticOperator = [.add, .subtract, .multiply, .divide, .modulo].contains(op)
+            let shouldSearchForScopedExtension = isPrimitiveArithmeticOperator
+                && (!rhsIsNumeric || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema))
+                || isNullablePrimitiveReceiver && isComparisonOperator
+            if shouldSearchForScopedExtension {
                 let extensionCandidates = collectScopedOperatorExtensionCandidates(
                     names: operatorNames,
                     receiverType: lhs,
-                    argumentType: lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
+                    argumentType: isComparisonOperator
+                        ? rhs
+                        : lhs == charType && op == .add && sema.types.isString(rhs) ? rhs : nil,
                     ctx: ctx
                 )
                 if !extensionCandidates.isEmpty {
