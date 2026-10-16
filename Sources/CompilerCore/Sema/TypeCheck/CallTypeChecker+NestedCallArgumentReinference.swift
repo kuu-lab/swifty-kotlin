@@ -1,6 +1,6 @@
 /// Helpers split from `CallTypeChecker.swift`:
-/// Re-inference of nested generic call arguments whose element type collapsed
-/// to `Nothing`, or whose own resolution failed outright, before the
+/// Re-inference of nested generic call arguments whose type arguments collapsed
+/// to `Nothing` or `Any`, or whose own resolution failed outright, before the
 /// enclosing call's constraint set was known.
 ///
 /// Argument type checking is eager: `mutableListOf()` infers
@@ -126,6 +126,32 @@ extension CallTypeChecker {
         default:
             return false
         }
+    }
+
+    /// Whether this is an argument-less stdlib `LinkedHashMap()` whose type
+    /// arguments can be inferred again from an enclosing generic bound.
+    /// Restricting the retry to this constructor avoids treating arbitrary
+    /// `Any`-typed expressions as deferred nested calls.
+    func isReinferableLinkedHashMapConstructor(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        guard case let .call(calleeID, typeArgs, arguments, _) = ctx.ast.arena.expr(expr),
+              typeArgs.isEmpty,
+              arguments.isEmpty,
+              case let .nameRef(calleeName, _) = ctx.ast.arena.expr(calleeID),
+              ctx.interner.resolve(calleeName) == "LinkedHashMap"
+        else {
+            return false
+        }
+        let linkedHashMapFQName = ["kotlin", "collections", "LinkedHashMap"].map(ctx.interner.intern)
+        guard let linkedHashMapSymbol = ctx.sema.symbols.lookup(fqName: linkedHashMapFQName) else {
+            return false
+        }
+        let scopeClass = ctx.cachedScopeLookup(calleeName).first(where: {
+            ctx.cachedSymbol($0)?.kind == .class
+        })
+        guard scopeClass == linkedHashMapSymbol else {
+            return false
+        }
+        return true
     }
 
     /// Positional parameter index for a call argument, honoring labeled
@@ -273,9 +299,10 @@ extension CallTypeChecker {
         )
     }
 
-    /// Re-parameterizes the nested call's first-pass (Nothing-poisoned) type
-    /// with the argument types demanded by `boundType`, keeping the nested
-    /// call's own nominal head. E.g. `MutableList<Nothing>` against
+    /// Re-parameterizes the nested call's first-pass type with the argument
+    /// types demanded by `boundType`, keeping the nested call's own nominal
+    /// head. An argument-less `LinkedHashMap()` can recover that head from its
+    /// syntax when its first-pass type is `Any`. E.g. `MutableList<Nothing>` against
     /// `MutableCollection<in Int>` yields `MutableList<Int>` — re-inferring
     /// the nested call with that expected type then produces the same precise
     /// static type kotlinc computes (`val dest = ...mapTo(mutableListOf())`
@@ -288,13 +315,34 @@ extension CallTypeChecker {
     func concreteNestedCallExpectedType(
         originalArgumentType: TypeID,
         boundType: TypeID,
-        sema: SemaModule
+        sema: SemaModule,
+        nestedCallExpr: ExprID? = nil,
+        ctx: TypeInferenceContext? = nil
     ) -> TypeID? {
-        guard case let .classType(originalClassType) = sema.types.kind(of: originalArgumentType),
-              case let .classType(boundClassType) = sema.types.kind(of: boundType),
-              !originalClassType.args.isEmpty,
-              originalClassType.args.count == boundClassType.args.count
-        else {
+        guard case let .classType(boundClassType) = sema.types.kind(of: boundType) else {
+            return nil
+        }
+        let originalClassSymbol: SymbolID
+        let originalNullability: Nullability
+        if case let .classType(originalClassType) = sema.types.kind(of: originalArgumentType),
+           originalClassType.args.count == boundClassType.args.count
+        {
+            originalClassSymbol = originalClassType.classSymbol
+            originalNullability = originalClassType.nullability
+        } else if originalArgumentType == sema.types.anyType,
+                  let nestedCallExpr,
+                  let ctx,
+                  isReinferableLinkedHashMapConstructor(nestedCallExpr, ctx: ctx),
+                  let linkedHashMapSymbol = sema.symbols.lookup(fqName: [
+                      ctx.interner.intern("kotlin"),
+                      ctx.interner.intern("collections"),
+                      ctx.interner.intern("LinkedHashMap"),
+                  ])
+        {
+            guard boundClassType.args.count == 2 else { return nil }
+            originalClassSymbol = linkedHashMapSymbol
+            originalNullability = .nonNull
+        } else {
             return nil
         }
         var candidateArgs: [TypeArg] = []
@@ -307,9 +355,9 @@ extension CallTypeChecker {
             }
         }
         let candidate = sema.types.make(.classType(ClassType(
-            classSymbol: originalClassType.classSymbol,
+            classSymbol: originalClassSymbol,
             args: candidateArgs,
-            nullability: originalClassType.nullability
+            nullability: originalNullability
         )))
         guard sema.types.isSubtype(candidate, boundType) else {
             return nil
@@ -319,16 +367,19 @@ extension CallTypeChecker {
 
     /// The expected type for a deferred nested-call argument, derived from
     /// the candidate parameter type after applying the substitution inferred
-    /// from the call's other arguments. When the substituted parameter is
-    /// still a bare type variable (e.g. `C` in `dest: C`), its declared
-    /// upper bounds are tried in order (e.g. `MutableCollection<in T>` ->
-    /// `MutableCollection<in Int>`); the first fully concrete bound wins.
+    /// from the call's other arguments. When the parameter is a bare type
+    /// variable (e.g. `M` in `dest: M`), its declared upper bounds are tried
+    /// in order after applying that substitution. A bound such as
+    /// `MutableMap<in K, MutableList<T>>` can specialize an empty
+    /// `LinkedHashMap()` constructor even if it still contains unresolved
+    /// outer type variables.
     /// The resulting bound is then re-parameterized onto the nested call's
     /// own nominal head via `concreteNestedCallExpectedType`.
     /// Returns nil when no concrete expected type can be derived.
     func deferredArgumentExpectedType(
         parameterType: TypeID,
         argumentType: TypeID,
+        argumentExpr: ExprID,
         signature: FunctionSignature,
         partialSubstitution: [TypeVarID: TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
@@ -341,6 +392,46 @@ extension CallTypeChecker {
             substitution: partialSubstitution,
             typeVarBySymbol: typeVarBySymbol
         )
+        if isReinferableLinkedHashMapConstructor(argumentExpr, ctx: ctx),
+           case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+           let typeParameterIndex = signature.typeParameterSymbols.firstIndex(of: parameterTypeParam.symbol)
+        {
+            let signatureBounds = typeParameterIndex < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[typeParameterIndex]
+                : []
+            let symbolBounds = sema.symbols.typeParameterUpperBounds(for: parameterTypeParam.symbol)
+                .filter { !signatureBounds.contains($0) }
+            for upperBound in signatureBounds + symbolBounds {
+                let substitutedBound = sema.types.substituteTypeParameters(
+                    in: upperBound,
+                    substitution: partialSubstitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                guard !ctx.resolver.containsTypeVariable(
+                    substitutedBound,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: sema.types
+                ), let expectedType = concreteNestedCallExpectedType(
+                    originalArgumentType: argumentType,
+                    boundType: substitutedBound,
+                    sema: sema,
+                    nestedCallExpr: argumentExpr,
+                    ctx: ctx
+                ) else {
+                    continue
+                }
+                let parameterStillUninferred: Bool
+                if case let .typeParam(substitutedTypeParam) = sema.types.kind(of: substitutedParameter) {
+                    parameterStillUninferred = substitutedTypeParam.symbol == parameterTypeParam.symbol
+                } else {
+                    parameterStillUninferred = false
+                }
+                guard parameterStillUninferred || sema.types.isSubtype(expectedType, substitutedParameter) else {
+                    continue
+                }
+                return expectedType
+            }
+        }
         if !ctx.resolver.containsTypeVariable(
             substitutedParameter,
             typeVarBySymbol: typeVarBySymbol,
@@ -357,7 +448,9 @@ extension CallTypeChecker {
             return concreteNestedCallExpectedType(
                 originalArgumentType: argumentType,
                 boundType: substitutedParameter,
-                sema: sema
+                sema: sema,
+                nestedCallExpr: argumentExpr,
+                ctx: ctx
             )
         }
         guard case let .typeParam(typeParam) = sema.types.kind(of: substitutedParameter),
@@ -386,7 +479,9 @@ extension CallTypeChecker {
             return concreteNestedCallExpectedType(
                 originalArgumentType: argumentType,
                 boundType: substitutedBound,
-                sema: sema
+                sema: sema,
+                nestedCallExpr: argumentExpr,
+                ctx: ctx
             )
         }
         return nil
@@ -506,10 +601,10 @@ extension CallTypeChecker {
     }
 
     /// Retry overload resolution after re-inferring nested-call arguments
-    /// whose inferred type still contains `Nothing` or failed outright.
+    /// whose inferred type still contains `Nothing` or failed outright, and
+    /// eligible argument-less `LinkedHashMap()` constructors.
     ///
-    /// Only invoked after the first resolution produced a diagnostic. Each
-    /// candidate contributes a partial substitution probed from the
+    /// Each candidate contributes a partial substitution probed from the
     /// non-deferred arguments plus the resolved positions of any
     /// failed nested call; deferred arguments are then re-inferred under
     /// their derived expected types and the full call is resolved once more.
@@ -540,7 +635,8 @@ extension CallTypeChecker {
                   index < argTypes.count,
                   typeContainsNothingType(argTypes[index], sema: sema)
                       || typeContainsErrorType(argTypes[index], sema: sema)
-                      || typeContainsLeakedTypeParameterArgument(argTypes[index], sema: sema),
+                      || typeContainsLeakedTypeParameterArgument(argTypes[index], sema: sema)
+                      || isReinferableLinkedHashMapConstructor(argument.expr, ctx: ctx),
                   isInferableNestedCallExpr(argument.expr, ast: ast)
             else {
                 continue
@@ -644,17 +740,21 @@ extension CallTypeChecker {
                     label: args[index].label,
                     in: signature,
                     sema: sema
-                ), parameterIndex < signature.parameterTypes.count,
-                   let expectedArgumentType = deferredArgumentExpectedType(
-                       parameterType: signature.parameterTypes[parameterIndex],
-                       argumentType: nestedEvidence[index]?.type ?? argTypes[index],
-                       signature: signature,
-                       partialSubstitution: partialSubstitution,
-                       typeVarBySymbol: typeVarBySymbol,
-                       allowPrimitiveErrorContext: allowPrimitiveErrorContext,
-                       ctx: ctx
-                   )
+                ), parameterIndex < signature.parameterTypes.count
                 else {
+                    continue
+                }
+                let expectedArgumentType = deferredArgumentExpectedType(
+                    parameterType: signature.parameterTypes[parameterIndex],
+                    argumentType: nestedEvidence[index]?.type ?? argTypes[index],
+                    argumentExpr: args[index].expr,
+                    signature: signature,
+                    partialSubstitution: partialSubstitution,
+                    typeVarBySymbol: typeVarBySymbol,
+                    allowPrimitiveErrorContext: allowPrimitiveErrorContext,
+                    ctx: ctx
+                )
+                guard let expectedArgumentType else {
                     continue
                 }
                 retryArgTypes[index] = driver.inferExpr(
