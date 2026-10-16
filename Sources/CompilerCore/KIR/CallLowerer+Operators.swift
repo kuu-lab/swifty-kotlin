@@ -509,20 +509,15 @@ extension CallLowerer {
                 )
                 var finalArguments = normalizedResult.arguments
                 finalArguments.insert(lhsID, at: 0)
-                if !signature.reifiedTypeParameterIndices.isEmpty {
-                    for index in signature.reifiedTypeParameterIndices.sorted() {
-                        let concreteType = index < callBinding.substitutedTypeArguments.count
-                            ? callBinding.substitutedTypeArguments[index]
-                            : sema.types.anyType
-                        let encodedToken = RuntimeTypeCheckToken.encode(type: concreteType, sema: sema, interner: interner)
-                        let tokenExpr = arena.appendExpr(
-                            .intLiteral(encodedToken),
-                            type: intType
-                        )
-                        instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-                        finalArguments.append(tokenExpr)
-                    }
-                }
+                appendReifiedTypeTokens(
+                    chosenCallee: callBinding.chosenCallee,
+                    callBinding: callBinding,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
                 if normalizedResult.defaultMask != 0,
                    sema.symbols.externalLinkName(for: callBinding.chosenCallee)?.isEmpty ?? true
                 {

@@ -240,7 +240,7 @@ extension BuildASTPhase {
                   let nextToken = peek(1),
                   canStartExpression(nextToken)
             else { return nil }
-            guard let calleeName = identifierFromToken(token) else { return nil }
+            guard let calleeName = simpleIdentifierFromToken(token) else { return nil }
             _ = consume()
             guard let rhs = parseExpression(
                 minPrecedence: infixPrecedence + 1,
@@ -272,6 +272,18 @@ extension BuildASTPhase {
             switch token.kind {
             case .symbol(.at):
                 return parseAnnotatedExpression { self.parsePrefixUnary() }
+            case .symbol(.bangBang):
+                // At prefix position, Kotlin parses `!!expr` as two logical-not
+                // operators; postfix `!!` remains a null assertion after a value.
+                _ = consume()
+                guard let operand = parsePrefixUnary() else { return nil }
+                let secondBangStart = SourceLocation(file: token.range.start.file, offset: token.range.start.offset + 1)
+                let secondBangRange = SourceRange(start: secondBangStart, end: token.range.end)
+                let innerRange = mergeRanges(secondBangRange, astArena.exprRange(operand), fallback: secondBangRange)
+                let inner = astArena.appendExpr(.unaryExpr(op: .not, operand: operand, range: innerRange))
+                let firstBangRange = SourceRange(start: token.range.start, end: secondBangStart)
+                let range = mergeRanges(firstBangRange, astArena.exprRange(inner), fallback: firstBangRange)
+                return astArena.appendExpr(.unaryExpr(op: .not, operand: inner, range: range))
             case .symbol(.bang):
                 if let next = peek(1), next.kind == .keyword(.is) || next.kind == .keyword(.in) {
                     return parsePostfixOrPrimary()
@@ -434,6 +446,10 @@ extension BuildASTPhase {
         }
 
         func labelNameFromToken(_ token: Token) -> InternedString? {
+            simpleIdentifierFromToken(token)
+        }
+
+        func simpleIdentifierFromToken(_ token: Token) -> InternedString? {
             token.kind.isLabelName ? tokenText(token) : nil
         }
 
@@ -476,23 +492,18 @@ extension BuildASTPhase {
             return parenDepth > 0 || bracketDepth > 0
         }
 
+        /// Infix callees use Kotlin `simpleIdentifier`, which also includes soft and modifier keywords.
         /// Excludes identifiers already handled as known BinaryOp (downTo, step) by binaryOperator().
         private func isInfixIdentifierToken(_ token: Token) -> Bool {
-            switch token.kind {
-            case let .identifier(name):
+            guard token.kind.isLabelName else { return false }
+            if case let .identifier(name) = token.kind {
                 let resolved = interner.resolve(name)
                 if resolved == "downTo" || resolved == "step" {
                     return false
                 }
-                return true
-            case .backtickedIdentifier:
-                // Note: backticked identifiers intentionally bypass the special BinaryOp handling.
-                // `downTo` and `step` written with backticks are treated as general infix function
-                // calls (desugared to memberCall), not as BinaryOp.downTo/step.
-                return true
-            default:
-                return false
             }
+            // Backticked `downTo` and `step` intentionally bypass special BinaryOp handling.
+            return true
         }
 
         private func canStartExpression(_ token: Token) -> Bool {

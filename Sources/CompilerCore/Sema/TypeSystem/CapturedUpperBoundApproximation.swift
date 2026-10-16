@@ -9,11 +9,13 @@ extension TypeSystem {
         case .typeParam:
             return position == .out
         case let .classType(classType):
-            let variances = normalizedNominalVariances(for: classType.classSymbol, arity: classType.args.count)
-            return classType.args.enumerated().allSatisfy { index, argument in
+            let arguments = allTypeArguments(for: classType)
+            let variances = allTypeParameterVariances(for: classType.classSymbol)
+            return arguments.enumerated().allSatisfy { index, argument in
                 let inner: TypeID
                 let variance: TypeVariance
-                switch composedProjection(declarationVariance: variances[index], useSite: argument) {
+                let declarationVariance = variances.indices.contains(index) ? variances[index] : .invariant
+                switch composedProjection(declarationVariance: declarationVariance, useSite: argument) {
                 case let .invariant(type): (inner, variance) = (type, .invariant)
                 case let .out(type): (inner, variance) = (type, .out)
                 case let .in(type): (inner, variance) = (type, .in)

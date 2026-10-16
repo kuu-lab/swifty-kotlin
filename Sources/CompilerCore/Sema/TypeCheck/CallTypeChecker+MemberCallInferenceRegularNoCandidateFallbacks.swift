@@ -191,6 +191,150 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// `Enum.ENTRY(args)` is a value call, but it reaches member-call
+    /// inference before the enum entry can be read as a standalone value.
+    /// After ordinary `ENTRY` member candidates and extensions have failed,
+    /// resolve the entry's enum-class `invoke` member through the regular
+    /// candidate and constraint machinery.
+    func inferEnumEntryInvokeCall(
+        _ request: MemberCallInferenceRequest,
+        memberLookupType: TypeID,
+        classNameReceiverNominalSymbol: SymbolID?,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let ctx = request.ctx
+        let sema = ctx.sema
+        guard !request.safeCall,
+              let ownerSymbol = classNameReceiverNominalSymbol,
+              let owner = sema.symbols.symbol(ownerSymbol),
+              owner.kind == .enumClass
+        else {
+            return nil
+        }
+
+        func canonicalSymbol(_ symbol: SymbolID) -> SymbolID {
+            sema.symbols.actualSymbol(for: symbol) ?? symbol
+        }
+
+        guard let entrySymbol = sema.symbols.lookupAll(fqName: owner.fqName + [request.calleeName]).first(where: { candidate in
+            guard let candidateInfo = sema.symbols.symbol(candidate),
+                  let candidateOwner = sema.symbols.enumOwnerSymbol(for: candidateInfo)
+            else {
+                return false
+            }
+            return canonicalSymbol(candidateOwner) == canonicalSymbol(ownerSymbol)
+        }),
+        let entryInfo = sema.symbols.symbol(entrySymbol)
+        else {
+            return nil
+        }
+
+        let range = request.range
+        let entryName = ctx.interner.resolve(request.calleeName)
+        guard ctx.visibilityChecker.isAccessible(
+            entryInfo,
+            fromFile: ctx.currentFileID,
+            enclosingClass: ctx.enclosingClassSymbol
+        ) else {
+            driver.helpers.emitVisibilityError(
+                for: entryInfo,
+                name: entryName,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+
+        let entryType = sema.symbols.propertyType(for: entrySymbol)
+            ?? sema.types.makeNonNullable(memberLookupType)
+        let invokeName = ctx.interner.intern("invoke")
+        let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: invokeName,
+            receiverType: entryType,
+            sema: sema,
+            interner: ctx.interner
+        ).filter { candidate in
+            sema.symbols.symbol(candidate)?.flags.contains(.operatorFunction) == true
+        }
+        guard !invokeCandidates.isEmpty else {
+            return nil
+        }
+
+        let visibleCandidates = invokeCandidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else { return false }
+            return ctx.visibilityChecker.isAccessible(
+                symbol,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            )
+        }
+        guard !visibleCandidates.isEmpty else {
+            if let firstInvisible = invokeCandidates.first,
+               let symbol = sema.symbols.symbol(firstInvisible)
+            {
+                driver.helpers.emitVisibilityError(
+                    for: symbol,
+                    name: ctx.interner.resolve(invokeName),
+                    range: range,
+                    diagnostics: sema.diagnostics
+                )
+            }
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+
+        let prepared = prepareCallArguments(
+            args: request.args,
+            callRange: range,
+            candidates: visibleCandidates,
+            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                ? sema.types.unitType : request.expectedType,
+            explicitTypeArgs: request.explicitTypeArgs,
+            receiverType: entryType,
+            ctx: ctx,
+            locals: &locals
+        )
+        let resolved = resolveCallRespectingLambdaReturnType(
+            candidates: visibleCandidates,
+            args: request.args,
+            argTypes: prepared.argTypes,
+            range: range,
+            calleeName: invokeName,
+            explicitTypeArgs: request.explicitTypeArgs,
+            expectedType: request.expectedType,
+            implicitReceiverType: entryType,
+            lambdaLiteralIndices: prepared.lambdaLiteralIndices,
+            inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
+            blockedLambdaRefinement: prepared.blockedLambdaRefinement,
+            hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
+            ctx: ctx
+        )
+        if let diagnostic = resolved.diagnostic {
+            sema.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+        guard let chosen = resolved.chosenCallee else {
+            return nil
+        }
+
+        let returnType = bindCallAndResolveReturnType(
+            request.id,
+            chosen: chosen,
+            resolved: resolved,
+            sema: sema
+        )
+        applyContractEffects(
+            id: request.id,
+            chosen: chosen,
+            args: request.args,
+            ctx: ctx,
+            locals: &locals
+        )
+        sema.bindings.markInvokeOperatorCall(request.id)
+        sema.bindings.bindEnumEntryInvokeReceiver(request.id, symbol: entrySymbol)
+        sema.bindings.bindExprType(request.id, type: returnType)
+        return returnType
+    }
+
     func inferRegularMemberCallWithoutCandidates(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -1701,6 +1845,15 @@ extension CallTypeChecker {
             locals: &locals
         ) {
             return fallbackType
+        }
+
+        if let invokeType = inferEnumEntryInvokeCall(
+            request,
+            memberLookupType: memberLookupType,
+            classNameReceiverNominalSymbol: classNameReceiverNominalSymbol,
+            locals: &locals
+        ) {
+            return invokeType
         }
 
         ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(calleeStr)'.", range: range)

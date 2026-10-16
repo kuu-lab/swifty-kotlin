@@ -8,6 +8,33 @@ import Testing
 @Suite
 struct MemberExtensionPropertyExecutionTests {
     @Test(arguments: [false, true])
+    func interfaceMemberExtensionPropertyUsesBothReceivers(fromSource: Bool) throws {
+        let source = try diffCaseSource("interface_member_extension_property.kt")
+        try withTemporaryFile(contents: source) { path in
+            let output = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: output) }
+            let options = CompilerOptions(
+                moduleName: "InterfaceMemberExtensionProperty",
+                inputs: [path], outputPath: output, emit: .executable,
+                target: defaultTargetTriple(),
+                allowDefaultStdlibLibrary: !fromSource
+            )
+            let ctx = CompilationContext(
+                options: options, sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(), interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "OK\n")
+        }
+    }
+
+    @Test(arguments: [false, true])
     func getterSetterCarryBothReceivers(fromSource: Bool) throws {
         let source = try diffCaseSource("member_extension_property_receivers.kt")
         try withTemporaryFile(contents: source) { path in

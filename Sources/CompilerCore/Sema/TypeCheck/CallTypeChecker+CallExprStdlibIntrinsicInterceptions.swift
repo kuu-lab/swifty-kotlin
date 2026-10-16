@@ -2,7 +2,7 @@
 
 /// Stdlib intrinsic call interceptions from the `inferCallExpr` dispatch
 /// chain: `kotlin.reflect.typeOf`, the `enumValues`/`enumValueOf`/`values`/
-/// `valueOf`/`entries` enum specials, and `contract { }`.
+/// `valueOf`/`entries` enum specials, and the `kotlin.contracts.contract` DSL.
 /// Extracted from `CallTypeChecker+CallExprInference.swift`.
 extension CallTypeChecker {
     func inferReflectTypeOfCall(
@@ -150,45 +150,80 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?,
-        calleeName: InternedString?
+        calleeName: InternedString?,
+        calleePath: [InternedString]?
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
-
-
-        if let calleeName,
-           calleeName == knownNames.contract,
-           args.count == 1
-        {
-            let builderSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("contracts"),
-                interner.intern("ContractBuilder"),
-            ])
-            let builderType = builderSymbol.map {
-                sema.types.make(.classType(ClassType(classSymbol: $0, args: [], nullability: .nonNull)))
-            } ?? sema.types.anyType
-            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                receiver: builderType,
-                params: [],
-                returnType: sema.types.unitType
-            )))
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx.with(implicitReceiverType: builderType),
-                locals: &locals,
-                expectedType: lambdaExpectedType
-            )
-            // Contract effects are consumed by Sema and have no runtime
-            // representation. Mark the call so KIR does not lower its builder
-            // lambda, whose effect expressions may otherwise become runtime
-            // calls even though the contract itself is compiler-only.
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .contract)
-            sema.bindings.bindExprType(id, type: sema.types.unitType)
-            return sema.types.unitType
+        guard args.count == 1,
+              case .lambdaLiteral = ctx.ast.arena.expr(args[0].expr)
+        else {
+            return nil
         }
-        return nil
+
+        let contractIntrinsicFQName = [
+            interner.intern("kotlin"),
+            interner.intern("contracts"),
+            interner.intern("contract"),
+        ]
+        let candidates: [SymbolID]
+        if calleePath == contractIntrinsicFQName {
+            candidates = sema.symbols.lookupAll(fqName: contractIntrinsicFQName)
+        } else if let calleeName, locals[calleeName] == nil {
+            candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        } else {
+            return nil
+        }
+        guard let intrinsic = candidates.first(where: {
+            sema.wellKnownSymbols.isContractIntrinsic(for: $0)
+        }),
+              let signature = sema.symbols.functionSignature(for: intrinsic),
+              signature.parameterTypes.count == 1,
+              case let .functionType(lambdaType) = sema.types.kind(of: signature.parameterTypes[0]),
+              let builderType = lambdaType.receiver
+        else {
+            return nil
+        }
+
+        // A same-named overload that accepts a function or SAM value must go
+        // through ordinary overload resolution. This keeps the special path
+        // tied to the selected stdlib declaration when lambda calls overlap.
+        let hasCallableUserOverload = candidates.contains { candidate in
+            guard !sema.wellKnownSymbols.isContractIntrinsic(for: candidate),
+                  let candidateSignature = sema.symbols.functionSignature(for: candidate),
+                  candidateSignature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            let parameterType = candidateSignature.parameterTypes[0]
+            if case .functionType = sema.types.kind(of: parameterType) {
+                return true
+            }
+            return driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil
+                || sema.types.typeContainsAnyTypeParam(parameterType)
+        }
+        guard !hasCallableUserOverload else { return nil }
+
+        _ = driver.inferExpr(
+            args[0].expr,
+            ctx: ctx.with(implicitReceiverType: builderType),
+            locals: &locals,
+            expectedType: signature.parameterTypes[0]
+        )
+        // The body is compiler-only, but record the exact declaration that
+        // selected this path so later consumers cannot confuse a user overload.
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: intrinsic,
+                substitutedTypeArguments: [],
+                parameterMapping: [0: 0]
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(intrinsic))
+        sema.bindings.markStdlibSpecialCallExpr(id, kind: .contract)
+        sema.bindings.bindExprType(id, type: signature.returnType)
+        return signature.returnType
     }
+
 }

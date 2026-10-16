@@ -5,6 +5,99 @@ import Testing
 @Suite
 struct CallableReferenceNestedClassifierTests {
     @Test
+    func boundZeroArgumentInnerConstructorReferenceHasNoInputs() throws {
+        try withTemporaryFile(contents: """
+        class A { inner class I }
+        fun make(): () -> A.I = A()::I
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let reference = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard case let .callableRef(_, member, _) = ast.arena.expr(exprID),
+                      ctx.interner.resolve(member) == "I"
+                else {
+                    return nil
+                }
+                return exprID
+            }.first)
+            let constructor = try #require(sema.bindings.identifierSymbol(for: reference))
+            let innerClass = try #require(sema.symbols.parentSymbol(for: constructor))
+
+            #expect(!sema.bindings.isUnboundCallableRef(reference))
+            guard case let .functionType(function) = sema.types.kind(
+                of: try #require(sema.bindings.exprType(for: reference))
+            ) else {
+                Issue.record("A bound inner constructor reference should have a function type.")
+                return
+            }
+            #expect(function.receiver == nil)
+            #expect(function.params.isEmpty)
+            guard case let .classType(resultType) = sema.types.kind(of: function.returnType) else {
+                Issue.record("A bound inner constructor reference should return its inner class type.")
+                return
+            }
+            #expect(resultType.classSymbol == innerClass)
+        }
+    }
+
+    @Test
+    func boundInheritedInnerConstructorReferenceUsesOnlyConstructorInputs() throws {
+        let source = """
+        open class A(val prefix: String) {
+            inner class I(val suffix: String)
+        }
+        class B(prefix: String) : A(prefix)
+        fun make(): (String) -> A.I = B("outer")::I
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let reference = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard case let .callableRef(_, member, _) = ast.arena.expr(exprID),
+                      ctx.interner.resolve(member) == "I"
+                else {
+                    return nil
+                }
+                return exprID
+            }.first)
+
+            #expect(!sema.bindings.isUnboundCallableRef(reference))
+            let constructor = try #require(sema.bindings.identifierSymbol(for: reference))
+            #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+            let innerClass = try #require(sema.symbols.parentSymbol(for: constructor))
+            #expect(sema.symbols.symbol(innerClass)?.flags.contains(.innerClass) == true)
+
+            let referenceType = try #require(sema.bindings.exprType(for: reference))
+            guard case let .functionType(function) = sema.types.kind(of: referenceType) else {
+                Issue.record("A bound inner constructor reference should have a function type.")
+                return
+            }
+            #expect(function.receiver == nil)
+            #expect(function.params == [sema.types.stringType])
+            guard case let .classType(resultType) = sema.types.kind(of: function.returnType) else {
+                Issue.record("A bound inner constructor reference should return its inner class type.")
+                return
+            }
+            #expect(resultType.classSymbol == innerClass)
+        }
+    }
+
+    @Test
     func unboundNestedClassifierMemberAndExtensionReferencesMatchExpectedTypes() throws {
         let source = """
         class A { class B { fun direct(): Boolean = true } }

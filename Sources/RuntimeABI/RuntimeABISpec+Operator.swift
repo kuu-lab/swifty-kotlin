@@ -441,6 +441,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_java_class_get_declared_field",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_java_class_get_name",
             parameters: [
                 RuntimeABIParameter(name: "classRaw", type: .intptr),
@@ -460,6 +470,44 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck",
             isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_class_register_declared_field",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "fieldNameRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_field_register_single_annotation",
+            parameters: ["typeToken", "fieldNameRaw", "fqNameRaw", "argsEncodedRaw", "argCount"].map {
+                RuntimeABIParameter(name: $0, type: .intptr)
+            },
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_field_register_annotation_factory",
+            parameters: ["typeToken", "fieldNameRaw", "fqNameRaw", "argsEncodedRaw", "argCount", "factory"].map {
+                RuntimeABIParameter(name: $0, type: .intptr)
+            },
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_field_get_annotations_typed",
+            parameters: [
+                RuntimeABIParameter(name: "fieldRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_java_method_get_name",

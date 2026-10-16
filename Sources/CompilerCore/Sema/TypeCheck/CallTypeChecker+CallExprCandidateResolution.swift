@@ -8,6 +8,7 @@
 extension CallTypeChecker {
     func resolveCallExprCandidates(
         _ id: ExprID,
+        calleeID: ExprID,
         args: [CallArgument],
         range: SourceRange,
         ctx: TypeInferenceContext,
@@ -18,6 +19,8 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         constructorTypeAlias: SymbolID?,
         typeAliasConstructor: TypeAliasConstructorContext?,
+        typeNameCompanionInvokeCandidates: Set<SymbolID>,
+        typeNameCompanionInvokeReceiverType: TypeID?,
         callImplicitReceiverType: TypeID?,
         memberExtensionReceiverMarks: [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: [SymbolID],
@@ -123,6 +126,33 @@ extension CallTypeChecker {
                 ctx: ctx,
                 locals: locals
             )
+            var resolvedTypeNameInvokeCandidates = typeNameCompanionInvokeCandidates.intersection(
+                resolvedCandidates
+            )
+            let constructors = resolvedCandidates.filter {
+                sema.symbols.symbol($0)?.kind == .constructor
+            }
+            if !constructors.isEmpty, !resolvedTypeNameInvokeCandidates.isEmpty {
+                let constructorCall = CallExpr(
+                    range: range,
+                    calleeName: calleeName ?? InternedString(),
+                    args: zip(args, preparedArgs.argTypes).map { argument, type in
+                        CallArg.source(argument, type: type, callRange: range, ast: ast)
+                    },
+                    explicitTypeArgs: explicitTypeArgs
+                )
+                let constructorProbe = ctx.resolver.probeCall(
+                    candidates: constructors,
+                    call: constructorCall,
+                    expectedType: nil,
+                    candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
+                    ctx: sema
+                )
+                if !constructorProbe.viableCandidates.isEmpty {
+                    resolvedCandidates.removeAll { resolvedTypeNameInvokeCandidates.contains($0) }
+                    resolvedTypeNameInvokeCandidates.removeAll()
+                }
+            }
             resolvedCandidates = preferApplicableExplicitTopLevelImportTier(
                 candidates: resolvedCandidates,
                 args: args,
@@ -136,6 +166,7 @@ extension CallTypeChecker {
                 hasApplicableImplicitMembers: !knownApplicableImplicitMembers.isEmpty,
                 ctx: ctx
             )
+            resolvedTypeNameInvokeCandidates.formIntersection(resolvedCandidates)
             let isCoroutineBuilderWithHardcodedAnyReturn = resolvedCandidates.contains { candidate in
                 isCoroutineBuilderCandidate(candidate)
                     && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
@@ -154,6 +185,8 @@ extension CallTypeChecker {
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: callImplicitReceiverType,
                 bindsObjectDispatchReceiver: true,
+                additionalDispatchReceiverTypes: typeNameCompanionInvokeReceiverType.map { [$0] } ?? [],
+                additionalBoundObjectDispatchReceiverCandidates: resolvedTypeNameInvokeCandidates,
                 candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
@@ -177,6 +210,8 @@ extension CallTypeChecker {
                    expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                    implicitReceiverType: callImplicitReceiverType,
                    bindsObjectDispatchReceiver: true,
+                   additionalDispatchReceiverTypes: typeNameCompanionInvokeReceiverType.map { [$0] } ?? [],
+                   additionalBoundObjectDispatchReceiverCandidates: resolvedTypeNameInvokeCandidates,
                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -381,6 +416,17 @@ extension CallTypeChecker {
                 }
             }
             contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
+            if resolvedTypeNameInvokeCandidates.contains(chosen),
+               let typeNameCompanionInvokeReceiverType
+            {
+                _ = driver.inferExpr(
+                    calleeID,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: typeNameCompanionInvokeReceiverType
+                )
+                sema.bindings.markInvokeOperatorCall(id)
+            }
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
@@ -415,6 +461,11 @@ extension CallTypeChecker {
                 sema: sema,
                 dispatchReceiverSymbol: importedDispatchReceiver
             )
+            if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
+                // The contract DSL is compiler-only, but only after ordinary
+                // overload resolution selects kotlin.contracts.contract.
+                sema.bindings.markStdlibSpecialCallExpr(id, kind: .contract)
+            }
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionReceiverSymbol)
             }

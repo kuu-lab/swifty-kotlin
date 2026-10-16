@@ -70,6 +70,55 @@ struct DefinitePropertyInitializationTests {
     }
 
     @Test
+    func laterPropertiesAreNotRequiredWhenClassInitializationCannotComplete() throws {
+        try check("""
+        fun TODO(): Nothing = TODO()
+        class C {
+            val todo: String = TODO()
+            val uninitializedVal: String
+            var uninitializedVar: String
+        }
+        class Foo {
+            init { TODO() }
+            val uninitializedVal: String
+            var uninitializedVar: String
+        }
+        class Bar {
+            val initializedVal = 43
+            init { TODO() }
+            val uninitializedVal: String
+            var uninitializedVar: String
+        }
+        class ThrowingInit(failure: Throwable) {
+            init { throw failure }
+            val uninitializedVal: String
+        }
+        """, missing: 0)
+
+        try check("""
+        fun TODO(): Nothing = TODO()
+        class SometimesCompletes(flag: Boolean) {
+            init { if (flag) TODO() }
+            val uninitialized: String
+        }
+        """, missing: 1)
+
+        try check("""
+        class NormallyCompletingInitializer {
+            val initialized = 43
+            val uninitialized: String
+        }
+        """, missing: 1)
+
+        try check("""
+        class SecondaryConstructorThatThrows {
+            val uninitialized: Int
+            constructor(failure: Throwable) { throw failure }
+        }
+        """, missing: 1)
+    }
+
+    @Test
     func fieldAnnotationsDoNotSuppressMissingInitialization() throws {
         try check("""
         @Target(AnnotationTarget.FIELD)

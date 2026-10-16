@@ -23,6 +23,118 @@ extension DataFlowSemaPhase {
             )
         }
 
+        registerSyntheticSuspendFunctionTypes(symbols: symbols, types: types, interner: interner)
+    }
+
+    func registerSyntheticSuspendFunctionTypes(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let coroutinePackage = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("coroutines")],
+            symbols: symbols
+        )
+        let suspendFunctionSymbol = ensureInterfaceSymbol(
+            named: "SuspendFunction",
+            in: coroutinePackage,
+            symbols: symbols,
+            interner: interner
+        )
+
+        for arity in 0...22 {
+            registerSyntheticSuspendFunctionInterface(
+                arity: arity,
+                packageFQName: coroutinePackage,
+                suspendFunctionSymbol: suspendFunctionSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
+    }
+
+    private func registerSyntheticSuspendFunctionInterface(
+        arity: Int,
+        packageFQName: [InternedString],
+        suspendFunctionSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let interfaceName = interner.intern("SuspendFunction\(arity)")
+        let interfaceFQName = packageFQName + [interfaceName]
+        let interfaceSymbol: SymbolID = if let existing = symbols.lookup(fqName: interfaceFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .interface,
+                name: interfaceName,
+                fqName: interfaceFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .abstractType]
+            )
+        }
+        symbols.insertFlags([.synthetic, .abstractType], for: interfaceSymbol)
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: interfaceSymbol)
+        }
+        types.suspendFunctionNInterfaceSymbols[arity] = interfaceSymbol
+
+        var typeParamSymbols: [SymbolID] = []
+        if arity > 0 {
+            for index in 1...arity {
+                let name = interner.intern("P\(index)")
+                let symbol = symbols.define(
+                    kind: .typeParameter,
+                    name: name,
+                    fqName: interfaceFQName + [name],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: []
+                )
+                symbols.setParentSymbol(interfaceSymbol, for: symbol)
+                typeParamSymbols.append(symbol)
+            }
+        }
+
+        let returnName = interner.intern("R")
+        let returnSymbol = symbols.define(
+            kind: .typeParameter,
+            name: returnName,
+            fqName: interfaceFQName + [returnName],
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setParentSymbol(interfaceSymbol, for: returnSymbol)
+        typeParamSymbols.append(returnSymbol)
+        let returnType = types.make(.typeParam(TypeParamType(
+            symbol: returnSymbol,
+            nullability: .nonNull
+        )))
+
+        let variances = Array(repeating: TypeVariance.in, count: arity) + [.out]
+        types.setNominalTypeParameterSymbols(typeParamSymbols, for: interfaceSymbol)
+        types.setNominalTypeParameterVariances(variances, for: interfaceSymbol)
+
+        symbols.setDirectSupertypes([suspendFunctionSymbol], for: interfaceSymbol)
+        symbols.setSupertypeTypeArgs([.out(returnType)], for: interfaceSymbol, supertype: suspendFunctionSymbol)
+        types.setNominalDirectSupertypes([suspendFunctionSymbol], for: interfaceSymbol)
+
+        registerSyntheticFunctionInvokeMethod(
+            ownerSymbol: interfaceSymbol,
+            arity: arity,
+            typeParamSymbols: typeParamSymbols,
+            interfaceFQName: interfaceFQName,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            isSuspend: true,
+            isAbstract: true,
+            usesRuntimeInvokeBridge: false
+        )
     }
 
     func registerSyntheticFunctionInterface(
@@ -114,7 +226,8 @@ extension DataFlowSemaPhase {
             interfaceFQName: interfaceFQName,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            isAbstract: true
         )
     }
 
@@ -125,11 +238,18 @@ extension DataFlowSemaPhase {
         interfaceFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        isSuspend: Bool = false,
+        isAbstract: Bool = false,
+        usesRuntimeInvokeBridge: Bool = true
     ) {
         let invokeName = interner.intern("invoke")
         let invokeFQName = interfaceFQName + [invokeName]
 
+        var invokeFlags: SymbolFlags = [.synthetic, .operatorFunction]
+        if isAbstract {
+            invokeFlags.insert(.abstractType)
+        }
         let invokeSymbol = symbols.define(
             kind: .function,
             name: invokeName,
@@ -137,11 +257,13 @@ extension DataFlowSemaPhase {
             declSite: nil,
             visibility: .public,
             // SAM discovery must see the compiler-known invoke as an abstract member.
-            flags: [.synthetic, .operatorFunction, .abstractType]
+            flags: invokeFlags
         )
         symbols.setParentSymbol(ownerSymbol, for: invokeSymbol)
-        let runtimeInvoke = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
-        symbols.setExternalLinkName(runtimeInvoke, for: invokeSymbol)
+        if usesRuntimeInvokeBridge {
+            let runtimeInvoke = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+            symbols.setExternalLinkName(runtimeInvoke, for: invokeSymbol)
+        }
 
         var parameterTypes: [TypeID] = []
         var parameterSymbols: [SymbolID] = []
@@ -196,6 +318,7 @@ extension DataFlowSemaPhase {
                 receiverType: receiverType,
                 parameterTypes: parameterTypes,
                 returnType: returnType,
+                isSuspend: isSuspend,
                 valueParameterSymbols: parameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: arity),
                 valueParameterIsVararg: Array(repeating: false, count: arity),

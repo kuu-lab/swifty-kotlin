@@ -501,6 +501,12 @@ extension ControlFlowTypeChecker {
                     ctx: ctx
                 )
                 : inferredType
+            adaptCallableReferenceBranches(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                branchTypes: contextualizedTypes,
+                resultType: type,
+                ctx: ctx
+            )
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -648,6 +654,12 @@ extension ControlFlowTypeChecker {
                     ctx: ctx
                 )
                 : inferredType
+            adaptCallableReferenceBranches(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                branchTypes: contextualizedTypes,
+                resultType: type,
+                ctx: ctx
+            )
             sema.bindings.bindExprType(id, type: type)
             return type
         }

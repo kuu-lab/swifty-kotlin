@@ -215,27 +215,25 @@ extension TypeSystem {
                 guard isNominalSubtypeSymbol(leftClass.classSymbol, of: rightClass.classSymbol) else {
                     return false
                 }
-                let mappedArgs = liftedNominalSupertypeArgs(
-                    from: leftClass.classSymbol,
-                    childArgs: leftClass.args,
-                    to: rightClass.classSymbol
-                ) ?? []
-                if mappedArgs.count == rightClass.args.count, !mappedArgs.isEmpty {
-                    let liftedSupertype = make(.classType(ClassType(
-                        classSymbol: rightClass.classSymbol,
-                        args: mappedArgs,
+                let mappedArgs = liftedNominalSupertypeArgs(from: leftClass, to: rightClass.classSymbol) ?? []
+                if mappedArgs.count == allTypeArguments(for: rightClass).count, !mappedArgs.isEmpty {
+                    let liftedSupertype = make(.classType(classType(
+                        for: rightClass.classSymbol,
+                        arguments: mappedArgs,
                         nullability: leftClass.nullability
                     )))
                     return isSubtype(liftedSupertype, supertype)
                 }
-                return rightClass.args.isEmpty || rightClass.args.allSatisfy { arg in
+                return allTypeArguments(for: rightClass).isEmpty || allTypeArguments(for: rightClass).allSatisfy { arg in
                     if case .star = arg {
                         return true
                     }
                     return false
                 }
             }
-            if leftClass.args.count != rightClass.args.count {
+            let leftArguments = allTypeArguments(for: leftClass)
+            let rightArguments = allTypeArguments(for: rightClass)
+            if leftArguments.count != rightArguments.count {
                 return false
             }
             // Star and in-projected KClass types still read through the Any
@@ -255,20 +253,17 @@ extension TypeSystem {
             let nominalOwner = symbolTable?.actualSymbol(for: leftClass.classSymbol)
                 ?? symbolTable?.actualSymbol(for: rightClass.classSymbol)
                 ?? leftClass.classSymbol
-            let typeParameterSymbols = nominalTypeParameterSymbols(for: nominalOwner)
-            let declarationVariances = normalizedNominalVariances(
-                for: nominalOwner,
-                arity: leftClass.args.count
-            )
-            for index in 0 ..< leftClass.args.count {
+            let typeParameterSymbols = allTypeParameterSymbols(for: nominalOwner)
+            let declarationVariances = allTypeParameterVariances(for: nominalOwner)
+            for index in 0 ..< leftArguments.count {
                 let lhsProjection: Projection
-                if case .star = leftClass.args[index] {
+                if case .star = leftArguments[index] {
                     let bounds = typeParameterSymbols.indices.contains(index)
                         ? symbolTable?.typeParameterUpperBounds(for: typeParameterSymbols[index]) ?? [] : []
                     let variables = makeTypeVarBySymbol(typeParameterSymbols)
                     var substitution: [TypeVarID: TypeID] = [:]
                     var unresolvedStars: [SymbolID: TypeVarID] = [:]
-                    for (parameter, argument) in zip(typeParameterSymbols, leftClass.args) {
+                    for (parameter, argument) in zip(typeParameterSymbols, leftArguments) {
                         guard let variable = variables[parameter] else { continue }
                         switch argument {
                         case let .invariant(type), let .out(type): substitution[variable] = type
@@ -282,7 +277,7 @@ extension TypeSystem {
                     // Recursive stars and in-projected dependencies need a
                     // captured type; an in projection supplies only a lower
                     // bound. Keep the conservative path for these cases.
-                    if declarationVariances[index] == .in
+                    if declarationVariances.indices.contains(index), declarationVariances[index] == .in
                         || OverloadResolver().containsTypeVariable(upperBound, typeVarBySymbol: unresolvedStars, typeSystem: self)
                     {
                         lhsProjection = .star
@@ -291,13 +286,15 @@ extension TypeSystem {
                     }
                 } else {
                     lhsProjection = composedProjection(
-                        declarationVariance: declarationVariances[index],
-                        useSite: leftClass.args[index]
+                        declarationVariance: declarationVariances.indices.contains(index)
+                            ? declarationVariances[index] : .invariant,
+                        useSite: leftArguments[index]
                     )
                 }
                 let rhsProjection = composedProjection(
-                    declarationVariance: declarationVariances[index],
-                    useSite: rightClass.args[index]
+                    declarationVariance: declarationVariances.indices.contains(index)
+                        ? declarationVariances[index] : .invariant,
+                    useSite: rightArguments[index]
                 )
                 if !isProjectionSubtype(lhsProjection, rhsProjection) {
                     return false
@@ -356,8 +353,8 @@ extension TypeSystem {
                     && (rightClass.classSymbol == kFunctionInterfaceSymbol
                         || rightClass.classSymbol == kCallableInterfaceSymbol))
             else {
-                // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
-                // `kotlin.Function.FunctionN` interface of matching arity.
+                // Function types conform to the synthetic regular or suspend
+                // function interface of matching arity.
                 return functionTypeSubtypeOfFunctionN(leftFunction, rightClass)
             }
             guard nullabilitySubtype(leftFunction.nullability, rightClass.nullability) else {
@@ -382,18 +379,18 @@ extension TypeSystem {
             }
             // KUU-1084: `FunctionN<P1..PN, R>` IS `(P1..PN) -> R` in Kotlin —
             // the nominal form is a subtype of the equivalent function type.
-            if functionNArity(of: leftClass.classSymbol) != nil {
+            if functionInterfaceArity(of: leftClass.classSymbol, isSuspend: rightFunction.isSuspend) != nil {
                 return functionNSubtypeOfFunctionType(leftClass, rightFunction)
             }
-            // KUU-1195: a nominal type that reaches `FunctionN` through
-            // inheritance (e.g. the bundled `KProperty0/1/2` interfaces, whose
-            // `() -> V` / `(T) -> V` / `(D, E) -> V` supertypes are bound to
-            // `Function0/1/2` during inheritance resolution) is likewise a
-            // subtype of the matching function type.
-            if let liftedFunctionN = inheritedFunctionNClassType(
+            // KUU-1195: a nominal type that reaches a function interface
+            // through inheritance (e.g. KProperty0/1/2 or a fun interface
+            // extending a function type) is also a subtype of that function
+            // type when the suspend modifier and arity match.
+            if let liftedFunctionInterface = inheritedFunctionInterfaceClassType(
                 of: leftClass,
-                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count
-            ), functionNSubtypeOfFunctionType(liftedFunctionN, rightFunction) {
+                arity: (rightFunction.receiver.map { [$0] } ?? []).count + rightFunction.params.count,
+                isSuspend: rightFunction.isSuspend
+            ), functionNSubtypeOfFunctionType(liftedFunctionInterface, rightFunction) {
                 return true
             }
             guard let symbols = symbolTable else { return false }
@@ -922,6 +919,12 @@ extension TypeSystem {
         if let sharedUpperBound = nearestCommonTypeParameterUpperBound(types) {
             return sharedUpperBound
         }
+        if let commonFunction = commonFunctionSupertype(
+            types,
+            retainingCommonIntersection: retainingCommonIntersection
+        ) {
+            return commonFunction
+        }
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
@@ -1028,6 +1031,72 @@ extension TypeSystem {
         }
     }
 
+    /// Builds a structural common supertype for function types with matching
+    /// callable shape. Function inputs are contravariant, so their common type
+    /// is a greatest lower bound; function results are covariant and use LUB.
+    private func commonFunctionSupertype(
+        _ types: [TypeID],
+        retainingCommonIntersection: Bool
+    ) -> TypeID? {
+        guard types.count > 1 else { return nil }
+        let functions = types.compactMap { type -> FunctionType? in
+            guard case let .functionType(function) = kind(of: type) else { return nil }
+            return function
+        }
+        guard functions.count == types.count, let first = functions.first else {
+            return nil
+        }
+        let effectiveParams = functions.map { function in
+            (function.receiver.map { [$0] } ?? []) + function.params
+        }
+        guard let firstParams = effectiveParams.first else { return nil }
+        guard functions.allSatisfy({ function in
+            function.contextReceivers.count == first.contextReceivers.count
+                && function.isSuspend == first.isSuspend
+                && function.throws == first.throws
+        }), effectiveParams.allSatisfy({ $0.count == firstParams.count }) else {
+            return nil
+        }
+
+        let contextReceivers = first.contextReceivers.indices.map { index in
+            commonFunctionInputType(functions.map { $0.contextReceivers[index] })
+        }
+        let commonParams = firstParams.indices.map { index in
+            commonFunctionInputType(effectiveParams.map { $0[index] })
+        }
+        let returnType = lub(
+            functions.map(\.returnType),
+            retainingCommonIntersection: retainingCommonIntersection
+        )
+        let common = make(.functionType(FunctionType(
+            contextReceivers: contextReceivers,
+            // A function receiver is its leading invocation parameter. Use a
+            // regular function shape so mixed receiver and parameter forms
+            // share the same callable supertype and invocation lowering.
+            receiver: nil,
+            params: commonParams,
+            returnType: returnType,
+            isSuspend: first.isSuspend,
+            isCallableReference: false,
+            nullability: .nonNull,
+            throws: first.throws
+        )))
+        return types.allSatisfy { isSubtype($0, common) } ? common : nil
+    }
+
+    /// Finds a greatest lower bound for a contravariant function input. Reuse
+    /// an existing subtype when one bounds every input; otherwise preserve all
+    /// input constraints in an intersection type.
+    private func commonFunctionInputType(_ types: [TypeID]) -> TypeID {
+        let uniqueTypes = Array(Set(types)).sorted { $0.rawValue < $1.rawValue }
+        if let existingBound = uniqueTypes.first(where: { candidate in
+            uniqueTypes.allSatisfy { isSubtype(candidate, $0) }
+        }) {
+            return existingBound
+        }
+        return make(.intersection(uniqueTypes))
+    }
+
     /// Finds the most specific nominal supertype (other than `Any`) shared by
     /// every non-null class type in `types`.
     ///
@@ -1091,11 +1160,12 @@ extension TypeSystem {
         var survivors: [TypeID] = []
         for ancestor in ancestors {
             let args = liftedNominalSupertypeArgs(
-                from: first.classSymbol,
-                childArgs: first.args,
+                from: first,
                 to: ancestor
             ) ?? []
-            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            let candidate = make(.classType(classType(
+                for: ancestor, arguments: args, nullability: .nonNull
+            )))
             if normalizedBuiltinDisguisedClassTypeAndKind(candidate).0 == anyType {
                 continue
             }
@@ -1145,8 +1215,7 @@ extension TypeSystem {
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
-                          from: classType.classSymbol,
-                          childArgs: classType.args,
+                          from: classType,
                           to: ancestor
                       )
                 else {
@@ -1155,7 +1224,9 @@ extension TypeSystem {
                 argumentLists.append(lifted)
                 // A later branch may provide the common instantiation:
                 // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
-                let candidate = make(.classType(ClassType(classSymbol: ancestor, args: lifted, nullability: .nonNull)))
+                let candidate = make(.classType(self.classType(
+                    for: ancestor, arguments: lifted, nullability: .nonNull
+                )))
                 if !candidates.contains(candidate), types.allSatisfy({ isSubtype($0, candidate) }) {
                     candidates.insert(candidate)
                     hasExistingCandidate = true
@@ -1193,7 +1264,7 @@ extension TypeSystem {
         else { return nil }
         defer { activeNominalLUBInputs.remove(inputSet) }
 
-        let variances = normalizedNominalVariances(for: symbol, arity: first.count)
+        let variances = allTypeParameterVariances(for: symbol)
         var combined: [TypeArg] = []
         for index in first.indices {
             let arguments = argumentLists.map { $0[index] }
@@ -1210,7 +1281,9 @@ extension TypeSystem {
             }
             combined.append(.out(lub(upperBounds)))
         }
-        let candidate = make(.classType(ClassType(classSymbol: symbol, args: combined, nullability: .nonNull)))
+        let candidate = make(.classType(classType(
+            for: symbol, arguments: combined, nullability: .nonNull
+        )))
         return inputs.allSatisfy({ isSubtype($0, candidate) }) ? candidate : nil
     }
 
@@ -1224,13 +1297,24 @@ extension TypeSystem {
         return nil
     }
 
+    private func suspendFunctionNArity(of classSymbol: SymbolID) -> Int? {
+        for (arity, symbolID) in suspendFunctionNInterfaceSymbols where symbolID == classSymbol {
+            return arity
+        }
+        return nil
+    }
+
+    private func functionInterfaceArity(of classSymbol: SymbolID, isSuspend: Bool) -> Int? {
+        isSuspend ? suspendFunctionNArity(of: classSymbol) : functionNArity(of: classSymbol)
+    }
+
     func nominalFunctionType(for type: TypeID) -> FunctionType? {
-        guard case let .classType(classType) = kind(of: type),
-              let arity = functionNArity(of: classType.classSymbol),
-              classType.args.count == arity + 1
-        else {
+        guard case let .classType(classType) = kind(of: type) else {
             return nil
         }
+        let isSuspend = suspendFunctionNArity(of: classType.classSymbol) != nil
+        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: isSuspend),
+              classType.args.count == arity + 1 else { return nil }
         let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
             switch argument {
             case let .invariant(type):
@@ -1247,19 +1331,22 @@ extension TypeSystem {
         return FunctionType(
             params: Array(arguments.prefix(arity)),
             returnType: arguments[arity],
+            isSuspend: isSuspend,
             nullability: classType.nullability
         )
     }
 
-    /// Lifts a nominal class type to the `kotlin.Function.FunctionN`
-    /// interface of the given arity that it reaches through its nominal
-    /// supertype chain (e.g. `KProperty0<Int>` → `Function0<Int>` via the
-    /// `() -> V` supertype binding — KUU-1195), preserving the declared
-    /// projections and the subtype's nullability. `nil` when no `FunctionN`
-    /// ancestor of that arity exists. The walk mirrors
+    /// Lifts a nominal class type to the regular or suspend function interface
+    /// of the given arity that it reaches through its nominal supertype chain,
+    /// preserving the declared projections and the subtype's nullability.
+    /// The walk mirrors
     /// `isNominalSubtypeSymbol`: an explicit worklist with a visited set so a
     /// cyclic `.kklib` supertype graph cannot loop.
-    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+    func inheritedFunctionInterfaceClassType(
+        of classType: ClassType,
+        arity: Int,
+        isSuspend: Bool
+    ) -> ClassType? {
         var visited: Set<SymbolID> = [classType.classSymbol]
         var queue = directNominalSupertypes(for: classType.classSymbol)
         var head = 0
@@ -1267,36 +1354,33 @@ extension TypeSystem {
             let current = queue[head]
             head += 1
             guard visited.insert(current).inserted else { continue }
-            if functionNArity(of: current) == arity,
+            if functionInterfaceArity(of: current, isSuspend: isSuspend) == arity,
                let args = liftedNominalSupertypeArgs(
-                   from: classType.classSymbol,
-                   childArgs: classType.args,
+                   from: classType,
                    to: current
                )
             {
-                return ClassType(
-                    classSymbol: current,
-                    args: args,
-                    nullability: classType.nullability
-                )
+                return self.classType(for: current, arguments: args, nullability: classType.nullability)
             }
             queue.append(contentsOf: directNominalSupertypes(for: current))
         }
         return nil
     }
 
-    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the
-    /// leading parameter, arity must match, each `in` argument accepts the
-    /// parameter (`Ai <: Qi`), and the return type satisfies the `out` argument
-    /// (`S <: B`). `suspend` and context-receiver function types never conform
-    /// to the non-suspend `FunctionN` interfaces.
+    func inheritedFunctionNClassType(of classType: ClassType, arity: Int) -> ClassType? {
+        inheritedFunctionInterfaceClassType(of: classType, arity: arity, isSuspend: false)
+    }
+
+    /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>` (or its suspend equivalent):
+    /// the receiver counts as the leading parameter, arity and suspend modifier
+    /// must match, and the declared projections must accept the parameter and
+    /// return types.
     private func functionTypeSubtypeOfFunctionN(
         _ function: FunctionType,
         _ classType: ClassType
     ) -> Bool {
-        guard let arity = functionNArity(of: classType.classSymbol),
+        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: function.isSuspend),
               function.contextReceivers.isEmpty,
-              !function.isSuspend,
               nullabilitySubtype(function.nullability, classType.nullability)
         else {
             return false
@@ -1331,18 +1415,15 @@ extension TypeSystem {
         }
     }
 
-    /// `FunctionN<A1..AN, B> <: (Q1..QN) -> S`: arity must match, each
-    /// parameter of the expected function type must be accepted by the
-    /// nominal `in` argument (`Qi <: Ai`), and the nominal `out` return must
-    /// fit the expected return (`B <: S`). Star or opposite-direction
-    /// projections cannot prove either bound, so they are rejected.
+    /// A regular or suspend function interface is a subtype of its matching
+    /// function type: arity and suspend modifier must match, and parameter and
+    /// return projections must prove the corresponding bounds.
     private func functionNSubtypeOfFunctionType(
         _ classType: ClassType,
         _ function: FunctionType
     ) -> Bool {
-        guard let arity = functionNArity(of: classType.classSymbol),
+        guard let arity = functionInterfaceArity(of: classType.classSymbol, isSuspend: function.isSuspend),
               function.contextReceivers.isEmpty,
-              !function.isSuspend,
               nullabilitySubtype(classType.nullability, function.nullability)
         else {
             return false

@@ -96,6 +96,9 @@ public final class BindingTable {
     /// Constructor selected for each enum entry, keyed by the entry field
     /// symbol because enum-entry arguments have no standalone call ExprID.
     public private(set) var enumEntryConstructorBindings: [SymbolID: CallBinding] = [:]
+    /// Enum entry value used as the receiver when `Enum.ENTRY(args)` resolves
+    /// through the enum class's `operator fun invoke` member.
+    public private(set) var enumEntryInvokeReceiverSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
@@ -329,6 +332,7 @@ public final class BindingTable {
         if !constructorDelegationTargets.isEmpty { return false }
         if !constructorDelegationCallBindings.isEmpty { return false }
         if !enumEntryConstructorBindings.isEmpty { return false }
+        if !enumEntryInvokeReceiverSymbols.isEmpty { return false }
         if !callableValueCalls.isEmpty { return false }
         if !isCheckTargetTypes.isEmpty { return false }
         if !castTargetTypes.isEmpty { return false }
@@ -446,6 +450,7 @@ public final class BindingTable {
         worker.constructorDelegationTargets = constructorDelegationTargets
         worker.constructorDelegationCallBindings = constructorDelegationCallBindings
         worker.enumEntryConstructorBindings = enumEntryConstructorBindings
+        worker.enumEntryInvokeReceiverSymbols = enumEntryInvokeReceiverSymbols
         worker.callableValueCalls = callableValueCalls
         worker.isCheckTargetTypes = isCheckTargetTypes
         worker.castTargetTypes = castTargetTypes
@@ -942,6 +947,14 @@ public final class BindingTable {
 
     public func enumEntryConstructorBinding(for entrySymbol: SymbolID) -> CallBinding? {
         enumEntryConstructorBindings[entrySymbol]
+    }
+
+    public func bindEnumEntryInvokeReceiver(_ expression: ExprID, symbol: SymbolID) {
+        enumEntryInvokeReceiverSymbols[expression] = symbol
+    }
+
+    public func enumEntryInvokeReceiverSymbol(for expression: ExprID) -> SymbolID? {
+        enumEntryInvokeReceiverSymbols[expression]
     }
 
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {

@@ -287,6 +287,20 @@ extension BuildASTPhase {
                     range: range
                 ))
 
+            case let .safeMemberCall(receiver, callee, typeArgs, args, _):
+                guard options.allowMemberAssign,
+                      typeArgs.isEmpty,
+                      args.isEmpty
+                else {
+                    return nil
+                }
+                return context.astArena.appendExpr(.safeMemberAssign(
+                    receiver: receiver,
+                    callee: callee,
+                    value: valueExpr,
+                    range: range
+                ))
+
             case let .indexedAccess(receiver, indices, _):
                 return context.astArena.appendExpr(.indexedAssign(
                     receiver: receiver,

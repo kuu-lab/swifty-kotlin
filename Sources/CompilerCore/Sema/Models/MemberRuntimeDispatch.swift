@@ -168,7 +168,48 @@ enum MemberRuntimeDispatch {
         if nonNullReceiverType == sema.types.longType {
             return .longRange
         }
-        return .intRange
+        if nonNullReceiverType == sema.types.intType {
+            return .intRange
+        }
+
+        // A generic `T.rangeTo`/`T.rangeUntil` expression returns a heap-backed
+        // ComparableRange<T>/ComparableOpenEndRange<T>, not a RuntimeRangeBox.
+        // Keep its interface dispatch unless its concrete range element type is
+        // one of the primitive kinds represented by RuntimeRangeBox.
+        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType) else {
+            return nil
+        }
+        let rangeInterfaceNames = ["ClosedRange", "OpenEndRange"]
+        for rangeInterfaceName in rangeInterfaceNames {
+            guard let rangeInterface = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern(rangeInterfaceName),
+            ]),
+                  let typeArguments = sema.types.liftedNominalSupertypeArgs(
+                      from: classType.classSymbol,
+                      childArgs: classType.args,
+                      to: rangeInterface
+                  ),
+                  let typeArgument = typeArguments.first
+            else {
+                continue
+            }
+            let elementType: TypeID
+            switch typeArgument {
+            case let .invariant(type), let .out(type), let .in(type):
+                elementType = type
+            case .star:
+                continue
+            }
+            if elementType == sema.types.intType { return .intRange }
+            if elementType == sema.types.longType { return .longRange }
+            if elementType == sema.types.charType { return .charRange }
+            if elementType == sema.types.uintType { return .uintRange }
+            if elementType == sema.types.ulongType { return .ulongRange }
+            return nil
+        }
+        return nil
     }
 
     static func collectionReceiverKind(

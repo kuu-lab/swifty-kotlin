@@ -9,6 +9,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from prepare_candidate_catalog import prepare_catalog
 from run_candidate_subset import PREFIX, parse_events
+from run_candidate_suites import select_catalog_rows
 
 
 class CandidateCatalogTests(unittest.TestCase):
@@ -43,6 +44,12 @@ class CandidateCatalogTests(unittest.TestCase):
         output.mkdir()
         return prepare_catalog(self.root, self.rows, self.lock, suites, output, "linux", self.index)[0]
 
+    def prepare_selected(self, suites=None, execution_ids=None):
+        output = self.root / "selected-output"
+        output.mkdir(exist_ok=True)
+        return prepare_catalog(self.root, self.rows, self.lock, suites, output, "linux", self.index,
+                               execution_ids=execution_ids)[0]
+
     def test_factory_instances_and_source_function_ids_are_not_collapsed(self):
         port = self.prepare()
         self.assertEqual(len(port["source_ports"]), 1)
@@ -53,6 +60,30 @@ class CandidateCatalogTests(unittest.TestCase):
         self.assertIn("sample.First().original()", driver)
         self.assertIn("sample.Second().original()", driver)
         self.assertNotIn("sample.Base()", driver)
+
+    def test_source_function_selection_prepares_every_inherited_factory_instance(self):
+        source_id = self.rows[0]["upstream_id"]
+        selected = select_catalog_rows(self.rows, None, "linux", source_function_ids=[source_id])
+        port = self.prepare_selected(execution_ids=[row["execution_id"] for row in selected])
+        self.assertEqual(port["source_function_ids"], [source_id])
+        self.assertEqual(port["execution_ids"], [row["execution_id"] for row in self.rows])
+        driver = Path(port["driver_path"]).read_text()
+        self.assertIn("sample.First().original()", driver)
+        self.assertIn("sample.Second().original()", driver)
+
+    def test_exact_execution_selection_keeps_only_the_requested_factory_instance(self):
+        selected = self.rows[0]["execution_id"]
+        port = self.prepare_selected(execution_ids=[selected])
+        self.assertEqual(port["execution_ids"], [selected])
+        driver = Path(port["driver_path"]).read_text()
+        self.assertIn("sample.First().original()", driver)
+        self.assertNotIn("sample.Second().original()", driver)
+
+    def test_missing_execution_and_incompatible_suite_scope_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "absent from target catalog"):
+            self.prepare_selected(execution_ids=["sample.Missing.original"])
+        with self.assertRaisesRegex(ValueError, "omits an expected concrete execution"):
+            self.prepare_selected(["sample.First"], [self.rows[1]["execution_id"]])
 
     def test_failure_and_unfinished_factory_are_retained(self):
         port = self.prepare()

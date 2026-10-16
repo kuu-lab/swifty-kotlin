@@ -916,6 +916,7 @@ extension CallTypeChecker {
             }
         case let .localAssign(_, value, _),
              let .memberAssign(_, _, value, _),
+             let .safeMemberAssign(_, _, value, _),
              let .memberCompoundAssign(_, _, _, value, _):
             collectBuilderDSLArgumentExprs(in: value, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
         default:
@@ -1658,7 +1659,7 @@ extension CallTypeChecker {
             if let initializer {
                 collectProduceBuilderSendExprs(in: initializer, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
-        case .localAssign, .compoundAssign, .memberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
+        case .localAssign, .compoundAssign, .memberAssign, .safeMemberAssign, .indexedAssign, .indexedCompoundAssign, .memberCompoundAssign:
             break
         default:
             break

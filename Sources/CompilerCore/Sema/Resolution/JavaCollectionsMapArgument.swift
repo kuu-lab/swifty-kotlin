@@ -52,13 +52,25 @@ extension OverloadResolver {
                 else { return (false, nil) }
                 let lower: TypeID
                 let upper: TypeID
+                let writeForbidden: Bool
                 switch mapArgs[0] {
-                case let .out(type): (lower, upper) = (ctx.types.nothingType, type)
-                case let .in(type): (lower, upper) = (type, ctx.types.nullableAnyType)
-                case .star: (lower, upper) = (ctx.types.nothingType, ctx.types.nullableAnyType)
+                case let .out(type):
+                    (lower, upper) = (ctx.types.nothingType, type)
+                    writeForbidden = true
+                case let .in(type):
+                    (lower, upper) = (type, ctx.types.nullableAnyType)
+                    writeForbidden = false
+                case .star:
+                    (lower, upper) = (ctx.types.nothingType, ctx.types.nullableAnyType)
+                    writeForbidden = true
                 case .invariant: return (true, nil)
                 }
-                let key = ctx.types.makeCapturedType(parameter: keyParameter, lower: lower, upper: upper)
+                let key = ctx.types.makeCapturedType(
+                    parameter: keyParameter,
+                    lower: lower,
+                    upper: upper,
+                    writeForbidden: writeForbidden
+                )
                 return (true, ctx.types.make(.classType(ClassType(
                     classSymbol: parameter.classSymbol, args: [.invariant(key), mapArgs[1]],
                     nullability: ctx.types.nullability(of: argumentType)

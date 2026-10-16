@@ -236,3 +236,33 @@ The full catalog and source closure have been mechanically prepared for both
 lanes; candidate compilation/execution and the seven observation adapters remain
 unverified. This preparation is not a candidate PASS. Source/library and separate
 test-library consumer modes retain the same hash, deadline and result checks.
+
+#### Selecting exact source functions or concrete executions
+
+For a small Native candidate run, repeat `--source-function-id path#function` to
+select up to ten original source functions. Every matching concrete catalog row
+is retained, including inherited factory instances. Use `--execution-id` to
+select up to ten concrete invocations exactly; the two flags can be combined,
+but an execution selected twice is rejected. `--suite` may further constrain a
+selection, and the runner rejects a suite list that would omit one of a source
+function's factory-expanded executions. Unknown, duplicate, empty and
+out-of-target IDs fail before compilation. Parameterized methods still require
+an audited driver; the current locked Native catalog has no parameterized rows.
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_candidate_suites.py \
+  --upstream /tmp/kio-reference-environment/upstream \
+  --compiler /path/to/kswiftc --package-root . \
+  --native-catalog macos --stdlib-from-source \
+  --source-function-id core/common/test/AbstractSourceTest.kt#readString \
+  --optimization O2 --output /tmp/kio-candidate-one-function
+```
+
+The existing `--stdlib-library`, `--test-library`, `--optimization O0|O2`, and
+timeout options work with either selector. `selection.json` records the locked
+and target catalog counts, requested IDs, expanded concrete IDs, source
+provenance and catalog hashes. `results.json` records each execution's terminal
+state and source, port, driver, catalog-row and executable hashes. The default
+Native invocation still selects the complete target catalog. A limited
+selection reports its selected `expected_count` and cannot pass full-catalog
+count and ID validation.

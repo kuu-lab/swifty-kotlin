@@ -28,8 +28,7 @@ private func comparableArgument(of subtype: TypeID, typeSystem: TypeSystem) -> T
     case let .classType(classType):
         guard let comparableSymbol = typeSystem.comparableInterfaceSymbol,
               let supertypeArgs = typeSystem.liftedNominalSupertypeArgs(
-                  from: classType.classSymbol,
-                  childArgs: classType.args,
+                  from: classType,
                   to: comparableSymbol
               ),
               let comparableArg = supertypeArgs.first
@@ -378,7 +377,7 @@ extension OverloadResolver {
                 containsTypeVariable($0, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
             }
         case let .classType(classType):
-            return classType.args.contains { arg in
+            return typeSystem.allTypeArguments(for: classType).contains { arg in
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
                     containsTypeVariable(inner, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
@@ -518,20 +517,29 @@ extension OverloadResolver {
         {
             let lower: TypeID
             let upper: TypeID
+            let writeForbidden: Bool
             switch actual.args[0] {
             case let .in(type):
                 lower = type
                 upper = typeSystem.anyType
+                writeForbidden = false
             case let .out(type):
                 lower = typeSystem.nothingType
                 upper = type
+                writeForbidden = true
             case .star:
                 lower = typeSystem.nothingType
                 upper = typeSystem.anyType
+                writeForbidden = true
             case let .invariant(type):
                 return [VariableConstraint(kind: .equal, left: .variable(variable), right: .type(type), blameRange: blameRange)]
             }
-            let captured = typeSystem.makeCapturedType(parameter: parameter.symbol, lower: lower, upper: upper)
+            let captured = typeSystem.makeCapturedType(
+                parameter: parameter.symbol,
+                lower: lower,
+                upper: upper,
+                writeForbidden: writeForbidden
+            )
             return [VariableConstraint(kind: .equal, left: .variable(variable), right: .type(captured), blameRange: blameRange)]
         }
 
@@ -635,9 +643,9 @@ extension OverloadResolver {
         // otherwise left to the nominal subtype check, which cannot distinguish
         // a valid projected argument from an invariant one.
         if case let .classType(superClass) = supertypeKind,
-           !superClass.args.isEmpty,
+           !typeSystem.allTypeArguments(for: superClass).isEmpty,
            (containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
-               || superClass.args.contains(where: { arg in
+               || typeSystem.allTypeArguments(for: superClass).contains(where: { arg in
                    switch arg {
                    case .in, .out:
                        true
@@ -714,7 +722,7 @@ extension OverloadResolver {
                    typeSystem: typeSystem
                ),
                case let .classType(alignedClass) = typeSystem.kind(of: alignedSubtype),
-               alignedClass.args.count == superClass.args.count
+               typeSystem.allTypeArguments(for: alignedClass).count == typeSystem.allTypeArguments(for: superClass).count
             {
                 if subClass.classSymbol != superClass.classSymbol,
                    let liftedSubtype = liftClassType(
@@ -733,8 +741,11 @@ extension OverloadResolver {
                         depth: depth + 1
                     )
                 }
+                let subArguments = typeSystem.allTypeArguments(for: alignedClass)
+                let superArguments = typeSystem.allTypeArguments(for: superClass)
+                let declarationVariances = typeSystem.allTypeParameterVariances(for: superClass.classSymbol)
                 guard subClass.classSymbol == superClass.classSymbol,
-                      subClass.args.count == superClass.args.count
+                      subArguments.count == superArguments.count
                 else {
                     return [VariableConstraint(
                         kind: .subtype,
@@ -744,7 +755,7 @@ extension OverloadResolver {
                     )]
                 }
                 var result: [VariableConstraint] = []
-                for (index, (subArg, superArg)) in zip(alignedClass.args, superClass.args).enumerated() {
+                for (index, (subArg, superArg)) in zip(subArguments, superArguments).enumerated() {
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
@@ -752,10 +763,8 @@ extension OverloadResolver {
                         typeSystem: typeSystem,
                         blameRange: blameRange,
                         depth: depth + 1,
-                        declarationVariance: typeSystem.normalizedNominalVariances(
-                            for: superClass.classSymbol,
-                            arity: superClass.args.count
-                        )[index]
+                        declarationVariance: declarationVariances.indices.contains(index)
+                            ? declarationVariances[index] : .invariant
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -879,16 +888,19 @@ extension OverloadResolver {
         }
 
         if case let .classType(subClass) = subtypeKind,
-           !subClass.args.isEmpty,
+           !typeSystem.allTypeArguments(for: subClass).isEmpty,
            containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             if case let .classType(superClass) = supertypeKind,
                subClass.classSymbol == superClass.classSymbol,
-               subClass.args.count == superClass.args.count,
+               typeSystem.allTypeArguments(for: subClass).count == typeSystem.allTypeArguments(for: superClass).count,
                subClass.nullability == superClass.nullability || superClass.nullability == .nullable
             {
+                let subtypeArguments = typeSystem.allTypeArguments(for: subClass)
+                let supertypeArguments = typeSystem.allTypeArguments(for: superClass)
+                let declarationVariances = typeSystem.allTypeParameterVariances(for: superClass.classSymbol)
                 var result: [VariableConstraint] = []
-                for (index, (subArg, superArg)) in zip(subClass.args, superClass.args).enumerated() {
+                for (index, (subArg, superArg)) in zip(subtypeArguments, supertypeArguments).enumerated() {
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
@@ -896,10 +908,8 @@ extension OverloadResolver {
                         typeSystem: typeSystem,
                         blameRange: blameRange,
                         depth: depth + 1,
-                        declarationVariance: typeSystem.normalizedNominalVariances(
-                            for: superClass.classSymbol,
-                            arity: superClass.args.count
-                        )[index]
+                        declarationVariance: declarationVariances.indices.contains(index)
+                            ? declarationVariances[index] : .invariant
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -968,14 +978,10 @@ extension OverloadResolver {
             return nil
         }
 
-        let substitutedArgs = typeSystem.liftedNominalSupertypeArgs(
-            from: subtype.classSymbol,
-            childArgs: subtype.args,
-            to: superSymbol
-        ) ?? []
-        return typeSystem.make(.classType(ClassType(
-            classSymbol: superSymbol,
-            args: substitutedArgs,
+        let substitutedArgs = typeSystem.liftedNominalSupertypeArgs(from: subtype, to: superSymbol) ?? []
+        return typeSystem.make(.classType(typeSystem.classType(
+            for: superSymbol,
+            arguments: substitutedArgs,
             nullability: subtype.nullability
         )))
     }
@@ -993,13 +999,12 @@ extension OverloadResolver {
         )
     }
 
-    /// KUU-1195: a nominal subtype that reaches `kotlin.Function.FunctionN`
-    /// through inheritance (e.g. `KProperty0<Int>` via its `() -> V` supertype
-    /// binding) decomposes against a variable-bearing function supertype the
-    /// same way a literal `FunctionN` does — otherwise `KProperty0<Int> <:
-    /// () -> R` would never bind `R`. Only the subtype side looks through
-    /// inheritance: a plain `() -> Int` is not a `KProperty0<Int>`, so the
-    /// supertype direction keeps the direct `nominalFunctionType` check.
+    /// KUU-1195: a nominal subtype that reaches a regular or suspend function
+    /// interface through inheritance decomposes against a variable-bearing
+    /// function supertype the same way a literal function interface does.
+    /// Only the subtype side looks through inheritance: a plain function value
+    /// is not an arbitrary nominal subtype, so the supertype direction keeps
+    /// the direct `nominalFunctionType` check.
     private func nominalFunctionTypeThroughInheritance(
         _ subtype: TypeID,
         matchingArityOf function: FunctionType,
@@ -1009,7 +1014,11 @@ extension OverloadResolver {
             return nil
         }
         let arity = (function.receiver.map { [$0] } ?? []).count + function.params.count
-        guard let lifted = typeSystem.inheritedFunctionNClassType(of: subClass, arity: arity) else {
+        guard let lifted = typeSystem.inheritedFunctionInterfaceClassType(
+            of: subClass,
+            arity: arity,
+            isSuspend: function.isSuspend
+        ) else {
             return nil
         }
         return typeSystem.nominalFunctionType(for: typeSystem.make(.classType(lifted)))

@@ -1069,7 +1069,12 @@ final class DataFlowAnalyzer {
         }
 
         let targetType = TypeCheckHelpers().resolveTypeRef(
-            typeRefID, ast: ast, sema: sema, interner: interner, scope: scope
+            typeRefID,
+            ast: ast,
+            sema: sema,
+            interner: interner,
+            scope: scope,
+            allowBareGenericTypeAliasProjection: true
         )
         return targetType == sema.types.errorType ? nil : targetType
     }

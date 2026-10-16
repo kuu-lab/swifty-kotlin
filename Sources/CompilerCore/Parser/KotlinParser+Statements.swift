@@ -934,9 +934,13 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
-    private func isTrailingLambdaInfixContinuation(_ token: Token) -> Bool {
+    private func isTrailingLambdaOperatorContinuation(_ token: Token) -> Bool {
         guard !hasLeadingNewline(token) else { return false }
         switch token.kind {
+        case .keyword(.in):
+            return true
+        case .symbol(.bang):
+            return stream.peek(1).kind == .keyword(.in)
         case .identifier, .backtickedIdentifier:
             return canStartInfixCallArgument(stream.peek(1).kind)
         default:
@@ -965,8 +969,11 @@ extension KotlinParser {
 
     func parseTail(
         inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator,
-        allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false,
-        allowsClassDelegation: Bool = false, allowsFunctionWhereClause: Bool = false,
+        allowsDeclarationAssignment: Bool = false,
+        allowsClassHeaderColon: Bool = false,
+        allowsClassDelegation: Bool = false,
+        allowsWhereClauseContinuation: Bool = false,
+        allowsFunctionWhereClause: Bool = false,
         allowsPropertyDelegation: Bool = false
     ) {
         var progress = false
@@ -1028,10 +1035,10 @@ extension KotlinParser {
                 {
                     continue
                 }
-                // A trailing-lambda call can be the receiver of an infix call,
-                // as in items.joinToString { it } to other. Keep the infix
-                // name and its operand in the same expression-bodied declaration.
-                if isTrailingLambdaInfixContinuation(nextAfterBlock) {
+                // A trailing-lambda call can be the receiver of an infix or
+                // membership operator. Keep the operator and its operand in
+                // the same expression-bodied declaration.
+                if isTrailingLambdaOperatorContinuation(nextAfterBlock) {
                     continue
                 }
                 break
@@ -1096,6 +1103,7 @@ extension KotlinParser {
                         && stream.peek().kind == .softKeyword(.where))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
                     || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
+                    || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {

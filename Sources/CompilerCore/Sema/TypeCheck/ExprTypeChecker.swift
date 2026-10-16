@@ -140,6 +140,9 @@ final class ExprTypeChecker {
                     )
                 }
             }
+            if ctx.loopDepth > 0, label.map(ctx.loopLabelStack.contains) ?? true {
+                ctx.recordLoopJump(locals, label: label, isBreak: true)
+            }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
 
@@ -164,6 +167,9 @@ final class ExprTypeChecker {
                         range: range
                     )
                 }
+            }
+            if ctx.loopDepth > 0, label.map(ctx.loopLabelStack.contains) ?? true {
+                ctx.recordLoopJump(locals, label: label, isBreak: false)
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
@@ -191,6 +197,12 @@ final class ExprTypeChecker {
                 range: range, ctx: ctx, locals: &locals
             )
 
+        case let .safeMemberAssign(receiverExpr, calleeName, valueExpr, range):
+            return inferMemberAssignExpr(
+                id, receiver: receiverExpr, name: calleeName, value: valueExpr,
+                range: range, ctx: ctx, locals: &locals, isSafeCall: true
+            )
+
         case let .indexedAccess(receiverExpr, indices, range):
             return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: ctx, locals: &locals)
 
@@ -208,6 +220,19 @@ final class ExprTypeChecker {
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
             } ?? (ctx.lambdaDepth > 0)
+            let returnsFromConstructor = ctx.enclosingFunctionSymbol.flatMap {
+                sema.symbols.symbol($0)?.kind == .constructor
+            } ?? false
+            let hasForbiddenConstructorReturnValue = returnsFromConstructor
+                && value != nil
+                && (label == nil || targetsFunction)
+            if hasForbiddenConstructorReturnValue {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0042",
+                    "'return' with a value is not allowed in a constructor.",
+                    range: range
+                )
+            }
             if let lambdaReturnScope,
                let targetIndex = ctx.enclosingLambdaExprIDs.lastIndex(of: lambdaReturnScope.exprID) {
                 sema.bindings.bindLambdaReturn(
@@ -243,7 +268,9 @@ final class ExprTypeChecker {
             // an outer assignment: `x = if (c) 1 else return null` inside a
             // function returning `Int?` must check `return null` against
             // `Int?`, not `x`'s declared `Int`).
-            let returnExpectedType: TypeID? = if label == nil || targetsFunction,
+            let returnExpectedType: TypeID? = if hasForbiddenConstructorReturnValue {
+                nil
+            } else if label == nil || targetsFunction,
                                                     let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
             {
                 enclosingFunctionReturnType
@@ -335,7 +362,9 @@ final class ExprTypeChecker {
             let type: TypeID
             switch op {
             case .not:
-                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: boolType)
+                // Resolve an overloaded `not()` from the receiver's own type. The
+                // Boolean constraint belongs only to the built-in Boolean `!`.
+                let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
                 let operandType = sema.types.capturedOperatorReceiverType(
                     of: inferredOperand
                 )
@@ -347,6 +376,7 @@ final class ExprTypeChecker {
                     hasCapturedOperand: sema.types.containsCapturedTypes(inferredOperand),
                     range: range,
                     ctx: ctx,
+                    locals: locals,
                     expectedType: expectedType
                 ) {
                     return overloadedType
@@ -388,6 +418,7 @@ final class ExprTypeChecker {
                         hasCapturedOperand: sema.types.containsCapturedTypes(inferredOperand),
                         range: range,
                         ctx: ctx,
+                        locals: locals,
                         expectedType: expectedType
                     ) {
                         return overloadedType
@@ -413,7 +444,8 @@ final class ExprTypeChecker {
                 scope: ctx.scope,
                 diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
-                usageRange: range
+                usageRange: range,
+                allowBareGenericTypeAliasProjection: true
             )
             if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
@@ -493,7 +525,8 @@ final class ExprTypeChecker {
                 scope: ctx.scope,
                 diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
-                usageRange: range
+                usageRange: range,
+                allowBareGenericTypeAliasProjection: true
             )
             // A bare generic cast recovers arguments from the source's known
             // nominal type, just as a bare `is` check does. Explicit arguments
@@ -1501,7 +1534,12 @@ final class ExprTypeChecker {
 
         guard !candidates.isEmpty else { return }
 
-        let callArgs = [CallArg(type: elementType)]
+        let integerLiteral = driver.callChecker.integerLiteralValues(elementExpr, ast: ctx.ast)
+        let callArgs = [CallArg(
+            type: elementType,
+            signedIntegerLiteral: integerLiteral.signed,
+            unsignedIntegerLiteral: integerLiteral.unsigned
+        )]
         let call = CallExpr(range: range, calleeName: containsName, args: callArgs)
         let retainedMembers = candidates.filter { memberCandidates.contains($0) }
         let hasViableMember = !ctx.resolver.probeCall(
@@ -1545,6 +1583,12 @@ final class ExprTypeChecker {
                 parameterMapping: resolved.parameterMapping
             )
         )
+        driver.callChecker.contextualizeResolvedIntegerArguments(
+            args: [CallArgument(expr: elementExpr)],
+            resolved: resolved,
+            ctx: ctx,
+            locals: &locals
+        )
     }
 
     func operatorFunctionNames(for op: BinaryOp, interner: StringInterner) -> [InternedString] {
@@ -1572,6 +1616,8 @@ final class ExprTypeChecker {
     func collectOperatorCandidates(
         names: [InternedString],
         receiverType: TypeID,
+        call: CallExpr,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
@@ -1703,6 +1749,13 @@ final class ExprTypeChecker {
             }
         }
 
+        let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
+            names: names, receiverType: receiverType, call: call, locals: locals, ctx: ctx
+        )
+        if !localExtensionCandidates.isEmpty {
+            return localExtensionCandidates
+        }
+
         for name in names {
             // Name lookup must advance past a scope whose extensions have
             // unrelated receivers, while retaining the nearest matching tier.
@@ -1721,7 +1774,16 @@ final class ExprTypeChecker {
                    sema.symbols.actualSymbol(for: candidate) != nil {
                     return false
                 }
-                return operatorCandidateMatchesReceiver(candidate)
+                guard operatorCandidateMatchesReceiver(candidate) else {
+                    return false
+                }
+                if symbol.flags.contains(.localFunction) {
+                    return !ctx.resolver.probeCall(
+                        candidates: [candidate], call: call, expectedType: nil,
+                        implicitReceiverType: receiverType, ctx: sema
+                    ).viableCandidates.isEmpty
+                }
+                return true
             })
             for candidate in scopedCandidates where seen.insert(candidate).inserted {
                 candidates.append(candidate)
@@ -1827,15 +1889,24 @@ final class ExprTypeChecker {
         hasCapturedOperand: Bool = false,
         range: SourceRange,
         ctx: TypeInferenceContext,
+        locals: LocalBindings,
         expectedType: TypeID?
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operandType) { true } else { false }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
+        let operatorCall = CallExpr(
+            range: range,
+            calleeName: operatorNames[0],
+            args: [],
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+        )
         let operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: operandType,
+            call: operatorCall,
+            locals: locals,
             ctx: ctx
         )
         let displayOperatorName = interner.resolve(operatorNames[0])
@@ -1843,12 +1914,7 @@ final class ExprTypeChecker {
         if !operatorCandidates.isEmpty {
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
-                call: CallExpr(
-                    range: range,
-                    calleeName: operatorNames[0],
-                    args: [],
-                    dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
-                ),
+                call: operatorCall,
                 expectedType: expectedType,
                 implicitReceiverType: operandType,
                 ctx: ctx.sema

@@ -76,7 +76,8 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         requireNonNullableReceiverForConstFold: Bool,
         prependReceiverForUnresolvedCollectionCall: Bool,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        loweredReceiverOverride: KIRExprID? = nil
     ) -> KIRExprID {
         // swiftlint:enable cyclomatic_complexity function_body_length
         // BUG-inner-outer: `outer.Inner(args)` resolves to Inner's own
@@ -144,7 +145,7 @@ extension CallLowerer {
 
         let boundType = sema.bindings.exprTypes[exprID]
         let calleeNameStr = interner.resolve(calleeName)
-        let loweredReceiverID = driver.lowerExpr(
+        let loweredReceiverID = loweredReceiverOverride ?? driver.lowerExpr(
             receiverExpr,
             ast: ast,
             sema: sema,

@@ -464,7 +464,7 @@ extension DataFlowSemaPhase {
                 .first(where: { isNominalLayoutTargetSymbol($0.kind) })
             {
                 classTypeParameterCount = min(
-                    types.nominalTypeParameterSymbols(for: ownerSymbol.id).count,
+                    types.allTypeParameterSymbols(for: ownerSymbol.id).count,
                     typeParameterSymbols.count
                 )
             }
@@ -672,7 +672,7 @@ extension DataFlowSemaPhase {
             return 0
         }
         var seen: Set<SymbolID> = []
-        for arg in classType.args {
+        for arg in types.allTypeArguments(for: classType) {
             switch arg {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 guard case let .typeParam(typeParam) = types.kind(of: inner) else {
@@ -704,7 +704,7 @@ extension DataFlowSemaPhase {
                     result.append(typeParam.symbol)
                 }
             case let .classType(classType):
-                for arg in classType.args {
+                for arg in types.allTypeArguments(for: classType) {
                     switch arg {
                     case let .invariant(t), let .out(t), let .in(t): visit(t)
                     case .star: break
@@ -1186,7 +1186,11 @@ extension DataFlowSemaPhase {
                 )
                 return types.anyType
             }
-            return types.make(.classType(ClassType(classSymbol: classSymbol, args: args, nullability: .nonNull)))
+            let allTypeParameterCount = types.allTypeParameterSymbols(for: classSymbol).count
+            let parsedClassType = args.count == allTypeParameterCount
+                ? types.classType(for: classSymbol, arguments: args)
+                : ClassType(classSymbol: classSymbol, args: args)
+            return types.make(.classType(parsedClassType))
         }
 
         private mutating func parseTypeArg() -> TypeArg? {
@@ -1334,6 +1338,7 @@ extension DataFlowSemaPhase {
                 types.make(.classType(ClassType(
                     classSymbol: classType.classSymbol,
                     args: classType.args,
+                    enclosingTypeArgs: classType.enclosingTypeArgs,
                     nullability: .nullable
                 )))
             case let .typeParam(typeParam):

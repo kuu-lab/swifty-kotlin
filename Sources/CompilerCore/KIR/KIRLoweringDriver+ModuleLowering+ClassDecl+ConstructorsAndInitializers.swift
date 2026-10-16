@@ -117,9 +117,10 @@ extension KIRLoweringDriver {
             interner: shared.interner,
             instructions: &body.instructions
         )
-        // Seed `lateinit` storage before any delegation so a superclass
-        // `init` that assigns it through a virtual call is not wiped later.
+        // Seed `lateinit` and explicit-null storage before delegation so
+        // superclass `init` sees the correct sentinel and virtual writes survive.
         emitLateinitFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
+        emitNullInitializerFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
         let constructorDeclSite = sema.symbols.symbol(ctorSymbol)?.declSite
         let isSecondary = classDecl.secondaryConstructors.contains { constructor in
             constructor.range == constructorDeclSite
@@ -750,6 +751,32 @@ extension KIRLoweringDriver {
             emitFieldStore(
                 propSymbol: propSymbol, targetSymbol: targetSymbol,
                 value: nullExpr, valueType: propType,
+                shared: shared, body: &body
+            )
+        }
+    }
+
+    /// Seeds explicit nullable null defaults before superclass construction.
+    /// The corresponding initializer is elided later because this sentinel
+    /// is already the default and must not overwrite a virtual superclass write.
+    private func emitNullInitializerFieldSentinels(
+        classDecl: ClassDecl,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        for propSymbol in nullInitializerPropertySymbols(classDecl.memberProperties, shared: shared) {
+            let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
+            let fieldType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
+            guard KIRDefaultFieldInitializer.isDefaultValue(.null, for: fieldType, types: sema.types) else {
+                continue
+            }
+            let nullExpr = arena.appendExpr(.null, type: fieldType)
+            body.append(.constValue(result: nullExpr, value: .null))
+            emitFieldStore(
+                propSymbol: propSymbol, targetSymbol: targetSymbol,
+                value: nullExpr, valueType: fieldType,
                 shared: shared, body: &body
             )
         }

@@ -85,11 +85,13 @@ private enum WellKnownSymbol: Hashable, Sendable {
     case collectionFactory(WellKnownCollectionFactory)
     case enumIntrinsic(WellKnownEnumIntrinsic)
     case reflectIntrinsic(WellKnownReflectIntrinsic)
+    case contractIntrinsic
 
     static var all: [WellKnownSymbol] {
         WellKnownCollectionFactory.allCases.map { .collectionFactory($0) }
             + WellKnownEnumIntrinsic.allCases.map { .enumIntrinsic($0) }
             + WellKnownReflectIntrinsic.allCases.map { .reflectIntrinsic($0) }
+            + [.contractIntrinsic]
     }
 
     var fqNameParts: [String] {
@@ -100,6 +102,8 @@ private enum WellKnownSymbol: Hashable, Sendable {
             intrinsic.fqNameParts
         case let .reflectIntrinsic(intrinsic):
             intrinsic.fqNameParts
+        case .contractIntrinsic:
+            ["kotlin", "contracts", "contract"]
         }
     }
 }
@@ -170,5 +174,14 @@ struct WellKnownSymbols: Sendable {
             return nil
         }
         return intrinsic
+    }
+
+    func isContractIntrinsic(for symbol: SymbolID?) -> Bool {
+        guard let symbol,
+              case .contractIntrinsic = symbolByID[symbol]
+        else {
+            return false
+        }
+        return true
     }
 }

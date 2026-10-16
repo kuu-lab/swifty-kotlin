@@ -8,8 +8,8 @@ public struct CallBinding {
     /// Most call sites track this separately by expression; synthetic calls
     /// such as for-in convention calls carry it with the binding instead.
     public let dispatchReceiverSymbol: SymbolID?
-    /// Whether a callable-reference wrapper must adapt its fixed function
-    /// arity to this declaration's defaults or vararg parameter.
+    /// Whether lowering must wrap this reference to adapt its function shape,
+    /// including its arity, receiver, or return type, to the selected type.
     public let isCallableReferenceAdapter: Bool
 
     public init(

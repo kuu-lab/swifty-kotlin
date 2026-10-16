@@ -3,7 +3,7 @@
 /// writes (intersection, for initialization on every normal constructor exit).
 final class ValPropertyInitializationChecker {
     private enum Exit: Hashable {
-        case normal, returned, thrown
+        case normal, returned, lambdaReturned, thrown
         case broken(InternedString?), continued(InternedString?)
     }
     private struct State: Hashable {
@@ -52,6 +52,7 @@ final class ValPropertyInitializationChecker {
 
     private let ast: ASTModule
     private let sema: SemaModule
+    private let sourceManager: SourceManager?
     private let declarationValidator: DeclarationPositionValidator
     private var checkingConstructorBody = false
     private var owner: SymbolID?
@@ -60,10 +61,13 @@ final class ValPropertyInitializationChecker {
     private var immutableFields: Set<SymbolID> = []
     private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
+    private var inlineLambdaBodyDepth = 0
+    private var deferredLambdaBodyDepth = 0
 
-    init(ast: ASTModule, sema: SemaModule, interner: StringInterner) {
+    init(ast: ASTModule, sema: SemaModule, interner: StringInterner, sourceManager: SourceManager? = nil) {
         self.ast = ast
         self.sema = sema
+        self.sourceManager = sourceManager
         declarationValidator = DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil)
     }
 
@@ -107,9 +111,22 @@ final class ValPropertyInitializationChecker {
                   declarationValidator.accessorHasBody(property.setter) else { return nil }
             return sema.bindings.declSymbol(for: id)
         })
-        // DeclarationPositionValidator handles owners without imperative initialization.
-        // Recheck only its deferred cases, avoiding duplicate declaration diagnostics.
-        let required = checksDefiniteInitialization && (!blocks.isEmpty || !constructors.isEmpty)
+        // DeclarationPositionValidator handles owners without an initializer
+        // flow. Recheck deferred cases here, avoiding duplicate diagnostics.
+        let isBundledStdlibOwner: Bool
+        if let fileID = sema.symbols.symbol(symbol)?.declSite?.start.file {
+            isBundledStdlibOwner = sourceManager?.origin(of: fileID)?.isBundledStdlib == true
+        } else {
+            isBundledStdlibOwner = false
+        }
+        let hasPropertyInitializationExpression = !isBundledStdlibOwner && properties.contains { id in
+            guard case let .propertyDecl(property) = ast.arena.decl(id) else { return false }
+            return property.initializer != nil
+                || property.delegateExpression != nil
+                || property.explicitBackingField != nil
+        }
+        let required = checksDefiniteInitialization
+            && (!blocks.isEmpty || !constructors.isEmpty || hasPropertyInitializationExpression)
             ? Set(properties.compactMap { id -> SymbolID? in
                 guard case let .propertyDecl(property) = ast.arena.decl(id),
                       let field = sema.bindings.declSymbol(for: id),
@@ -180,9 +197,20 @@ final class ValPropertyInitializationChecker {
             visiting.remove(symbol)
             return flow
         }
-        if hasPrimaryConstructor { reportMissing(required, in: initial) }
+        // Properties after a class initializer sequence that never reaches a
+        // normal exit cannot be observed on a constructed instance. Keep the
+        // constructor-body checks below for normally completing initializers:
+        // a secondary constructor that itself never returns still follows the
+        // existing definite-initialization rule.
+        let hasNormalInitializationPath = initial.paths[.normal] != nil
+        if hasPrimaryConstructor && hasNormalInitializationPath {
+            reportMissing(required, in: initial)
+        }
         for ctor in constructors {
-            if let symbol = constructorSymbol(ctor) { reportMissing(required, in: summary(symbol)) }
+            if let symbol = constructorSymbol(ctor) {
+                let flow = summary(symbol)
+                if hasNormalInitializationPath { reportMissing(required, in: flow) }
+            }
         }
     }
 
@@ -198,8 +226,6 @@ final class ValPropertyInitializationChecker {
     }
 
     private func reportMissing(_ required: Set<SymbolID>, in flow: Flow) {
-        // Kotlin also rejects deferred properties in a constructor that never
-        // completes, even if it writes them before throwing or looping forever.
         let initialized = flow.paths[.normal]?.definite ?? []
         for field in required.subtracting(initialized).sorted(by: { $0.rawValue < $1.rawValue }) {
             guard reportedMissing.insert(field).inserted else { continue }
@@ -279,7 +305,8 @@ final class ValPropertyInitializationChecker {
         case let .localAssign(_, value, _):
             visit(value)
             write(id, receiver: nil, flow: &flow, permitsInitialization: permitsInitialization)
-        case let .memberAssign(receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _):
             visit(receiver); visit(value)
             write(id, receiver: receiver, flow: &flow, permitsInitialization: permitsInitialization)
         case let .blockExpr(statements, trailing, _):
@@ -306,7 +333,15 @@ final class ValPropertyInitializationChecker {
             }
         case let .returnExpr(value, _, _):
             if let value { visit(value) }
-            flow.exit(.returned)
+            if inlineLambdaBodyDepth > deferredLambdaBodyDepth {
+                if sema.bindings.lambdaReturnTargets[id] != nil {
+                    flow.exit(.lambdaReturned)
+                } else if sema.bindings.functionReturnLambdaPaths[id] != nil {
+                    flow.exit(.returned)
+                }
+            } else {
+                flow.exit(.returned)
+            }
         case let .throwExpr(value, _):
             visit(value); flow.exit(.thrown)
         case let .breakExpr(label, _): flow.exit(.broken(label))
@@ -351,15 +386,17 @@ final class ValPropertyInitializationChecker {
             } else { visit(rhs) }
         case let .call(callee, _, args, _), let .memberCall(callee, _, _, args, _):
             visit(callee)
-            visitArguments(args, flow: &flow, permitsInitialization: permitsInitialization)
+            visitArguments(args, callExprID: id, flow: &flow, permitsInitialization: permitsInitialization)
         case let .safeMemberCall(receiver, _, _, args, _):
             visit(receiver)
             var called = flow
-            visitArguments(args, flow: &called, permitsInitialization: permitsInitialization)
+            visitArguments(args, callExprID: id, flow: &called, permitsInitialization: permitsInitialization)
             flow.merge(called)
         case let .lambdaLiteral(_, body, _, _):
             var deferred = Flow(entry)
+            deferredLambdaBodyDepth += 1
             walk(body, flow: &deferred, permitsInitialization: false)
+            deferredLambdaBodyDepth -= 1
         case let .localFunDecl(_, _, _, _, body, _, _, _):
             var deferred = Flow(entry)
             walk(body, flow: &deferred, permitsInitialization: false)
@@ -424,9 +461,49 @@ final class ValPropertyInitializationChecker {
         flow.merge(iteration)
     }
 
-    private func visitArguments(_ args: [CallArgument], flow: inout Flow, permitsInitialization: Bool) {
-        for argument in args {
-            walk(argument.expr, flow: &flow, permitsInitialization: permitsInitialization)
+    private func visitArguments(
+        _ args: [CallArgument],
+        callExprID: ExprID,
+        flow: inout Flow,
+        permitsInitialization: Bool
+    ) {
+        for (argumentIndex, argument) in args.enumerated() {
+            guard deferredLambdaBodyDepth == 0,
+                  allowsNonLocalReturn(argumentIndex: argumentIndex, callExprID: callExprID),
+                  case let .lambdaLiteral(_, body, _, _) = ast.arena.expr(argument.expr),
+                  let entry = flow.paths[.normal]
+            else {
+                walk(argument.expr, flow: &flow, permitsInitialization: permitsInitialization)
+                continue
+            }
+
+            // An inline callback may exit the constructor from inside its body.
+            // Keep that path separate from normal callback completion, since an
+            // inline function is not necessarily required to invoke its callback.
+            var callback = Flow(entry)
+            inlineLambdaBodyDepth += 1
+            walk(body, flow: &callback, permitsInitialization: true)
+            inlineLambdaBodyDepth -= 1
+
+            if let localReturn = callback.paths.removeValue(forKey: .lambdaReturned) {
+                callback.merge(localReturn, at: .normal)
+            }
+            if let normal = callback.paths[.normal] {
+                flow.merge(normal, at: .normal)
+            }
+            if let returned = callback.paths[.returned] {
+                flow.merge(returned, at: .returned)
+            }
         }
+    }
+
+    private func allowsNonLocalReturn(argumentIndex: Int, callExprID: ExprID) -> Bool {
+        guard let binding = sema.bindings.callBinding(for: callExprID),
+              sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
+              let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+        else { return false }
+        let parameterIndex = binding.parameterMapping[argumentIndex] ?? argumentIndex
+        return !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+            || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
     }
 }
