@@ -244,6 +244,87 @@ extension CallLowerer {
         }
     }
 
+    /// Emits a runtime ABI mutation for built-in collection boxes when a
+    /// compound operator resolves to a source-backed MutableList/MutableSet
+    /// member. These boxes have no Kotlin itable for the default operator body.
+    @discardableResult
+    func emitRuntimeBackedCollectionMemberCallIfNeeded(
+        memberName: String,
+        receiverType: TypeID,
+        chosenCallee: SymbolID,
+        arguments: [KIRExprID],
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        guard let runtimeCallee = runtimeBackedSetMemberCallee(
+            memberName: memberName,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        ) ?? runtimeBackedListMemberCallee(
+            memberName: memberName,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        ) else {
+            return false
+        }
+
+        var runtimeArguments = arguments
+        if let signature = sema.symbols.functionSignature(for: chosenCallee) {
+            for (parameterIndex, parameterType) in signature.parameterTypes.enumerated() {
+                let argumentIndex = parameterIndex + 1
+                guard runtimeArguments.indices.contains(argumentIndex),
+                      case .typeParam = sema.types.kind(of: parameterType),
+                      let sourceType = arena.exprType(runtimeArguments[argumentIndex])
+                else {
+                    continue
+                }
+                runtimeArguments[argumentIndex] = boxValueForAnySlot(
+                    runtimeArguments[argumentIndex],
+                    sourceType: sourceType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
+                    into: &instructions
+                )
+            }
+        }
+
+        let canThrow = needsThrownChannel(calleeName: runtimeCallee, interner: interner)
+        let thrownResult = canThrow
+            ? arena.appendTemporary(type: sema.types.nullableAnyType)
+            : nil
+        instructions.append(.call(
+            symbol: nil,
+            callee: runtimeCallee,
+            arguments: runtimeArguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult
+        ))
+        if let thrownResult,
+           shouldRethrowThrownChannelResult(calleeName: runtimeCallee, interner: interner)
+        {
+            let continueLabel = driver.ctx.makeLoopLabel()
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+            instructions.append(.jump(continueLabel))
+            instructions.append(.label(rethrowLabel))
+            instructions.append(.rethrow(value: thrownResult))
+            instructions.append(.label(continueLabel))
+        }
+        return true
+    }
+
     /// True when the receiver's static type is `kotlin.collections.MutableList`
     /// — the interface spelling used by runtime list boxes (`mutableListOf`,
     /// `subList` views). `AbstractMutableList` is deliberately excluded: its

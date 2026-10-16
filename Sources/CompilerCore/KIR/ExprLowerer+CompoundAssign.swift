@@ -169,6 +169,22 @@ extension ExprLowerer {
                 arguments: [KIRExprID],
                 result: KIRExprID
             ) {
+                let resolvedMemberName = sema.symbols.symbol(callBinding.chosenCallee)
+                    .map { interner.resolve($0.name) }
+                    ?? interner.resolve(calleeName)
+                if driver.callLowerer.emitRuntimeBackedCollectionMemberCallIfNeeded(
+                    memberName: resolvedMemberName,
+                    receiverType: arena.exprType(lhs) ?? signature.receiverType ?? sema.types.anyType,
+                    chosenCallee: callBinding.chosenCallee,
+                    arguments: arguments,
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    return
+                }
                 if let virtualInstruction = driver.callLowerer.tryEmitVirtualDispatch(
                     chosenCallee: callBinding.chosenCallee,
                     calleeName: calleeName,
