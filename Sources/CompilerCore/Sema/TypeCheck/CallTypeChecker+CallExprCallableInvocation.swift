@@ -148,10 +148,21 @@ extension CallTypeChecker {
            let result = inferCallableValueInvocation(
                id, calleeType: callableCalleeType, callableTarget: callableTarget,
                args: args, argTypes: argTypes, range: range, ctx: ctx, locals: &locals, expectedType: expectedType,
-               arityPolicy: .receiverOptionallyExplicit
+               arityPolicy: ast.arena.isReceiverExpressionArgsCall(id)
+                   ? .receiverMustBePresent : .receiverOptionallyExplicit
            )
         {
             return result
+        }
+
+        if ast.arena.isReceiverExpressionArgsCall(id) {
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for call.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
 
         // Invoke operator fallback: if callee is not a function type, check if

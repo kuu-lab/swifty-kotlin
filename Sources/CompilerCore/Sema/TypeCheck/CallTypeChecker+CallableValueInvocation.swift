@@ -235,6 +235,10 @@ extension CallTypeChecker {
         /// supplied positionally as argument 0 (`ef.invoke(3, 4)`); there is
         /// no arity at which it may be omitted (`ef.invoke(4)` is invalid).
         case receiverRequiredExplicit
+        /// `receiver.(expression)(...)` requires the callee type itself to
+        /// declare an extension receiver; a plain function's first parameter
+        /// cannot stand in for it.
+        case receiverMustBePresent
     }
 
     func inferCallableValueInvocation(
@@ -299,6 +303,9 @@ extension CallTypeChecker {
                 return 0
             case .receiverRequiredExplicit:
                 return functionType.receiver == nil ? 0 : 1
+            case .receiverMustBePresent:
+                guard functionType.receiver != nil else { return nil }
+                return 1
             }
         }
         func argumentsMatch(contextArgumentCount: Int, receiverOffset: Int) -> Bool {
