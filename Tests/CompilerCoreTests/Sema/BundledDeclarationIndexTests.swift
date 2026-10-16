@@ -129,6 +129,35 @@ struct BundledDeclarationIndexTests {
             "Expected bundled collection HOFs to type-check, got: \(ctx.diagnostics.diagnostics)"
         )
         let sema = try #require(ctx.sema)
+        let coroutinesPackage = intern(["kotlinx", "coroutines"], ctx.interner)
+        let handleCoroutineException = ctx.interner.intern("handleCoroutineException")
+        let handleCoroutineExceptionFunctions = matchingFunctions(
+            owner: coroutinesPackage,
+            name: handleCoroutineException,
+            arity: 2,
+            sema: sema
+        )
+        #expect(
+            handleCoroutineExceptionFunctions.contains {
+                guard let symbol = sema.symbols.symbol($0), !symbol.flags.contains(.synthetic) else {
+                    return false
+                }
+                return sourcePath(for: $0, sema: sema, ctx: ctx)?.hasSuffix("CoroutineExceptionHandlerApi.kt") == true
+            },
+            "Expected handleCoroutineException to resolve to its bundled Kotlin source declaration"
+        )
+        #expect(
+            !handleCoroutineExceptionFunctions.contains {
+                sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
+            },
+            "Expected the bundled handleCoroutineException declaration to suppress its synthetic stub"
+        )
+        #expect(
+            !ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0102" && $0.message.contains("handleCoroutineException")
+            },
+            "Expected no duplicate synthetic declaration warning for handleCoroutineException"
+        )
         let listOwner = intern(["kotlin", "collections", "List"], ctx.interner)
         let iterableOwner = intern(["kotlin", "collections", "Iterable"], ctx.interner)
         let collectionsPackage = intern(["kotlin", "collections"], ctx.interner)
