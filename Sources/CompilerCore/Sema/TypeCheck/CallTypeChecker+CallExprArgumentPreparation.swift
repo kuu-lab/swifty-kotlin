@@ -276,6 +276,62 @@ extension CallTypeChecker {
                 let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                 var substitution: [TypeVarID: TypeID] = [:]
                 var conflictingTypeVariables: Set<TypeVarID> = []
+                func recordExpectedTypeSeed(_ typeParam: TypeParamType, expectedType: TypeID) {
+                    guard let typeVar = typeVarBySymbol[typeParam.symbol] else { return }
+                    let contextualType = typeParam.nullability == .nonNull
+                        ? expectedType : sema.types.makeNonNullable(expectedType)
+                    // A parameter can appear in several supertype positions,
+                    // e.g. Child<T> : Base<T, T>. Different expected arguments
+                    // are constraints for the solver, not a last-wins seed.
+                    if let existing = substitution[typeVar], existing != contextualType {
+                        substitution.removeValue(forKey: typeVar)
+                        conflictingTypeVariables.insert(typeVar)
+                    } else if !conflictingTypeVariables.contains(typeVar) {
+                        substitution[typeVar] = contextualType
+                    }
+                }
+                func collectNestedExpectedTypeSeeds(from returnedType: TypeID, expected expectedType: TypeID) {
+                    guard case let .classType(returnedClassType) = sema.types.kind(of: returnedType),
+                          case let .classType(expectedClassType) = sema.types.kind(of: expectedType),
+                          returnedClassType.classSymbol == expectedClassType.classSymbol,
+                          returnedClassType.args.count == expectedClassType.args.count
+                    else {
+                        return
+                    }
+                    let nestedVariances = sema.types.normalizedNominalVariances(
+                        for: expectedClassType.classSymbol, arity: expectedClassType.args.count
+                    )
+                    for index in returnedClassType.args.indices {
+                        let returnedArg = returnedClassType.args[index]
+                        let expectedArg = expectedClassType.args[index]
+                        guard index < nestedVariances.count else { continue }
+                        // Only use an expected output type as a seed when its
+                        // projection carries information covariantly (or is
+                        // invariant). A contravariant position supplies a lower
+                        // bound and must stay in the ordinary call constraints.
+                        switch sema.types.composedProjection(
+                            declarationVariance: nestedVariances[index], useSite: expectedArg
+                        ) {
+                        case .invariant, .out: break
+                        case .in, .star, .invalid: continue
+                        }
+                        guard let returnedArgType = argType(returnedArg),
+                              let expectedArgType = argType(expectedArg)
+                        else {
+                            continue
+                        }
+                        if case let .typeParam(typeParam) = sema.types.kind(of: returnedArgType),
+                           typeVarBySymbol[typeParam.symbol] != nil
+                        {
+                            recordExpectedTypeSeed(typeParam, expectedType: expectedArgType)
+                        } else {
+                            collectNestedExpectedTypeSeeds(
+                                from: returnedArgType,
+                                expected: expectedArgType
+                            )
+                        }
+                    }
+                }
                 for (index, (returnArg, expectedArg)) in zip(returnArgs, expectedClassType.args).enumerated() {
                     if isLiftedReturn {
                         // An `in` expectation is a lower bound, so forcing its
@@ -289,22 +345,26 @@ extension CallTypeChecker {
                         }
                     }
                     guard let returnArgType = argType(returnArg),
-                          let expectedArgType = argType(expectedArg),
-                          case let .typeParam(returnTypeParam) = sema.types.kind(of: returnArgType),
-                          let typeVar = typeVarBySymbol[returnTypeParam.symbol]
+                          let expectedArgType = argType(expectedArg)
                     else {
                         continue
                     }
-                    let contextualType = returnTypeParam.nullability == .nonNull
-                        ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
-                    // A parameter can appear in several supertype positions,
-                    // e.g. Child<T> : Base<T, T>. Different expected arguments
-                    // are constraints for the solver, not a last-wins seed.
-                    if let existing = substitution[typeVar], existing != contextualType {
-                        substitution.removeValue(forKey: typeVar)
-                        conflictingTypeVariables.insert(typeVar)
-                    } else if !conflictingTypeVariables.contains(typeVar) {
-                        substitution[typeVar] = contextualType
+                    if case let .typeParam(returnTypeParam) = sema.types.kind(of: returnArgType),
+                       typeVarBySymbol[returnTypeParam.symbol] != nil
+                    {
+                        recordExpectedTypeSeed(returnTypeParam, expectedType: expectedArgType)
+                    } else {
+                        switch sema.types.composedProjection(
+                            declarationVariance: expectedVariances[index], useSite: expectedArg
+                        ) {
+                        case .invariant, .out:
+                            collectNestedExpectedTypeSeeds(
+                                from: returnArgType,
+                                expected: expectedArgType
+                            )
+                        case .in, .star, .invalid:
+                            continue
+                        }
                     }
                 }
                 while isLiftedReturn, !substitution.isEmpty {
