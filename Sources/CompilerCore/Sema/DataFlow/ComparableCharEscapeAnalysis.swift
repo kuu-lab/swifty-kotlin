@@ -166,7 +166,8 @@ final class ComparableCharEscapeAnalyzer {
             if let initializer { visit(initializer, depth, false) }
         case let .localAssign(_, value, _):
             visit(value, depth, false)
-        case let .memberAssign(receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _):
             visit(receiver, depth, false)
             visit(value, depth, false)
         case let .indexedAssign(receiver, indices, value, _):

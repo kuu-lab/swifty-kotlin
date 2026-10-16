@@ -39,9 +39,10 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        precomputedReceiverID: KIRExprID? = nil
     ) -> KIRExprID {
-        let receiverID = driver.lowerExpr(
+        let receiverID = precomputedReceiverID ?? driver.lowerExpr(
             receiverExpr,
             ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
@@ -313,6 +314,51 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
+    func lowerSafeMemberAssignExpr(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        valueExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let receiverID = driver.lowerExpr(
+            receiverExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let nonNullLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: receiverID, target: nonNullLabel))
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(nonNullLabel))
+        _ = lowerMemberAssignExpr(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            valueExpr: valueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions,
+            precomputedReceiverID: receiverID
+        )
+        instructions.append(.label(endLabel))
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit

@@ -634,7 +634,8 @@ final class ControlFlowTypeChecker {
                 return false
             case .localAssign(_, let value, _):
                 return visit(value, loopLabelStack: loopLabelStack)
-            case .memberAssign(let receiver, _, let value, _):
+            case .memberAssign(let receiver, _, let value, _),
+                 .safeMemberAssign(let receiver, _, let value, _):
                 return visit(receiver, loopLabelStack: loopLabelStack) || visit(value, loopLabelStack: loopLabelStack)
             case .indexedAssign(let receiver, let indices, let value, _):
                 if visit(receiver, loopLabelStack: loopLabelStack) { return true }

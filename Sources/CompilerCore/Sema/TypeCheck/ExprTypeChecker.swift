@@ -191,6 +191,12 @@ final class ExprTypeChecker {
                 range: range, ctx: ctx, locals: &locals
             )
 
+        case let .safeMemberAssign(receiverExpr, calleeName, valueExpr, range):
+            return inferMemberAssignExpr(
+                id, receiver: receiverExpr, name: calleeName, value: valueExpr,
+                range: range, ctx: ctx, locals: &locals, isSafeCall: true
+            )
+
         case let .indexedAccess(receiverExpr, indices, range):
             return driver.localDeclChecker.inferIndexedAccessExpr(id, receiverExpr: receiverExpr, indices: indices, range: range, ctx: ctx, locals: &locals)
 

@@ -279,7 +279,8 @@ final class ValPropertyInitializationChecker {
         case let .localAssign(_, value, _):
             visit(value)
             write(id, receiver: nil, flow: &flow, permitsInitialization: permitsInitialization)
-        case let .memberAssign(receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _):
             visit(receiver); visit(value)
             write(id, receiver: receiver, flow: &flow, permitsInitialization: permitsInitialization)
         case let .blockExpr(statements, trailing, _):
