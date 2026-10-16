@@ -318,8 +318,8 @@ extension CallTypeChecker {
             args: args,
             ctx: ctx,
             locals: &locals,
-            expectedType: expectedType,
-            calleeName: calleeName
+            calleeName: calleeName,
+            calleePath: calleePath
         ) {
             return inferred
         }
