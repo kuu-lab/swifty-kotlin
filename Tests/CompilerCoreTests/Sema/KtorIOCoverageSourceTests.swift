@@ -46,9 +46,16 @@ struct KtorIOCoverageSourceTests {
             """
             package io.ktor.utils.io.core
             import kotlinx.io.Source
+            import kotlinx.io.InternalIoApi
+
+            @OptIn(InternalIoApi::class)
+            val Source.remaining: Long
+                get() = buffer.size
+
+            @OptIn(InternalIoApi::class)
             fun Source.discard(count: Long = Long.MAX_VALUE): Long {
                 request(count)
-                val countToDiscard = minOf(count, buffer.size)
+                val countToDiscard = minOf(count, remaining)
                 buffer.skip(countToDiscard)
                 return countToDiscard
             }

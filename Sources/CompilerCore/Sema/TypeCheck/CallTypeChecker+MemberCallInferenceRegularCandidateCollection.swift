@@ -615,7 +615,12 @@ extension CallTypeChecker {
             allCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName, receiverType: memberLookupType,
                 sema: sema, interner: interner
-            )
+            ).filter {
+                primitiveCompareToCandidateMatches(
+                    $0, calleeName: calleeName, receiverType: memberLookupType,
+                    argTypes: argTypes, sema: sema
+                )
+            }
             if allCandidates.isEmpty {
                 allCandidates = collectExtensionCallCandidates(
                     named: calleeName, memberLookupType: memberLookupType,

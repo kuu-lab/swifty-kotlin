@@ -421,6 +421,74 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_java_class_get_declared_methods",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_class_get_declared_method",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
+                RuntimeABIParameter(name: "parameterTypesRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_class_get_name",
+            parameters: [
+                RuntimeABIParameter(name: "classRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_class_register_declared_method",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "methodNameRaw", type: .intptr),
+                RuntimeABIParameter(name: "signatureRaw", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_method_get_name",
+            parameters: [
+                RuntimeABIParameter(name: "methodRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_method_get_return_type",
+            parameters: [
+                RuntimeABIParameter(name: "methodRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_java_method_is_synthetic",
+            parameters: [
+                RuntimeABIParameter(name: "methodRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kclass_members",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),

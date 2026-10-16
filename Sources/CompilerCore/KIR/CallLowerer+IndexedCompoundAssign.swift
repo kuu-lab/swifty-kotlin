@@ -329,19 +329,20 @@ extension CallLowerer {
         }
 
         let getResult = arena.appendTemporary(type: elementType)
+        let normalizedGetArguments = driver.callSupportLowerer.normalizedCallArguments(
+            providedArguments: loweredIndices,
+            callBinding: getCallBinding,
+            chosenCallee: getCallBinding.chosenCallee,
+            spreadFlags: Array(repeating: false, count: loweredIndices.count),
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
         emitMemberCallInstruction(
-            normalized: driver.callSupportLowerer.normalizedCallArguments(
-                providedArguments: loweredIndices,
-                callBinding: getCallBinding,
-                chosenCallee: getCallBinding.chosenCallee,
-                spreadFlags: Array(repeating: false, count: loweredIndices.count),
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            ),
+            normalized: normalizedGetArguments,
             callBinding: getCallBinding,
             chosenCallee: getCallBinding.chosenCallee,
             calleeName: interner.intern("get"),
@@ -353,7 +354,7 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: [receiverID] + loweredIndices
+            arguments: [receiverID] + normalizedGetArguments.arguments
         )
 
         // Kotlin evaluates `b[i] += v` as receiver, indices, get, value, op, set.
@@ -400,20 +401,21 @@ extension CallLowerer {
         }
         let setCallBinding = operatorBinding.setCall
         let setArguments = loweredIndices + [newElement]
+        let normalizedSetArguments = driver.callSupportLowerer.normalizedCallArguments(
+            providedArguments: setArguments,
+            callBinding: setCallBinding,
+            chosenCallee: setCallBinding.chosenCallee,
+            spreadFlags: Array(repeating: false, count: setArguments.count),
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
         let setResult = arena.appendTemporary(type: sema.types.unitType)
         emitMemberCallInstruction(
-            normalized: driver.callSupportLowerer.normalizedCallArguments(
-                providedArguments: setArguments,
-                callBinding: setCallBinding,
-                chosenCallee: setCallBinding.chosenCallee,
-                spreadFlags: Array(repeating: false, count: setArguments.count),
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            ),
+            normalized: normalizedSetArguments,
             callBinding: setCallBinding,
             chosenCallee: setCallBinding.chosenCallee,
             calleeName: interner.intern("set"),
@@ -425,7 +427,7 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: [receiverID] + setArguments
+            arguments: [receiverID] + normalizedSetArguments.arguments
         )
 
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)

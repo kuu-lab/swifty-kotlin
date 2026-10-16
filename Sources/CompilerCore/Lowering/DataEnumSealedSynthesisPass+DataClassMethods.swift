@@ -906,19 +906,6 @@ extension DataEnumSealedSynthesisPass {
     /// Synthesizes `toString(): String` for data class with properties.
     /// Output format: "ClassName(prop1=val1, prop2=val2)"
     /// Each property is rendered according to its declared type, then concatenated.
-    func dataClassExplicitSuperclass(
-        owner: SemanticSymbol,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> SemanticSymbol? {
-        let kotlinAnyFQName = [interner.intern("kotlin"), interner.intern("Any")]
-        return sema.symbols.directSupertypes(for: owner.id)
-            .compactMap { sema.symbols.symbol($0) }
-            .first(where: { symbol in
-                symbol.kind == .class && symbol.fqName != kotlinAnyFQName
-            })
-    }
-
     func appendSyntheticDataClassToStringIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -1287,45 +1274,15 @@ extension DataEnumSealedSynthesisPass {
             body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
             body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))
 
-            // STDLIB-DATA-014: If data class inherits from another class, call super.equals()
-            if let superSymbol = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner) {
-                // Find super.equals() method symbol
-                let equalsName = interner.intern("equals")
-                let superEqualsFQName = superSymbol.fqName + [equalsName]
-                let superEqualsSymbol = sema.symbols.lookupAll(fqName: superEqualsFQName).first
-
-                // Call super.equals(other) if it exists, otherwise use reference equality
-                if let superEqualsSymbol = superEqualsSymbol {
-                    body.append(.call(
-                        symbol: superEqualsSymbol,
-                        callee: interner.intern("equals"),
-                        arguments: [receiverRef, otherRef],
-                        result: resultExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                } else {
-                    // Fallback: use reference equality
-                    body.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_op_eq"),
-                        arguments: [receiverRef, otherRef],
-                        result: resultExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
-            } else {
-                // Use reference equality for data class with no properties and no inheritance
-                body.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_op_eq"),
-                    arguments: [receiverRef, otherRef],
-                    result: resultExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            }
+            // With no value properties, equality falls back to reference equality.
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_op_eq"),
+                arguments: [receiverRef, otherRef],
+                result: resultExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
             body.append(.returnValue(resultExpr))
         } else {
             let intType = sema.types.intType
@@ -1464,46 +1421,6 @@ extension DataEnumSealedSynthesisPass {
                 }
 
                 body.append(.jumpIfEqual(lhs: cmpResult, rhs: falseExpr, target: returnFalseLabel))
-            }
-
-            // STDLIB-DATA-014: If data class inherits from another class, call super.equals() first
-            if let superSymbol = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner) {
-                let receiverRef = module.arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
-                let otherRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: nullableAnyType)
-                let superEqualsResult = module.arena.appendTemporary(type: boolType
-                )
-                body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
-                body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))
-
-                // Find super.equals() method symbol
-                let equalsName = interner.intern("equals")
-                let superEqualsFQName = superSymbol.fqName + [equalsName]
-                let superEqualsSymbol = sema.symbols.lookupAll(fqName: superEqualsFQName).first
-
-                // Call super.equals(other) if it exists, otherwise use reference equality
-                if let superEqualsSymbol = superEqualsSymbol {
-                    body.append(.call(
-                        symbol: superEqualsSymbol,
-                        callee: interner.intern("equals"),
-                        arguments: [receiverRef, otherRef],
-                        result: superEqualsResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                } else {
-                    // Fallback: use reference equality (consistent with properties-empty branch)
-                    body.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_op_eq"),
-                        arguments: [receiverRef, otherRef],
-                        result: superEqualsResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
-
-                // If super.equals() returns false, return false immediately
-                body.append(.jumpIfEqual(lhs: superEqualsResult, rhs: falseExpr, target: returnFalseLabel))
             }
 
             let trueResult = module.arena.appendExpr(

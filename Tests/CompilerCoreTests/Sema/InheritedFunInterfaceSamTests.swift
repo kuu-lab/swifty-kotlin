@@ -79,6 +79,19 @@ struct InheritedFunInterfaceSamTests {
     }
 
     @Test
+    func functionTypeSupertypeContributesSyntheticInvokeToSam() throws {
+        let ctx = context("""
+        fun interface Foo : () -> Int
+        fun main() {
+            val foo = Foo { 42 }
+            println(foo.invoke())
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func inheritedSecondAbstractFunctionIsRejected() throws {
         let ctx = context("""
         interface A { fun a() }

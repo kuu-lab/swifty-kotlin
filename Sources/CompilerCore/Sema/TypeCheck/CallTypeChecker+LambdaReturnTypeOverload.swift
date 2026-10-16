@@ -9,22 +9,74 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         ctx: TypeInferenceContext
     ) -> Set<SymbolID> {
-        guard let name, let file = ctx.currentASTFile else { return [] }
-        let paths = Set(file.imports.filter {
-            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
-        }.map(\.path))
-        guard !paths.isEmpty else { return [] }
-        return Set(candidates.filter { candidate in
-            guard let symbol = ctx.sema.symbols.symbol(candidate),
-                  let owner = ctx.sema.symbols.parentSymbol(for: candidate),
-                  ctx.sema.symbols.symbol(owner)?.kind == .object,
-                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
-                  let receiverType = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType,
-                  case let .classType(receiverClass) = ctx.sema.types.kind(of: receiverType),
-                  receiverClass.classSymbol == owner
-            else { return false }
-            return paths.contains(symbol.fqName)
+        let owners = importedObjectDispatchReceiverOwners(named: name, candidates: candidates, ctx: ctx)
+        return Set(owners.keys.filter {
+            ctx.sema.symbols.memberExtensionOwnerSymbol(for: $0) == nil
         })
+    }
+
+    /// Resolve the singleton that supplies the dispatch receiver for an
+    /// explicitly imported object member, including a member declared by one
+    /// of that object's supertypes.
+    func importedObjectDispatchReceiverOwners(
+        named name: InternedString?,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID: SymbolID] {
+        guard let name, let file = ctx.currentASTFile else { return [:] }
+        let imports = file.imports.filter {
+            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
+        }
+        guard !imports.isEmpty else { return [:] }
+
+        var result: [SymbolID: SymbolID] = [:]
+        for candidate in candidates {
+            guard let symbol = ctx.sema.symbols.symbol(candidate),
+                  symbol.kind == .function
+            else { continue }
+            let accessorProperty = ctx.sema.symbols.accessorOwnerProperty(for: candidate)
+                ?? ctx.sema.symbols.parentSymbol(for: candidate).flatMap { parent in
+                    ctx.sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+                }
+            let importedMemberName = accessorProperty.flatMap { ctx.sema.symbols.symbol($0)?.name }
+                ?? symbol.name
+            let dispatchOwner = ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate)
+                ?? accessorProperty.flatMap { ctx.sema.symbols.parentSymbol(for: $0) }
+                ?? ctx.sema.symbols.parentSymbol(for: candidate)
+            guard let dispatchOwner,
+                  let ownerSymbol = ctx.sema.symbols.symbol(dispatchOwner),
+                  ownerSymbol.kind == .class || ownerSymbol.kind == .interface || ownerSymbol.kind == .object
+            else { continue }
+
+            for importDecl in imports where importDecl.path.last == importedMemberName {
+                let importedObjects = ctx.sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+                if let object = importedObjects.first(where: { object in
+                    ctx.sema.symbols.symbol(object)?.kind == .object
+                        && ctx.sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)
+                }) {
+                    result[candidate] = object
+                    break
+                }
+            }
+        }
+        return result
+    }
+
+    /// Member extensions still need their source-level extension receiver,
+    /// but an import through an object also supplies its dispatch receiver.
+    func importedObjectDispatchReceiverTypes(
+        named name: InternedString?,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [TypeID] {
+        let owners = Set(importedObjectDispatchReceiverOwners(named: name, candidates: candidates, ctx: ctx).values)
+        return owners.sorted { $0.rawValue < $1.rawValue }.map { owner in
+            ctx.sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
     }
 
     struct PreparedCallArguments {
@@ -595,11 +647,14 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            dispatchReceiverTypes: (bindsObjectDispatchReceiver
+                ? importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
+                : []) + ctx.implicitReceiverMemberLookupEntries().map(\.type),
             boundObjectDispatchReceiverCandidates: bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
                 : [],
-            typeAliasConstructor: typeAliasConstructor
+            typeAliasConstructor: typeAliasConstructor,
+            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
         )
 
         if candidates.contains(where: {
@@ -816,7 +871,8 @@ extension CallTypeChecker {
             guard boundObjectDispatchReceiverCandidates.contains(candidate),
                   sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                   let owner = sema.symbols.parentSymbol(for: candidate),
-                  sema.symbols.symbol(owner)?.kind == .object,
+                  let ownerKind = sema.symbols.symbol(owner)?.kind,
+                  ownerKind == .class || ownerKind == .interface || ownerKind == .object,
                   let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
                   case let .classType(receiverClass) = sema.types.kind(of: receiver),
                   receiverClass.classSymbol == owner

@@ -852,8 +852,9 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
-                ? [.synthetic, .overrideMember] : [.synthetic]
+            // Synthesized equals replaces Any.equals in the vtable, including
+            // when the class has an explicit superclass implementation.
+            flags: [.synthetic, .overrideMember]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")

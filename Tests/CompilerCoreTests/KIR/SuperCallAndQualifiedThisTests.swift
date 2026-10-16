@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 private func extractSuperCallFlags(
@@ -90,6 +91,54 @@ struct SuperCallAndQualifiedThisTests {
         let qualifier = try #require(superCall.qualifiedSuperType)
         let base = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Base")]))
         #expect(qualifier == base)
+    }
+
+    @Test func testQualifiedSuperInNestedMemberExtensionUsesDispatchOwner() throws {
+        let source = """
+        open class ABase { open fun zzz(): Int = 1 }
+        open class BBase { open fun zzz(): Int = 5 }
+        interface BTag { fun zzz(): Int = 3 }
+        class D
+        class A : ABase() {
+            inner class B : BBase(), BTag {
+                override fun zzz(): Int = 9
+                fun D.foo(): Int = super<BBase>.zzz() + super<BTag>.zzz() + super@A.zzz()
+                fun invoke(d: D): Int = d.foo()
+            }
+        }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [inputPath], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runToKIR(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let zzzName = ctx.interner.intern("zzz")
+        var qualifiedSuperCalls: [(callee: SymbolID, qualifier: SymbolID)] = []
+        for body in findAllKIRFunctionBodies(named: "foo", in: module, interner: ctx.interner) {
+            for instruction in body {
+                guard case let .call(callee, name, _, _, _, _, true, qualifier?) = instruction,
+                      name == zzzName,
+                      let callee
+                else {
+                    continue
+                }
+                qualifiedSuperCalls.append((callee: callee, qualifier: qualifier))
+            }
+        }
+        let base = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("BBase")]))
+        let tag = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("BTag")]))
+
+        #expect(qualifiedSuperCalls.count == 2)
+        var qualifiers: Set<SymbolID> = []
+        for call in qualifiedSuperCalls {
+            qualifiers.insert(call.qualifier)
+            #expect(sema.symbols.parentSymbol(for: call.callee) == call.qualifier)
+        }
+        #expect(qualifiers == Set([base, tag]))
     }
 
     @Test func testEnumEntryOverrideCanCallEnumMemberThroughSuper() throws {

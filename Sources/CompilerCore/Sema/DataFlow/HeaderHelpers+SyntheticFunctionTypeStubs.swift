@@ -226,7 +226,8 @@ extension DataFlowSemaPhase {
             interfaceFQName: interfaceFQName,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            isAbstract: true
         )
     }
 
@@ -255,6 +256,7 @@ extension DataFlowSemaPhase {
             fqName: invokeFQName,
             declSite: nil,
             visibility: .public,
+            // SAM discovery must see the compiler-known invoke as an abstract member.
             flags: invokeFlags
         )
         symbols.setParentSymbol(ownerSymbol, for: invokeSymbol)
