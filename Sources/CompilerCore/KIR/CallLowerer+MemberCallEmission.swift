@@ -508,6 +508,18 @@ extension CallLowerer {
             ))
             return
         }
+        if tryEmitEnumHashCodeCall(
+            chosenCallee: chosenCallee,
+            receiver: receiver,
+            arguments: finalArguments,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return
+        }
         if tryEmitEnumEntryDispatchCall(
             defaultMask: normalized.defaultMask,
             isSuperCall: isSuperCall,
