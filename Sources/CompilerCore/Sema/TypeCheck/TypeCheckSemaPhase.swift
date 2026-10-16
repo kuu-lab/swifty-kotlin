@@ -143,11 +143,11 @@ final class TypeCheckSemaPhase: CompilerPhase {
     ///   parameters that are neither `noinline` nor `crossinline`. These keep
     ///   the caller's non-local-return and suspension contexts.
     /// - `suspendLambdaArguments`: lambdas bound to a parameter whose declared
-    ///   type is a `suspend` function type. Such lambdas supply their own
-    ///   suspension context regardless of whether the callee is `inline`,
-    ///   which is required because the lambda's recorded `exprTypes` entry is
-    ///   not always rewritten to the suspend variant after overload
-    ///   resolution picks the bound signature (e.g. `Flow.filter`'s
+    ///   type is a `suspend` function type or a SAM type with a suspend method.
+    ///   Such lambdas supply their own suspension context regardless of whether
+    ///   the callee is `inline`, which is required because the lambda's recorded
+    ///   `exprTypes` entry is not always rewritten to the suspend variant after
+    ///   overload resolution picks the bound signature (e.g. `Flow.filter`'s
     ///   `predicate: suspend (T) -> Boolean`).
     private func collectInlineLambdaArguments(
         ast: ASTModule,
@@ -155,18 +155,24 @@ final class TypeCheckSemaPhase: CompilerPhase {
     ) -> (inlineLambdaArguments: Set<ExprID>, suspendLambdaArguments: Set<ExprID>) {
         var inlineLambdaArguments: Set<ExprID> = []
         var suspendLambdaArguments: Set<ExprID> = []
+        let samHelpers = TypeCheckHelpers()
         func recordLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
             guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else { return }
             let calleeIsInline = sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true
             for (index, argument) in arguments.enumerated() {
                 let parameterIndex = binding.parameterMapping[index] ?? index
                 guard case .lambdaLiteral = ast.arena.expr(argument),
-                      signature.parameterTypes.indices.contains(parameterIndex),
-                      case let .functionType(parameterFunction) = sema.types.kind(
-                          of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
-                      )
+                      signature.parameterTypes.indices.contains(parameterIndex)
                 else { continue }
-                if parameterFunction.isSuspend {
+
+                let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
+                let parameterFunction: FunctionType?
+                if case let .functionType(function) = sema.types.kind(of: parameterType) {
+                    parameterFunction = function
+                } else {
+                    parameterFunction = samHelpers.samFunctionType(for: parameterType, sema: sema)
+                }
+                if parameterFunction?.isSuspend == true {
                     suspendLambdaArguments.insert(argument)
                 }
                 if calleeIsInline,
