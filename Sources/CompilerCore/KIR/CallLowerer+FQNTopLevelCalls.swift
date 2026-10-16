@@ -176,8 +176,6 @@ extension CallLowerer {
             break
         }
 
-        // Qualified `kotlin.reflect.typeOf<T>()` expands through the same
-        // intrinsic lowering as the unqualified call (KSP-1323).
         if let typeOfResult = lowerTypeOfCallExpr(
             exprID,
             calleeExpr: exprID,
@@ -190,12 +188,10 @@ extension CallLowerer {
             return typeOfResult
         }
 
-        // Qualified `kotlin.comparisons.minOf(...)`/`maxOf(...)` calls fold
-        // through the same inline comparison lowering as the unqualified
-        // spelling (KUU-965). The source-backed overloads exist only for
-        // Sema overload resolution — CallLowerer never emits them as real
-        // symbols — so falling through to lowerResolvedCallBody leaves an
-        // undefined `minOf`/`maxOf` reference at link time.
+        // The source-backed overloads exist only for Sema overload resolution —
+        // CallLowerer never emits them as real symbols — so falling through to
+        // lowerResolvedCallBody leaves an undefined `minOf`/`maxOf` reference at
+        // link time.
         if let comparisonResult = lowerComparisonSpecialCallExpr(
             exprID,
             args: args,
