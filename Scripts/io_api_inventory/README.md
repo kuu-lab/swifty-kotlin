@@ -287,3 +287,10 @@ automatically `verified`; upstream execution and candidate behavior tests belong
 to KUU-1727 and the implementation children. A test reference is a candidate
 mapping or labelled suite reference, not evidence that the test ran or that its
 assertions cover that overload. Full integration remains owned by KUU-1725.
+
+Issue-specific failed or incomplete probes are retained under `probe-results/`
+as non-promoting attempt records. They include the same per-row implementation
+and test input hashes used by KUU-2469, but are deliberately separate from
+`api-validation-evidence.json`, whose records can only promote rows after every
+required lane passes. `test_reproducibility.py` checks each retained attempt's
+row mapping, current input hashes, and pass/fail counts.

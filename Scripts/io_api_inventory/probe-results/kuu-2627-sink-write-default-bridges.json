@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "issue_id": "KUU-2627",
+  "evidence_kind": "non-promoting-attempt",
+  "status": "BLOCKED_UNVERIFIED",
+  "candidate": {
+    "commit": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "compiler_sha256": "867749b1971aa23ceb8e50c751be84aa7088ebba3e2ae2da9d1a2cc950c2de6e",
+    "stdlib": {
+      "module": "KSwiftKStdlib",
+      "kotlin_language_version": "2.4.20",
+      "generation_exit_code": 0,
+      "input_file_count": 1850,
+      "tree_sha256": "7ebfb93dc5bed96a9c44f350fe53c90c02dc55725744592d598f887e0ae534e5"
+    }
+  },
+  "reference": {
+    "tag": "0.9.1",
+    "commit": "362bdc35e159bad6da1e08101c8321792d762281",
+    "kotlin_version": "2.3.10",
+    "jdk_version": "21.0.12.1",
+    "consumer": {
+      "result": "PASS",
+      "compile_exit_code": 0,
+      "run_exit_code": 0,
+      "jar_sha256": "8c03a8ffb17a1cbd6455a745ded9a7e9ce32630c19ed4dbca2557bf01ffba031",
+      "stdout_sha256": "3cc919af932391bd5ff9d531c51164e9a40e74ea264d37f98d0f99497b4e9185",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout": "bytearray-default:1,2,3,4\nbytearray-start-default-end:2,3,4\nbytearray-range:2,3\nbytearray-empty:0\nbytestring-default:1,2,3,4\nbytestring-start-default-end:2,3,4\nbytestring-range:2,3\nbytestring-empty:0\nbytearray-negative-start:IndexOutOfBoundsException\nbytearray-end-past-size:IndexOutOfBoundsException\nbytearray-start-after-end:IllegalArgumentException\nbytestring-negative-start:IndexOutOfBoundsException\nbytestring-end-past-size:IndexOutOfBoundsException\nbytestring-start-after-end:IllegalArgumentException\nbytearray-closed-sink:IllegalStateException\nbytestring-closed-sink:IllegalStateException\nbytearray-io-failure:IOException\nbytestring-io-failure:IOException\n"
+    }
+  },
+  "rows": [
+    {
+      "row_id": "jvm-03ad4cbeb43abc13",
+      "source_row_id": "klib-00fa8d5d9f11e43f",
+      "status": "unverified",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "upstream_source_refs": "core/common/src/Sink.kt:88",
+      "upstream_test_refs": [
+        "core/common/test/AbstractSinkTest.kt#writeByteArray"
+      ],
+      "implementation_input_sha256": "d841838fd442b32ea1787fb26d87b79d7500abc6bb0c6db150b5e1460a205f75",
+      "test_input_sha256": "3bf7ee69b6b02aa18fae7742f16d7b8ce270767294d257a472e42c657fd33e1a"
+    },
+    {
+      "row_id": "jvm-ff3de7f8d455d172",
+      "source_row_id": "klib-b7a1e3746605766a",
+      "status": "unverified",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "upstream_source_refs": "core/common/src/ByteStrings.kt:31",
+      "upstream_test_refs": [
+        "core/common/test/AbstractSinkTest.kt#writeByteString",
+        "core/common/test/AbstractSinkTest.kt#writeByteStringOffset"
+      ],
+      "implementation_input_sha256": "6fe95f575dd421ad183edf500d3547a6f7871e40974be2a4efa64c107c0d3be8",
+      "test_input_sha256": "3bf7ee69b6b02aa18fae7742f16d7b8ce270767294d257a472e42c657fd33e1a"
+    }
+  ],
+  "jvm_abi_probe": {
+    "schema_version": 1,
+    "reference": {
+      "tag": "0.9.1",
+      "commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    "tool": {
+      "name": "javap",
+      "version": "21.0.12.1"
+    },
+    "artifacts": [
+      {
+        "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+        "sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370"
+      },
+      {
+        "coordinate": "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1",
+        "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
+      }
+    ],
+    "rows": [
+      {
+        "row_id": "jvm-03ad4cbeb43abc13",
+        "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+        "owner": "kotlinx.io.Sink",
+        "method": "write$default",
+        "descriptor": "(Lkotlinx/io/Sink;[BIIILjava/lang/Object;)V",
+        "underlying_descriptor": "([BII)V",
+        "access_flags": [
+          "ACC_PUBLIC",
+          "ACC_STATIC",
+          "ACC_SYNTHETIC"
+        ],
+        "synthetic": true,
+        "static": true,
+        "bridge": false,
+        "default_mask_bits": {
+          "startIndex": 2,
+          "endIndex": 4
+        },
+        "marker_parameter_slot": 5,
+        "marker_policy": "must be null; non-null throws UnsupportedOperationException",
+        "classfile_sha256": "9d5ffa12a4fe452fe4c931a36cc4c6c6a564ed908ab9c0bef2dc0af7076233ef",
+        "classfile_bytes": 1998,
+        "result": "PASS"
+      },
+      {
+        "row_id": "jvm-ff3de7f8d455d172",
+        "coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+        "owner": "kotlinx.io.ByteStringsKt",
+        "method": "write$default",
+        "descriptor": "(Lkotlinx/io/Sink;Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)V",
+        "underlying_descriptor": "(Lkotlinx/io/Sink;Lkotlinx/io/bytestring/ByteString;II)V",
+        "access_flags": [
+          "ACC_PUBLIC",
+          "ACC_STATIC",
+          "ACC_SYNTHETIC"
+        ],
+        "synthetic": true,
+        "static": true,
+        "bridge": false,
+        "default_mask_bits": {
+          "startIndex": 2,
+          "endIndex": 4
+        },
+        "marker_parameter_slot": 5,
+        "marker_policy": "Object marker parameter is present and ignored by the static extension bridge",
+        "classfile_sha256": "1b4b6c7c3f35a43f0a651381291d6af1c924169f8701bc9afcc32bd97a849687",
+        "classfile_bytes": 9962,
+        "result": "PASS"
+      }
+    ],
+    "checked_method_count": 2,
+    "candidate_jvm_classfile": "NOT_APPLICABLE: KSwiftK emits Native artifacts, not JVM classfiles"
+  },
+  "candidate_behavior_matrix": {
+    "case_id": "sink-write-default-bridges",
+    "fixture": "Scripts/io_api_inventory/f02_consumers/sink_write_default_bridges.kt",
+    "fixture_sha256": "63ab90b03939390c3bcb80febb4d9d3b2adf7abce1d1586095948825a66c7b2a",
+    "harness": "Scripts/io_api_inventory/run_f02_matrix.py",
+    "harness_sha256": "565bf072b4be623127fc7ffcf260bf14699eeec94240669956fd0b388b99dc93",
+    "workspace_head": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+    "compiler_processes_separated_for_producer_consumer": true,
+    "lane_count": 6,
+    "passing_lane_count": 0,
+    "results": [
+      {
+        "lane": "source-O0",
+        "result": "FAIL",
+        "compile_exit_code": 0,
+        "run_exit_code": -5,
+        "run_signal": "SIGTRAP",
+        "candidate_binary_sha256": "4d083bb9df572edc4885038e5f3a27b6097b6651be0974d19ae113ede78b15e2",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2",
+        "diagnostic": "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed",
+        "stdout": ""
+      },
+      {
+        "lane": "source-O2",
+        "result": "FAIL",
+        "compile_exit_code": 0,
+        "run_exit_code": -5,
+        "run_signal": "SIGTRAP",
+        "candidate_binary_sha256": "0ae0d8bf1fcf74aac91d5b247b70aae0aa56998924386def7440dced80780604",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2",
+        "diagnostic": "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed",
+        "stdout": ""
+      },
+      {
+        "lane": "stdlib-library-O0",
+        "result": "FAIL",
+        "compile_exit_code": 0,
+        "run_exit_code": -5,
+        "run_signal": "SIGTRAP",
+        "candidate_binary_sha256": "7b9079218d86a2bd2792f2ad6aa4de9f726a3f2761fcc700450f38e25f517dbc",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2",
+        "diagnostic": "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed",
+        "stdout": ""
+      },
+      {
+        "lane": "stdlib-library-O2",
+        "result": "FAIL",
+        "compile_exit_code": 0,
+        "run_exit_code": -5,
+        "run_signal": "SIGTRAP",
+        "candidate_binary_sha256": "0fd4e56e878e9a8a3a936612f5e0612f5acc822cf63c993e9eabef479a7a0f95",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2",
+        "diagnostic": "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed",
+        "stdout": ""
+      },
+      {
+        "lane": "producer-consumer-O0",
+        "result": "FAIL",
+        "compile_exit_code": 0,
+        "run_exit_code": -5,
+        "run_signal": "SIGTRAP",
+        "candidate_binary_sha256": "c94c0c00c0a716c78663c082e3d2d33b7389e41cda7bc37bd4b045dc162305f3",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2",
+        "diagnostic": "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed",
+        "producer_compile_exit_code": 0,
+        "stdout": ""
+      },
+      {
+        "lane": "producer-consumer-O2",
+        "result": "FAIL",
+        "compile_exit_code": 0,
+        "run_exit_code": -5,
+        "run_signal": "SIGTRAP",
+        "candidate_binary_sha256": "e2e49f7c07093ff92615654e53907c8318538f5579e5aa2a153e7b1e6233a18b",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "8c0b6ee3b0165b74a8ef6cb9c23558f21725b04fb28238d6c65291bb86fd9de2",
+        "diagnostic": "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed",
+        "producer_compile_exit_code": 0,
+        "stdout": ""
+      }
+    ],
+    "integrity_rechecked_after_lanes": {
+      "compiler_sha256": true,
+      "fresh_stdlib_snapshot": true,
+      "harness_files": true,
+      "scenario_files": true,
+      "compiler_sources_and_resources": {
+        "Resources": {
+          "file_count": 723,
+          "tree_sha256": "7f2908e57bf725387f625c623f1f6254bdd3ec0f0a2da5c2205f283aa11c79de"
+        },
+        "CompilerCore": {
+          "file_count": 1374,
+          "tree_sha256": "16cf03de70c6a77cae1d226cebb5de5309e8b374e464e5cba045a0fc1d6a8b5e"
+        },
+        "CompilerBackend": {
+          "file_count": 34,
+          "tree_sha256": "3557657fbb4c4113e662423838bcfd6ec0dcb52a62a737723bce92b0f94871f2"
+        },
+        "KSwiftKCLI": {
+          "file_count": 2,
+          "tree_sha256": "bb14d2f4f7495d6920ff12228225dbda3db1e7c90202e58db25d0b4e1e4ed96b"
+        },
+        "Runtime": {
+          "file_count": 150,
+          "tree_sha256": "f66c9e9e55b0661082e72b051500dcc05b4852ed4d51ae85a7a7233d91e5ff9d"
+        },
+        "RuntimeABI": {
+          "file_count": 74,
+          "tree_sha256": "6d4edb62b41861fdc19d0a89f01ca34e94128a4ccca59f844e8fb871f7eaf75d"
+        }
+      },
+      "reference_artifacts": true
+    },
+    "shared_failure_stderr": "Runtime/RuntimeStringArray.swift:18: Fatal error: KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed\n"
+  },
+  "blocker": {
+    "issue_id": "KUU-2652",
+    "description": "The first non-empty write into a fresh Buffer panics in Buffer.writableSegment before these API assertions can finish."
+  },
+  "promotion_note": "This blocked attempt is retained separately from api-validation-evidence.json; failed or incomplete executions cannot promote either row."
+}
