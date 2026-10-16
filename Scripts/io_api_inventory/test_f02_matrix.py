@@ -30,6 +30,21 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_segment_read_context_probe_is_a_dedicated_friend_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-read-context-impl")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        probe = case["jvm_abi_probe"].read_text(encoding="utf-8")
+
+        self.assertEqual(case["entry"], "kuu2590consumer.main")
+        self.assertTrue(case["friend_io_artifacts"])
+        self.assertEqual(matrix.reference_friend_args(case, [Path("core.jar"), Path("bytestring.jar")]),
+                         ["-Xfriend-paths=core.jar,bytestring.jar"])
+        self.assertIn("val first: SegmentReadContext = SegmentReadContextImpl", producer)
+        self.assertIn("val second: SegmentReadContext = SegmentReadContextImpl", producer)
+        self.assertIn("first.getUnchecked(segment, offset + index)", producer)
+        self.assertIn("getter.isSynthetic()", probe)
+        self.assertIn("getter.invoke(null)", probe)
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])
