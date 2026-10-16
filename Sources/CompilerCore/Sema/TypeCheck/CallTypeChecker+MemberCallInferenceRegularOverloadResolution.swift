@@ -247,6 +247,7 @@ extension CallTypeChecker {
         companionReceiverType: TypeID?,
         isLongRangeLiteralContainsCall: Bool,
         isULongRangeLiteralContainsCall: Bool,
+        typeAliasConstructor: TypeAliasConstructorContext?,
         locals: inout LocalBindings
     ) -> (candidates: [SymbolID], preparedArgs: PreparedCallArguments, resolved: ResolvedCall, earlyReturnType: TypeID?) {
         let id = request.id
@@ -324,6 +325,9 @@ extension CallTypeChecker {
             ctx: ctx,
             expectedTypeOverrides: &argumentExpectedTypeOverrides
         )
+        let argumentContextTypeArgs = typeAliasConstructor.map {
+            aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
+        } ?? explicitTypeArgs
         let preparedArgs = prepareCallArguments(
             args: args,
             callRange: range,
@@ -332,7 +336,7 @@ extension CallTypeChecker {
             expectedTypeOverrides: argumentExpectedTypeOverrides,
             contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
                 ? sema.types.unitType : expectedType,
-            explicitTypeArgs: explicitTypeArgs,
+            explicitTypeArgs: argumentContextTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
             locals: &locals
@@ -383,6 +387,7 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             explicitTypeArgs: resolutionTypeArgs,
+            typeAliasConstructor: typeAliasConstructor,
             expectedType: resolutionExpectedType,
             implicitReceiverType: receiverTypeForResolution,
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,

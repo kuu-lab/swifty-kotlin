@@ -58,11 +58,27 @@ public struct TypeAliasConstructorContext {
     /// Optional source-level result type when an expect declaration gives the
     /// alias a distinct nominal type from its expanded constructor target.
     public let resultType: TypeID?
+    /// The source alias, used for call-site annotations such as opt-in markers.
+    public let typeAliasSymbol: SymbolID?
+    /// The enclosing instance supplied to a member-style inner constructor call.
+    public let innerOuterReceiverType: TypeID?
+    /// Alias parameters that map to the enclosing class's type parameters.
+    public let outerTypeParameterSymbols: [SymbolID]
 
-    public init(typeParameterSymbols: [SymbolID], expandedType: TypeID, resultType: TypeID? = nil) {
+    public init(
+        typeParameterSymbols: [SymbolID],
+        expandedType: TypeID,
+        resultType: TypeID? = nil,
+        typeAliasSymbol: SymbolID? = nil,
+        innerOuterReceiverType: TypeID? = nil,
+        outerTypeParameterSymbols: [SymbolID] = []
+    ) {
         self.typeParameterSymbols = typeParameterSymbols
         self.expandedType = expandedType
         self.resultType = resultType
+        self.typeAliasSymbol = typeAliasSymbol
+        self.innerOuterReceiverType = innerOuterReceiverType
+        self.outerTypeParameterSymbols = outerTypeParameterSymbols
     }
 }
 

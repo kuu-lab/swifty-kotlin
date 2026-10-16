@@ -559,12 +559,31 @@ extension CallTypeChecker {
                                     nullability: .nonNull
                                 )))
                             }
+                            let expandedConstructorType = sema.types.make(.classType(ClassType(
+                                classSymbol: constructorOwner,
+                                args: classType.args,
+                                nullability: .nonNull
+                            )))
+                            let innerOuterReceiverType = ctx.implicitReceiverMemberLookupEntries().lazy
+                                .compactMap { receiver in
+                                    self.driver.helpers.innerClassOuterReceiverType(
+                                        for: expandedConstructorType,
+                                        receiverType: receiver.type,
+                                        sema: sema
+                                    )
+                                }
+                                .first
+                            let outerTypeParameterSymbols = sema.symbols.symbol(constructorOwner)?.flags
+                                .contains(.innerClass) == true
+                                ? driver.helpers.innerTypeAliasOuterTypeParameters(of: aliasSym, sema: sema)
+                                : []
                             typeAliasConstructor = TypeAliasConstructorContext(
                                 typeParameterSymbols: aliasTypeParameters,
-                                expandedType: sema.types.make(.classType(ClassType(
-                                    classSymbol: constructorOwner, args: classType.args, nullability: .nonNull
-                                ))),
-                                resultType: aliasResultType
+                                expandedType: expandedConstructorType,
+                                resultType: aliasResultType,
+                                typeAliasSymbol: aliasSym,
+                                innerOuterReceiverType: innerOuterReceiverType,
+                                outerTypeParameterSymbols: outerTypeParameterSymbols
                             )
                             callInvisible.append(contentsOf: invis)
                         }

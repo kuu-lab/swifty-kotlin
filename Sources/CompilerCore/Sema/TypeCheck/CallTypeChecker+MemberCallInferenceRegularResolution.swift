@@ -434,6 +434,7 @@ extension CallTypeChecker {
             return result
         }
 
+        var typeAliasConstructor: TypeAliasConstructorContext?
         let collected = collectRegularMemberCallCandidates(
             request,
             argTypes: argTypes,
@@ -447,7 +448,8 @@ extension CallTypeChecker {
             isULongProgressionFirstLastMember: isULongProgressionFirstLastMember,
             isLongRangeLiteralContainsCall: isLongRangeLiteralContainsCall,
             callableReferenceFunctionType: callableReferenceFunctionType,
-            locals: locals
+            locals: locals,
+            typeAliasConstructor: &typeAliasConstructor
         )
         if let result = collected.earlyReturnType {
             return result
@@ -536,6 +538,7 @@ extension CallTypeChecker {
             companionReceiverType: companionReceiverType,
             isLongRangeLiteralContainsCall: isLongRangeLiteralContainsCall,
             isULongRangeLiteralContainsCall: isULongRangeLiteralContainsCall,
+            typeAliasConstructor: typeAliasConstructor,
             locals: &locals
         )
         if let result = resolution.earlyReturnType {
@@ -558,6 +561,7 @@ extension CallTypeChecker {
             isClassNameReceiver: isClassNameReceiver,
             classNameReceiverNominalSymbol: classNameReceiverNominalSymbol,
             isSuperCall: isSuperCall,
+            typeAliasConstructor: typeAliasConstructor,
             locals: &locals
         ) {
             return result
@@ -574,6 +578,7 @@ extension CallTypeChecker {
             isClassNameReceiver: isClassNameReceiver,
             classNameReceiverNominalSymbol: classNameReceiverNominalSymbol,
             isSuperCall: isSuperCall,
+            typeAliasConstructor: typeAliasConstructor,
             locals: &locals
         )
     }
