@@ -226,9 +226,46 @@ names or as `kotlinx-io-core-jvm.jar` and `kotlinx-io-bytestring-jvm.jar`.
 `--download-jars` can fetch them from Maven Central where network access is
 available; every downloaded artifact is SHA-256 checked before success.
 
-The generator's `--write` changes only the three generated ledger output files.
-`--check` verifies all upstream snapshot hashes, the test index lock, negative
-guards, and byte-for-byte deterministic output without modifying files.
+### Per-row validation evidence
+
+`api-validation-evidence.json` is an independent, versioned input to the
+generator. Add one record per API `row_id`; do not promote `status` by editing
+`api-inventory.tsv`. To get the current implementation/test hashes, required
+obligations, and exact execution lanes for a row, run:
+
+```sh
+python3 Scripts/io_api_inventory/generate.py --show-input-hashes klib-4d280feb368bb149
+```
+
+Each record stores the tested candidate commit SHA, the pinned upstream tag and
+commit, both input hashes, its exact compatibility obligations, and one or more
+execution records. Each execution has a `case_id`, `lane`, and separate
+reference/candidate `execution_id`, `result`, and `exit_code`. A row is rendered
+as `verified` only if every required lane has a passing reference and candidate
+result with exit code zero.
+
+The obligations follow the ledger representation: JVM ABI rows require only
+`jvm-descriptor`. Other rows require both `native-source` and `native-bridge`.
+The native-source obligation covers `source-O0`, `source-O2`,
+`stdlib-library-O0`, and `stdlib-library-O2`; the native-bridge obligation
+covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
+does not inherit native results, and a source row does not inherit JVM
+descriptor evidence.
+
+The generator rejects unknown or duplicate row IDs, malformed hashes, a
+different reference pin, stale implementation/test inputs, non-passing or
+unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
+must be referenced by that row's upstream tests, and both execution IDs must
+map to the same case in the locked JVM and Native execution catalogs. A manual
+status edit is discarded when outputs are regenerated. `--write` changes only
+the three generated ledger output files and reads the evidence file without
+rewriting it. `--check` verifies upstream snapshots, the test index lock,
+negative guards, evidence, any execution catalogs used by evidence, and
+byte-for-byte output without modifying files.
+
+```sh
+python3 Scripts/io_api_inventory/test_validation_evidence.py
+```
 
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.
