@@ -524,6 +524,7 @@ extension CallLowerer {
                         sema: sema
                     )
                     if fnType.receiver != nil,
+                       callableBinding.receiverArgumentOffset == 0,
                        sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
                     {
                         // `val action: R.() -> T` invoked as `receiver.action(args)`:

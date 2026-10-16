@@ -390,6 +390,24 @@ extension CompilerCoreTests {
         #expect(functionType.returnType == intType)
     }
 
+    @Test func testMemberReceiverFunctionPropertyUsesExplicitReceiverArgument() throws {
+        let source = """
+        class Holder(val f: Int.() -> String)
+        fun invoke(holder: Holder): String = holder.f(3)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Expected holder.f(3) to type-check, got: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExprID = try #require(memberCallExprIDs(named: "f", in: ast, interner: ctx.interner).first)
+        let callBinding = try #require(sema.bindings.callableValueCalls[callExprID])
+        #expect(callBinding.receiverArgumentOffset == 1)
+        #expect(callBinding.parameterMapping.isEmpty)
+    }
+
     /// KSP-496 follow-up: a property callable reference with no expected type
     /// used to fall back to the property's own value type (`Int` here), which
     /// silently broke `is KProperty<*>` checks and printed the reference as
