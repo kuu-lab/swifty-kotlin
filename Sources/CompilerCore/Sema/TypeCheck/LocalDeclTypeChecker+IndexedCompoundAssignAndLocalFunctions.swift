@@ -815,6 +815,18 @@ extension LocalDeclTypeChecker {
             bodyLocals[interner.intern("this")] = (receiverType, receiverSymbol, false, true)
             bodyCtx = bodyCtx.withOuterReceiver(label: name, type: receiverType, symbol: receiverSymbol)
         }
+
+        var defaultBaseLocals = locals
+        defaultBaseLocals[name] = (funType, funSymbol, false, true)
+        driver.declChecker.typeCheckParameterDefaultValues(
+            valueParams,
+            signature: signature,
+            ctx: bodyCtx,
+            solver: driver.solver,
+            diagnostics: sema.diagnostics,
+            baseLocals: defaultBaseLocals
+        )
+
         for (i, param) in valueParams.enumerated() {
             // Keep element types in the call signature while exposing the
             // source-level array type for reference varargs inside local bodies.
