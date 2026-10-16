@@ -144,8 +144,9 @@ struct KotlinxIOSegmentWriteContextShapeTests {
             case "D": return "kotlin/Double"
             default:
                 guard signature.hasPrefix("L"), signature.hasSuffix(";") else { return signature }
-                let name = signature.dropFirst().dropLast().replacingOccurrences(of: ".", with: "/")
-                return String(name)
+                let name = signature.dropFirst().dropLast()
+                guard let separator = name.lastIndex(of: ".") else { return String(name) }
+                return String(name[..<separator]) + "/" + name[name.index(after: separator)...]
             }
         }
 
