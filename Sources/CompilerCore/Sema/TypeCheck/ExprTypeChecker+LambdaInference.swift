@@ -1107,6 +1107,7 @@ extension ExprTypeChecker {
              let .throwExpr(value, _):
             [value]
         case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _),
              let .memberCompoundAssign(_, receiver, _, value, _):
             [receiver, value]
         case let .indexedAssign(receiver, indices, value, _),
