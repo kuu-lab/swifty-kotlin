@@ -138,7 +138,7 @@ extension KotlinParser {
     func parseBalancedGroup(
         opening: Symbol,
         closing: Symbol,
-        allowsConstructorParameters: Bool = false,
+        allowsValueParameters: Bool = false,
         allowsWhenSubjectVariable: Bool = false
     ) -> NodeID {
         var children: [SyntaxChild] = []
@@ -148,12 +148,12 @@ extension KotlinParser {
             return arena.appendNode(kind: .statement, range: invalidRange, [])
         }
 
-        let parsesConstructorParameters = allowsConstructorParameters
+        let parsesValueParameters = allowsValueParameters
             && opening == .lParen && closing == .rParen
-        var atConstructorParameterStart = true
-        var constructorParameterPrefixEnd: Int?
-        var constructorTypeArgumentDepth = 0
-        var constructorInDefaultValue = false
+        var atValueParameterStart = true
+        var valueParameterPrefixEnd: Int?
+        var valueParameterTypeArgumentDepth = 0
+        var valueParameterInDefaultValue = false
         let whenSubjectVariablePrefixEnd = allowsWhenSubjectVariable
             ? lookaheadWhenSubjectVariablePrefixEnd()
             : nil
@@ -167,38 +167,39 @@ extension KotlinParser {
             // A proven parameter prefix or anonymous default expression may
             // cross a declaration-looking newline. Keep recovery boundaries
             // for a missing ')' and following named declarations.
-            if parsesConstructorParameters, closingSymbols.count == 1, atConstructorParameterStart {
-                constructorParameterPrefixEnd = lookaheadConstructorParameterPrefixEnd()
+            if parsesValueParameters, closingSymbols.count == 1, atValueParameterStart,
+               hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
+                valueParameterPrefixEnd = lookaheadValueParameterPrefixEnd()
             }
-            let isConstructorParameterPrefix = parsesConstructorParameters
-                && constructorParameterPrefixEnd.map { stream.index < $0 } == true
-            let isConstructorDefaultExpressionStart = parsesConstructorParameters
-                && constructorInDefaultValue && startsAnonymousConstructorDefault()
+            let isValueParameterPrefix = parsesValueParameters
+                && valueParameterPrefixEnd.map { stream.index < $0 } == true
+            let isValueParameterDefaultExpressionStart = parsesValueParameters
+                && valueParameterInDefaultValue && startsAnonymousValueParameterDefault()
             let isWhenSubjectVariablePrefix = whenSubjectVariablePrefixEnd.map { stream.index < $0 } == true
             if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token),
-               !isConstructorParameterPrefix, !isConstructorDefaultExpressionStart,
+               !isValueParameterPrefix, !isValueParameterDefaultExpressionStart,
                !isWhenSubjectVariablePrefix {
                 break
             }
 
-            if parsesConstructorParameters, closingSymbols.count == 1 {
+            if parsesValueParameters, closingSymbols.count == 1 {
                 // A generic type's comma is not a new parameter. Conversely,
                 // '<' in a default expression may be a comparison, not a type.
-                if token.kind == .symbol(.comma), constructorTypeArgumentDepth == 0 {
-                    atConstructorParameterStart = true
-                    constructorParameterPrefixEnd = nil
-                    constructorInDefaultValue = false
+                if token.kind == .symbol(.comma), valueParameterTypeArgumentDepth == 0 {
+                    atValueParameterStart = true
+                    valueParameterPrefixEnd = nil
+                    valueParameterInDefaultValue = false
                 } else {
-                    atConstructorParameterStart = false
+                    atValueParameterStart = false
                     if token.kind == .symbol(.assign) {
-                        constructorInDefaultValue = true
+                        valueParameterInDefaultValue = true
                     } else if token.kind == .symbol(.lessThan) {
-                        if !constructorInDefaultValue || constructorTypeArgumentDepth > 0
-                            || constructorDefaultStartsTypeArguments() {
-                            constructorTypeArgumentDepth += 1
+                        if !valueParameterInDefaultValue || valueParameterTypeArgumentDepth > 0
+                            || valueParameterDefaultStartsTypeArguments() {
+                            valueParameterTypeArgumentDepth += 1
                         }
-                    } else if token.kind == .symbol(.greaterThan), constructorTypeArgumentDepth > 0 {
-                        constructorTypeArgumentDepth -= 1
+                    } else if token.kind == .symbol(.greaterThan), valueParameterTypeArgumentDepth > 0 {
+                        valueParameterTypeArgumentDepth -= 1
                     }
                 }
             }
@@ -273,7 +274,7 @@ extension KotlinParser {
         }
     }
 
-    private func startsAnonymousConstructorDefault() -> Bool {
+    private func startsAnonymousValueParameterDefault() -> Bool {
         // Limit shielding to the first token after '='. A completed default
         // must not hide a following declaration when ')' is missing.
         guard lastConsumedToken?.kind == .symbol(.assign) else { return false }
@@ -283,9 +284,9 @@ extension KotlinParser {
         return isObjectExpressionStart(stream.peek())
     }
 
-    /// Called once per constructor parameter boundary; the cached end also
+    /// Called once per value-parameter boundary; the cached end also
     /// covers annotations/modifiers split across newlines.
-    private func lookaheadConstructorParameterPrefixEnd() -> Int? {
+    private func lookaheadValueParameterPrefixEnd() -> Int? {
         var offset = 0
         var work = 0
         while true {
@@ -312,23 +313,23 @@ extension KotlinParser {
                 continue
             }
             // Modifier keywords can themselves be parameter names (`value:`).
-            if isConstructorParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
+            if isValueParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
                 return stream.index + offset + 2
             }
-            if case let .keyword(keyword) = kind, isConstructorParameterModifier(keyword) {
+            if case let .keyword(keyword) = kind, isValueParameterModifier(keyword) {
                 offset += 1
                 continue
             }
             if kind == .keyword(.val) || kind == .keyword(.var) {
                 offset += 1
             }
-            guard isConstructorParameterName(stream.peek(offset).kind),
+            guard isValueParameterName(stream.peek(offset).kind),
                   stream.peek(offset + 1).kind == .symbol(.colon) else { return nil }
             return stream.index + offset + 2
         }
     }
 
-    private func isConstructorParameterModifier(_ keyword: Keyword) -> Bool {
+    private func isValueParameterModifier(_ keyword: Keyword) -> Bool {
         switch keyword {
         case .public, .private, .internal, .protected, .override, .final, .open, .actual, .expect,
              .vararg, .noinline, .crossinline:
@@ -338,7 +339,7 @@ extension KotlinParser {
         }
     }
 
-    private func isConstructorParameterName(_ kind: TokenKind) -> Bool {
+    private func isValueParameterName(_ kind: TokenKind) -> Bool {
         switch kind {
         case .identifier, .backtickedIdentifier, .softKeyword:
             true
@@ -349,7 +350,7 @@ extension KotlinParser {
         }
     }
 
-    private func constructorDefaultStartsTypeArguments() -> Bool {
+    private func valueParameterDefaultStartsTypeArguments() -> Bool {
         guard let anchor = lastConsumedToken, isIdentifierLike(anchor.kind) else { return false }
         var depth = 0
         // Bound this new lookup before calling the existing generic scanner.
