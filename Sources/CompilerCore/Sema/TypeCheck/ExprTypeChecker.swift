@@ -140,6 +140,9 @@ final class ExprTypeChecker {
                     )
                 }
             }
+            if ctx.loopDepth > 0, label.map(ctx.loopLabelStack.contains) ?? true {
+                ctx.recordLoopJump(locals, label: label, isBreak: true)
+            }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
 
@@ -164,6 +167,9 @@ final class ExprTypeChecker {
                         range: range
                     )
                 }
+            }
+            if ctx.loopDepth > 0, label.map(ctx.loopLabelStack.contains) ?? true {
+                ctx.recordLoopJump(locals, label: label, isBreak: false)
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType

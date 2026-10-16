@@ -386,9 +386,16 @@ final class ControlFlowTypeChecker {
         }
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
+        let loopFlowScope = LoopControlFlowInferenceScope(label: label)
+        var loopFlowScopes = ctx.loopFlowScopes
+        loopFlowScopes.append(loopFlowScope)
         _ = driver.inferExpr(
             bodyExpr,
-            ctx: ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack),
+            ctx: ctx.copying(
+                loopDepth: ctx.loopDepth + 1,
+                loopLabelStack: newLabelStack,
+                loopFlowScopes: loopFlowScopes
+            ),
             locals: &bodyLocals,
             expectedType: nil,
             isStatementContext: true
@@ -429,7 +436,15 @@ final class ControlFlowTypeChecker {
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &bodyLocals, sema: sema)
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
-        let bodyCtx = ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack, flowState: branch.trueState)
+        let loopFlowScope = LoopControlFlowInferenceScope(label: label)
+        var loopFlowScopes = ctx.loopFlowScopes
+        loopFlowScopes.append(loopFlowScope)
+        let bodyCtx = ctx.copying(
+            loopDepth: ctx.loopDepth + 1,
+            loopLabelStack: newLabelStack,
+            loopFlowScopes: loopFlowScopes,
+            flowState: branch.trueState
+        )
         _ = driver.inferExpr(
             bodyExpr,
             ctx: bodyCtx,
@@ -463,12 +478,16 @@ final class ControlFlowTypeChecker {
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
+        let loopFlowScope = LoopControlFlowInferenceScope(label: label)
+        var loopFlowScopes = ctx.loopFlowScopes
+        loopFlowScopes.append(loopFlowScope)
         var bodyLocals = locals
         let loopScope = BlockScope(parent: ctx.scope, symbols: sema.symbols)
         let loopCtx = ctx.copying(
             scope: loopScope,
             loopDepth: ctx.loopDepth + 1,
-            loopLabelStack: newLabelStack
+            loopLabelStack: newLabelStack,
+            loopFlowScopes: loopFlowScopes
         )
         let bodyCtx = loopCtx.copying(exportBlockLocalsForExpr: bodyExpr)
         _ = driver.inferExpr(
@@ -478,8 +497,20 @@ final class ControlFlowTypeChecker {
             expectedType: nil,
             isStatementContext: true
         )
+        let bodyCanReachCondition = canCompleteNormally(bodyExpr, ctx: loopCtx)
+        var conditionEntryStates = loopFlowScope.continueLocalStates
+        if bodyCanReachCondition {
+            conditionEntryStates.append(bodyLocals)
+        }
+        var conditionLocals = conditionEntryStates.isEmpty
+            ? bodyLocals
+            : mergingLoopInitializationFacts(conditionEntryStates, into: bodyLocals)
+        loopFlowScope.recordsJumps = !conditionEntryStates.isEmpty
         let conditionType = driver.inferExpr(
-            conditionExpr, ctx: loopCtx.copying(scope: loopScope), locals: &bodyLocals, expectedType: boolType
+            conditionExpr,
+            ctx: loopCtx.copying(scope: loopScope),
+            locals: &conditionLocals,
+            expectedType: boolType
         )
         driver.emitSubtypeConstraint(
             left: conditionType,
@@ -489,14 +520,14 @@ final class ControlFlowTypeChecker {
             sema: sema,
             diagnostics: ctx.sema.diagnostics
         )
-        for (name, local) in locals {
-            if !local.isInitialized,
-               let bodyLocal = bodyLocals[name], bodyLocal.isInitialized,
-               bodyLocal.symbol == local.symbol
-            {
-                locals[name] = (local.type, local.symbol, local.isMutable, true)
-            }
+        var loopExitStates = loopFlowScope.breakLocalStates
+        if !isConstantTrueCondition(conditionExpr, ast: ast),
+           !conditionEntryStates.isEmpty,
+           canCompleteNormally(conditionExpr, ctx: loopCtx)
+        {
+            loopExitStates.append(conditionLocals)
         }
+        mergeDefiniteInitializationAcrossLoopExits(loopExitStates, into: &locals)
         let hasCurrentLoopBreak = containsBreakTargetingCurrentLoop(
             conditionExpr, loopLabelStack: [label], ast: ast, ctx: ctx
         ) || containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast, ctx: ctx)
@@ -507,6 +538,38 @@ final class ControlFlowTypeChecker {
         }
         sema.bindings.bindExprType(id, type: resultType)
         return resultType
+    }
+
+    private func mergingLoopInitializationFacts(
+        _ states: [LocalBindings],
+        into fallback: LocalBindings
+    ) -> LocalBindings {
+        guard !states.isEmpty else { return fallback }
+        var merged = fallback
+        for (name, local) in fallback {
+            let initializedOnEveryPath = states.allSatisfy { state in
+                guard let pathLocal = state[name], pathLocal.symbol == local.symbol else { return false }
+                return pathLocal.isInitialized
+            }
+            merged[name] = (local.type, local.symbol, local.isMutable, initializedOnEveryPath)
+        }
+        return merged
+    }
+
+    private func mergeDefiniteInitializationAcrossLoopExits(
+        _ exitStates: [LocalBindings],
+        into locals: inout LocalBindings
+    ) {
+        guard !exitStates.isEmpty else { return }
+        for (name, local) in locals where !local.isInitialized {
+            let initializedOnEveryExit = exitStates.allSatisfy { state in
+                guard let exitLocal = state[name], exitLocal.symbol == local.symbol else { return false }
+                return exitLocal.isInitialized
+            }
+            if initializedOnEveryExit {
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
+            }
+        }
     }
 
     /// Loop-carried writes invalidate assignment facts on later iterations

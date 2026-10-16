@@ -12,6 +12,18 @@ final class LambdaReturnInferenceScope {
     }
 }
 
+/// Shared by copied contexts so loop jumps retain the local state at their target.
+final class LoopControlFlowInferenceScope {
+    let label: InternedString?
+    var breakLocalStates: [LocalBindings] = []
+    var continueLocalStates: [LocalBindings] = []
+    var recordsJumps = true
+
+    init(label: InternedString?) {
+        self.label = label
+    }
+}
+
 struct SuspensionContext {
     var function: SymbolID?
     var lambdas: [ExprID] = []
@@ -56,6 +68,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     var isCallableReferenceArgument = false
     var loopDepth: Int
     var loopLabelStack: [InternedString]
+    /// Loop targets share jump snapshots across copied branch contexts.
+    var loopFlowScopes: [LoopControlFlowInferenceScope] = []
     /// Loop scopes visible immediately before each enclosing lambda boundary.
     /// A break/continue may cross these boundaries only when every intervening
     /// lambda is an argument to an inline parameter that allows non-local jumps.
@@ -198,7 +212,24 @@ struct TypeInferenceContext: CustomStringConvertible {
         // whether each lambda boundary is inline-permitted.
         copy.loopDepth = 0
         copy.loopLabelStack = []
+        copy.loopFlowScopes = []
         return copy
+    }
+
+    func recordLoopJump(_ locals: LocalBindings, label: InternedString?, isBreak: Bool) {
+        guard loopDepth > 0 else { return }
+        let target: LoopControlFlowInferenceScope?
+        if let label {
+            target = loopFlowScopes.last { $0.label == label }
+        } else {
+            target = loopFlowScopes.last
+        }
+        guard let target, target.recordsJumps else { return }
+        if isBreak {
+            target.breakLocalStates.append(locals)
+        } else {
+            target.continueLocalStates.append(locals)
+        }
     }
 
     /// The lambda boundaries a non-local loop jump would cross, or nil when no
@@ -285,6 +316,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         implicitReceiverType: TypeID?? = nil,
         loopDepth: Int? = nil,
         loopLabelStack: [InternedString]? = nil,
+        loopFlowScopes: [LoopControlFlowInferenceScope]? = nil,
         lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]? = nil,
         lambdaReturnScopes: [LambdaReturnInferenceScope]? = nil,
         lambdaDepth: Int? = nil,
@@ -312,6 +344,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
         if let loopDepth { copy.loopDepth = loopDepth }
         if let loopLabelStack { copy.loopLabelStack = loopLabelStack }
+        if let loopFlowScopes { copy.loopFlowScopes = loopFlowScopes }
         if let lambdaLabelStack { copy.lambdaLabelStack = lambdaLabelStack }
         if let lambdaReturnScopes { copy.lambdaReturnScopes = lambdaReturnScopes }
         if let lambdaDepth { copy.lambdaDepth = lambdaDepth }
