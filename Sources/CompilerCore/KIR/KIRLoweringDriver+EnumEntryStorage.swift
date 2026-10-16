@@ -914,16 +914,27 @@ extension KIRLoweringDriver {
     func insertEnumLazyInitTriggers(arena: KIRArena, sema: SemaModule) {
         let lazyInits = ctx.enumLazyInitByOwner
         var companionLazyInits: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+        var enumLazyInitByCompanionLazyInit: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+        // A companion is initialized after its enclosing enum. Other nested
+        // objects have independent initialization and must not trigger it.
         for enumSymbol in sema.symbols.allSymbols() where enumSymbol.kind == .enumClass {
             guard let companionSymbol = sema.symbols.companionObjectSymbol(for: enumSymbol.id) else {
                 continue
             }
+            let companionLazyInit: (symbol: SymbolID, name: InternedString)?
             if let lazyInit = ctx.objectLazyInit(for: companionSymbol) {
-                companionLazyInits[enumSymbol.id] = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
+                companionLazyInit = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
             } else if let importedInit = sema.symbols.objectLazyInitializerSymbol(for: companionSymbol),
                       let importedSymbol = sema.symbols.symbol(importedInit)
             {
-                companionLazyInits[enumSymbol.id] = (importedInit, importedSymbol.name)
+                companionLazyInit = (importedInit, importedSymbol.name)
+            } else {
+                companionLazyInit = nil
+            }
+            guard let companionLazyInit else { continue }
+            companionLazyInits[enumSymbol.id] = companionLazyInit
+            if let enumLazyInit = lazyInits[enumSymbol.id] {
+                enumLazyInitByCompanionLazyInit[companionLazyInit.symbol] = enumLazyInit
             }
         }
         guard !lazyInits.isEmpty || !companionLazyInits.isEmpty else { return }
@@ -954,6 +965,10 @@ extension KIRLoweringDriver {
                             needsRewrite = true
                         }
                     }
+                case let .call(symbol?, _, _, _, _, _, _, _):
+                    if enumLazyInitByCompanionLazyInit[symbol] != nil {
+                        needsRewrite = true
+                    }
                 default:
                     break
                 }
@@ -970,6 +985,20 @@ extension KIRLoweringDriver {
                     symbol
                 default:
                     nil
+                }
+                if case let .call(symbol?, _, _, _, _, _, _, _) = instruction,
+                   let enumLazyInit = enumLazyInitByCompanionLazyInit[symbol],
+                   enumLazyInit.symbol != function.symbol
+                {
+                    newBody.append(.call(
+                        symbol: enumLazyInit.symbol,
+                        callee: enumLazyInit.name,
+                        arguments: [],
+                        result: arena.appendTemporary(type: unitType),
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    newLocations.append(location)
                 }
                 if let referenced, let owner = enumOwnerForEntry(referenced) {
                     if let lazyInit = lazyInits[owner] {
