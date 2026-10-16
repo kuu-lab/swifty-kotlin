@@ -17,11 +17,16 @@ extension ExprTypeChecker {
         else { return originalType }
 
         let names = operatorFunctionNames(for: op, interner: ctx.interner)
-        let candidates = collectOperatorCandidates(names: names, receiverType: receiverType, ctx: ctx)
+        let call = CallExpr(
+            range: range, calleeName: names[0], args: [CallArg(type: originalType)]
+        )
+        let candidates = collectOperatorCandidates(
+            names: names, receiverType: receiverType, call: call, locals: locals, ctx: ctx
+        )
         guard !candidates.isEmpty else { return originalType }
         let originalResolution = ctx.resolver.resolveCall(
             candidates: candidates,
-            call: CallExpr(range: range, calleeName: names[0], args: [CallArg(type: originalType)]),
+            call: call,
             expectedType: nil,
             implicitReceiverType: receiverType,
             ctx: sema

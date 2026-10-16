@@ -411,7 +411,10 @@ extension LambdaLowerer {
             referenced: &referenced,
             seen: &seen
         )
-        var captures = referenced.filter { symbol in
+        let captureCandidates = uniqueSymbolsPreservingOrder(
+            referenced + backingFieldOwnerCaptureSymbols(from: referenced, sema: sema)
+        )
+        var captures = captureCandidates.filter { symbol in
             canCaptureSymbolForLambda(
                 symbol,
                 lambdaExprID: lambdaExprID,

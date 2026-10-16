@@ -27,10 +27,11 @@ public extension TypeSystem {
             let base = primitive.kotlinName
             return "\(base)\(nullabilitySuffix(nullability))"
         case let .classType(classType):
-            let args = if classType.args.isEmpty {
+            let allArguments = allTypeArguments(for: classType)
+            let args = if allArguments.isEmpty {
                 ""
             } else {
-                "<" + classType.args.map(renderTypeArg).joined(separator: ", ") + ">"
+                "<" + allArguments.map(renderTypeArg).joined(separator: ", ") + ">"
             }
             return "Class#\(classType.classSymbol.rawValue)\(args)\(nullabilitySuffix(classType.nullability))"
         case let .typeParam(typeParam):
@@ -74,9 +75,10 @@ public extension TypeSystem {
         case let .classType(classType) where classType.classSymbol == numberClassSymbol:
             return "Number\(nullabilitySuffix(classType.nullability))"
         case let .classType(classType) where classType.classSymbol == comparableInterfaceSymbol:
-            let args = classType.args.isEmpty
+            let allArguments = allTypeArguments(for: classType)
+            let args = allArguments.isEmpty
                 ? ""
-                : "<" + classType.args.map(renderConstraintTypeArg).joined(separator: ", ") + ">"
+                : "<" + allArguments.map(renderConstraintTypeArg).joined(separator: ", ") + ">"
             return "Comparable\(args)\(nullabilitySuffix(classType.nullability))"
         case let .intersection(parts):
             return parts.map(renderConstraintType).joined(separator: " & ")
@@ -151,10 +153,11 @@ public extension TypeSystem {
         guard case let .classType(classType) = kind(of: receiverType) else {
             return nil
         }
-        let typeParamSymbols = nominalTypeParameterSymbols(for: classType.classSymbol)
-        guard !typeParamSymbols.isEmpty, !classType.args.isEmpty else { return nil }
+        let typeParamSymbols = allTypeParameterSymbols(for: classType.classSymbol)
+        let arguments = allTypeArguments(for: classType)
+        guard !typeParamSymbols.isEmpty, !arguments.isEmpty else { return nil }
 
-        let hasProjection = classType.args.contains { arg in
+        let hasProjection = arguments.contains { arg in
             switch arg {
             case .out, .in, .star: true
             case .invariant: false
@@ -166,7 +169,7 @@ public extension TypeSystem {
         var covariantSub = typeVarBySymbol.isEmpty ? [:] : [TypeVarID: TypeID]()
         var writeForbidden: Set<SymbolID> = []
 
-        for (index, arg) in classType.args.enumerated() {
+        for (index, arg) in arguments.enumerated() {
             guard index < typeParamSymbols.count else { break }
             let tpSymbol = typeParamSymbols[index]
             guard let typeVar = typeVarBySymbol[tpSymbol] else { continue }
@@ -186,13 +189,16 @@ public extension TypeSystem {
     ) -> (type: TypeID, writeForbidden: Bool) {
         switch arg {
         case let .invariant(type):
-            (type, false)
+            if case let .typeParam(parameter) = kind(of: type), let capture = parameter.capture {
+                return (capture.upper, capture.writeForbidden)
+            }
+            return (type, false)
         case let .out(type):
-            (type, true)
+            return (type, true)
         case .in:
-            (effectiveUpperBound(for: tpSymbol, symbols: symbols), false)
+            return (effectiveUpperBound(for: tpSymbol, symbols: symbols), false)
         case .star:
-            (effectiveUpperBound(for: tpSymbol, symbols: symbols), true)
+            return (effectiveUpperBound(for: tpSymbol, symbols: symbols), true)
         }
     }
 
@@ -243,9 +249,17 @@ public extension TypeSystem {
             let newArgs = classType.args.map {
                 substituteTypeArg($0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
             }
-            if newArgs == classType.args { return type }
+            let newEnclosingTypeArgs = classType.enclosingTypeArgs.map {
+                substituteTypeArg($0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+            }
+            if newArgs == classType.args && newEnclosingTypeArgs == classType.enclosingTypeArgs {
+                return type
+            }
             return make(.classType(ClassType(
-                classSymbol: classType.classSymbol, args: newArgs, nullability: classType.nullability
+                classSymbol: classType.classSymbol,
+                args: newArgs,
+                enclosingTypeArgs: newEnclosingTypeArgs,
+                nullability: classType.nullability
             )))
 
         case let .functionType(functionType):

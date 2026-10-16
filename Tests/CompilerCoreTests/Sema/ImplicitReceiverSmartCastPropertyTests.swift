@@ -53,6 +53,37 @@ struct ImplicitReceiverSmartCastPropertyTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
+    func narrowedMemberThisResolvesBareTopLevelExtensionProperty() throws {
+        let ctx = makeContextFromSource("""
+        open class Base {
+            fun read(): String {
+                if (this is Child) return marker
+                return "FAIL"
+            }
+        }
+        class Child : Base()
+        val Child.marker: String get() = "OK"
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func bareTopLevelExtensionPropertyRejectsUnnarrowedMemberThis() throws {
+        let ctx = makeContextFromSource("""
+        open class Base {
+            fun read(): String = marker
+        }
+        class Child : Base()
+        val Child.marker: String get() = "OK"
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error && $0.message.contains("marker")
+        }, "Expected the un-narrowed Base receiver to reject marker: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "if (this is Names) { val inside = names }; return names",
         "if (this !is Names) return names; return original",

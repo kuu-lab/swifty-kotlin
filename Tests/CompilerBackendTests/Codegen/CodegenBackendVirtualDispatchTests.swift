@@ -96,6 +96,19 @@ struct CodegenBackendVirtualDispatchTests {
     }
 
     @Test(arguments: [true, false])
+    func testReceiverSamLambdaRetainsExtensionReceiver(allowDefaultStdlibLibrary: Bool) throws {
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("fun_interface_receiver_sam_lambda.kt"),
+                moduleName: "KUU2242ReceiverSamLambda",
+                expected: "OK\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
+
+    @Test(arguments: [true, false])
     func testNestedRunForEachKeepsLabeledClassReceiverForGenericVisitor(
         allowDefaultStdlibLibrary: Bool
     ) throws {

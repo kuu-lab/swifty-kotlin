@@ -31,6 +31,9 @@ final class KlibBodyLowerer {
     private var valueExprs: [Int: KIRExprID] = [:]
     /// Signature indexes that `return` may target in the current callable.
     private var returnTargetSignatureIndexes: Set<Int> = []
+    /// The callable being translated, used to seed instance fields before a
+    /// serialized constructor delegates to its superclass.
+    private var currentCallableSymbol: SymbolID?
     /// `returnableBlock` symbol → (end label, result temp) so `return`s aimed
     /// at it jump to its epilogue instead of returning from the function.
     private var returnableBlocks: [Int: (label: Int32, result: KIRExprID?)] = [:]
@@ -343,6 +346,7 @@ final class KlibBodyLowerer {
         loopLabels = [:]
         returnTargetSignatureIndexes = [base.base.symbol.signatureIndex]
         thisExpr = nil
+        currentCallableSymbol = symbol
 
         // Member extensions carry both a dispatch and an extension receiver —
         // the consumer signature only models one receiver, so there is no
@@ -410,6 +414,7 @@ final class KlibBodyLowerer {
             isInline: isInline,
             isTailrec: isTailrec
         )))
+        currentCallableSymbol = nil
         return [kirID]
     }
 
@@ -1061,6 +1066,13 @@ final class KlibBodyLowerer {
         into body: inout KIRLoweringEmitContext
     ) {
         guard let ctorSymbol = symbol(for: ref), let thisExpr else { return }
+        if let currentCallableSymbol,
+           symbols.symbol(currentCallableSymbol)?.kind == .constructor,
+           let currentClass = symbols.parentSymbol(for: currentCallableSymbol),
+           symbols.parentSymbol(for: ctorSymbol) != currentClass
+        {
+            emitNullFieldInitializers(classSymbol: currentClass, receiver: thisExpr, into: &body)
+        }
         // `kotlin.Any.<init>` is the compiler-provided empty constructor —
         // allocation already happened at the call site; no call is emitted.
         if let ctorInfo = symbols.symbol(ctorSymbol),
@@ -1082,6 +1094,40 @@ final class KlibBodyLowerer {
             arguments: arguments, result: result,
             canThrow: true, thrownResult: nil
         ))
+    }
+
+    /// Seeds nullable `null` defaults before a serialized constructor invokes
+    /// its superclass. Its later `instanceInitializerCall` omits the same
+    /// default stores so virtual writes from super init remain intact.
+    private func emitNullFieldInitializers(
+        classSymbol: SymbolID,
+        receiver: KIRExprID,
+        into body: inout KIRLoweringEmitContext
+    ) {
+        guard let initInfo = classInitBySymbol[classSymbol] else { return }
+        let savedFileIndex = fileIndex
+        fileIndex = initInfo.fileIndex
+        defer { fileIndex = savedFileIndex }
+
+        for fieldInit in initInfo.fieldInitializers {
+            guard let initExpr = try? ir.expressionBody(fieldInit.bodyIndex, fileIndex: fileIndex),
+                  let value = defaultFieldInitializerValue(initExpr),
+                  case .null = value,
+                  let fieldType = decodeType(fieldInit.typeIndex),
+                  KIRDefaultFieldInitializer.isDefaultValue(value, for: fieldType, types: types),
+                  let offset = fieldOffsetExpr(fieldSymbol: fieldInit.field, into: &body)
+            else {
+                continue
+            }
+            let nullValue = arena.appendExpr(.null, type: fieldType)
+            body.append(.constValue(result: nullValue, value: .null))
+            let result = arena.appendTemporary(type: types.anyType)
+            body.append(.call(
+                symbol: nil, callee: interner.intern("kk_array_set"),
+                arguments: [receiver, offset, nullValue], result: result,
+                canThrow: true, thrownResult: nil
+            ))
+        }
     }
 
     /// `kk_object_new` + the same type/vtable/itable/KClass registration block

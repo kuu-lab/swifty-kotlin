@@ -147,6 +147,7 @@ extension DataFlowSemaPhase {
         switch types.kind(of: typeID) {
         case let .classType(classType):
             let newArgs = classType.args.map(expandArg)
+            let newEnclosingTypeArgs = classType.enclosingTypeArgs.map(expandArg)
             if symbols.symbol(classType.classSymbol)?.kind == .typeAlias {
                 // Cycles are reported by `validateTypeAliasCycles`; leave them as is.
                 guard !inProgress.contains(classType.classSymbol),
@@ -162,9 +163,12 @@ extension DataFlowSemaPhase {
                 )
                 return classType.nullability == .nullable ? applyNullability(expanded, types: types) : expanded
             }
-            if newArgs == classType.args { return typeID }
+            if newArgs == classType.args && newEnclosingTypeArgs == classType.enclosingTypeArgs { return typeID }
             return types.make(.classType(ClassType(
-                classSymbol: classType.classSymbol, args: newArgs, nullability: classType.nullability
+                classSymbol: classType.classSymbol,
+                args: newArgs,
+                enclosingTypeArgs: newEnclosingTypeArgs,
+                nullability: classType.nullability
             )))
         case let .functionType(functionType):
             let contextReceivers = functionType.contextReceivers.map(expand)
