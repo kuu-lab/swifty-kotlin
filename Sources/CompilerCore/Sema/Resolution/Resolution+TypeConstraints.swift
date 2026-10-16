@@ -184,6 +184,23 @@ extension OverloadResolver {
         var maxBoundParamIndex = -1
 
         for (argIndex, arg) in callArgs.enumerated() {
+            if arg.bindsToLastParameter {
+                let parameterIndex = paramCount - 1
+                guard argIndex == callArgs.count - 1,
+                      arg.label == nil,
+                      !arg.isSpread,
+                      arg.isTrailingLambda != true,
+                      !mapping.values.contains(parameterIndex)
+                else { return nil }
+                if !isVararg[parameterIndex] {
+                    guard !boundNonVarargParams.contains(parameterIndex) else { return nil }
+                    boundNonVarargParams.insert(parameterIndex)
+                }
+                mapping[argIndex] = parameterIndex
+                maxBoundParamIndex = max(maxBoundParamIndex, parameterIndex)
+                positionalCursor = max(positionalCursor, parameterIndex + 1)
+                continue
+            }
             if arg.isTrailingLambda == true {
                 guard arg.label == nil, !arg.isSpread,
                       let parameterIndex = trailingLambdaParameterIndex(for: argIndex)

@@ -372,7 +372,8 @@ extension LocalDeclTypeChecker {
                 var valueTypes: [TypeID] = []
                 for candidate in setCandidates {
                     guard let sig = sema.symbols.functionSignature(for: candidate),
-                          sig.parameterTypes.count > valueParameterIndex
+                          sig.parameterTypes.count > valueParameterIndex,
+                          let valueParameterType = sig.parameterTypes.last
                     else {
                         continue
                     }
@@ -384,7 +385,7 @@ extension LocalDeclTypeChecker {
                     // `(Int) -> Int`) reaches the checks below instead of the
                     // bare type parameter.
                     let paramType = driver.callChecker.applyReceiverClassTypeArgs(
-                        to: sig.parameterTypes[valueParameterIndex],
+                        to: valueParameterType,
                         signature: sig,
                         candidate: candidate,
                         receiverType: receiverType,
@@ -428,14 +429,12 @@ extension LocalDeclTypeChecker {
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
 
         let argumentExprs = indices + [valueExpr]
-        let setCall = CallExpr(
-            range: range,
-            calleeName: setName,
-            args: zip(argumentExprs, indexTypes + [valueType]).map { expr, type in
-                let literal = driver.callChecker.integerLiteralValues(expr, ast: ast)
-                return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
-            }
-        )
+        var setCallArgs = zip(indices, indexTypes).map { expr, type in
+            let literal = driver.callChecker.integerLiteralValues(expr, ast: ast)
+            return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
+        }
+        setCallArgs.append(CallArg(type: valueType, bindsToLastParameter: true))
+        let setCall = CallExpr(range: range, calleeName: setName, args: setCallArgs)
         // A single-index member cannot handle a multi-index assignment.
         // Preserve applicable (including ambiguous) members, but try lexical
         // operator extensions when none of the collected candidates applies.

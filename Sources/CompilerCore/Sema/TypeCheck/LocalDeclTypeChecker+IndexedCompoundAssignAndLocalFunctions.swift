@@ -446,7 +446,7 @@ extension LocalDeclTypeChecker {
             let literal = driver.callChecker.integerLiteralValues(expr, ast: ctx.ast)
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
         }
-        callArgs.append(CallArg(type: valueType))
+        callArgs.append(CallArg(type: valueType, bindsToLastParameter: true))
         let setCall = CallExpr(range: range, calleeName: setName, args: callArgs)
         if ctx.resolver.probeCall(
             candidates: setCandidates, call: setCall, expectedType: nil,
