@@ -80,6 +80,14 @@ extension CallTypeChecker {
                 interner: interner
             ) == .ulongRange
             && driver.callChecker.isContextualizableUnsignedIntegerLiteral(args[0].expr, ast: ast)
+        let isLongBitwiseOperator: Bool = switch interner.resolve(calleeName) {
+        case "and", "or", "xor": true
+        default: false
+        }
+        let isLongBitwiseLiteralCall = isLongBitwiseOperator
+            && args.count == 1
+            && sema.types.makeNonNullable(receiverType) == sema.types.longType
+            && driver.callChecker.isContextualizableIntegerLiteral(args[0].expr, ast: ast)
         contextualizeArrayComparatorArgument(
             calleeName: calleeName, receiverID: receiverID, receiverType: receiverType,
             args: args, ctx: ctx, locals: &locals
@@ -107,6 +115,14 @@ extension CallTypeChecker {
                     ctx: ctx,
                     locals: &locals,
                     expectedType: sema.types.ulongType
+                )
+            }
+            if isLongBitwiseLiteralCall {
+                return driver.inferExpr(
+                    arg.expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: sema.types.longType
                 )
             }
             // Speculative declaration checks can leave names bound to
