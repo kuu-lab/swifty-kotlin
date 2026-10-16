@@ -732,11 +732,14 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case .superRef:
+        case let .superRef(_, label, _):
             return lowerSuperRefExpr(
+                exprID: exprID,
+                label: label,
                 boundType: boundType,
                 sema: sema,
                 arena: arena,
+                interner: interner,
                 instructions: &instructions
             )
 

@@ -133,11 +133,14 @@ enum GoldenHarnessExprFormat {
         case let .blockExpr(statements, trailingExpr, _):
             let stmts = statements.map { ctx.exprKey($0) }.joined(separator: ",")
             return "blockExpr stmts=[\(stmts)] trailing=\(renderExprKey(trailingExpr, ctx))"
-        case let .superRef(qualifier, _):
+        case let .superRef(qualifier, label, _):
+            let superName: String
             if let qualifier {
-                return "super<\(interner.resolve(qualifier))>"
+                superName = "super<\(interner.resolve(qualifier))>"
+            } else {
+                superName = "super"
             }
-            return "super"
+            return superName + (label.map { "@\(interner.resolve($0))" } ?? "")
         case let .thisRef(label, _):
             if let label {
                 return "this@\(interner.resolve(label))"

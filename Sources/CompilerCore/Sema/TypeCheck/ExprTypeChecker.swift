@@ -741,8 +741,10 @@ final class ExprTypeChecker {
         case let .localNominalDecl(declID, range):
             return inferLocalNominalDeclExpr(id, declID: declID, range: range, ctx: ctx, locals: &locals)
 
-        case let .superRef(interfaceQualifier, range):
-            return inferSuperRefExpr(id, interfaceQualifier: interfaceQualifier, range: range, ctx: ctx)
+        case let .superRef(interfaceQualifier, label, range):
+            return inferSuperRefExpr(
+                id, interfaceQualifier: interfaceQualifier, label: label, range: range, ctx: ctx
+            )
 
         case let .thisRef(label, range):
             return inferThisRefExpr(id, label: label, range: range, ctx: ctx, locals: locals)

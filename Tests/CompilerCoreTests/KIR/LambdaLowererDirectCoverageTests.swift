@@ -277,7 +277,7 @@ struct LambdaLowererDirectCoverageTests {
                     forDestructuringExpr,
                     memberAssignExpr,
                     fixture.astArena.appendExpr(.thisRef(label: nil, range)),
-                    fixture.astArena.appendExpr(.superRef(interfaceQualifier: nil, range)),
+                    fixture.astArena.appendExpr(.superRef(interfaceQualifier: nil, label: nil, range)),
                 ],
                 trailingExpr: rhs,
                 range: range

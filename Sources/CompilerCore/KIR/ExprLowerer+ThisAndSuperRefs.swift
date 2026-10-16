@@ -5,11 +5,36 @@
 /// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
     func lowerSuperRefExpr(
+        exprID: ExprID,
+        label: InternedString?,
         boundType: TypeID?,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        if let label,
+           let ownerSymbol = sema.bindings.identifierSymbol(for: exprID)
+        {
+            if let receiverExprID = driver.ctx.qualifiedThisReceiverExprID(for: label) {
+                return receiverExprID
+            }
+            if let receiverExprID = driver.ctx.localValue(for: ownerSymbol) {
+                return receiverExprID
+            }
+            if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+               let outerReceiverExprID = resolveOuterChainValue(
+                   from: receiverExprID,
+                   to: ownerSymbol,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
+               )
+            {
+                return outerReceiverExprID
+            }
+        }
         if let receiverExprID = driver.ctx.activeImplicitReceiverExprID() {
             return receiverExprID
         }

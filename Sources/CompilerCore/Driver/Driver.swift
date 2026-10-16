@@ -1005,9 +1005,12 @@ public final class CompilerDriver {
             if let trailingExpr {
                 collectExpr(trailingExpr)
             }
-        case let .superRef(interfaceQualifier, _):
+        case let .superRef(interfaceQualifier, label, _):
             if let interfaceQualifier {
                 collectName(interfaceQualifier)
+            }
+            if let label {
+                collectName(label)
             }
         case let .destructuringDecl(_, _, initializer, _):
             collectExpr(initializer)
