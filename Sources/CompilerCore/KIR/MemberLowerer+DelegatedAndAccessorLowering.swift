@@ -371,12 +371,9 @@ extension MemberLowerer {
     /// custom-delegate instance stored in `$delegate_x`) for the current access.
     ///
     /// Class/interface instance delegates live inside the heap-allocated object,
-    /// not in a module-global slot, so the read must go through
-    /// `kk_array_get_inbounds` at the field's computed offset — mirroring
-    /// `tryLowerStoredMemberPropertyRead` (regular stored-property reads) and
-    /// `emitFieldStore` (writes, used by the matching constructor initializer).
-    /// Falls back to `.loadGlobal` for top-level and `object`-member delegates,
-    /// which intentionally keep a single shared instance backed by a real global.
+    /// while enum delegates use a per-entry global slot because enum values are
+    /// ordinal-backed. Top-level and `object`-member delegates intentionally
+    /// keep a single shared instance backed by a real global.
     private func loadDelegateHandle(
         delegateStorageSymbol: SymbolID,
         ownerSymbol: SymbolID?,
@@ -387,6 +384,30 @@ extension MemberLowerer {
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let delegateType = sema.types.anyType
+        if let ownerSymbol,
+           sema.symbols.symbol(ownerSymbol)?.kind == .enumClass,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
+           let storageName = sema.symbols.symbol(delegateStorageSymbol)?.name
+        {
+            // Enum values are ordinal-backed, so their delegate handles live
+            // in per-entry globals and are read through the enum storage helper.
+            let helperName = EnumPropertyHelperNames.placeholder(
+                prefix: EnumPropertyHelperNames.getterPrefix,
+                ownerSymbol: ownerSymbol,
+                propertyName: storageName,
+                interner: interner
+            )
+            let result = arena.appendTemporary(type: delegateType)
+            body.append(.call(
+                symbol: nil,
+                callee: helperName,
+                arguments: [receiverExprID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         if let ownerSymbol,
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface,
@@ -532,6 +553,16 @@ extension MemberLowerer {
             : sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
         let semanticSignature = semanticAccessor.flatMap { sema.symbols.functionSignature(for: $0) }
         let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+        let receiverOwnerSymbol: SymbolID? = {
+            guard let ownerSymbol,
+                  sema.symbols.symbol(ownerSymbol)?.kind == .field,
+                  let enumOwner = sema.symbols.parentSymbol(for: ownerSymbol),
+                  sema.symbols.symbol(enumOwner)?.kind == .enumClass
+            else {
+                return ownerSymbol
+            }
+            return enumOwner
+        }()
         let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
         var params: [KIRParameter] = []
 
@@ -565,8 +596,8 @@ extension MemberLowerer {
                 symbol: receiverSymbol,
                 exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
             )
-        } else if let ownerSymbol,
-                  let ownerSym = sema.symbols.symbol(ownerSymbol)
+        } else if let receiverOwnerSymbol,
+                  let ownerSym = sema.symbols.symbol(receiverOwnerSymbol)
         {
             let ownerType = sema.types.make(
                 .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
@@ -729,7 +760,7 @@ extension MemberLowerer {
         let previousSignature = sema.symbols.functionSignature(for: syntheticAccessorSymbol)
         sema.symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: extensionReceiverType ?? ownerSymbol.flatMap { owner in
+                receiverType: extensionReceiverType ?? receiverOwnerSymbol.flatMap { owner in
                     sema.symbols.symbol(owner).map { ownerInfo in
                         sema.types.make(.classType(ClassType(
                             classSymbol: ownerInfo.id,

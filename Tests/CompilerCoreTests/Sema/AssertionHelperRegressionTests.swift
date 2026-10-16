@@ -119,6 +119,41 @@ struct AssertionHelperRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func starProjectionUpperBoundSurvivesCovariantSupertypeLifting() throws {
+        let ctx = makeContextFromSource("""
+        interface B<out S : Any, out T : Any> {
+            val x: S
+            fun foo(): String
+        }
+        class C<out S : Any, out T : Any>(override val x: S) : B<S, T> {
+            override fun foo() = "OK"
+        }
+        fun box(): String {
+            val broad: C<*, *> = C<Int, String>(1)
+            val b: B<Any, Any> = broad
+            return b.foo()
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func starProjectionSupertypeLiftingKeepsNarrowUpperBound() throws {
+        let ctx = makeContextFromSource("""
+        interface Base<out T> { val value: T }
+        interface Marker
+        class Narrow<out T : Marker>(override val value: T) : Base<T>
+        fun probe() {
+            val narrow: Narrow<*> = Narrow<MarkerImpl>(MarkerImpl())
+            val narrowBase: Base<Marker> = narrow
+            println(narrowBase.value)
+        }
+        class MarkerImpl : Marker
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func starProjectionDoesNotCaptureAnUnrelatedTypeParameter() throws {
         let ctx = makeContextFromSource("""
         class Dep<A, B : A> {

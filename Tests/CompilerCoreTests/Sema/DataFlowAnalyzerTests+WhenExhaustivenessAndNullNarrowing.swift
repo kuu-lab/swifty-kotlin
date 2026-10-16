@@ -3,6 +3,108 @@
 import Testing
 
 extension DataFlowAnalyzerTests {
+    @Test func testCapturedSealedUpperBoundIsUsedForWhenExhaustiveness() {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+
+        let sealedName = interner.intern("Root")
+        let sealedSymbol = symbols.define(
+            kind: .class, name: sealedName, fqName: [sealedName],
+            declSite: nil, visibility: .public, flags: .sealedType
+        )
+        let firstName = interner.intern("First")
+        let secondName = interner.intern("Second")
+        let firstSymbol = symbols.define(kind: .class, name: firstName, fqName: [firstName], declSite: nil, visibility: .public)
+        let secondSymbol = symbols.define(kind: .class, name: secondName, fqName: [secondName], declSite: nil, visibility: .public)
+        symbols.setDirectSupertypes([sealedSymbol], for: firstSymbol)
+        symbols.setDirectSupertypes([sealedSymbol], for: secondSymbol)
+
+        let sealedType = types.make(.classType(ClassType(classSymbol: sealedSymbol)))
+        let typeParameter = symbols.define(
+            kind: .typeParameter, name: interner.intern("T"), fqName: [interner.intern("T")],
+            declSite: nil, visibility: .private
+        )
+        let capturedType = types.makeCapturedType(
+            parameter: typeParameter,
+            lower: types.nothingType,
+            upper: sealedType
+        )
+        let complete = WhenBranchSummary(coveredSymbols: [firstName, secondName], hasElse: false)
+        let incomplete = WhenBranchSummary(coveredSymbols: [firstName], hasElse: false)
+
+        #expect(analyzer.isWhenExhaustive(subjectType: capturedType, branches: complete, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: capturedType, branches: incomplete, sema: sema))
+        #expect(analyzer.subjectRequiresStatementExhaustiveness(subjectType: capturedType, sema: sema))
+        #expect(analyzer.missingSealedBranches(subjectType: capturedType, branches: incomplete, sema: sema) == [secondName])
+    }
+
+    @Test func testCapturedIntersectionUpperBoundUsesItsSealedComponent() {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+
+        let sealedName = interner.intern("Root")
+        let sealedSymbol = symbols.define(
+            kind: .class, name: sealedName, fqName: [sealedName],
+            declSite: nil, visibility: .public, flags: .sealedType
+        )
+        let markerName = interner.intern("Marker")
+        let markerSymbol = symbols.define(
+            kind: .interface, name: markerName, fqName: [markerName],
+            declSite: nil, visibility: .public
+        )
+        let childName = interner.intern("Child")
+        let childSymbol = symbols.define(kind: .class, name: childName, fqName: [childName], declSite: nil, visibility: .public)
+        symbols.setDirectSupertypes([sealedSymbol, markerSymbol], for: childSymbol)
+
+        let sealedType = types.make(.classType(ClassType(classSymbol: sealedSymbol)))
+        let markerType = types.make(.classType(ClassType(classSymbol: markerSymbol)))
+        let intersection = types.make(.intersection([sealedType, markerType]))
+        let typeParameterName = interner.intern("T")
+        let typeParameter = symbols.define(
+            kind: .typeParameter, name: typeParameterName, fqName: [typeParameterName],
+            declSite: nil, visibility: .private
+        )
+        let capturedType = types.makeCapturedType(
+            parameter: typeParameter,
+            lower: types.nothingType,
+            upper: intersection
+        )
+        let complete = WhenBranchSummary(coveredSymbols: [childName], hasElse: false)
+
+        #expect(analyzer.isWhenExhaustive(subjectType: capturedType, branches: complete, sema: sema))
+    }
+
+    @Test func testNullableCapturedSealedUpperBoundRequiresNullBranch() {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+
+        let sealedName = interner.intern("Root")
+        let sealedSymbol = symbols.define(
+            kind: .class, name: sealedName, fqName: [sealedName],
+            declSite: nil, visibility: .public, flags: .sealedType
+        )
+        let childName = interner.intern("Child")
+        let childSymbol = symbols.define(kind: .class, name: childName, fqName: [childName], declSite: nil, visibility: .public)
+        symbols.setDirectSupertypes([sealedSymbol], for: childSymbol)
+
+        let nullableSealedType = types.make(.classType(ClassType(classSymbol: sealedSymbol, nullability: .nullable)))
+        let typeParameterName = interner.intern("T")
+        let typeParameter = symbols.define(
+            kind: .typeParameter, name: typeParameterName, fqName: [typeParameterName],
+            declSite: nil, visibility: .private
+        )
+        let capturedType = types.makeCapturedType(
+            parameter: typeParameter,
+            lower: types.nullableNothingType,
+            upper: nullableSealedType
+        )
+        let withoutNull = WhenBranchSummary(coveredSymbols: [childName], hasElse: false)
+        let withNull = WhenBranchSummary(coveredSymbols: [childName], hasElse: false, hasNullCase: true)
+
+        #expect(!analyzer.isWhenExhaustive(subjectType: capturedType, branches: withoutNull, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: capturedType, branches: withNull, sema: sema))
+    }
+
     @Test(arguments: [false, true])
     func testSealedInterfaceCoverageUsesResolvedSymbols(useMetadata: Bool) {
         let analyzer = DataFlowAnalyzer()

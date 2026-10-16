@@ -452,51 +452,7 @@ extension DataFlowSemaPhase {
     }
 
     func flags(from modifiers: Modifiers) -> SymbolFlags {
-        var value: SymbolFlags = []
-        insertFunctionFlags(modifiers, into: &value)
-        insertTypeFlags(modifiers, into: &value)
-        insertMemberFlags(modifiers, into: &value)
-        return value
-    }
-
-    private func insertFunctionFlags(
-        _ modifiers: Modifiers,
-        into value: inout SymbolFlags
-    ) {
-        if modifiers.contains(.suspend) { value.insert(.suspendFunction) }
-        if modifiers.contains(.inline) { value.insert(.inlineFunction) }
-        if modifiers.contains(.operator) { value.insert(.operatorFunction) }
-        if modifiers.contains(.infix) { value.insert(.infixFunction) }
-    }
-
-    private func insertTypeFlags(
-        _ modifiers: Modifiers,
-        into value: inout SymbolFlags
-    ) {
-        if modifiers.contains(.sealed) { value.insert(.sealedType) }
-        if modifiers.contains(.data) { value.insert(.dataType) }
-        if modifiers.contains(.inner) { value.insert(.innerClass) }
-        if modifiers.contains(.abstract) { value.insert(.abstractType) }
-        if modifiers.contains(.open) { value.insert(.openType) }
-        // Note: .valueType is intentionally NOT set here. The `.value`
-        // modifier should only produce the `.valueType` flag for class
-        // declarations, which is handled explicitly in
-        // HeaderCollection.collectHeader (classDecl branch). Setting it
-        // here would incorrectly flag non-class declarations (functions,
-        // interfaces, etc.) if the parser ever attaches a `.value`
-        // modifier to them.
-    }
-
-    private func insertMemberFlags(
-        _ modifiers: Modifiers,
-        into value: inout SymbolFlags
-    ) {
-        if modifiers.contains(.const) { value.insert(.constValue) }
-        if modifiers.contains(.override) { value.insert(.overrideMember) }
-        if modifiers.contains(.final) { value.insert(.finalMember) }
-        if modifiers.contains(.expect) { value.insert(.expectDeclaration) }
-        if modifiers.contains(.actual) { value.insert(.actualDeclaration) }
-        if modifiers.contains(.lateinit) { value.insert(.lateinitProperty) }
+        SymbolFlags(modifiers: modifiers)
     }
 
     func inheritedExpectActualFlags(
@@ -608,7 +564,18 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
+        // A source declaration may replace a declaration imported from a
+        // dependency with the same FQName. Only declarations already owned by
+        // this compilation participate in SEMA-0001 redeclaration checks.
+        // Imported library symbols carry `.importedLibrary`; bundled source
+        // declarations do not, so same-module source duplicates still fail.
         let existing = existingByID.values.filter { existing in
+            guard !existing.flags.contains(.importedLibrary) else { return false }
+            // Callable parameters are indexed under `callableFQName + name`.
+            // When a factory shares a name with a class, that encoding can
+            // overlap a class member's FQName even though the parameter does
+            // not occupy the member declaration namespace.
+            guard existing.kind != .valueParameter, existing.kind != .typeParameter else { return false }
             guard let topLevelVisibility, let topLevelFileID else { return true }
             return !symbols.canCoexistAsFilePrivateTopLevelCallable(
                 kind: newKind, visibility: topLevelVisibility, fileID: topLevelFileID, existing: existing
@@ -650,6 +617,41 @@ extension DataFlowSemaPhase {
                 range: range
             )
         }
+    }
+
+    func checkAndReportDuplicateExtensionPropertyReceiver(
+        propertySymbol: SymbolID,
+        receiverType: TypeID,
+        fqName: [InternedString],
+        range: SourceRange?,
+        newFlags: SymbolFlags,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        let matchingDeclarations = symbols.lookupAll(fqName: fqName).compactMap { id -> SemanticSymbol? in
+            guard id != propertySymbol,
+                  let existing = symbols.symbol(id),
+                  existing.kind == .property,
+                  !existing.flags.contains(.synthetic),
+                  symbols.hasExtensionPropertyReceiver(id),
+                  symbols.extensionPropertyReceiverType(for: id) == receiverType
+            else {
+                return nil
+            }
+            return existing
+        }
+        guard !matchingDeclarations.isEmpty else { return }
+        if matchingDeclarations.count == 1,
+           let existing = matchingDeclarations.first,
+           isCompatibleExpectActualPair(newKind: .property, newFlags: newFlags, existing: existing)
+        {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Duplicate declaration in the same package scope.",
+            range: range
+        )
     }
 
     private func hasUserDeclaredFunction(
@@ -850,8 +852,9 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
-                ? [.synthetic, .overrideMember] : [.synthetic]
+            // Synthesized equals replaces Any.equals in the vtable, including
+            // when the class has an explicit superclass implementation.
+            flags: [.synthetic, .overrideMember]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")
@@ -1215,12 +1218,20 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine? = nil,
         resolvedParameterTypes: [TypeID]? = nil,
         fallbackType: TypeID
-    ) -> (paramTypes: [TypeID], paramSymbols: [SymbolID], paramHasDefaultValues: [Bool], paramIsVararg: [Bool], paramAllowsNonLocalReturn: [Bool]) {
+    ) -> (
+        paramTypes: [TypeID],
+        paramSymbols: [SymbolID],
+        paramHasDefaultValues: [Bool],
+        paramIsVararg: [Bool],
+        paramAllowsNonLocalReturn: [Bool],
+        paramUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>]
+    ) {
         var paramTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
         var paramHasDefaultValues: [Bool] = []
         var paramIsVararg: [Bool] = []
         var paramAllowsNonLocalReturn: [Bool] = []
+        var paramUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>] = []
         for (index, valueParam) in valueParams.enumerated() {
             let paramFQName = localNamespaceFQName + [valueParam.name]
             let paramSymbol = symbols.define(
@@ -1248,11 +1259,32 @@ extension DataFlowSemaPhase {
             ) ?? fallbackType
             paramTypes.append(resolvedType)
             paramSymbols.append(paramSymbol)
+            paramUnsafeVarianceTypeParameterSymbols.append(unsafeVarianceTypeParameterSymbols(
+                in: valueParam.type,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                sourceManager: sourceManager,
+                localTypeParameters: localTypeParameters,
+                relativeOwnerFQName: relativeOwnerFQName,
+                currentPackageFQName: currentPackageFQName,
+                imports: imports,
+                diagnostics: diagnostics,
+                usageRange: declSite
+            ))
             paramHasDefaultValues.append(valueParam.hasDefaultValue)
             paramIsVararg.append(valueParam.isVararg)
             paramAllowsNonLocalReturn.append(!valueParam.isCrossinline && !valueParam.isNoinline)
         }
-        return (paramTypes, paramSymbols, paramHasDefaultValues, paramIsVararg, paramAllowsNonLocalReturn)
+        return (
+            paramTypes,
+            paramSymbols,
+            paramHasDefaultValues,
+            paramIsVararg,
+            paramAllowsNonLocalReturn,
+            paramUnsafeVarianceTypeParameterSymbols
+        )
     }
 
     func collectFunctionTypeParameters(

@@ -317,13 +317,17 @@ final class ExprTypeChecker {
 
         case let .call(calleeID, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
-            return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: ctx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
+            var callCtx = ctx
+            callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
+            return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: callCtx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
 
         case let .memberCall(receiverID, calleeName, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            var callCtx = ctx
+            callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             return driver.callChecker.inferMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
-                args: args, range: range, ctx: ctx, locals: &locals,
+                args: args, range: range, ctx: callCtx, locals: &locals,
                 expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
 
@@ -585,9 +589,11 @@ final class ExprTypeChecker {
 
         case let .safeMemberCall(receiverID, calleeName, typeArgRefs, args, range):
             let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            var callCtx = ctx
+            callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
-                args: args, range: range, ctx: ctx, locals: &locals,
+                args: args, range: range, ctx: callCtx, locals: &locals,
                 expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
 
@@ -631,6 +637,20 @@ final class ExprTypeChecker {
         case let .blockExpr(statements, trailingExpr, _):
             let preservesOuterDataFlow = ast.arena.isCallResultCompoundAssignmentBlock(id)
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
+            // Anonymous functions are blocks around a synthetic local function
+            // and its callable reference. The declaration needs the contextual
+            // type before its body is checked; the reference receives it below.
+            let contextualAnonymousFunctionDecl: ExprID? = {
+                guard ast.arena.isAnonymousFunction(id),
+                      statements.count == 1,
+                      let statement = statements.first,
+                      let statementExpr = ast.arena.expr(statement),
+                      case .localFunDecl = statementExpr
+                else {
+                    return nil
+                }
+                return statement
+            }()
             // Local classifiers must stay in their lexical block, just like
             // blockLocals. A do-while body uses the loop's shared scope so its
             // declarations remain visible to the condition.
@@ -651,7 +671,8 @@ final class ExprTypeChecker {
                     _ = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                     continue
                 }
-                let stmtType = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
+                let stmtExpectedType = stmt == contextualAnonymousFunctionDecl ? expectedType : nil
+                let stmtType = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: stmtExpectedType, isStatementContext: true)
                 if stmtType == sema.types.nothingType {
                     reachedNothing = true
                 }
@@ -705,6 +726,7 @@ final class ExprTypeChecker {
                 returnTypeRef: returnTypeRef,
                 body: body,
                 isSuspend: isSuspend,
+                expectedType: expectedType,
                 range: range,
                 ctx: ctx,
                 locals: &locals
@@ -1662,6 +1684,25 @@ final class ExprTypeChecker {
             return candidates
         }
 
+        // A member extension operator's dispatch receiver comes from the
+        // implicit-receiver tower, not from the expression's operand. Search
+        // that member scope before package-scope extensions so an inherited
+        // interface operator keeps the same priority as an ordinary member
+        // extension call.
+        if names.count == 1,
+           let name = names.first,
+           ["unaryPlus", "unaryMinus"].contains(interner.resolve(name))
+        {
+            let memberExtensionCandidates = collectImplicitReceiverMemberExtensionOperatorCandidates(
+                named: name,
+                receiverType: receiverType,
+                ctx: ctx
+            )
+            if !memberExtensionCandidates.isEmpty {
+                return memberExtensionCandidates
+            }
+        }
+
         for name in names {
             // Name lookup must advance past a scope whose extensions have
             // unrelated receivers, while retaining the nearest matching tier.
@@ -1739,6 +1780,46 @@ final class ExprTypeChecker {
         return candidates
     }
 
+    private func collectImplicitReceiverMemberExtensionOperatorCandidates(
+        named name: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        guard receiverType != sema.types.errorType else { return [] }
+
+        for dispatchReceiver in ctx.implicitReceiverMemberLookupEntries() {
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: name,
+                receiverType: dispatchReceiver.type,
+                sema: sema,
+                interner: ctx.interner
+            )
+            let eligible = members.filter { candidate in
+                guard !ctx.isCandidateBlockedByDslMarker(candidate),
+                      let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                      let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+                else {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: receiverType,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            let visible = ctx.filterByVisibility(eligible).visible
+            if !visible.isEmpty {
+                return visible
+            }
+        }
+
+        return []
+    }
+
     private func inferUnaryOperatorExpr(
         _ id: ExprID,
         op: UnaryOp,
@@ -1765,7 +1846,8 @@ final class ExprTypeChecker {
                 call: CallExpr(
                     range: range,
                     calleeName: operatorNames[0],
-                    args: []
+                    args: [],
+                    dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: operandType,
@@ -1791,6 +1873,19 @@ final class ExprTypeChecker {
                 resolved: resolved,
                 sema: sema
             )
+            if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
+                let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
+                    driver.helpers.allNominalSymbols(
+                        of: entry.type,
+                        types: sema.types,
+                        symbols: sema.symbols
+                    ).contains(dispatchOwner)
+                }
+                sema.bindings.markImplicitReceiverMember(id, name: operatorNames[0])
+                if let symbol = dispatchReceiver?.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: symbol)
+                }
+            }
             sema.bindings.bindExprType(id, type: returnType)
             return returnType
         }

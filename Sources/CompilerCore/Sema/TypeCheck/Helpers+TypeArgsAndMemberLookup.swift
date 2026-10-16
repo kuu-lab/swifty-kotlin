@@ -319,8 +319,27 @@ extension TypeCheckHelpers {
     ) -> [TypeID] {
         guard !typeArgRefs.isEmpty else { return [] }
         return typeArgRefs.map { typeRefID in
-            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
+            guard !isExplicitTypeInferencePlaceholder(typeRefID, ast: ast, interner: interner) else {
+                // Keep the argument's position while leaving its type variable to normal call inference.
+                return TypeID.invalid
+            }
+            return resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
         }
+    }
+
+    func isExplicitTypeInferencePlaceholder(
+        _ typeRefID: TypeRefID,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .named(path, args, nullable) = ast.arena.typeRef(typeRefID),
+              path.count == 1,
+              args.isEmpty,
+              !nullable
+        else {
+            return false
+        }
+        return interner.resolve(path[0]) == "_"
     }
 
     /// Check if an expression is a terminating expression (return/throw) for elvis guard narrowing.
@@ -718,12 +737,9 @@ extension TypeCheckHelpers {
         }
 
         var candidates: [SymbolID] = []
-        var overrideDepthByShape: [String: Int] = [:]
-        func overrideShape(for key: MemberDispatchKey) -> String {
-            let base = "\(key.parameterTypes.count)#\(key.isSuspend)"
-            guard let extensionReceiverType = key.extensionReceiverType else { return base }
-            return "\(base)#receiver:\(extensionReceiverType.rawValue)"
-        }
+        // Overrides hide inherited declarations only for the same dispatch key;
+        // arity alone would drop unrelated overloads with the same parameter count.
+        var overrideDepthByKey: [MemberDispatchKey: Int] = [:]
         for key in keyOrder {
             guard let grouped = candidatesByKey[key] else { continue }
             for candidate in grouped {
@@ -732,16 +748,14 @@ extension TypeCheckHelpers {
                 else {
                     continue
                 }
-                let shape = overrideShape(for: key)
-                overrideDepthByShape[shape] = min(overrideDepthByShape[shape] ?? candidate.depth, candidate.depth)
+                overrideDepthByKey[key] = min(overrideDepthByKey[key] ?? candidate.depth, candidate.depth)
             }
         }
         for key in keyOrder {
             guard let grouped = candidatesByKey[key], !grouped.isEmpty else {
                 continue
             }
-            let shape = overrideShape(for: key)
-            if let overrideDepth = overrideDepthByShape[shape],
+            if let overrideDepth = overrideDepthByKey[key],
                grouped.allSatisfy({ $0.depth > overrideDepth })
             {
                 continue
@@ -876,6 +890,43 @@ extension TypeCheckHelpers {
         return nil
     }
 
+    /// Looks up a property declared directly in the body of an enum entry.
+    /// Its entry field owns the declaration, while the receiver still has the
+    /// containing enum's runtime type.
+    func lookupEnumEntryMemberProperty(
+        named calleeName: InternedString,
+        entrySymbol: SymbolID,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        guard let entryInfo = sema.symbols.symbol(entrySymbol),
+              entryInfo.kind == .field,
+              let enumOwner = sema.symbols.parentSymbol(for: entrySymbol),
+              sema.symbols.symbol(enumOwner)?.kind == .enumClass
+        else {
+            return nil
+        }
+        for candidate in sema.symbols.lookupAll(fqName: entryInfo.fqName + [calleeName]) {
+            guard sema.symbols.parentSymbol(for: candidate) == entrySymbol,
+                  let candidateInfo = sema.symbols.symbol(candidate),
+                  candidateInfo.kind == .property || candidateInfo.kind == .field,
+                  let propertyType = sema.symbols.propertyType(for: candidate)
+            else {
+                continue
+            }
+            return (
+                candidate,
+                resolveMemberPropertyType(
+                    propertyType,
+                    receiverType: receiverType,
+                    ownerSymbol: enumOwner,
+                    sema: sema
+                )
+            )
+        }
+        return nil
+    }
+
     func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
@@ -918,7 +969,10 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
-                substitution[typeVar] = sema.types.nullableAnyType
+                substitution[typeVar] = sema.types.capturedTypeForStarProjection(
+                    parameter: typeParamSymbol,
+                    ownerTypeParameters: ownerTypeParamSymbols
+                )
             }
         }
 

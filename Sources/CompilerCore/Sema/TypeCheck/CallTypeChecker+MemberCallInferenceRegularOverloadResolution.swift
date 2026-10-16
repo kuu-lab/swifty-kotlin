@@ -57,7 +57,7 @@ extension CallTypeChecker {
                       else {
                           return false
                       }
-                      switch sema.types.kind(of: receiver) {
+                      switch sema.types.kind(of: sema.types.makeNonNullable(receiver)) {
                       case .functionType:
                           return true
                       case let .typeParam(parameter):
@@ -67,6 +67,7 @@ extension CallTypeChecker {
                           // view for reflection, but that nominal view cannot be
                           // invoked from the extension's callback parameter.
                           return signature.typeParameterSymbols.contains(parameter.symbol)
+
                       default:
                           return false
                       }
@@ -315,7 +316,7 @@ extension CallTypeChecker {
         } else if isULongRangeLiteralContainsCall {
             argumentExpectedTypeOverrides[0] = sema.types.ulongType
         }
-        prepareSingleCandidateNestedCallExpectedTypes(
+        prepareUnambiguousNestedCallExpectedTypes(
             args: args,
             callRange: range,
             candidates: candidates,
@@ -329,7 +330,8 @@ extension CallTypeChecker {
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: argumentExpectedTypeOverrides,
-            contextualCallResultType: expectedType,
+            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                ? sema.types.unitType : expectedType,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             ctx: ctx,
@@ -443,7 +445,7 @@ extension CallTypeChecker {
                 candidates: extensionCandidates,
                 call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
                     CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
-                }),
+                }, elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
                 ctx: ctx.sema
@@ -456,7 +458,8 @@ extension CallTypeChecker {
                     callRange: range,
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
-                    contextualCallResultType: expectedType,
+                    contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                        ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,
                     receiverType: effectiveReceiverType,
                     ctx: ctx,

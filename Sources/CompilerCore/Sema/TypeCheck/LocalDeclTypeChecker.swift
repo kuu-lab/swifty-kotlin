@@ -309,7 +309,16 @@ final class LocalDeclTypeChecker {
                 let mutatedInClosure = ctx.dataFlow.localDeclarations[local.symbol].map {
                     ctx.dataFlow.localStability.isMutatedInClosure($0, sema: ctx.sema)
                 } ?? false
-                let assignedType = !mutatedInClosure
+                // A sequenced write gives a stable mutable local the written
+                // value's subtype for subsequent reads in this flow branch.
+                // Keep the declared type when a deferred closure may overwrite it.
+                let assignedType: TypeID = local.isMutable
+                    && !mutatedInClosure
+                    && valueType != ctx.sema.types.errorType
+                    && valueType != declaredType
+                    && ctx.sema.types.isSubtype(valueType, declaredType)
+                    ? valueType
+                    : !mutatedInClosure
                     && ctx.sema.types.nullability(of: declaredType) == .nullable
                     && ctx.sema.types.nullability(of: valueType) == .nonNull
                     && valueType != ctx.sema.types.errorType
@@ -399,7 +408,10 @@ final class LocalDeclTypeChecker {
             guard sym.kind == .property else { return false }
             guard let parentID = ctx.sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = ctx.sema.symbols.symbol(parentID) else { return true }
-            return parentSym.kind == .package || (ctx.implicitReceiverType != nil
+            // A scope-visible object member can be an explicit import such as
+            // `import C.p`; singleton properties need no lexical receiver.
+            // Class and interface members still require an implicit receiver.
+            return parentSym.kind == .package || parentSym.kind == .object || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         }) {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType

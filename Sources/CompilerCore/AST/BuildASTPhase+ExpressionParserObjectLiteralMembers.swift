@@ -19,6 +19,8 @@ extension BuildASTPhase.ExpressionParser {
 
         var functionDeclIDs: [DeclID] = []
         var propertyDeclIDs: [DeclID] = []
+        var nestedClassDeclIDs: [DeclID] = []
+        var nestedObjectDeclIDs: [DeclID] = []
         var initBlocks: [FunctionBody] = []
         // Property initializers and `init {}` blocks run interleaved in
         // declaration order, exactly like a named class body.
@@ -31,6 +33,17 @@ extension BuildASTPhase.ExpressionParser {
             if let initBlock = parseObjectLiteralInitBlock(from: group) {
                 classBodyInitOrder.append(.initBlock(initBlocks.count))
                 initBlocks.append(initBlock)
+                continue
+            }
+            if let nestedDecl = parseObjectLiteralNestedDecl(from: group) {
+                switch nestedDecl {
+                case .classDecl, .interfaceDecl:
+                    nestedClassDeclIDs.append(astArena.appendDecl(nestedDecl))
+                case .objectDecl:
+                    nestedObjectDeclIDs.append(astArena.appendDecl(nestedDecl))
+                default:
+                    return nil
+                }
                 continue
             }
             if let functionDecl = parseObjectLiteralFunctionDecl(from: group) {
@@ -57,9 +70,78 @@ extension BuildASTPhase.ExpressionParser {
             initBlocks: initBlocks,
             classBodyInitOrder: classBodyInitOrder,
             memberFunctions: functionDeclIDs,
-            memberProperties: propertyDeclIDs
+            memberProperties: propertyDeclIDs,
+            nestedClasses: nestedClassDeclIDs,
+            nestedObjects: nestedObjectDeclIDs
         )
         return astArena.appendDecl(.objectDecl(objectDecl))
+    }
+
+    private func parseObjectLiteralNestedDecl(from tokens: ArraySlice<Token>) -> Decl? {
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
+        guard objectLiteralMemberStartsWithNestedDecl(sanitized) else {
+            return nil
+        }
+        let parseTokens = objectLiteralMemberParseTokens(from: sanitized)
+        let parser = KotlinParser(
+            tokens: parseTokens,
+            interner: interner,
+            diagnostics: diagnostics ?? DiagnosticEngine()
+        )
+        let parsed = parser.parseFile()
+        let builder = BuildASTPhase(diagnostics: diagnostics)
+
+        if let nodeID = firstTopLevelNode(ofKind: .classDecl, in: parsed.arena, root: parsed.root) {
+            return .classDecl(builder.makeClassDecl(
+                from: nodeID,
+                in: parsed.arena,
+                interner: interner,
+                astArena: astArena
+            ))
+        }
+        if let nodeID = firstTopLevelNode(ofKind: .interfaceDecl, in: parsed.arena, root: parsed.root) {
+            return .interfaceDecl(builder.makeInterfaceDecl(
+                from: nodeID,
+                in: parsed.arena,
+                interner: interner,
+                astArena: astArena
+            ))
+        }
+        if let nodeID = firstTopLevelNode(ofKind: .objectDecl, in: parsed.arena, root: parsed.root) {
+            return .objectDecl(builder.makeObjectDecl(
+                from: nodeID,
+                in: parsed.arena,
+                interner: interner,
+                astArena: astArena,
+                companionSiteName: "anonymous object"
+            ))
+        }
+        return nil
+    }
+
+    private func objectLiteralMemberStartsWithNestedDecl(_ tokens: [Token]) -> Bool {
+        var index = 0
+        while index < tokens.count {
+            switch tokens[index].kind {
+            case .symbol(.at):
+                guard let annotation = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens,
+                    start: index,
+                    interner: interner,
+                    allowUseSiteTarget: true
+                ) else {
+                    return false
+                }
+                index = annotation.nextIndex
+            case .keyword(.class), .keyword(.interface), .keyword(.object):
+                return true
+            case let .keyword(keyword) where KotlinParser.isDeclarationModifierKeyword(keyword):
+                index += 1
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     /// The group is re-parsed wrapped in a synthetic `object` body so the regular class-body init-block builder
@@ -213,18 +295,30 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseObjectLiteralPropertyDecl(from tokens: ArraySlice<Token>) -> PropertyDecl? {
-        if let declaration = tokens.firstIndex(where: { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }),
-           tokens.index(after: declaration) < tokens.endIndex,
-           tokens[tokens.index(after: declaration)].kind == .symbol(.lessThan) {
-            let parser = KotlinParser(tokens: objectLiteralMemberParseTokens(from: Array(tokens)),
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
+        guard let declarationIndex = sanitized.firstIndex(where: {
+            $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
+        }) else {
+            return nil
+        }
+
+        let hasLeadingAnnotation = sanitized[..<declarationIndex].contains {
+            $0.kind == .symbol(.at)
+        }
+        let hasTypeParameters = sanitized.index(after: declarationIndex) < sanitized.endIndex
+            && sanitized[sanitized.index(after: declarationIndex)].kind == .symbol(.lessThan)
+        if hasLeadingAnnotation || hasTypeParameters {
+            // The hand-built property path below uses a local-declaration parser
+            // that does not consume declaration annotations. Reparse annotated
+            // members through the normal declaration builder so their
+            // PropertyDecl (and annotation metadata) stays in the object body.
+            let parser = KotlinParser(tokens: objectLiteralMemberParseTokens(from: sanitized),
                                       interner: interner, diagnostics: diagnostics ?? DiagnosticEngine())
             let parsed = parser.parseFile()
             guard let node = firstTopLevelNode(ofKind: .propertyDecl, in: parsed.arena, root: parsed.root) else { return nil }
             return BuildASTPhase(diagnostics: diagnostics).makePropertyDecl(from: node, in: parsed.arena,
                                                                            interner: interner, astArena: astArena)
         }
-
-        let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard let first = sanitized.first, let last = sanitized.last else {
             return nil
         }

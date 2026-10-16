@@ -113,5 +113,49 @@ struct RuntimeBigDecimalTests {
         #expect(__kk_bignum_compareTo(box("-2"), box("1")) < 0)
         #expect(__kk_bignum_compareTo(box("-1.5"), box("-1.4")) < 0)
     }
+
+    @Test
+    func testBigDecimalNumberConversionsMatchJvmNarrowing() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0, "Expected \(text) to parse as BigDecimal")
+            return raw
+        }
+
+        #expect(__kk_bignum_toDouble(box("0.1")) == 4_591_870_180_066_957_722)
+        #expect(__kk_bignum_toFloat(box("0.1")) == 1_036_831_949)
+        #expect(__kk_bignum_toDouble(box("-0.0")) == 0)
+        #expect(__kk_bignum_toDouble(box("-1e-400")) == Int(bitPattern: UInt(Double(-0.0).bitPattern)))
+        #expect(__kk_bignum_toFloat(box("-1e-100")) == Int(bitPattern: UInt(Float(-0.0).bitPattern)))
+        #expect(__kk_bignum_toDouble(box("1e400")) == Int(bitPattern: UInt(0x7FF0_0000_0000_0000)))
+        #expect(__kk_bignum_toFloat(box("1e400")) == Int(bitPattern: UInt(0x7F80_0000)))
+
+        #expect(__kk_bignum_toLong(box("-129.9")) == -129)
+        #expect(__kk_bignum_toInt(box("9223372036854775808.9")) == 0)
+        #expect(__kk_bignum_toLong(box("9223372036854775808.9")) == Int.min)
+        #expect(__kk_bignum_toLong(box("18446744073709551617.9")) == 1)
+        #expect(__kk_bignum_toShort(box("32768.9")) == -32768)
+        #expect(__kk_bignum_toByte(box("-129.9")) == 127)
+    }
+
+    @Test
+    func testBigDecimalNumberConversionDispatch() {
+        var thrown = 0
+        let value = withFlatString("123.987") { data, length, byteCount, hash in
+            __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+
+        #expect(kk_number_to_primitive(value, 0, 0) == __kk_bignum_toDouble(value))
+        #expect(kk_number_to_primitive(value, 0, 1) == __kk_bignum_toFloat(value))
+        #expect(kk_number_to_primitive(value, 0, 2) == __kk_bignum_toLong(value))
+        #expect(kk_number_to_primitive(value, 0, 3) == __kk_bignum_toInt(value))
+        #expect(kk_number_to_primitive(value, 0, 4) == __kk_bignum_toShort(value))
+        #expect(kk_number_to_primitive(value, 0, 5) == __kk_bignum_toByte(value))
+        #expect(kk_number_to_primitive(value, 0, 6) == kk_int_to_char(__kk_bignum_toInt(value)))
+    }
 }
 #endif

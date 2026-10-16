@@ -110,6 +110,7 @@ extension DeclTypeChecker {
             inferClassLikeMemberTypes(
                 memberFunctions: classDecl.memberFunctions,
                 memberProperties: classDecl.memberProperties,
+                nestedClasses: classDecl.nestedClasses,
                 ctx: classCtx,
                 propertyInitializerLocals: primaryCtorLocals,
                 solver: solver,
@@ -179,7 +180,9 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty || !entry.memberProperties.isEmpty {
+        for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty
+            || !entry.memberProperties.isEmpty || !entry.nestedClasses.isEmpty
+        {
             let entryFQName = (ctx.sema.symbols.symbol(enumSymbol)?.fqName ?? []) + [entry.name]
             guard let entrySymbol = ctx.sema.symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
                 ctx.sema.symbols.symbol(symbolID)?.kind == .field
@@ -192,20 +195,23 @@ extension DeclTypeChecker {
                 ownerType: enumType,
                 memberFunctions: entry.memberFunctions,
                 memberProperties: entry.memberProperties,
-                nestedClasses: [],
+                nestedClasses: entry.nestedClasses,
                 nestedObjects: [],
                 ctx: ctx
             )
-            let entryCtx = ctx.copying(
-                scope: entryScope,
-                implicitReceiverType: enumType,
-                currentDeclSymbol: entrySymbol,
-                enclosingClassSymbol: enumSymbol
-            ).withEnumEntrySuperContext(ownerSymbol: enumSymbol, type: enumType)
+            let entryCtx = ctx
+                .withOuterReceiver(label: entry.name, type: enumType, symbol: enumSymbol)
+                .copying(
+                    scope: entryScope,
+                    implicitReceiverType: enumType,
+                    currentDeclSymbol: entrySymbol,
+                    enclosingClassSymbol: enumSymbol
+                )
+                .withEnumEntrySuperContext(ownerSymbol: enumSymbol, type: enumType)
             typeCheckClassLikeMembers(
                 memberFunctions: entry.memberFunctions,
                 memberProperties: entry.memberProperties,
-                nestedClasses: [],
+                nestedClasses: entry.nestedClasses,
                 nestedObjects: [],
                 ctx: entryCtx,
                 solver: solver,
@@ -416,41 +422,22 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine
     ) {
         typeCheckAnnotationFactories(interfaceDecl.annotations, symbol: symbol, ctx: ctx)
-        let sema = ctx.sema
         var allNestedObjects = interfaceDecl.nestedObjects
         if let companionDeclID = interfaceDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        let interfaceTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
-            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
-        }
-        let interfaceType = sema.types.make(.classType(ClassType(
-            classSymbol: symbol, args: interfaceTypeArgs, nullability: .nonNull
-        )))
-        let interfaceScope = buildClassMemberScope(
-            ownerSymbol: symbol,
-            ownerType: interfaceType,
-            memberFunctions: interfaceDecl.memberFunctions,
-            memberProperties: interfaceDecl.memberProperties,
-            nestedClasses: interfaceDecl.nestedClasses,
-            nestedObjects: allNestedObjects,
+        let interfaceCtx = makeInterfaceTypeCheckContext(
+            interfaceDecl: interfaceDecl,
+            symbol: symbol,
             ctx: ctx
         )
-        let label = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let interfaceCtx = ctx
-            .withOuterReceiver(label: label, type: interfaceType)
-            .copying(
-                scope: interfaceScope,
-                implicitReceiverType: interfaceType,
-                currentDeclSymbol: symbol,
-                enclosingClassSymbol: symbol
-            )
 
         if let companionDeclID = interfaceDecl.companionObject {
             let diagnosticSnapshot = diagnostics.count
             inferClassLikeMemberTypes(
                 memberFunctions: interfaceDecl.memberFunctions,
                 memberProperties: interfaceDecl.memberProperties,
+                nestedClasses: interfaceDecl.nestedClasses,
                 ctx: interfaceCtx,
                 solver: solver,
                 diagnostics: diagnostics
@@ -479,6 +466,7 @@ extension DeclTypeChecker {
     private func inferClassLikeMemberTypes(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
+        nestedClasses: [DeclID] = [],
         ctx: TypeInferenceContext,
         propertyInitializerLocals: LocalBindings = [:],
         solver: ConstraintSolver,
@@ -539,10 +527,10 @@ extension DeclTypeChecker {
                     solver: solver,
                     diagnostics: diagnostics
                 )
-                if needsAccessorRecheck(property) {
-                    // A getter can still see inferred nested methods' header
-                    // placeholders. Keep its inferred type for other members,
-                    // then diagnose it after those method bodies are checked.
+                if needsMemberPropertyRecheck(property, nestedClasses: nestedClasses) {
+                    // Keep speculative diagnostics for properties that can
+                    // depend on inferred nested member returns until their
+                    // bodies have been checked.
                     diagnostics.truncate(to: diagnosticSnapshot)
                 }
 
@@ -555,6 +543,15 @@ extension DeclTypeChecker {
     private func needsAccessorRecheck(_ property: PropertyDecl) -> Bool {
         property.getter != nil && property.initializer == nil
             && property.delegateExpression == nil && property.explicitBackingField == nil
+    }
+
+    private func needsMemberPropertyRecheck(
+        _ property: PropertyDecl,
+        nestedClasses: [DeclID]
+    ) -> Bool {
+        needsAccessorRecheck(property)
+            || (!nestedClasses.isEmpty
+                && (property.initializer != nil || property.delegateExpression != nil))
     }
 
     func typeCheckClassLikeMembers(
@@ -572,6 +569,7 @@ extension DeclTypeChecker {
         inferClassLikeMemberTypes(
             memberFunctions: memberFunctions,
             memberProperties: memberProperties,
+            nestedClasses: nestedClasses,
             ctx: ctx,
             propertyInitializerLocals: propertyInitializerLocals,
             solver: solver,
@@ -606,12 +604,14 @@ extension DeclTypeChecker {
             typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
         }
 
-        // Recheck computed properties before the authoritative function pass.
-        // Their first pass may have used a nested method's placeholder return
-        // type. Initializers and delegates retain their original single check.
+        // Recheck properties after nested classes publish inferred member
+        // return types. Initializers and delegates can use those returns to
+        // determine their own types, including the effective delegate returned
+        // by provideDelegate.
         for declID in memberProperties {
             guard case let .propertyDecl(property)? = ast.arena.decl(declID),
-                  needsAccessorRecheck(property),
+                  needsMemberPropertyRecheck(property, nestedClasses: nestedClasses),
+                  !driver.precheckedPropertyDecls.contains(declID),
                   let symbol = sema.bindings.declSymbols[declID]
             else {
                 continue
@@ -723,19 +723,54 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ClassMemberScope {
         let sema = ctx.sema
-        let companionScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
+        func insertCompanionMembers(of classSymbol: SymbolID, into scope: BaseScope) {
+            guard let companionSymbol = sema.symbols.companionObjectSymbol(for: classSymbol),
+                  let companion = sema.symbols.symbol(companionSymbol)
+            else {
+                return
+            }
             for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
                 guard let member = sema.symbols.symbol(memberSymbol),
                       member.kind == .property || member.kind == .field || member.kind == .function
                 else {
                     continue
                 }
-                companionScope.insert(memberSymbol)
+                scope.insert(memberSymbol)
             }
         }
+
+        // A class inherits the unqualified companion shorthand of its class
+        // supertypes. Keep each superclass in its own scope so the nearest
+        // companion wins while lookup continues through the rest of the chain.
+        var companionScopeParent: Scope = ctx.scope
+        if let owner = sema.symbols.symbol(ownerSymbol), owner.kind == .class || owner.kind == .object {
+            var inheritedClassSymbols: [SymbolID] = []
+            var classQueue = sema.symbols.directSupertypes(for: ownerSymbol).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            }
+            var visitedClasses: Set<SymbolID> = [ownerSymbol]
+            while !classQueue.isEmpty {
+                let superclass = classQueue.removeFirst()
+                guard visitedClasses.insert(superclass).inserted,
+                      sema.symbols.symbol(superclass)?.kind == .class
+                else {
+                    continue
+                }
+                inheritedClassSymbols.append(superclass)
+                classQueue.append(contentsOf: sema.symbols.directSupertypes(for: superclass).filter {
+                    sema.symbols.symbol($0)?.kind == .class
+                })
+            }
+
+            for superclass in inheritedClassSymbols.reversed() {
+                let inheritedCompanionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
+                insertCompanionMembers(of: superclass, into: inheritedCompanionScope)
+                companionScopeParent = inheritedCompanionScope
+            }
+        }
+        let companionScope = BaseScope(parent: companionScopeParent, symbols: sema.symbols)
+        insertCompanionMembers(of: ownerSymbol, into: companionScope)
+
         let classScope = ClassMemberScope(
             parent: companionScope,
             symbols: sema.symbols,
@@ -795,6 +830,22 @@ extension DeclTypeChecker {
         if let owner = sema.symbols.symbol(ownerSymbol),
            owner.kind == .enumClass
         {
+            // `values()` is a synthetic static member rather than an AST
+            // declaration. Header collection inserts it into its class scope,
+            // so preserve it when rebuilding the scope used for member bodies
+            // and companion initializers.
+            let valuesName = ctx.interner.intern("values")
+            for valuesSymbol in sema.symbols.lookupAll(fqName: owner.fqName + [valuesName]) {
+                guard let values = sema.symbols.symbol(valuesSymbol),
+                      values.kind == .function,
+                      values.flags.contains([.synthetic, .static]),
+                      sema.symbols.parentSymbol(for: valuesSymbol) == ownerSymbol
+                else {
+                    continue
+                }
+                classScope.insert(valuesSymbol)
+            }
+
             for childSymbol in sema.symbols.children(ofFQName: owner.fqName) {
                 if let child = sema.symbols.symbol(childSymbol),
                    child.kind == .field

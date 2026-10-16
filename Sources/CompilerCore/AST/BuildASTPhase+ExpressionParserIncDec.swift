@@ -13,8 +13,8 @@ extension BuildASTPhase.ExpressionParser {
     ///   `x++`  ->  `{ val tmp = x; x += 1; tmp }`
     ///   `++x`  ->  `{ x += 1; x }`
     ///
-    /// Postfix member mutations cache the loaded property value so its getter
-    /// runs once.
+    /// Postfix name and member mutations cache the loaded value so a property
+    /// getter runs once.
     func tryParseIncrementDecrement(operand: ExprID) -> ExprID? {
         guard let opToken = current(), let op = compoundAssignOp(for: opToken.kind) else {
             return nil
@@ -86,7 +86,7 @@ extension BuildASTPhase.ExpressionParser {
                 value: one,
                 range: operandRange
             ))
-            astArena.markIncrementDecrement(assignment)
+            astArena.markIncrementDecrement(assignment, returnsValue: isPrefix)
             assignExpr = assignment
 
         case let .memberCall(receiver, callee, typeArgs, args, _)
@@ -121,7 +121,7 @@ extension BuildASTPhase.ExpressionParser {
                 // use. Share the operand range so annotation diagnostics dedup.
                 range: operandRange
             ))
-            astArena.markIncrementDecrement(assignment)
+            astArena.markIncrementDecrement(assignment, returnsValue: isPrefix)
             assignExpr = assignment
 
         case let .indexedAccess(receiver, indices, _):
@@ -142,9 +142,19 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         if isPrefix {
+            astArena.markIncrementDecrement(assignExpr, cachedValue: readExpr, returnsValue: true)
+            let newValueName = interner.intern("$incdec$new$\(range.start.offset)$\(nextIncDecTempID())")
+            let newValueDecl = astArena.appendExpr(.localDecl(
+                name: newValueName,
+                isMutable: false,
+                typeAnnotation: nil,
+                initializer: assignExpr,
+                range: operandRange
+            ))
+            let newValueRef = astArena.appendExpr(.nameRef(newValueName, operandRange))
             return astArena.appendExpr(.blockExpr(
-                statements: statements + [assignExpr],
-                trailingExpr: readExpr,
+                statements: statements + [newValueDecl],
+                trailingExpr: newValueRef,
                 range: range
             ))
         }
@@ -158,9 +168,7 @@ extension BuildASTPhase.ExpressionParser {
             range: operandRange
         ))
         let tempRef = astArena.appendExpr(.nameRef(tempName, operandRange))
-        if case .memberCompoundAssign = astArena.expr(assignExpr) {
-            astArena.markIncrementDecrement(assignExpr, cachedValue: tempRef)
-        }
+        astArena.markIncrementDecrement(assignExpr, cachedValue: tempRef)
         return astArena.appendExpr(.blockExpr(
             statements: statements + [tempDecl, assignExpr],
             trailingExpr: tempRef,

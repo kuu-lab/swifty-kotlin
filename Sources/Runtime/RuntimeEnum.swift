@@ -5,6 +5,36 @@ struct RuntimeEnumValueDescriptor {
     let classID: Int64
 }
 
+/// Returns a stable identity-compatible hash for one enum singleton.
+/// Enum values are stored as ordinals, so their default object hash must mix
+/// both the enum's nominal identity and the entry ordinal instead of exposing
+/// the ordinal as the hash itself. The final adjustment avoids returning the
+/// ordinal even in the unlikely event that the mixed value collides with it.
+func runtimeEnumIdentityHashCode(_ ordinal: Int, _ classID: Int64) -> Int {
+    guard ordinal != runtimeNullSentinelInt else { return 0 }
+
+    var mixed = UInt64(bitPattern: classID)
+        &+ (UInt64(bitPattern: Int64(ordinal)) &* 0x9E37_79B9_7F4A_7C15)
+    mixed ^= mixed >> 30
+    mixed &*= 0xBF58_476D_1CE4_E5B9
+    mixed ^= mixed >> 27
+    mixed &*= 0x94D0_49BB_1331_11EB
+    mixed ^= mixed >> 31
+
+    var hash = Int32(truncatingIfNeeded: mixed)
+    if hash == Int32(truncatingIfNeeded: ordinal) {
+        hash ^= Int32.min
+    }
+    return Int(hash)
+}
+
+/// Hashes an unboxed enum entry using the same identity key as Any-erased
+/// enum boxes, whose runtime metadata carries the class ID.
+@_cdecl("kk_enum_hash_code")
+public func kk_enum_hash_code(_ ordinal: Int, _ classID: Int) -> Int {
+    runtimeEnumIdentityHashCode(ordinal, Int64(classID))
+}
+
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 
 /// Reads the declared entry name after the concrete enum type is erased.

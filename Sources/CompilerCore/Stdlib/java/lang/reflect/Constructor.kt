@@ -1,6 +1,15 @@
 package java.lang.reflect
 
-import kotlin.reflect.KCallable
+import kotlin.internal.KsSymbolName
 
-/** Native Java-constructor handles use the runtime's KCallable representation. */
-public typealias Constructor<T> = KCallable<T>
+@KsSymbolName("__kk_java_constructor_new_instance")
+private external fun <T> __newInstance(
+    constructor: Constructor<T>,
+    initargs: Array<out Any?>
+): T
+
+/** A constructor for a class represented by java.lang.Class. */
+public class Constructor<T> internal constructor() {
+    /** Creates and initializes a new instance using the supplied arguments. */
+    public fun newInstance(vararg initargs: Any?): T = __newInstance(this, initargs)
+}

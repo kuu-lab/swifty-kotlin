@@ -37,4 +37,28 @@ extension BundledStdlibExecutionTests {
             optLevel: optLevel
         )
     }
+
+    @Test(arguments: [false, true], [0, 2])
+    func jvmClassForNameIssue2379(fromArtifact: Bool, optimization: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_2379_class_for_name.kt", file: #filePath),
+            expectedOutput: String(repeating: "true\n", count: 5),
+            moduleName: "KUU2379ClassForName",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: optLevel
+        )
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func jvmClassMappingIssue2391(fromArtifact: Bool, optimization: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        try compileAndRunKotlin(
+            try diffCaseSource("java_void_primitive_type.kt", file: #filePath),
+            expectedOutput: "OK\n",
+            moduleName: "KUU2391JavaLangVoid",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: optLevel
+        )
+    }
 }

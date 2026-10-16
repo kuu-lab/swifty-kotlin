@@ -272,6 +272,7 @@ final class TypeCheckDriver {
             case let .classDecl(classDecl):
                 pendingDeclarations += classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects
                 pendingDeclarations += classDecl.enumEntries.flatMap(\.memberProperties)
+                pendingDeclarations += classDecl.enumEntries.flatMap(\.nestedClasses)
                 if let companion = classDecl.companionObject { pendingDeclarations.append(companion) }
             case let .interfaceDecl(interfaceDecl):
                 pendingDeclarations += interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
@@ -279,7 +280,7 @@ final class TypeCheckDriver {
             case let .objectDecl(objectDecl):
                 pendingDeclarations += objectDecl.memberProperties + objectDecl.nestedClasses + objectDecl.nestedObjects
             case let .enumEntryDecl(entry):
-                pendingDeclarations += entry.memberProperties
+                pendingDeclarations += entry.memberProperties + entry.nestedClasses
             default:
                 break
             }
@@ -330,28 +331,19 @@ final class TypeCheckDriver {
 
         // Explicit contracts are declaration metadata. Earlier callers must
         // see them before a later function body happens to be type checked.
+        var registeredInferredReturnDeclarations: Set<DeclID> = []
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declaration in file.topLevelDecls {
+                registerInferredReturnFunctions(
+                    in: declaration,
+                    context: inferCtx,
+                    visited: &registeredInferredReturnDeclarations
+                )
                 guard case let .funDecl(function)? = ast.arena.decl(declaration),
                       let symbol = sema.bindings.declSymbols[declaration]
                 else { continue }
-                registerInferredReturnFunction(for: declaration, context: inferCtx)
                 declChecker.precollectContractEffects(function: function, symbol: symbol, ctx: inferCtx)
-            }
-
-            for declaration in file.topLevelDecls {
-                guard case let .objectDecl(objectDecl)? = ast.arena.decl(declaration),
-                      let symbol = sema.bindings.declSymbols[declaration]
-                else { continue }
-                let objectCtx = declChecker.makeObjectTypeCheckContext(
-                    objectDecl: objectDecl,
-                    symbol: symbol,
-                    ctx: inferCtx.with(currentDeclSymbol: symbol)
-                )
-                for memberFunction in objectDecl.memberFunctions {
-                    registerInferredReturnFunction(for: memberFunction, context: objectCtx)
-                }
             }
         }
 

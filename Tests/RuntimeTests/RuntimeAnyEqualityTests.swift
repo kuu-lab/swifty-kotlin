@@ -137,16 +137,27 @@ struct RuntimeAnyEqualityTests {
 
     @Test
     func callableReferenceEqualityUsesTargetAndCaptures() {
-        func reference(target: Int, captures: [Int] = []) -> Int {
+        func reference(target: Int, captures: [Int] = [], isProperty: Bool = false) -> Int {
             var thrown = 0
-            let value = kk_function_create_1(target, 0, &thrown)
-            _ = kk_callable_ref_tag_kfunction(
-                value,
-                runtimeMakeStringRaw("f"),
-                runtimeMakeStringRaw("kotlin.Int"),
-                1,
-                0
-            )
+            let value = isProperty
+                ? kk_object_new(1, 0x51_44)
+                : kk_function_create_1(target, 0, &thrown)
+            if isProperty {
+                _ = kk_callable_ref_tag_kproperty(
+                    value,
+                    runtimeMakeStringRaw("p"),
+                    runtimeMakeStringRaw("kotlin.Int"),
+                    0
+                )
+            } else {
+                _ = kk_callable_ref_tag_kfunction(
+                    value,
+                    runtimeMakeStringRaw("f"),
+                    runtimeMakeStringRaw("kotlin.Int"),
+                    1,
+                    0
+                )
+            }
             let capturesRaw = captures.isEmpty
                 ? runtimeNullSentinelInt
                 : registerRuntimeObject(RuntimeListBox(elements: captures))
@@ -162,6 +173,9 @@ struct RuntimeAnyEqualityTests {
         let captured = reference(target: target, captures: [kk_box_int(7)])
         let sameCapture = reference(target: target, captures: [kk_box_int(7)])
         let otherCapture = reference(target: target, captures: [kk_box_int(8)])
+        let firstProperty = reference(target: target, captures: [runtimeNullSentinelInt], isProperty: true)
+        let sameProperty = reference(target: target, captures: [runtimeNullSentinelInt], isProperty: true)
+        let differentPropertyCapture = reference(target: target, captures: [kk_box_int(7)], isProperty: true)
 
         #expect(boolValue(kk_any_equals(first, 0, same, 0)))
         #expect(kk_any_hashCode(first, 0) == kk_any_hashCode(same, 0))
@@ -169,6 +183,10 @@ struct RuntimeAnyEqualityTests {
         #expect(boolValue(kk_any_equals(captured, 0, sameCapture, 0)))
         #expect(kk_any_hashCode(captured, 0) == kk_any_hashCode(sameCapture, 0))
         #expect(!boolValue(kk_any_equals(captured, 0, otherCapture, 0)))
+        #expect(boolValue(kk_any_equals(firstProperty, 0, sameProperty, 0)))
+        #expect(kk_any_hashCode(firstProperty, 0) == kk_any_hashCode(sameProperty, 0))
+        #expect(!boolValue(kk_any_equals(firstProperty, 0, differentPropertyCapture, 0)))
+        #expect(!boolValue(kk_any_equals(first, 0, firstProperty, 0)))
 
         var thrown = 0
         let lambda = kk_function_create_1(target, 0, &thrown)

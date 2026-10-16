@@ -127,6 +127,51 @@ golden mismatch が出る。これは `git checkout -- Sources` した素の状�
 の残存範囲だと考えている（詳細は `equal-constraint-lub-glb-pollution-bug` メモリファイル参照）。
 別タスクとして spawn_task 済み。
 
+## IO-F03: 固定版 ktor-io macOS consumer（2026-10-16）
+
+PR #9138 で actual-only companion call の解決を修正した。POSIX dispatcher が import する
+`kotlinx.coroutines.IO` は PR #9196（KUU-2404）で bundled coroutine source に追加済みである。
+その getter は `Dispatchers.IO` を返すため identity を共有する。KUU-2339（PR #9163）の platform-only
+supertype 対応も master に入っている。これらを前提に、固定した Ktor source と bundled library を
+使う再現ハーネス `Scripts/ktor_io_consumer.sh` を追加した。
+
+入力の pin は次のとおり。スクリプトは Ktor の version catalog と、bundled kotlinx-io の
+`upstream-lock.json` に記録された commit を照合する。
+
+| 入力 | 固定値 |
+|---|---|
+| Ktor 3.6.0 | commit `111c5807d0a9004c8e0f17ae01e12a71aae56a29` |
+| kotlinx-io 0.9.1 | commit `362bdc35e159bad6da1e08101c8321792d762281` |
+| kotlinx-coroutines 1.11.0 | commit `8564f65764d3d05893cec026c6e94250e2b23874` |
+| Kotlin | 2.3.21 |
+| atomicfu | 0.33.0 |
+| target | `arm64-apple-macosx` |
+| `ktor-io` source roots | `common`, `nonJvm`, `jvmAndPosix`, `posix`, `darwin`（63 files） |
+
+```bash
+swift build
+bash Scripts/ktor_io_consumer.sh
+```
+
+スクリプトは Ktor の commit と version catalog を検証し、fresh bundled stdlib `.kklib` を生成する。
+5 source roots をまとめて O0/O2 で library compile し、成功後に consumer を compile・link・実行する。
+consumer は packet、stream copy、UTF-8 / CRLF / 空行、buffered channel、flush / close / EOF、
+cancellation cause、ByteString peek、unsafe buffer read を扱い、各最適化で stdout を期待バイト列と
+完全比較する。プロセスの30秒 timeout でハングも検出する。全ログは既定で一時ディレクトリの
+`ktor-io-consumer-111c5807/out/` に残る。既知の fresh `.kklib` を使うときは
+`KTOR_IO_STDLIB_KKLIB=/path/to/KSwiftKStdlib.kklib` を指定できる。
+
+実行結果: `swift build` と fresh stdlib compile は成功。2026-10-16 の pinned 63-file library compile は
+O0/O2 とも `KSWIFTK` error 102件、warning 8件で停止し、library artifact は生成されなかった。
+主な残件は `PosixErrors.kt` の errno 定数、`ByteOrderNative.kt` の `Platform`、POSIX `memcpy` / pointer
+overload、`CharsetDarwin.kt` の Foundation 型・関数と型推論である。よってこの実行では consumer compile・
+link・run、stdout 一致、非ハングは未検証である。
+
+残る blocker は [KUU-2403](https://linear.app/kuu/issue/KUU-2403)（In Progress、PR #9197）と
+[KUU-2415](https://linear.app/kuu/issue/KUU-2415)（expect class を actual typealias で実装した際の
+重複宣言・member lookup）で、どちらもこの source set の library compile を妨げる。
+KUU-2404 と KUU-2339 はそれぞれ PR #9196 / #9163 で完了している。
+
 ## まとめ
 
 Ktor が今すぐビルドできる状態にはなっていない。今回直したのは実在する Kotlin コードで踏む

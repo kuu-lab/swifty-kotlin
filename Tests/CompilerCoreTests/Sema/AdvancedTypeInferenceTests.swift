@@ -5,6 +5,13 @@ import Testing
 
 @Suite
 struct AdvancedTypeInferenceTests {
+    private func makeContextWithoutStdlib(_ source: String) -> CompilationContext {
+        let path = "/virtual/list-of-upper-bound.kt"
+        let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = context.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        return context
+    }
+
     @Test(arguments: [
         "sequence { for (value in 0 until 3) yield(value) }",
         "sequence<Int> { for (value in 0 until 3) yield(value) }",
@@ -104,6 +111,38 @@ struct AdvancedTypeInferenceTests {
         try runSema(ctx)
         let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
         #expect(!ctx.diagnostics.hasError, "Expected collect's receiver lambda to infer T from add(), got: \(diagnostics)")
+    }
+
+    @Test func testListOfUsesCommonTypeParameterUpperBoundForVarargInference() throws {
+        let ctx = makeContextWithoutStdlib("""
+        class List<out T>
+        fun <T> listOf(vararg elements: T): List<T> = List<T>()
+
+        fun <T, A : T, B : T> asList(a: A, b: B): List<T> = listOf(a, b)
+
+        class Tuple2<A, B>(val t1: A, val t2: B)
+        val <T, T1 : T, T2 : T> Tuple2<T1, T2>.components: List<T>
+            get() = listOf(t1, t2)
+        """)
+        try runSema(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected listOf to infer the shared upper bound, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test func testListOfSharedUpperBoundStillRejectsIncompatibleExplicitTypeArgument() throws {
+        let ctx = makeContextWithoutStdlib("""
+        class List<out T>
+        fun <T> listOf(vararg elements: T): List<T> = List<T>()
+
+        fun <T, A : T, B : T> asStringList(a: A, b: B): List<T> = listOf<String>(a, b)
+        """)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.hasError,
+            "An explicit String type argument must not be accepted for arbitrary A : T and B : T"
+        )
     }
 
     @Test func testSequenceBuilderYieldAllListChoosesIterableOverload() throws {

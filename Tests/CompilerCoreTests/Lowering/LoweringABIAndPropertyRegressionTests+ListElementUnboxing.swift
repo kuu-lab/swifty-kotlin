@@ -3,6 +3,54 @@
 import Testing
 
 extension LoweringABIAndPropertyRegressionTests {
+    @Test
+    func testGenericObjectFieldGetUnboxesErasedDoubleBeforeComparison() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let fieldGet = interner.intern("kk_array_get_inbounds")
+        let compare = interner.intern("kk_op_deq")
+        let receiver = arena.appendTemporary(type: types.anyType)
+        let offset = arena.appendExpr(.intLiteral(2), type: types.intType)
+        let fieldValue = arena.appendTemporary(type: types.doubleType)
+        let literal = arena.appendExpr(.doubleLiteral(2.0), type: types.doubleType)
+        let comparison = arena.appendTemporary(type: types.booleanType)
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 7190), name: interner.intern("main"), params: [],
+            returnType: types.unitType,
+            body: [
+                .call(symbol: nil, callee: fieldGet, arguments: [receiver, offset],
+                      result: fieldValue, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: compare, arguments: [fieldValue, literal],
+                      result: comparison, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ], isSuspend: false, isInline: false
+        )
+        let decl = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [decl])], arena: arena)
+        let sema = makeSemaModule(types: types).ctx
+
+        try ABILoweringPass().run(module: module, ctx: makeKIRContext(interner: interner, sema: sema))
+
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: interner)
+        guard case let .call(_, actualGet, getArguments, boxedValue, _, _, _, _) = body[0],
+              let boxedValue,
+              case let .call(_, unbox, unboxArguments, unboxedValue, _, _, _, _) = body[1],
+              case let .call(_, actualCompare, compareArguments, _, _, _, _, _) = body[2]
+        else {
+            Issue.record("Expected object field get, unbox, and comparison calls")
+            return
+        }
+        #expect(actualGet == fieldGet)
+        #expect(getArguments == [receiver, offset])
+        #expect(boxedValue != fieldValue)
+        #expect(unbox == interner.intern(try loweringBoxingABI(.unbox, for: .double, nonNull: true, staticPrimitive: true).name))
+        #expect(unboxArguments == [boxedValue])
+        #expect(unboxedValue == fieldValue)
+        #expect(actualCompare == compare)
+        #expect(compareArguments == [fieldValue, literal])
+    }
+
     @Test(arguments: [
         PrimitiveType.byte, .short, .ubyte, .ushort, .int, .long, .uint, .ulong,
         .float, .double, .char, .boolean,

@@ -210,7 +210,26 @@ extension ExprTypeChecker {
             }
             return nil
         }()
-        let expectedParameterTypes: [TypeID] = if let declaredParameterTypes {
+        // Callable references satisfy the reflective `KFunction<R>` view of a
+        // generic receiver, but that view erases the callable's parameter
+        // types. When the HOF receiver supplies the concrete function type,
+        // preserve it for implicit `it` so calls such as
+        // `Boolean::not.let { it(true) }` remain invokable.
+        let inferredCallableItType: TypeID? = {
+            guard effectiveParams == [ctx.interner.intern("it")],
+                  let inferredImplicitItType,
+                  case .functionType = sema.types.kind(of: inferredImplicitItType),
+                  let declaredParameterType = declaredParameterTypes?.first,
+                  sema.types.nominalFunctionType(for: declaredParameterType) == nil,
+                  sema.types.isSubtype(inferredImplicitItType, declaredParameterType)
+            else {
+                return nil
+            }
+            return inferredImplicitItType
+        }()
+        let expectedParameterTypes: [TypeID] = if let inferredCallableItType {
+            [inferredCallableItType]
+        } else if let declaredParameterTypes {
             declaredParameterTypes
         } else if effectiveParams.count == 1 && effectiveParams.contains(ctx.interner.intern("it")) {
             // For implicit `it` parameter, try to infer type from context
@@ -269,6 +288,22 @@ extension ExprTypeChecker {
             )
         }
 
+        // A type variable bounded by final Unit can only resolve to Unit. Treat
+        // its lambda as Unit-returning so the body is coerced before inference
+        // chooses the body's natural type for that variable.
+        let expectedReturnHasUnitUpperBound: Bool = {
+            guard !expectedTypeIsHintOnly,
+                  let expectedReturnType = expectedFunctionType?.returnType,
+                  case let .typeParam(typeParameter) = sema.types.kind(of: expectedReturnType)
+            else {
+                return false
+            }
+            return sema.symbols.typeParameterUpperBounds(for: typeParameter.symbol)
+                .contains(sema.types.unitType)
+        }()
+        let lambdaUsesUnitCoercion = expectedFunctionType?.returnType == sema.types.unitType
+            || expectedReturnHasUnitUpperBound
+
         var bodyCtx: TypeInferenceContext = if let label {
             // `foo@{ ... }()` binds `foo` to the postfix expression rather
             // than the lambda literal, so the label does not denote a function
@@ -279,6 +314,7 @@ extension ExprTypeChecker {
             ctx
         }
         bodyCtx = bodyCtx.enteringLambdaBody(id)
+        bodyCtx.isUnitCoercionContext = lambdaUsesUnitCoercion
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
            bodyCtx.implicitReceiverStack.last?.symbol != receiverSymbol
@@ -354,7 +390,7 @@ extension ExprTypeChecker {
                 return nil
             }
             guard let expectedReturnType = expectedFunctionType?.returnType,
-                  expectedReturnType != sema.types.unitType else {
+                  !lambdaUsesUnitCoercion else {
                 return nil
             }
             if case let .typeParam(parameter) = sema.types.kind(of: expectedReturnType),
@@ -368,7 +404,7 @@ extension ExprTypeChecker {
         }()
         let expectedLambdaReturnType: TypeID? = if expectedTypeIsHintOnly {
             nil
-        } else if expectedFunctionType?.returnType == sema.types.unitType {
+        } else if lambdaUsesUnitCoercion {
             sema.types.unitType
         } else {
             bodyExpectedType
@@ -384,7 +420,7 @@ extension ExprTypeChecker {
             ctx: bodyCtx,
             locals: &lambdaLocals,
             expectedType: bodyExpectedType,
-            isStatementContext: expectedFunctionType?.returnType == sema.types.unitType
+            isStatementContext: lambdaUsesUnitCoercion
         )
         if expectedLambdaReturnType == sema.types.unitType,
            sema.types.makeNonNullable(fallthroughType) == sema.types.unitType
@@ -457,7 +493,9 @@ extension ExprTypeChecker {
                 || expectedReturnHasUnresolvedOutputTypeParameter
                     ? inferOptimizedReturnType(
                         inferredBodyType: sourceLevelInferredBodyType,
-                        expectedReturnType: expectedFunctionType.returnType,
+                        expectedReturnType: lambdaUsesUnitCoercion
+                            ? sema.types.unitType
+                            : expectedFunctionType.returnType,
                         sema: sema
                     )
                     : expectedFunctionType.returnType
@@ -478,14 +516,17 @@ extension ExprTypeChecker {
         }
 
         if let expectedFunctionType {
+            let inferenceReturnType = lambdaUsesUnitCoercion
+                ? sema.types.unitType
+                : expectedFunctionType.returnType
             if !expectedTypeIsHintOnly,
                let session = ctx.builderInference,
-               expectedFunctionType.returnType != sema.types.unitType,
-               session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
+               inferenceReturnType != sema.types.unitType,
+               session.mentionsVariable(inferenceReturnType, types: sema.types)
             {
                 session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                     subtype: sourceLevelInferredBodyType,
-                    supertype: expectedFunctionType.returnType,
+                    supertype: inferenceReturnType,
                     typeVarBySymbol: session.typeVarBySymbol,
                     typeSystem: sema.types,
                     blameRange: ast.arena.exprRange(body)
@@ -499,7 +540,7 @@ extension ExprTypeChecker {
                 ? sourceLevelInferredBodyType
                 : inferOptimizedReturnType(
                     inferredBodyType: sourceLevelInferredBodyType,
-                    expectedReturnType: expectedFunctionType.returnType,
+                    expectedReturnType: inferenceReturnType,
                     sema: sema
                 )
 
@@ -520,6 +561,7 @@ extension ExprTypeChecker {
             // overload resolver once `R` is inferred (`checkTypeParameterBounds`).
             let shouldSkipSubtypeConstraint =
                 expectedTypeIsHintOnly
+                || lambdaUsesUnitCoercion
                 || expectedFunctionType.returnType == sema.types.unitType
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
@@ -571,7 +613,7 @@ extension ExprTypeChecker {
             // that input so the call resolver can collect `T <: String`, while
             // keeping the body's value coerced to Unit.
             let hasAnnotatedUnresolvedUnitInput =
-                expectedFunctionType.returnType == sema.types.unitType
+                lambdaUsesUnitCoercion
                 && annotatedParameterTypes != nil
                 && zip(parameterTypes, expectedFunctionType.params).contains { actual, expected in
                     actual != expected && typeMentionsTypeParameter(expected, sema: sema)
@@ -731,7 +773,12 @@ extension ExprTypeChecker {
         }
 
         let explicitTypeArgs = explicitTypeArgRefs.map { typeArgRef in
-            driver.helpers.resolveTypeRef(
+            guard !driver.helpers.isExplicitTypeInferencePlaceholder(
+                typeArgRef, ast: ctx.ast, interner: ctx.interner
+            ) else {
+                return TypeID.invalid
+            }
+            return driver.helpers.resolveTypeRef(
                 typeArgRef,
                 ast: ctx.ast,
                 sema: sema,
@@ -753,6 +800,12 @@ extension ExprTypeChecker {
                 to: parameterType,
                 signature: signature,
                 candidate: candidate,
+                receiverType: memberReceiverType,
+                sema: sema
+            )
+            parameterType = driver.callChecker.applyFunctionReceiverTypeArgs(
+                to: parameterType,
+                signature: signature,
                 receiverType: memberReceiverType,
                 sema: sema
             )
@@ -811,7 +864,7 @@ extension ExprTypeChecker {
             return type
         }
         let explicitType = explicitTypeArgs[argOffset]
-        guard explicitType != sema.types.errorType else {
+        guard explicitType != TypeID.invalid, explicitType != sema.types.errorType else {
             return type
         }
         return typeParam.nullability == .nullable

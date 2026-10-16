@@ -270,6 +270,9 @@ public final class BindingTable {
     /// no symbol to bind either, so this records which raw binary operator
     /// KIR lowering should synthesize a wrapper function around in its place.
     public private(set) var primitiveOperatorCallableRefs: [ExprID: BinaryOp] = [:]
+    /// `Boolean::not` has no backing member symbol, so KIR lowering synthesizes
+    /// a wrapper around the raw unary Boolean operation instead.
+    public private(set) var primitiveUnaryOperatorCallableRefs: [ExprID: UnaryOp] = [:]
     /// `Int::toString` used as a `(Int) -> String` function value: `toString()`
     /// on a receiver has no member symbol (only the `toString(radix)` overload
     /// is a real declaration), so KIR lowering synthesizes a wrapper that
@@ -394,6 +397,7 @@ public final class BindingTable {
         if !inferredCallableReferenceSymbols.isEmpty { return false }
         if !unboundCallableRefs.isEmpty { return false }
         if !primitiveOperatorCallableRefs.isEmpty { return false }
+        if !primitiveUnaryOperatorCallableRefs.isEmpty { return false }
         if !anyToStringCallableRefs.isEmpty { return false }
         if !objectLiteralCaptureSymbolsByOwner.isEmpty { return false }
         if !objectLiteralCapturedReceiversByOwner.isEmpty { return false }
@@ -510,6 +514,7 @@ public final class BindingTable {
         worker.inferredCallableReferenceSymbols = inferredCallableReferenceSymbols
         worker.unboundCallableRefs = unboundCallableRefs
         worker.primitiveOperatorCallableRefs = primitiveOperatorCallableRefs
+        worker.primitiveUnaryOperatorCallableRefs = primitiveUnaryOperatorCallableRefs
         worker.anyToStringCallableRefs = anyToStringCallableRefs
         worker.objectLiteralCaptureSymbolsByOwner = objectLiteralCaptureSymbolsByOwner
         worker.objectLiteralCapturedReceiversByOwner = objectLiteralCapturedReceiversByOwner
@@ -1219,6 +1224,14 @@ public final class BindingTable {
     /// callable reference (REFL-PRIMOP).
     public func primitiveOperatorCallableRef(for expr: ExprID) -> BinaryOp? {
         primitiveOperatorCallableRefs[expr]
+    }
+
+    public func bindPrimitiveUnaryOperatorCallableRef(_ expr: ExprID, op: UnaryOp) {
+        primitiveUnaryOperatorCallableRefs[expr] = op
+    }
+
+    public func primitiveUnaryOperatorCallableRef(for expr: ExprID) -> UnaryOp? {
+        primitiveUnaryOperatorCallableRefs[expr]
     }
 
     public func bindAnyToStringCallableRef(_ expr: ExprID) {

@@ -143,6 +143,63 @@ struct LLVMOptimizationRegressionTests {
         )
     }
 
+    /// KUU-2399: source-injected O2 codegen for the kt4152 property fixture must emit valid LLVM IR.
+    @Test
+    func topLevelPropertyIncrementCompilesWithSourceStdlibAtO2() throws {
+        let source = """
+        public var inc: Int = 0
+
+        public var propInc: Int = 0
+            get() { inc++; return field }
+            set(a: Int) {
+                inc++
+                field = a
+            }
+
+        public var dec: Int = 0
+
+        public var propDec: Int = 0
+            get() { dec--; return field }
+            set(a: Int) {
+                dec--
+                field = a
+            }
+
+        fun box(): String {
+            propInc++
+            if (inc != 2) return "fail in postfix increment: ${inc} != 2"
+            if (propInc != 1) return "fail in postfix increment: ${propInc} != 1"
+
+            propDec--
+            if (dec != -2) return "fail in postfix decrement: ${dec} != -2"
+            if (propDec != -1) return "fail in postfix decrement: ${propDec} != -1"
+
+            return "OK"
+        }
+        fun main() { println(box()) }
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent("kt4152-source-o2-\(UUID().uuidString)").path
+            let objectPath = outputBase + ".o"
+            defer { try? FileManager.default.removeItem(atPath: objectPath) }
+
+            let options = CompilerOptions(
+                moduleName: "Kt4152SourceStdlibO2",
+                inputs: [inputPath],
+                outputPath: outputBase,
+                emit: .object,
+                target: TargetTriple.hostDefault(),
+                optLevel: .O2,
+                allowDefaultStdlibLibrary: false
+            )
+            let result = makeTestDriver().runForTesting(options: options)
+            try assertCompilationSucceeded(result, context: "kt4152 source-stdlib O2 object compilation")
+            #expect(FileManager.default.fileExists(atPath: objectPath))
+        }
+    }
+
     /// KUU-2241: function-value invokes and curried bodies must keep valid arity-specific LLVM ABIs.
     @Test
     func highArityFunctionInvokesAndCurryBodiesEmitValidLLVMAtO0AndO2() throws {
@@ -183,6 +240,60 @@ struct LLVMOptimizationRegressionTests {
                 try assertCompilationSucceeded(result, context: "Function invocation object compilation at \(optimization)")
                 #expect(FileManager.default.fileExists(atPath: objectPath))
             }
+        }
+    }
+
+    /// KUU-2402: source stdlib O2 must keep FunctionN.invoke call arities valid
+    /// when a generic result is discarded by a Unit lambda.
+    @Test
+    func kuu2402SourceAndArtifactO2PreserveGenericUnitLambdaResult() throws {
+        let arityChecks = (0...22).map { arity -> (declaration: String, call: String, expected: String) in
+            let parameterNames = (0..<arity).map { "p\($0 + 1)" }
+            let typeArguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
+            let functionType = "Function\(arity)<\(typeArguments)>"
+            let values = (0..<arity).map { $0 + 1 }
+            let invokeArguments = values.map(String.init).joined(separator: ", ")
+            let invokeBody = arity == 0 ? "fn.invoke()" : "fn.invoke(\(invokeArguments))"
+            let declaration = "fun invoke\(arity)(fn: \(functionType)): Int = \(invokeBody)"
+            let lambdaBody = parameterNames.isEmpty ? "0" : parameterNames.joined(separator: " + ")
+            let lambda = parameterNames.isEmpty
+                ? "{ \(lambdaBody) }"
+                : "{ \(parameterNames.joined(separator: ", ")) -> \(lambdaBody) }"
+            let call = "println(invoke\(arity) \(lambda))"
+            let expected = String(values.reduce(0, +))
+            return (declaration, call, expected)
+        }
+        let source = """
+        var result = ""
+
+        fun <K> materialize(): K {
+            result += "K"
+            return "str" as K
+        }
+
+        fun consume(block: () -> Unit) {
+            block()
+        }
+
+        \(arityChecks.map(\.declaration).joined(separator: "\n"))
+
+        fun main() {
+            consume { materialize<String>() }
+            print(result)
+            println()
+            \(arityChecks.map(\.call).joined(separator: "\n"))
+        }
+        """
+        let expected = "K\n" + arityChecks.map(\.expected).joined(separator: "\n") + "\n"
+
+        for stdlibFromSource in [true, false] {
+            try assertOutput(
+                source,
+                moduleName: stdlibFromSource ? "KUU2402SourceStdlibO2" : "KUU2402ArtifactStdlibO2",
+                expected: expected,
+                optimization: .O2,
+                stdlibFromSource: stdlibFromSource
+            )
         }
     }
 

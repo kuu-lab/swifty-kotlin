@@ -227,6 +227,9 @@ extension DataFlowSemaPhase {
             if record.isValueClass { flags.insert(.valueType) }
             if record.isExpect { flags.insert(.expectDeclaration) }
             if record.isActual { flags.insert(.actualDeclaration) }
+            if record.constructorVisibilityInherited, record.kind == .constructor {
+                flags.insert(.constructorVisibilityInherited)
+            }
             if record.kind == .class && record.isInnerClass { flags.insert(.innerClass) }
             if record.isMutable, record.kind == .property || record.kind == .field {
                 flags.insert(.mutable)
@@ -1396,6 +1399,13 @@ extension DataFlowSemaPhase {
                 ? signature.typeParameterSymbols
                 : Array(ownerTypeParameters.prefix(ownerCount))
                     + signature.typeParameterSymbols.dropFirst(ownerCount)
+            let normalizedUnsafeVarianceTypeParameterSymbols = signature.valueParameterUnsafeVarianceTypeParameterSymbols.map { unsafeSymbols in
+                Set(signature.typeParameterSymbols.enumerated().compactMap { index, symbol in
+                    unsafeSymbols.contains(symbol) && normalizedTypeParameterSymbols.indices.contains(index)
+                        ? normalizedTypeParameterSymbols[index]
+                        : nil
+                })
+            }
             let normalizedUpperBoundsList = signature.typeParameterUpperBoundsList.map { $0.map(normalize) }
             for index in 0 ..< min(signature.classTypeParameterCount, normalizedTypeParameterSymbols.count) {
                 guard index < normalizedUpperBoundsList.count else {
@@ -1417,6 +1427,7 @@ extension DataFlowSemaPhase {
                     isSuspend: signature.isSuspend,
                     canThrow: signature.canThrow,
                     valueParameterSymbols: signature.valueParameterSymbols,
+                    valueParameterUnsafeVarianceTypeParameterSymbols: normalizedUnsafeVarianceTypeParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
@@ -1501,6 +1512,7 @@ extension DataFlowSemaPhase {
                 returnType: normalize(signature.returnType),
                 isSuspend: signature.isSuspend, canThrow: signature.canThrow,
                 valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
                 valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                 valueParameterIsVararg: signature.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,

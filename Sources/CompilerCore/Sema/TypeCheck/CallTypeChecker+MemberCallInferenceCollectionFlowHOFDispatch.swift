@@ -168,7 +168,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
-                } else if !isSequenceReceiver, isCollectionReceiver,
+                } else if !isSequenceReceiver, (isCollectionReceiver || isIterableReceiver),
                           bindBundledIterableSourceFunction(
                               typeArguments: [collectionElementType, collectionElementType]
                           , locals: &locals) {

@@ -238,6 +238,16 @@ struct TypeCheckScopeBuilder {
             guard !declarations.isEmpty, declarations.allSatisfy({ inaccessibleOwner(of: $0) != nil }),
                   let declaration = declarations.first, let inaccessible = inaccessibleOwner(of: declaration)
             else { return true }
+            // Nested private declarations are resolved at the import site but
+            // their accessibility depends on the body that uses the import.
+            // Keep rejecting file-private top-level declarations from other
+            // files; only defer a private owner nested inside another nominal.
+            if inaccessible.visibility == .private,
+               let parent = sema.symbols.parentSymbol(for: inaccessible.id),
+               let owner = sema.symbols.symbol(parent),
+               owner.kind != .package {
+                return true
+            }
             let code: String = switch inaccessible.visibility {
             case .private: "KSWIFTK-SEMA-0040"
             case .protected: "KSWIFTK-SEMA-0041"
@@ -395,6 +405,32 @@ struct TypeCheckScopeBuilder {
                 }
             }
 
+            // A star import whose path resolves to a nested classifier imports
+            // that classifier's nested classifiers, not the owner itself. Keep
+            // visibility contextual here: a private nested owner can be
+            // accessible from one enclosing class in the file and inaccessible
+            // from another use site.
+            let wildcardClassifierOwners = importDecl.isWildcard ? resolved.filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                switch symbol.kind {
+                case .class, .interface, .annotationClass, .typeAlias:
+                    return true
+                default:
+                    return false
+                }
+            } : []
+            for owner in wildcardClassifierOwners.sorted(by: { $0.rawValue < $1.rawValue }) {
+                for member in sema.symbols.children(of: owner) {
+                    guard let symbol = sema.symbols.symbol(member) else { continue }
+                    switch symbol.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                        wildcardImportScope.insert(member)
+                    default:
+                        continue
+                    }
+                }
+            }
+
             let hasPackageImport = resolved.contains { symbolID in
                 sema.symbols.symbol(symbolID)?.kind == .package
             }
@@ -402,7 +438,7 @@ struct TypeCheckScopeBuilder {
                 guard let symbol = sema.symbols.symbol(symbolID) else {
                     return false
                 }
-                return symbol.kind != .package
+                return symbol.kind != .package && !wildcardClassifierOwners.contains(symbolID)
             }
             if !importedSymbols.isEmpty, !hasPackageImport {
                 guard validateExplicitImport(importedSymbols, range: importDecl.range) else { continue }
@@ -527,6 +563,7 @@ struct TypeCheckScopeBuilder {
             ["kotlin", "comparisons"],
             ["kotlin", "coroutines"],
             ["kotlin", "enums"],
+            ["kotlin", "native"],
             // kotlin.math is not a Kotlin default import; importing it here broke
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.
             ["kotlin", "io"],

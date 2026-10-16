@@ -568,7 +568,8 @@ extension CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             expectedTypeHintIndices: expectedTypeHintIndices,
-            contextualCallResultType: expectedType,
+            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
+                ? sema.types.unitType : expectedType,
             explicitTypeArgs: argumentContextTypeArgs,
             receiverType: callImplicitReceiverType,
             boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(

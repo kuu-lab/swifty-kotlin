@@ -24,12 +24,23 @@ struct TypeInferenceContext: CustomStringConvertible {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     var scope: Scope
+    /// The Elvis LHS call may use an enclosing result type to infer its generic
+    /// return type without checking the call's nullable result against it.
+    var isElvisLhsExpectedTypeHint = false
     /// A failed call may retry once using its arguments' natural types while
     /// keeping the outer result constraint in overload resolution.
     var allowsLiftedCallExpectedTypeHints = true
     /// Collection fast paths must check inputs when their result type comes
     /// from a speculative superclass hint rather than the inputs themselves.
     var validatesLiftedHintCollectionArguments = false
+    /// The current call expression is in statement position and its result is
+    /// discarded. This lets generic call inference apply Kotlin's Unit-coercion
+    /// rules without weakening calls whose values are consumed by expressions.
+    var isCallResultDiscarded = false
+    /// The surrounding function or lambda body is expected to produce Unit.
+    /// A discarded call may pass Unit to its lambda arguments only in this
+    /// context; ordinary statements in non-Unit functions keep natural types.
+    var isUnitCoercionContext = false
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]
@@ -350,6 +361,22 @@ struct TypeInferenceContext: CustomStringConvertible {
             return entry.symbol
         }
         return nil
+    }
+
+    /// Returns the enum-entry field represented by a qualified enum-entry
+    /// receiver such as `this@X`.
+    func enumEntryReceiverSymbol(forQualifiedThisLabel label: InternedString) -> SymbolID? {
+        guard resolveQualifiedThis(label: label) != nil,
+              let enumSymbol = resolveQualifiedThisReceiverSymbol(label: label),
+              let enumInfo = sema.symbols.symbol(enumSymbol),
+              enumInfo.kind == .enumClass
+        else {
+            return nil
+        }
+        return sema.symbols.lookupAll(fqName: enumInfo.fqName + [label]).first { candidate in
+            sema.symbols.symbol(candidate)?.kind == .field
+                && sema.symbols.parentSymbol(for: candidate) == enumSymbol
+        }
     }
 
     /// Same tower as `implicitReceiverMemberLookupTypes()` but keeps each

@@ -18,14 +18,21 @@ struct VisibilityChecker {
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?
     ) -> Bool {
-        // An explicitly public constructor or member cannot expose an owner
-        // whose declaration is private or internal in an imported library.
-        if symbol.flags.contains(.importedLibrary),
-           let parent = symbols.parentSymbol(for: symbol.id),
+        // A nested declaration cannot expose an owner that is invisible at its
+        // use site, for source declarations or imported metadata alike.
+        if let parent = symbols.parentSymbol(for: symbol.id),
            let owner = symbols.symbol(parent),
-           owner.flags.contains(.importedLibrary),
            !isAccessible(owner, fromFile: accessFileID, enclosingClass: enclosingClass) {
             return false
+        }
+        // An implicit constructor inherits the effective visibility of its
+        // owning class. This matters for a protected nested class: checking
+        // the constructor as a protected member of that nested class would
+        // incorrectly require the caller to subclass the nested class itself.
+        if symbol.flags.contains(.constructorVisibilityInherited),
+           let parent = symbols.parentSymbol(for: symbol.id),
+           let ownerSymbol = symbols.symbol(parent) {
+            return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
         }
         switch symbol.visibility {
         case .public:
@@ -65,18 +72,6 @@ struct VisibilityChecker {
                 if shareEnclosingClass(enclosingClass, parent) {
                     return true
                 }
-                // This constructor's `.private` was inherited from its owner
-                // (no explicit modifier on the constructor itself), so its real
-                // accessibility ceiling is the owner's own visibility rather than
-                // a class-hierarchy relationship — an unrelated top-level
-                // declaration in the same file as a `private class` shares no
-                // class hierarchy with it, but should still be able to construct
-                // it. Recurse into the owner's own check, which correctly falls
-                // back to file scope once its parent chain is exhausted.
-                if symbol.flags.contains(.constructorVisibilityInherited),
-                   let ownerSymbol = symbols.symbol(parent) {
-                    return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
-                }
                 return false
             }
             guard let declSite = symbol.declSite else {
@@ -87,13 +82,28 @@ struct VisibilityChecker {
             guard let ownerClass = symbols.parentSymbol(for: symbol.id) else {
                 return false
             }
+            // A protected nested class passes its visibility to an implicit
+            // constructor. Check access against that class's owning scope so
+            // the enclosing class and its subclasses can construct it. An
+            // explicitly protected constructor still uses its own class as
+            // the protected owner.
+            if symbol.flags.contains(.constructorVisibilityInherited),
+               let ownerSymbol = symbols.symbol(ownerClass) {
+                return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
+            }
             guard let enclosingClass else {
                 return false
             }
             if enclosingClass == ownerClass {
                 return true
             }
-            return isSubclass(enclosingClass, of: ownerClass)
+            if isSubclass(enclosingClass, of: ownerClass) {
+                return true
+            }
+            // Kotlin also grants protected access to declarations lexically
+            // nested inside the owner, including inner classes that are not
+            // themselves subclasses of that owner.
+            return isLexicallyNested(enclosingClass, within: ownerClass)
         }
     }
 
@@ -136,6 +146,18 @@ struct VisibilityChecker {
             if visited.contains(current.rawValue) { continue }
             visited.insert(current.rawValue)
             queue.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+        return false
+    }
+
+    private func isLexicallyNested(_ candidate: SymbolID, within owner: SymbolID) -> Bool {
+        var current = symbols.parentSymbol(for: candidate)
+        var visited: Set<SymbolID> = []
+        while let parent = current, visited.insert(parent).inserted {
+            if parent == owner {
+                return true
+            }
+            current = symbols.parentSymbol(for: parent)
         }
         return false
     }

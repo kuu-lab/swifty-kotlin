@@ -21,6 +21,7 @@ extension DataFlowSemaPhase {
     struct ImportedLibrarySymbolRecord {
         let kind: SymbolKind
         let visibility: Visibility
+        let constructorVisibilityInherited: Bool
         let mangledName: String
         let fqName: [InternedString]
         let arity: Int
@@ -32,6 +33,7 @@ extension DataFlowSemaPhase {
         let isMemberExtension: Bool
         let receiverOwnerFQName: [InternedString]?
         let valueParameterIsVararg: [Bool]
+        let valueParameterUnsafeVarianceTypeParameterIndices: [[Int]]
         let valueParameterAllowsNonLocalReturn: [Bool]
         let valueParameterHasDefaultValues: [Bool]
         /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
@@ -99,6 +101,7 @@ extension DataFlowSemaPhase {
         init(
             kind: SymbolKind,
             visibility: Visibility = .public,
+            constructorVisibilityInherited: Bool = false,
             mangledName: String = "",
             fqName: [InternedString] = [],
             arity: Int = 0,
@@ -110,6 +113,7 @@ extension DataFlowSemaPhase {
             isMemberExtension: Bool = false,
             receiverOwnerFQName: [InternedString]? = nil,
             valueParameterIsVararg: [Bool] = [],
+            valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
@@ -164,6 +168,7 @@ extension DataFlowSemaPhase {
         ) {
             self.kind = kind
             self.visibility = visibility
+            self.constructorVisibilityInherited = constructorVisibilityInherited
             self.mangledName = mangledName
             self.fqName = fqName
             self.arity = arity
@@ -175,6 +180,7 @@ extension DataFlowSemaPhase {
             self.isMemberExtension = isMemberExtension
             self.receiverOwnerFQName = receiverOwnerFQName
             self.valueParameterIsVararg = valueParameterIsVararg
+            self.valueParameterUnsafeVarianceTypeParameterIndices = valueParameterUnsafeVarianceTypeParameterIndices
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds

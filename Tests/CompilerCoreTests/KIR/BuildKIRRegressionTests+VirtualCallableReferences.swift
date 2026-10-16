@@ -71,6 +71,50 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
+    func testTopLevelExtensionStaysStaticBesideInterfaceMemberDispatch() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.text.Appendable
+
+        fun <T, R : Comparable<R>, A : Appendable> largest(
+            xs: List<T>,
+            selector: (T) -> R,
+            buffer: A
+        ): T {
+            buffer.append("interface")
+            return xs.maxBy(selector)
+        }
+        """)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let maxByCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> KIRInstruction? in
+                switch instruction {
+                case let .call(_, callee, _, _, _, _, _, _) where ctx.interner.resolve(callee) == "maxBy":
+                    return instruction
+                case let .virtualCall(_, callee, _, _, _, _, _, _) where ctx.interner.resolve(callee) == "maxBy":
+                    return instruction
+                default:
+                    return nil
+                }
+            }
+        }
+        #expect(maxByCalls.contains { if case .call = $0 { return true }; return false })
+        #expect(!maxByCalls.contains { if case .virtualCall = $0 { return true }; return false })
+
+        let appendCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> KIRInstruction? in
+                guard case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "append"
+                else { return nil }
+                return instruction
+            }
+        }
+        #expect(!appendCalls.isEmpty, "Appendable.append must retain interface virtual dispatch")
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     private func virtualCalls(
         named name: String,
         in module: KIRModule,

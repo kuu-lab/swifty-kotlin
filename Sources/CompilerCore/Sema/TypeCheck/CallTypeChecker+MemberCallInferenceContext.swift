@@ -414,7 +414,8 @@ extension CallTypeChecker {
         let preparedArgs = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
             ? prepareCallArguments(
                 args: args, callRange: range, candidates: vis,
-                contextualCallResultType: request.expectedType,
+                contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
+                    ? request.ctx.sema.types.unitType : request.expectedType,
                 explicitTypeArgs: explicitTypeArgs, ctx: ctx, locals: &locals
             ) : nil
         let argTypes = preparedArgs?.argTypes ?? args.map { arg -> TypeID in
@@ -427,7 +428,8 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             args: callArgs,
-            explicitTypeArgs: explicitTypeArgs
+            explicitTypeArgs: explicitTypeArgs,
+            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
         )
         let resolved: ResolvedCall
         if let preparedArgs {

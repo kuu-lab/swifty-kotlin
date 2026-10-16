@@ -169,6 +169,9 @@ extension CallTypeChecker {
             typeSystem: sema.types,
             isCallableArgument: { index in
                 guard args.indices.contains(index) else { return false }
+                if ctx.ast.arena.isAnonymousFunction(args[index].expr) {
+                    return true
+                }
                 if case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr) {
                     return true
                 }

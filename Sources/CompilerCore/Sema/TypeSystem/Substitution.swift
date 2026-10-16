@@ -202,7 +202,11 @@ public extension TypeSystem {
     ) -> Int? {
         guard !writeForbiddenSymbols.isEmpty else { return nil }
         for (index, paramType) in signature.parameterTypes.enumerated() {
-            for symbol in writeForbiddenSymbols where typeContainsTypeParam(paramType, symbol: symbol) {
+            let unsafeVarianceSymbols = signature.valueParameterUnsafeVarianceTypeParameterSymbols.indices.contains(index)
+                ? signature.valueParameterUnsafeVarianceTypeParameterSymbols[index]
+                : []
+            for symbol in writeForbiddenSymbols
+            where typeContainsTypeParam(paramType, symbol: symbol) && !unsafeVarianceSymbols.contains(symbol) {
                 return index
             }
         }
@@ -270,7 +274,17 @@ public extension TypeSystem {
             if newParts == parts {
                 return type
             }
-            return make(.intersection(newParts))
+            // A non-null intersection component removes null from every
+            // substituted part, including a nullable concrete type argument.
+            let hasNonNullPart = newParts.contains { isDefinitelyNonNull($0) }
+            let narrowedParts = hasNonNullPart
+                ? newParts.map { part in
+                    nullability(of: part) == .nonNull
+                        ? part
+                        : withNullability(.nonNull, for: part)
+                }
+                : newParts
+            return make(.intersection(narrowedParts))
 
         default:
             return type

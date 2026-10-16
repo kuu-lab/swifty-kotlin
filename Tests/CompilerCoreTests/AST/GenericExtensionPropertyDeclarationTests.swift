@@ -3,6 +3,28 @@ import Testing
 
 @Suite
 struct GenericExtensionPropertyDeclarationTests {
+    @Test
+    func nullableReceiverWithoutWhitespacePreservesPropertyNameAndType() throws {
+        let (ast, ctx) = try buildASTModule(
+            from: "class A\nvar A?.bar: Int",
+            includeStdlib: false
+        )
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(ast.files.flatMap(\.topLevelDecls).compactMap { id -> PropertyDecl? in
+            guard case let .propertyDecl(value) = ast.arena.decl(id) else { return nil }
+            return value
+        }.first)
+        #expect(ctx.interner.resolve(property.name) == "bar")
+        guard let receiverRef = property.receiverType.flatMap({ ast.arena.typeRef($0) }),
+              case let .named(path, arguments, nullable) = receiverRef else {
+            Issue.record("Expected a nullable named extension receiver, got \(String(describing: property.receiverType))")
+            return
+        }
+        #expect(path.map(ctx.interner.resolve) == ["A"])
+        #expect(arguments.isEmpty)
+        #expect(nullable)
+    }
+
     @Test(arguments: ["val <T> Box<T>.read: () -> T get() = { value }", "val <T : Any> Box<T>.read: () -> T get() = { value }", "val <T> Box<T>.read: () -> T where T : Any get() = { value }"])
     func genericPropertyHeadPreservesParametersAndGetter(_ declaration: String) throws {
         let (ast, ctx) = try buildASTModule(from: "class Box<T>(val value: T)\n" + declaration, includeStdlib: false)

@@ -32,6 +32,7 @@ public func __kk_foundation_object_kind(_ handle: Int, _ outThrown: UnsafeMutabl
     #if canImport(Darwin)
     guard let object = runtimeForeignResource(handle, as: NSObject.self) else { return foundationFailure("Invalid SDK handle", outThrown) }
     switch object {
+    case is NSMutableData: return 7
     case is NSData: return 1
     case is NSError: return 2
     case is InputStream: return 3
@@ -85,6 +86,16 @@ public func __kk_foundation_data_create(_ bytes: Int, _ length: Int, _ noCopy: I
     #endif
 }
 
+@_cdecl("__kk_foundation_mutable_data_create")
+public func __kk_foundation_mutable_data_create(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    return runtimeForeignResourceCreate(NSMutableData())
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
 @_cdecl("__kk_foundation_data_base64")
 public func __kk_foundation_data_base64(_ text: Int, _ options: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -114,6 +125,65 @@ public func __kk_foundation_data_bytes(_ handle: Int, _ outThrown: UnsafeMutable
     guard let data = runtimeForeignResource(handle, as: NSData.self) else { return foundationFailure("Invalid NSData", outThrown) }
     return registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: data.bytes),
         pointeeTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVar")))
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
+@_cdecl("__kk_foundation_mutable_data_append")
+public func __kk_foundation_mutable_data_append(_ handle: Int, _ bytes: Int, _ length: Int,
+                                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    guard length >= 0, let data = runtimeForeignResource(handle, as: NSMutableData.self) else {
+        return foundationFailure("Invalid NSMutableData append", outThrown)
+    }
+    let address = resolveCPointerBox(from: bytes)?.address ?? 0
+    guard length == 0 || address != 0 else {
+        return foundationFailure("Invalid NSMutableData bytes", outThrown)
+    }
+    if length > 0 {
+        guard let pointer = UnsafeRawPointer(bitPattern: address) else {
+            return foundationFailure("Invalid NSMutableData bytes", outThrown)
+        }
+        data.append(pointer, length: length)
+    }
+    return 0
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
+@_cdecl("__kk_foundation_string_data_using_encoding")
+public func __kk_foundation_string_data_using_encoding(_ textRaw: Int, _ encoding: Int,
+                                                       _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    guard let text = runtimeStringFromRaw(textRaw) else {
+        return foundationFailure("Invalid Foundation string", outThrown)
+    }
+    guard let data = (text as NSString).data(using: UInt(truncatingIfNeeded: encoding),
+                                              allowLossyConversion: false) else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_long_nonnull(runtimeForeignResourceCreate(data as NSData))
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
+@_cdecl("__kk_foundation_string_from_data")
+public func __kk_foundation_string_from_data(_ handle: Int, _ encoding: Int,
+                                             _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    guard let data = runtimeForeignResource(handle, as: NSData.self) else {
+        return foundationFailure("Invalid Foundation data", outThrown)
+    }
+    guard let text = NSString(data: data as Data, encoding: UInt(truncatingIfNeeded: encoding)) else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeMakeStringRaw(text as String)
     #else
     return foundationFailure("Apple Foundation requires Darwin", outThrown)
     #endif

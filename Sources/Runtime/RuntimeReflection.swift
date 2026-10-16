@@ -58,7 +58,10 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
 
 /// Renders class handles consistently across Any.toString, printing, and collections.
 func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
-    "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
+    if let arrayName = runtimeArrayKClassQualifiedName(typeToken: box.typeToken) {
+        return "class \(arrayName)"
+    }
+    return "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
 }
 
 
@@ -925,4 +928,15 @@ public func __kk_kconstructor_create(
     }
     runtimeKConstructorRegistry.register(classRaw: declaringClassRaw, constructorRaw: raw)
     return raw
+}
+
+@_cdecl("__kk_kconstructor_set_jvm_visibility")
+public func __kk_kconstructor_set_jvm_visibility(_ constructorRaw: Int, _ visibilityOrdinal: Int) -> Int {
+    guard (0..<4).contains(visibilityOrdinal),
+          let constructor = runtimeReflectionObject(from: constructorRaw, as: RuntimeKConstructorBox.self)
+    else {
+        return 0
+    }
+    constructor.jvmVisibilityOrdinal = visibilityOrdinal
+    return constructorRaw
 }

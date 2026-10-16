@@ -223,7 +223,7 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
-    private func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+    func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
         if case let .primitive(primitive, .nonNull) = sema.types.kind(of: type) {
             return primitive != .char && primitive != .boolean
         }
@@ -288,6 +288,24 @@ extension ExprTypeChecker {
                 return ctx.sema.types.errorType
             }
             return resolvedType
+        }
+        if usesBuiltinIncrement {
+            guard isMutable else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0014",
+                    "Val cannot be reassigned.",
+                    range: range
+                )
+                ctx.sema.bindings.bindExprType(exprID, type: ctx.sema.types.errorType)
+                return ctx.sema.types.errorType
+            }
+            guard ctx.ast.arena.incrementDecrementReturnsValue(exprID) else {
+                return nil
+            }
+            // Prefix `++` / `--` evaluates to the updated numeric value. Other
+            // synthetic assignments keep compound-assignment's Unit result.
+            ctx.sema.bindings.bindExprType(exprID, type: receiverType)
+            return receiverType
         }
         if !isPrimitiveIncrementDecrementTarget(receiverType, sema: ctx.sema),
            receiverType != ctx.sema.types.errorType
@@ -638,6 +656,9 @@ extension ExprTypeChecker {
                 op: op, receiverType: propType, valueExpr: valueExpr,
                 originalType: valueType, range: range, ctx: ctx, locals: &locals
             )
+            if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
+                _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
+            }
             if let resolvedType = inferIncrementDecrementIfNeeded(
                 exprID: id,
                 op: op,

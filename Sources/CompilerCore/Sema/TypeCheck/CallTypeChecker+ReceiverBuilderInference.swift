@@ -67,6 +67,7 @@ extension CallTypeChecker {
         let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let session = BuilderInferenceSession(typeVarBySymbol: variables)
         for (symbol, argument) in zip(signature.typeParameterSymbols, explicitTypeArgs) {
+            guard argument != TypeID.invalid else { continue }
             guard let variable = variables[symbol] else { continue }
             session.constraints.append(VariableConstraint(
                 kind: .equal, left: .variable(variable), right: .type(argument), blameRange: range

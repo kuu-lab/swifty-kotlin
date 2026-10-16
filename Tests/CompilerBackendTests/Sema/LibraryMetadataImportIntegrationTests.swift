@@ -236,6 +236,33 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testImportedUnsafeVarianceMemberParameterAllowsProjectedReceiverCall() throws {
+        let librarySource = """
+        package unsafeVarianceLib
+        open class Base<out T> {
+            fun accept(value: @UnsafeVariance T): T = value
+        }
+        """
+        try withCompiledLibrary(source: librarySource, moduleName: "UnsafeVarianceLib") { libraryPath in
+            let appSource = """
+            fun consume(base: unsafeVarianceLib.Base<*>): Any? = base.accept("OK")
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let ctx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "UnsafeVarianceApp",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath]
+                )
+                try runSema(ctx)
+
+                #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+                assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+            }
+        }
+    }
+
+    @Test
     func testSemaLoadsSymbolsFromKklibSearchPath() throws {
         let librarySource = """
         package extdemo

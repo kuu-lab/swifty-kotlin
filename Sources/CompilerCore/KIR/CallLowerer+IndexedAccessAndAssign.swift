@@ -402,20 +402,21 @@ extension CallLowerer {
         if let callBinding = resolvedCallBinding, !chosenSetIsIntrinsic {
             let chosenSet = callBinding.chosenCallee
             let loweredArgs = loweredIndices + [valueID]
+            let normalizedSetArguments = driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgs,
+                callBinding: callBinding,
+                chosenCallee: chosenSet,
+                spreadFlags: Array(repeating: false, count: loweredArgs.count),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
             let callResult = arena.appendTemporary(type: sema.types.unitType)
             emitMemberCallInstruction(
-                normalized: driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredArgs,
-                    callBinding: callBinding,
-                    chosenCallee: chosenSet,
-                    spreadFlags: Array(repeating: false, count: loweredArgs.count),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                ),
+                normalized: normalizedSetArguments,
                 callBinding: callBinding,
                 chosenCallee: chosenSet,
                 calleeName: interner.intern("set"),
@@ -427,7 +428,7 @@ extension CallLowerer {
                 arena: arena,
                 interner: interner,
                 instructions: &instructions,
-                arguments: [receiverID] + loweredArgs
+                arguments: [receiverID] + normalizedSetArguments.arguments
             )
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))

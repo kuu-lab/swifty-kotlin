@@ -20,6 +20,15 @@ public extension RuntimeABISpec {
             section: "System",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_system_getProperty",
+            parameters: [
+                RuntimeABIParameter(name: "propertyName", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
         // Compiler-only startup bridge: argc is the C int32 ABI and argv is
         // a borrowed pointer to a null-terminated C-string pointer vector.
         RuntimeABIFunctionSpec(
@@ -171,6 +180,19 @@ public extension RuntimeABISpec {
             returnType: .void,
             section: "System",
             isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_system_arraycopy",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "sourcePosition", type: .intptr),
+                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
+                RuntimeABIParameter(name: "destinationPosition", type: .intptr),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .void,
+            section: "System"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_runtime_getRuntime",

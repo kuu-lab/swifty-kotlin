@@ -11,6 +11,7 @@ package enum MetadataModality: String {
 package struct MetadataRecord {
     package let kind: SymbolKind
     package let visibility: Visibility
+    package let constructorVisibilityInherited: Bool
     let mangledName: String
     package let fqName: String
     package let arity: Int
@@ -39,6 +40,9 @@ package struct MetadataRecord {
     package let callableTypeParameterSignatures: [String]
     package let inputOnlyTypeParameterIndices: Set<Int>
     package let valueParameterIsVararg: [Bool]
+    /// Declaration-order type-parameter indices allowed by `@UnsafeVariance`
+    /// for each value parameter.
+    package let valueParameterUnsafeVarianceTypeParameterIndices: [[Int]]
     /// Per-parameter flags indicating whether a function-type argument may
     /// contain a non-local return when the callable is inline-expanded.
     package let valueParameterAllowsNonLocalReturn: [Bool]
@@ -139,6 +143,7 @@ package struct MetadataRecord {
     init(
         kind: SymbolKind,
         visibility: Visibility = .public,
+        constructorVisibilityInherited: Bool = false,
         mangledName: String = "",
         fqName: String = "",
         arity: Int = 0,
@@ -154,6 +159,7 @@ package struct MetadataRecord {
         callableTypeParameterSignatures: [String] = [],
         inputOnlyTypeParameterIndices: Set<Int> = [],
         valueParameterIsVararg: [Bool] = [],
+        valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
@@ -202,6 +208,7 @@ package struct MetadataRecord {
     ) {
         self.kind = kind
         self.visibility = visibility
+        self.constructorVisibilityInherited = constructorVisibilityInherited
         self.mangledName = mangledName
         self.fqName = fqName
         self.arity = arity
@@ -217,6 +224,7 @@ package struct MetadataRecord {
         self.callableTypeParameterSignatures = callableTypeParameterSignatures
         self.inputOnlyTypeParameterIndices = inputOnlyTypeParameterIndices
         self.valueParameterIsVararg = valueParameterIsVararg
+        self.valueParameterUnsafeVarianceTypeParameterIndices = valueParameterUnsafeVarianceTypeParameterIndices
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds

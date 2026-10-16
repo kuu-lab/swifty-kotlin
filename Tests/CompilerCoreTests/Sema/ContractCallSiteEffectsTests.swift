@@ -171,6 +171,46 @@ struct ContractCallSiteEffectsTests {
     }
 
     @Test
+    func receiverTypeImplicationsNarrowOnlyTheMatchingBranch() throws {
+        let declarations = """
+        import kotlin.contracts.*
+        sealed class Status {
+            data class Error(val detail: String) : Status()
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun Status.isError(): Boolean {
+            contract { returns(true) implies (this@isError is Status.Error) }
+            return this is Status.Error
+        }
+        """
+        let sources = [
+            "package receivercase0\n" + declarations
+                + "\nfun probe(status: Status) { if (status.isError()) println(status.detail) }",
+            "package receivercase1\n" + declarations
+                + "\nfun probe(status: Status) { if (!status.isError()) println(status.detail) }",
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }.isEmpty)
+            assertHasDiagnostic("KSWIFTK-SEMA-0024", in: diagnosticsForPath(paths[1], in: ctx))
+
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(
+                fqName: ["receivercase0", "isError"].map(ctx.interner.intern)
+            ))
+            #expect(sema.symbols.contractImplicationEffects(for: function).contains {
+                $0.target == .extensionReceiver
+            })
+            let metadata = try #require(MetadataEncoder().buildRecords(
+                symbols: sema.symbols, types: sema.types, moduleName: "ReceiverContracts",
+                interner: ctx.interner, functionLinkNames: [:]
+            ).first { $0.fqName == "receivercase0.isError" })
+            #expect(metadata.contractImplicationEffects.contains { $0.target == .extensionReceiver })
+        }
+    }
+
+    @Test
     func onlyGuaranteedInvocationsInitializeLocals() throws {
         let kinds = ["EXACTLY_ONCE", "AT_LEAST_ONCE", "AT_MOST_ONCE", "UNKNOWN", ""]
         let sources = kinds.enumerated().map { index, kind in
@@ -243,6 +283,38 @@ struct ContractCallSiteEffectsTests {
             let ctx = makeCompilationContext(inputs: [path], searchPaths: [libDir.path])
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func importedReceiverTypeImplicationNarrowsExtensionReceiver() throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "ReceiverContracts", "metadata": "metadata.bin"}
+        """
+        let record = MetadataRecord(
+            kind: .function, fqName: "test.isString", arity: 0,
+            typeSignature: "F0<RQ<A>,Z>",
+            contractImplicationEffects: [ContractImplicationEffect(
+                target: .extensionReceiver, returnCondition: .returnsTrue,
+                argumentCondition: .isType, targetTypeSignature: "Lkotlin_String;"
+            )]
+        )
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try MetadataEncoder().serialize([record]).write(
+            to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8
+        )
+        try withTemporaryFiles(contents: [
+            "import test.isString\nfun probe(x: Any?) { if (x.isString()) println(x.length) }",
+            "import test.isString\nfun probe(x: Any?) { if (!x.isString()) println(x.length) }",
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, searchPaths: [libDir.path])
+            try runSema(ctx)
+            #expect(diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }.isEmpty)
+            #expect(diagnosticsForPath(paths[1], in: ctx).contains { $0.severity == .error })
         }
     }
 }

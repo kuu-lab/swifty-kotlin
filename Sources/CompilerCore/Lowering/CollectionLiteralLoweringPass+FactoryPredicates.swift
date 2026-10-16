@@ -20,11 +20,26 @@ extension CollectionLiteralLoweringSupport {
         func matchesCollectionClass(_ info: SemanticSymbol) -> Bool {
             info.fqName == expectedFQName || (info.fqName.isEmpty && info.name == className)
         }
+        func matchesCollectionSymbol(_ symbolID: SymbolID, visited: Set<SymbolID>) -> Bool {
+            guard !visited.contains(symbolID),
+                  let info = sema.symbols.symbol(symbolID) else {
+                return false
+            }
+            if matchesCollectionClass(info) { return true }
+            guard info.kind == .typeAlias,
+                  let underlying = sema.symbols.typeAliasUnderlyingType(for: symbolID),
+                  case let .classType(target) = sema.types.kind(of: underlying)
+            else {
+                return false
+            }
+            var nextVisited = visited
+            nextVisited.insert(symbolID)
+            return matchesCollectionSymbol(target.classSymbol, visited: nextVisited)
+        }
         if let symbol, let resolved = sema.symbols.symbol(symbol) {
             if resolved.kind == .constructor,
-               let owner = sema.symbols.parentSymbol(for: symbol),
-               let ownerInfo = sema.symbols.symbol(owner) {
-                return matchesCollectionClass(ownerInfo)
+               let owner = sema.symbols.parentSymbol(for: symbol) {
+                return matchesCollectionSymbol(owner, visited: [])
             }
             return matchesCollectionClass(resolved)
                 || resolved.fqName == expectedFQName + [interner.intern("<init>")]
@@ -32,8 +47,8 @@ extension CollectionLiteralLoweringSupport {
         if let result,
            let resultType = arena.exprType(result),
            let resultClass = resolveClassType(resultType, sema: sema),
-           let resultInfo = sema.symbols.symbol(resultClass.classSymbol) {
-            return matchesCollectionClass(resultInfo)
+           sema.symbols.symbol(resultClass.classSymbol) != nil {
+            return matchesCollectionSymbol(resultClass.classSymbol, visited: [])
         }
         // Keep the legacy fallback only when neither symbol nor type is available.
         return true
@@ -51,6 +66,38 @@ extension CollectionLiteralLoweringSupport {
             arena: module.arena, sema: ctx.sema, interner: ctx.interner
         )
     }
+
+    /// Resolves mutable map constructors by their simple name or constructor
+    /// owner. Source-backed constructors may carry a mangled callee name in KIR.
+    func stdlibMutableMapConstructorName(
+        symbol: SymbolID?,
+        callee: InternedString,
+        result: KIRExprID?,
+        lookup: CollectionLiteralLookupTables,
+        arena: KIRArena,
+        sema: SemaModule?,
+        interner: StringInterner
+    ) -> InternedString? {
+        if lookup.mutableMapConstructorNames.contains(callee) {
+            return isStdlibCollectionConstructor(
+                symbol: symbol, className: callee, result: result,
+                arena: arena, sema: sema, interner: interner
+            ) ? callee : nil
+        }
+        guard let sema, let symbol,
+              sema.symbols.symbol(symbol)?.kind == .constructor else {
+            return nil
+        }
+        for className in [lookup.hashMapName, lookup.linkedHashMapName]
+        where isStdlibCollectionConstructor(
+            symbol: symbol, className: className, result: result,
+            arena: arena, sema: sema, interner: interner
+        ) {
+            return className
+        }
+        return nil
+    }
+
 }
 
 extension CollectionLiteralConstructionLoweringPass {

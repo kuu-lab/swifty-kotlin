@@ -418,13 +418,19 @@ extension DataFlowSemaPhase {
     ) -> [SemanticSymbol] {
         let methods = ownMembers(of: nominalSymbol, symbols: symbols)
             .filter { $0.kind == .function }
-            // KUU-545: extension member aliases (KSP-443) are owner+name lookup
-            // shims, not dispatchable members. Counting one here inflates
-            // vtableSize, which shifts the interface property getter region
-            // (kirInterfacePropertyGetterSlots bases its slots on vtableSize)
-            // and breaks the fixed itable slot contract the runtime registers
-            // for runtime-created objects (e.g. CharSequence.length at slot 2).
-            .filter { !$0.flags.contains(.extensionMemberAlias) }
+            // KUU-545: receiver-parented top-level extensions and their
+            // extension-member aliases are lookup entries, not dispatchable
+            // members. Counting them inflates vtableSize, which shifts the
+            // interface property getter region (kirInterfacePropertyGetterSlots
+            // bases its slots on vtableSize) and breaks fixed itable slots the
+            // runtime registers for runtime-created objects (e.g.
+            // CharSequence.length at slot 2). Keep genuine member extensions,
+            // which have a dispatch owner, in the layout.
+            .filter { method in
+                guard !method.flags.contains(.extensionMemberAlias) else { return false }
+                let isDeclaredOnOwner = Array(method.fqName.dropLast()) == nominalSymbol.fqName
+                return isDeclaredOnOwner || symbols.memberExtensionOwnerSymbol(for: method.id) != nil
+            }
 
         if nominalSymbol.fqName.map(interner.resolve) == ["kotlin", "coroutines", "CoroutineContext"] {
             // The runtime bridges use these slots for source-defined contexts.
@@ -652,7 +658,7 @@ extension DataFlowSemaPhase {
     /// members of an expect class and platform-only actual members stay attached
     /// to the declaration that contains them.
     private static func ownMembers(of nominalSymbol: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
-        let members = symbols.children(ofFQName: nominalSymbol.fqName).compactMap { symbols.symbol($0) }
+        let members = symbols.children(of: nominalSymbol.id).compactMap { symbols.symbol($0) }
         let expectsActualCounterpart = nominalSymbol.flags.contains(.expectDeclaration)
             ? SymbolFlags.actualDeclaration
             : SymbolFlags.expectDeclaration

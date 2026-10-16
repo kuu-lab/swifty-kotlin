@@ -117,6 +117,7 @@ final class MetadataDecoder {
         return MetadataRecord(
             kind: kind,
             visibility: rec.visibility,
+            constructorVisibilityInherited: rec.constructorVisibilityInherited,
             mangledName: mangledName,
             fqName: rec.fqName,
             arity: rec.arity,
@@ -132,6 +133,7 @@ final class MetadataDecoder {
             callableTypeParameterSignatures: rec.callableTypeParameterSignatures,
             inputOnlyTypeParameterIndices: rec.inputOnlyTypeParameterIndices,
             valueParameterIsVararg: rec.valueParameterIsVararg,
+            valueParameterUnsafeVarianceTypeParameterIndices: rec.valueParameterUnsafeVarianceTypeParameterIndices,
             valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
@@ -184,6 +186,7 @@ final class MetadataDecoder {
     private struct MutableMetadataRecord {
         var fqName: String = ""
         var visibility: Visibility = .public
+        var constructorVisibilityInherited: Bool = false
         var arity: Int = 0
         var isSuspend: Bool = false
         var isInline: Bool = false
@@ -196,6 +199,7 @@ final class MetadataDecoder {
         var callableTypeParameterSignatures: [String] = []
         var inputOnlyTypeParameterIndices: Set<Int> = []
         var valueParameterIsVararg: [Bool] = []
+        var valueParameterUnsafeVarianceTypeParameterIndices: [[Int]] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
@@ -257,6 +261,8 @@ final class MetadataDecoder {
             case "protected": .protected
             default: .private
             }
+        case "constructorVisibilityInherited":
+            record.constructorVisibilityInherited = value == "1" || value == "true"
         case "arity":
             record.arity = Int(value) ?? Int.max
         case "suspend":
@@ -275,6 +281,22 @@ final class MetadataDecoder {
             record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":
             record.valueParameterIsVararg = value.map { $0 == "1" }
+        case "unsafeVarianceParams":
+            for entry in value.split(separator: ";") {
+                let parts = entry.split(separator: ":", maxSplits: 1)
+                guard parts.count == 2,
+                      let parameterIndex = Int(parts[0]), parameterIndex >= 0
+                else { continue }
+                let typeParameterIndices = parts[1].split(separator: ",").compactMap { Int($0) }
+                guard !typeParameterIndices.isEmpty else { continue }
+                if record.valueParameterUnsafeVarianceTypeParameterIndices.count <= parameterIndex {
+                    record.valueParameterUnsafeVarianceTypeParameterIndices += Array(
+                        repeating: [],
+                        count: parameterIndex + 1 - record.valueParameterUnsafeVarianceTypeParameterIndices.count
+                    )
+                }
+                record.valueParameterUnsafeVarianceTypeParameterIndices[parameterIndex] = typeParameterIndices
+            }
         case "nonLocal":
             record.valueParameterAllowsNonLocalReturn = value.map { $0 == "1" }
         case "default":
@@ -292,12 +314,21 @@ final class MetadataDecoder {
         case "contractImplies":
             record.contractImplicationEffects = value.split(separator: ",").compactMap { item in
                 let parts = item.split(separator: ":")
-                guard (parts.count == 3 || parts.count == 4), let index = Int(parts[0]), index >= 0,
+                guard parts.count == 3 || parts.count == 4,
                       let result = ContractReturnCondition(rawValue: String(parts[1])),
                       let condition = ContractArgumentCondition(rawValue: String(parts[2])) else { return nil }
+                let target: ContractImplicationTarget
+                if parts[0] == "receiver" {
+                    target = .extensionReceiver
+                } else if let index = Int(parts[0]), index >= 0 {
+                    target = .valueParameter(index)
+                } else {
+                    return nil
+                }
                 let signature = parts.count == 4 ? Data(base64Encoded: String(parts[3])).flatMap { String(data: $0, encoding: .utf8) } : nil
                 guard condition != .isType || signature != nil else { return nil }
-                return ContractImplicationEffect(parameterIndex: index, returnCondition: result, argumentCondition: condition, targetTypeSignature: signature)
+                return ContractImplicationEffect(target: target, returnCondition: result,
+                    argumentCondition: condition, targetTypeSignature: signature)
             }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"

@@ -174,6 +174,7 @@ extension DataFlowSemaPhase {
         return ImportedLibrarySymbolRecord(
                 kind: metadataRecord.kind,
                 visibility: metadataRecord.visibility,
+                constructorVisibilityInherited: metadataRecord.constructorVisibilityInherited,
                 mangledName: metadataRecord.mangledName,
                 fqName: fqName,
                 arity: metadataRecord.arity,
@@ -185,6 +186,7 @@ extension DataFlowSemaPhase {
                 isMemberExtension: metadataRecord.isMemberExtension,
                 receiverOwnerFQName: receiverOwnerFQName,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
+                valueParameterUnsafeVarianceTypeParameterIndices: metadataRecord.valueParameterUnsafeVarianceTypeParameterIndices,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: metadataRecord.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: metadataRecord.valueParameterCallsInPlaceKinds,
@@ -580,7 +582,15 @@ extension DataFlowSemaPhase {
                 for: ownerSymbol
             )
         }
-        for effect in record.contractImplicationEffects where effect.parameterIndex < valueParameterSymbols.count {
+        for effect in record.contractImplicationEffects {
+            switch effect.target {
+            case let .valueParameter(index) where index < valueParameterSymbols.count:
+                break
+            case .extensionReceiver where functionType.receiver != nil:
+                break
+            default:
+                continue
+            }
             let targetType = effect.targetTypeSignature.flatMap {
                 decodeImportedTypeSignature(token: $0, symbols: symbols, types: types,
                     interner: interner, diagnostics: diagnostics, metadataPath: metadataPath,
@@ -588,7 +598,7 @@ extension DataFlowSemaPhase {
             }
             guard effect.argumentCondition != .isType || targetType != nil else { continue }
             symbols.addContractImplicationEffect(
-                ContractImplicationEffect(parameterIndex: effect.parameterIndex,
+                ContractImplicationEffect(target: effect.target,
                     returnCondition: effect.returnCondition, argumentCondition: effect.argumentCondition,
                     targetType: targetType), for: ownerSymbol)
         }
@@ -607,6 +617,11 @@ extension DataFlowSemaPhase {
             isSuspend: functionType.isSuspend,
             canThrow: record.canThrow,
             valueParameterSymbols: valueParameterSymbols,
+            valueParameterUnsafeVarianceTypeParameterSymbols: record.valueParameterUnsafeVarianceTypeParameterIndices.map { indices in
+                Set(indices.compactMap { index in
+                    typeParameterSymbols.indices.contains(index) ? typeParameterSymbols[index] : nil
+                })
+            },
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,

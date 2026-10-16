@@ -532,6 +532,10 @@ extension TypeSystem {
     }
 
     public func lub(_ types: [TypeID]) -> TypeID {
+        lub(types, retainingCommonIntersection: false)
+    }
+
+    private func lub(_ types: [TypeID], retainingCommonIntersection: Bool) -> TypeID {
         let hasNullableNothing = types.contains { kind(of: $0) == .nothing(.nullable) }
         let filtered = types.filter { kind(of: $0) != .error && kind(of: $0) != .nothing(.nonNull) && kind(of: $0) != .nothing(.nullable) }
         guard let first = filtered.first else {
@@ -553,7 +557,7 @@ extension TypeSystem {
             // compute the LUB over the non-null projections and re-apply
             // nullability when any input was nullable. This keeps
             // `lub(T, T?) == T?` instead of widening all the way to `Any?`.
-            lubReapplyingNullability(filtered)
+            lubReapplyingNullability(filtered, retainingCommonIntersection: retainingCommonIntersection)
         }
         // If any input was Nothing? (null literal), the result must be nullable
         if hasNullableNothing {
@@ -572,15 +576,14 @@ extension TypeSystem {
         return result
     }
 
-    /// Retains a common `Comparable<*>` while inferring from lower bounds.
+    /// Computes a lower-bound candidate while inferring a generic type variable.
     ///
-    /// `lub` intentionally keeps its conservative `Any` fallback for callers
-    /// that need the existing nominal-only behavior. This is deliberately not
-    /// a general common-supertype search: generic argument inference only
-    /// retains the platform-neutral built-in interface needed for mixed
-    /// comparable values. Other nominal LUB work remains with `lub`.
-    func inferenceLubRetainingCommonComparable(_ types: [TypeID]) -> TypeID {
-        let fallback = lub(types)
+    /// Generic inference retains incomparable common nominal bounds as an
+    /// intersection, declared shared type-parameter upper bounds, and the
+    /// platform-neutral `Comparable<*>` bound for mixed comparable primitives.
+    /// Ordinary expression LUBs keep their existing nominal approximation.
+    func inferenceLubRetainingSharedSupertypes(_ types: [TypeID]) -> TypeID {
+        let fallback = lub(types, retainingCommonIntersection: true)
         guard fallback == anyType || fallback == nullableAnyType else {
             return fallback
         }
@@ -592,6 +595,10 @@ extension TypeSystem {
         }
         guard filtered.count > 1 else {
             return fallback
+        }
+
+        if let sharedUpperBound = inferenceLubRetainingCommonTypeParameterUpperBounds(filtered) {
+            return sharedUpperBound
         }
 
         let resultNullability: Nullability = types.contains { nullability(of: $0) == .nullable }
@@ -609,6 +616,57 @@ extension TypeSystem {
             return fallback
         }
         return comparable
+    }
+
+    /// Uses declared type-parameter bounds when several inputs share a more
+    /// specific supertype than `Any`. For example, both `A : T` and `B : T`
+    /// can contribute `T` as the element type for `listOf(a, b)`.
+    private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {
+        guard types.count > 1, let symbolTable else { return nil }
+
+        var candidates: [TypeID] = []
+        var pending = types
+        var visitedParameters: Set<SymbolID> = []
+        while let input = pending.popLast() {
+            guard case let .typeParam(parameter) = kind(of: input) else { continue }
+            if let capture = parameter.capture {
+                if !candidates.contains(capture.upper) {
+                    candidates.append(capture.upper)
+                }
+                continue
+            }
+            guard visitedParameters.insert(parameter.symbol).inserted else { continue }
+
+            for bound in symbolTable.typeParameterUpperBounds(for: parameter.symbol) {
+                let candidate = parameter.nullability == .nullable ? makeNullable(bound) : bound
+                if !candidates.contains(candidate) {
+                    candidates.append(candidate)
+                }
+                if case .typeParam = kind(of: candidate) {
+                    pending.append(candidate)
+                }
+            }
+        }
+
+        let commonBounds = candidates.filter { candidate in
+            types.allSatisfy { isSubtype($0, candidate) }
+        }
+        guard !commonBounds.isEmpty else { return nil }
+
+        // Keep only the most specific shared bounds. An intersection retains
+        // every independent common constraint while remaining a valid LUB.
+        var mostSpecific: [TypeID] = []
+        for candidate in commonBounds {
+            if mostSpecific.contains(where: { isSubtype($0, candidate) }) {
+                continue
+            }
+            mostSpecific.removeAll { isSubtype(candidate, $0) }
+            mostSpecific.append(candidate)
+        }
+        if mostSpecific.count == 1 {
+            return mostSpecific[0]
+        }
+        return make(.intersection(mostSpecific))
     }
 
     public func glb(_ types: [TypeID]) -> TypeID {
@@ -641,7 +699,9 @@ extension TypeSystem {
     }
 
     func isNominalSubtypeSymbol(_ candidate: SymbolID, of base: SymbolID) -> Bool {
-        if candidate == base {
+        // A superclass edge may name an actual class while the use site names
+        // its linked expect class.
+        if candidate == base || areLinkedExpectActualClassSymbols(candidate, base) {
             return true
         }
         var queue = directNominalSupertypes(for: candidate)
@@ -650,7 +710,7 @@ extension TypeSystem {
         while head < queue.count {
             let current = queue[head]
             head += 1
-            if current == base {
+            if current == base || areLinkedExpectActualClassSymbols(current, base) {
                 return true
             }
             if visited.insert(current).inserted {
@@ -762,7 +822,10 @@ extension TypeSystem {
     /// projections share a single underlying type (e.g. `String` and
     /// `String?`), the result is that type made nullable (`String?`) rather
     /// than being widened to `Any?`.
-    private func lubReapplyingNullability(_ filtered: [TypeID]) -> TypeID {
+    private func lubReapplyingNullability(
+        _ filtered: [TypeID],
+        retainingCommonIntersection: Bool = false
+    ) -> TypeID {
         let anyNullable = filtered.contains { nullability(of: $0) == .nullable }
         let nonNull = filtered.map { makeNonNullable($0) }
         let base: TypeID
@@ -770,7 +833,10 @@ extension TypeSystem {
             base = firstNonNull
         } else if let kClassLub = lubKClassTypes(nonNull) {
             base = kClassLub
-        } else if let commonSupertype = nearestCommonSupertype(nonNull) {
+        } else if let commonSupertype = nearestCommonSupertype(
+            nonNull,
+            retainingCommonIntersection: retainingCommonIntersection && !anyNullable
+        ) {
             base = commonSupertype
         } else {
             base = anyType
@@ -799,7 +865,10 @@ extension TypeSystem {
     ///
     /// Returns `nil` when none of the shapes apply, leaving the caller to fall
     /// back to `Any`.
-    private func nearestCommonSupertype(_ types: [TypeID]) -> TypeID? {
+    private func nearestCommonSupertype(
+        _ types: [TypeID],
+        retainingCommonIntersection: Bool = false
+    ) -> TypeID? {
         if let dominating = types.first(where: { candidate in types.allSatisfy { isSubtype($0, candidate) } }) {
             return dominating
         }
@@ -807,9 +876,12 @@ extension TypeSystem {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
         // Prefer the unique most-specific ancestor with compatible type
-        // arguments; fall back to the BFS approximation when several incomparable
-        // candidates remain.
-        return commonNominalSupertype(types) ?? nearestCommonNominalSupertype(types)
+        // arguments; when several incomparable candidates remain, either keep
+        // their intersection for inference or use the existing BFS approximation.
+        if let commonNominal = commonNominalSupertype(types) {
+            return commonNominal
+        }
+        return nearestCommonNominalSupertype(types, retainingCommonIntersection: retainingCommonIntersection)
     }
 
     /// Finds the most specific nominal supertype (other than `Any`) shared by
@@ -823,16 +895,33 @@ extension TypeSystem {
     /// kept only if *every* input is a subtype of that instantiation, which
     /// rejects generic mismatches such as `Comparable<X>` vs `Comparable<Y>`.
     /// Among the survivors, candidates that are strict supertypes of another
-    /// survivor are dropped, and a superclass is preferred over an interface.
+    /// survivor are dropped. In the ordinary nominal approximation, a
+    /// superclass is preferred over an interface.
     ///
     /// Kotlin infers an intersection type when several incomparable candidates
-    /// remain (e.g. two classes implementing both `I` and `J`). This compiler
-    /// has no denotable intersection for inferred variables, so it
-    /// approximates with the first surviving candidate in breadth-first order
-    /// (nominal supertypes are stored sorted by symbol ID, so the
-    /// choice is deterministic). Members of the other candidates are not
-    /// visible on the result.
-    private func nearestCommonNominalSupertype(_ types: [TypeID]) -> TypeID? {
+    /// remain (e.g. two classes implementing both `I` and `J`). Ordinary
+    /// expression LUBs continue to approximate with one candidate; generic
+    /// inference retains all candidates through `inferenceLubRetainingSharedSupertypes`.
+    private func nearestCommonNominalSupertype(
+        _ types: [TypeID],
+        retainingCommonIntersection: Bool = false
+    ) -> TypeID? {
+        guard let mostSpecific = nearestCommonNominalSupertypes(types) else { return nil }
+        if retainingCommonIntersection, mostSpecific.count > 1 {
+            return make(.intersection(mostSpecific))
+        }
+        let isInterface: (TypeID) -> Bool = { [self] candidate in
+            guard case let .classType(classType) = kind(of: candidate) else { return false }
+            return symbolTable?.symbol(classType.classSymbol)?.kind == .interface
+        }
+        return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
+    }
+
+    /// Returns every incomparable most-specific nominal supertype shared by
+    /// the inputs. `nil` means the inputs are outside this nominal class walk;
+    /// an empty array means the inputs are nominal but have no shared ancestor
+    /// other than `Any`.
+    private func nearestCommonNominalSupertypes(_ types: [TypeID]) -> [TypeID]? {
         guard types.count > 1 else { return nil }
         var classTypes: [ClassType] = []
         for type in types {
@@ -874,11 +963,7 @@ extension TypeSystem {
         let mostSpecific = survivors.filter { candidate in
             !survivors.contains { other in other != candidate && isSubtype(other, candidate) }
         }
-        let isInterface: (TypeID) -> Bool = { [self] candidate in
-            guard case let .classType(classType) = kind(of: candidate) else { return false }
-            return symbolTable?.symbol(classType.classSymbol)?.kind == .interface
-        }
-        return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
+        return mostSpecific
     }
 
     /// Nominal hierarchy walk for inputs that are all nominal class types

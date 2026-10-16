@@ -44,6 +44,65 @@ private final class RuntimeArrayComponentTypes: @unchecked Sendable {
 
 private let runtimeArrayComponentTypes = RuntimeArrayComponentTypes()
 
+func runtimeJavaArrayClassName(rawValue: Int) -> String? {
+    guard let array = runtimeArrayBoxExcludingObjects(from: rawValue) else { return nil }
+
+    if let kind = runtimePrimitiveArrayElementKind(rawValue: rawValue) {
+        let descriptor: String = switch kind {
+        case .boolean: "Z"
+        case .byte, .uByte: "B"
+        case .char: "C"
+        case .double: "D"
+        case .float: "F"
+        case .int, .uInt: "I"
+        case .long, .uLong: "J"
+        case .short, .uShort: "S"
+        }
+        return "[\(descriptor)"
+    }
+
+    let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    guard runtimeArrayTypeIDs(rawValue: rawValue).contains(arrayTypeID) else { return nil }
+    let component = array.componentType.flatMap(runtimeJavaArrayComponentDescriptor)
+        ?? "Ljava.lang.Object;"
+    return "[\(component)"
+}
+
+private func runtimeJavaArrayComponentDescriptor(_ componentID: Int) -> String? {
+    guard let component = runtimeArrayComponentTypes.descriptor(componentID) else { return nil }
+    let token = Int64(truncatingIfNeeded: component.classifier)
+    let base = token & RuntimeTypeTokenEncoding.baseMask
+    let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    if base == RuntimeTypeTokenEncoding.nominalBase,
+       payload == runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    {
+        let element = component.element == 0
+            ? "Ljava.lang.Object;"
+            : runtimeJavaArrayComponentDescriptor(component.element) ?? "Ljava.lang.Object;"
+        return "[\(element)"
+    }
+
+    let qualifiedName = runtimeJavaQualifiedName(typeToken: component.classifier)
+    if let primitiveArrayDescriptor = runtimeJavaPrimitiveArrayDescriptor(qualifiedName) {
+        return "[\(primitiveArrayDescriptor)"
+    }
+    return "L\(runtimeJavaBinaryNameForTypeToken(component.classifier));"
+}
+
+private func runtimeJavaPrimitiveArrayDescriptor(_ qualifiedName: String) -> String? {
+    switch qualifiedName {
+    case "kotlin.BooleanArray": "Z"
+    case "kotlin.ByteArray", "kotlin.UByteArray": "B"
+    case "kotlin.CharArray": "C"
+    case "kotlin.DoubleArray": "D"
+    case "kotlin.FloatArray": "F"
+    case "kotlin.IntArray", "kotlin.UIntArray": "I"
+    case "kotlin.LongArray", "kotlin.ULongArray": "J"
+    case "kotlin.ShortArray", "kotlin.UShortArray": "S"
+    default: nil
+    }
+}
+
 @_cdecl("__kk_array_component_type")
 public func __kk_array_component_type(_ classifier: Int, _ element: Int) -> Int {
     runtimeArrayComponentTypes.intern(classifier: classifier, element: element)
@@ -122,6 +181,37 @@ func runtimeArrayHasAssignableComponent(rawValue: Int, targetComponent: Int) -> 
         return target.element == 0 && targetBase == Int(RuntimeTypeTokenEncoding.anyBase)
     }
     return runtimeArrayComponentIsAssignable(sourceComponent, to: targetComponent)
+}
+
+func runtimeArrayElementIsAssignable(
+    _ value: RuntimeValue,
+    sourceComponent: Int?,
+    to targetComponent: Int?
+) -> Bool {
+    let rawValue = value.legacyRawValue
+    if rawValue == runtimeNullSentinelInt { return true }
+    guard let targetComponent,
+          let target = runtimeArrayComponentTypes.descriptor(targetComponent) else { return false }
+
+    let hasObjectIdentity = UnsafeMutableRawPointer(bitPattern: rawValue).map(runtimeIsObjectPointer) ?? false
+    let targetBase = Int64(target.classifier) & RuntimeTypeTokenEncoding.baseMask
+    if !hasObjectIdentity {
+        // Unboxed values have no dynamic class pointer. Use the source array's
+        // component as their JVM wrapper identity instead of kk_op_is, whose
+        // primitive checks intentionally accept unboxed words without knowing
+        // whether they came from Int, Long, Char, or another primitive.
+        if targetBase == RuntimeTypeTokenEncoding.anyBase { return true }
+        guard let sourceComponent,
+              runtimeArrayComponentIsAssignable(sourceComponent, to: targetComponent) else { return false }
+        return true
+    }
+
+    if kk_op_is(rawValue, target.classifier) != 0 {
+        guard target.element != 0 else { return true }
+        return runtimeArrayHasAssignableComponent(rawValue: rawValue, targetComponent: target.element)
+    }
+
+    return false
 }
 
 @_cdecl("__kk_array_new_same_component")
