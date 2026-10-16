@@ -64,7 +64,12 @@ extension TypeCheckHelpers {
         case .stringStruct:
             return types.makeNullable(typeID)
         case let .classType(ct):
-            return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
+            return types.make(.classType(ClassType(
+                classSymbol: ct.classSymbol,
+                args: ct.args,
+                enclosingTypeArgs: ct.enclosingTypeArgs,
+                nullability: .nullable
+            )))
         case let .typeParam(tp):
             return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable, capture: tp.capture)))
         case let .functionType(ft):
@@ -562,15 +567,14 @@ extension TypeCheckHelpers {
             guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner),
                   let ownerTypeArgs = sema.types.liftedNominalSupertypeArgs(
-                      from: classType.classSymbol,
-                      childArgs: classType.args,
+                      from: classType,
                       to: owner
                   )
             else {
                 return declaredTypes
             }
 
-            let ownerTypeParamSymbols = sema.types.nominalTypeParameterSymbols(for: owner)
+            let ownerTypeParamSymbols = sema.types.allTypeParameterSymbols(for: owner)
             guard !ownerTypeParamSymbols.isEmpty else {
                 return declaredTypes
             }
@@ -1043,14 +1047,13 @@ extension TypeCheckHelpers {
         }
 
         guard let ownerTypeArgs = sema.types.liftedNominalSupertypeArgs(
-            from: classType.classSymbol,
-            childArgs: classType.args,
+            from: classType,
             to: ownerSymbol
         ) else {
             return propertyType
         }
 
-        let ownerTypeParamSymbols = sema.types.nominalTypeParameterSymbols(for: ownerSymbol)
+        let ownerTypeParamSymbols = sema.types.allTypeParameterSymbols(for: ownerSymbol)
         guard !ownerTypeParamSymbols.isEmpty else {
             return propertyType
         }

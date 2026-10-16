@@ -598,7 +598,10 @@ extension CallTypeChecker {
                             typeAliasConstructor = TypeAliasConstructorContext(
                                 typeParameterSymbols: aliasTypeParameters,
                                 expandedType: sema.types.make(.classType(ClassType(
-                                    classSymbol: constructorOwner, args: classType.args, nullability: .nonNull
+                                    classSymbol: constructorOwner,
+                                    args: classType.args,
+                                    enclosingTypeArgs: classType.enclosingTypeArgs,
+                                    nullability: .nonNull
                                 ))),
                                 resultType: aliasResultType
                             )

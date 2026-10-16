@@ -1141,10 +1141,21 @@ extension DataFlowSemaPhase {
             )
             let nestedTypeParamSymbols = nestedTypeParamResult.symbols
             let nestedLocalTypeParameters = nestedTypeParamResult.localMap
+            let enclosingTypeParameterSymbols = nestedClass.isInner
+                ? types.enclosingTypeParameterSymbols(for: nestedSymbol) : []
+            let nestedClassTypeParameterSymbols = enclosingTypeParameterSymbols + nestedTypeParamSymbols
+            let nestedEnclosingTypeArgs = enclosingTypeParameterSymbols.map { typeParameter in
+                TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: typeParameter))))
+            }
             let nestedTypeArgs: [TypeArg] = nestedTypeParamSymbols.map { tpSymbol in
                 TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: tpSymbol))))
             }
-            let nestedType = types.make(.classType(ClassType(classSymbol: nestedSymbol, args: nestedTypeArgs, nullability: .nonNull)))
+            let nestedType = types.make(.classType(ClassType(
+                classSymbol: nestedSymbol,
+                args: nestedTypeArgs,
+                enclosingTypeArgs: nestedEnclosingTypeArgs,
+                nullability: .nonNull
+            )))
             let nestedScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
@@ -1185,7 +1196,7 @@ extension DataFlowSemaPhase {
                 scope: nestedScope,
                 diagnostics: diagnostics,
                 interner: interner,
-                classTypeParameterSymbols: nestedTypeParamSymbols,
+                classTypeParameterSymbols: nestedClassTypeParameterSymbols,
                 classLocalTypeParameters: nestedLocalTypeParameters
             )
 
@@ -1234,8 +1245,8 @@ extension DataFlowSemaPhase {
                             valueParameterHasDefaultValues: params.paramHasDefaultValues,
                             valueParameterIsVararg: params.paramIsVararg,
                             valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
-                            typeParameterSymbols: nestedTypeParamSymbols,
-                            classTypeParameterCount: nestedTypeParamSymbols.count
+                            typeParameterSymbols: nestedClassTypeParameterSymbols,
+                            classTypeParameterCount: nestedClassTypeParameterSymbols.count
                         ),
                         for: nestedPrimaryCtorSymbol
                     )
@@ -1293,8 +1304,8 @@ extension DataFlowSemaPhase {
                         valueParameterHasDefaultValues: params.paramHasDefaultValues,
                         valueParameterIsVararg: params.paramIsVararg,
                         valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
-                        typeParameterSymbols: nestedTypeParamSymbols,
-                        classTypeParameterCount: nestedTypeParamSymbols.count
+                        typeParameterSymbols: nestedClassTypeParameterSymbols,
+                        classTypeParameterCount: nestedClassTypeParameterSymbols.count
                     ),
                     for: secCtorSymbol
                 )
@@ -1381,7 +1392,7 @@ extension DataFlowSemaPhase {
                     scope: nestedScope,
                     diagnostics: diagnostics,
                     interner: interner,
-                    classTypeParameterSymbols: nestedTypeParamSymbols,
+                    classTypeParameterSymbols: nestedClassTypeParameterSymbols,
                     classLocalTypeParameters: nestedLocalTypeParameters
                 )
                 collectSyntheticEnumEntryProperties(
@@ -1435,7 +1446,7 @@ extension DataFlowSemaPhase {
                 scope: nestedScope,
                 diagnostics: diagnostics,
                 interner: interner,
-                classTypeParameterSymbols: nestedTypeParamSymbols,
+                classTypeParameterSymbols: nestedClassTypeParameterSymbols,
                 classLocalTypeParameters: nestedLocalTypeParameters
             )
             if nestedClass.modifiers.contains(.data) {

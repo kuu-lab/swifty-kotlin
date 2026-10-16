@@ -215,27 +215,25 @@ extension TypeSystem {
                 guard isNominalSubtypeSymbol(leftClass.classSymbol, of: rightClass.classSymbol) else {
                     return false
                 }
-                let mappedArgs = liftedNominalSupertypeArgs(
-                    from: leftClass.classSymbol,
-                    childArgs: leftClass.args,
-                    to: rightClass.classSymbol
-                ) ?? []
-                if mappedArgs.count == rightClass.args.count, !mappedArgs.isEmpty {
-                    let liftedSupertype = make(.classType(ClassType(
-                        classSymbol: rightClass.classSymbol,
-                        args: mappedArgs,
+                let mappedArgs = liftedNominalSupertypeArgs(from: leftClass, to: rightClass.classSymbol) ?? []
+                if mappedArgs.count == allTypeArguments(for: rightClass).count, !mappedArgs.isEmpty {
+                    let liftedSupertype = make(.classType(classType(
+                        for: rightClass.classSymbol,
+                        arguments: mappedArgs,
                         nullability: leftClass.nullability
                     )))
                     return isSubtype(liftedSupertype, supertype)
                 }
-                return rightClass.args.isEmpty || rightClass.args.allSatisfy { arg in
+                return allTypeArguments(for: rightClass).isEmpty || allTypeArguments(for: rightClass).allSatisfy { arg in
                     if case .star = arg {
                         return true
                     }
                     return false
                 }
             }
-            if leftClass.args.count != rightClass.args.count {
+            let leftArguments = allTypeArguments(for: leftClass)
+            let rightArguments = allTypeArguments(for: rightClass)
+            if leftArguments.count != rightArguments.count {
                 return false
             }
             // Star and in-projected KClass types still read through the Any
@@ -255,20 +253,17 @@ extension TypeSystem {
             let nominalOwner = symbolTable?.actualSymbol(for: leftClass.classSymbol)
                 ?? symbolTable?.actualSymbol(for: rightClass.classSymbol)
                 ?? leftClass.classSymbol
-            let typeParameterSymbols = nominalTypeParameterSymbols(for: nominalOwner)
-            let declarationVariances = normalizedNominalVariances(
-                for: nominalOwner,
-                arity: leftClass.args.count
-            )
-            for index in 0 ..< leftClass.args.count {
+            let typeParameterSymbols = allTypeParameterSymbols(for: nominalOwner)
+            let declarationVariances = allTypeParameterVariances(for: nominalOwner)
+            for index in 0 ..< leftArguments.count {
                 let lhsProjection: Projection
-                if case .star = leftClass.args[index] {
+                if case .star = leftArguments[index] {
                     let bounds = typeParameterSymbols.indices.contains(index)
                         ? symbolTable?.typeParameterUpperBounds(for: typeParameterSymbols[index]) ?? [] : []
                     let variables = makeTypeVarBySymbol(typeParameterSymbols)
                     var substitution: [TypeVarID: TypeID] = [:]
                     var unresolvedStars: [SymbolID: TypeVarID] = [:]
-                    for (parameter, argument) in zip(typeParameterSymbols, leftClass.args) {
+                    for (parameter, argument) in zip(typeParameterSymbols, leftArguments) {
                         guard let variable = variables[parameter] else { continue }
                         switch argument {
                         case let .invariant(type), let .out(type): substitution[variable] = type
@@ -282,7 +277,7 @@ extension TypeSystem {
                     // Recursive stars and in-projected dependencies need a
                     // captured type; an in projection supplies only a lower
                     // bound. Keep the conservative path for these cases.
-                    if declarationVariances[index] == .in
+                    if declarationVariances.indices.contains(index), declarationVariances[index] == .in
                         || OverloadResolver().containsTypeVariable(upperBound, typeVarBySymbol: unresolvedStars, typeSystem: self)
                     {
                         lhsProjection = .star
@@ -291,13 +286,15 @@ extension TypeSystem {
                     }
                 } else {
                     lhsProjection = composedProjection(
-                        declarationVariance: declarationVariances[index],
-                        useSite: leftClass.args[index]
+                        declarationVariance: declarationVariances.indices.contains(index)
+                            ? declarationVariances[index] : .invariant,
+                        useSite: leftArguments[index]
                     )
                 }
                 let rhsProjection = composedProjection(
-                    declarationVariance: declarationVariances[index],
-                    useSite: rightClass.args[index]
+                    declarationVariance: declarationVariances.indices.contains(index)
+                        ? declarationVariances[index] : .invariant,
+                    useSite: rightArguments[index]
                 )
                 if !isProjectionSubtype(lhsProjection, rhsProjection) {
                     return false
@@ -1091,11 +1088,12 @@ extension TypeSystem {
         var survivors: [TypeID] = []
         for ancestor in ancestors {
             let args = liftedNominalSupertypeArgs(
-                from: first.classSymbol,
-                childArgs: first.args,
+                from: first,
                 to: ancestor
             ) ?? []
-            let candidate = make(.classType(ClassType(classSymbol: ancestor, args: args, nullability: .nonNull)))
+            let candidate = make(.classType(classType(
+                for: ancestor, arguments: args, nullability: .nonNull
+            )))
             if normalizedBuiltinDisguisedClassTypeAndKind(candidate).0 == anyType {
                 continue
             }
@@ -1145,8 +1143,7 @@ extension TypeSystem {
             for input in types {
                 guard case let .classType(classType) = kind(of: input),
                       let lifted = liftedNominalSupertypeArgs(
-                          from: classType.classSymbol,
-                          childArgs: classType.args,
+                          from: classType,
                           to: ancestor
                       )
                 else {
@@ -1155,7 +1152,9 @@ extension TypeSystem {
                 argumentLists.append(lifted)
                 // A later branch may provide the common instantiation:
                 // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
-                let candidate = make(.classType(ClassType(classSymbol: ancestor, args: lifted, nullability: .nonNull)))
+                let candidate = make(.classType(self.classType(
+                    for: ancestor, arguments: lifted, nullability: .nonNull
+                )))
                 if !candidates.contains(candidate), types.allSatisfy({ isSubtype($0, candidate) }) {
                     candidates.insert(candidate)
                     hasExistingCandidate = true
@@ -1193,7 +1192,7 @@ extension TypeSystem {
         else { return nil }
         defer { activeNominalLUBInputs.remove(inputSet) }
 
-        let variances = normalizedNominalVariances(for: symbol, arity: first.count)
+        let variances = allTypeParameterVariances(for: symbol)
         var combined: [TypeArg] = []
         for index in first.indices {
             let arguments = argumentLists.map { $0[index] }
@@ -1210,7 +1209,9 @@ extension TypeSystem {
             }
             combined.append(.out(lub(upperBounds)))
         }
-        let candidate = make(.classType(ClassType(classSymbol: symbol, args: combined, nullability: .nonNull)))
+        let candidate = make(.classType(classType(
+            for: symbol, arguments: combined, nullability: .nonNull
+        )))
         return inputs.allSatisfy({ isSubtype($0, candidate) }) ? candidate : nil
     }
 
@@ -1283,16 +1284,11 @@ extension TypeSystem {
             guard visited.insert(current).inserted else { continue }
             if functionInterfaceArity(of: current, isSuspend: isSuspend) == arity,
                let args = liftedNominalSupertypeArgs(
-                   from: classType.classSymbol,
-                   childArgs: classType.args,
+                   from: classType,
                    to: current
                )
             {
-                return ClassType(
-                    classSymbol: current,
-                    args: args,
-                    nullability: classType.nullability
-                )
+                return self.classType(for: current, arguments: args, nullability: classType.nullability)
             }
             queue.append(contentsOf: directNominalSupertypes(for: current))
         }

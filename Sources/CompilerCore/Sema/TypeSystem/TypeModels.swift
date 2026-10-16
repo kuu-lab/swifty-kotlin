@@ -78,11 +78,20 @@ public enum Nullability: Hashable, Sendable {
 public struct ClassType: Hashable, Sendable {
     public let classSymbol: SymbolID
     public let args: [TypeArg]
+    /// Type arguments captured from enclosing owners of an `inner` class,
+    /// ordered from the outermost owner to the immediate owner.
+    public let enclosingTypeArgs: [TypeArg]
     public let nullability: Nullability
 
-    public init(classSymbol: SymbolID, args: [TypeArg] = [], nullability: Nullability = .nonNull) {
+    public init(
+        classSymbol: SymbolID,
+        args: [TypeArg] = [],
+        enclosingTypeArgs: [TypeArg] = [],
+        nullability: Nullability = .nonNull
+    ) {
         self.classSymbol = classSymbol
         self.args = args
+        self.enclosingTypeArgs = enclosingTypeArgs
         self.nullability = nullability
     }
 }
@@ -129,6 +138,14 @@ public struct CapturedTypeBounds: Hashable, Sendable {
     public let identity: Int
     public let lower: TypeID
     public let upper: TypeID
+    public let writeForbidden: Bool
+
+    public init(identity: Int, lower: TypeID, upper: TypeID, writeForbidden: Bool = false) {
+        self.identity = identity
+        self.lower = lower
+        self.upper = upper
+        self.writeForbidden = writeForbidden
+    }
 }
 
 public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
@@ -207,6 +224,7 @@ extension TypeKind {
             .classType(ClassType(
                 classSymbol: type.classSymbol,
                 args: type.args.map { $0.mapTypes(transform) },
+                enclosingTypeArgs: type.enclosingTypeArgs.map { $0.mapTypes(transform) },
                 nullability: type.nullability
             ))
         case let .functionType(type):
