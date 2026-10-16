@@ -1,7 +1,45 @@
 #if canImport(Testing)
+import CompilerCore
 import Testing
 
 extension BundledStdlibExecutionTests {
+    // A generic `T.rangeTo` creates a heap-backed ComparableRange<T>; it must
+    // keep its Kotlin contains dispatch instead of being treated as a runtime
+    // integer-range handle.
+    @Test
+    func testGenericUByteRangeMembershipThroughSourceAndArtifact() throws {
+        let source = """
+        fun <T : UByte> contains(a: T?, b: T?, c: T): Boolean where T : Comparable<UByte> =
+            a != null && b != null && c !in a..b
+
+        fun main() {
+            println(contains<UByte>(1u, 2u, 0u))
+            println(contains<UByte>(1u, 2u, 1u))
+            println(contains<UByte>(1u, 2u, 2u))
+            println(contains<UByte>(1u, 2u, 3u))
+        }
+        """
+        let expectedOutput = """
+        true
+        false
+        false
+        true
+
+        """
+
+        for allowDefaultStdlibLibrary in [false, true] {
+            for optLevel in [OptimizationLevel.O0, .O2] {
+                try compileAndRunKotlin(
+                    source,
+                    expectedOutput: expectedOutput,
+                    moduleName: "GenericUByteRangeMembership",
+                    allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+                    optLevel: optLevel
+                )
+            }
+        }
+    }
+
     // KSP-1523 (stdlib-pipeline.md §13-4 dual oracle, second leg): UIntRange's
     // property/membership/aggregate members are now bundled Kotlin source
     // (RangeHOF.kt) instead of synthetic Swift stubs. `average()`/`toUIntArray()`
