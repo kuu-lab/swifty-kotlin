@@ -107,6 +107,9 @@ extension CallLowerer {
         // widened (e.g. an Int literal assigned into an Array<Long> slot), and
         // boxing/unboxing must use the slot's actual element type, not the
         // operand's.
+        let receiverElementType = receiverBoundType.flatMap {
+            TypeCheckHelpers().arrayElementType(for: $0, sema: sema, interner: interner)
+        }
         let compoundPrimitiveElementType: TypeID? = compoundReceiverIsGenericArray
             ? (genericArrayElementType(of: receiverBoundType, sema: sema) ?? sema.bindings.exprTypes[valueExpr])
             : nil
@@ -135,15 +138,41 @@ extension CallLowerer {
             getResult = rawGetResult
         }
         // Kotlin evaluates `a[i] += v` as receiver, index, get, value, op, set.
-        let valueID = driver.lowerExpr(
-            valueExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
+        let valueID: KIRExprID
+        if ast.arena.isIncrementDecrement(exprID), elementOperator == nil,
+           let receiverElementType
+        {
+            let one: KIRExprKind?
+            switch sema.types.kind(of: receiverElementType) {
+            case .primitive(.float, .nonNull): one = .floatLiteral(1.0)
+            case .primitive(.double, .nonNull): one = .doubleLiteral(1.0)
+            default: one = nil
+            }
+            if let one {
+                valueID = arena.appendExpr(one, type: receiverElementType)
+                instructions.append(.constValue(result: valueID, value: one))
+            } else {
+                valueID = driver.lowerExpr(
+                    valueExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
+        } else {
+            valueID = driver.lowerExpr(
+                valueExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         if let elementOperator {
             guard let newElement = emitIndexedElementOperatorCall(
                 elementOperator,
@@ -179,9 +208,6 @@ extension CallLowerer {
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
         let stringType = sema.types.stringType
-        let receiverElementType = receiverBoundType.flatMap {
-            TypeCheckHelpers().arrayElementType(for: $0, sema: sema, interner: interner)
-        }
         let isStringElement = receiverElementType == stringType
         let isUnsignedElement = receiverElementType.map { sema.types.isUnsigned($0) } ?? false
         let floatingPointPrefix: String? = if let receiverElementType {

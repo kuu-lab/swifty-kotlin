@@ -37,7 +37,17 @@ extension LocalDeclTypeChecker {
             )
             indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType))
         }
-        let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        // Indexed `++` / `--` is represented as a compound assignment with a
+        // synthetic `1`. Its type depends on the element, so defer that literal
+        // until `get()` has supplied the element type. Explicit RHS expressions
+        // keep their existing eager, unconstrained inference.
+        let isIncrementDecrement = ctx.ast.arena.isIncrementDecrement(id)
+        let initialValueType: TypeID?
+        if isIncrementDecrement {
+            initialValueType = nil
+        } else {
+            initialValueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        }
 
         let getCall = CallExpr(
             range: range,
@@ -79,6 +89,15 @@ extension LocalDeclTypeChecker {
         let (elementType, operatorResolved) = resolveIndexedGetElement(
             id: id, receiverType: receiverType, getCandidates: getCandidates, getCall: getCall,
             ctx: ctx
+        )
+
+        let isBuiltinNumericIncrement = isIncrementDecrement
+            && driver.exprChecker.isBuiltinNumericIncrementDecrementTarget(elementType, sema: sema)
+        let valueType = initialValueType ?? driver.inferExpr(
+            valueExpr,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: isBuiltinNumericIncrement ? elementType : nil
         )
 
         if !operatorResolved {
@@ -164,7 +183,11 @@ extension LocalDeclTypeChecker {
             let isCharOffset = elementType == sema.types.charType
                 && valueType == sema.types.intType
                 && [.add, .subtract].contains(binaryOp)
-            if !isCharOffset {
+            // Builtin indexed `++` / `--` has no explicit RHS: the synthetic
+            // Int literal `1` is an AST implementation detail, while the
+            // operation is defined by the element type. Explicit
+            // `a[i] += value` still has to satisfy this RHS subtype rule.
+            if !isCharOffset && !isBuiltinNumericIncrement {
                 driver.emitSubtypeConstraint(
                     left: valueType, right: elementType,
                     range: ctx.ast.arena.exprRange(valueExpr) ?? range,
