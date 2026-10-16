@@ -1,15 +1,8 @@
-/// Local-declaration helpers used by `ExprLowerer.lowerExpr`:
-/// custom-delegate `provideDelegate` resolution, delegated-local `getValue`
-/// reads, and the bare-variable-read predicate.
-///
-/// Split out from `ExprLowerer+ControlFlowAndBlocks.swift`.
 extension ExprLowerer {
-    /// Resolves the *effective* delegate for a local custom-delegate declaration
-    /// (BUG-146). When the delegate factory exposes a `provideDelegate` operator,
+    /// When the delegate factory exposes a `provideDelegate` operator,
     /// the actual delegate is its return value — the same rule member/top-level
     /// delegated properties follow in KIRLoweringDriver+ProvideDelegate.swift.
-    /// Emits `rawDelegate.provideDelegate(null, KProperty("x"))` and returns the
-    /// result. When no `provideDelegate` is present, returns `rawDelegateID`
+    /// When no `provideDelegate` is present, returns `rawDelegateID`
     /// unchanged (the delegate factory instance is itself the delegate).
     func lowerLocalProvideDelegateIfNeeded(
         symbol: SymbolID,
