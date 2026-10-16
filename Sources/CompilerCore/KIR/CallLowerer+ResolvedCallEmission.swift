@@ -249,7 +249,8 @@ extension CallLowerer {
         sourceArgExprsOverride: [ExprID]? = nil,
         explicitReceiverOverride: KIRExprID? = nil,
         outerReceiverOverride: KIRExprID? = nil,
-        leadingArguments: [KIRExprID] = []
+        leadingArguments: [KIRExprID] = [],
+        localFunctionCaptureArguments: [KIRExprID]? = nil
     ) -> KIRExprID {
         let sourceArgExprs = sourceArgExprsOverride ?? args.map(\.expr)
         if let emptyArray = lowerEmptyArrayCallExpr(
@@ -438,25 +439,32 @@ extension CallLowerer {
                   let chosen,
                   sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true
         {
-            // A local function may be called from a lifted constructor lambda
-            // whose context has its free variables but no callable-value
-            // metadata. Rebuild the direct-call environment from Sema's
-            // declaration-time capture list.
-            var captureArguments: [KIRExprID] = []
-            for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: chosen) {
-                guard let captureValue = driver.lambdaLowerer.captureValueExpr(
-                    for: capturedSymbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                ) else {
-                    assertionFailure("BuildKIRPhase: missing local function capture '\(capturedSymbol)'")
-                    continue
+            if let localFunctionCaptureArguments {
+                // A generated adapter already has these captures as parameters.
+                // Use its local expression IDs instead of resolving the same
+                // symbols in the enclosing function's scope.
+                finalArgIDs.insert(contentsOf: localFunctionCaptureArguments, at: 0)
+            } else {
+                // A local function may be called from a lifted constructor lambda
+                // whose context has its free variables but no callable-value
+                // metadata. Rebuild the direct-call environment from Sema's
+                // declaration-time capture list.
+                var captureArguments: [KIRExprID] = []
+                for capturedSymbol in sema.bindings.localFunctionCaptureSymbols(for: chosen) {
+                    guard let captureValue = driver.lambdaLowerer.captureValueExpr(
+                        for: capturedSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ) else {
+                        assertionFailure("BuildKIRPhase: missing local function capture '\(capturedSymbol)'")
+                        continue
+                    }
+                    captureArguments.append(captureValue)
                 }
-                captureArguments.append(captureValue)
+                finalArgIDs.insert(contentsOf: captureArguments, at: 0)
             }
-            finalArgIDs.insert(contentsOf: captureArguments, at: 0)
         } else if let chosen,
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor

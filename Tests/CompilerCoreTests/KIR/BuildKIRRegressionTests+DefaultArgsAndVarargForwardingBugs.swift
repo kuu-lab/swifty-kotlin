@@ -77,6 +77,42 @@ extension BuildKIRRegressionTests {
         })
     }
 
+    /// Callable-reference adapters must forward their own capture parameters
+    /// into a local function's default-argument stub.
+    @Test
+    func localFunctionCallableReferenceDefaultsUseAdapterCaptures() throws {
+        let source = """
+        fun call(f: (Int, Int) -> Int): Int = f(1, 2)
+        fun probe(): Int {
+            var prefix = 10
+            fun local(x: Int, y: Int = 20, z: Int = 30) = prefix + x + y + z
+            return call(::local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+            let module = try #require(ctx.kir)
+            let local = try findKIRFunction(named: "local", in: module, interner: ctx.interner)
+            let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: local.symbol)
+            let stub = try #require(findAllKIRFunctions(in: module).first { $0.symbol == stubSymbol })
+            let adapterCalls = findAllKIRFunctions(in: module).flatMap { function in
+                function.body.compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                          symbol == stubSymbol
+                    else {
+                        return nil
+                    }
+                    return arguments
+                }
+            }
+            #expect(adapterCalls.count == 1)
+            #expect(adapterCalls.first?.count == stub.params.count)
+        }
+    }
+
     /// `this(...)` used to lower the delegation args positionally into a plain
     /// `<init>` call (3 args for a 4-slot constructor), reading garbage for the
     /// omitted defaults.
