@@ -3,6 +3,42 @@ import Testing
 
 @Suite
 struct DisjointEqualityTypeTests {
+    @Test func receiverFunctionCallResultUsesReturnTypeInEquality() throws {
+        try withTemporaryFile(contents: """
+        fun box(): String {
+            val f: Int.(Int) -> String = { "15" }
+            return if ("15" == 5.f(10)) "OK" else "FAIL"
+        }
+
+        fun smartCasted(value: Any): Boolean {
+            if (value is Int) return value == "text"
+            return false
+        }
+
+        fun directComparison(value: Int) = value == "text"
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 1 && errors.first?.code == "KSWIFTK-SEMA-0002",
+                "Only the unrelated direct Int/String comparison should be rejected: \(errors)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let invocationIndex = try #require(ast.arena.exprs.enumerated().first { _, expr in
+                guard case let .memberCall(_, name, _, args, _) = expr,
+                      args.count == 1
+                else { return false }
+                return ctx.interner.resolve(name) == "f"
+            }?.offset)
+            let invocation = ExprID(rawValue: Int32(invocationIndex))
+            #expect(sema.bindings.exprType(for: invocation) == sema.types.stringType)
+            #expect(sema.bindings.callableValueCallBinding(for: invocation) != nil)
+            #expect(sema.bindings.identifierSymbol(for: invocation) != nil,
+                "Capture analysis must retain the receiver-function value's symbol on its call")
+        }
+    }
+
     @Test func matchesKotlinBuiltinEqualityCompatibility() throws {
         let sources = [
             """
