@@ -38,11 +38,29 @@ extension LambdaLowerer {
         }
         let wrapperParams = (closureParam.map { [$0] } ?? captureParams) + valueParams
         var body: [KIRInstruction] = [.beginBlock]
-        let activeCaptureParams = needsHOFWrapper ? [] : captureParams
-        let captureRefs = activeCaptureParams.map { parameter -> KIRExprID in
-            let reference = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
-            body.append(.constValue(result: reference, value: .symbolRef(parameter.symbol)))
-            return reference
+        let captureRefs: [KIRExprID]
+        if needsHOFWrapper, let closureParam {
+            let closureRef = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
+            body.append(.constValue(result: closureRef, value: .symbolRef(closureParam.symbol)))
+            captureRefs = driver.callLowerer.appendCallableCaptureLoads(
+                callableInfo: KIRCallableValueInfo(
+                    symbol: callableSymbol,
+                    callee: callableName,
+                    captureArguments: captureArguments,
+                    hasClosureParam: false
+                ),
+                closureExpr: closureRef,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
+            )
+        } else {
+            captureRefs = captureParams.map { parameter -> KIRExprID in
+                let reference = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+                body.append(.constValue(result: reference, value: .symbolRef(parameter.symbol)))
+                return reference
+            }
         }
         let valueRefs = valueParams.map { parameter -> KIRExprID in
             let reference = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
@@ -118,29 +136,40 @@ extension LambdaLowerer {
         let callResultType = functionType.returnType == sema.types.unitType
             ? declaredReturnType
             : functionType.returnType
-        let callResult = driver.callLowerer.lowerResolvedCallBody(
-            exprID,
-            args: callArguments,
-            loweredArgIDs: valueArguments,
-            chosen: targetSymbol,
-            callBinding: callBinding,
-            callableValueCallBinding: nil,
-            loweredCallable: nil,
-            loweredCalleeExprID: nil,
-            sourceCalleeName: memberName,
-            boundType: callResultType,
-            knownNames: KnownCompilerNames(interner: interner),
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &body,
-            sourceArgExprsOverride: [],
-            explicitReceiverOverride: receiverOverride,
-            outerReceiverOverride: constructorOuterReceiver,
-            leadingArguments: Array(captureRefs.prefix(localCaptureCount))
-        )
+        let contextCaptureStart = max(captureRefs.count - binding.boundContextParameterTypes.count, 0)
+        let contextReceiverValues: [KIRLoweringContext.ContextReceiverValue] = binding.boundContextParameterTypes
+            .enumerated().compactMap { index, type in
+                guard captureRefs.indices.contains(contextCaptureStart + index) else { return nil }
+                return KIRLoweringContext.ContextReceiverValue(
+                    type: type,
+                    exprID: captureRefs[contextCaptureStart + index]
+                )
+            }
+        let callResult = driver.ctx.withContextReceiverValues(contextReceiverValues) {
+            driver.callLowerer.lowerResolvedCallBody(
+                exprID,
+                args: callArguments,
+                loweredArgIDs: valueArguments,
+                chosen: targetSymbol,
+                callBinding: callBinding,
+                callableValueCallBinding: nil,
+                loweredCallable: nil,
+                loweredCalleeExprID: nil,
+                sourceCalleeName: memberName,
+                boundType: callResultType,
+                knownNames: KnownCompilerNames(interner: interner),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &body,
+                sourceArgExprsOverride: [],
+                explicitReceiverOverride: receiverOverride,
+                outerReceiverOverride: constructorOuterReceiver,
+                leadingArguments: Array(captureRefs.prefix(localCaptureCount))
+            )
+        }
         switch sema.types.kind(of: functionType.returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)
@@ -496,6 +525,25 @@ extension LambdaLowerer {
            let capturedInfo = driver.ctx.localValue(for: targetSymbol).flatMap({ driver.ctx.callableValueInfo(for: $0) })
         {
             captureArguments = capturedInfo.captureArguments + captureArguments
+        }
+
+        if let targetSymbol,
+           let callableReferenceBinding,
+           !callableReferenceBinding.boundContextParameterTypes.isEmpty,
+           let signature = sema.symbols.functionSignature(for: targetSymbol)
+        {
+            for contextType in callableReferenceBinding.boundContextParameterTypes {
+                if let contextValue = driver.callLowerer.contextArgumentValue(
+                    matching: contextType,
+                    callExprID: exprID,
+                    signature: signature,
+                    callBinding: callableReferenceBinding,
+                    sema: sema,
+                    arena: arena
+                ) {
+                    captureArguments.append(contextValue)
+                }
+            }
         }
 
         // BUG-162: KProperty0/1 references need a real object implementing the

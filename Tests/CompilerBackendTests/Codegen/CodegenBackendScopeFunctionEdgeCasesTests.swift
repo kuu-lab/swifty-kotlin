@@ -139,6 +139,20 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
         fun render(value: String): String = prefix + value
 
         @OptIn(ExperimentalContextParameters::class)
+        context(prefix: String)
+        fun renderIndex(value: Int): String = prefix + value
+
+        @OptIn(ExperimentalContextParameters::class)
+        context(prefix: String)
+        fun contextualValue(): String = prefix
+
+        object ContextCallableTarget {
+            @OptIn(ExperimentalContextParameters::class)
+            context(prefix: String, suffix: Char)
+            fun contextualValue(): String = prefix + suffix
+        }
+
+        @OptIn(ExperimentalContextParameters::class)
         context(index: Int)
         fun selected(values: Array<String>): String = values[index]
 
@@ -170,6 +184,17 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
             println(context("L") { localRender("K") })
             val renderRef: context(String) (String) -> String = ::render
             println(context("C") { renderRef("K") })
+            context("R") {
+                val boundContextRef: () -> String = ::contextualValue
+                println(boundContextRef())
+            }
+            context("O", 'K') {
+                val memberContextRef: () -> String = ContextCallableTarget::contextualValue
+                println(memberContextRef())
+            }
+            context("H") {
+                println(listOf(1).map(::renderIndex))
+            }
             val holder = ContextHolder()
             println(context("M") { holder.render("K") })
             context("O") {
@@ -205,6 +230,9 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
                 B
                 LK
                 CK
+                R
+                OK
+                [H1]
                 MK
                 O
                 OK

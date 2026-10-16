@@ -11,6 +11,9 @@ public struct CallBinding {
     /// Whether lowering must wrap this reference to adapt its function shape,
     /// including its arity, receiver, or return type, to the selected type.
     public let isCallableReferenceAdapter: Bool
+    /// Context parameters captured when a context-requiring callable reference
+    /// is adapted to a function type without context receivers.
+    public let boundContextParameterTypes: [TypeID]
 
     public init(
         chosenCallee: SymbolID,
@@ -18,7 +21,8 @@ public struct CallBinding {
         parameterMapping: [Int: Int],
         defaultArgumentOwner: SymbolID? = nil,
         dispatchReceiverSymbol: SymbolID? = nil,
-        isCallableReferenceAdapter: Bool = false
+        isCallableReferenceAdapter: Bool = false,
+        boundContextParameterTypes: [TypeID] = []
     ) {
         self.chosenCallee = chosenCallee
         self.substitutedTypeArguments = substitutedTypeArguments
@@ -26,6 +30,7 @@ public struct CallBinding {
         self.defaultArgumentOwner = defaultArgumentOwner
         self.dispatchReceiverSymbol = dispatchReceiverSymbol
         self.isCallableReferenceAdapter = isCallableReferenceAdapter
+        self.boundContextParameterTypes = boundContextParameterTypes
     }
 }
 
