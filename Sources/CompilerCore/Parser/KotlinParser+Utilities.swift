@@ -943,9 +943,9 @@ extension KotlinParser {
 }
 
 enum ParserBoundaryPolicy {
-    /// Keywords that start declarations or act as statement/synchronization boundaries.
-    private static let declarationBoundaryKeywords: Set<Keyword> = [
-        .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
+    /// Keywords that start declarations or terminate a preceding expression on a new line.
+    private static let newlineBoundaryKeywords: Set<Keyword> = [
+        .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import, .return,
     ]
 
     /// Excludes `.enum` because `enum` is a soft modifier (always followed by `class`)
@@ -986,7 +986,7 @@ enum ParserBoundaryPolicy {
             return true
         case .symbol(.at):
             return !inBlock && hasLeadingNewline
-        case let .keyword(kw) where declarationBoundaryKeywords.contains(kw) || KotlinParser.isDeclarationModifierKeyword(kw):
+        case let .keyword(kw) where newlineBoundaryKeywords.contains(kw) || KotlinParser.isDeclarationModifierKeyword(kw):
             return !inBlock && hasLeadingNewline
         default:
             return false
@@ -1028,8 +1028,12 @@ enum ParserBoundaryPolicy {
 
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
         // Both class and property delegation require an expression after `by`;
+        // `else` requires a branch expression, which may start on the next line;
         // a cast may also continue a block-bodied expression after its closing brace.
         if kind == .softKeyword(.by) || kind == .keyword(.as) {
+            return true
+        }
+        if kind == .keyword(.else) {
             return true
         }
         if case let .symbol(symbol) = kind {

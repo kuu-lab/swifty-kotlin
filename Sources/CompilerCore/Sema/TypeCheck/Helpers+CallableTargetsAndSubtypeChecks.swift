@@ -246,6 +246,7 @@ extension TypeCheckHelpers {
         bindReceiver: Bool,
         boundReceiverType: TypeID? = nil,
         unboundReceiverType: TypeID? = nil,
+        expectedCallableReferenceReturnType: TypeID? = nil,
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
         sema: SemaModule
@@ -266,7 +267,22 @@ extension TypeCheckHelpers {
             nil
         }
         guard let expectedFunctionType else {
-            return sorted.first
+            guard let expectedCallableReferenceReturnType else { return sorted.first }
+            let matching = sorted.filter { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return contextualCallableReferenceBinding(
+                    for: signature,
+                    bindReceiver: bindReceiver,
+                    boundReceiver: boundReceiverType.map { (symbolID, $0) },
+                    unboundReceiverType: unboundReceiverType,
+                    expectedFunctionType: nil,
+                    expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                    interner: interner,
+                    sema: sema
+                ) != nil
+            }
+            if matching.count == 1 { return matching[0] }
+            return matching.isEmpty && sorted.count == 1 ? sorted[0] : nil
         }
         guard case let .functionType(expectedFunction) = sema.types.kind(of: expectedFunctionType) else {
             return nil
@@ -365,6 +381,7 @@ extension TypeCheckHelpers {
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
         unboundReceiverType: TypeID? = nil,
         expectedFunctionType: TypeID?,
+        expectedCallableReferenceReturnType: TypeID? = nil,
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
         allowScalarVarargAdaptation: Bool = true,
@@ -512,7 +529,11 @@ extension TypeCheckHelpers {
             let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             guard !typeVars.isEmpty else {
                 guard callableReferenceTypeMatches(
-                    inferredType, expected: expectedFunctionType, postponedReturn: postponedReturnTypeParameter, sema: sema
+                    inferredType,
+                    expected: expectedFunctionType,
+                    expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                    postponedReturn: postponedReturnTypeParameter,
+                    sema: sema
                 ) else { return nil }
                 return ContextualCallableReferenceBinding(
                     functionType: inferredType,
@@ -551,6 +572,16 @@ extension TypeCheckHelpers {
                 constraints = resolver.decomposeSubtypeConstraint(
                     subtype: inferredType, supertype: constraintExpectedFunctionType ?? expectedFunctionType,
                     typeVarBySymbol: typeVars, typeSystem: types, blameRange: nil
+                )
+            } else if let expectedCallableReferenceReturnType,
+                      case let .functionType(actual) = types.kind(of: inferredType)
+            {
+                constraints = resolver.decomposeSubtypeConstraint(
+                    subtype: actual.returnType,
+                    supertype: expectedCallableReferenceReturnType,
+                    typeVarBySymbol: typeVars,
+                    typeSystem: types,
+                    blameRange: nil
                 )
             } else { constraints = [] }
             if let boundReceiver, let receiverType = signature.receiverType {
@@ -654,6 +685,7 @@ extension TypeCheckHelpers {
             )
             guard callableReferenceTypeMatches(
                 specializedType, expected: expectedFunctionType,
+                expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                 postponedReturn: postponedReturnTypeParameter, sema: sema
             ) else { return nil }
             var arguments: [TypeID] = []
@@ -675,8 +707,17 @@ extension TypeCheckHelpers {
     }
 
     private func callableReferenceTypeMatches(
-        _ actualType: TypeID, expected: TypeID?, postponedReturn: SymbolID?, sema: SemaModule
+        _ actualType: TypeID,
+        expected: TypeID?,
+        expectedCallableReferenceReturnType: TypeID? = nil,
+        postponedReturn: SymbolID?,
+        sema: SemaModule
     ) -> Bool {
+        if let expectedCallableReferenceReturnType {
+            guard case let .functionType(actual) = sema.types.kind(of: actualType),
+                  sema.types.isSubtype(actual.returnType, expectedCallableReferenceReturnType)
+            else { return false }
+        }
         guard let expected else { return true }
         let matchingExpected = suspendConvertedCallableReferenceExpectedType(
             actualType, expectedFunctionType: expected, sema: sema
@@ -699,6 +740,22 @@ extension TypeCheckHelpers {
             nullability: context.nullability, throws: context.throws
         )))
         return sema.types.isSubtype(actualType, comparison)
+    }
+
+    /// Returns the covariant result constraint carried by a reflective KFunction type.
+    func reflectiveCallableReferenceReturnType(
+        from expectedType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let kFunctionSymbol = sema.types.kFunctionInterfaceSymbol,
+              case let .classType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
+              functionType.classSymbol == kFunctionSymbol,
+              functionType.args.count == 1
+        else { return nil }
+        switch functionType.args[0] {
+        case let .invariant(type), let .out(type): return type
+        case .in, .star: return nil
+        }
     }
 
 }

@@ -3,6 +3,54 @@
 import Testing
 
 extension OverloadResolverTests {
+    @Test
+    func testIndexedSetFinalValueArgumentSkipsDefaultedParameters() {
+        let (fn, resolved) = resolveSyntheticIndexedSet(middleHasDefault: true)
+
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 2])
+    }
+
+    @Test
+    func testIndexedSetFinalValueArgumentCannotSkipRequiredParameters() {
+        let (fn, resolved) = resolveSyntheticIndexedSet(middleHasDefault: false)
+
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+    }
+
+    private func resolveSyntheticIndexedSet(middleHasDefault: Bool) -> (SymbolID, ResolvedCall) {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+        let intType = types.make(.primitive(.int, .nonNull))
+        let set = defineSymbol(kind: .function, name: "set", suffix: "indexed_set", symbols: symbols, interner: interner)
+        let index = defineSymbol(
+            kind: .valueParameter, name: "index", suffix: "indexed_set_index", symbols: symbols, interner: interner
+        )
+        let marker = defineSymbol(
+            kind: .valueParameter, name: "marker", suffix: "indexed_set_marker", symbols: symbols, interner: interner
+        )
+        let value = defineSymbol(
+            kind: .valueParameter, name: "value", suffix: "indexed_set_value", symbols: symbols, interner: interner
+        )
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: [intType, intType, types.stringType],
+            returnType: types.unitType,
+            valueParameterSymbols: [index, marker, value],
+            valueParameterHasDefaultValues: [false, middleHasDefault, false]
+        ), for: set)
+
+        let resolved = resolver.resolveCall(candidates: [set], call: CallExpr(
+            range: makeRange(start: 0, end: 10),
+            calleeName: interner.intern("set"),
+            args: [
+                CallArg(type: intType),
+                CallArg(type: types.stringType, bindsToLastParameter: true),
+            ]
+        ), expectedType: nil, ctx: ctx)
+        return (set, resolved)
+    }
+
     @Test(arguments: [
         (false, false, false), (false, false, true),
         (false, true, false), (false, true, true),

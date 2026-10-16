@@ -156,6 +156,21 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
     }
 
+    @Test(arguments: ["1", "fallback()"])
+    func expressionBodyElseBranchCanStartOnTheNextLine(elseExpression: String) {
+        let parsed = parse("""
+        fun fallback(): Int = 1
+        fun target(x: Boolean): Int = if (x) 0 else
+            \(elseExpression)
+        fun after(): Int = 2
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(rootChildCount(in: parsed.arena, root: parsed.root, kind: .statement) == 0)
+    }
+
     @Test(arguments: [
         "var count = 0\ncount = count + 1\ncount",
         "val count = 1\ncount",
@@ -640,6 +655,38 @@ struct DeclarationBoundaryTests {
 
         #expect(parsed.diagnostics.diagnostics.isEmpty)
         #expect(hasDirectBlock)
+    }
+
+    @Test(arguments: [
+        """
+        fun <T : Any, B : UInt> sample(value: T): Int
+            where B : Comparable<UInt> {
+            return 1
+        }
+        fun after(): String = "OK"
+        """,
+        """
+        fun <T : Any, B : UInt> sample(value: T): Int
+            where
+                B : Comparable<UInt>,
+                T : Any
+            = 1
+        fun after(): String = "OK"
+        """,
+    ])
+    func functionWhereClauseAfterReturnTypeNewlineStaysInHeader(source: String) throws {
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        let sample = try #require(functions.first)
+        let sampleID = NodeID(rawValue: Int32(sample.offset))
+        let sampleTokens = parsed.arena.children(of: sampleID).compactMap { child -> TokenKind? in
+            guard case let .token(tokenID) = child else { return nil }
+            return parsed.arena.token(tokenID)?.kind
+        }
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(functions.count == 2)
+        #expect(sampleTokens.contains(.softKeyword(.where)))
     }
 
     @Test

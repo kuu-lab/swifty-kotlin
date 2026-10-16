@@ -106,16 +106,17 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_safe_cast"),
         ]
 
-        // Callees that retrieve an element from a generic collection. List and
-        // map values are boxed for type erasure, so these accessors may return a
-        // boxed pointer even when the KIR result type is a non-null primitive.
-        // Unbox at the retrieval site so downstream arithmetic, comparisons,
-        // and calls see the plain primitive value.
-        let collectionElementAccessorCallees: Set<InternedString> = [
+        // Callees that retrieve an erased value from a collection, object field,
+        // or closure environment. These slots may contain a boxed pointer even
+        // when the KIR result type is a non-null primitive. Normalize at the
+        // retrieval site so downstream arithmetic, comparisons, and calls see
+        // the plain primitive value.
+        let erasedValueAccessorCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_list_get"),
             ctx.interner.intern("__kk_map_get"),
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
+            ctx.interner.intern("kk_array_get_inbounds"),
         ]
 
         // `kk_array_get` reads an element out of both generic `Array<T>` (boxed
@@ -759,7 +760,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // FunctionSignature entry. Unbox using the KIR result type as the target.
                 var effectiveUnbox: (InternedString, TypeID)? = resolvedUnbox
                 let needsErasedResultUnbox =
-                    collectionElementAccessorCallees.contains(effectiveCallee)
+                    erasedValueAccessorCallees.contains(effectiveCallee)
                     || (effectiveCallee == genericArrayGetCallee
                         && isGenericArrayReceiver(
                             boxedArguments.first,

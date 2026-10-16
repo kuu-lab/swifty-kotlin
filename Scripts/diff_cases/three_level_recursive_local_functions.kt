@@ -1,8 +1,8 @@
 fun box(): String {
     var calls = 0
-    fun foo(x) {
-        fun bar(y) {
-            fun baz(z) {
+    fun foo(x: Int) {
+        fun bar(y: Int) {
+            fun baz(z: Int) {
                 calls++
                 foo(z - 1)
             }

@@ -4,14 +4,58 @@ import Testing
 @Suite
 struct KtorIOCoverageSourceTests {
     @Test
+    func ktorPosixDispatcherImportsNativeIO() throws {
+        let ctx = makeContextFromSources([
+            """
+            package io.ktor.utils.io
+            import kotlinx.coroutines.CoroutineDispatcher
+            expect fun ioDispatcher(): CoroutineDispatcher
+            """,
+            """
+            package io.ktor.utils.io
+            import kotlinx.coroutines.CoroutineDispatcher
+            import kotlinx.coroutines.Dispatchers
+            import kotlinx.coroutines.IO
+
+            public actual fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
+            """,
+            """
+            package io.ktor.utils.io
+            import kotlinx.coroutines.CoroutineDispatcher
+            import kotlinx.coroutines.IO
+
+            fun importedIODispatcher(): CoroutineDispatcher = IO
+            """,
+        ])
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+        let symbols = try #require(ctx.sema?.symbols)
+        let io = try #require(symbols.lookupAll(fqName: ["kotlinx", "coroutines", "IO"].map(ctx.interner.intern)).first)
+        let info = try #require(symbols.symbol(io))
+        #expect(info.visibility == .public)
+        #expect(symbols.isSourceBackedSymbol(io))
+        let file = try #require(symbols.sourceFileID(for: io))
+        #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlinx/coroutines/Dispatchers.kt")
+    }
+
+    @Test
     func ktorImportsResolveBundledAPIsAndOwnedDiscard() throws {
         let ctx = makeContextFromSources([
             """
             package io.ktor.utils.io.core
             import kotlinx.io.Source
+            import kotlinx.io.InternalIoApi
+
+            @OptIn(InternalIoApi::class)
+            val Source.remaining: Long
+                get() = buffer.size
+
+            @OptIn(InternalIoApi::class)
             fun Source.discard(count: Long = Long.MAX_VALUE): Long {
                 request(count)
-                val countToDiscard = minOf(count, buffer.size)
+                val countToDiscard = minOf(count, remaining)
                 buffer.skip(countToDiscard)
                 return countToDiscard
             }

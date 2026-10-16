@@ -5,6 +5,40 @@ import Testing
 
 extension CompilerCoreTests {
 
+    @Test func testCapturedSealedUpperBoundWhenIsExhaustive() throws {
+        let source = """
+        abstract class BaseSymbol<E : Declaration> {
+            abstract val fir: E
+        }
+        abstract class CallableSymbol<D : CallableDeclaration> : BaseSymbol<D>()
+        sealed class Declaration
+        sealed class CallableDeclaration : Declaration()
+        class FunctionDeclaration : CallableDeclaration()
+        class VariableDeclaration : CallableDeclaration()
+
+        val CallableSymbol<*>.isExtension: Boolean
+            get() = when (fir) {
+                is FunctionDeclaration -> true
+                is VariableDeclaration -> false
+            }
+
+        val CallableSymbol<CallableDeclaration>.isExtensionWithFixedArgument: Boolean
+            get() = when (fir) {
+                is FunctionDeclaration -> true
+                is VariableDeclaration -> false
+            }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0004", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0071", in: diagnostics)
+        }
+    }
+
     @Test func testExpressionBodyWhenAndDiagnosticsSema() throws {
         let sources: [String] = [
             // testSubjectLessWhenGuardChainSemaPassesWithElse

@@ -50,4 +50,19 @@ struct RuntimeEnumTests {
         #expect(kk_unbox_bool(kk_any_member_equals(firstEnumEntry, otherEnumEntry)) == 0)
         #expect(kk_unbox_bool(kk_any_member_equals(firstEnumEntry, kk_box_int(0))) == 0)
     }
+
+    @Test
+    func enumEntryHashCodeMatchesAcrossDirectAndBoxedRepresentations() {
+        let enumClassID = 91_301
+        let firstDirectHash = kk_enum_hash_code(0, enumClassID)
+        let secondDirectHash = kk_enum_hash_code(1, enumClassID)
+        let firstBox = kk_enum_box_ordinal(0, 0, enumClassID)
+        let secondBox = kk_enum_box_ordinal(1, 0, enumClassID)
+
+        #expect(firstDirectHash != 0)
+        #expect(secondDirectHash != 1)
+        #expect(kk_enum_hash_code(0, enumClassID) == firstDirectHash)
+        #expect(kk_any_member_hashCode(firstBox) == firstDirectHash)
+        #expect(kk_any_member_hashCode(secondBox) == secondDirectHash)
+    }
 }

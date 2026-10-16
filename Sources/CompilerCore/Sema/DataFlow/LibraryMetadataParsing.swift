@@ -174,6 +174,7 @@ extension DataFlowSemaPhase {
         return ImportedLibrarySymbolRecord(
                 kind: metadataRecord.kind,
                 visibility: metadataRecord.visibility,
+                constructorVisibilityInherited: metadataRecord.constructorVisibilityInherited,
                 mangledName: metadataRecord.mangledName,
                 fqName: fqName,
                 arity: metadataRecord.arity,

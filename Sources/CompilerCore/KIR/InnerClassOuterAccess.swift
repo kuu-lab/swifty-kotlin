@@ -24,7 +24,25 @@ func resolveOuterChainValue(
     interner: StringInterner,
     instructions: inout [KIRInstruction]
 ) -> KIRExprID? {
+    func receiverClassSymbol(for symbol: SymbolID) -> SymbolID? {
+        guard let info = sema.symbols.symbol(symbol) else { return nil }
+        switch info.kind {
+        case .class, .interface, .object, .enumClass:
+            return symbol
+        case .field:
+            guard let owner = sema.symbols.parentSymbol(for: symbol),
+                  sema.symbols.symbol(owner)?.kind == .enumClass
+            else {
+                return nil
+            }
+            return owner
+        default:
+            return nil
+        }
+    }
+
     guard let receiverType = arena.exprType(receiver) else { return nil }
+    guard let targetClassSymbol = receiverClassSymbol(for: target) else { return nil }
     var currentValue = receiver
     var currentType = sema.types.makeNonNullable(receiverType)
     var hops = 0
@@ -41,10 +59,12 @@ func resolveOuterChainValue(
         // exact interned `TypeID` -- this is the fast, always-correct
         // check every ordinary (non-inner-class) property/function access
         // relies on.
-        if currentClassSymbol.id == target {
+        if currentClassSymbol.id == targetClassSymbol {
             return currentValue
         }
-        let targetType = sema.types.make(.classType(ClassType(classSymbol: target, args: [], nullability: .nonNull)))
+        let targetType = sema.types.make(.classType(ClassType(
+            classSymbol: targetClassSymbol, args: [], nullability: .nonNull
+        )))
         if sema.types.isSubtype(currentType, targetType) {
             return currentValue
         }
@@ -68,7 +88,8 @@ func resolveOuterChainValue(
         guard currentClassSymbol.flags.contains(.innerClass),
               let outerFieldSymbol = sema.symbols.outerInstanceFieldSymbol(for: currentClassSymbol.id),
               let outerOffset = sema.symbols.nominalLayout(for: currentClassSymbol.id)?.fieldOffsets[outerFieldSymbol],
-              let outerOwnerSymbol = sema.symbols.parentSymbol(for: currentClassSymbol.id)
+              let rawOuterOwnerSymbol = sema.symbols.parentSymbol(for: currentClassSymbol.id),
+              let outerOwnerSymbol = receiverClassSymbol(for: rawOuterOwnerSymbol)
         else {
             return nil
         }

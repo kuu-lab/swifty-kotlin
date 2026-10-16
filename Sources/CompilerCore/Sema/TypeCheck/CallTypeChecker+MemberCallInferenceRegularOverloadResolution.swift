@@ -55,10 +55,12 @@ extension CallTypeChecker {
                       guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                           return false
                       }
-                      if case .functionType = sema.types.kind(of: receiver) {
+                      switch sema.types.kind(of: sema.types.makeNonNullable(receiver)) {
+                      case .functionType, .typeParam:
                           return true
+                      default:
+                          return false
                       }
-                      return false
                   })
             else {
                 return nil
@@ -304,7 +306,7 @@ extension CallTypeChecker {
         } else if isULongRangeLiteralContainsCall {
             argumentExpectedTypeOverrides[0] = sema.types.ulongType
         }
-        prepareSingleCandidateNestedCallExpectedTypes(
+        prepareUnambiguousNestedCallExpectedTypes(
             args: args,
             callRange: range,
             candidates: candidates,
@@ -433,7 +435,7 @@ extension CallTypeChecker {
                 candidates: extensionCandidates,
                 call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
                     CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
-                }),
+                }, elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
                 ctx: ctx.sema

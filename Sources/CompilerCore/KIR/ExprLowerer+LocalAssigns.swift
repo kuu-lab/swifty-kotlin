@@ -141,6 +141,22 @@ extension ExprLowerer {
                 let pk = p.flatMap { sema.symbols.symbol($0) }?.kind
                 return pk == nil || pk == .package || pk == .object
             }() {
+                if symInfo.kind == .property,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   sema.symbols.symbol(ownerSymbol)?.kind == .object,
+                   !sema.bindings.isObjectLiteralPropertySymbol(symbol)
+                {
+                    // A bare imported property still triggers object initialization,
+                    // just like a qualified object-member write. Otherwise a later
+                    // read can run the initializer and overwrite this assignment.
+                    driver.emitObjectLazyInitGuardIfNeeded(
+                        objectSymbol: ownerSymbol,
+                        arena: arena,
+                        sema: sema,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                }
                 if sema.symbols.symbol(symbol)?.kind == .property,
                    let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
                 {

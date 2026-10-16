@@ -170,7 +170,7 @@ func emitEnumEntryCollection(
     let intType = sema.types.intType
 
     let fieldOffsets = sema.symbols.nominalLayout(for: nominalSymbol.id)?.fieldOffsets ?? [:]
-    let entries = sema.symbols.children(ofFQName: nominalSymbol.fqName)
+    let entries = sema.symbols.children(of: nominalSymbol.id)
         .compactMap { sema.symbols.symbol($0) }
         .filter { $0.kind == .field }
         .sorted(by: {

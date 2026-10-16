@@ -29,15 +29,19 @@ public annotation class ExperimentalContextParameters
 // shape; they are never executed.
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <T, R> context(with: T, block: context(T) () -> R): R = block(with)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, R> context(a: A, b: B, block: context(A, B) () -> R): R = block(a, b)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, R> context(a: A, b: B, c: C, block: context(A, B, C) () -> R): R = block(a, b, c)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, R> context(
     a: A,
     b: B,
@@ -47,6 +51,7 @@ public inline fun <A, B, C, D, R> context(
 ): R = block(a, b, c, d)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, R> context(
     a: A,
     b: B,
@@ -57,6 +62,7 @@ public inline fun <A, B, C, D, E, R> context(
 ): R = block(a, b, c, d, e)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, R> context(
     a: A,
     b: B,
@@ -68,6 +74,7 @@ public inline fun <A, B, C, D, E, F, R> context(
 ): R = block(a, b, c, d, e, f)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, R> context(
     a: A,
     b: B,
@@ -80,6 +87,7 @@ public inline fun <A, B, C, D, E, F, G, R> context(
 ): R = block(a, b, c, d, e, f, g)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, R> context(
     a: A,
     b: B,
@@ -93,6 +101,7 @@ public inline fun <A, B, C, D, E, F, G, H, R> context(
 ): R = block(a, b, c, d, e, f, g, h)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, R> context(
     a: A,
     b: B,
@@ -107,6 +116,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, R> context(
     a: A,
     b: B,
@@ -122,6 +132,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, R> context(
     a: A,
     b: B,
@@ -138,6 +149,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j, k)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, R> context(
     a: A,
     b: B,
@@ -155,6 +167,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, R> context(
     a: A,
     b: B,
@@ -173,6 +186,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, R> context(
     a: A,
     b: B,
@@ -192,6 +206,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R> context(
     a: A,
     b: B,
@@ -212,6 +227,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, R> context(
     a: A,
     b: B,
@@ -233,6 +249,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, R> context(
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> context(
     a: A,
     b: B,
@@ -255,6 +272,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> context
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, R> context(
     a: A,
     b: B,
@@ -278,6 +296,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, R> cont
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, R> context(
     a: A,
     b: B,
@@ -302,6 +321,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, R> c
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, R> context(
     a: A,
     b: B,
@@ -327,6 +347,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, R
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t, u)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V, R> context(
     a: A,
     b: B,
@@ -353,6 +374,7 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t, u, v)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V, W, R> context(
     a: A,
     b: B,
@@ -380,5 +402,6 @@ public inline fun <A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, S, T, U, V
 ): R = block(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t, u, v, w)
 
 @ExperimentalContextParameters
+@kotlin.internal.InlineOnly
 public inline fun <A> contextOf(): A =
     throw IllegalStateException("contextOf() is expanded by the compiler")

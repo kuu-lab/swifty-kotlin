@@ -70,8 +70,31 @@ extension CallTypeChecker {
             return nominalCallablePropertyAcceptsArgumentShape(type, request: request, argTypes: argTypes, locals: locals)
         }
         guard request.explicitTypeArgs.isEmpty else { return false }
+        if sema.symbols.extensionPropertyReceiverType(for: property) != nil {
+            return callableValueAcceptsArgumentShape(
+                function, receiverIsExplicit: true,
+                request: request, argTypes: argTypes, locals: locals
+            )
+        }
+        guard let functionReceiver = function.receiver else {
+            return callableValueAcceptsArgumentShape(
+                function, receiverIsExplicit: false,
+                request: request, argTypes: argTypes, locals: locals
+            )
+        }
+        if argTypes.count == function.params.count + 1 {
+            return callableValueAcceptsArgumentShape(
+                function, receiverIsExplicit: true,
+                request: request, argTypes: argTypes, locals: locals
+            )
+        }
+        guard argTypes.count == function.params.count,
+              sema.types.isSubtype(sema.types.makeNonNullable(receiverType), functionReceiver)
+        else {
+            return false
+        }
         return callableValueAcceptsArgumentShape(
-            function, receiverIsExplicit: sema.symbols.extensionPropertyReceiverType(for: property) != nil,
+            function, receiverIsExplicit: false,
             request: request, argTypes: argTypes, locals: locals
         )
     }

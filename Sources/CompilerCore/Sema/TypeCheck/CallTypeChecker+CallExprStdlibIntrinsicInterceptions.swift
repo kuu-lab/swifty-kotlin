@@ -50,7 +50,7 @@ extension CallTypeChecker {
                    guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
                    return signature.reifiedTypeParameterIndices.contains(0)
                }), let signature = sema.symbols.functionSignature(for: stubSymbol) {
-                let typeArg = explicitTypeArgs.first ?? sema.types.anyType
+                let typeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(

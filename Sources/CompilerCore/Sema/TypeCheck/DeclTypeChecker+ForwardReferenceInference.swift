@@ -232,6 +232,22 @@ extension DeclTypeChecker {
         } while didPrecheckProperty
     }
 
+    func precheckIndependentObjectLiteralMemberProperties(
+        _ memberProperties: [DeclID],
+        ctx: TypeInferenceContext,
+        initialLocals: LocalBindings,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        precheckIndependentMemberProperties(
+            memberProperties,
+            ctx: ctx,
+            initialLocals: initialLocals,
+            solver: solver,
+            diagnostics: diagnostics
+        )
+    }
+
     func canSafelyPrecheckInferredProperty(
         _ property: PropertyDecl,
         in ctx: TypeInferenceContext,

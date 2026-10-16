@@ -564,7 +564,18 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
+        // A source declaration may replace a declaration imported from a
+        // dependency with the same FQName. Only declarations already owned by
+        // this compilation participate in SEMA-0001 redeclaration checks.
+        // Imported library symbols carry `.importedLibrary`; bundled source
+        // declarations do not, so same-module source duplicates still fail.
         let existing = existingByID.values.filter { existing in
+            guard !existing.flags.contains(.importedLibrary) else { return false }
+            // Callable parameters are indexed under `callableFQName + name`.
+            // When a factory shares a name with a class, that encoding can
+            // overlap a class member's FQName even though the parameter does
+            // not occupy the member declaration namespace.
+            guard existing.kind != .valueParameter, existing.kind != .typeParameter else { return false }
             guard let topLevelVisibility, let topLevelFileID else { return true }
             return !symbols.canCoexistAsFilePrivateTopLevelCallable(
                 kind: newKind, visibility: topLevelVisibility, fileID: topLevelFileID, existing: existing
@@ -606,6 +617,41 @@ extension DataFlowSemaPhase {
                 range: range
             )
         }
+    }
+
+    func checkAndReportDuplicateExtensionPropertyReceiver(
+        propertySymbol: SymbolID,
+        receiverType: TypeID,
+        fqName: [InternedString],
+        range: SourceRange?,
+        newFlags: SymbolFlags,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        let matchingDeclarations = symbols.lookupAll(fqName: fqName).compactMap { id -> SemanticSymbol? in
+            guard id != propertySymbol,
+                  let existing = symbols.symbol(id),
+                  existing.kind == .property,
+                  !existing.flags.contains(.synthetic),
+                  symbols.hasExtensionPropertyReceiver(id),
+                  symbols.extensionPropertyReceiverType(for: id) == receiverType
+            else {
+                return nil
+            }
+            return existing
+        }
+        guard !matchingDeclarations.isEmpty else { return }
+        if matchingDeclarations.count == 1,
+           let existing = matchingDeclarations.first,
+           isCompatibleExpectActualPair(newKind: .property, newFlags: newFlags, existing: existing)
+        {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Duplicate declaration in the same package scope.",
+            range: range
+        )
     }
 
     private func hasUserDeclaredFunction(
@@ -806,8 +852,9 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
-                ? [.synthetic, .overrideMember] : [.synthetic]
+            // Synthesized equals replaces Any.equals in the vtable, including
+            // when the class has an explicit superclass implementation.
+            flags: [.synthetic, .overrideMember]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")

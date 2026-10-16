@@ -645,6 +645,219 @@ struct SemaDelegateTypeCheckTests {
         }
     }
 
+    @Test func testGenericDelegateFactoryInferenceFromConventionContext() throws {
+        let source = """
+        package kuu2277
+
+        import kotlin.reflect.KProperty
+
+        object Host {
+            class Delegate<D, E, R>
+            fun <D, E, R> delegate(): Delegate<D, E, R> = Delegate()
+            fun <D, E, R> delegate(required: Int): MemberDelegate<D, E, R> = MemberDelegate()
+            operator fun <D, E, R> Delegate<D, E, R>.provideDelegate(
+                host: D,
+                property: Any?
+            ): Delegate<D, E, R> = this
+            operator fun <D, E, R> Delegate<D, E, R>.getValue(
+                receiver: E,
+                property: Any?
+            ): R = "OK" as R
+
+            val Long.value: String by delegate()
+            val Long.priority: String by delegate()
+            val Long.explicitTypeArguments: String by delegate<Host, Long, String>()
+            val typed: Delegate<Host, Long, String> = delegate()
+            val Long.explicitExpectedType: String by typed
+        }
+
+        operator fun <D, E, R> Host.Delegate<D, E, R>.provideDelegate(
+            host: Any?,
+            property: Any?
+        ): Host.Delegate<D, E, R> = this
+
+        class MemberDelegate<D, E, R> {
+            operator fun provideDelegate(host: D, property: Any?): MemberDelegate<D, E, R> = this
+            operator fun getValue(receiver: E, property: Any?): R = "OK" as R
+        }
+        fun <D, E, R> memberDelegate(): MemberDelegate<D, E, R> = MemberDelegate<D, E, R>()
+        object MemberHost {
+            val Long.memberValue: String by memberDelegate()
+        }
+
+        open class BaseDelegate<D, E, R> {
+            operator fun provideDelegate(host: D, property: Any?): BaseDelegate<D, E, R> = this
+            operator fun getValue(receiver: E, property: Any?): R = "OK" as R
+        }
+        class DerivedDelegate<D, E, R> : BaseDelegate<D, E, R>()
+        fun <D, E, R> inheritedDelegate(): DerivedDelegate<D, E, R> = DerivedDelegate()
+        object InheritedHost {
+            val Long.inheritedValue: String by inheritedDelegate()
+        }
+
+        class GetterOnlyDelegate<E, R>
+        fun <E, R> getterOnlyDelegate(): GetterOnlyDelegate<E, R> = GetterOnlyDelegate()
+        operator fun <E, R> GetterOnlyDelegate<E, R>.getValue(receiver: E, property: Any?): R = "OK" as R
+        object GetterOnlyHost {
+            val Long.getterOnlyValue: String by getterOnlyDelegate()
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            let formattedDiagnostics = diagnostics.map { diagnostic in
+                let location = diagnostic.primaryRange.map {
+                    ctx.sourceManager.lineColumn(of: $0.start)
+                }
+                let excerpt = diagnostic.primaryRange.map {
+                    String(ctx.sourceManager.slice($0))
+                } ?? ""
+                return "\(diagnostic.code)@\(location?.line ?? 0):\(location?.column ?? 0) [\(excerpt)]: \(diagnostic.message)"
+            }.joined(separator: " | ")
+            #expect(
+                !diagnostics.contains { $0.severity == .error },
+                "Convention-context inference should be clean, got: \(formattedDiagnostics)"
+            )
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let host = try #require(sema.symbols.lookup(fqName: ["kuu2277", "Host"].map(interner.intern)))
+            let delegateClass = try #require(
+                sema.symbols.lookup(fqName: ["kuu2277", "Host", "Delegate"].map(interner.intern))
+            )
+            let value = try #require(
+                childSymbol(
+                    named: "value", kind: .property, package: "kuu2277",
+                    className: "Host", sema: sema, interner: interner
+                )
+            )
+            let priority = try #require(
+                childSymbol(
+                    named: "priority", kind: .property, package: "kuu2277",
+                    className: "Host", sema: sema, interner: interner
+                )
+            )
+            let memberHost = try #require(
+                sema.symbols.lookup(fqName: ["kuu2277", "MemberHost"].map(interner.intern))
+            )
+            let memberDelegateClass = try #require(
+                sema.symbols.lookup(fqName: ["kuu2277", "MemberDelegate"].map(interner.intern))
+            )
+            let memberValue = try #require(
+                childSymbol(
+                    named: "memberValue", kind: .property, package: "kuu2277",
+                    className: "MemberHost", sema: sema, interner: interner
+                )
+            )
+            let delegateType = try #require(
+                sema.symbols.propertyType(for: SymbolID(rawValue: -(value.rawValue + 50000)))
+            )
+            let memberDelegateType = try #require(
+                sema.symbols.propertyType(for: SymbolID(rawValue: -(memberValue.rawValue + 50000)))
+            )
+            let inheritedHost = try #require(
+                sema.symbols.lookup(fqName: ["kuu2277", "InheritedHost"].map(interner.intern))
+            )
+            let inheritedValue = try #require(
+                childSymbol(
+                    named: "inheritedValue", kind: .property, package: "kuu2277",
+                    className: "InheritedHost", sema: sema, interner: interner
+                )
+            )
+            let inheritedDelegate = try #require(
+                sema.symbols.lookup(fqName: ["kuu2277", "DerivedDelegate"].map(interner.intern))
+            )
+            let getterOnlyValue = try #require(
+                childSymbol(
+                    named: "getterOnlyValue", kind: .property, package: "kuu2277",
+                    className: "GetterOnlyHost", sema: sema, interner: interner
+                )
+            )
+            let getterOnlyDelegate = try #require(
+                sema.symbols.lookup(fqName: ["kuu2277", "GetterOnlyDelegate"].map(interner.intern))
+            )
+            let priorityDelegateType = try #require(
+                sema.symbols.propertyType(for: SymbolID(rawValue: -(priority.rawValue + 50000)))
+            )
+            let inheritedDelegateType = try #require(
+                sema.symbols.propertyType(for: SymbolID(rawValue: -(inheritedValue.rawValue + 50000)))
+            )
+            let getterOnlyDelegateType = try #require(
+                sema.symbols.propertyType(for: SymbolID(rawValue: -(getterOnlyValue.rawValue + 50000)))
+            )
+            guard case let .classType(classType) = sema.types.kind(of: delegateType) else {
+                Issue.record("Expected the delegate factory result to be a class type")
+                return
+            }
+            #expect(classType.classSymbol == delegateClass)
+            #expect(classType.args.count == 3)
+            if classType.args.count == 3 {
+                #expect(classType.args[0] == .invariant(sema.types.make(.classType(ClassType(
+                    classSymbol: host,
+                    args: [],
+                    nullability: .nonNull
+                )))))
+                #expect(classType.args[1] == .invariant(sema.types.longType))
+                #expect(classType.args[2] == .invariant(sema.types.stringType))
+            }
+            #expect(sema.symbols.propertyType(for: value) == sema.types.stringType)
+            guard case let .classType(priorityType) = sema.types.kind(of: priorityDelegateType) else {
+                Issue.record("Expected the higher-priority member extension delegate type")
+                return
+            }
+            #expect(priorityType.classSymbol == delegateClass)
+            #expect(priorityType.args.count == 3)
+            if priorityType.args.count == 3 {
+                #expect(priorityType.args[0] == classType.args[0])
+                #expect(priorityType.args[1] == classType.args[1])
+                #expect(priorityType.args[2] == classType.args[2])
+            }
+            guard case let .classType(memberType) = sema.types.kind(of: memberDelegateType) else {
+                Issue.record("Expected the member delegate factory result to be a class type")
+                return
+            }
+            #expect(memberType.classSymbol == memberDelegateClass)
+            #expect(memberType.args.count == 3)
+            if memberType.args.count == 3 {
+                #expect(memberType.args[0] == .invariant(sema.types.make(.classType(ClassType(
+                    classSymbol: memberHost,
+                    args: [],
+                    nullability: .nonNull
+                )))))
+                #expect(memberType.args[1] == .invariant(sema.types.longType))
+                #expect(memberType.args[2] == .invariant(sema.types.stringType))
+            }
+            #expect(sema.types.kind(of: memberDelegateType) != .error)
+            guard case let .classType(inheritedType) = sema.types.kind(of: inheritedDelegateType) else {
+                Issue.record("Expected inherited delegate factory inference to produce a class type")
+                return
+            }
+            #expect(inheritedType.classSymbol == inheritedDelegate)
+            #expect(inheritedType.args.count == 3)
+            if inheritedType.args.count == 3 {
+                #expect(inheritedType.args[0] == .invariant(sema.types.make(.classType(ClassType(
+                    classSymbol: inheritedHost,
+                    args: [],
+                    nullability: .nonNull
+                )))))
+                #expect(inheritedType.args[1] == .invariant(sema.types.longType))
+                #expect(inheritedType.args[2] == .invariant(sema.types.stringType))
+            }
+            guard case let .classType(getterOnlyType) = sema.types.kind(of: getterOnlyDelegateType) else {
+                Issue.record("Expected getValue-only delegate factory inference to produce a class type")
+                return
+            }
+            #expect(getterOnlyType.classSymbol == getterOnlyDelegate)
+            #expect(getterOnlyType.args.count == 2)
+            if getterOnlyType.args.count == 2 {
+                #expect(getterOnlyType.args[0] == .invariant(sema.types.longType))
+                #expect(getterOnlyType.args[1] == .invariant(sema.types.stringType))
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func testInheritedProtectedMemberExtensionDelegates(useArtifact: Bool) throws {
         if useArtifact { TestStdlibCache.shared.prepare() }

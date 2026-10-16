@@ -647,24 +647,30 @@ extension KIRLoweringDriver {
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-            let initValue = lowerPropertyInitializerValue(
-                explicitField.initializer,
-                shared: shared, emit: &body
-            )
-            emitFieldStore(
-                propSymbol: propSymbol, targetSymbol: targetSymbol,
-                value: initValue, valueType: backingFieldType,
-                shared: shared, body: &body
-            )
+            if !isDefaultFieldInitializer(
+                explicitField.initializer, fieldType: backingFieldType, shared: shared
+            ) {
+                let initValue = lowerPropertyInitializerValue(
+                    explicitField.initializer,
+                    shared: shared, emit: &body
+                )
+                emitFieldStore(
+                    propSymbol: propSymbol, targetSymbol: targetSymbol,
+                    value: initValue, valueType: backingFieldType,
+                    shared: shared, body: &body
+                )
+            }
             // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-                let propInitValue = lowerPropertyInitializerValue(initExpr, shared: shared, emit: &body)
-                emitFieldStore(
-                    propSymbol: propSymbol, targetSymbol: targetSymbol,
-                    value: propInitValue, valueType: propType,
-                    shared: shared, body: &body
-                )
+                if !isDefaultFieldInitializer(initExpr, fieldType: propType, shared: shared) {
+                    let propInitValue = lowerPropertyInitializerValue(initExpr, shared: shared, emit: &body)
+                    emitFieldStore(
+                        propSymbol: propSymbol, targetSymbol: targetSymbol,
+                        value: propInitValue, valueType: propType,
+                        shared: shared, body: &body
+                    )
+                }
             }
             return
         }
@@ -674,6 +680,7 @@ extension KIRLoweringDriver {
         guard let initExpr = prop.initializer else { return }
         let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
         let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
+        guard !isDefaultFieldInitializer(initExpr, fieldType: propType, shared: shared) else { return }
         let initValue = lowerPropertyInitializerValue(
             initExpr,
             shared: shared, emit: &body
@@ -682,6 +689,24 @@ extension KIRLoweringDriver {
             propSymbol: propSymbol, targetSymbol: targetSymbol,
             value: initValue, valueType: propType,
             shared: shared, body: &body
+        )
+    }
+
+    private func isDefaultFieldInitializer(
+        _ exprID: ExprID,
+        fieldType: TypeID,
+        shared: KIRLoweringSharedContext
+    ) -> Bool {
+        let collector = ConstantCollector(
+            resolvedConstant: { shared.sema.bindings.constExprValue(for: $0) }
+        )
+        guard let value = collector.literalConstantExpr(
+            exprID, ast: shared.ast, interner: shared.interner
+        ) else {
+            return false
+        }
+        return KIRDefaultFieldInitializer.isDefaultValue(
+            value, for: fieldType, types: shared.sema.types
         )
     }
 
@@ -1090,12 +1115,40 @@ extension KIRLoweringDriver {
             let isPrimaryExpr = arena.appendExpr(.intLiteral(Int64(isPrimary)), type: intType)
             body.append(.constValue(result: isPrimaryExpr, value: .intLiteral(Int64(isPrimary))))
 
+            let constructorInfo = sema.symbols.symbol(ctorSymbol)
+            let jvmVisibilityOrdinal: Int
+            if constructorInfo?.flags.contains(.constructorVisibilityInherited) == true {
+                jvmVisibilityOrdinal = 0
+            } else {
+                switch constructorInfo?.visibility ?? .public {
+                case .public, .internal:
+                    jvmVisibilityOrdinal = 0
+                case .protected:
+                    jvmVisibilityOrdinal = 1
+                case .private:
+                    jvmVisibilityOrdinal = 3
+                }
+            }
+            let jvmVisibilityExpr = arena.appendExpr(.intLiteral(Int64(jvmVisibilityOrdinal)), type: intType)
+            body.append(.constValue(result: jvmVisibilityExpr, value: .intLiteral(Int64(jvmVisibilityOrdinal))))
+
             let registrationResult = arena.appendTemporary(type: intType)
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("__kk_kconstructor_create"),
-                arguments: [ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr, visibilityExpr, kclassExpr],
+                arguments: [
+                    ctorNameExpr, arityExpr, returnTypeExpr, fnPtrExpr, isPrimaryExpr,
+                    visibilityExpr, kclassExpr,
+                ],
                 result: registrationResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_kconstructor_set_jvm_visibility"),
+                arguments: [registrationResult, jvmVisibilityExpr],
+                result: nil,
                 canThrow: false,
                 thrownResult: nil
             ))
@@ -1250,7 +1303,7 @@ extension KIRLoweringDriver {
     ) {
         guard let ownerInfo = sema.symbols.symbol(ownerSymbol) else { return }
         let intType = sema.types.intType
-        let childSymbols = sema.symbols.children(ofFQName: ownerInfo.fqName)
+        let childSymbols = sema.symbols.children(of: ownerSymbol)
         for childID in childSymbols {
             guard let childSym = sema.symbols.symbol(childID) else { continue }
             let isDataClassComponent = isSyntheticDataClassComponent(

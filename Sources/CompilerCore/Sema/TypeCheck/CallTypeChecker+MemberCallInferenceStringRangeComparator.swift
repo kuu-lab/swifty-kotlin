@@ -161,7 +161,7 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: sema.types.anyType)
                         return sema.types.anyType
                     }
-                    let lambdaReturnType = explicitTypeArgs.first ?? sema.types.anyType
+                    let lambdaReturnType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [charType, charType],
                         returnType: lambdaReturnType,
@@ -169,7 +169,7 @@ extension CallTypeChecker {
                         nullability: .nonNull
                     )))
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = explicitTypeArgs.first
+                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
                         ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
                     if let chosen = sema.symbols.lookupAll(fqName: [
                         interner.intern("kotlin"),

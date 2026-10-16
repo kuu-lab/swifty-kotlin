@@ -45,6 +45,7 @@ struct BuildASTDeterminismTests {
         #expect(actual.infixFunctionExpressions == expected.infixFunctionExpressions)
         #expect(actual.operatorFunctionExpressions == expected.operatorFunctionExpressions)
         #expect(actual.explicitCallExpressions == expected.explicitCallExpressions)
+        #expect(actual.receiverExpressionArgsCallExpressions == expected.receiverExpressionArgsCallExpressions)
         #expect(actual.incrementDecrementExpressions == expected.incrementDecrementExpressions)
         #expect(actual.callResultCompoundAssignmentBlocks == expected.callResultCompoundAssignmentBlocks)
         #expect(actual.nonFunctionLambdaLabels == expected.nonFunctionLambdaLabels)
@@ -274,7 +275,8 @@ struct BuildASTDeterminismTests {
             whenSubjectTypeRefs: [expr: type], lambdaParamTypeRefs: [expr: [type, nil]],
             callableRefReceiverTypeRefs: [expr: type], infixCallExpressions: [expr],
             infixFunctionExpressions: [expr], operatorFunctionExpressions: [expr],
-            explicitCallExpressions: [expr], incrementDecrementExpressions: [expr],
+            explicitCallExpressions: [expr], receiverExpressionArgsCallExpressions: [expr],
+            incrementDecrementExpressions: [expr],
             callResultCompoundAssignmentBlocks: [expr], nonFunctionLambdaLabels: [expr],
             incrementDecrementCachedValues: [expr: expr],
             expressionAnnotations: [expr: [AnnotationNode(
@@ -309,6 +311,7 @@ struct BuildASTDeterminismTests {
         #expect(arena.isInfixFunction(mergedExpr))
         #expect(arena.isOperatorFunction(mergedExpr))
         #expect(arena.isExplicitCall(mergedExpr))
+        #expect(arena.isReceiverExpressionArgsCall(mergedExpr))
         #expect(arena.isIncrementDecrement(mergedExpr))
         #expect(arena.isCallResultCompoundAssignmentBlock(mergedExpr))
         #expect(arena.isNonFunctionLambdaLabel(mergedExpr))
