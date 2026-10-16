@@ -868,6 +868,9 @@ extension DataFlowSemaPhase {
                 usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
             symbols.setPropertyType(resolvedType, for: symbol)
+            if let setterVisibility = propertyDecl.setter?.visibility {
+                symbols.setPropertySetterVisibility(setterVisibility, for: symbol)
+            }
 
             let propertyContextReceiverTypes = propertyDecl.contextReceivers.compactMap { contextReceiver in
                 resolveTypeRef(

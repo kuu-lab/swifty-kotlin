@@ -405,7 +405,8 @@ extension CallTypeChecker {
         calleeName: InternedString,
         range: SourceRange,
         receiverType: TypeID,
-        valueType: TypeID,
+        value: ExprID,
+        locals: inout LocalBindings,
         ctx: TypeInferenceContext
     ) -> SymbolID? {
         let sema = ctx.sema
@@ -494,6 +495,8 @@ extension CallTypeChecker {
             }
         }
         guard !setterCandidates.isEmpty else {
+            let errorsBeforeValue = sema.diagnostics.errorCount
+            _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
             if let invisibleSymbol = invisibleProperties.first {
                 driver.helpers.emitVisibilityError(
                     for: invisibleSymbol,
@@ -501,9 +504,30 @@ extension CallTypeChecker {
                     range: range,
                     diagnostics: ctx.sema.diagnostics
                 )
+            } else if sema.diagnostics.errorCount == errorsBeforeValue {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0022", "Unresolved reference '\(ctx.interner.resolve(calleeName))'.", range: range
+                )
             }
             return nil
         }
+
+        let expectedValueType: TypeID?
+        if case .lambdaLiteral = ctx.ast.arena.expr(value) {
+            expectedValueType = lambdaLiteralExpectedType(
+                at: 0,
+                args: [CallArgument(expr: value)],
+                callRange: range,
+                candidates: setterCandidates,
+                receiverType: receiverType,
+                resolver: ctx.resolver,
+                sema: sema,
+                ctx: ctx
+            ).type
+        } else {
+            expectedValueType = nil
+        }
+        let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedValueType)
 
         let resolved = ctx.resolver.resolveCall(
             candidates: setterCandidates,

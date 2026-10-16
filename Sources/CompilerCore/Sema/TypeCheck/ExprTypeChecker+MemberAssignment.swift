@@ -69,17 +69,12 @@ extension ExprTypeChecker {
                 )
             }
         } else {
-            // Extension properties keep their existing overload/setter resolution.
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
-            let errorsBeforeResolution = sema.diagnostics.errorCount
-            let setter = driver.callChecker.resolveExtensionPropertySetter(
-                id: id, calleeName: name, range: range, receiverType: receiverType, valueType: valueType, ctx: ctx
+            // Extension setter resolution provides the RHS context when its
+            // candidates agree on a value type, just as member-property writes do.
+            _ = driver.callChecker.resolveExtensionPropertySetter(
+                id: id, calleeName: name, range: range, receiverType: receiverType,
+                value: value, locals: &locals, ctx: ctx
             )
-            if setter == nil, sema.diagnostics.errorCount == errorsBeforeResolution {
-                sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0022", "Unresolved reference '\(ctx.interner.resolve(name))'.", range: range
-                )
-            }
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
