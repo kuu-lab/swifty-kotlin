@@ -4,6 +4,60 @@ import Testing
 @Suite
 struct ExtensionCallablePropertyTests {
     @Test
+    func interfaceMemberExtensionPropertyResolvesFromImplicitDispatchReceiver() throws {
+        let ctx = makeContextFromSource("""
+        interface I { val Int.x: String }
+        class C : I { override val Int.x: String get() = "OK" }
+        fun box(): String = with(C()) { 1.x }
+        """)
+        try runToKIR(ctx)
+        let sema = try #require(ctx.sema)
+        let errorCodes = ctx.diagnostics.diagnostics.map(\.code)
+        guard errorCodes.isEmpty else {
+            Issue.record("Unexpected Sema diagnostics: \(errorCodes)")
+            return
+        }
+
+        guard let getterCall = sema.bindings.extensionPropertyGetterCalls.values.first(where: { call in
+            guard let property = sema.symbols.parentSymbol(for: call.chosenCallee) else { return false }
+            return sema.symbols.symbol(property)?.name == ctx.interner.intern("x")
+        }) else {
+            Issue.record("Expected an extension property getter call binding for x")
+            return
+        }
+        guard let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: getterCall.chosenCallee) else {
+            Issue.record("Expected the chosen getter to be a member extension")
+            return
+        }
+        let ownerName = try #require(sema.symbols.symbol(dispatchOwner)?.name)
+        #expect(ctx.interner.resolve(ownerName) == "C")
+    }
+
+    @Test
+    func implicitMemberExtensionPropertyKeepsVisibilityChecks() throws {
+        let inside = makeContextFromSource("""
+        class C {
+            private val Int.secret: String get() = "OK"
+            fun read(): String = with(this) { 1.secret }
+        }
+        """)
+        try runToKIR(inside)
+        let insideErrorCodes = inside.diagnostics.diagnostics.map(\.code)
+        guard insideErrorCodes.isEmpty else {
+            Issue.record("Private access from the declaring class emitted diagnostics: \(insideErrorCodes)")
+            return
+        }
+
+        let outside = makeContextFromSource("""
+        class C { private val Int.secret: String get() = "OK" }
+        fun read(): String = with(C()) { 1.secret }
+        """)
+        try runSema(outside)
+        let outsideErrorCodes = outside.diagnostics.diagnostics.map(\.code)
+        #expect(outsideErrorCodes.contains("KSWIFTK-SEMA-0040"), "Expected an inaccessible member-property diagnostic, got \(outsideErrorCodes)")
+    }
+
+    @Test
     func memberPropertiesKeepDispatchAndExtensionReceiversSeparate() throws {
         let ctx = makeContextFromSource("""
         class D(private val convertTo: Int.() -> String, private val convert: String.() -> Int) {
