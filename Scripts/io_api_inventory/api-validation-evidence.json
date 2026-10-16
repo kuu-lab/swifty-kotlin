@@ -1,4 +1,32 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "row_id": "jvm-7b10429b599406a8",
+      "candidate_sha": "9aedbe34efbb540f3d88bc1e28bcc8a49efc60c3",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e15b0efb16eeb012995642cebee79812df086d0efe9334c2197547883a0064b8",
+      "test_input_sha256": "59eebd601d29e093075f7eaeef75034ae67905994a8f4407f0939bb8cb1ded31",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt#getByteString",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "io-api-probe:jvm-7b10429b599406a8:reference-jvm-descriptor",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "io-api-probe:jvm-7b10429b599406a8:native-default-source-klib-o0-o2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }
