@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+      "row_ids": [
+        "internal-b45a777a1eaf039c",
+        "klib-28163803c351e2f6"
+      ],
+      "input_refs": [
+        "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt",
+        "Scripts/io_api_inventory/bytestring_backing_array/Producer.kt",
+        "Scripts/io_api_inventory/bytestring_backing_array/Consumer.kt",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+        "Scripts/io_api_inventory/run_bytestring_backing_array_probe.py",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/test_validation_evidence.py",
+        "Scripts/io_api_inventory/test_f02_matrix.py",
+        "Scripts/io_api_inventory/verify_bytestring_native_reference.py",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOByteStringBackingArrayTests.swift"
+      ],
+      "receipt_ref": "Scripts/io_api_inventory/bytestring_backing_array/execution-catalog.json"
+    },
+    {
+      "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Producer.kt#publishedBackingArrayForProbe",
+      "row_ids": [
+        "jvm-f72f86a64f90dc84"
+      ],
+      "input_refs": [
+        "Scripts/io_api_inventory/bytestring_backing_array/Producer.kt",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/test_validation_evidence.py",
+        "Scripts/io_api_inventory/verify_bytestring_jvm_descriptor.py",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOByteStringBackingArrayTests.swift"
+      ],
+      "receipt_ref": "Scripts/io_api_inventory/bytestring_backing_array/execution-catalog.json"
+    }
+  ]
+}

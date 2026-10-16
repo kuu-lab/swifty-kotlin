@@ -23,6 +23,7 @@ from generate_f02_consumers import generate
 from generate import LOCAL_PROBE_EVIDENCE_CASES, local_probe_execution_id
 
 ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_ROOT = ROOT
 HERE = Path(__file__).resolve().parent
 LANES = [(route, optimization) for route in ("source", "stdlib-library", "producer-consumer")
          for optimization in ("O0", "O2")]
@@ -51,7 +52,7 @@ def execute(command: list[str], directory: Path, stage: str, timeout: float,
     temporary = workspace / "tmp"
     temporary.mkdir()
     overrides = {"TMPDIR": str(temporary) + "/", "KSWIFTK_STDLIB_CACHE_DIR": str(workspace / "stdlib-cache"),
-                 "KSWIFTK_PACKAGE_ROOT": str(ROOT), **(environment or {})}
+                 "KSWIFTK_PACKAGE_ROOT": str(PACKAGE_ROOT), **(environment or {})}
     receipt = {"command": command, "cwd": str(workspace), "environment": overrides,
                "deadline_seconds": timeout, "status": "RUNNING"}
     prefix = directory / stage
@@ -175,7 +176,15 @@ def scenarios() -> list[dict]:
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
-              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
+              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"},
+             {"id": "bytestring-backing-array",
+              "producer": [HERE / "bytestring_backing_array/Probe.kt",
+                           HERE / "bytestring_backing_array/Producer.kt"],
+              "consumer": HERE / "bytestring_backing_array/Consumer.kt",
+              "entry": "kotlinx.io.bytestring.probe.consumer.main",
+              "jvm_class": "kotlinx.io.bytestring.probe.consumer.ConsumerKt",
+              "jvm_friend_artifacts": ["kotlinx-io-bytestring-jvm-0.9.1.jar"],
+              "reference": "jvm"}]
     cases.append({"id": "segment-data-as-byte-array",
                   "fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array.kt",
                   "negative_fixture": ROOT / "Scripts/io_api_inventory/probes/segment_data_as_byte_array_negative.kt",
@@ -218,6 +227,14 @@ def scenarios() -> list[dict]:
                   "expected": apple / pins["expected"], "provenance": apple / "originals-provenance.json",
                   "reference": "pinned-Native-derived-original-assertions", "host": "darwin"})
     return cases
+
+
+def jvm_friend_flags(case: dict, dependencies: Path) -> list[str]:
+    artifacts = case.get("jvm_friend_artifacts", [])
+    if not artifacts:
+        return []
+    paths = [dependencies / name for name in artifacts]
+    return ["-Xfriend-paths=" + os.pathsep.join(map(str, paths))]
 
 
 def prepare(case: dict, directory: Path) -> tuple[list[Path], Path]:
@@ -402,6 +419,9 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compiler", type=Path, required=True)
+    parser.add_argument("--package-root", type=Path,
+                        help="source/runtime root matching the candidate compiler; defaults to this checkout")
+    parser.add_argument("--candidate-sha", help="candidate revision when package-root is a source archive")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--kotlin-home", type=Path, required=True)
     parser.add_argument("--java", type=Path, required=True)
@@ -412,6 +432,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--compile-timeout", type=float, default=600)
     args = parser.parse_args(argv)
     if not math.isfinite(args.compile_timeout) or args.compile_timeout <= 0: parser.error("finite positive timeout required")
+    global PACKAGE_ROOT
+    PACKAGE_ROOT = args.package_root.resolve() if args.package_root else ROOT
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     compiler = args.compiler.resolve()
@@ -421,19 +443,29 @@ def main(argv: list[str] | None = None) -> int:
         identifiers = {case["id"] for case in selected}
         if len(set(args.case)) != len(args.case) or set(args.case) - identifiers: parser.error("unknown/duplicate case")
         selected = [case for case in selected if case["id"] in args.case]
+    candidate_sha = args.candidate_sha or subprocess.check_output(
+        ["git", "-C", str(PACKAGE_ROOT), "rev-parse", "HEAD"], text=True
+    ).strip()
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
                "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "candidate_sha": candidate_sha,
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
+               "harness_workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
+               "harness_dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
+               "candidate_source_root": str(PACKAGE_ROOT),
                "local_probe_executions": [],
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
                       HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
-                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
+                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", PACKAGE_ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
-        summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
+        summary["harness_files_sha256"] = {
+            str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path.resolve()): sha(path)
+            for path in provenance if path.is_file()
+        }
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in (
             "consumer", "expected", "fixture", "negative_fixture", "reference_probe", "provenance", "jvm_abi_probe"
@@ -445,8 +477,8 @@ def main(argv: list[str] | None = None) -> int:
             compiler.parent / "KSwiftK_CompilerCore.resources",
         ) if (path / "Stdlib").is_dir()), None)
         if resources is None: raise RuntimeError("actual compiler resource bundle required")
-        dependencies = [resources, ROOT / "Sources/CompilerCore", ROOT / "Sources/CompilerBackend",
-                        ROOT / "Sources/KSwiftKCLI", ROOT / "Sources/Runtime", ROOT / "Sources/RuntimeABI"]
+        dependencies = [resources, PACKAGE_ROOT / "Sources/CompilerCore", PACKAGE_ROOT / "Sources/CompilerBackend",
+                        PACKAGE_ROOT / "Sources/KSwiftKCLI", PACKAGE_ROOT / "Sources/Runtime", PACKAGE_ROOT / "Sources/RuntimeABI"]
         dependencies_before = {str(path): snapshot(path) for path in dependencies}
         summary["source_and_resource_files_sha256"] = dependencies_before
         for name, contents in generate().items():
@@ -540,8 +572,9 @@ def main(argv: list[str] | None = None) -> int:
                 reference_sources = [*map(str, producers), str(consumer)]
                 if case.get("reference_probe"):
                     reference_sources.append(str(case["reference_probe"]))
+                friend_flags = [*reference_friend_args(case, jars), *jvm_friend_flags(case, args.dependencies)]
                 reference_command = [str((args.kotlin_home / "bin/kotlinc").resolve()), *reference_sources,
-                                     "-classpath", classpath, *reference_friend_args(case, jars), "-include-runtime", "-d", str(jar)]
+                                     "-classpath", classpath, *friend_flags, "-include-runtime", "-d", str(jar)]
                 require_stage(reference_command, directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
                 require_stage([str(args.java.resolve()), "-Djava.io.tmpdir=" + str(directory / "reference-run-work/tmp"),
@@ -604,12 +637,13 @@ def main(argv: list[str] | None = None) -> int:
         if snapshot(stdlib) != summary["stdlib_files_sha256"]:
             raise RuntimeError("stdlib artifact changed between matrix lanes")
         for key in ("harness_files_sha256", "scenario_files_sha256"):
-            if any(sha(ROOT / name) != digest for name, digest in summary[key].items()):
+            if any(sha((Path(name) if Path(name).is_absolute() else ROOT / name)) != digest
+                   for name, digest in summary[key].items()):
                 raise RuntimeError("harness or scenario inputs changed between matrix lanes")
         if {str(path): snapshot(path) for path in dependencies} != dependencies_before:
             raise RuntimeError("compiler resources or runtime/stdlib source inputs changed")
-        summary["runtime_object_sha256"] = {str(path.relative_to(ROOT)): sha(path)
-            for path in sorted((ROOT / ".runtime-build").rglob("*.o")) if path.is_file()}
+        summary["runtime_object_sha256"] = {str(path.relative_to(PACKAGE_ROOT)): sha(path)
+            for path in sorted((PACKAGE_ROOT / ".runtime-build").rglob("*.o")) if path.is_file()}
         failures = [result for result in summary["results"] if result["status"] != "PASS"]
         summary["status"] = "FAILED_OR_INCOMPLETE" if failures else "SELECTED_MATRIX_PASS"
         if failures: summary["error"] = f"{len(failures)} selected lanes failed; raw evidence retained"
