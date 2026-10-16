@@ -1,4 +1,25 @@
 extension ControlFlowTypeChecker {
+    /// Uses a contextual type as the branch join when the computed LUB is too
+    /// broad to retain a common declared upper bound of all completing branches.
+    func contextualizeBranchJoin(
+        _ inferredType: TypeID,
+        branchTypes: [TypeID],
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let types = ctx.sema.types
+        guard let expectedType,
+              inferredType != types.errorType,
+              expectedType != types.errorType,
+              !branchTypes.contains(types.errorType),
+              !types.isSubtype(inferredType, expectedType),
+              branchTypes.allSatisfy({ types.isSubtype($0, expectedType) })
+        else {
+            return inferredType
+        }
+        return expectedType
+    }
+
     /// Resolve unsuffixed integer branch results against Long peers before LUB.
     /// Ordinary Int expressions retain their type; Kotlin has no Int-to-Long widening.
     func contextualizeLongBranchLiterals(
