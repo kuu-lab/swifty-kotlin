@@ -11,7 +11,6 @@ extension NativeEmitter {
     final class FunctionEmissionContext {
         let emitter: NativeEmitter
 
-        // Former `emitFunctionBody` parameters.
         let function: KIRFunction
         let llvmFunction: LLVMFunction
         let llvmModule: LLVMCAPIBindings.LLVMModuleRef
@@ -29,7 +28,6 @@ extension NativeEmitter {
         let nameCounter: GeneratedNameCounter
         let diContext: DebugInfoContext?
 
-        // Former `emitFunctionBody` locals shared with the extracted helpers.
         var builder: LLVMCAPIBindings.LLVMBuilderRef!
         var currentBlock: LLVMCAPIBindings.LLVMBasicBlockRef!
         var labelBlocks: [Int32: LLVMCAPIBindings.LLVMBasicBlockRef] = [:]
