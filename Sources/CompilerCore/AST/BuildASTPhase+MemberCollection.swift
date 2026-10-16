@@ -472,6 +472,8 @@ extension BuildASTPhase {
         var args: [CallArgument] = []
         var current: [Token] = []
         var depth = BracketDepth()
+        // Object-expression supertype lists contain top-level commas before the body.
+        var isParsingObjectLiteralHeader = false
 
         func flush() {
             guard !current.isEmpty else { return }
@@ -488,9 +490,15 @@ extension BuildASTPhase {
         }
 
         for token in tokens {
-            if token.kind == .symbol(.comma), depth.isAtTopLevel {
+            if depth.isAtTopLevel, token.kind == .keyword(.object) {
+                isParsingObjectLiteralHeader = true
+            }
+            if token.kind == .symbol(.comma), depth.isAtTopLevel, !isParsingObjectLiteralHeader {
                 flush()
                 continue
+            }
+            if token.kind == .symbol(.lBrace), depth.isAtTopLevel, isParsingObjectLiteralHeader {
+                isParsingObjectLiteralHeader = false
             }
             depth.track(token.kind)
             current.append(token)
