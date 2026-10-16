@@ -43,6 +43,7 @@ class ValidationEvidenceTests(unittest.TestCase):
             ),
             "local_test_refs": "Tests/CompilerBackendTests/FooTests.swift",
             "upstream_test_refs": "core/common/test/FooTest.kt#testFoo",
+            "local_contract_differences": "none detected (semantics unverified)",
             "status": "unverified",
             "_inventory_status": "unverified",
         }
@@ -86,6 +87,37 @@ class ValidationEvidenceTests(unittest.TestCase):
             "executions": executions,
         }
 
+    def _probe_record(self, row=None, case_id="probe:Scripts/diff_cases/path_probe.kt#main"):
+        row = copy.deepcopy(row or self.row)
+        case_path = case_id.removeprefix("probe:").partition("#")[0]
+        self._write(case_path, "fun main() { println(1) }\n")
+        row["local_test_refs"] = case_path
+        executions = []
+        for lane in self.generator.validation_case_lanes(row, case_id):
+            executions.append({
+                "case_id": case_id,
+                "lane": lane,
+                "reference": {
+                    "execution_id": self.generator.validation_probe_execution_id("reference", case_id, lane),
+                    "result": "PASS",
+                    "exit_code": 0,
+                },
+                "candidate": {
+                    "execution_id": self.generator.validation_probe_execution_id("candidate", case_id, lane),
+                    "result": "PASS",
+                    "exit_code": 0,
+                },
+            })
+        return {
+            "row_id": row["row_id"],
+            "candidate_sha": "a" * 40,
+            "reference_version": self.lock["tag"],
+            "reference_commit": self.lock["commit"],
+            **self.generator.validation_input_hashes(row, self.repository, self.upstream),
+            "compatibility_obligations": self.generator.validation_obligations(row),
+            "executions": executions,
+        }, row
+
     def _execution_catalogs(self):
         case_id = "core/common/test/FooTest.kt#testFoo"
         other_case_id = "core/common/test/BarTest.kt#testBar"
@@ -108,6 +140,10 @@ class ValidationEvidenceTests(unittest.TestCase):
     def test_current_reference_and_candidate_passes_promote_only_the_fixture_row(self):
         row = self._apply([self._record()])
         self.assertEqual(row["status"], "verified")
+        self.assertEqual(
+            row["local_contract_differences"],
+            "none detected (targeted semantics verified by evidence)",
+        )
         rendered = self.generator.render_tsv(
             HERE / "api-inventory.tsv", self.generator.LEDGER_COLUMNS, [row]
         )
@@ -167,6 +203,41 @@ class ValidationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
             self._apply([self._record(row)], row)
 
+    def test_exact_local_probe_can_record_a_direct_case(self):
+        record, row = self._probe_record()
+        self.assertTrue(self.generator._case_id_matches_row(
+            row, "probe:Scripts/diff_cases/path_probe.kt#main", self.repository
+        ))
+        self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def test_local_probe_must_be_a_row_test_ref_with_a_named_entry_point(self):
+        record, row = self._probe_record()
+        case_id = "probe:Scripts/diff_cases/path_probe.kt#main"
+        row["local_test_refs"] = "Tests/CompilerBackendTests/FooTests.swift"
+        self.assertFalse(self.generator._case_id_matches_row(row, case_id, self.repository))
+
+        record, row = self._probe_record()
+        self._write("Scripts/diff_cases/path_probe.kt", "fun other() {}\n")
+        record["test_input_sha256"] = self.generator.validation_input_hashes(
+            row, self.repository, self.upstream
+        )["test_input_sha256"]
+        with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
+            self._apply([record], row)
+
+    def test_path_hashcode_probe_requires_the_macos_apple_reference_lane(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "klib-07cfd563616534cf"
+        case_id = "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main"
+        record, row = self._probe_record(row, case_id)
+        self.assertIn("macos-apple-reference", [execution["lane"] for execution in record["executions"]])
+        self.assertEqual(self._apply([record], row)["status"], "verified")
+
+        record, row = self._probe_record(row, case_id)
+        record["executions"] = [execution for execution in record["executions"]
+                                if execution["lane"] != "macos-apple-reference"]
+        with self.assertRaisesRegex(SystemExit, "missing validation lanes.*macos-apple-reference"):
+            self._apply([record], row)
+
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)
         row["row_id"] = "jvm-fixture-foo"
@@ -174,6 +245,36 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._record(row)
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def test_path_hashcode_rows_route_to_their_dedicated_issue(self):
+        row = {
+            "name": "hashCode",
+            "owner_fqn": "kotlinx.io.files/Path",
+            "representation": "Kotlin source API / KLIB dump",
+            "platform_scope": "common",
+            "module": "core",
+            "signature": "final fun hashCode(): kotlin/Int",
+            "upstream_source_refs": "core/common/src/files/Paths.kt:55",
+        }
+        self.assertEqual(self.generator.owner_for(row), "KUU-2644")
+        jvm_row = copy.deepcopy(row)
+        jvm_row["representation"] = "JVM public ABI dump"
+        jvm_row["signature"] = "public fun hashCode ()I"
+        self.assertEqual(self.generator.owner_for(jvm_row), "KUU-2644")
+        row["owner_fqn"] = "kotlinx.io.files/Buffer"
+        self.assertEqual(self.generator.owner_for(row), "KUU-1761")
+
+    def test_path_hashcode_probe_is_scoped_to_the_owned_api_rows(self):
+        case = "Scripts/diff_cases/kotlinx_io_path_hashcode.kt"
+        contents = 'import kotlinx.io.files.Path\nfun main() { Path("x").hashCode() }\n'
+        local_tests = [(case, contents)]
+        path_hash = {"_candidate_name": "hashCode", "name": "hashCode",
+                     "owner_fqn": "kotlinx.io.files/Path", "module": "core"}
+        path_string = {**path_hash, "_candidate_name": "toString", "name": "toString"}
+        byte_string_hash = {**path_hash, "owner_fqn": "kotlinx.io.bytestring/ByteString"}
+        self.assertEqual(self.generator.local_test_refs(path_hash, local_tests), [case])
+        self.assertEqual(self.generator.local_test_refs(path_string, local_tests), [])
+        self.assertEqual(self.generator.local_test_refs(byte_string_hash, local_tests), [])
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()
