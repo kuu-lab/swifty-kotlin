@@ -966,7 +966,8 @@ extension KotlinParser {
     func parseTail(
         inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator,
         allowsDeclarationAssignment: Bool = false, allowsClassHeaderColon: Bool = false,
-        allowsClassDelegation: Bool = false, allowsFunctionWhereClause: Bool = false
+        allowsClassDelegation: Bool = false, allowsFunctionWhereClause: Bool = false,
+        allowsPropertyDelegation: Bool = false
     ) {
         var progress = false
         var sawAssignment = false
@@ -1086,9 +1087,11 @@ extension KotlinParser {
                 // branch body starts on the next line.
                 // In a class header, a supertype colon may also follow the
                 // implicit constructor on the next line. A delegation `by` may
-                // begin a line only while scanning that supertype list.
+                // begin a line while scanning that supertype list or a property
+                // declaration that has not already introduced an initializer.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
+                    || (allowsPropertyDelegation && !sawAssignment && stream.peek().kind == .softKeyword(.by))
                     || (allowsFunctionWhereClause && !sawAssignment
                         && stream.peek().kind == .softKeyword(.where))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
