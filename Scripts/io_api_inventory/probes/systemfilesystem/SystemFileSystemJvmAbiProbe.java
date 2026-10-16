@@ -8,10 +8,11 @@ public final class SystemFileSystemJvmAbiProbe {
         Class<?> owner = Class.forName("kotlinx.io.files.FileSystemJvmKt");
         Class<?> fileSystemType = Class.forName("kotlinx.io.files.FileSystem");
         Field field = owner.getDeclaredField("SystemFileSystem");
+        Field publicField = owner.getField("SystemFileSystem");
         int requiredFlags = Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL;
 
         require(field.getDeclaringClass() == owner, "field owner");
-        require(owner.getField("SystemFileSystem") == field, "public field visibility");
+        require(publicField.equals(field), "public field visibility");
         require(field.getType() == fileSystemType, "field type");
         require((field.getModifiers() & requiredFlags) == requiredFlags, "public static final flags");
 
