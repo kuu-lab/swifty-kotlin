@@ -27,6 +27,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// The Elvis LHS call may use an enclosing result type to infer its generic
     /// return type without checking the call's nullable result against it.
     var isElvisLhsExpectedTypeHint = false
+    /// A direct generic call on the Elvis RHS may use the LHS's non-null type
+    /// to fill type variables that its inputs did not determine.
+    var elvisRhsCallResultTypeHint: TypeID?
+    var elvisRhsCallResultTypeHintExpr: ExprID?
     /// A failed call may retry once using its arguments' natural types while
     /// keeping the outer result constraint in overload resolution.
     var allowsLiftedCallExpectedTypeHints = true

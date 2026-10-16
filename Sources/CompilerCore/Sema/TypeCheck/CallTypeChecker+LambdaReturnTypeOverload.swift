@@ -656,7 +656,8 @@ extension CallTypeChecker {
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
                 : [],
             typeAliasConstructor: typeAliasConstructor,
-            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
+            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint,
+            elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint
         )
 
         if candidates.contains(where: {

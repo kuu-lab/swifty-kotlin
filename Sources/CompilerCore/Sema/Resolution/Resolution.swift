@@ -22,7 +22,8 @@ private extension CallExpr {
             dispatchReceiverTypes: dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
             typeAliasConstructor: typeAliasConstructor,
-            elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint
+            elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint,
+            elvisRhsCallResultTypeHint: elvisRhsCallResultTypeHint
         )
     }
 }
@@ -884,11 +885,83 @@ extension OverloadResolver {
             }
         }
 
+        let constraintsBeforeElvisRhsHint = constraints
+        var elvisRhsHintConstraints: [VariableConstraint] = []
+        if let expectedTypeHint = call.elvisRhsCallResultTypeHint {
+            let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
+                signature.classTypeParameterCount
+            )
+            let methodTypeVarBySymbol = typeVarBySymbol.filter { symbol, _ in
+                methodTypeParameters.contains(symbol)
+            }
+            if containsTypeVariable(
+                signature.returnType,
+                typeVarBySymbol: methodTypeVarBySymbol,
+                typeSystem: ctx.types
+            ), case let .success(inputSubstitution) = solveConstraints(
+                constraints, solver: solver, typeSystem: ctx.types
+            ) {
+                let inputConstrainedVariables = inputConstrainedTypeVariables(in: inputConstraints)
+                let resultTypeHint = ctx.types.makeNonNullable(expectedTypeHint)
+                let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                let decomposedHints = decomposeSubtypeConstraint(
+                    subtype: returnTypeHint,
+                    supertype: resultTypeHint,
+                    typeVarBySymbol: methodTypeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                )
+                for hint in decomposedHints {
+                    guard let left = replacingInputVariables(
+                        in: hint.left,
+                        constrainedVariables: inputConstrainedVariables,
+                        substitution: inputSubstitution
+                    ), let right = replacingInputVariables(
+                        in: hint.right,
+                        constrainedVariables: inputConstrainedVariables,
+                        substitution: inputSubstitution
+                    ) else {
+                        continue
+                    }
+                    // The LHS type is only a seed for unresolved variables.
+                    // Constraints that now mention only input-inferred types
+                    // cannot refine the call, so they must not reject a valid
+                    // heterogeneous Elvis LUB.
+                    guard isVariable(left) || isVariable(right) else {
+                        continue
+                    }
+                    elvisRhsHintConstraints.append(VariableConstraint(
+                        kind: hint.kind,
+                        left: left,
+                        right: right,
+                        blameRange: hint.blameRange
+                    ))
+                }
+                constraints.append(contentsOf: elvisRhsHintConstraints)
+            }
+        }
+
         var solveResult = solveConstraints(
             constraints,
             solver: solver,
             typeSystem: ctx.types
         )
+        if !elvisRhsHintConstraints.isEmpty {
+            switch solveResult {
+            case .success:
+                break
+            case .constraintFailure, .rejected:
+                // A type hint cannot make an otherwise valid call inapplicable.
+                // Retry without it; any still-unresolved type variable will
+                // receive the ordinary inference diagnostic below.
+                constraints = constraintsBeforeElvisRhsHint
+                solveResult = solveConstraints(
+                    constraints,
+                    solver: solver,
+                    typeSystem: ctx.types
+                )
+            }
+        }
         // Infer dependent parameters from concrete upper-bound projections, e.g.
         // R = IntRange and R : ClosedRange<T> imply T = Int, even for a null argument.
         for _ in 0 ..< signature.typeParameterSymbols.count {
@@ -1517,6 +1590,40 @@ extension OverloadResolver {
             return .constraintFailure(failure)
         }
         return .rejected
+    }
+
+    private func inputConstrainedTypeVariables(in constraints: [VariableConstraint]) -> Set<TypeVarID> {
+        var variables: Set<TypeVarID> = []
+        for constraint in constraints {
+            if case let .variable(variable) = constraint.left {
+                variables.insert(variable)
+            }
+            if case let .variable(variable) = constraint.right {
+                variables.insert(variable)
+            }
+        }
+        return variables
+    }
+
+    private func replacingInputVariables(
+        in operand: ConstraintOperand,
+        constrainedVariables: Set<TypeVarID>,
+        substitution: [TypeVarID: TypeID]
+    ) -> ConstraintOperand? {
+        guard case let .variable(variable) = operand,
+              constrainedVariables.contains(variable)
+        else {
+            return operand
+        }
+        guard let type = substitution[variable], type != .invalid else {
+            return nil
+        }
+        return .type(type)
+    }
+
+    private func isVariable(_ operand: ConstraintOperand) -> Bool {
+        if case .variable = operand { return true }
+        return false
     }
 
     private func selectResult(
