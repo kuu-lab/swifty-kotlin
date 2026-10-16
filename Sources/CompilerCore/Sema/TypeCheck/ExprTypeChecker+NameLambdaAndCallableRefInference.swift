@@ -68,10 +68,10 @@ extension ExprTypeChecker {
         // An uninvoked function is not a qualified receiver. Keep values in
         // the lookup so properties still shadow imported classifiers.
         let allCandidateIDs: [SymbolID] = if isQualifier {
-            ctx.scope.lookup(name, matching: { symbolID in
+            ctx.cachedScopeLookup(name).filter { symbolID in
                 guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
                 return symbol.kind != .function && symbol.kind != .constructor
-            })
+            }
         } else {
             ctx.cachedScopeLookup(name)
         }

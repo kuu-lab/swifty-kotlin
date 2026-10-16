@@ -954,6 +954,10 @@ extension TypeCheckHelpers {
             let memberFQName = ownerSymbol.fqName + [calleeName]
             for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
                 guard let sym = sema.symbols.symbol(candidate),
+                      // Expect and actual members share an FQName, so retain
+                      // only the declaration owned by the nominal currently
+                      // being searched.
+                      sema.symbols.parentSymbol(for: candidate) == owner,
                       sym.kind == .property || sym.kind == .field,
                       let propType = sema.symbols.propertyType(for: candidate)
                 else {
@@ -1001,6 +1005,7 @@ extension TypeCheckHelpers {
             let memberFQName = ownerSymbol.fqName + [calleeName]
             for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
                 guard let property = sema.symbols.symbol(candidate),
+                      sema.symbols.parentSymbol(for: candidate) == owner,
                       property.kind == .property || property.kind == .field,
                       let declaredType = sema.symbols.propertyType(for: candidate)
                 else {
