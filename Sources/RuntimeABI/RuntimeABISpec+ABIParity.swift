@@ -108,6 +108,9 @@ public extension RuntimeABISpec {
         abiParitySpec("__kk_class_declared_constructors", parameters: [
             p("classRaw", .intptr),
         ], isThrowing: false),
+        abiParitySpec("__kk_class_for_name", parameters: [
+            p("classNameRaw", .intptr),
+        ], isThrowing: false),
         abiParitySpec("__kk_class_canonical_name", parameters: [
             p("classRaw", .intptr),
         ], isThrowing: false),

@@ -16,10 +16,12 @@ extension CallTypeChecker {
         guard !paths.isEmpty else { return [] }
         return Set(candidates.filter { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
-                  ctx.sema.symbols.functionSignature(for: candidate)?.receiverType == nil,
                   let owner = ctx.sema.symbols.parentSymbol(for: candidate),
                   ctx.sema.symbols.symbol(owner)?.kind == .object,
-                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                  let receiverType = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  case let .classType(receiverClass) = ctx.sema.types.kind(of: receiverType),
+                  receiverClass.classSymbol == owner
             else { return false }
             return paths.contains(symbol.fqName)
         })
@@ -39,6 +41,66 @@ extension CallTypeChecker {
         /// unresolvable regardless of that annotation: there is no locally-known type
         /// to check the lambda body against.
         let hasUnresolvableImplicitLambdaParameter: Bool
+    }
+
+    private func contextualCallableReferenceArgumentType(
+        at index: Int,
+        argumentLabel: InternedString?,
+        args: [CallArgument],
+        callRange: SourceRange,
+        expectedCandidates: [SymbolID],
+        callCandidates: [SymbolID],
+        explicitTypeArgs: [TypeID],
+        receiverType: TypeID?,
+        inferredNonLambdaArgTypes: [Int: TypeID],
+        callResultType: TypeID?,
+        resolver: OverloadResolver?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let expectation = callableReferenceExpectedType(
+            at: index,
+            argumentLabel: argumentLabel,
+            args: args,
+            callRange: callRange,
+            candidates: expectedCandidates,
+            explicitTypeArgs: explicitTypeArgs,
+            receiverType: receiverType,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
+            ctx: ctx
+        ) ?? lambdaLiteralExpectedType(
+            at: index,
+            args: args,
+            callRange: callRange,
+            candidates: expectedCandidates,
+            explicitTypeArgs: explicitTypeArgs,
+            receiverType: receiverType,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
+            sema: sema,
+            ctx: ctx
+        ).type
+        guard let contextualType = contextualCallableArgumentType(
+            expectation,
+            callResultType: callResultType,
+            candidates: callCandidates,
+            sema: sema
+        ) else {
+            return nil
+        }
+        guard expectedCandidates.count == 1,
+              let candidate = expectedCandidates.first,
+              let signature = sema.symbols.functionSignature(for: candidate)
+        else {
+            return contextualType
+        }
+        return applyDispatchReceiverClassTypeArgs(
+            to: contextualType,
+            signature: signature,
+            candidate: candidate,
+            ctx: ctx
+        )
     }
 
     func prepareCallArguments(
@@ -100,6 +162,12 @@ extension CallTypeChecker {
 
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {
+                continue
+            }
+            // Anonymous functions are blocks around a synthetic local function
+            // and callable reference. Defer them like callable references so
+            // their declaration body is first checked with the parameter type.
+            if ast.arena.isAnonymousFunction(argument.expr) {
                 continue
             }
             switch argumentExpr {
@@ -299,34 +367,35 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
-                    let expectation = callableReferenceExpectedType(
+                    contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
                         at: index,
                         argumentLabel: argument.label,
                         args: args,
                         callRange: callRange,
-                        candidates: expectedTypeCandidates,
+                        expectedCandidates: expectedTypeCandidates,
+                        callCandidates: candidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        callResultType: contextualCallResultType,
                         resolver: ctx.resolver,
                         ctx: ctx
-                    ) ?? lambdaLiteralExpectedType(
-                        at: index, args: args, callRange: callRange, candidates: expectedTypeCandidates,
-                        explicitTypeArgs: explicitTypeArgs, receiverType: receiverType,
-                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                        resolver: ctx.resolver, sema: sema, ctx: ctx
-                    ).type
-                    let contextualType = contextualCallableArgumentType(
-                        expectation, callResultType: contextualCallResultType,
-                        candidates: candidates, sema: sema
                     )
-                    if let contextualType, expectedTypeCandidates.count == 1,
-                       let candidate = expectedTypeCandidates.first,
-                       let signature = sema.symbols.functionSignature(for: candidate) {
-                        contextualArgExpectedTypes[index] = applyDispatchReceiverClassTypeArgs(
-                            to: contextualType, signature: signature, candidate: candidate, ctx: ctx
-                        )
-                    } else { contextualArgExpectedTypes[index] = contextualType }
+                case .blockExpr where ast.arena.isAnonymousFunction(argument.expr):
+                    contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
+                        at: index,
+                        argumentLabel: argument.label,
+                        args: args,
+                        callRange: callRange,
+                        expectedCandidates: expectedTypeCandidates,
+                        callCandidates: candidates,
+                        explicitTypeArgs: explicitTypeArgs,
+                        receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        callResultType: contextualCallResultType,
+                        resolver: ctx.resolver,
+                        ctx: ctx
+                    )
                 case .ifExpr:
                     contextualArgExpectedTypes[index] = uniformContextualParameterType(
                         for: argument,
@@ -412,7 +481,11 @@ extension CallTypeChecker {
 
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
                 var inferenceContext = lambdaContextOverrides[index] ?? ctx
-                if case .callableRef = ast.arena.expr(argument.expr) {
+                let isCallableReferenceArgument: Bool = {
+                    if case .callableRef = ast.arena.expr(argument.expr) { return true }
+                    return ast.arena.isAnonymousFunction(argument.expr)
+                }()
+                if isCallableReferenceArgument {
                     inferenceContext.isCallableReferenceArgument = true
                     let parameters = candidates.flatMap { candidate -> [SymbolID] in
                         guard let signature = sema.symbols.functionSignature(for: candidate) else { return [] }

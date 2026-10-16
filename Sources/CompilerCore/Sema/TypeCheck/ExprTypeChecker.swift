@@ -637,6 +637,20 @@ final class ExprTypeChecker {
         case let .blockExpr(statements, trailingExpr, _):
             let preservesOuterDataFlow = ast.arena.isCallResultCompoundAssignmentBlock(id)
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
+            // Anonymous functions are blocks around a synthetic local function
+            // and its callable reference. The declaration needs the contextual
+            // type before its body is checked; the reference receives it below.
+            let contextualAnonymousFunctionDecl: ExprID? = {
+                guard ast.arena.isAnonymousFunction(id),
+                      statements.count == 1,
+                      let statement = statements.first,
+                      let statementExpr = ast.arena.expr(statement),
+                      case .localFunDecl = statementExpr
+                else {
+                    return nil
+                }
+                return statement
+            }()
             // Local classifiers must stay in their lexical block, just like
             // blockLocals. A do-while body uses the loop's shared scope so its
             // declarations remain visible to the condition.
@@ -657,7 +671,8 @@ final class ExprTypeChecker {
                     _ = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                     continue
                 }
-                let stmtType = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
+                let stmtExpectedType = stmt == contextualAnonymousFunctionDecl ? expectedType : nil
+                let stmtType = driver.inferExpr(stmt, ctx: blockCtx, locals: &blockLocals, expectedType: stmtExpectedType, isStatementContext: true)
                 if stmtType == sema.types.nothingType {
                     reachedNothing = true
                 }
@@ -711,6 +726,7 @@ final class ExprTypeChecker {
                 returnTypeRef: returnTypeRef,
                 body: body,
                 isSuspend: isSuspend,
+                expectedType: expectedType,
                 range: range,
                 ctx: ctx,
                 locals: &locals

@@ -33,6 +33,9 @@ private external fun __classGetDeclaredMethod(
 @KsSymbolName("__kk_java_class_get_name")
 private external fun __classGetName(type: Class<*>): String
 
+@KsSymbolName("__kk_class_for_name")
+private external fun __classForName(className: String): Class<*>
+
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     /** Returns the JVM canonical name of this class token, or null when unavailable. */
@@ -81,6 +84,11 @@ public class Class<T> {
     public fun getEnclosingMethod(): java.lang.reflect.Method? = null
 
     public fun getDeclaringClass(): Class<*>? = null
+
+    public companion object {
+        /** Resolves a JVM binary class name to its native class token. */
+        public fun forName(className: String): Class<*> = __classForName(className)
+    }
 
     public override fun toString(): String = __classToString(this)
 }

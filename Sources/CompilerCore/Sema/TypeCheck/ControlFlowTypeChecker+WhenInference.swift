@@ -492,7 +492,15 @@ extension ControlFlowTypeChecker {
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
                 types: branchTypes, ctx: ctx
             )
-            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
+            let inferredType = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
+            let type = isExhaustive
+                ? contextualizeBranchJoin(
+                    inferredType,
+                    branchTypes: contextualizedTypes,
+                    expectedType: expectedType,
+                    ctx: ctx
+                )
+                : inferredType
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -631,7 +639,15 @@ extension ControlFlowTypeChecker {
                 expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
                 types: branchTypes, ctx: ctx
             )
-            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
+            let inferredType = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
+            let type = isExhaustive
+                ? contextualizeBranchJoin(
+                    inferredType,
+                    branchTypes: contextualizedTypes,
+                    expectedType: expectedType,
+                    ctx: ctx
+                )
+                : inferredType
             sema.bindings.bindExprType(id, type: type)
             return type
         }
