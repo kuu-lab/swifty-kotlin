@@ -368,20 +368,37 @@ struct ConstantCollector {
             return nil
         }
         let name = interner.resolve(callee)
-        if args.count == 1,
-           canFoldMemberCall != nil,
-           let op = constantBitwiseOperator(name),
+        if args.count == 1, canFoldMemberCall != nil,
            let argument = literalConstantExpr(args[0].expr, ast: ast, interner: interner)
         {
-            switch (receiverConst, argument) {
-            case let (.intLiteral(lhs), .intLiteral(rhs)):
-                return integerBinaryOp(op, lhs, rhs, width: 32).map { .intLiteral($0) }
-            case let (.longLiteral(lhs), .intLiteral(rhs)) where op == .shl || op == .shr || op == .ushr:
-                return integerBinaryOp(op, lhs, rhs).map { .longLiteral($0) }
-            case let (.longLiteral(lhs), .longLiteral(rhs)) where op == .bitwiseAnd || op == .bitwiseOr || op == .bitwiseXor:
-                return integerBinaryOp(op, lhs, rhs).map { .longLiteral($0) }
-            default:
-                return nil
+            if case let .boolLiteral(lhs) = receiverConst, case let .boolLiteral(rhs) = argument {
+                switch name {
+                case "and": return .boolLiteral(lhs && rhs)
+                case "or": return .boolLiteral(lhs || rhs)
+                case "xor": return .boolLiteral(lhs != rhs)
+                default: break
+                }
+            }
+            if let op = constantBitwiseOperator(name) {
+                switch (receiverConst, argument) {
+                case let (.intLiteral(lhs), .intLiteral(rhs)):
+                    return integerBinaryOp(op, lhs, rhs, width: 32).map { .intLiteral($0) }
+                case let (.longLiteral(lhs), .intLiteral(rhs)) where op == .shl || op == .shr || op == .ushr:
+                    return integerBinaryOp(op, lhs, rhs).map { .longLiteral($0) }
+                case let (.longLiteral(lhs), .longLiteral(rhs)) where op == .bitwiseAnd || op == .bitwiseOr || op == .bitwiseXor:
+                    return integerBinaryOp(op, lhs, rhs).map { .longLiteral($0) }
+                default:
+                    break
+                }
+            }
+            if let op = constantArithmeticOperator(name) {
+                return literalConstantBinaryExpr(op: op, lhs: receiver, rhs: args[0].expr, ast: ast, interner: interner)
+            }
+            if name == "floorDiv" {
+                return literalConstantFloorDiv(receiverConst, argument)
+            }
+            if name == "mod" {
+                return literalConstantFloorMod(receiverConst, argument)
             }
         }
         guard args.isEmpty else { return nil }
@@ -392,6 +409,9 @@ struct ConstantCollector {
             case let .longLiteral(value): return .longLiteral(~value)
             default: return nil
             }
+        case "not" where canFoldMemberCall != nil:
+            if case let .boolLiteral(value) = receiverConst { return .boolLiteral(!value) }
+            return nil
         case "code":
             if case let .charLiteral(scalar) = receiverConst {
                 return .intLiteral(Int64(scalar))
@@ -409,6 +429,74 @@ struct ConstantCollector {
         default:
             return nil
         }
+    }
+
+    private func constantArithmeticOperator(_ name: String) -> BinaryOp? {
+        switch name {
+        case "plus": .add
+        case "minus": .subtract
+        case "times": .multiply
+        case "div": .divide
+        case "rem": .modulo
+        default: nil
+        }
+    }
+
+    private func literalConstantFloorDiv(_ lhs: KIRExprKind, _ rhs: KIRExprKind) -> KIRExprKind? {
+        switch (lhs, rhs) {
+        case let (.intLiteral(left), .intLiteral(right)):
+            return integerFloorDiv(left, right, width: 32).map { .intLiteral($0) }
+        case let (.longLiteral(left), .longLiteral(right)):
+            return integerFloorDiv(left, right).map { .longLiteral($0) }
+        case let (.longLiteral(left), .intLiteral(right)):
+            return integerFloorDiv(left, right).map { .longLiteral($0) }
+        default:
+            return nil
+        }
+    }
+
+    private func literalConstantFloorMod(_ lhs: KIRExprKind, _ rhs: KIRExprKind) -> KIRExprKind? {
+        switch (lhs, rhs) {
+        case let (.intLiteral(left), .intLiteral(right)):
+            return integerFloorMod(left, right, width: 32).map { .intLiteral($0) }
+        case let (.longLiteral(left), .longLiteral(right)):
+            return integerFloorMod(left, right).map { .longLiteral($0) }
+        case let (.longLiteral(left), .intLiteral(right)):
+            return integerFloorMod(left, right).map { .longLiteral($0) }
+        case let (.floatLiteral(left), .floatLiteral(right)):
+            return floatingFloorMod(left, right).map { .floatLiteral(Double($0)) }
+        case let (.doubleLiteral(left), .doubleLiteral(right)):
+            return floatingFloorMod(left, right).map { .doubleLiteral($0) }
+        default:
+            return nil
+        }
+    }
+
+    private func integerFloorDiv(_ lhs: Int64, _ rhs: Int64, width: Int = 64) -> Int64? {
+        guard rhs != 0 else { return nil }
+        let minimum = width == 32 ? Int64(Int32.min) : Int64.min
+        if lhs == minimum, rhs == -1 { return minimum }
+        let quotient = lhs / rhs
+        let remainder = lhs % rhs
+        let rounded = remainder != 0 && (lhs < 0) != (rhs < 0) ? quotient &- 1 : quotient
+        return width == 32 ? Int64(Int32(truncatingIfNeeded: rounded)) : rounded
+    }
+
+    private func integerFloorMod(_ lhs: Int64, _ rhs: Int64, width: Int = 64) -> Int64? {
+        guard rhs != 0 else { return nil }
+        let minimum = width == 32 ? Int64(Int32.min) : Int64.min
+        if lhs == minimum, rhs == -1 { return 0 }
+        let remainder = lhs % rhs
+        let adjusted = remainder != 0 && (remainder < 0) != (rhs < 0) ? remainder &+ rhs : remainder
+        return width == 32 ? Int64(Int32(truncatingIfNeeded: adjusted)) : adjusted
+    }
+
+    private func floatingFloorMod<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> T? {
+        let remainder = lhs.truncatingRemainder(dividingBy: rhs)
+        guard remainder != 0, remainder.isFinite, rhs.isFinite, (remainder < 0) != (rhs < 0) else {
+            return remainder
+        }
+        return remainder + rhs
     }
 
     private func constantBitwiseOperator(_ name: String) -> BinaryOp? {
@@ -496,6 +584,15 @@ struct ConstantCollector {
                 return nil
             }
             return lhsText + rhsText
+        case let .memberCall(receiver, callee, _, args, _)?:
+            guard interner.resolve(callee) == "plus", args.count == 1,
+                  Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+                  let receiverText = constantStringConcatOperandText(receiver, ast: ast, sema: sema, interner: interner),
+                  let argumentText = constantStringConcatOperandText(args[0].expr, ast: ast, sema: sema, interner: interner)
+            else {
+                return nil
+            }
+            return receiverText + argumentText
         case .stringTemplate(let parts, _)?:
             // JVM folds a template whose interpolated expressions are all
             // compile-time constants (`"a" + "${5}"` == "a5").
