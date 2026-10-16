@@ -43,7 +43,7 @@ struct RuntimeJvmClassMappingTests {
         #expect(__kk_class_kotlin(javaClass) == kclass)
     }
 
-    @Test func javaClassDeclaredConstructorsReturnsRegisteredHandles() {
+    @Test func javaClassDeclaredConstructorsReturnsRegisteredConstructorWrappers() throws {
         let kclass = __kk_kclass_create(0x123407, runtimeMakeStringRaw("test.Sample"))
         let constructor = __kk_kconstructor_create(
             runtimeMakeStringRaw("<init>"),
@@ -57,7 +57,13 @@ struct RuntimeJvmClassMappingTests {
         let javaClass = __kk_any_javaClass(kclass)
         let constructors = __kk_class_declared_constructors(javaClass)
 
-        #expect(runtimeArrayBox(from: constructors)?.elements == [constructor])
+        let constructorHandles = try #require(runtimeArrayBox(from: constructors)?.elements)
+        #expect(constructorHandles.count == 1)
+        let constructorHandle = try #require(constructorHandles.first)
+        let constructorWrapper = try #require(
+            resolveRuntimeHandle(constructorHandle, as: RuntimeJavaConstructorBox.self)
+        )
+        #expect(constructorWrapper.callableRaw == constructor)
     }
 
     @Test func javaClassDeclaredConstructorMatchesParameterTypeTokens() {
@@ -80,6 +86,8 @@ struct RuntimeJvmClassMappingTests {
         let parameterTypesRaw = registerRuntimeObject(parameterTypes)
 
         #expect(__kk_class_declared_constructor(javaClass, parameterTypesRaw) == stringConstructor)
+    }
+
     @Test func lambdaJavaClassRetainsItsEnclosingFileFacade() {
         let functionPointer = 0x12345
         let className = runtimeMakeStringRaw("LambdaInPackageKt")
