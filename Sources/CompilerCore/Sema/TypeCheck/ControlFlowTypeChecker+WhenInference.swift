@@ -475,7 +475,14 @@ extension ControlFlowTypeChecker {
                             return bl.isInitialized && bl.symbol == local.symbol
                         }
                         if allInit {
-                            locals[name] = (local.type, local.symbol, local.isMutable, true)
+                            let joinedType = joinedInitializedLocalType(
+                                name: name,
+                                symbol: local.symbol,
+                                from: completingBranchLocals,
+                                fallback: local.type,
+                                sema: sema
+                            )
+                            locals[name] = (joinedType, local.symbol, local.isMutable, true)
                         }
                     }
                 }
@@ -622,7 +629,14 @@ extension ControlFlowTypeChecker {
                             return bl.isInitialized && bl.symbol == local.symbol
                         }
                         if allInit {
-                            locals[name] = (local.type, local.symbol, local.isMutable, true)
+                            let joinedType = joinedInitializedLocalType(
+                                name: name,
+                                symbol: local.symbol,
+                                from: completingBranchLocals,
+                                fallback: local.type,
+                                sema: sema
+                            )
+                            locals[name] = (joinedType, local.symbol, local.isMutable, true)
                         }
                     }
                 }
