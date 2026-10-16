@@ -97,6 +97,7 @@ public func __kk_runtime_availableProcessors() -> Int {
 final class RuntimeJavaClassBox: @unchecked Sendable {
     let typeToken: Int
     let nameHint: Int
+    let javaNameOverride: String?
     let canonicalNameOverride: String?
     let className: String?
     let enclosingClassName: String?
@@ -105,6 +106,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     init(
         typeToken: Int,
         nameHint: Int = 0,
+        javaNameOverride: String? = nil,
         canonicalNameOverride: String? = nil,
         className: String? = nil,
         enclosingClassName: String? = nil,
@@ -112,6 +114,7 @@ final class RuntimeJavaClassBox: @unchecked Sendable {
     ) {
         self.typeToken = typeToken
         self.nameHint = nameHint
+        self.javaNameOverride = javaNameOverride
         self.canonicalNameOverride = canonicalNameOverride
         self.className = className
         self.enclosingClassName = enclosingClassName

@@ -20,11 +20,21 @@ private external fun __declaredConstructors(value: Class<*>): Array<Constructor<
 
 @KsSymbolName("__kk_java_class_get_declared_methods")
 private external fun __classGetDeclaredMethods(type: Class<*>): Array<Method>
+@KsSymbolName("__kk_class_canonical_name")
+private external fun <T> __classCanonicalName(type: Class<T>): String?
+
+@KsSymbolName("__kk_java_class_get_declared_method")
+private external fun __classGetDeclaredMethod(
+    type: Class<*>,
+    name: String,
+    parameterTypes: Array<out Class<*>>
+): Method
+
+@KsSymbolName("__kk_java_class_get_name")
+private external fun __classGetName(type: Class<*>): String
 
 @KsSymbolName("__kk_class_for_name")
 private external fun __classForName(className: String): Class<*>
-@KsSymbolName("__kk_class_canonical_name")
-private external fun <T> __classCanonicalName(type: Class<T>): String?
 
 // JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
@@ -54,13 +64,18 @@ public class Class<T> {
     /** Returns methods declared directly by this class. */
     public fun getDeclaredMethods(): Array<Method> = __classGetDeclaredMethods(this)
 
-    @KsSymbolName("__kk_class_get_name")
-    private external fun __classGetName(): String
+    /** Returns the method declared by this class with the given parameter types. */
+    public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
+        __classGetDeclaredMethod(this, name, parameterTypes)
+
+    /** Returns the JVM name of this class. */
+    public val name: String
+        get() = __classGetName(this)
 
     @KsSymbolName("__kk_class_get_enclosing_class")
     private external fun __classGetEnclosingClass(): Class<*>?
 
-    public fun getName(): String = __classGetName()
+    public fun getName(): String = name
 
     public fun getEnclosingClass(): Class<*>? = __classGetEnclosingClass()
 
@@ -74,5 +89,6 @@ public class Class<T> {
         /** Resolves a JVM binary class name to its native class token. */
         public fun forName(className: String): Class<*> = __classForName(className)
     }
+
     public override fun toString(): String = __classToString(this)
 }
