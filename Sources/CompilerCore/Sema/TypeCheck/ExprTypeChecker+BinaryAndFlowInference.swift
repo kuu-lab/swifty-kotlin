@@ -943,6 +943,10 @@ extension ExprTypeChecker {
     // Use the declaration type for smart-cast references. Kotlin only warns
     // when a comparison becomes incompatible after smart casting.
     private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
+        // A callable reference binds its target symbol for lowering, but its
+        // expression type is the callable reference type (for example,
+        // KMutableProperty0<Int>), not the target property's value type.
+        guard sema.bindings.callableRefKind(for: expr) == nil else { return inferred }
         guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
         if let declared = sema.symbols.propertyType(for: symbol) { return declared }
         if let owner = sema.symbols.valueParameterOwner(for: symbol),
