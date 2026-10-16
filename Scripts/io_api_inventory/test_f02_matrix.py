@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Guard the F02 gate against reduced scope, skipped defaults and stale artifacts."""
+import csv
 import json
 import contextlib
 import io
@@ -8,6 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import generate as inventory_generator
 import generate_f02_consumers as generator
 import run_f02_matrix as matrix
 
@@ -60,6 +62,53 @@ class F02GateTests(unittest.TestCase):
         self.assertNotIn("private fun run_klib", generated["Producer.kt"])
         self.assertIn('println("committed:"', generated["Consumer.kt"])
         self.assertEqual(generator.expression("Byte", "b3"), "4.toByte()")
+
+    def test_deprecated_path_consumer_is_independently_selectable_against_jvm(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "deprecated-path-source-sink")
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["fixture"], matrix.ROOT / "Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt")
+        self.assertEqual(matrix.LANES, [
+            ("source", "O0"), ("source", "O2"),
+            ("stdlib-library", "O0"), ("stdlib-library", "O2"),
+            ("producer-consumer", "O0"), ("producer-consumer", "O2"),
+        ])
+
+    def test_deprecated_path_rows_have_no_unrelated_upstream_assertions(self):
+        expected = {
+            "jvm-23bdc46eecb769ad": (
+                "core/common/src/files/Paths.kt:133",
+                "core/common/test/files/SmokeFileTest.kt#createAnEmptyFileUsingSink",
+            ),
+            "jvm-4a6ead57ff31eb51": (
+                "core/common/src/files/Paths.kt:115",
+                "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
+            ),
+            "klib-91d3efd901de8c9b": (
+                "core/common/src/files/Paths.kt:133",
+                "core/common/test/files/SmokeFileTest.kt#closeFileSinkTwice",
+            ),
+            "klib-ec16724d485f26fc": (
+                "core/common/src/files/Paths.kt:115",
+                "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
+            ),
+        }
+        with (matrix.HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        for row_id, (source_ref, unrelated_case) in expected.items():
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["upstream_source_refs"], source_ref)
+                self.assertEqual(row["upstream_test_refs"], inventory_generator.NO_DIRECT_UPSTREAM_ASSERTION)
+                self.assertEqual(row["status"], "unverified")
+                self.assertEqual(
+                    inventory_generator.upstream_test_refs(
+                        {"upstream_source_refs": source_ref, "_source_paths": []}, {"files": []}
+                    ),
+                    [],
+                )
+                self.assertFalse(inventory_generator._case_id_matches_row(row, unrelated_case))
+                self.assertIn("Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt", row["local_test_refs"])
+                self.assertIn("Tests/CompilerCoreTests/Sema/KotlinxIOF01ContractTests.swift", row["local_test_refs"])
 
     def test_missing_default_call_and_duplicate_row_cannot_pass(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0", "a:1"]}

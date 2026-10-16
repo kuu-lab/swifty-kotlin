@@ -134,6 +134,12 @@ preserves other fixture mains. Producer source paths are retired before the
 consumer process starts; producer/consumer cwd, temporary directories and
 incremental/stdlib caches are distinct.
 
+The deprecated `Path.source()` / `Path.sink()` compatibility consumer is
+available independently as `--case deprecated-path-source-sink`. It compares
+the pinned JVM output against source, fresh bundled-stdlib, and independent
+producer/consumer lanes at O0/O2, including explicit return typing, pending
+sink writes, source read-ahead, and the documented file-error types.
+
 Every selected lane is attempted after a lane failure, and each failure retains
 its raw diagnostic or output difference. The original Apple test module is run
 separately: its test-only helpers occupy real stdlib packages and can conflict

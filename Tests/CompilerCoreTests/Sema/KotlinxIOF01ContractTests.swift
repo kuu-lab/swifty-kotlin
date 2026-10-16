@@ -171,12 +171,138 @@ struct KotlinxIOF01ContractTests {
 
     @Test
     func deprecatedPathExtensionsKeepErrorDiagnostics() throws {
-        let context = try externalConsumer(generatedConsumer("negative-deprecated.kt"))
+        let source = try generatedConsumer("negative-deprecated.kt")
+        let context = try externalConsumer(source)
         let diagnostics = context.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-DEPRECATED"
         }
+        let diagnosticLines = diagnosticLines(diagnostics, in: context)
+        let expectedCalls = ["target.sink()", "target.source()"]
+        let callLines = expectedCalls.compactMap { call in
+            source.components(separatedBy: "\n").firstIndex { $0.contains(call) }.map { $0 + 1 }
+        }
         #expect(diagnostics.count == 2, "Expected one error diagnostic per deprecated Path extension: \(context.diagnostics.diagnostics)")
         #expect(diagnostics.allSatisfy { $0.severity == .error }, "Path.source/sink deprecation is an error-level contract: \(diagnostics)")
+        #expect(diagnostics.contains { $0.message.contains("Use FileSystem.sink instead") })
+        #expect(diagnostics.contains { $0.message.contains("Use FileSystem.source instead") })
+        #expect(callLines.count == expectedCalls.count)
+        #expect(callLines.allSatisfy { diagnosticLines.contains($0) }, "Each deprecated call must own its error location: \(diagnostics)")
+    }
+
+    @Test
+    func deprecatedPathExtensionsCanBeSuppressedWithDeclaredReturnTypes() throws {
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlinx.io.Sink
+        import kotlinx.io.Source
+        import kotlinx.io.files.Path
+
+        fun legacySource(path: Path): Source = path.source()
+        fun legacySink(path: Path): Sink = path.sink()
+        """
+        let context = try externalConsumer(source)
+        #expect(
+            context.diagnostics.diagnostics.isEmpty,
+            "Suppressed legacy calls must remain usable with their declared return types: \(context.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test(arguments: [false, true])
+    func deprecatedPathAnnotationsAndJvmNamesSurviveSourceAndKlib(library: Bool) throws {
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlinx.io.Sink
+        import kotlinx.io.Source
+        import kotlinx.io.files.Path
+
+        fun legacySource(path: Path): Source = path.source()
+        fun legacySink(path: Path): Sink = path.sink()
+        """
+        if library { TestStdlibCache.shared.prepare() }
+        let artifact = library ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let context = makeCompilationContext(
+            inputs: [inputPath],
+            moduleName: "KotlinxIoPathJvmNameProbe",
+            emit: .executable,
+            stdlibLibraryPath: artifact,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = context.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        #expect(context.options.stdlibLibraryPath == artifact)
+        #expect(context.options.includeStdlib == !library)
+        try runSema(context)
+        #expect(context.diagnostics.diagnostics.isEmpty, "\(context.diagnostics.diagnostics)")
+
+        let sema = try #require(context.sema)
+        let declarations: [(name: String, jvmName: String, receiver: String, result: String, replacement: String)] = [
+            ("source", "sourceDeprecated", "Lkotlinx.io.files.Path;", "Lkotlinx.io.Source;", "SystemFileSystem.source(this).buffered()"),
+            ("sink", "sinkDeprecated", "Lkotlinx.io.files.Path;", "Lkotlinx.io.Sink;", "SystemFileSystem.sink(this).buffered()"),
+        ]
+        let records: [MetadataRecord]
+        if let artifact {
+            let metadataURL = URL(fileURLWithPath: artifact, isDirectory: true)
+                .appendingPathComponent("metadata.bin")
+            records = MetadataDecoder().decode(try Data(contentsOf: metadataURL))
+        } else {
+            records = []
+        }
+
+        for declaration in declarations {
+            let fqName = "kotlinx.io.files.\(declaration.name)"
+            let symbols = sema.symbols.lookupAll(
+                fqName: fqName.split(separator: ".").map { context.interner.intern(String($0)) }
+            ).compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .function }
+            try #require(symbols.count == 1, "Expected one public Path.\(declaration.name) extension")
+            let symbol = try #require(symbols.first)
+            #expect(symbol.visibility == .public)
+            let signature = try #require(sema.symbols.functionSignature(for: symbol.id))
+            #expect(signature.receiverType != nil)
+            #expect(signature.parameterTypes.isEmpty)
+            #expect(signature.valueParameterHasDefaultValues.isEmpty)
+            #expect(!signature.isSuspend)
+            let encodedType = { (type: TypeID) in
+                NameMangler().encodeType(
+                    type,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    nameResolver: context.interner.resolve,
+                    unboxValueClasses: false
+                )
+            }
+            if let receiverType = signature.receiverType {
+                #expect(encodedType(receiverType).contains(declaration.receiver))
+            }
+            #expect(encodedType(signature.returnType).contains(declaration.result))
+
+            let annotations = sema.symbols.annotations(for: symbol.id)
+            #expect(Set(annotations.map(\.annotationFQName)) == ["kotlin.Deprecated", "kotlin.jvm.JvmName"])
+            let deprecated = try #require(annotations.first { $0.annotationFQName == "kotlin.Deprecated" })
+            let deprecatedArguments = deprecated.arguments.joined(separator: " ")
+            #expect(deprecatedArguments.contains("DeprecationLevel.ERROR"))
+            #expect(deprecatedArguments.contains("Use FileSystem.\(declaration.name) instead"))
+            #expect(deprecatedArguments.contains(declaration.replacement))
+            #expect(deprecatedArguments.contains("kotlinx.io.files.FileSystem"))
+            let jvmName = try #require(annotations.first { $0.annotationFQName == "kotlin.jvm.JvmName" })
+            #expect(jvmName.arguments == ["\"\(declaration.jvmName)\""])
+
+            if library {
+                let record = try #require(records.first {
+                    $0.kind == .function && $0.fqName == fqName
+                }, "Missing KLIB record for \(fqName)")
+                #expect(record.visibility == .public)
+                #expect(record.valueParameterHasDefaultValues.isEmpty)
+                #expect(record.annotations.contains { annotation in
+                    annotation.annotationFQName == "kotlin.jvm.JvmName"
+                        && annotation.arguments == ["\"\(declaration.jvmName)\""]
+                })
+                #expect(record.annotations.contains { annotation in
+                    annotation.annotationFQName == "kotlin.Deprecated"
+                        && annotation.arguments.joined(separator: " ").contains("DeprecationLevel.ERROR")
+                })
+            }
+        }
     }
 
     @Test
