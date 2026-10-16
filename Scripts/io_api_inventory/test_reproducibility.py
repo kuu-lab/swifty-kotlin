@@ -48,6 +48,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
+            test_inputs.extend((REPO / "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -66,6 +67,28 @@ class ReproducibilityTests(unittest.TestCase):
         references = declaration["local_test_refs"].split(";")
         self.assertIn("Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_sources_surface.kt", references)
         self.assertIn("Scripts/diff_cases/kotlinx_io_sources_arrays.kt", references)
+
+    def test_segment_read_context_probe_is_hashed_without_promoting_rows(self):
+        row_ids = (
+            "internal-230a62161c7ea51a",
+            "jvm-f8c529b67df6423d",
+            "klib-80388c3ba30d5f55",
+            "klib-bc524370ccf4a2da",
+        )
+        for row_id in row_ids:
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            references = row["local_test_refs"].split(";")
+            self.assertIn("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/Producer.kt", references)
+            self.assertIn("Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java", references)
+            self.assertEqual(row["status"], "unverified")
+
+        probe_refs = {
+            "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/Producer.kt",
+            "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+        }
+        for row in self.rows:
+            if row["row_id"] not in row_ids:
+                self.assertFalse(probe_refs.intersection(row["local_test_refs"].split(";")))
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

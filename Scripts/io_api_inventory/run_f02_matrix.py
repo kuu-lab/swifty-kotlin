@@ -111,6 +111,10 @@ def scenarios() -> list[dict]:
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],
          "consumer": base / "IOBuffer1729/Consumer.kt", "entry": "kuu1729consumer.main",
          "expected": base / "IOBuffer1729/reference.stdout", "reference": "pinned-JVM"},
+        {"id": "segment-read-context-impl", "producer": [base / "IOSegmentReadContextImpl2590/Producer.kt"],
+         "consumer": base / "IOSegmentReadContextImpl2590/Consumer.kt", "entry": "kuu2590consumer.main",
+         "jvm_class": "kuu2590consumer.ConsumerKt", "reference": "jvm", "friend_io_artifacts": True,
+         "jvm_abi_probe": HERE / "f02_consumers/SegmentReadContextAbiProbe.java"},
         {"id": "buffering-contracts", "producer": [base / "IOBuffering1730/BufferingContracts.kt"],
          "consumer": base / "IOBuffering1730/Consumer.kt", "entry": "kuu1730consumer.main",
          "expected": base / "IOBuffering1730/reference.stdout", "reference": "pinned-JVM"},
@@ -202,6 +206,12 @@ def check_ledger_events(stdout: bytes, manifest: dict) -> None:
         expected = manifest["required_call_ids"] if marker.startswith(b"CALL") else manifest["paired_source_rows"]
         if observed != expected:
             raise RuntimeError(f"missing, duplicate or reordered ledger {marker!r} events")
+
+
+def reference_friend_args(case: dict, io_jars: list[Path]) -> list[str]:
+    if not case.get("friend_io_artifacts"):
+        return []
+    return ["-Xfriend-paths=" + ",".join(map(str, io_jars))]
 
 
 def batch_group_stdout(stdout: bytes, identifier: str) -> bytes:
@@ -334,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
-        scenario_inputs |= {case[key] for case in selected for key in ("consumer", "expected", "fixture", "provenance") if key in case}
+        scenario_inputs |= {case[key] for case in selected for key in ("consumer", "expected", "fixture", "provenance", "jvm_abi_probe") if key in case}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
         resources = next((path for path in (
             compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
@@ -357,7 +367,10 @@ def main(argv: list[str] | None = None) -> int:
                 jar = (args.dependencies / record["url"].rsplit("/", 1)[1]).resolve()
                 if sha(jar) != record["sha256"]: raise RuntimeError("reference IO jar hash mismatch")
                 jars.append(jar)
-        summary["reference_sha256"] = {str(path): sha(path) for path in [*jars, args.java.resolve()]}
+        reference_tools = [args.java.resolve()]
+        if any("jvm_abi_probe" in case for case in selected):
+            reference_tools.append(args.java.resolve().parent / "javac")
+        summary["reference_sha256"] = {str(path): sha(path) for path in [*jars, *reference_tools]}
         require_stage([str(args.java.resolve()), "-version"], output, "java-version", 30)
         if not re.search(rb'version "21[.\"]', (output / "java-version.stderr").read_bytes()):
             raise RuntimeError("reference requires Java 21")
@@ -397,8 +410,9 @@ def main(argv: list[str] | None = None) -> int:
                 producers, consumer = prepare(case, directory)
                 jar = directory / "reference.jar"
                 classpath = os.pathsep.join(map(str, jars))
-                require_stage([str((args.kotlin_home / "bin/kotlinc").resolve()), *map(str, producers), str(consumer),
-                               "-classpath", classpath, "-include-runtime", "-d", str(jar)], directory, "reference-compile", args.compile_timeout,
+                reference_command = [str((args.kotlin_home / "bin/kotlinc").resolve()), *map(str, producers), str(consumer),
+                                     "-classpath", classpath, *reference_friend_args(case, jars), "-include-runtime", "-d", str(jar)]
+                require_stage(reference_command, directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
                 require_stage([str(args.java.resolve()), "-Djava.io.tmpdir=" + str(directory / "reference-run-work/tmp"),
                                "-cp", str(jar) + os.pathsep + classpath,
@@ -407,6 +421,15 @@ def main(argv: list[str] | None = None) -> int:
                 reject_unhandled_events(expected)
                 if (directory / "reference-run.stderr").read_bytes(): raise RuntimeError("reference runtime stderr")
                 if case.get("ledger"): check_ledger_events(expected, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
+                if "jvm_abi_probe" in case:
+                    probe_classes = directory / "jvm-abi-probe-classes"
+                    probe_classes.mkdir()
+                    javac = args.java.resolve().parent / "javac"
+                    require_stage([str(javac), "-d", str(probe_classes), str(case["jvm_abi_probe"])],
+                                  directory, "jvm-abi-compile", args.compile_timeout)
+                    require_stage([str(args.java.resolve()), "-cp", os.pathsep.join(
+                        map(str, [probe_classes, jar, *jars])), "SegmentReadContextAbiProbe"],
+                        directory, "jvm-abi-probe", 30)
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)

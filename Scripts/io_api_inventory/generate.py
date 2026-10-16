@@ -203,13 +203,26 @@ TEST_HINTS = {
 }
 
 LOCAL_IO_TEST_PREFIXES = (
+    "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
+    "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
     "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlinx_io_",
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
+)
+
+SEGMENT_READ_CONTEXT_IMPL_ROW_IDS = frozenset({
+    "internal-230a62161c7ea51a",
+    "jvm-f8c529b67df6423d",
+    "klib-80388c3ba30d5f55",
+    "klib-bc524370ccf4a2da",
+})
+SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS = (
+    "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
+    "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
 )
 
 MODIFIERS = (
@@ -1526,6 +1539,10 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if (path == SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[0]
+                or path.startswith(SEGMENT_READ_CONTEXT_IMPL_LOCAL_TESTS[1])):
+            if row["row_id"] not in SEGMENT_READ_CONTEXT_IMPL_ROW_IDS:
+                continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -1904,6 +1921,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590").glob("*.kt"))
+    local_paths.append(REPO / "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java")
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
