@@ -5,11 +5,10 @@ import Dispatch
 import Glibc
 #endif
 
-/// Holds the closure and the captured result. Marked `@unchecked Sendable`
-/// because the result is produced on the spawned thread and consumed on the
-/// caller thread; the join back to the caller thread (a semaphore wait on
-/// Darwin, `pthread_join` elsewhere) provides the synchronization that makes
-/// this safe.
+/// Marked `@unchecked Sendable` because the result is produced on the spawned
+/// thread and consumed on the caller thread; the join back to the caller
+/// thread (a semaphore wait on Darwin, `pthread_join` elsewhere) provides the
+/// synchronization that makes this safe.
 private final class LargeStackWorkBox: @unchecked Sendable {
     let body: () throws -> Any
     var result: Result<Any, any Error>?
@@ -31,8 +30,6 @@ private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer?) -> UnsafeMut
 }
 #endif
 
-/// Runs work synchronously on a dedicated thread with an explicitly sized stack.
-///
 /// Recursive compiler phases (notably KIR expression lowering, whose frames are
 /// large) can overflow small thread stacks. Swift Testing executes tests as tasks
 /// on the Swift Concurrency cooperative pool, whose threads have 512 KiB stacks,
