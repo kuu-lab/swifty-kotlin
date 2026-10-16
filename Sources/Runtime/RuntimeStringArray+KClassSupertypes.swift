@@ -111,7 +111,7 @@ private let runtimeBuiltinSupertypes: [String: [String]] = {
 /// builtin-base table in `__kk_type_token_qualified_name` and falling back to
 /// a nominal token whose payload is the FNV name hash used by
 /// `RuntimeTypeCheckToken.stableNominalTypeID`.
-private func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
+func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
     switch name {
     case "kotlin.Any": return RuntimeTypeTokenEncoding.anyBase
     case "kotlin.String": return RuntimeTypeTokenEncoding.stringBase

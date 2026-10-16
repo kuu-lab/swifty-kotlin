@@ -537,6 +537,32 @@ extension OverloadResolver {
             }
         }
 
+        // `T & Any` is the definitely-non-null view of T. Preserve an
+        // expected return type as an upper bound on T with nullable allowance;
+        // the final substituted intersection removes null before subtype
+        // validation (for example, String? & Any <: String).
+        if case let .intersection(parts) = typeSystem.kind(of: subtype),
+           parts.count == 2,
+           parts.contains(where: { typeSystem.kind(of: $0) == .any(.nonNull) }),
+           let typeParameter = parts.compactMap({ part -> TypeParamType? in
+               guard case let .typeParam(parameter) = typeSystem.kind(of: part),
+                     parameter.capture == nil,
+                     parameter.nullability == .nonNull
+               else {
+                   return nil
+               }
+               return parameter
+           }).first,
+           let variable = typeVarBySymbol[typeParameter.symbol]
+        {
+            return [VariableConstraint(
+                kind: .subtype,
+                left: .variable(variable),
+                right: .type(typeSystem.makeNullable(supertype)),
+                blameRange: blameRange
+            )]
+        }
+
         // Comparable is a compiler-backed conformance for primitive values and
         // type parameters whose upper bound is Comparable<Self>. Those receivers
         // do not always have a classType that the generic decomposition below can

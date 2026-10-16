@@ -975,9 +975,28 @@ func itableBridgeSymbolForMethod(
     }
 
     let interfaceReceiver = interfaceSig.receiverType
-    let interfaceParamTypes = [interfaceReceiver].compactMap { $0 } + interfaceSig.parameterTypes
+    let interfaceValueParamTypes = interfaceSig.parameterTypes.enumerated().map { index, elementType in
+        guard interfaceSig.valueParameterIsVararg.indices.contains(index),
+              interfaceSig.valueParameterIsVararg[index]
+        else {
+            return elementType
+        }
+        return primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+            ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+            ?? elementType
+    }
+    let interfaceParamTypes = [interfaceReceiver].compactMap { $0 } + interfaceValueParamTypes
     let implementationParamTypes = implementationFn?.params.map(\.type)
-        ?? ([implSig.receiverType].compactMap { $0 } + implSig.parameterTypes)
+        ?? ([implSig.receiverType].compactMap { $0 } + implSig.parameterTypes.enumerated().map { index, elementType in
+            guard implSig.valueParameterIsVararg.indices.contains(index),
+                  implSig.valueParameterIsVararg[index]
+            else {
+                return elementType
+            }
+            return primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+                ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+                ?? elementType
+        })
 
     guard implementationParamTypes.count == interfaceParamTypes.count else {
         return implementation

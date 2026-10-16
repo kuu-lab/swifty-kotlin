@@ -101,6 +101,19 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
 }
 
 /**
+ * Computes a value for [key] when it is absent or currently mapped to `null`.
+ *
+ * If [mappingFunction] returns `null`, no mapping is added and `null` is returned.
+ */
+public inline fun <K, V> MutableMap<K, V>.computeIfAbsent(key: K, mappingFunction: (K) -> V): V {
+    val value = this[key]
+    if (value != null) return value
+    val computedValue = mappingFunction(key)
+    if (computedValue != null) this[key] = computedValue
+    return computedValue
+}
+
+/**
  * Associates [value] with [key] when the key is absent or currently maps to null.
  *
  * @return the previous non-null value, or null when the key was absent or mapped to null.

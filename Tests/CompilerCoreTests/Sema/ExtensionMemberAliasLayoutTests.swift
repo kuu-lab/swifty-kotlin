@@ -2,12 +2,11 @@
 import Foundation
 import Testing
 
-/// KUU-545: a bundled `external fun` extension whose receiver is an interface
-/// type must not corrupt that interface's method-slot layout. The KSP-443
-/// owner+name lookup alias created for such a function is a lookup shim, not
-/// a real member — counting it in `orderedOwnMethods` inflated `vtableSize`,
-/// which shifted `CharSequence.length`'s itable getter slot off the fixed slot
-/// the runtime registers for String objects (`KSWIFTK-RUNTIME-0001`).
+/// Receiver-parented top-level extensions and their KSP-443 aliases are lookup
+/// entries, not dispatchable members. Counting either in `orderedOwnMethods`
+/// inflates `vtableSize` and shifts `CharSequence.length`'s itable getter away
+/// from the fixed slot the runtime registers for String objects
+/// (`KSWIFTK-RUNTIME-0001`).
 @Suite
 struct ExtensionMemberAliasLayoutTests {
     /// Mirrors the KUU-545 trigger: an internal external extension declared on
@@ -15,10 +14,13 @@ struct ExtensionMemberAliasLayoutTests {
     /// control for the nominal-class case.
     private static let interfaceProbeLink = "__kk_kuu545_iface_probe"
     private static let classProbeLink = "__kk_kuu545_string_probe"
+    private static let sourceExtensionName = "kuu545_source_extension_probe"
     private static let probeSource = """
     package kotlin.text
 
     import kotlin.internal.KsSymbolName
+
+    internal fun CharSequence.\(sourceExtensionName)(): Int = 0
 
     @KsSymbolName("\(interfaceProbeLink)")
     internal external fun CharSequence.\(interfaceProbeLink)(): Int
@@ -72,7 +74,14 @@ struct ExtensionMemberAliasLayoutTests {
         #expect(aliasInfo.flags.contains(.extensionMemberAlias))
         #expect(sema.symbols.externalLinkName(for: aliasSymbol) == Self.interfaceProbeLink)
 
-        // But it owns no vtable slot: CharSequence's method space is exactly
+        // A source-backed top-level extension is also parented under its
+        // receiver for lookup, but remains statically dispatched.
+        let extensionFQ = ["kotlin", "text", Self.sourceExtensionName].map { interner.intern($0) }
+        let sourceExtensionSymbol = try #require(sema.symbols.lookup(fqName: extensionFQ))
+        #expect(sema.symbols.parentSymbol(for: sourceExtensionSymbol) == charSequenceSymbol)
+        #expect(layout.vtableSlots[sourceExtensionSymbol] == nil)
+
+        // Neither lookup entry owns a vtable slot: CharSequence's method space is exactly
         // get@0/subSequence@1, and the `length` property getter stays at
         // itable slot 2 — the contract runtimeRegisterCharSequenceItable
         // hardcodes for String objects.

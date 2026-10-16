@@ -429,7 +429,38 @@ extension OverloadResolver {
         }
         let classReceiverType = unapproximatedClassReceiverType.map { ctx.types.capturedReadableUpperBound(of: $0) }
 
+        func nominalReceiverClassType(in type: TypeID, for owner: SymbolID) -> ClassType? {
+            func matchingClassType(_ type: TypeID) -> ClassType? {
+                guard case let .classType(classType) = ctx.types.kind(
+                    of: ctx.types.makeNonNullable(type)
+                ),
+                    ctx.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+                else {
+                    return nil
+                }
+                return classType
+            }
+
+            switch ctx.types.kind(of: ctx.types.makeNonNullable(type)) {
+            case let .intersection(parts):
+                for part in parts {
+                    if let classType = matchingClassType(part) {
+                        return classType
+                    }
+                }
+                return nil
+            default:
+                return matchingClassType(type)
+            }
+        }
+
         var starProjectedReceiverParameters: Set<SymbolID> = []
+        let receiverOwner = memberExtensionOwner ?? ctx.symbols.parentSymbol(for: candidate)
+        let matchingReceiverClassType: ClassType? = if let classReceiverType, let receiverOwner {
+            nominalReceiverClassType(in: classReceiverType, for: receiverOwner)
+        } else {
+            nil
+        }
         // A nominal member's leading type parameters belong to the declaring
         // class/interface. Constrain them from the dispatch receiver, not an
         // unrelated extension receiver. Otherwise an inherited
@@ -440,15 +471,8 @@ extension OverloadResolver {
            signature.classTypeParameterCount > 0,
            let classReceiverType,
            (isNominalMemberFunction(candidate, typeSystem: ctx.types) || memberExtensionOwner != nil),
-           let owner = memberExtensionOwner ?? ctx.symbols.parentSymbol(for: candidate),
-           memberExtensionOwner != nil || signature.receiverType == nil || {
-               guard case let .classType(receiverClass) = ctx.types.kind(
-                   of: ctx.types.makeNonNullable(classReceiverType)
-               ) else {
-                   return false
-               }
-               return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
-           }()
+           let owner = receiverOwner,
+           memberExtensionOwner != nil || signature.receiverType == nil || matchingReceiverClassType != nil
         {
             let ownerArguments: [TypeArg] = signature.typeParameterSymbols
                 .prefix(signature.classTypeParameterCount)
@@ -464,13 +488,12 @@ extension OverloadResolver {
                 nullability: .nonNull
             )))
             let receiverOwnerType: TypeID = {
-                let nonNullReceiverType = ctx.types.makeNonNullable(classReceiverType)
-                guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
+                guard let receiverClassType = matchingReceiverClassType,
                       let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
-                          from: receiverClassType.classSymbol,
-                          childArgs: receiverClassType.args,
-                          to: owner
-                      )
+                    from: receiverClassType.classSymbol,
+                    childArgs: receiverClassType.args,
+                    to: owner
+                )
                 else {
                     return classReceiverType
                 }

@@ -54,6 +54,36 @@ struct LocalExtensionFunctionTests {
     }
 
     @Test
+    func localFunctionParametersRequireExplicitTypes() throws {
+        let ctx = makeContextFromSource("""
+        fun probe() {
+            fun foo(x) {
+                fun bar(y) {
+                    fun baz(z) {}
+                }
+            }
+        }
+        """)
+        try runSema(ctx)
+
+        let missingTypeDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0033"
+        }
+        #expect(missingTypeDiagnostics.count == 3, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func anonymousFunctionParametersCanUseTheExpectedFunctionType() throws {
+        let ctx = makeContextFromSource("""
+        fun probe(): (Int) -> Int {
+            return fun(value) = value + 1
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func localInterfaceExtensionsResolveInRegularAndSuspendFunctions() throws {
         let ctx = makeContextFromSource("""
         interface Src {

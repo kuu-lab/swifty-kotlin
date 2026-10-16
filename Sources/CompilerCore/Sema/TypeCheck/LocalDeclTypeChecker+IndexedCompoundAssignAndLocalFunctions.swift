@@ -540,6 +540,7 @@ extension LocalDeclTypeChecker {
         returnTypeRef: TypeRefID?,
         body: FunctionBody,
         isSuspend: Bool,
+        expectedType: TypeID? = nil,
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -639,9 +640,24 @@ extension LocalDeclTypeChecker {
             sema.symbols.setPropertyType(contextReceiverTypes[index], for: symbol)
             return (declaration: declaration, symbol: symbol, type: contextReceiverTypes[index])
         }
+        // Anonymous-function declarations receive an expected type from their
+        // wrapper block, so unannotated parameters can be typed before the body.
+        let expectedFunctionType: FunctionType? = {
+            guard let expectedType else { return nil }
+            if case let .functionType(functionType) = sema.types.kind(of: expectedType) {
+                return functionType
+            }
+            if let functionType = sema.types.nominalFunctionType(for: expectedType) {
+                return functionType
+            }
+            return driver.helpers.samFunctionType(for: expectedType, sema: sema)
+        }()
+        let expectedParameterTypes = expectedFunctionType.flatMap { functionType in
+            functionType.params.count == valueParams.count ? functionType.params : nil
+        }
         var parameterTypes: [TypeID] = []
         var paramSymbols: [SymbolID] = []
-        for param in valueParams {
+        for (index, param) in valueParams.enumerated() {
             let paramType: TypeID = if let typeRefID = param.type {
                 driver.helpers.resolveTypeRef(
                     typeRefID,
@@ -653,6 +669,8 @@ extension LocalDeclTypeChecker {
                     inferenceContext: functionTypeContext,
                     usageRange: range
                 )
+            } else if let expectedParameterTypes, expectedParameterTypes.indices.contains(index) {
+                expectedParameterTypes[index]
             } else {
                 sema.types.anyType
             }

@@ -28,17 +28,24 @@ struct StdlibArtifactRegressionTests {
         let artifactBase = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .path
-        let ctx = makeCompilationContext(
+        let ctx = CompilerTestSupport.makeCompilationContext(
             inputs: [],
             moduleName: "KSwiftKStdlib",
             emit: .library,
             outputPath: artifactBase,
             includeStdlib: true,
-            stdlibOnly: true
+            stdlibOnly: true,
+            allowDefaultStdlibLibrary: false
         )
-        try runToKIR(ctx)
-        try LoweringPhase().run(ctx)
-        try CodegenPhase().run(ctx)
+        do {
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+        } catch {
+            throw CompilerPipelineError.invalidInput(
+                "Fresh stdlib artifact build failed: \(error); diagnostics: \(ctx.diagnostics.diagnostics)"
+            )
+        }
 
         let artifactPath = artifactBase + ".kklib"
         #expect(FileManager.default.fileExists(atPath: artifactPath), "stdlib artifact directory should be emitted")
