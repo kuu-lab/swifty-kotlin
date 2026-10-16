@@ -363,7 +363,9 @@ extension DataFlowSemaPhase {
         switch decl {
         case let .classDecl(classDecl):
             validateMemberAnnotationTargets(
-                declIDs: classDecl.memberFunctions + classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects,
+                declIDs: classDecl.memberFunctions + classDecl.memberProperties
+                    + classDecl.nestedClasses + classDecl.nestedObjects
+                    + classDecl.enumEntries.flatMap(\.nestedClasses),
                 file: file,
                 ast: ast,
                 symbols: symbols,

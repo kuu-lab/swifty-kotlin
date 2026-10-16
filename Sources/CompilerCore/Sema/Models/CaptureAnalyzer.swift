@@ -111,6 +111,11 @@ struct CaptureAnalyzer {
                 visit(value)
 
             case let .memberAssign(receiver, _, value, _):
+                if let receiverSymbol = sema.bindings.callBinding(for: currentExprID)?.dispatchReceiverSymbol,
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 visit(receiver)
                 visit(value)
 

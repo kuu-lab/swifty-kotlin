@@ -25,5 +25,22 @@ public object System {
 
     public fun gc(): Unit = __gc()
 
+    public fun arraycopy(
+        src: Any?,
+        srcPos: Int,
+        dest: Any?,
+        destPos: Int,
+        length: Int
+    ): Unit = __arraycopy(src, srcPos, dest, destPos, length)
+
     public fun exit(status: Int): Unit = kotlin.system.exitProcess(status)
 }
+
+@KsSymbolName("__kk_system_arraycopy")
+private external fun __arraycopy(
+    src: Any?,
+    srcPos: Int,
+    dest: Any?,
+    destPos: Int,
+    length: Int
+): Unit

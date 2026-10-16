@@ -191,6 +191,39 @@ struct ExplicitImportResolutionTests {
         #expect(sema.symbols.symbol(javaAlias)?.kind == .typeAlias)
     }
 
+    @Test(arguments: [false, true])
+    func javaUtilNoSuchElementExceptionImportResolvesAsKotlinType(useArtifact: Bool) throws {
+        let source = """
+        import java.util.NoSuchElementException
+        import java.util.NoSuchElementException as JavaNoSuchElementException
+
+        fun fromImportedName(): NoSuchElementException = JavaNoSuchElementException("empty")
+        fun kotlinFromJava(value: JavaNoSuchElementException): kotlin.NoSuchElementException = value
+        fun javaFromKotlin(value: kotlin.NoSuchElementException): JavaNoSuchElementException = value
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let javaAlias = try #require(sema.symbols.lookup(
+            fqName: ["java", "util", "NoSuchElementException"].map(ctx.interner.intern)
+        ))
+        #expect(sema.symbols.symbol(javaAlias)?.kind == .typeAlias)
+    }
+
+    @Test(arguments: [false, true])
+    func unknownJavaUtilExceptionImportRemainsUnresolved(useArtifact: Bool) throws {
+        let source = """
+        import java.util.KUU2296UnknownException
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        let unresolvedImports = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-UNRESOLVED-IMPORT"
+        }
+        #expect(unresolvedImports.count == 1, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func wildcardImportFromObjectIsDiagnosed() throws {
         let source = """

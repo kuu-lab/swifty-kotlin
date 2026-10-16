@@ -33,4 +33,34 @@ struct PrivateMemberExtensionTests {
             })
         }
     }
+
+    @Test
+    func privateMemberExtensionSetterUsesLexicalClassVisibility() throws {
+        let ctx = makeContextFromSource("""
+        class Owner {
+            var Int.value: String
+                get() = "before"
+                private set(value) {}
+
+            fun writeFromLocalClass() {
+                class Local {
+                    fun write() { 42.value = "inside" }
+                }
+                Local().write()
+            }
+        }
+
+        fun withOwner(owner: Owner, block: Owner.() -> Unit) { owner.block() }
+
+        class Outsider {
+            fun write(owner: Owner) {
+                withOwner(owner) { 42.value = "outside" }
+            }
+        }
+        """)
+        try runSema(ctx)
+
+        let privateAccessErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0040" }
+        #expect(privateAccessErrors.count == 1, "\(ctx.diagnostics.diagnostics)")
+    }
 }

@@ -279,32 +279,22 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Look for the last top-level dot after the val/var keyword, skipping angle brackets
-        // for generic receiver types (e.g. `val List<Int>.head`). This handles qualified
-        // receiver types like `val kotlin.String.firstChar: Char` correctly.
-        var lastDotIndex: Int?
-        var depth = BracketDepth()
-        for index in (valVarIndex + 1) ..< tokens.count {
-            let token = tokens[index]
-            depth.track(token.kind)
-            if depth.angle == 0 {
-                if token.kind == .symbol(.dot) {
-                    lastDotIndex = index
-                } else if token.kind == .symbol(.colon)
-                    || token.kind == .symbol(.assign)
-                    || token.kind == .symbol(.lBrace)
-                {
-                    break
-                }
-            }
-        }
-        guard let dotIndex = lastDotIndex else {
+        guard let separatorIndex = declarationPropertyReceiverSeparatorIndex(
+            in: tokens,
+            after: valVarIndex
+        ) else {
             return nil
         }
 
-        let receiverTokens = Array(tokens[(valVarIndex + 1) ..< dotIndex])
+        var receiverTokens = Array(tokens[(valVarIndex + 1) ..< separatorIndex])
         guard !receiverTokens.isEmpty else {
             return nil
+        }
+        if tokens[separatorIndex].kind == .symbol(.questionDot) {
+            // The lexer combines the nullable suffix and extension separator in `?.`.
+            // Keep the suffix in the receiver type while consuming the same token as
+            // the boundary before the property name.
+            receiverTokens.append(Token(kind: .symbol(.question), range: tokens[separatorIndex].range))
         }
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
     }
@@ -322,33 +312,42 @@ extension BuildASTPhase {
             return declarationName(from: nodeID, in: arena, interner: interner)
         }
 
-        // Find the last top-level dot before `:`, `=`, or `{`.
-        // This handles qualified receiver types like `val kotlin.String.firstChar: Char`.
-        var depth = BracketDepth()
-        var lastDotIndex: Int?
-        for index in (valVarIndex + 1) ..< tokens.count {
-            let token = tokens[index]
-            depth.track(token.kind)
-            if depth.angle == 0 {
-                if token.kind == .symbol(.dot) {
-                    lastDotIndex = index
-                } else if token.kind == .symbol(.colon)
-                    || token.kind == .symbol(.assign)
-                    || token.kind == .symbol(.lBrace)
-                {
-                    break
-                }
-            }
-        }
-        guard let dotIndex = lastDotIndex, dotIndex + 1 < tokens.count else {
+        guard let separatorIndex = declarationPropertyReceiverSeparatorIndex(
+            in: tokens,
+            after: valVarIndex
+        ), separatorIndex + 1 < tokens.count else {
             return declarationName(from: nodeID, in: arena, interner: interner)
         }
 
-        let nameToken = tokens[dotIndex + 1]
+        let nameToken = tokens[separatorIndex + 1]
         if let name = internedIdentifier(from: nameToken, interner: interner) {
             return name
         }
         return declarationName(from: nodeID, in: arena, interner: interner)
+    }
+
+    private func declarationPropertyReceiverSeparatorIndex(
+        in tokens: [Token],
+        after valVarIndex: Int
+    ) -> Int? {
+        // `?.` is lexed as one token. In a declaration head it terminates a
+        // nullable receiver and separates that receiver from the property name.
+        var depth = BracketDepth()
+        var lastSeparatorIndex: Int?
+        for index in (valVarIndex + 1) ..< tokens.count {
+            let token = tokens[index]
+            depth.track(token.kind)
+            guard depth.angle == 0 else { continue }
+            if token.kind == .symbol(.dot) || token.kind == .symbol(.questionDot) {
+                lastSeparatorIndex = index
+            } else if token.kind == .symbol(.colon)
+                || token.kind == .symbol(.assign)
+                || token.kind == .symbol(.lBrace)
+            {
+                break
+            }
+        }
+        return lastSeparatorIndex
     }
 
     func declarationPropertyType(

@@ -223,7 +223,7 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
-    private func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
+    func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
         if case let .primitive(primitive, .nonNull) = sema.types.kind(of: type) {
             return primitive != .char && primitive != .boolean
         }

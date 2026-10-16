@@ -320,6 +320,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return boolBox.value ? 1231 : 1237
     }
     if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+        if let enumClassID = intBox.enumClassID {
+            return runtimeEnumIdentityHashCode(intBox.value, enumClassID)
+        }
         return runtimeUnboxedAnyHashCode(intBox.value, intBox.anyFallbackTag)
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {

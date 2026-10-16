@@ -227,6 +227,9 @@ extension DataFlowSemaPhase {
             if record.isValueClass { flags.insert(.valueType) }
             if record.isExpect { flags.insert(.expectDeclaration) }
             if record.isActual { flags.insert(.actualDeclaration) }
+            if record.constructorVisibilityInherited, record.kind == .constructor {
+                flags.insert(.constructorVisibilityInherited)
+            }
             if record.kind == .class && record.isInnerClass { flags.insert(.innerClass) }
             if record.isMutable, record.kind == .property || record.kind == .field {
                 flags.insert(.mutable)

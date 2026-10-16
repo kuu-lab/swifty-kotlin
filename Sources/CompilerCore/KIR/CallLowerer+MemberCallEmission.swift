@@ -130,11 +130,15 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var result = arguments
+        let binding = callExprID.flatMap {
+            sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0]
+        }
         if let receiver = memberExtensionDispatchReceiver(
-            for: accessor, callExprID: callExprID, sema: sema, arena: arena,
+            for: accessor, callExprID: callExprID,
+            dispatchReceiverSymbol: binding?.dispatchReceiverSymbol,
+            sema: sema, arena: arena,
             interner: interner, instructions: &instructions
         ) { result.insert(receiver, at: 0) }
-        let binding = callExprID.flatMap { sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0] }
         if let signature = sema.symbols.functionSignature(for: accessor),
            !signature.contextParameterTypes.isEmpty
         {
@@ -502,6 +506,18 @@ extension CallLowerer {
                 arguments: finalArguments, result: result,
                 canThrow: false, thrownResult: nil
             ))
+            return
+        }
+        if tryEmitEnumHashCodeCall(
+            chosenCallee: chosenCallee,
+            receiver: receiver,
+            arguments: finalArguments,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
             return
         }
         if tryEmitEnumEntryDispatchCall(

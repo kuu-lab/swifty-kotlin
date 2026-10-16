@@ -417,18 +417,12 @@ extension CallLowerer {
         } else {
             false
         }
-        // `String.plus(Any?)` is itself a member, so a String-receiver `+`
-        // always keeps the flat string-concat ABI below regardless of which
-        // (bundled-source) symbol Sema bound it to. Only a *non*-String
-        // receiver whose `+` resolved to a genuine operator candidate (e.g. a
-        // user's `operator fun Int.plus(s: String): String` extension) should
-        // defer to the resolved callee instead of this String-result
-        // shortcut; a non-String receiver with no such binding is the
-        // unresolved lenient built-in concatenation path, which keeps using
-        // this ABI too.
+        // Preserve the flat concat ABI only for Kotlin's built-in string
+        // overload (or an unbound lenient concat). A user-defined String.plus
+        // overload must lower through its resolved call binding.
         let isStringAdd = op == .add
             && sema.bindings.exprTypes[exprID] == stringType
-            && (lhsIsString || isStringOperand || sema.bindings.callBindings[exprID] == nil)
+            && ConstantCollector.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner)
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.

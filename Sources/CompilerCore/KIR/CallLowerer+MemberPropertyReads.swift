@@ -383,8 +383,19 @@ extension CallLowerer {
             )
             return result
         }
-        let id = arena.appendExpr(.symbolRef(propertySymbol), type: resultType)
-        instructions.append(.loadGlobal(result: id, symbol: propertySymbol))
+        // A custom setter gives an object property a separate backing field.
+        // When there is no custom getter, Kotlin's generated getter reads that
+        // field rather than the property symbol's initializer mirror.
+        let storageSymbol: SymbolID
+        if sema.symbols.parentSymbol(for: propertySymbol).flatMap({ sema.symbols.symbol($0) })?.kind == .object,
+           let backingField = sema.symbols.backingFieldSymbol(for: propertySymbol)
+        {
+            storageSymbol = backingField
+        } else {
+            storageSymbol = propertySymbol
+        }
+        let id = arena.appendExpr(.symbolRef(storageSymbol), type: resultType)
+        instructions.append(.loadGlobal(result: id, symbol: storageSymbol))
         return wrapLateinitReadIfNeeded(
             id,
             symbol: propertySymbol,

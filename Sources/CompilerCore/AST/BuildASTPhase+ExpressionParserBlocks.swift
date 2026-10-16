@@ -37,10 +37,15 @@ extension BuildASTPhase.ExpressionParser {
 
         var statements: [ExprID] = []
         let allTokens = blockTokens[...]
+        let localFunctionParser = BuildASTPhase(diagnostics: diagnostics)
         for (start, rangeEnd) in ranges {
             let group = allTokens[start ..< rangeEnd]
             guard !group.isEmpty else { continue }
-            if let localDecl = parseLocalDeclFromSlice(group) {
+            if let localFun = localFunctionParser.parseLocalFunDeclExpr(
+                from: Array(group), interner: interner, astArena: astArena
+            ) {
+                statements.append(localFun)
+            } else if let localDecl = parseLocalDeclFromSlice(group) {
                 statements.append(localDecl)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
                 statements.append(localAssign)

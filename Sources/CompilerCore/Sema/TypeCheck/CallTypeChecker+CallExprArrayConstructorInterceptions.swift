@@ -104,7 +104,11 @@ extension CallTypeChecker {
             )
             if args.count == 1 {
                 sema.bindings.markStdlibSpecialCallExpr(id, kind: .arrayConstructor)
-                sema.bindings.markCollectionExpr(id)
+                // Primitive arrays use their nominal source APIs instead of the synthetic
+                // collection/Sequence HOF path.
+                if calleeNameStr == "Array" {
+                    sema.bindings.markCollectionExpr(id)
+                }
                 let resultType: TypeID = if calleeNameStr == "Array" {
                     makeSyntheticArrayType(
                         symbols: sema.symbols,
@@ -232,7 +236,9 @@ extension CallTypeChecker {
                 expectedType: initExpectedType
             )
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .arrayConstructor)
-            sema.bindings.markCollectionExpr(id)
+            if calleeNameStr == "Array" {
+                sema.bindings.markCollectionExpr(id)
+            }
             let resultType: TypeID
             if calleeNameStr == "Array" {
                 resultType = makeSyntheticArrayType(

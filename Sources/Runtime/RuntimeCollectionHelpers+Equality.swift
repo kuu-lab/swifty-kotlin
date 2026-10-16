@@ -493,6 +493,9 @@ func runtimeAnyObjectEquality(_ lhs: Int, _ rhs: Int) -> Bool? {
     if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
         return overridden
     }
+    if let callableReferenceEquality = runtimeCallableReferenceValuesEqual(lhs, rhs) {
+        return callableReferenceEquality
+    }
 
     guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs),
           runtimeStorage.withGCLock({ state in
