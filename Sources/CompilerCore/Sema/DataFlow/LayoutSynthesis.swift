@@ -419,12 +419,17 @@ extension DataFlowSemaPhase {
         let methods = ownMembers(of: nominalSymbol, symbols: symbols)
             .filter { $0.kind == .function }
             // KUU-545: extension member aliases (KSP-443) are owner+name lookup
-            // shims, not dispatchable members. Counting one here inflates
-            // vtableSize, which shifts the interface property getter region
-            // (kirInterfacePropertyGetterSlots bases its slots on vtableSize)
-            // and breaks the fixed itable slot contract the runtime registers
-            // for runtime-created objects (e.g. CharSequence.length at slot 2).
+            // shims, not dispatchable members. KSP-INF-011 also attaches
+            // top-level extensions to their receiver for member lookup; those
+            // symbols keep their declaring-package FQName and are not nominal
+            // members either. Counting either kind inflates vtableSize, which
+            // shifts interface property getters and breaks fixed runtime itable
+            // slots (e.g. CharSequence.length at slot 2).
             .filter { !$0.flags.contains(.extensionMemberAlias) }
+            .filter {
+                $0.fqName.count == nominalSymbol.fqName.count + 1
+                    && $0.fqName.starts(with: nominalSymbol.fqName)
+            }
 
         if nominalSymbol.fqName.map(interner.resolve) == ["kotlin", "coroutines", "CoroutineContext"] {
             // The runtime bridges use these slots for source-defined contexts.

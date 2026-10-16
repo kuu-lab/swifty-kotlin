@@ -2,12 +2,13 @@
 import Foundation
 import Testing
 
-/// KUU-545: a bundled `external fun` extension whose receiver is an interface
-/// type must not corrupt that interface's method-slot layout. The KSP-443
-/// owner+name lookup alias created for such a function is a lookup shim, not
-/// a real member — counting it in `orderedOwnMethods` inflated `vtableSize`,
-/// which shifted `CharSequence.length`'s itable getter slot off the fixed slot
-/// the runtime registers for String objects (`KSWIFTK-RUNTIME-0001`).
+/// KUU-545: receiver extensions attached for member lookup must not corrupt a
+/// nominal type's dispatch layout. KSP-INF-011 attaches source-backed
+/// top-level extensions to their receiver, while KSP-443 creates owner+name
+/// aliases for runtime-linked extensions; neither is a real nominal member.
+/// Counting them in `orderedOwnMethods` inflated `CharSequence.vtableSize`,
+/// which shifted its `length` getter off the fixed String itable slot 2
+/// (`KSWIFTK-RUNTIME-0001`).
 @Suite
 struct ExtensionMemberAliasLayoutTests {
     /// Mirrors the KUU-545 trigger: an internal external extension declared on
