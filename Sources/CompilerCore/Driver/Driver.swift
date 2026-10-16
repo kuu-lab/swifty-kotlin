@@ -487,6 +487,15 @@ public final class CompilerDriver {
                     availableSymbols: availableSymbols,
                     depended: &depended
                 )
+                for initBlock in entry.initBlocks {
+                    collectFunctionBodyDependencies(
+                        initBlock,
+                        ast: ast,
+                        interner: interner,
+                        availableSymbols: availableSymbols,
+                        depended: &depended
+                    )
+                }
                 for memberID in entry.memberFunctions + entry.memberProperties + entry.nestedClasses {
                     collectDeclDependencies(
                         declID: memberID,

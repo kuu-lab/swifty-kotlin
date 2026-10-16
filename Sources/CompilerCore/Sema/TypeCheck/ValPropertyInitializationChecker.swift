@@ -84,6 +84,27 @@ final class ValPropertyInitializationChecker {
                            parameters: decl.primaryConstructorParams,
                            hasPrimaryConstructor: decl.hasPrimaryConstructorSyntax || decl.secondaryConstructors.isEmpty,
                            checksDefiniteInitialization: !decl.modifiers.contains(.expect) && !decl.modifiers.contains(.annotationClass))
+                if sema.symbols.symbol(symbol)?.kind == .enumClass,
+                   let enumInfo = sema.symbols.symbol(symbol)
+                {
+                    for entry in decl.enumEntries where !entry.initBlocks.isEmpty {
+                        let entryFQName = enumInfo.fqName + [entry.name]
+                        guard let entrySymbol = sema.symbols.lookupAll(fqName: entryFQName).first(where: { candidate in
+                            sema.symbols.symbol(candidate)?.kind == .field
+                                && sema.symbols.parentSymbol(for: candidate) == symbol
+                        }) else {
+                            continue
+                        }
+                        checkOwner(
+                            entrySymbol,
+                            properties: entry.memberProperties,
+                            blocks: entry.initBlocks,
+                            order: entry.classBodyInitOrder,
+                            constructors: [],
+                            checksDefiniteInitialization: !decl.modifiers.contains(.expect)
+                        )
+                    }
+                }
             case let .objectDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: [],

@@ -614,7 +614,7 @@ extension ExprTypeChecker {
         capturedSymbols.formUnion(collectLocalNominalCaptureSymbols(
             memberProperties: classDecl.memberProperties,
             includePropertyInitializers: true,
-            extraBodies: classDecl.initBlocks,
+            extraBodies: classDecl.initBlocks + classDecl.enumEntries.flatMap(\.initBlocks),
             extraExprRoots: classDecl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
                 + classDecl.superTypeEntries.compactMap(\.delegateExpression)
                 + defaultExprRoots,

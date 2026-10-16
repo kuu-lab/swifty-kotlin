@@ -269,7 +269,7 @@ final class LocalVariableStabilityAnalyzer {
         case let .classDecl(decl):
             functions = decl.memberFunctions
             properties = decl.memberProperties
-            initBlocks = decl.initBlocks
+            initBlocks = decl.initBlocks + decl.enumEntries.flatMap(\.initBlocks)
             constructors = decl.secondaryConstructors
             arguments = decl.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
                 + decl.superTypeEntries.compactMap(\.delegateExpression)

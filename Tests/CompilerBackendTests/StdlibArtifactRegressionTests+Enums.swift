@@ -7,6 +7,70 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-2447: enum entry init blocks initialize entry-owned storage in source order.
+    @Test(arguments: [0, 2], [false, true])
+    func testEnumEntryInitBlockInitializesEntryProperties(
+        optimization: Int,
+        stdlibFromSource: Bool
+    ) throws {
+        let source = """
+        enum class X {
+            B {
+                val value2 = "K"
+
+                val value3: String
+                init {
+                    fun foo() = value2
+                    value3 = "O" + foo()
+                }
+
+                override val value = value3
+            };
+
+            abstract val value: String
+        }
+
+        var initCalls = 0
+        enum class E {
+            A {
+                val text: String
+                init {
+                    initCalls += 1
+                    text = "OK"
+                }
+                override val value: String = text
+            };
+
+            abstract val value: String
+        }
+
+        fun box(): String = if (
+            X.B.value == "OK" && E.A.value == "OK" && E.A.value == "OK" && initCalls == 1
+        ) "OK" else "FAIL"
+
+        fun main() { println(box()) }
+        """
+        let artifactPath = stdlibFromSource ? nil : try Self.buildStdlibArtifact()
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let ctx = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "EnumEntryInitBlock",
+                outputPath: outputPath,
+                optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+            #expect(result.stdout == "OK\n")
+        }
+    }
+
     /// KUU-2414: enum and companion initialization order for Kotlin source input.
     @Test(arguments: [0, 2])
     func testEnumCompanionInitFromSource(optimization: Int) throws {
