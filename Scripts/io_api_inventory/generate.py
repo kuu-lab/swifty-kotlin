@@ -204,6 +204,7 @@ TEST_HINTS = {
 
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/diff_cases/kotlinx_io_",
+    "Scripts/io_api_inventory/probes/buffer_seek_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
@@ -1524,8 +1525,21 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
+    seek_probes = {
+        "Scripts/diff_cases/kotlinx_io_buffer_seek.kt",
+        "Scripts/io_api_inventory/probes/buffer_seek_external_visibility.kt",
+    }
+    is_buffer_seek = (
+        row["module"] == "core"
+        and row["_candidate_name"] == "seek"
+        and row["upstream_source_refs"] == "core/common/src/Buffer.kt:651"
+    )
     refs = []
     for path, content in local_tests:
+        if path in seek_probes:
+            if is_buffer_seek:
+                refs.append(path)
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -1552,6 +1566,14 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    if (row["module"] == "core" and row["_candidate_name"] == "seek"
+            and row["upstream_source_refs"] == "core/common/src/Buffer.kt:651"):
+        path = "core/common/test/CommonBufferTest.kt"
+        entry = next((item for item in test_index["files"] if item["path"] == path), None)
+        if entry is None or "byteAt" not in entry.get("testNames", []):
+            fail("the pinned Buffer.byteAt assertion is required to map Buffer.seek")
+        return [f"{path}#byteAt"]
+
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -1904,6 +1926,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Scripts/io_api_inventory/probes").glob("buffer_seek_*.kt"))
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):

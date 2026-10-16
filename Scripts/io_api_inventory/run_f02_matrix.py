@@ -100,6 +100,8 @@ def scenarios() -> list[dict]:
     cases = [{"id": "ledger-jvm", "producer": [HERE / "f02_consumers/Producer.kt"],
               "consumer": HERE / "f02_consumers/Consumer.kt", "entry": "f02consumer.main",
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
+             {"id": "buffer-seek", "fixture": ROOT / "Scripts/diff_cases/kotlinx_io_buffer_seek.kt",
+              "entry": "f02consumer.main", "reference": "jvm"},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
               "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
