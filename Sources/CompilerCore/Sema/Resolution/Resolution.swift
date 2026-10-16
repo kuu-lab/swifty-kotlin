@@ -385,9 +385,19 @@ extension OverloadResolver {
         // params (skip leading class type params inferred from the receiver).
         let funcOwnTypeParamCount = signature.typeParameterSymbols.count - signature.classTypeParameterCount
         let isConstructor = symbol.kind == .constructor
+        let constructorCapturedTypeParameterCount: Int = if isConstructor, aliasConstructor == nil,
+                                                              let owner = ctx.symbols.parentSymbol(for: candidate) {
+            ctx.types.enclosingTypeParameterSymbols(for: owner).count
+        } else {
+            0
+        }
+        let constructorOwnTypeParameterCount = max(
+            0,
+            signature.classTypeParameterCount - constructorCapturedTypeParameterCount
+        )
         if !call.explicitTypeArgs.isEmpty {
             let expectedTypeArgCount = isConstructor
-                ? (aliasConstructor?.typeParameterSymbols.count ?? signature.classTypeParameterCount)
+                ? (aliasConstructor?.typeParameterSymbols.count ?? constructorOwnTypeParameterCount)
                 : funcOwnTypeParamCount
             guard call.explicitTypeArgs.count == expectedTypeArgCount else {
                 return .rejected
@@ -398,8 +408,81 @@ extension OverloadResolver {
         // the receiver constraint check that would reject them when there is no
         // implicit receiver in scope (e.g. `Dog()` called from a free function).
         var constraints: [VariableConstraint]
+        var capturedOwnerTypeArguments: [TypeVarID: TypeID] = [:]
         if isConstructor {
             constraints = []
+            let capturedOwnerArguments: [TypeArg]? = {
+                guard constructorCapturedTypeParameterCount > 0,
+                      aliasConstructor == nil,
+                      let owner = ctx.symbols.parentSymbol(for: candidate)
+                else { return nil }
+                if let enclosingOwner = ctx.symbols.parentSymbol(for: owner),
+                   let outerReceiverType = implicitReceiverType,
+                   let receiverClassType = resolveClassType(outerReceiverType, sema: ctx),
+                   let arguments = ctx.types.liftedNominalSupertypeArgs(
+                       from: receiverClassType,
+                       to: enclosingOwner
+                   )
+                {
+                    return arguments
+                }
+                guard let expectedType,
+                      let expectedClassType = resolveClassType(expectedType, sema: ctx),
+                      let arguments = ctx.types.liftedNominalSupertypeArgs(
+                          from: expectedClassType,
+                          to: owner
+                      )
+                else {
+                    return nil
+                }
+                return arguments
+            }()
+            if constructorCapturedTypeParameterCount > 0,
+               aliasConstructor == nil,
+               let owner = ctx.symbols.parentSymbol(for: candidate),
+               let ownerArguments = capturedOwnerArguments
+            {
+                let enclosingTypeParameterSymbols = ctx.types.enclosingTypeParameterSymbols(for: owner)
+                let variables = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                for (index, typeParameter) in enclosingTypeParameterSymbols.enumerated()
+                where index < constructorCapturedTypeParameterCount && index < ownerArguments.count {
+                    guard let variable = variables[typeParameter] else { continue }
+                    let argumentType: TypeID
+                    switch ownerArguments[index] {
+                    case let .invariant(type):
+                        argumentType = type
+                    case let .out(type):
+                        argumentType = ctx.types.makeCapturedType(
+                            parameter: typeParameter,
+                            lower: ctx.types.nothingType,
+                            upper: type,
+                            writeForbidden: true
+                        )
+                    case let .in(type):
+                        let bounds = ctx.symbols.typeParameterUpperBounds(for: typeParameter)
+                        argumentType = ctx.types.makeCapturedType(
+                            parameter: typeParameter,
+                            lower: type,
+                            upper: bounds.isEmpty ? ctx.types.nullableAnyType : ctx.types.glb(bounds)
+                        )
+                    case .star:
+                        let bounds = ctx.symbols.typeParameterUpperBounds(for: typeParameter)
+                        argumentType = ctx.types.makeCapturedType(
+                            parameter: typeParameter,
+                            lower: ctx.types.nothingType,
+                            upper: bounds.isEmpty ? ctx.types.nullableAnyType : ctx.types.glb(bounds),
+                            writeForbidden: true
+                        )
+                    }
+                    capturedOwnerTypeArguments[variable] = argumentType
+                    constraints.append(VariableConstraint(
+                        kind: .equal,
+                        left: .variable(variable),
+                        right: .type(argumentType),
+                        blameRange: call.range
+                    ))
+                }
+            }
         } else {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
@@ -458,17 +541,18 @@ extension OverloadResolver {
                         nullability: .nonNull
                     ))))
                 }
+            let enclosingOwnerTypeParameterCount = ctx.types.enclosingTypeParameterSymbols(for: owner).count
             let ownerType = ctx.types.make(.classType(ClassType(
                 classSymbol: owner,
-                args: ownerArguments,
+                args: Array(ownerArguments.dropFirst(enclosingOwnerTypeParameterCount)),
+                enclosingTypeArgs: Array(ownerArguments.prefix(enclosingOwnerTypeParameterCount)),
                 nullability: .nonNull
             )))
             let receiverOwnerType: TypeID = {
                 let nonNullReceiverType = ctx.types.makeNonNullable(classReceiverType)
                 guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
                       let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
-                          from: receiverClassType.classSymbol,
-                          childArgs: receiverClassType.args,
+                          from: receiverClassType,
                           to: owner
                       )
                 else {
@@ -476,18 +560,20 @@ extension OverloadResolver {
                 }
                 return ctx.types.make(.classType(ClassType(
                     classSymbol: owner,
-                    args: liftedArguments,
+                    args: Array(liftedArguments.dropFirst(enclosingOwnerTypeParameterCount)),
+                    enclosingTypeArgs: Array(liftedArguments.prefix(enclosingOwnerTypeParameterCount)),
                     nullability: .nonNull
                 )))
             }()
             if case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType) {
+                let receiverOwnerArguments = ctx.types.allTypeArguments(for: receiverOwner)
                 let methodBounds = Array(signature.typeParameterUpperBoundsList
                     .dropFirst(signature.classTypeParameterCount).joined())
                     + signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).flatMap {
                         ctx.symbols.typeParameterUpperBounds(for: $0)
                     }
                 for (parameter, argument) in zip(
-                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount), receiverOwner.args
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount), receiverOwnerArguments
                 ) {
                     if case .star = argument,
                        !signature.parameterTypes.contains(where: {
@@ -512,9 +598,10 @@ extension OverloadResolver {
                case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType),
                receiverOwner.classSymbol == owner
             {
+                let receiverOwnerArguments = ctx.types.allTypeArguments(for: receiverOwner)
                 for (parameter, argument) in zip(
                     signature.typeParameterSymbols.prefix(signature.classTypeParameterCount),
-                    receiverOwner.args
+                    receiverOwnerArguments
                 ) {
                     guard let variable = typeVarBySymbol[parameter] else { continue }
                     let type: TypeID
@@ -548,7 +635,9 @@ extension OverloadResolver {
         // Add equality constraints for explicit type arguments.
         // For constructors, explicit type args bind class type params (offset 0).
         // For regular functions, map to function-own type params (after class type params).
-        let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+        let typeArgOffset = isConstructor
+            ? (aliasConstructor == nil ? constructorCapturedTypeParameterCount : 0)
+            : signature.classTypeParameterCount
         var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
             guard explicitArg != TypeID.invalid else { continue }
@@ -825,6 +914,7 @@ extension OverloadResolver {
         case .rejected:
             return .rejected
         }
+        substitution.merge(capturedOwnerTypeArguments, uniquingKeysWith: { _, captured in captured })
 
         // A variable constrained only by itself — e.g. `FlowCollector<R>` in
         // `transform`'s signature matched against a receiver lambda whose
@@ -1093,7 +1183,7 @@ extension OverloadResolver {
     private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
         switch typeSystem.kind(of: type) {
         case let .classType(classType):
-            classType.args.contains { argument in
+            typeSystem.allTypeArguments(for: classType).contains { argument in
                 switch argument {
                 case .star:
                     true
@@ -1778,7 +1868,7 @@ extension OverloadResolver {
         case .typeParam:
             return true
         case let .classType(classType):
-            for arg in classType.args {
+            for arg in typeSystem.allTypeArguments(for: classType) {
                 let argType: TypeID? = switch arg {
                 case let .invariant(t), let .out(t), let .in(t): t
                 case .star: nil

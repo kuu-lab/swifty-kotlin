@@ -661,7 +661,12 @@ extension DataFlowSemaPhase {
         case let .primitive(p, _):
             return types.make(.primitive(p, .nullable))
         case let .classType(ct):
-            return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
+            return types.make(.classType(ClassType(
+                classSymbol: ct.classSymbol,
+                args: ct.args,
+                enclosingTypeArgs: ct.enclosingTypeArgs,
+                nullability: .nullable
+            )))
         case let .typeParam(tp):
             return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable, capture: tp.capture)))
         case let .functionType(ft):
@@ -841,7 +846,22 @@ extension DataFlowSemaPhase {
                     diagnostics: diagnostics
                 )
             }
-            return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: newArgs, nullability: ct.nullability)))
+            let newEnclosingTypeArgs = ct.enclosingTypeArgs.map { arg in
+                substituteArg(
+                    arg,
+                    argSubstitution: argSubstitution,
+                    types: types,
+                    symbols: symbols,
+                    recursionDepth: recursionDepth + 1,
+                    diagnostics: diagnostics
+                )
+            }
+            return types.make(.classType(ClassType(
+                classSymbol: ct.classSymbol,
+                args: newArgs,
+                enclosingTypeArgs: newEnclosingTypeArgs,
+                nullability: ct.nullability
+            )))
         case let .functionType(ft):
             let newContextReceivers = ft.contextReceivers.map {
                 applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)

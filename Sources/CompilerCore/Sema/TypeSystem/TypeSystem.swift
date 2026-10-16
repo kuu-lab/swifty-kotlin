@@ -1,8 +1,18 @@
 public final class TypeSystem {
     private var nextCaptureIdentity = 0
 
-    func makeCapturedType(parameter: SymbolID, lower: TypeID, upper: TypeID) -> TypeID {
-        let capture = CapturedTypeBounds(identity: nextCaptureIdentity, lower: lower, upper: upper)
+    func makeCapturedType(
+        parameter: SymbolID,
+        lower: TypeID,
+        upper: TypeID,
+        writeForbidden: Bool = false
+    ) -> TypeID {
+        let capture = CapturedTypeBounds(
+            identity: nextCaptureIdentity,
+            lower: lower,
+            upper: upper,
+            writeForbidden: writeForbidden
+        )
         nextCaptureIdentity += 1
         return make(.typeParam(TypeParamType(
             symbol: parameter, nullability: nullability(of: upper), capture: capture
@@ -333,7 +343,12 @@ public final class TypeSystem {
             return make(.primitive(prim, nullability))
         case let .classType(ct):
             if ct.nullability == nullability { return type }
-            return make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: nullability)))
+            return make(.classType(ClassType(
+                classSymbol: ct.classSymbol,
+                args: ct.args,
+                enclosingTypeArgs: ct.enclosingTypeArgs,
+                nullability: nullability
+            )))
         case let .typeParam(tp):
             if tp.nullability == nullability { return type }
             return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability, capture: tp.capture)))
@@ -438,6 +453,94 @@ public final class TypeSystem {
         return nominalTypeParameterSymbolsMap[nominal] ?? []
     }
 
+    /// Type parameters captured from an `inner` class's enclosing class chain.
+    /// A static nested class forms a boundary, so its enclosing generic owners
+    /// are not included.
+    public func enclosingTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
+        guard let symbolTable,
+              symbolTable.symbol(nominal)?.flags.contains(.innerClass) == true
+        else {
+            return []
+        }
+
+        var owners: [SymbolID] = []
+        var currentOwner = symbolTable.parentSymbol(for: nominal)
+        while let owner = currentOwner, let ownerSymbol = symbolTable.symbol(owner) {
+            owners.append(owner)
+            guard ownerSymbol.flags.contains(.innerClass) else { break }
+            currentOwner = symbolTable.parentSymbol(for: owner)
+        }
+        return owners.reversed().flatMap { nominalTypeParameterSymbols(for: $0) }
+    }
+
+    public func allTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
+        enclosingTypeParameterSymbols(for: nominal) + nominalTypeParameterSymbols(for: nominal)
+    }
+
+    public func enclosingTypeParameterVariances(for nominal: SymbolID) -> [TypeVariance] {
+        guard let symbolTable,
+              symbolTable.symbol(nominal)?.flags.contains(.innerClass) == true
+        else {
+            return []
+        }
+
+        var owners: [SymbolID] = []
+        var currentOwner = symbolTable.parentSymbol(for: nominal)
+        while let owner = currentOwner, let ownerSymbol = symbolTable.symbol(owner) {
+            owners.append(owner)
+            guard ownerSymbol.flags.contains(.innerClass) else { break }
+            currentOwner = symbolTable.parentSymbol(for: owner)
+        }
+        return owners.reversed().flatMap { owner in
+            normalizedNominalVariances(
+                for: owner,
+                arity: nominalTypeParameterSymbols(for: owner).count
+            )
+        }
+    }
+
+    public func allTypeParameterVariances(for nominal: SymbolID) -> [TypeVariance] {
+        enclosingTypeParameterVariances(for: nominal)
+            + normalizedNominalVariances(for: nominal, arity: nominalTypeParameterSymbols(for: nominal).count)
+    }
+
+    public func allTypeArguments(for classType: ClassType) -> [TypeArg] {
+        classType.enclosingTypeArgs + classType.args
+    }
+
+    public func classType(
+        for nominal: SymbolID,
+        arguments: [TypeArg],
+        nullability: Nullability = .nonNull
+    ) -> ClassType {
+        let enclosingCount = min(enclosingTypeParameterSymbols(for: nominal).count, arguments.count)
+        return ClassType(
+            classSymbol: nominal,
+            args: Array(arguments.dropFirst(enclosingCount)),
+            enclosingTypeArgs: Array(arguments.prefix(enclosingCount)),
+            nullability: nullability
+        )
+    }
+
+    /// Lifts a class type while retaining captured enclosing arguments for a
+    /// direct receiver-owner match. Inherited supertypes continue to use the
+    /// nominal inheritance map, whose arguments are expressed in the owner's
+    /// own type parameters.
+    public func liftedNominalSupertypeArgs(
+        from child: ClassType,
+        to parent: SymbolID
+    ) -> [TypeArg]? {
+        if child.classSymbol == parent {
+            return allTypeArguments(for: child)
+        }
+        return liftedNominalSupertypeArgs(
+            from: child.classSymbol,
+            childArgs: allTypeArguments(for: child),
+            to: parent,
+            includeEnclosingParameters: true
+        )
+    }
+
     public func typeContainsTypeParam(_ type: TypeID, symbol: SymbolID) -> Bool {
         typeContainsTypeParam(type) { $0.symbol == symbol }
     }
@@ -473,7 +576,7 @@ public final class TypeSystem {
         case let .typeParam(tp):
             return tp.capture == nil && predicate(tp)
         case let .classType(ct):
-            return ct.args.contains { arg in
+            return allTypeArguments(for: ct).contains { arg in
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
                     typeContainsTypeParam(inner, where: predicate)
@@ -520,6 +623,20 @@ public final class TypeSystem {
         childArgs: [TypeArg],
         to parent: SymbolID
     ) -> [TypeArg]? {
+        liftedNominalSupertypeArgs(
+            from: child,
+            childArgs: childArgs,
+            to: parent,
+            includeEnclosingParameters: false
+        )
+    }
+
+    private func liftedNominalSupertypeArgs(
+        from child: SymbolID,
+        childArgs: [TypeArg],
+        to parent: SymbolID,
+        includeEnclosingParameters: Bool
+    ) -> [TypeArg]? {
         // KUU-809: the direct-supertype graph is attacker-controlled when it
         // comes from `.kklib` metadata, so this walk must not consume native
         // call-stack frames per level. The explicit stack below performs the
@@ -538,7 +655,12 @@ public final class TypeSystem {
             for directSupertype in directNominalSupertypes(for: current).reversed() {
                 let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
                 let substitutedDirectArgs = directArgsTemplate.map {
-                    substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+                    substituteNominalTypeArg(
+                        $0,
+                        owner: current,
+                        ownerArgs: currentArgs,
+                        includeEnclosingParameters: includeEnclosingParameters
+                    )
                 }
                 stack.append((directSupertype, substitutedDirectArgs))
             }
@@ -608,15 +730,25 @@ public final class TypeSystem {
     private func substituteNominalTypeArg(
         _ arg: TypeArg,
         owner: SymbolID,
-        ownerArgs: [TypeArg]
+        ownerArgs: [TypeArg],
+        includeEnclosingParameters: Bool = false
     ) -> TypeArg {
         switch arg {
         case let .invariant(type):
-            .invariant(substituteNominalType(type, owner: owner, ownerArgs: ownerArgs))
+            .invariant(substituteNominalType(
+                type, owner: owner, ownerArgs: ownerArgs,
+                includeEnclosingParameters: includeEnclosingParameters
+            ))
         case let .out(type):
-            .out(substituteNominalType(type, owner: owner, ownerArgs: ownerArgs))
+            .out(substituteNominalType(
+                type, owner: owner, ownerArgs: ownerArgs,
+                includeEnclosingParameters: includeEnclosingParameters
+            ))
         case let .in(type):
-            .in(substituteNominalType(type, owner: owner, ownerArgs: ownerArgs))
+            .in(substituteNominalType(
+                type, owner: owner, ownerArgs: ownerArgs,
+                includeEnclosingParameters: includeEnclosingParameters
+            ))
         case .star:
             .star
         }
@@ -627,15 +759,18 @@ public final class TypeSystem {
         owner: SymbolID,
         ownerArgs: [TypeArg]
     ) -> TypeID {
-        substituteNominalType(type, owner: owner, ownerArgs: ownerArgs)
+        substituteNominalType(type, owner: owner, ownerArgs: ownerArgs, includeEnclosingParameters: false)
     }
 
     private func substituteNominalType(
         _ type: TypeID,
         owner: SymbolID,
-        ownerArgs: [TypeArg]
+        ownerArgs: [TypeArg],
+        includeEnclosingParameters: Bool
     ) -> TypeID {
-        let typeParamSymbols = nominalTypeParameterSymbols(for: owner)
+        let typeParamSymbols = includeEnclosingParameters
+            ? allTypeParameterSymbols(for: owner)
+            : nominalTypeParameterSymbols(for: owner)
         guard !typeParamSymbols.isEmpty, !ownerArgs.isEmpty else {
             return type
         }

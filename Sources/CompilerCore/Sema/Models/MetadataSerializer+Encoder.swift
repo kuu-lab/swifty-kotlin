@@ -284,8 +284,49 @@ package final class MetadataEncoder {
             symbols: symbols,
             types: types
         )
+        let flattenedType = flattenEnclosingTypeArguments(in: expandedType, types: types)
         return mangler.encodeType(
-            types.approximatingCapturedTypes(in: expandedType),
+            types.approximatingCapturedTypes(in: flattenedType),
+            symbols: symbols,
+            types: types,
+            nameResolver: nameResolver,
+            unboxValueClasses: false,
+            preservePlatformNullability: true
+        )
+    }
+
+    private func flattenEnclosingTypeArguments(in type: TypeID, types: TypeSystem) -> TypeID {
+        let mapped = types.make(types.kind(of: type).mapTypes { child in
+            flattenEnclosingTypeArguments(in: child, types: types)
+        })
+        guard case let .classType(classType) = types.kind(of: mapped),
+              !classType.enclosingTypeArgs.isEmpty
+        else {
+            return mapped
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: classType.classSymbol,
+            args: types.allTypeArguments(for: classType),
+            nullability: classType.nullability
+        )))
+    }
+
+    private func metadataCallableTypeSignature(
+        _ signature: FunctionSignature,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        mangler: NameMangler,
+        nameResolver: ((InternedString) -> String)?
+    ) -> String {
+        let functionType = types.make(.functionType(FunctionType(
+            receiver: signature.receiverType,
+            params: signature.parameterTypes,
+            returnType: signature.returnType,
+            isSuspend: signature.isSuspend
+        )))
+        let flattenedType = flattenEnclosingTypeArguments(in: functionType, types: types)
+        return mangler.encodeType(
+            types.approximatingCapturedTypes(in: flattenedType),
             symbols: symbols,
             types: types,
             nameResolver: nameResolver,
@@ -310,12 +351,16 @@ package final class MetadataEncoder {
                 let expandedArgs = classType.args.map {
                     expandMetadataTypeAliasArg($0, symbols: symbols, types: types, seenAliases: seenAliases)
                 }
-                if expandedArgs == classType.args {
+                let expandedEnclosingTypeArgs = classType.enclosingTypeArgs.map {
+                    expandMetadataTypeAliasArg($0, symbols: symbols, types: types, seenAliases: seenAliases)
+                }
+                if expandedArgs == classType.args && expandedEnclosingTypeArgs == classType.enclosingTypeArgs {
                     return type
                 }
                 return types.make(.classType(ClassType(
                     classSymbol: classType.classSymbol,
                     args: expandedArgs,
+                    enclosingTypeArgs: expandedEnclosingTypeArgs,
                     nullability: classType.nullability
                 )))
             }
@@ -654,13 +699,12 @@ package final class MetadataEncoder {
                     interner: interner
                 )?.map { interner.resolve($0) }.joined(separator: ".")
             }
-            typeSignature = mangler.mangledSignature(
-                for: symbol,
+            typeSignature = metadataCallableTypeSignature(
+                signature,
                 symbols: symbols,
                 types: types,
-                nameResolver: { interner.resolve($0) },
-                unboxValueClasses: false,
-                preservePlatformNullability: true
+                mangler: mangler,
+                nameResolver: { interner.resolve($0) }
             )
             typeParameterUpperBoundsSignatures = signature.typeParameterUpperBoundsList.map { bounds in
                 bounds.map {

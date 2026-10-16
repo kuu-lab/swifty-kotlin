@@ -996,6 +996,7 @@ extension ExprTypeChecker {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: classType.classSymbol,
                     args: classType.args.map { _ in .star },
+                    enclosingTypeArgs: classType.enclosingTypeArgs.map { _ in .star },
                     nullability: .nonNull
                 )))
             default:

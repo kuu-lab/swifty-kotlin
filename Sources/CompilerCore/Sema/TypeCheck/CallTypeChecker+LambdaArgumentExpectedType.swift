@@ -24,7 +24,14 @@ extension CallTypeChecker {
             return parameterType
         }
         let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
-        let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+        let typeArgOffset: Int = if isConstructor,
+                                    let owner = sema.symbols.parentSymbol(for: candidate) {
+            sema.types.enclosingTypeParameterSymbols(for: owner).count
+        } else if isConstructor {
+            0
+        } else {
+            signature.classTypeParameterCount
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
         for (idx, explicitTypeArg) in explicitTypeArgs.enumerated() {
