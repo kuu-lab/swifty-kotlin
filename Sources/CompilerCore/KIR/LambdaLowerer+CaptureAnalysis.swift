@@ -115,6 +115,25 @@ extension LambdaLowerer {
         return ordered
     }
 
+    /// A backing-field identifier names storage rather than its receiver.
+    /// Capture the owning instance so nested lambdas keep reading the
+    /// accessor's field even when another implicit receiver has the same type.
+    func backingFieldOwnerCaptureSymbols(
+        from referencedSymbols: [SymbolID],
+        sema: SemaModule
+    ) -> [SymbolID] {
+        referencedSymbols.compactMap { symbol in
+            guard sema.symbols.symbol(symbol)?.kind == .backingField,
+                  let owner = sema.symbols.parentSymbol(for: symbol),
+                  let ownerKind = sema.symbols.symbol(owner)?.kind,
+                  [.class, .object, .enumClass].contains(ownerKind)
+            else {
+                return nil
+            }
+            return owner
+        }
+    }
+
     private func collectReifiedTypeParameterSymbols(
         in type: TypeID,
         sema: SemaModule,

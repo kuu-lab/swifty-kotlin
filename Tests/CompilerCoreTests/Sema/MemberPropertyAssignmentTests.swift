@@ -10,6 +10,16 @@ struct MemberPropertyAssignmentTests {
     class Maybe<T>(var value: T?)
     open class Parent<T>(var inherited: T)
     class Child<T>(value: T) : Parent<T>(value)
+    abstract class ReadOnlyParent { abstract val x: String }
+    interface MutableSibling { var x: String }
+    abstract class JoinedProperty : ReadOnlyParent(), MutableSibling
+    class JoinedPropertyImpl(override var x: String) : JoinedProperty()
+    open class ProtectedSetterParent {
+        open var restricted: String = ""
+            protected set
+    }
+    interface ReadOnlySibling { val restricted: String }
+    abstract class ProtectedSetterJoin : ProtectedSetterParent(), ReadOnlySibling
     class Plain {
         var value: Int = 0
         var longValue: Long = 0
@@ -57,6 +67,10 @@ struct MemberPropertyAssignmentTests {
         .init(source: "fun test(box: Child<out Int>) { box.inherited = 2 }", diagnostic: "KSWIFTK-TYPE-0001"),
         .init(source: "fun test(box: Child<in Int>) { box.inherited = 2 }", diagnostic: nil),
         .init(source: "fun test(box: Plain) { box.fixed = 2 }", diagnostic: "KSWIFTK-SEMA-0014"),
+        .init(source: "fun test(box: JoinedProperty) { box.x = \"OK\" }", diagnostic: nil),
+        .init(source: "fun test(box: JoinedProperty) { box.x = 1 }", diagnostic: "KSWIFTK-TYPE-0001"),
+        .init(source: "fun test(box: ReadOnlyParent) { box.x = \"no\" }", diagnostic: "KSWIFTK-SEMA-0014"),
+        .init(source: "fun test(box: ProtectedSetterJoin) { box.restricted = \"no\" }", diagnostic: "KSWIFTK-SEMA-0041"),
         .init(source: "fun test(box: Plain) { box.hidden = 2 }", diagnostic: "KSWIFTK-SEMA-0040"),
         .init(source: "fun test(box: Plain) { box.restricted = 2 }", diagnostic: "KSWIFTK-SEMA-0040"),
         .init(source: "fun test(box: Plain) { box.missing = 2 }", diagnostic: "KSWIFTK-SEMA-0022"),
@@ -196,6 +210,18 @@ struct MemberPropertyAssignmentTests {
         let ctx = context("class Init(other: Init) { val value: Int = 0; init { other.value = 2 } }")
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0014", in: ctx)
+    }
+
+    @Test
+    func incompatibleInheritedMutablePropertiesCannotBeWritten() throws {
+        let ctx = context("""
+        interface StringValue { var value: String }
+        interface IntValue { var value: Int }
+        abstract class AmbiguousValue : StringValue, IntValue
+        fun write(value: AmbiguousValue) { value.value = "x" }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Incompatible inherited setters must not be accepted.")
     }
 
     @Test

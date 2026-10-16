@@ -43,6 +43,10 @@ struct DeclarationPositionValidator {
         /// `true` when the owner has `init` blocks or secondary constructors
         /// that can assign stored member properties imperatively.
         var allowsImperativeInit: Bool = false
+        /// `true` when member property initialization needs flow analysis,
+        /// including initializers that may prevent later declarations from
+        /// being reached.
+        var defersPropertyInitialization: Bool = false
 
         var name: String {
             switch kind {
@@ -256,6 +260,15 @@ struct DeclarationPositionValidator {
             && decl.explicitBackingField == nil
     }
 
+    private func hasPropertyInitializationExpression(_ properties: [DeclID]) -> Bool {
+        properties.contains { id in
+            guard case let .propertyDecl(property) = astArena.decl(id) else { return false }
+            return property.initializer != nil
+                || property.delegateExpression != nil
+                || property.explicitBackingField != nil
+        }
+    }
+
     private func validatePropertyInitialization(_ decl: PropertyDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
         if modifiers.contains(.abstract)
@@ -281,9 +294,9 @@ struct DeclarationPositionValidator {
             if nominal.kind == .interface, isImplicitlyAbstractInterfaceProperty(decl) {
                 return
             }
-            // A class/object with init blocks or secondary constructors may
-            // initialize stored properties imperatively.
-            if nominal.allowsImperativeInit {
+            // Property initializers, init blocks, and secondary constructors
+            // require flow analysis before missing storage can be diagnosed.
+            if nominal.allowsImperativeInit || nominal.defersPropertyInitialization {
                 return
             }
         }
@@ -631,7 +644,11 @@ struct DeclarationPositionValidator {
             kind: isEnum ? .enum : (isAnnotation ? .annotationClass : .class),
             isLocal: site == .function,
             ownerModifiers: modifiers,
-            allowsImperativeInit: !decl.initBlocks.isEmpty || !decl.secondaryConstructors.isEmpty
+            allowsImperativeInit: !decl.initBlocks.isEmpty
+                || !decl.secondaryConstructors.isEmpty,
+            defersPropertyInitialization: !decl.initBlocks.isEmpty
+                || !decl.secondaryConstructors.isEmpty
+                || hasPropertyInitializationExpression(decl.memberProperties)
         )
         validateClassMembers(decl, site: memberSite)
     }
@@ -665,7 +682,8 @@ struct DeclarationPositionValidator {
                 kind: .enumEntry,
                 isLocal: site.isLocal,
                 ownerModifiers: [],
-                allowsImperativeInit: !entry.initBlocks.isEmpty
+                allowsImperativeInit: !entry.initBlocks.isEmpty,
+                defersPropertyInitialization: !entry.initBlocks.isEmpty
             ))
             for declID in entry.memberFunctions {
                 validate(declID: declID, site: entrySite)
@@ -780,7 +798,9 @@ struct DeclarationPositionValidator {
             kind: isCompanion ? .companionObject : .object,
             isLocal: site == .function,
             ownerModifiers: modifiers,
-            allowsImperativeInit: !decl.initBlocks.isEmpty
+            allowsImperativeInit: !decl.initBlocks.isEmpty,
+            defersPropertyInitialization: !decl.initBlocks.isEmpty
+                || hasPropertyInitializationExpression(decl.memberProperties)
         )
         validateObjectMembers(decl, site: memberSite)
     }

@@ -338,31 +338,34 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
-        var implicitReceiverMember: (symbol: SymbolID, type: TypeID)?
+        var implicitReceiverMember: (lookup: MemberPropertyLookupResult, receiverType: TypeID)?
         for receiverType in ctx.implicitReceiverMemberLookupTypes() {
-            let nonNullReceiver = ctx.sema.types.makeNonNullable(receiverType)
+            let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
             if let entrySymbol = ctx.currentDeclSymbol,
                let member = driver.helpers.lookupEnumEntryMemberProperty(
                    named: name,
                    entrySymbol: entrySymbol,
-                   receiverType: nonNullReceiver,
+                   receiverType: nonNullReceiverType,
                    sema: ctx.sema
                ) {
-                implicitReceiverMember = member
+                implicitReceiverMember = (MemberPropertyLookupResult(
+                    symbol: member.symbol, type: member.type, writeSymbol: nil
+                ), nonNullReceiverType)
                 break
             }
-            if let member = driver.helpers.lookupMemberProperty(
+            if let member = driver.helpers.lookupMemberPropertyForWrite(
                 named: name,
-                receiverType: nonNullReceiver,
+                receiverType: nonNullReceiverType,
                 sema: ctx.sema
             ) {
-                implicitReceiverMember = member
+                implicitReceiverMember = (member, nonNullReceiverType)
                 break
             }
         }
-        if let member = implicitReceiverMember
+        if let (member, receiverType) = implicitReceiverMember
         {
-            let (_, invisible) = ctx.filterByVisibility([member.symbol])
+            let writeSymbol = member.writeSymbol ?? member.symbol
+            let (_, invisible) = ctx.filterByVisibility([writeSymbol])
             if let property = invisible.first {
                 driver.helpers.emitVisibilityError(
                     for: property,
@@ -372,19 +375,22 @@ final class LocalDeclTypeChecker {
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
             }
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
-            ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
+            let writeType = driver.helpers.memberPropertyWriteType(
+                symbol: writeSymbol, receiverType: receiverType, fallback: member.type, sema: ctx.sema
+            )
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
+            ctx.sema.bindings.bindIdentifier(id, symbol: writeSymbol)
             driver.helpers.checkDeprecation(
-                for: member.symbol, sema: ctx.sema, interner: interner,
+                for: writeSymbol, sema: ctx.sema, interner: interner,
                 range: range, diagnostics: ctx.sema.diagnostics
             )
             driver.helpers.checkOptIn(
-                for: member.symbol, ctx: ctx, range: range,
+                for: writeSymbol, ctx: ctx, range: range,
                 diagnostics: ctx.sema.diagnostics
             )
-            let propSymbol = ctx.sema.symbols.symbol(member.symbol)
-            if let propSymbol,
-               !propSymbol.flags.contains(.mutable),
+            let propSymbol = ctx.sema.symbols.symbol(writeSymbol)
+            if propSymbol != nil,
+               member.writeSymbol == nil,
                !ctx.allowsValPropertyInitialization
             {
                 ctx.sema.diagnostics.error(
@@ -393,14 +399,44 @@ final class LocalDeclTypeChecker {
                     range: range
                 )
             } else {
-                driver.emitSubtypeConstraint(
-                    left: valueType,
-                    right: member.type,
-                    range: range,
-                    solver: ConstraintSolver(),
-                    sema: ctx.sema,
-                    diagnostics: ctx.sema.diagnostics
-                )
+                let setterIsAccessible: Bool = {
+                    guard let visibility = ctx.sema.symbols.propertySetterVisibility(for: writeSymbol),
+                          let propSymbol
+                    else {
+                        return true
+                    }
+                    let setter = SemanticSymbol(
+                        id: propSymbol.id,
+                        kind: propSymbol.kind,
+                        name: propSymbol.name,
+                        fqName: propSymbol.fqName,
+                        declSite: propSymbol.declSite,
+                        visibility: visibility,
+                        flags: propSymbol.flags
+                    )
+                    guard !ctx.visibilityChecker.isAccessible(
+                        setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+                    ) else {
+                        return true
+                    }
+                    driver.helpers.emitVisibilityError(
+                        for: setter,
+                        name: interner.resolve(name),
+                        range: range,
+                        diagnostics: ctx.sema.diagnostics
+                    )
+                    return false
+                }()
+                if setterIsAccessible {
+                    driver.emitSubtypeConstraint(
+                        left: valueType,
+                        right: writeType,
+                        range: range,
+                        solver: ConstraintSolver(),
+                        sema: ctx.sema,
+                        diagnostics: ctx.sema.diagnostics
+                    )
+                }
             }
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.unitType)
             return ctx.sema.types.unitType
