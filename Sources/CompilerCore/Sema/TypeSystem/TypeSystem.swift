@@ -18,6 +18,27 @@ public final class TypeSystem {
             symbol: parameter, nullability: nullability(of: upper), capture: capture
         )))
     }
+
+    /// Preserves informative upper bounds when a star projection crosses a
+    /// nominal substitution. Trivial or dependent bounds fall back to `Any?`.
+    func capturedTypeForStarProjection(parameter: SymbolID, ownerTypeParameters: [SymbolID]) -> TypeID {
+        let upperBounds = symbolTable?.typeParameterUpperBounds(for: parameter) ?? []
+        let hasDependentUpperBound = upperBounds.contains { bound in
+            ownerTypeParameters.contains { typeContainsTypeParam(bound, symbol: $0) }
+        }
+        let hasOnlyNullableAnyBound = upperBounds == [nullableAnyType]
+        guard !upperBounds.isEmpty, !hasDependentUpperBound, !hasOnlyNullableAnyBound else {
+            return nullableAnyType
+        }
+
+        let upperBound: TypeID
+        if upperBounds.count == 1 {
+            upperBound = upperBounds[0]
+        } else {
+            upperBound = make(.intersection(upperBounds))
+        }
+        return makeCapturedType(parameter: parameter, lower: nothingType, upper: upperBound)
+    }
     private var kindToID: [TypeKind: TypeID] = [:]
     private var idToKind: [TypeKind] = []
     private var nominalDirectSupertypes: [SymbolID: [SymbolID]] = [:]
@@ -623,7 +644,8 @@ public final class TypeSystem {
         childArgs: [TypeArg],
         to parent: SymbolID
     ) -> [TypeArg]? {
-        liftedNominalSupertypeArgs(
+        guard child != parent else { return childArgs }
+        return liftedNominalSupertypeArgs(
             from: child,
             childArgs: childArgs,
             to: parent,
@@ -637,6 +659,7 @@ public final class TypeSystem {
         to parent: SymbolID,
         includeEnclosingParameters: Bool
     ) -> [TypeArg]? {
+
         // KUU-809: the direct-supertype graph is attacker-controlled when it
         // comes from `.kklib` metadata, so this walk must not consume native
         // call-stack frames per level. The explicit stack below performs the
@@ -644,7 +667,8 @@ public final class TypeSystem {
         // visited mark, and children are explored left-to-right depth-first
         // (reversed pushes keep the leftmost child on top of the stack).
         var visited: Set<SymbolID> = []
-        var stack: [(symbol: SymbolID, args: [TypeArg])] = [(child, childArgs)]
+        let substitutedChildArgs = substitutingCovariantStarUpperBounds(childArgs, for: child)
+        var stack: [(symbol: SymbolID, args: [TypeArg])] = [(child, substitutedChildArgs)]
         while let (current, currentArgs) = stack.popLast() {
             if current == parent {
                 return currentArgs
@@ -666,6 +690,66 @@ public final class TypeSystem {
             }
         }
         return nil
+    }
+
+    /// Uses a covariant parameter's readable upper bound when lifting an inherited
+    /// supertype. Invariant and contravariant positions retain the existing projection.
+    private func substitutingCovariantStarUpperBounds(_ args: [TypeArg], for owner: SymbolID) -> [TypeArg] {
+        guard args.contains(where: { if case .star = $0 { true } else { false } }) else {
+            return args
+        }
+        let parameters = nominalTypeParameterSymbols(for: owner)
+        guard !parameters.isEmpty else { return args }
+        let variances = normalizedNominalVariances(for: owner, arity: args.count)
+        guard args.indices.contains(where: { index in
+            guard case .star = args[index] else { return false }
+            return variances[index] == .out
+        })
+        else {
+            return args
+        }
+
+        let variables = makeTypeVarBySymbol(parameters)
+        var substitution: [TypeVarID: TypeID] = [:]
+        var unresolvedStars: [SymbolID: TypeVarID] = [:]
+        for (parameter, argument) in zip(parameters, args) {
+            guard let variable = variables[parameter] else { continue }
+            switch argument {
+            case let .invariant(type), let .out(type):
+                substitution[variable] = type
+            case .in, .star:
+                // An in-projection supplies only a lower bound, so it cannot
+                // narrow another parameter's readable upper bound.
+                unresolvedStars[parameter] = variable
+            }
+        }
+
+        var substitutedArgs = args
+        let overloadResolver = OverloadResolver()
+        for index in args.indices where parameters.indices.contains(index) {
+            guard case .star = args[index], variances[index] == .out,
+                  let variable = variables[parameters[index]]
+            else {
+                continue
+            }
+
+            let symbolBounds = symbolTable?.typeParameterUpperBounds(for: parameters[index]) ?? []
+            let nominalBoundsByParameter = nominalTypeParameterUpperBounds(for: owner) ?? []
+            let nominalBounds = nominalBoundsByParameter.indices.contains(index)
+                ? nominalBoundsByParameter[index] : []
+            let declaredBounds = symbolBounds.isEmpty ? nominalBounds : symbolBounds
+            let substitutedBounds = declaredBounds.map {
+                substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: variables)
+            }
+            let readableBounds = substitutedBounds.filter {
+                !overloadResolver.containsTypeVariable($0, typeVarBySymbol: unresolvedStars, typeSystem: self)
+            }
+            guard declaredBounds.isEmpty || !readableBounds.isEmpty else { continue }
+            let upperBound = readableBounds.isEmpty ? nullableAnyType : glb(readableBounds)
+            substitution[variable] = upperBound
+            substitutedArgs[index] = .invariant(upperBound)
+        }
+        return substitutedArgs
     }
 
     /// Infers `subtype`'s own type arguments for a smart cast from a known
@@ -787,7 +871,10 @@ public final class TypeSystem {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[variable] = inner
             case .star:
-                substitution[variable] = nullableAnyType
+                substitution[variable] = capturedTypeForStarProjection(
+                    parameter: symbol,
+                    ownerTypeParameters: typeParamSymbols
+                )
             }
         }
 

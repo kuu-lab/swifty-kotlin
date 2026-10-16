@@ -21,3 +21,6 @@ public object Dispatchers {
     public val Main: MainCoroutineDispatcher
         get() = __dispatcherMain()
 }
+
+public val IO: CoroutineDispatcher
+    get() = Dispatchers.IO

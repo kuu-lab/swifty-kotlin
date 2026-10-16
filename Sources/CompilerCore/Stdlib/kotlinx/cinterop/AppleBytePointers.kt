@@ -17,7 +17,11 @@ public fun CPointer<ByteVar>.readBytes(count: Int): ByteArray {
     return result
 }
 public operator fun CPointer<UByteVar>.plus(index: Int): CPointer<UByteVar> =
-    platform.Foundation.__foundation_byte_pointer_add(this, index).reinterpret()
+    platform.Foundation.__foundation_byte_pointer_add(this, index.toLong()).reinterpret()
 public operator fun CPointer<ByteVar>.plus(index: Int): CPointer<ByteVar> =
+    platform.Foundation.__foundation_byte_pointer_add(this, index.toLong())
+public operator fun CPointer<UByteVar>.plus(index: Long): CPointer<UByteVar> =
+    platform.Foundation.__foundation_byte_pointer_add(this, index).reinterpret()
+public operator fun CPointer<ByteVar>.plus(index: Long): CPointer<ByteVar> =
     platform.Foundation.__foundation_byte_pointer_add(this, index)
 public operator fun CPointer<ByteVar>.get(index: Int): Byte = (this + index).pointed.value

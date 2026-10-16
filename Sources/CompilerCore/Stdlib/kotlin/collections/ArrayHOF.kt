@@ -49,18 +49,13 @@ public fun <T, R : Any> Array<T>.mapNotNull(transform: (T) -> R?): List<R> {
     return result
 }
 
-public fun <T, R> Array<T>.flatMap(transform: (T) -> List<R>): List<R> {
+public fun <T, R> Array<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     val sz = this.size
     while (i < sz) {
-        val nested = transform(this[i])
-        var j = 0
-        val nestedSize = nested.size
-        while (j < nestedSize) {
-            result.add(nested[j])
-            j++
-        }
+        val nestedIterator = transform(this[i]).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
         i++
     }
     return result

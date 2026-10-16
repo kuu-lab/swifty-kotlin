@@ -4,7 +4,8 @@ extension BuildASTPhase {
         from statementTokens: [Token],
         interner: StringInterner,
         astArena: ASTArena,
-        bodyOverride: FunctionBody? = nil
+        bodyOverride: FunctionBody? = nil,
+        isAnonymousFunction: Bool = false
     ) -> ExprID? {
         guard !statementTokens.isEmpty else {
             return nil
@@ -165,6 +166,16 @@ extension BuildASTPhase {
             return nil
         }
         index += 1
+
+        if !isAnonymousFunction {
+            for param in valueParams where param.type == nil {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0033",
+                    "An explicit type is required on value parameter '\(interner.resolve(param.name))'.",
+                    range: head.range
+                )
+            }
+        }
 
         let returnType = parseReturnTypeAnnotation(
             from: funTokens, index: &index, interner: interner, astArena: astArena

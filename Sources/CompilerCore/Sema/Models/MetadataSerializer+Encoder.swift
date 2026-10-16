@@ -1029,6 +1029,8 @@ package final class MetadataEncoder {
         return MetadataRecord(
             kind: symbol.kind,
             visibility: symbol.visibility,
+            constructorVisibilityInherited: symbol.kind == .constructor
+                && symbol.flags.contains(.constructorVisibilityInherited),
             mangledName: mangled,
             fqName: fqName,
             arity: arity,
@@ -1291,6 +1293,9 @@ package final class MetadataEncoder {
                 fields.append("infix=\(record.isInfix ? 1 : 0)")
                 if record.isOverride {
                     fields.append("override=1")
+                }
+                if record.kind == .constructor, record.constructorVisibilityInherited {
+                    fields.append("constructorVisibilityInherited=1")
                 }
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
@@ -1559,6 +1564,9 @@ package final class MetadataEncoder {
             fields.append("operator=\(record.isOperator ? 1 : 0)")
             fields.append("infix=\(record.isInfix ? 1 : 0)")
             if record.isOverride { fields.append("override=1") }
+            if record.kind == .constructor, record.constructorVisibilityInherited {
+                fields.append("constructorVisibilityInherited=1")
+            }
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                 fields.append("defaultLink=\(linkName)")
             }

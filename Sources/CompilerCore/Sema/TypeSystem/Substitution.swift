@@ -288,7 +288,17 @@ public extension TypeSystem {
             if newParts == parts {
                 return type
             }
-            return make(.intersection(newParts))
+            // A non-null intersection component removes null from every
+            // substituted part, including a nullable concrete type argument.
+            let hasNonNullPart = newParts.contains { isDefinitelyNonNull($0) }
+            let narrowedParts = hasNonNullPart
+                ? newParts.map { part in
+                    nullability(of: part) == .nonNull
+                        ? part
+                        : withNullability(.nonNull, for: part)
+                }
+                : newParts
+            return make(.intersection(narrowedParts))
 
         default:
             return type

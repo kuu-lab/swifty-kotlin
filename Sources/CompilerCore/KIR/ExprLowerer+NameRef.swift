@@ -167,9 +167,31 @@ extension ExprLowerer {
            let propertyInfo = sema.symbols.symbol(symbol),
            propertyInfo.kind == .property,
            let entryField = sema.symbols.parentSymbol(for: symbol),
-           driver.callLowerer.enumClassOwnerSymbol(forEntryField: entryField, sema: sema) != nil,
-           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+           let enumOwnerSymbol = driver.callLowerer.enumClassOwnerSymbol(forEntryField: entryField, sema: sema),
+           let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
+            let receiverExprID: KIRExprID
+            // An inner class stores its enclosing enum instance in `$outer`;
+            // enum-entry properties must dispatch on that ordinal value,
+            // not on the inner object currently being initialized.
+            var outerInstructions: [KIRInstruction] = []
+            if let outerReceiver = resolveOuterChainValue(
+                from: activeReceiverExprID,
+                to: enumOwnerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &outerInstructions
+            ) {
+                instructions.append(contentsOf: outerInstructions)
+                receiverExprID = outerReceiver
+            } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+                      let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
+            {
+                receiverExprID = capturedReceiver
+            } else {
+                receiverExprID = activeReceiverExprID
+            }
             let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
             let result = arena.appendTemporary(type: resultType)
             if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
@@ -1168,8 +1190,20 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
-                let id = arena.appendExpr(.symbolRef(symbol), type: boundType)
-                instructions.append(.loadGlobal(result: id, symbol: symbol))
+                // A custom setter gives an object property a distinct backing
+                // field. Its compiler-provided getter reads that field, so a
+                // bare imported property reference must do the same.
+                let storageSymbol: SymbolID
+                if sym.kind == .property,
+                   sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.kind == .object,
+                   let backingField = sema.symbols.backingFieldSymbol(for: symbol)
+                {
+                    storageSymbol = backingField
+                } else {
+                    storageSymbol = symbol
+                }
+                let id = arena.appendExpr(.symbolRef(storageSymbol), type: boundType)
+                instructions.append(.loadGlobal(result: id, symbol: storageSymbol))
                 return wrapLateinitReadIfNeeded(
                     id,
                     symbol: symbol,

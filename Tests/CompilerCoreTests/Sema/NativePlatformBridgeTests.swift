@@ -11,6 +11,103 @@ import Testing
 struct NativePlatformBridgeTests {
 
     @Test
+    func testKotlinNativeDefaultImportAndPosixPointerSurface() throws {
+        let source = """
+        package kuu2403
+        import kotlin.experimental.*
+        import kotlinx.cinterop.*
+        import platform.Foundation.*
+        import platform.posix.*
+
+        @OptIn(ExperimentalNativeApi::class, ExperimentalForeignApi::class, UnsafeNumber::class)
+        fun copyNativeBytes(destination: CPointer<ByteVar>, source: CPointer<ByteVar>, offset: Long, size: Int) {
+            memcpy(destination + offset, source + offset, size.convert())
+            val littleEndian = Platform.isLittleEndian
+            val knownErrors = EBADF + EWOULDBLOCK + EAGAIN + EBADMSG + EINTR + EINVAL + EIO +
+                ECONNREFUSED + ECONNABORTED + ECONNRESET + ENOTCONN + ETIMEDOUT + EOVERFLOW +
+                ENOMEM + ENOTSOCK + EADDRINUSE + ENOENT
+        }
+
+        @OptIn(ExperimentalForeignApi::class, UnsafeNumber::class)
+        fun copyNativeBytesLong(destination: CPointer<ByteVar>, source: CPointer<ByteVar>, size: Long) {
+            memcpy(destination, source, size.convert())
+        }
+
+        fun decodeNativeString(data: NSData): String? =
+            NSString.create(data, NSUTF8StringEncoding)
+        fun decodeStringCompanion(data: NSData): String? =
+            String.create(data, NSUTF8StringEncoding)
+        fun isByteArrayEmpty(bytes: ByteArray): Boolean = bytes.isEmpty()
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let context = makeCompilationContext(inputs: paths)
+            try runSema(context)
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Kotlin/Native POSIX surface diagnostics: \(errors)")
+        }
+    }
+
+    @Test
+    func testPlatformCharsetSubclassCanReturnExpectType() throws {
+        let sources = [
+            """
+            package kuu2403.charset
+            expect abstract class Charset {
+                abstract fun name(): String
+            }
+            """,
+            """
+            package kuu2403.charset
+            actual abstract class Charset(internal val _name: String) {
+                actual abstract fun name(): String
+            }
+            private class CharsetDarwin(name: String) : Charset(name) {
+                override fun name(): String = _name
+            }
+            fun findCharset(name: String): Charset = CharsetDarwin(name)
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let context = makeCompilationContext(inputs: paths)
+            try runSema(context)
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Platform charset should satisfy its expect type: \(errors)")
+
+            let sema = try #require(context.sema)
+            let fqName = ["kuu2403", "charset", "Charset"].map(context.interner.intern)
+            let classSymbols = sema.symbols.lookupAll(fqName: fqName)
+                .compactMap { sema.symbols.symbol($0) }
+            let expectClass = try #require(classSymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualClass = try #require(classSymbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectClass.id) == actualClass.id)
+
+            let derivedName = Array(fqName.dropLast()) + [context.interner.intern("CharsetDarwin")]
+            let derivedID = try #require(sema.symbols.lookup(fqName: derivedName))
+            let derivedType = sema.types.make(.classType(ClassType(
+                classSymbol: derivedID,
+                args: [],
+                nullability: .nonNull
+            )))
+            let expectType = sema.types.make(.classType(ClassType(
+                classSymbol: expectClass.id,
+                args: [],
+                nullability: .nonNull
+            )))
+            let isSubtype = sema.types.isSubtype(derivedType, expectType)
+            let directSupers = sema.symbols.directSupertypes(for: derivedID).map { superID in
+                let symbol = sema.symbols.symbol(superID)
+                return "\(symbol?.fqName.map(context.interner.resolve).joined(separator: ".") ?? "?")#\(superID.rawValue)"
+            }
+            #expect(
+                isSubtype,
+                "expect=#\(expectClass.id.rawValue) actual=#\(actualClass.id.rawValue) derivedSupers=\(directSupers)"
+            )
+        }
+    }
+
+    @Test
     func testNativePlatformBridgeSema() throws {
         let sources: [String] = [
             // source 0

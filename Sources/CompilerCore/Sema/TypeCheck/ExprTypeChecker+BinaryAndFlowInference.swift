@@ -116,9 +116,31 @@ extension ExprTypeChecker {
             else { return nil }
             return rhsType
         }()
+        let isElvisCallLhs: Bool = if op == .elvis {
+            switch ast.arena.expr(lhsID) {
+            case .call, .memberCall, .safeMemberCall:
+                true
+            default:
+                false
+            }
+        } else {
+            false
+        }
+        // A call on the Elvis LHS can use the enclosing result type as a
+        // generic-inference hint. Other expressions keep their natural type so
+        // the context does not incorrectly constrain the Elvis LUB.
+        let lhsExpectedType: TypeID? = if isSafeLetElvisFailure {
+            expectedType ?? earlyElvisRhs
+        } else if isElvisCallLhs {
+            expectedType
+        } else {
+            nil
+        }
+        var lhsCtx = ctx
+        lhsCtx.isElvisLhsExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
         let inferredLhs = driver.inferExpr(
-            lhsID, ctx: ctx, locals: &locals,
-            expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
+            lhsID, ctx: lhsCtx, locals: &locals,
+            expectedType: lhsExpectedType
         )
         var lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
         // Elvis uses an enclosing expected type for its RHS, but the LHS's
@@ -273,7 +295,7 @@ extension ExprTypeChecker {
         default:
             true
         }
-        let collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
+        var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
                 names: operatorNames,
                 receiverType: lhs,
@@ -281,6 +303,45 @@ extension ExprTypeChecker {
             )
         } else {
             []
+        }
+        if op == .add, sema.types.isString(lhs) {
+            let scopedStringPlusCandidates = collectScopedOperatorExtensionCandidates(
+                names: operatorNames,
+                receiverType: lhs,
+                ctx: ctx
+            )
+            for candidate in scopedStringPlusCandidates where !collectedOperatorCandidates.contains(candidate) {
+                collectedOperatorCandidates.append(candidate)
+            }
+            let hasApplicableNonBuiltinStringPlusCandidate = collectedOperatorCandidates.contains { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1
+                else {
+                    return false
+                }
+                let isBuiltinStringFallback = symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "text", "plus"]
+                    && signature.receiverType.map(sema.types.isString) == true
+                    && signature.parameterTypes == [sema.types.nullableAnyType]
+                guard !isBuiltinStringFallback else { return false }
+                if let receiverType = signature.receiverType,
+                   !sema.types.typeContainsAnyTypeParam(receiverType),
+                   !sema.types.typeContainsAnyTypeParam(lhs),
+                   !sema.types.isSubtype(lhs, receiverType)
+                {
+                    return false
+                }
+                let parameterType = signature.parameterTypes[0]
+                return sema.types.typeContainsAnyTypeParam(parameterType)
+                    || sema.types.typeContainsAnyTypeParam(rhs)
+                    || sema.types.isSubtype(rhs, parameterType)
+            }
+            // Keep the direct concatenation path unless another applicable
+            // operator could override the stdlib's String?.plus(Any?) fallback.
+            if !hasApplicableNonBuiltinStringPlusCandidate {
+                sema.bindings.bindExprType(id, type: stringType)
+                return stringType
+            }
         }
         var operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
             collectedOperatorCandidates,
@@ -342,9 +403,10 @@ extension ExprTypeChecker {
         // Kotlin, and `listOf("x") + "y"` must resolve via the List plus fallback
         // below, not collapse to `String`).
         if op == .add,
-           sema.types.isString(lhs)
-            || (lhs == charType && sema.types.isString(rhs)
-                && sema.types.isDefinitelyNonNull(rhs) && operatorCandidates.isEmpty)
+           lhs == charType,
+           sema.types.isString(rhs),
+           sema.types.isDefinitelyNonNull(rhs),
+           operatorCandidates.isEmpty
         {
             sema.bindings.bindExprType(id, type: stringType)
             return stringType
@@ -499,7 +561,7 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
         }
-        // String/Char concatenation and applicable operator overloads return above.
+        // Char concatenation and applicable operator overloads return above.
         // A textual RHS alone must not enable the primitive arithmetic fallback.
         if sema.types.containsCapturedTypes(inferredLhs) || sema.types.containsCapturedTypes(inferredRhs),
            [.add, .subtract, .multiply, .divide, .modulo].contains(op),
@@ -943,6 +1005,10 @@ extension ExprTypeChecker {
     // Use the declaration type for smart-cast references. Kotlin only warns
     // when a comparison becomes incompatible after smart casting.
     private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
+        // A callable reference binds its target symbol for lowering, but its
+        // expression type is the callable reference type (for example,
+        // KMutableProperty0<Int>), not the target property's value type.
+        guard sema.bindings.callableRefKind(for: expr) == nil else { return inferred }
         guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
         if let declared = sema.symbols.propertyType(for: symbol) { return declared }
         if let owner = sema.symbols.valueParameterOwner(for: symbol),

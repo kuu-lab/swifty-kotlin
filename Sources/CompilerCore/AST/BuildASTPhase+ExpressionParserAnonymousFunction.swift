@@ -138,7 +138,8 @@ extension BuildASTPhase.ExpressionParser {
             from: synthTokens, interner: interner, astArena: astArena,
             bodyOverride: expressionBody.flatMap { body in
                 astArena.exprRange(body).map { .expr(body, $0) }
-            }
+            },
+            isAnonymousFunction: true
         ) else {
             index = expressionStartIndex
             return nil

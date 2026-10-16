@@ -103,6 +103,46 @@ struct DefinitePropertyInitializationTests {
     }
 
     @Test
+    func typeUseAnnotationPlacementDoesNotHideComputedGetterBodies() throws {
+        try check("""
+        @Target(AnnotationTarget.TYPE)
+        annotation class TypeAnn(val name: String)
+
+        class MixedPlacement {
+            val getterAnnotated: Int
+                get(): @TypeAnn("1") Int = 123
+            val propertyAnnotated: @TypeAnn("1") Int
+                get(): Int = 123
+        }
+
+        class GetterPlacementControl {
+            val first: Int
+                get(): @TypeAnn("1") Int = 123
+            val second: Int
+                get(): @TypeAnn("1") Int = 123
+        }
+
+        class PropertyPlacementControl {
+            val first: @TypeAnn("1") Int
+                get(): Int = 123
+            val second: @TypeAnn("1") Int
+                get(): Int = 123
+        }
+
+        class GetterPlacementAlone {
+            val value: Int
+                get(): @TypeAnn("1") Int = 123
+        }
+
+        class PropertyPlacementAlone {
+            val value: @TypeAnn("1") Int
+                get(): Int = 123
+        }
+        """, missing: 0)
+        try check("class Stored { val uninitialized: Int }", missing: 1)
+    }
+
+    @Test
     func defaultAccessorAndBackingFieldStillRequireInitialization() throws {
         try check("""
         class Box {

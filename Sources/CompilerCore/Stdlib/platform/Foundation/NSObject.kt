@@ -10,6 +10,7 @@ public open class NSObject internal constructor(internal val __handle: Long) {
 }
 
 internal fun __wrapFoundation(handle: Long): NSObject = when (__foundation_object_kind(handle)) {
+    7 -> NSMutableData(handle)
     1 -> NSData(handle)
     2 -> NSError(handle)
     3 -> NSInputStream(handle)
