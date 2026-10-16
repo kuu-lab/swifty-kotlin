@@ -97,6 +97,16 @@ extension CallTypeChecker {
                 )
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
+            if !safeCall, !isSuperCall,
+               sema.types.nullability(of: lookupReceiverType) == .nullable
+            {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0026",
+                    "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             driver.helpers.checkDeprecation(
                 for: propResult.symbol,
                 sema: sema,
