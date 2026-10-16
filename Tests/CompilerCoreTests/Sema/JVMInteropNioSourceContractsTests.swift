@@ -145,6 +145,59 @@ struct JVMInteropNioSourceContractsTests {
     }
 
     @Test(arguments: [false, true])
+    func byteBufferGetByteStringRemainingDefaultIsPresentInSourceAndArtifact(library: Bool) throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { root.deleteLastPathComponent() }
+        let index = try JSONDecoder().decode(DefaultObligations.self, from: Data(contentsOf: root.appendingPathComponent(
+            "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")))
+        let row = try #require(index.rows.first { $0.rowID == "jvm-7b10429b599406a8" })
+        try #require(row.fqName == "kotlinx.io.bytestring.getByteString")
+        try #require(row.parameterTokens == ["I"] && row.defaults == [true])
+        try #require(row.extensionReceiverToken == "Ljava.nio.ByteBuffer;" && row.visibility == "public")
+
+        let source = """
+        @file:OptIn(kotlinx.io.bytestring.unsafe.UnsafeByteStringApi::class)
+        import java.nio.ByteBuffer
+        import kotlinx.io.bytestring.getByteString
+        fun main() { println(ByteBuffer.allocate(0).getByteString().size) }
+        """
+        let (ctx, initial) = try context(source, library: library)
+        defer { unchanged(ctx, initial) }
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let encode: (TypeID) -> String = { type in
+            NameMangler().encodeType(type, symbols: sema.symbols, types: sema.types,
+                nameResolver: ctx.interner.resolve, unboxValueClasses: false)
+        }
+        let matches = sema.symbols.lookupAll(fqName: ["kotlinx", "io", "bytestring", "getByteString"].map {
+            ctx.interner.intern($0)
+        })
+            .compactMap { sema.symbols.symbol($0) }.filter { symbol in
+                guard symbol.kind == .function,
+                      let function = sema.symbols.functionSignature(for: symbol.id) else { return false }
+                return function.parameterTypes.map(encode) == row.parameterTokens
+                    && function.receiverType.map(encode) == row.extensionReceiverToken
+            }
+        try #require(matches.count == 1, "\(row.rowID): \(row.fqName)")
+        let symbol = try #require(matches.first)
+        let function = try #require(sema.symbols.functionSignature(for: symbol.id))
+        #expect(function.valueParameterHasDefaultValues == row.defaults)
+        #expect(symbol.visibility == .public && symbol.flags.contains(.importedLibrary) == library)
+        if library {
+            let signature = encodedSignature(symbol, ctx, sema)
+            let artifact = try #require(ctx.options.stdlibLibraryPath)
+            let records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: artifact)
+                .appendingPathComponent("metadata.bin")))
+            let exact = records.filter { $0.kind == .function && $0.fqName == row.fqName && $0.typeSignature == signature }
+            try #require(exact.count == 1, "Actual artifact: \(row.rowID)")
+            #expect(exact.first?.valueParameterHasDefaultValues == row.defaults)
+            #expect(exact.first?.defaultStubExternalLinkName?.isEmpty == false,
+                    "Actual Native default dispatch link: \(row.rowID)")
+        }
+    }
+
+    @Test(arguments: [false, true])
     func all28OriginalNativeInteropShapesAndActualMetadata(library: Bool) throws {
         let expected = try index()
         let (ctx, initial) = try context("fun main() {}", library: library)

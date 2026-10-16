@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "row_id": "jvm-7b10429b599406a8",
+      "case_id": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt#getByteString",
+      "reference_execution_id": "io-api-probe:jvm-7b10429b599406a8:reference-jvm-descriptor",
+      "candidate_execution_id": "io-api-probe:jvm-7b10429b599406a8:native-default-source-klib-o0-o2",
+      "reference_probe_ref": "Scripts/io_api_inventory/probes/ByteBufferGetByteStringJvmAbiProbe.java",
+      "candidate_probe_ref": "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+JVMInteropNio.swift#testJVMInteropNioByteBufferGetByteStringRemainingDefault",
+      "test_refs": [
+        "Scripts/io_api_inventory/candidate-probes.json",
+        "Scripts/io_api_inventory/probe_bytebuffer_getbytestring_abi.py",
+        "Scripts/io_api_inventory/probes/ByteBufferGetByteStringJvmAbiProbe.java",
+        "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+JVMInteropNio.swift#testJVMInteropNioByteBufferGetByteStringRemainingDefault",
+        "Tests/CompilerBackendTests/Fixtures/JVMInteropByteBufferGetByteString/producer.kt",
+        "Tests/CompilerBackendTests/Fixtures/JVMInteropByteBufferGetByteString/consumer.kt",
+        "Tests/CompilerBackendTests/Fixtures/JVMInteropByteBufferGetByteString/expected.stdout",
+        "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift",
+        "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json"
+      ]
+    }
+  ]
+}

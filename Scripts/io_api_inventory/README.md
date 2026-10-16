@@ -257,12 +257,41 @@ different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
 must match a method-specific upstream test reference for that row;
 `#suite-reference` discovery metadata cannot authorize an arbitrary case from
-the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
+the same file. Execution IDs must map to the same case in the locked JVM and
+Native catalogs, or to an exact row/case entry in `candidate-probes.json` whose
+source files are included in that row's hashed `local_test_refs`. A manual
+status edit is discarded when outputs are regenerated. `--write` changes only
+the three generated ledger output files
 and reads the evidence file without rewriting it. `--check` verifies upstream
 snapshots, the test index lock, negative guards, evidence, any execution
 catalogs used by evidence, and byte-for-byte output without modifying files.
+
+Use `candidate-probes.json` only when the local candidate cannot produce the
+physical ABI represented by a row, or when a direct candidate consumer needs a
+distinct execution identity from upstream's JVM/Native catalogs. Each probe is
+bound to one API row and one method-specific upstream case; its reference and
+candidate IDs point to separately hashed, directly run probes. Do not use it to
+relabel a suite reference or to claim that Native metadata emitted a physical
+JVM classfile descriptor.
+
+The `jvm-7b10429b599406a8` probe checks the official JVM bridge independently
+from KSwiftK's Native counterpart:
+
+```sh
+python3 Scripts/io_api_inventory/probe_bytebuffer_getbytestring_abi.py \
+  --jars-dir /tmp/kotlinx-io-jvm-probe \
+  --kotlin-home /path/to/kotlinc-2.3.10 \
+  --download-missing
+bash Scripts/swift_test.sh --filter CompilerCoreTests.JVMInteropNioSourceContractsTests/byteBufferGetByteStringRemainingDefaultIsPresentInSourceAndArtifact
+bash Scripts/swift_test.sh --filter CompilerBackendTests.BundledStdlibExecutionTests/testJVMInteropNioByteBufferGetByteStringRemainingDefault
+```
+
+The JVM probe verifies the locked classfile descriptor, public/static/synthetic
+flags, mask and marker parameters, and a reflective call with the default mask.
+The source-contract test checks exact Native parameter/default metadata in
+source and a fresh `.kklib`; the backend consumer executes the omitted-length
+call at O0/O2 through source and producer/consumer `.kklib` lanes. These checks
+do not claim that KSwiftK emits a physical JVM classfile bridge.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
