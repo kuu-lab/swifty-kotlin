@@ -1,6 +1,7 @@
 package java.lang
 
 import java.lang.reflect.Constructor
+import java.lang.reflect.Method
 import kotlin.internal.KsSymbolName
 
 @KsSymbolName("__kk_class_toString")
@@ -16,6 +17,9 @@ private external fun <T> __getConstructor(
 ): Constructor<T>
 @KsSymbolName("__kk_class_declared_constructors")
 private external fun __declaredConstructors(value: Class<*>): Array<Constructor<*>>
+
+@KsSymbolName("__kk_java_class_get_declared_methods")
+private external fun __classGetDeclaredMethods(type: Class<*>): Array<Method>
 
 @KsSymbolName("__kk_class_for_name")
 private external fun __classForName(className: String): Class<*>
@@ -46,6 +50,9 @@ public class Class<T> {
         __getConstructor(this, parameterTypes)
     /** Returns the constructors registered for this class token. */
     public fun getDeclaredConstructors(): Array<Constructor<*>> = __declaredConstructors(this)
+
+    /** Returns methods declared directly by this class. */
+    public fun getDeclaredMethods(): Array<Method> = __classGetDeclaredMethods(this)
 
     @KsSymbolName("__kk_class_get_name")
     private external fun __classGetName(): String
