@@ -180,6 +180,7 @@ extension TypeCheckHelpers {
             )
         }
         return FunctionType(
+            contextReceivers: signature.contextReceiverTypes.map(substitute),
             receiver: includeMemberExtensionReceiver
                 && sema.symbols.memberExtensionOwnerSymbol(for: method) != nil
                 ? signature.receiverType.map(substitute)
