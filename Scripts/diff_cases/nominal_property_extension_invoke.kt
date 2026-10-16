@@ -28,6 +28,9 @@ object ObjectPropertyHolder {
     val value = ExtensionTarget()
 }
 
+class ExtensionDispatcher {
+    operator fun ExtensionTarget.invoke(): String = "dispatch-extension"
+}
 fun nullableCall(holder: NullablePropertyHolder?): String? = holder?.value()
 fun localCallControl(): String {
     val value: InvokeTarget = ExtensionTarget()
@@ -35,6 +38,7 @@ fun localCallControl(): String {
 }
 fun explicitInvokeControl(): String = ObjectPropertyHolder.value.invoke()
 fun propertyReadControl(): String = if (ObjectPropertyHolder.value is InvokeTarget) "OK" else "FAIL"
+fun dispatchExtensionCall(): String = with(ExtensionDispatcher()) { ObjectPropertyHolder.value() }
 
 fun main() {
     println(ObjectPropertyHolder.value())
@@ -45,6 +49,7 @@ fun main() {
     println(localCallControl())
     println(explicitInvokeControl())
     println(propertyReadControl())
+    println(dispatchExtensionCall())
     println(GetterPropertyHolder().value())
     println("getters:$getterReads")
 }
