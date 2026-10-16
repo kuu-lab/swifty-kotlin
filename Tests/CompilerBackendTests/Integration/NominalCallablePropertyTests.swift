@@ -13,6 +13,42 @@ struct NominalCallablePropertyTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/nominal_callable_property_invocation.kt"), encoding: .utf8)
     }
+    private func diffCase(_ name: String) throws -> String {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/\(name)"), encoding: .utf8)
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func objectPropertyExtensionInvokeCompilesAndRuns(fromSource: Bool, optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        let upstream = try diffCase("kt24209.kt")
+        var minimal = try diffCase("object_property_extension_invoke.kt")
+            .replacingOccurrences(of: "fun box(): String", with: "fun minimalBox(): String")
+        let minimalMain = try #require(minimal.range(of: "fun main()"))
+        minimal = String(minimal[..<minimalMain.lowerBound])
+        let propertyCases = try diffCase("nominal_property_extension_invoke.kt")
+            .replacingOccurrences(of: "fun main() {", with: "fun runNominalPropertyExtensionCases() {")
+        let source = [
+            upstream,
+            minimal,
+            propertyCases,
+            "fun main() { println(box()); println(minimalBox()); runNominalPropertyExtensionCases() }"
+        ].joined(separator: "\n")
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "ObjectPropertyExtensionInvoke", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: fromSource ? nil : try testStdlibArtifactPath(), allowDefaultStdlibLibrary: !fromSource
+        )))
+        let execution = try CommandRunner.run(executable: output, arguments: [])
+        #expect(execution.exitCode == 0, "\(execution.stderr)")
+        #expect(execution.stdout == "OK\nOK\nextension\nmember\nspecific-extension\nnull\nextension\nextension\nextension\nOK\ndispatch-extension\nextension\ngetters:1\n")
+    }
 
     @Test(arguments: [false, true], [0, 2])
     func nominalPropertyInvocationMatchesJVM(fromSource: Bool, optimization: Int) throws {
@@ -179,5 +215,26 @@ struct NominalCallablePropertyTests {
         if ["ambiguousLambdaReturn", "ambiguousNumericOverload"].contains(mode) {
             #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0003" })
         }
+    }
+
+    @Test(arguments: ["ambiguousLambda", "inapplicableArgument"])
+    func extensionInvokeDiagnosticsRemainOverloadDiagnostics(_ mode: String) throws {
+        let api = "/virtual/api.kt"
+        let input = "/virtual/consumer.kt"
+        let invokes = mode == "ambiguousLambda" ? """
+        @kotlin.jvm.JvmName("invokeInt") operator fun I.invoke(block: () -> Int): String = "int"
+        @kotlin.jvm.JvmName("invokeString") operator fun I.invoke(block: () -> String): String = "string"
+        """ : "operator fun I.invoke(value: Int): String = value.toString()"
+        let call = mode == "ambiguousLambda" ? "H.value { 42 }" : "H.value(\"bad\")"
+        let expectedCode = mode == "ambiguousLambda" ? "KSWIFTK-SEMA-0003" : "KSWIFTK-SEMA-0002"
+        let context = CompilerDriver().runFrontend(options: CompilerOptions(
+            moduleName: "ExtensionInvokeDiagnostics", inputs: [api, input], outputPath: "/tmp/extension-invoke-diagnostics",
+            emit: .executable, target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        ), inMemorySources: [
+            api: Data(("interface I\nclass C : I\nobject H { val value = C() }\n" + invokes).utf8),
+            input: Data(("fun main() { println(\(call)) }").utf8)
+        ]).context
+        #expect(context.diagnostics.diagnostics.contains { $0.code == expectedCode }, "\(mode): \(context.diagnostics.diagnostics)")
+        #expect(!context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0024" })
     }
 }

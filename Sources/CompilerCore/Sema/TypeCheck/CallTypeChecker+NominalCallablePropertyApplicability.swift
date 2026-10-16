@@ -1,20 +1,82 @@
 extension CallTypeChecker {
+    /// Select the highest-priority applicable invoke tier for a nominal
+    /// callable property. Member operators precede receiver-scoped extensions,
+    /// which precede extensions found in the current lexical/import scope.
+    func nominalCallablePropertyInvokeCandidates(
+        _ type: TypeID, request: MemberCallInferenceRequest, argTypes: [TypeID], locals: LocalBindings
+    ) -> [SymbolID] {
+        let ctx = request.ctx
+        let sema = ctx.sema
+        let invoke = ctx.interner.intern("invoke")
+        let visibleOperator: (SymbolID) -> Bool = { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else { return false }
+            return symbol.flags.contains(.operatorFunction)
+                && ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+        }
+        let members = driver.helpers.collectMemberFunctionCandidates(
+            named: invoke, receiverType: type, sema: sema, interner: ctx.interner
+        ).filter(visibleOperator)
+        var firstCandidateTier = members.isEmpty ? nil : members
+        if !members.isEmpty,
+           nominalCallablePropertyCandidatesAcceptArgumentShape(
+               members, receiverType: type, request: request, argTypes: argTypes, locals: locals
+           ) {
+            return members
+        }
+
+        let nonNullType = sema.types.makeNonNullable(type)
+        let dispatchExtensions = collectDispatchReceiverMemberExtensionCandidates(
+            named: invoke, extensionReceiverType: nonNullType, ctx: ctx
+        ).filter(visibleOperator)
+        if !dispatchExtensions.isEmpty {
+            if firstCandidateTier == nil { firstCandidateTier = dispatchExtensions }
+            if nominalCallablePropertyCandidatesAcceptArgumentShape(
+                dispatchExtensions, receiverType: type, request: request, argTypes: argTypes, locals: locals
+            ) {
+                return dispatchExtensions
+            }
+        }
+
+        let scopedExtensions = ctx.cachedScopeLookup(invoke).filter { candidate in
+            guard visibleOperator(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else { return false }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: nonNullType, declaredReceiver: declaredReceiver, sema: sema
+            )
+        }
+        if !scopedExtensions.isEmpty {
+            if firstCandidateTier == nil { firstCandidateTier = scopedExtensions }
+            if nominalCallablePropertyCandidatesAcceptArgumentShape(
+                scopedExtensions, receiverType: type, request: request, argTypes: argTypes, locals: locals
+            ) {
+                return scopedExtensions
+            }
+        }
+        // Preserve the best diagnostic when every tier has candidates but none
+        // accepts this call shape.
+        return firstCandidateTier ?? []
+    }
+
     /// Probe member invoke signatures without checking a losing lambda body.
     /// Defaults, named arguments, varargs and type arguments retain the ordinary
     /// overload resolver's mapping and constraints.
     func nominalCallablePropertyAcceptsArgumentShape(
         _ type: TypeID, request: MemberCallInferenceRequest, argTypes: [TypeID], locals: LocalBindings
     ) -> Bool {
+        !nominalCallablePropertyInvokeCandidates(
+            type, request: request, argTypes: argTypes, locals: locals
+        ).isEmpty
+    }
+
+    func nominalCallablePropertyCandidatesAcceptArgumentShape(
+        _ candidates: [SymbolID], receiverType: TypeID, request: MemberCallInferenceRequest,
+        argTypes: [TypeID], locals: LocalBindings
+    ) -> Bool {
         let ctx = request.ctx
         let sema = ctx.sema
         let invoke = ctx.interner.intern("invoke")
-        let candidates = driver.helpers.collectMemberFunctionCandidates(
-            named: invoke, receiverType: type, sema: sema, interner: ctx.interner
-        ).filter {
-            guard let symbol = sema.symbols.symbol($0) else { return false }
-            return symbol.flags.contains(.operatorFunction)
-                && ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
-        }
         let callArgs = zip(request.args, argTypes).map { argument, type in
             CallArg.source(argument, type: type, callRange: request.range, ast: ctx.ast)
         }
@@ -34,7 +96,7 @@ extension CallTypeChecker {
                 var parameter = signature.parameterTypes[parameterIndex]
                 if let owner = sema.symbols.parentSymbol(for: candidate) {
                     parameter = driver.helpers.resolveMemberPropertyType(
-                        parameter, receiverType: type, ownerSymbol: owner, sema: sema
+                        parameter, receiverType: receiverType, ownerSymbol: owner, sema: sema
                     )
                 }
                 switch ctx.ast.arena.expr(argument.expr) {
@@ -62,7 +124,7 @@ extension CallTypeChecker {
             let probe = ctx.resolver.probeCall(
                 candidates: [candidate],
                 call: CallExpr(range: request.range, calleeName: invoke, args: callArgs, explicitTypeArgs: request.explicitTypeArgs),
-                expectedType: nil, implicitReceiverType: type,
+                expectedType: nil, implicitReceiverType: receiverType,
                 candidateArgumentTypes: [candidate: replacements], ctx: ctx.sema
             )
             if !probe.viableCandidates.isEmpty { return true }
