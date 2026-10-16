@@ -6,8 +6,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Trust-boundary enforcement for the incremental compilation cache.
-///
 /// The cache is a security boundary, not trusted workspace input: a poisoned
 /// cache must never be able to substitute attacker-chosen build outputs.
 ///
@@ -24,11 +22,8 @@ import Glibc
 /// Anything that fails validation is a cache miss and falls back to a full
 /// build.
 enum IncrementalCacheTrust {
-    /// Outcome of validating a candidate cache directory before reading it.
     enum LocationTrust {
-        /// Directory exists and passed every check.
         case trusted
-        /// Directory does not exist; nothing to load.
         case missing
         /// Directory failed validation; its contents are ignored entirely.
         case untrusted(String)
@@ -100,10 +95,8 @@ enum IncrementalCacheTrust {
         return secureDirectory(at: normalize(cachePath))
     }
 
-    /// Directories that must be private: the cache leaf plus every component
-    /// between it and `managedAncestorBase` (inclusive). With no base — an
-    /// explicitly configured cache path — only the leaf is checked; the MAC
-    /// still authenticates the contents.
+    /// With no base — an explicitly configured cache path — only the leaf is
+    /// checked; the MAC still authenticates the contents.
     private static func strictComponents(cachePath: String, managedAncestorBase: String?) -> [String] {
         let leaf = normalize(cachePath)
         guard let base = managedAncestorBase.map(normalize) else {
@@ -126,8 +119,6 @@ enum IncrementalCacheTrust {
         }
     }
 
-    /// Private directory: owned by the current user, not a symlink, and no
-    /// group/other access at all.
     private static func privateDirectoryViolation(at path: String) -> String? {
         guard let info = lstatInfo(path) else {
             return "'\(path)' is missing"
@@ -162,7 +153,6 @@ enum IncrementalCacheTrust {
         return nil
     }
 
-    /// Creates `path` when missing, then asserts it is a private directory.
     private static func secureDirectory(at path: String) -> Bool {
         let fm = FileManager.default
         if lstatInfo(path) == nil {
@@ -185,8 +175,8 @@ enum IncrementalCacheTrust {
     }
 
 
-    /// Loads and authenticates `integrity.json`. Returns nil when the index is
-    /// absent, malformed, or fails its keyed MAC — the cache is then ignored.
+    /// Returns nil when the index is absent, malformed, or fails its keyed MAC —
+    /// the cache is then ignored.
     static func readIntegrityIndex(cachePath: String) -> [String: String]? {
         guard let key = integrityKey(createIfMissing: false) else {
             return nil
@@ -255,8 +245,6 @@ enum IncrementalCacheTrust {
         }
     }
 
-    /// Returns the file's contents only when they match the authenticated
-    /// index entry for `relativePath`.
     static func authenticatedFileData(
         cachePath: String,
         relativePath: String,
@@ -307,8 +295,6 @@ enum IncrementalCacheTrust {
                 if entryInfo.isDirectory {
                     continue
                 }
-                // Symlinks or other non-regular files inside a restored
-                // directory artifact are rejected outright.
                 guard entryInfo.isRegular else {
                     return false
                 }
