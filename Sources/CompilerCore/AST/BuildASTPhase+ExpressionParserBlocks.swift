@@ -38,7 +38,7 @@ extension BuildASTPhase.ExpressionParser {
         var statements: [ExprID] = []
         let allTokens = blockTokens[...]
         let localFunctionParser = BuildASTPhase(diagnostics: diagnostics)
-        for (start, rangeEnd) in ranges {
+        for (rangeIndex, (start, rangeEnd)) in ranges.enumerated() {
             let group = allTokens[start ..< rangeEnd]
             guard !group.isEmpty else { continue }
             if let localFun = localFunctionParser.parseLocalFunDeclExpr(
@@ -47,6 +47,10 @@ extension BuildASTPhase.ExpressionParser {
                 statements.append(localFun)
             } else if let localDecl = parseLocalDeclFromSlice(group) {
                 statements.append(localDecl)
+            } else if rangeIndex == ranges.count - 1,
+                      let postfixExpr = parseTrailingScalarPostfixMutation(group)
+            {
+                statements.append(postfixExpr)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
                 statements.append(localAssign)
             } else if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
@@ -72,6 +76,47 @@ extension BuildASTPhase.ExpressionParser {
 
         let range = SourceRange(start: openBrace.range.start, end: end)
         return astArena.appendExpr(.blockExpr(statements: statements, trailingExpr: trailingExpr, range: range))
+    }
+
+    private func parseTrailingScalarPostfixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
+        var expressionTokens = Array(tokens)
+        while expressionTokens.last?.kind == .symbol(.semicolon) {
+            expressionTokens.removeLast()
+        }
+        guard let lastToken = expressionTokens.last else { return nil }
+        switch lastToken.kind {
+        case .symbol(.plusPlus), .symbol(.minusMinus):
+            break
+        default:
+            return nil
+        }
+
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: expressionTokens,
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        )
+        guard let expression = parser.parse(),
+              parser.index == parser.tokens.endIndex,
+              !parser.hasIncompleteExpression,
+              let expressionNode = astArena.expr(expression),
+              case let .blockExpr(statements, trailingExpr, _) = expressionNode,
+              trailingExpr != nil,
+              let mutation = statements.last,
+              astArena.isIncrementDecrement(mutation)
+        else {
+            return nil
+        }
+
+        // Keep indexed increments on the indexed-assignment path; this expression-value fix is
+        // limited to scalar name/member mutations and their old-value result.
+        switch astArena.expr(mutation) {
+        case .compoundAssign, .memberCompoundAssign:
+            return expression
+        default:
+            return nil
+        }
     }
 
     func splitBlockTokensIntoStatementRanges(_ tokens: [Token]) -> [(Int, Int)] {

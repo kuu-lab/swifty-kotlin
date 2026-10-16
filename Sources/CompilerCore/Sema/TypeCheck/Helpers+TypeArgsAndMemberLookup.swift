@@ -1,3 +1,14 @@
+struct MemberPropertyLookupResult: Sendable {
+    let symbol: SymbolID
+    let type: TypeID
+    let writeSymbol: SymbolID?
+}
+
+private struct InheritedMemberPropertyCandidate {
+    let symbol: SymbolID
+    let owner: SymbolID
+    let declaredType: TypeID
+}
 
 extension TypeCheckHelpers {
     private struct MemberDispatchKey: Hashable, CustomStringConvertible {
@@ -64,7 +75,12 @@ extension TypeCheckHelpers {
         case .stringStruct:
             return types.makeNullable(typeID)
         case let .classType(ct):
-            return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
+            return types.make(.classType(ClassType(
+                classSymbol: ct.classSymbol,
+                args: ct.args,
+                enclosingTypeArgs: ct.enclosingTypeArgs,
+                nullability: .nullable
+            )))
         case let .typeParam(tp):
             return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable, capture: tp.capture)))
         case let .functionType(ft):
@@ -562,15 +578,14 @@ extension TypeCheckHelpers {
             guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
                   sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner),
                   let ownerTypeArgs = sema.types.liftedNominalSupertypeArgs(
-                      from: classType.classSymbol,
-                      childArgs: classType.args,
+                      from: classType,
                       to: owner
                   )
             else {
                 return declaredTypes
             }
 
-            let ownerTypeParamSymbols = sema.types.nominalTypeParameterSymbols(for: owner)
+            let ownerTypeParamSymbols = sema.types.allTypeParameterSymbols(for: owner)
             guard !ownerTypeParamSymbols.isEmpty else {
                 return declaredTypes
             }
@@ -1095,6 +1110,90 @@ extension TypeCheckHelpers {
         return nil
     }
 
+    /// Resolve the effective setter for an inherited property intersection
+    /// without changing the symbol selected for ordinary reads.
+    func lookupMemberPropertyForWrite(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> MemberPropertyLookupResult? {
+        guard let readResult = lookupMemberProperty(
+            named: calleeName, receiverType: receiverType, sema: sema
+        ) else {
+            return nil
+        }
+
+        let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
+        var ownerQueue = nominalRoots
+        var visited: Set<SymbolID> = []
+        var candidates: [InheritedMemberPropertyCandidate] = []
+        while !ownerQueue.isEmpty {
+            let owner = ownerQueue.removeFirst()
+            guard visited.insert(owner).inserted,
+                  let ownerSymbol = sema.symbols.symbol(owner)
+            else {
+                continue
+            }
+            let memberFQName = ownerSymbol.fqName + [calleeName]
+            for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
+                guard let property = sema.symbols.symbol(candidate),
+                      property.kind == .property || property.kind == .field,
+                      let declaredType = sema.symbols.propertyType(for: candidate)
+                else {
+                    continue
+                }
+                candidates.append(InheritedMemberPropertyCandidate(
+                    symbol: candidate,
+                    owner: owner,
+                    declaredType: resolveMemberPropertyType(
+                        declaredType,
+                        receiverType: receiverType,
+                        ownerSymbol: owner,
+                        sema: sema
+                    )
+                ))
+            }
+            ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        }
+
+        // A declaration on a subtype shadows the same member inherited from
+        // its ancestors. Keep declarations from unrelated branches so their
+        // property and setter contracts can be checked together.
+        let effectiveCandidates = candidates.filter { candidate in
+            !candidates.contains { other in
+                other.owner != candidate.owner
+                    && sema.types.isNominalSubtypeSymbol(other.owner, of: candidate.owner)
+            }
+        }
+        let mutableCandidates = effectiveCandidates.filter {
+            sema.symbols.symbol($0.symbol)?.flags.contains(.mutable) == true
+        }
+        guard let firstMutable = mutableCandidates.first else {
+            return MemberPropertyLookupResult(
+                symbol: readResult.symbol, type: readResult.type, writeSymbol: nil
+            )
+        }
+
+        // A fake override can expose a setter only when its writable type is
+        // valid for every inherited read contract. Multiple var declarations
+        // must agree on that writable type; otherwise assignment is ambiguous.
+        let hasCompatibleSetter = mutableCandidates.allSatisfy { candidate in
+            sema.types.isSubtype(firstMutable.declaredType, candidate.declaredType)
+                && sema.types.isSubtype(candidate.declaredType, firstMutable.declaredType)
+        } && effectiveCandidates.allSatisfy { candidate in
+            sema.types.isSubtype(firstMutable.declaredType, candidate.declaredType)
+        }
+        guard hasCompatibleSetter else {
+            return MemberPropertyLookupResult(
+                symbol: readResult.symbol, type: readResult.type, writeSymbol: nil
+            )
+        }
+
+        return MemberPropertyLookupResult(
+            symbol: readResult.symbol, type: readResult.type, writeSymbol: firstMutable.symbol
+        )
+    }
+
     /// Returns the source-visible value type for a stable property read.
     /// An immutable property with a synthesized getter keeps the declared
     /// property type for its API while its explicit backing field can retain a
@@ -1179,14 +1278,13 @@ extension TypeCheckHelpers {
         }
 
         guard let ownerTypeArgs = sema.types.liftedNominalSupertypeArgs(
-            from: classType.classSymbol,
-            childArgs: classType.args,
+            from: classType,
             to: ownerSymbol
         ) else {
             return propertyType
         }
 
-        let ownerTypeParamSymbols = sema.types.nominalTypeParameterSymbols(for: ownerSymbol)
+        let ownerTypeParamSymbols = sema.types.allTypeParameterSymbols(for: ownerSymbol)
         guard !ownerTypeParamSymbols.isEmpty else {
             return propertyType
         }

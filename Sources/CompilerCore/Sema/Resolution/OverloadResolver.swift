@@ -96,8 +96,11 @@ public struct CallExpr {
     /// The surrounding Elvis result type may guide generic inference for its LHS,
     /// without requiring the nullable call result itself to match that type.
     public let elvisLhsExpectedTypeHint: Bool
+    /// A non-null Elvis LHS type may fill unresolved RHS call type variables,
+    /// without constraining variables already inferred from call inputs.
+    public let elvisRhsCallResultTypeHint: TypeID?
 
-    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil, elvisLhsExpectedTypeHint: Bool = false) {
+    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil, elvisLhsExpectedTypeHint: Bool = false, elvisRhsCallResultTypeHint: TypeID? = nil) {
         self.range = range
         self.calleeName = calleeName
         self.args = args
@@ -106,6 +109,7 @@ public struct CallExpr {
         self.boundObjectDispatchReceiverCandidates = boundObjectDispatchReceiverCandidates
         self.typeAliasConstructor = typeAliasConstructor
         self.elvisLhsExpectedTypeHint = elvisLhsExpectedTypeHint
+        self.elvisRhsCallResultTypeHint = elvisRhsCallResultTypeHint
     }
 }
 

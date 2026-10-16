@@ -108,13 +108,12 @@ extension TypeCheckHelpers {
         sema: SemaModule
     ) -> FunctionType? {
         return specializedSamFunctionType(
-            for: expectedType, includeMemberExtensionReceiver: false, sema: sema
+            for: expectedType, includeMemberExtensionReceiver: true, sema: sema
         )
     }
 
-    /// Callable references used for a member-extension SAM need the extension
-    /// receiver in their function view. Ordinary SAM lambda inference keeps
-    /// using `samFunctionType` so its receiver-lambda behavior stays unchanged.
+    /// Receiver-bearing SAMs expose their extension receiver in the function view
+    /// used to type-check both lambda literals and callable references.
     func samCallableReferenceFunctionType(
         for expectedType: TypeID,
         sema: SemaModule

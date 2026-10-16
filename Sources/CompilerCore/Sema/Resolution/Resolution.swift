@@ -22,7 +22,8 @@ private extension CallExpr {
             dispatchReceiverTypes: dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
             typeAliasConstructor: typeAliasConstructor,
-            elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint
+            elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint,
+            elvisRhsCallResultTypeHint: elvisRhsCallResultTypeHint
         )
     }
 }
@@ -54,11 +55,10 @@ extension OverloadResolver {
     }
 
     /// Derives a partial type-variable substitution for `signature`'s type
-    /// parameters using only the argument positions present in
-    /// `knownArgumentTypes`. Used to seed a lambda argument's expected type with
-    /// type-parameter bindings already inferred from the call's other
-    /// (non-lambda) arguments, before the lambda literal itself is type-checked
-    /// (see `lambdaLiteralExpectedType` in `CallTypeChecker+LambdaReturnTypeOverload.swift`).
+    /// parameters from known argument types and explicitly typed lambda inputs.
+    /// Used to seed a lambda argument's expected type before the lambda literal
+    /// itself is type-checked (see `lambdaLiteralExpectedType` in
+    /// `CallTypeChecker+LambdaReturnTypeOverload.swift`).
     /// A missing key in the result means that type parameter could not be
     /// constrained from the known arguments — callers must treat it as
     /// "unconstrained", not as an error.
@@ -66,6 +66,7 @@ extension OverloadResolver {
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
         knownArgumentTypes: [Int: TypeID],
+        knownLambdaInputAnnotations: [Int: [TypeID?]] = [:],
         typeSystem: TypeSystem,
         blameRange: SourceRange? = nil,
         implicitReceiverType: TypeID? = nil
@@ -74,6 +75,7 @@ extension OverloadResolver {
             return [:]
         }
         var constraints: [VariableConstraint] = []
+        var lambdaInputTypeVariables: Set<TypeVarID> = []
         for (index, argType) in knownArgumentTypes {
             guard index >= 0, index < signature.parameterTypes.count else { continue }
             constraints.append(contentsOf: decomposeSubtypeConstraint(
@@ -83,6 +85,29 @@ extension OverloadResolver {
                 typeSystem: typeSystem,
                 blameRange: blameRange
             ))
+        }
+        for (parameterIndex, annotations) in knownLambdaInputAnnotations {
+            guard signature.parameterTypes.indices.contains(parameterIndex),
+                  case let .functionType(functionType) = typeSystem.kind(
+                      of: signature.parameterTypes[parameterIndex]
+                  ),
+                  functionType.params.count == annotations.count
+            else { continue }
+            for (expectedInput, annotation) in zip(functionType.params, annotations) {
+                guard let annotation else { continue }
+                for (symbol, variable) in typeVarBySymbol where typeSystem.typeContainsTypeParam(
+                    expectedInput, symbol: symbol
+                ) {
+                    lambdaInputTypeVariables.insert(variable)
+                }
+                constraints.append(contentsOf: decomposeSubtypeConstraint(
+                    subtype: expectedInput,
+                    supertype: annotation,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: blameRange
+                ))
+            }
         }
         if let implicitReceiverType, let receiverType = signature.receiverType {
             constraints.append(contentsOf: decomposeSubtypeConstraint(
@@ -158,13 +183,12 @@ extension OverloadResolver {
             guard solution.isSuccess else { return [:] }
         }
 
-        // An upper bound alone is not a usable lambda context. For example,
-        // Comparator<Any> passed to Comparator<in R> only establishes R <: Any;
-        // the trailing selector still has to infer R from its return type. If
-        // this helper substituted Any eagerly, the selector would be checked as
-        // (T) -> Any and its concrete return type would be lost before the main
-        // call solver ran. Keep substitutions that have a concrete lower bound,
-        // while leaving upper-only variables unresolved for the lambda pass.
+        // An upper bound derived from an ordinary argument is not a usable
+        // lambda context. For example, Comparator<Any> passed to Comparator<in
+        // R> only establishes R <: Any; the trailing selector still has to
+        // infer R from its return type. Explicit lambda input annotations are
+        // different: their input variables are solved candidate-locally, while
+        // unrelated upper-only variables remain unresolved for the lambda pass.
         let lowerBoundedVariables: Set<TypeVarID> = Set(constraints.compactMap { constraint in
             guard case .type = constraint.left,
                   case let .variable(variable) = constraint.right
@@ -173,7 +197,9 @@ extension OverloadResolver {
             }
             return variable
         })
-        return solution.substitution.filter { lowerBoundedVariables.contains($0.key) }
+        return solution.substitution.filter {
+            lowerBoundedVariables.contains($0.key) || lambdaInputTypeVariables.contains($0.key)
+        }
     }
 
     public func resolveCall(
@@ -399,9 +425,19 @@ extension OverloadResolver {
         // params (skip leading class type params inferred from the receiver).
         let funcOwnTypeParamCount = signature.typeParameterSymbols.count - signature.classTypeParameterCount
         let isConstructor = symbol.kind == .constructor
+        let constructorCapturedTypeParameterCount: Int = if isConstructor, aliasConstructor == nil,
+                                                              let owner = ctx.symbols.parentSymbol(for: candidate) {
+            ctx.types.enclosingTypeParameterSymbols(for: owner).count
+        } else {
+            0
+        }
+        let constructorOwnTypeParameterCount = max(
+            0,
+            signature.classTypeParameterCount - constructorCapturedTypeParameterCount
+        )
         if !call.explicitTypeArgs.isEmpty {
             let expectedTypeArgCount = isConstructor
-                ? (aliasConstructor?.typeParameterSymbols.count ?? signature.classTypeParameterCount)
+                ? (aliasConstructor?.typeParameterSymbols.count ?? constructorOwnTypeParameterCount)
                 : funcOwnTypeParamCount
             guard call.explicitTypeArgs.count == expectedTypeArgCount else {
                 return .rejected
@@ -412,8 +448,81 @@ extension OverloadResolver {
         // the receiver constraint check that would reject them when there is no
         // implicit receiver in scope (e.g. `Dog()` called from a free function).
         var constraints: [VariableConstraint]
+        var capturedOwnerTypeArguments: [TypeVarID: TypeID] = [:]
         if isConstructor {
             constraints = []
+            let capturedOwnerArguments: [TypeArg]? = {
+                guard constructorCapturedTypeParameterCount > 0,
+                      aliasConstructor == nil,
+                      let owner = ctx.symbols.parentSymbol(for: candidate)
+                else { return nil }
+                if let enclosingOwner = ctx.symbols.parentSymbol(for: owner),
+                   let outerReceiverType = implicitReceiverType,
+                   let receiverClassType = resolveClassType(outerReceiverType, sema: ctx),
+                   let arguments = ctx.types.liftedNominalSupertypeArgs(
+                       from: receiverClassType,
+                       to: enclosingOwner
+                   )
+                {
+                    return arguments
+                }
+                guard let expectedType,
+                      let expectedClassType = resolveClassType(expectedType, sema: ctx),
+                      let arguments = ctx.types.liftedNominalSupertypeArgs(
+                          from: expectedClassType,
+                          to: owner
+                      )
+                else {
+                    return nil
+                }
+                return arguments
+            }()
+            if constructorCapturedTypeParameterCount > 0,
+               aliasConstructor == nil,
+               let owner = ctx.symbols.parentSymbol(for: candidate),
+               let ownerArguments = capturedOwnerArguments
+            {
+                let enclosingTypeParameterSymbols = ctx.types.enclosingTypeParameterSymbols(for: owner)
+                let variables = ctx.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                for (index, typeParameter) in enclosingTypeParameterSymbols.enumerated()
+                where index < constructorCapturedTypeParameterCount && index < ownerArguments.count {
+                    guard let variable = variables[typeParameter] else { continue }
+                    let argumentType: TypeID
+                    switch ownerArguments[index] {
+                    case let .invariant(type):
+                        argumentType = type
+                    case let .out(type):
+                        argumentType = ctx.types.makeCapturedType(
+                            parameter: typeParameter,
+                            lower: ctx.types.nothingType,
+                            upper: type,
+                            writeForbidden: true
+                        )
+                    case let .in(type):
+                        let bounds = ctx.symbols.typeParameterUpperBounds(for: typeParameter)
+                        argumentType = ctx.types.makeCapturedType(
+                            parameter: typeParameter,
+                            lower: type,
+                            upper: bounds.isEmpty ? ctx.types.nullableAnyType : ctx.types.glb(bounds)
+                        )
+                    case .star:
+                        let bounds = ctx.symbols.typeParameterUpperBounds(for: typeParameter)
+                        argumentType = ctx.types.makeCapturedType(
+                            parameter: typeParameter,
+                            lower: ctx.types.nothingType,
+                            upper: bounds.isEmpty ? ctx.types.nullableAnyType : ctx.types.glb(bounds),
+                            writeForbidden: true
+                        )
+                    }
+                    capturedOwnerTypeArguments[variable] = argumentType
+                    constraints.append(VariableConstraint(
+                        kind: .equal,
+                        left: .variable(variable),
+                        right: .type(argumentType),
+                        blameRange: call.range
+                    ))
+                }
+            }
         } else {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
@@ -536,35 +645,38 @@ extension OverloadResolver {
                         nullability: .nonNull
                     ))))
                 }
+            let enclosingOwnerTypeParameterCount = ctx.types.enclosingTypeParameterSymbols(for: owner).count
             let ownerType = ctx.types.make(.classType(ClassType(
                 classSymbol: owner,
-                args: ownerArguments,
+                args: Array(ownerArguments.dropFirst(enclosingOwnerTypeParameterCount)),
+                enclosingTypeArgs: Array(ownerArguments.prefix(enclosingOwnerTypeParameterCount)),
                 nullability: .nonNull
             )))
             let receiverOwnerType: TypeID = {
                 guard let receiverClassType = matchingReceiverClassType,
                       let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
-                    from: receiverClassType.classSymbol,
-                    childArgs: receiverClassType.args,
-                    to: owner
-                )
+                          from: receiverClassType,
+                          to: owner
+                      )
                 else {
                     return classReceiverType
                 }
                 return ctx.types.make(.classType(ClassType(
                     classSymbol: owner,
-                    args: liftedArguments,
+                    args: Array(liftedArguments.dropFirst(enclosingOwnerTypeParameterCount)),
+                    enclosingTypeArgs: Array(liftedArguments.prefix(enclosingOwnerTypeParameterCount)),
                     nullability: .nonNull
                 )))
             }()
             if case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType) {
+                let receiverOwnerArguments = ctx.types.allTypeArguments(for: receiverOwner)
                 let methodBounds = Array(signature.typeParameterUpperBoundsList
                     .dropFirst(signature.classTypeParameterCount).joined())
                     + signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).flatMap {
                         ctx.symbols.typeParameterUpperBounds(for: $0)
                     }
                 for (parameter, argument) in zip(
-                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount), receiverOwner.args
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount), receiverOwnerArguments
                 ) {
                     if case .star = argument,
                        !signature.parameterTypes.contains(where: {
@@ -589,9 +701,10 @@ extension OverloadResolver {
                case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType),
                receiverOwner.classSymbol == owner
             {
+                let receiverOwnerArguments = ctx.types.allTypeArguments(for: receiverOwner)
                 for (parameter, argument) in zip(
                     signature.typeParameterSymbols.prefix(signature.classTypeParameterCount),
-                    receiverOwner.args
+                    receiverOwnerArguments
                 ) {
                     guard let variable = typeVarBySymbol[parameter] else { continue }
                     let type: TypeID
@@ -625,7 +738,9 @@ extension OverloadResolver {
         // Add equality constraints for explicit type arguments.
         // For constructors, explicit type args bind class type params (offset 0).
         // For regular functions, map to function-own type params (after class type params).
-        let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+        let typeArgOffset = isConstructor
+            ? (aliasConstructor == nil ? constructorCapturedTypeParameterCount : 0)
+            : signature.classTypeParameterCount
         var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
             guard explicitArg != TypeID.invalid else { continue }
@@ -886,6 +1001,26 @@ extension OverloadResolver {
         // Unit — the value is simply discarded. Skip the return-type constraint
         // in that case so overload candidates aren't rejected solely because
         // none of them happen to return Unit.
+        func hasInferredNonNullBoundedReturnParameter() -> Bool {
+            guard let expectedType,
+                  expectedType != ctx.types.unitType,
+                  ctx.types.nullability(of: expectedType) != .nonNull,
+                  case let .typeParam(returnParameter) = ctx.types.kind(of: signature.returnType),
+                  let index = signature.typeParameterSymbols.firstIndex(of: returnParameter.symbol),
+                  let typeVariable = typeVarBySymbol[returnParameter.symbol],
+                  explicitTypeSubstitution[typeVariable] == nil
+            else {
+                return false
+            }
+
+            let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index]
+                : []
+            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: returnParameter.symbol)
+            let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+            return upperBounds.contains(where: ctx.types.isDefinitelyNonNull)
+        }
+
         if let expectedType, expectedType != ctx.types.unitType {
             if call.elvisLhsExpectedTypeHint {
                 let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
@@ -911,6 +1046,21 @@ extension OverloadResolver {
                     constraints.append(contentsOf: returnDecomposed)
                     inputConstraints.append(contentsOf: returnDecomposed)
                 }
+            } else if hasInferredNonNullBoundedReturnParameter() {
+                // A non-null upper bound lets a call infer from the non-null
+                // projection of a nullable expected type while preserving the
+                // declared upper-bound check after inference.
+                let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                let expectedTypeHint = ctx.types.makeNonNullable(expectedType)
+                let returnDecomposed = decomposeSubtypeConstraint(
+                    subtype: returnTypeHint,
+                    supertype: expectedTypeHint,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                )
+                constraints.append(contentsOf: returnDecomposed)
+                inputConstraints.append(contentsOf: returnDecomposed)
             } else {
                 let returnDecomposed = decomposeSubtypeConstraint(
                     subtype: signature.returnType,
@@ -924,11 +1074,83 @@ extension OverloadResolver {
             }
         }
 
+        let constraintsBeforeElvisRhsHint = constraints
+        var elvisRhsHintConstraints: [VariableConstraint] = []
+        if let expectedTypeHint = call.elvisRhsCallResultTypeHint {
+            let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
+                signature.classTypeParameterCount
+            )
+            let methodTypeVarBySymbol = typeVarBySymbol.filter { symbol, _ in
+                methodTypeParameters.contains(symbol)
+            }
+            if containsTypeVariable(
+                signature.returnType,
+                typeVarBySymbol: methodTypeVarBySymbol,
+                typeSystem: ctx.types
+            ), case let .success(inputSubstitution) = solveConstraints(
+                constraints, solver: solver, typeSystem: ctx.types
+            ) {
+                let inputConstrainedVariables = inputConstrainedTypeVariables(in: inputConstraints)
+                let resultTypeHint = ctx.types.makeNonNullable(expectedTypeHint)
+                let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                let decomposedHints = decomposeSubtypeConstraint(
+                    subtype: returnTypeHint,
+                    supertype: resultTypeHint,
+                    typeVarBySymbol: methodTypeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                )
+                for hint in decomposedHints {
+                    guard let left = replacingInputVariables(
+                        in: hint.left,
+                        constrainedVariables: inputConstrainedVariables,
+                        substitution: inputSubstitution
+                    ), let right = replacingInputVariables(
+                        in: hint.right,
+                        constrainedVariables: inputConstrainedVariables,
+                        substitution: inputSubstitution
+                    ) else {
+                        continue
+                    }
+                    // The LHS type is only a seed for unresolved variables.
+                    // Constraints that now mention only input-inferred types
+                    // cannot refine the call, so they must not reject a valid
+                    // heterogeneous Elvis LUB.
+                    guard isVariable(left) || isVariable(right) else {
+                        continue
+                    }
+                    elvisRhsHintConstraints.append(VariableConstraint(
+                        kind: hint.kind,
+                        left: left,
+                        right: right,
+                        blameRange: hint.blameRange
+                    ))
+                }
+                constraints.append(contentsOf: elvisRhsHintConstraints)
+            }
+        }
+
         var solveResult = solveConstraints(
             constraints,
             solver: solver,
             typeSystem: ctx.types
         )
+        if !elvisRhsHintConstraints.isEmpty {
+            switch solveResult {
+            case .success:
+                break
+            case .constraintFailure, .rejected:
+                // A type hint cannot make an otherwise valid call inapplicable.
+                // Retry without it; any still-unresolved type variable will
+                // receive the ordinary inference diagnostic below.
+                constraints = constraintsBeforeElvisRhsHint
+                solveResult = solveConstraints(
+                    constraints,
+                    solver: solver,
+                    typeSystem: ctx.types
+                )
+            }
+        }
         // Infer dependent parameters from concrete upper-bound projections, e.g.
         // R = IntRange and R : ClosedRange<T> imply T = Int, even for a null argument.
         for _ in 0 ..< signature.typeParameterSymbols.count {
@@ -977,6 +1199,7 @@ extension OverloadResolver {
         case .rejected:
             return .rejected
         }
+        substitution.merge(capturedOwnerTypeArguments, uniquingKeysWith: { _, captured in captured })
 
         // A variable constrained only by itself — e.g. `FlowCollector<R>` in
         // `transform`'s signature matched against a receiver lambda whose
@@ -1245,7 +1468,7 @@ extension OverloadResolver {
     private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
         switch typeSystem.kind(of: type) {
         case let .classType(classType):
-            classType.args.contains { argument in
+            typeSystem.allTypeArguments(for: classType).contains { argument in
                 switch argument {
                 case .star:
                     true
@@ -1557,6 +1780,40 @@ extension OverloadResolver {
             return .constraintFailure(failure)
         }
         return .rejected
+    }
+
+    private func inputConstrainedTypeVariables(in constraints: [VariableConstraint]) -> Set<TypeVarID> {
+        var variables: Set<TypeVarID> = []
+        for constraint in constraints {
+            if case let .variable(variable) = constraint.left {
+                variables.insert(variable)
+            }
+            if case let .variable(variable) = constraint.right {
+                variables.insert(variable)
+            }
+        }
+        return variables
+    }
+
+    private func replacingInputVariables(
+        in operand: ConstraintOperand,
+        constrainedVariables: Set<TypeVarID>,
+        substitution: [TypeVarID: TypeID]
+    ) -> ConstraintOperand? {
+        guard case let .variable(variable) = operand,
+              constrainedVariables.contains(variable)
+        else {
+            return operand
+        }
+        guard let type = substitution[variable], type != .invalid else {
+            return nil
+        }
+        return .type(type)
+    }
+
+    private func isVariable(_ operand: ConstraintOperand) -> Bool {
+        if case .variable = operand { return true }
+        return false
     }
 
     private func selectResult(
@@ -1930,7 +2187,7 @@ extension OverloadResolver {
         case .typeParam:
             return true
         case let .classType(classType):
-            for arg in classType.args {
+            for arg in typeSystem.allTypeArguments(for: classType) {
                 let argType: TypeID? = switch arg {
                 case let .invariant(t), let .out(t), let .in(t): t
                 case .star: nil

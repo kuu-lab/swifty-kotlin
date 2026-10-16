@@ -293,7 +293,9 @@ enum TypeRefParserCore {
                   tokens[next].kind == .symbol(.dot),
                   let name = identifier(from: tokens[next + 1], interner: interner, options: options)
             {
-                typeArgs = []
+                // Qualified inner-class names carry the qualifier's type
+                // arguments (`Outer<V>.Inner<U>`): keep them in path order so
+                // resolution can split enclosing arguments from the class's own.
                 path.append(name)
                 next += 2
 
@@ -309,7 +311,7 @@ enum TypeRefParserCore {
                        recursionDepth: recursionDepth
                    )
                 {
-                    typeArgs = parsedArgs.args
+                    typeArgs.append(contentsOf: parsedArgs.args)
                     next = parsedArgs.next
                 }
             }

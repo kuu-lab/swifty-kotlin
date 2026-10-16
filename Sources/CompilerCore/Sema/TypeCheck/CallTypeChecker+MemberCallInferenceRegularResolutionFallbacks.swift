@@ -441,10 +441,17 @@ extension CallTypeChecker {
             // For projected types, merge the solver's substitution with the
             // variance projection (projection overrides receiver type params).
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-            let mergedSubstitution = resolved.substitutedTypeArguments.merging(
-                varianceResult.covariantSubstitution,
-                uniquingKeysWith: { _, projected in projected }
-            )
+            // An inner constructor captures the projected outer argument in
+            // its result type. Replacing that capture with the readable upper
+            // bound here would let later calls write through an out projection.
+            let mergedSubstitution: [TypeVarID: TypeID] = if sema.symbols.symbol(chosen)?.kind == .constructor {
+                resolved.substitutedTypeArguments
+            } else {
+                resolved.substitutedTypeArguments.merging(
+                    varianceResult.covariantSubstitution,
+                    uniquingKeysWith: { _, projected in projected }
+                )
+            }
             sema.bindings.bindCall(
                 id,
                 binding: CallBinding(

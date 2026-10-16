@@ -1763,14 +1763,28 @@ func kirOverrideParameterTypesMatch(
 }
 
 func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
-    sema.symbols.directSupertypes(for: nominalSymbol).first { superSymbol in
+    guard let declaredSuperclass = sema.symbols.directSupertypes(for: nominalSymbol).first(where: { superSymbol in
         switch sema.symbols.symbol(superSymbol)?.kind {
         case .class, .enumClass, .object:
             true
         default:
             false
         }
+    }) else {
+        return nil
     }
+
+    // Anonymous/local nominals can retain an expect declaration as their
+    // semantic superclass edge even when a matching actual is present. Runtime
+    // dispatch must walk the actual class so it finds body-bearing members.
+    guard let expectSuperclass = sema.symbols.symbol(declaredSuperclass),
+          expectSuperclass.flags.contains(.expectDeclaration),
+          let actualSuperclass = sema.symbols.actualSymbol(for: declaredSuperclass),
+          sema.symbols.symbol(actualSuperclass)?.kind == expectSuperclass.kind
+    else {
+        return declaredSuperclass
+    }
+    return actualSuperclass
 }
 
 private func kirNominalDistance(
@@ -1798,6 +1812,16 @@ private func kirNominalDistance(
             switch superInfo.kind {
             case .class, .object, .enumClass, .annotationClass, .interface:
                 queue.append((superSymbol, current.distance + 1))
+                // Some local nominals keep the expect declaration as their
+                // direct edge while inheriting the actual declaration's
+                // layout. Visit both symbols so slot selection can retain the
+                // actual method's erased ABI as the dispatch contract.
+                if superInfo.flags.contains(.expectDeclaration),
+                   let actualSymbol = sema.symbols.actualSymbol(for: superSymbol),
+                   sema.symbols.symbol(actualSymbol)?.kind == superInfo.kind
+                {
+                    queue.append((actualSymbol, current.distance + 1))
+                }
             default:
                 continue
             }

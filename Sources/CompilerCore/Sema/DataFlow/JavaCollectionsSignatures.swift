@@ -25,7 +25,10 @@ extension DataFlowSemaPhase {
             }
         }
         return [types.make(.classType(ClassType(
-            classSymbol: parameter.classSymbol, args: args, nullability: parameter.nullability
+            classSymbol: parameter.classSymbol,
+            args: args,
+            enclosingTypeArgs: parameter.enclosingTypeArgs,
+            nullability: parameter.nullability
         )))]
     }
 
@@ -43,7 +46,10 @@ extension DataFlowSemaPhase {
             return .invariant(javaCollectionsPlatformArgument(element, types: types))
         }
         return types.make(.classType(ClassType(
-            classSymbol: result.classSymbol, args: args, nullability: result.nullability
+            classSymbol: result.classSymbol,
+            args: args,
+            enclosingTypeArgs: result.enclosingTypeArgs,
+            nullability: result.nullability
         )))
     }
 

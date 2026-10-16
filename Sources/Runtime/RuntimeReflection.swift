@@ -137,6 +137,49 @@ func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord], materializeFact
     return registerRuntimeObject(RuntimeListBox(elements: annotationHandles))
 }
 
+func runtimeAnnotationArray(
+    _ records: [RuntimeAnnotationRecord],
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let visibleRecords = records.filter { runtimeShouldExposeAnnotation(fqName: $0.annotationFQName) }
+    let array = RuntimeArrayBox(length: visibleRecords.count)
+    let annotationTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Annotation")
+    let annotationTypeToken = Int(
+        ((annotationTypeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase
+    )
+    array.installComponentTypeIfAbsent(__kk_array_component_type(annotationTypeToken, 0))
+    let arrayRaw = registerRuntimeObject(array)
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.Array"))
+
+    let rootCapacity = max(1, visibleRecords.count + 1)
+    let roots = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: rootCapacity)
+    roots.initialize(repeating: nil, count: rootCapacity)
+    var rootCount = 0
+    defer {
+        for index in 0..<rootCount { kk_unregister_global_root(roots.advanced(by: index)) }
+        roots.deinitialize(count: rootCapacity)
+        roots.deallocate()
+    }
+
+    roots[0] = UnsafeMutableRawPointer(bitPattern: arrayRaw)
+    kk_register_global_root(roots)
+    rootCount = 1
+    for (index, record) in visibleRecords.enumerated() {
+        var thrown = 0
+        let handle = runtimeAnnotationValue(record, materializeFactory: true, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        roots[rootCount] = UnsafeMutableRawPointer(bitPattern: handle)
+        kk_register_global_root(roots.advanced(by: rootCount))
+        rootCount += 1
+        array[index] = handle
+    }
+    return arrayRaw
+}
+
 @_cdecl("__kk_kcallable_get_annotations_typed")
 public func __kk_kcallable_get_annotations_typed(_ callableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let records = runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[callableRaw]?.annotations ?? [] }

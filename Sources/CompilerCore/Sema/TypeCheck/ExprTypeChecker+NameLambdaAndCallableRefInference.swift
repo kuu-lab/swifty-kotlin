@@ -120,20 +120,32 @@ extension ExprTypeChecker {
         // `this` is the extension receiver, but the dispatch owner's members,
         // inherited ones included, still resolve unqualified.
         var implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
-        // In an extension body, flow analysis narrows the stable `this` local
-        // in `if` branches and after an early return. Keep the original type
-        // available too when narrowing to an unrelated interface. Match the
-        // declaration's receiver first: object initializers retain an outer
-        // `this` local while their active receiver is the new object.
+        // Flow analysis narrows a declaration's stable `this` local in branches
+        // and after early returns. Put that receiver first for member and
+        // extension lookup. Match the declaration's receiver: object
+        // initializers retain an outer `this` local while their active receiver
+        // is the new object.
         if let receiverType = ctx.implicitReceiverType,
            let declaration = ctx.currentDeclSymbol,
-           (sema.symbols.functionSignature(for: declaration)?.receiverType
-               ?? sema.symbols.extensionPropertyReceiverType(for: declaration)) == receiverType,
            let thisLocal = locals[knownNames.thisName],
            thisLocal.symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: declaration),
            thisLocal.type != receiverType
         {
-            implicitReceiverLookupEntries.insert((thisLocal.type, nil), at: 0)
+            let declarationReceiverType = sema.symbols.functionSignature(for: declaration)?.receiverType
+                ?? sema.symbols.extensionPropertyReceiverType(for: declaration)
+            let isDeclarationExtensionReceiver = declarationReceiverType == receiverType
+            let isEnclosingClassDispatchReceiver: Bool = {
+                guard declarationReceiverType == nil,
+                      let enclosingClass = ctx.enclosingClassSymbol,
+                      case let .classType(classType) = sema.types.kind(of: receiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == enclosingClass
+            }()
+            if isDeclarationExtensionReceiver || isEnclosingClassDispatchReceiver {
+                implicitReceiverLookupEntries.insert((thisLocal.type, nil), at: 0)
+            }
         }
         if !implicitReceiverLookupEntries.isEmpty {
             var memberType: TypeID?
@@ -199,12 +211,13 @@ extension ExprTypeChecker {
             {
                 return false
             }
-            guard let receiverType = ctx.implicitReceiverType else {
+            guard let originalReceiverType = ctx.implicitReceiverType else {
                 // Package-scope extension properties remain in import scopes
                 // so `receiver.property` can resolve them, but a bare name in
                 // a receiver-free context must not bind as a global property.
                 return implicitReceiverLookupEntries.isEmpty
             }
+            let receiverType = implicitReceiverLookupEntries.first?.type ?? originalReceiverType
             return !sema.types.isSubtype(
                 sema.types.makeNonNullable(receiverType),
                 sema.types.makeNonNullable(declaredReceiver)

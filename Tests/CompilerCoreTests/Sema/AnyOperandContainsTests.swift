@@ -60,6 +60,62 @@ struct AnyOperandContainsTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func customContainsContextualizesIntegerLiteralPerCandidate() throws {
+        let ctx = makeContextFromSource("""
+        class LongR {
+            operator fun contains(value: Long): Boolean = value == 5L
+        }
+        class IntOrLong {
+            operator fun contains(value: Int): Boolean = value == 5
+            operator fun contains(value: Long): Boolean = value == 5L
+        }
+        fun bareIn(): Boolean = 5 in LongR()
+        fun bareNotIn(): Boolean = 5 !in LongR()
+        fun suffixedLong(): Boolean = 5L in LongR()
+        fun overloadedLiteral(): Boolean = 5 in IntOrLong()
+        fun suffixedLongOverload(): Boolean = 5L in IntOrLong()
+        fun explicitInt(value: Int): Boolean = value in IntOrLong()
+        fun directCall(): Boolean = LongR().contains(5)
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let memberships = ast.arena.exprs.indices.compactMap { index -> (SourceRange, TypeID)? in
+            let id = ExprID(rawValue: Int32(index))
+            switch ast.arena.expr(id) {
+            case .inExpr, .notInExpr:
+                guard let range = ast.arena.exprRange(id),
+                      ctx.sourceManager.origin(of: range.start.file) == .user,
+                      let binding = sema.bindings.callBinding(for: id),
+                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+                else { return nil }
+                return (range, signature.parameterTypes[0])
+            default:
+                return nil
+            }
+        }.sorted { $0.0.start.offset < $1.0.start.offset }
+        #expect(memberships.map(\.1) == [
+            sema.types.longType,
+            sema.types.longType,
+            sema.types.longType,
+            sema.types.intType,
+            sema.types.longType,
+            sema.types.intType
+        ])
+    }
+
+    @Test func customLongContainsDoesNotWidenTypedIntOperand() throws {
+        let ctx = makeContextFromSource("""
+        class LongR {
+            operator fun contains(value: Long): Boolean = value == 5L
+        }
+        fun check(value: Int): Boolean = value in LongR()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+    }
+
     @Test func anyOperandsResolveIterableContains() throws {
         let ctx = makeContextFromSource("""
         fun check(x: Any, nullable: Any?, range: IntRange, values: Iterable<Int>) {

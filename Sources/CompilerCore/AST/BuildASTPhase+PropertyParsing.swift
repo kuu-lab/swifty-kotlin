@@ -216,12 +216,6 @@ extension BuildASTPhase {
                 false
             }
             guard isAccessorKeyword else { continue }
-            // Require `(` immediately after to distinguish from identifiers.
-            guard index + 1 < tokens.count,
-                  tokens[index + 1].kind == .symbol(.lParen)
-            else {
-                continue
-            }
             // A member call such as `lookup.get(...)` or `lookup?.set(...)`
             // uses the same soft-keyword spelling as an inline accessor.
             if index > 0 {
@@ -231,6 +225,21 @@ extension BuildASTPhase {
                 default:
                     break
                 }
+            }
+            // Kotlin's default setter may be written as a bare `set` after an
+            // explicitly typed property. It has neither a parameter list nor
+            // a body, but still starts an accessor and must not become part of
+            // the property's type tokens.
+            if case .softKeyword(.set) = token.kind,
+               isBareDefaultSetter(in: tokens[...], at: index)
+            {
+                return index
+            }
+            // Custom accessors require a parameter list.
+            guard index + 1 < tokens.count,
+                  tokens[index + 1].kind == .symbol(.lParen)
+            else {
+                continue
             }
             // Inline accessors have a declaration body after their parameter
             // list. An accessor may optionally declare its return type before
@@ -276,6 +285,56 @@ extension BuildASTPhase {
             }
         }
         return nil
+    }
+
+    private func isBareDefaultSetter(in tokens: ArraySlice<Token>, at index: Int) -> Bool {
+        guard tokens.indices.contains(index),
+              case .softKeyword(.set) = tokens[index].kind
+        else {
+            return false
+        }
+
+        let afterSetter = tokens.index(after: index)
+        if afterSetter < tokens.endIndex {
+            guard tokens[afterSetter].kind == .symbol(.semicolon),
+                  tokens.index(after: afterSetter) == tokens.endIndex
+            else {
+                return false
+            }
+        }
+
+        guard let propertyIndex = tokens[..<index].lastIndex(where: {
+            $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
+        }) else {
+            return false
+        }
+
+        var sawTypeSeparator = false
+        var sawTypeToken = false
+        var depth = BracketDepth()
+        for token in tokens[(propertyIndex + 1) ..< index] {
+            if depth.isAtTopLevel {
+                switch token.kind {
+                case .symbol(.colon):
+                    sawTypeSeparator = true
+                case .symbol(.assign), .softKeyword(.by):
+                    return false
+                default:
+                    break
+                }
+                if sawTypeSeparator {
+                    switch token.kind {
+                    case .keyword(.public), .keyword(.private), .keyword(.internal),
+                         .keyword(.protected), .keyword(.inline):
+                        break
+                    default:
+                        sawTypeToken = true
+                    }
+                }
+            }
+            depth.track(token.kind)
+        }
+        return sawTypeSeparator && sawTypeToken
     }
 
     private func accessorVisibility(in tokensBeforeAccessor: [Token]) -> Visibility? {
@@ -367,7 +426,9 @@ extension BuildASTPhase {
             let hasParameterList = startIdx + 1 < remaining.endIndex
                 && remaining[startIdx + 1].kind == .symbol(.lParen)
             let explicitAccessorVisibility = accessorVisibility(in: tokensBeforeAccessor)
-            if kind == .setter, !hasParameterList, let explicitAccessorVisibility {
+            if kind == .setter, !hasParameterList,
+               explicitAccessorVisibility != nil || isBareDefaultSetter(in: remaining, at: startIdx)
+            {
                 let accessor = PropertyAccessorDecl(
                     range: nodeRange,
                     kind: .setter,
@@ -440,20 +501,21 @@ extension BuildASTPhase {
                 let exprStart = afterParen + 1
                 var exprEnd = remaining.endIndex
                 var bodyDepth = BracketDepth()
-                for i in exprStart ..< remaining.endIndex {
-                    let token = remaining[i]
+                let bodyTokens = Array(remaining)
+                let exprStartOffset = exprStart - remaining.startIndex
+                for bodyIndex in exprStartOffset ..< bodyTokens.endIndex {
+                    let token = bodyTokens[bodyIndex]
                     switch token.kind {
                     case .softKeyword(.get), .softKeyword(.set):
-                        let precededByNavigation = i > exprStart
-                            && (remaining[i - 1].kind == .symbol(.dot)
-                                || remaining[i - 1].kind == .symbol(.questionDot)
-                                || remaining[i - 1].kind == .symbol(.doubleColon))
+                        let precededByNavigation = bodyIndex > exprStartOffset
+                            && (bodyTokens[bodyIndex - 1].kind == .symbol(.dot)
+                                || bodyTokens[bodyIndex - 1].kind == .symbol(.questionDot)
+                                || bodyTokens[bodyIndex - 1].kind == .symbol(.doubleColon))
                         if bodyDepth.isAtTopLevel,
                            !precededByNavigation,
-                           i + 1 < remaining.endIndex,
-                           remaining[i + 1].kind == .symbol(.lParen)
+                           isAccessorHeader(in: bodyTokens, at: bodyIndex)
                         {
-                            exprEnd = i
+                            exprEnd = remaining.startIndex + bodyIndex
                         }
                     default:
                         break
@@ -526,6 +588,64 @@ extension BuildASTPhase {
         }
 
         return (getter, setter)
+    }
+
+    private func isAccessorHeader(in tokens: [Token], at start: Int) -> Bool {
+        guard start + 1 < tokens.endIndex,
+              tokens[start + 1].kind == .symbol(.lParen)
+        else {
+            return false
+        }
+
+        let isGetter: Bool
+        switch tokens[start].kind {
+        case .softKeyword(.get): isGetter = true
+        case .softKeyword(.set): isGetter = false
+        default: return false
+        }
+
+        let afterClose = skipBalancedBracket(
+            in: tokens,
+            from: start + 1,
+            open: .symbol(.lParen),
+            close: .symbol(.rParen)
+        )
+        guard afterClose > start + 2 else { return false }
+
+        // A getter header has no parameters. Calls such as `get(0)` inside an
+        // expression body therefore cannot begin another accessor.
+        if isGetter, afterClose != start + 3 { return false }
+
+        var bodyStart = afterClose
+        if bodyStart < tokens.endIndex,
+           tokens[bodyStart].kind == .symbol(.colon)
+        {
+            bodyStart += 1
+            var typeDepth = BracketDepth()
+            while bodyStart < tokens.endIndex {
+                if typeDepth.isAtTopLevel {
+                    switch tokens[bodyStart].kind {
+                    case .symbol(.assign), .symbol(.lBrace):
+                        break
+                    default:
+                        typeDepth.track(tokens[bodyStart].kind)
+                        bodyStart += 1
+                        continue
+                    }
+                    break
+                }
+                typeDepth.track(tokens[bodyStart].kind)
+                bodyStart += 1
+            }
+        }
+
+        guard bodyStart < tokens.endIndex else { return false }
+        switch tokens[bodyStart].kind {
+        case .symbol(.assign), .symbol(.lBrace):
+            return true
+        default:
+            return false
+        }
     }
 
     private func topLevelAccessorKeywordIndex(in tokens: ArraySlice<Token>) -> Int? {

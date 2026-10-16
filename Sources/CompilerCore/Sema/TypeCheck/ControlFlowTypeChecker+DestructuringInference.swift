@@ -181,9 +181,16 @@ extension ControlFlowTypeChecker {
         if let label = ctx.ast.arena.loopLabel(for: id) {
             newLabelStack.append(label)
         }
+        let loopFlowScope = LoopControlFlowInferenceScope(label: ctx.ast.arena.loopLabel(for: id))
+        var loopFlowScopes = ctx.loopFlowScopes
+        loopFlowScopes.append(loopFlowScope)
         _ = driver.inferExpr(
             bodyExpr,
-            ctx: ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack),
+            ctx: ctx.copying(
+                loopDepth: ctx.loopDepth + 1,
+                loopLabelStack: newLabelStack,
+                loopFlowScopes: loopFlowScopes
+            ),
             locals: &bodyLocals,
             expectedType: nil
         )

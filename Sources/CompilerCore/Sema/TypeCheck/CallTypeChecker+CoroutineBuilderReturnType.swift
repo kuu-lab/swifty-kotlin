@@ -127,6 +127,7 @@ extension CallTypeChecker {
         return sema.types.make(.classType(ClassType(
             classSymbol: classType.classSymbol,
             args: typeParameters.map { _ in .out(filledElement) },
+            enclosingTypeArgs: classType.enclosingTypeArgs,
             nullability: classType.nullability
         )))
     }

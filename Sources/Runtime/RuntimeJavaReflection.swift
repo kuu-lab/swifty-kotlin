@@ -72,6 +72,57 @@ final class RuntimeJavaMethodRegistry: @unchecked Sendable {
     }
 }
 
+struct RuntimeJavaFieldMetadata {
+    let name: String
+    let annotations: [RuntimeAnnotationRecord]
+}
+
+final class RuntimeJavaFieldRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fieldsByTypeToken: [Int: [String: [RuntimeAnnotationRecord]]] = [:]
+
+    func registerField(typeToken: Int, name: String) {
+        guard typeToken != 0, !name.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        var fields = fieldsByTypeToken[typeToken, default: [:]]
+        if fields[name] == nil { fields[name] = [] }
+        fieldsByTypeToken[typeToken] = fields
+    }
+
+    func registerAnnotation(typeToken: Int, name: String, annotation: RuntimeAnnotationRecord) {
+        guard typeToken != 0, !name.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        var fields = fieldsByTypeToken[typeToken, default: [:]]
+        var annotations = fields[name, default: []]
+        runtimeAppendAnnotationRecord(annotation, to: &annotations)
+        fields[name] = annotations
+        fieldsByTypeToken[typeToken] = fields
+    }
+
+    func field(for typeToken: Int, name: String) -> RuntimeJavaFieldMetadata? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let annotations = fieldsByTypeToken[typeToken]?[name] else { return nil }
+        return RuntimeJavaFieldMetadata(name: name, annotations: annotations)
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        fieldsByTypeToken.removeAll()
+    }
+}
+
+final class RuntimeJavaFieldBox {
+    let metadata: RuntimeJavaFieldMetadata
+
+    init(metadata: RuntimeJavaFieldMetadata) {
+        self.metadata = metadata
+    }
+}
+
 final class RuntimeJavaMethodBox {
     let metadata: RuntimeJavaMethodMetadata
 
@@ -81,6 +132,7 @@ final class RuntimeJavaMethodBox {
 }
 
 let runtimeJavaMethodRegistry = RuntimeJavaMethodRegistry()
+let runtimeJavaFieldRegistry = RuntimeJavaFieldRegistry()
 
 @_cdecl("__kk_java_class_register_declared_method")
 public func __kk_java_class_register_declared_method(
@@ -153,6 +205,81 @@ public func __kk_java_class_get_declared_method(_ classRaw: Int, _ nameRaw: Int,
 
     let methodTypeID = runtimeStableNominalTypeID(fqName: "java.lang.reflect.Method")
     return registerRuntimeObject(RuntimeJavaMethodBox(metadata: metadata), typeID: methodTypeID)
+}
+
+@_cdecl("__kk_java_class_register_declared_field")
+public func __kk_java_class_register_declared_field(_ typeToken: Int, _ fieldNameRaw: Int) -> Int {
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: fieldNameRaw)) ?? ""
+    runtimeJavaFieldRegistry.registerField(typeToken: typeToken, name: name)
+    return 0
+}
+
+@_cdecl("__kk_java_field_register_single_annotation")
+public func __kk_java_field_register_single_annotation(
+    _ typeToken: Int,
+    _ fieldNameRaw: Int,
+    _ fqNameRaw: Int,
+    _ argsEncodedRaw: Int,
+    _ argCount: Int
+) -> Int {
+    let fieldName = extractString(from: UnsafeMutableRawPointer(bitPattern: fieldNameRaw)) ?? ""
+    let fqName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw)) ?? "Unknown"
+    let encoded = extractString(from: UnsafeMutableRawPointer(bitPattern: argsEncodedRaw)) ?? ""
+    let arguments = argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : []
+    runtimeJavaFieldRegistry.registerAnnotation(
+        typeToken: typeToken,
+        name: fieldName,
+        annotation: RuntimeAnnotationRecord(annotationFQName: fqName, arguments: arguments)
+    )
+    return 0
+}
+
+@_cdecl("__kk_java_field_register_annotation_factory")
+public func __kk_java_field_register_annotation_factory(
+    _ typeToken: Int,
+    _ fieldNameRaw: Int,
+    _ fqNameRaw: Int,
+    _ argsEncodedRaw: Int,
+    _ argCount: Int,
+    _ factory: Int
+) -> Int {
+    let fieldName = extractString(from: UnsafeMutableRawPointer(bitPattern: fieldNameRaw)) ?? ""
+    let fqName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw)) ?? "Unknown"
+    let encoded = extractString(from: UnsafeMutableRawPointer(bitPattern: argsEncodedRaw)) ?? ""
+    let arguments = argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : []
+    runtimeJavaFieldRegistry.registerAnnotation(
+        typeToken: typeToken,
+        name: fieldName,
+        annotation: RuntimeAnnotationRecord(annotationFQName: fqName, arguments: arguments, factory: factory)
+    )
+    return 0
+}
+
+@_cdecl("__kk_java_class_get_declared_field")
+public func __kk_java_class_get_declared_field(_ classRaw: Int, _ nameRaw: Int) -> Int {
+    guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) ?? ""
+    guard let metadata = runtimeJavaFieldRegistry.field(for: javaClass.typeToken, name: name) else {
+        runtimeStructuredPanic("java.lang.NoSuchFieldException: \(name)")
+    }
+    return registerRuntimeObject(
+        RuntimeJavaFieldBox(metadata: metadata),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.reflect.Field")
+    )
+}
+
+@_cdecl("__kk_java_field_get_annotations_typed")
+public func __kk_java_field_get_annotations_typed(
+    _ fieldRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let field = resolveRuntimeHandle(fieldRaw, as: RuntimeJavaFieldBox.self) else {
+        runtimeStructuredPanic("invalid Java Field handle")
+    }
+    return runtimeAnnotationArray(field.metadata.annotations, outThrown: outThrown)
 }
 
 @_cdecl("__kk_java_class_get_name")
