@@ -1,5 +1,4 @@
-// DIFF_CANDIDATE_ONLY_FROM_SOURCE: Exercises the reported local-class type-parameter failure.
-// EXPECT-STDOUT: OK
+// KUU-2207: local generic class type parameters resolve in constructors and members.
 fun main() {
     class Local<T>(val value: T)
     println(Local<String>("OK").value)
