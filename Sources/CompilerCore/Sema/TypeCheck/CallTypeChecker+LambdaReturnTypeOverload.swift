@@ -488,9 +488,11 @@ extension CallTypeChecker {
                     // the expected call result fixes R before the lambda body is
                     // inferred. Keep the receiver-derived T in the expected lambda
                     // while replacing only its matching return type parameter.
+                    // Use the same narrowed candidates that supplied the lambda shape:
+                    // an inapplicable unqualified extension must not hide this context.
                     let contextualLambdaType = contextualCallableArgumentType(
                         expectation.type, callResultType: contextualCallResultType,
-                        candidates: candidates, sema: sema
+                        candidates: expectedTypeCandidates, sema: sema
                     )
                     contextualArgExpectedTypes[index] = contextualLambdaType
                     if let contextualLambdaType, expectedTypeCandidates.count == 1,

@@ -1310,3 +1310,18 @@ types, nullable results and getter selection remain source-backed. The bridges
 only translate runtime classifiers; Nothing maps to JVM void, while Unit,
 unsigned types and ordinary reference classes return null. Focused Sema, runtime
 and executable source/artifact O0/O2 regressions live in the JvmClassMapping tests.
+
+### KUU-2375 JVM declared constructor lookup bridge admission
+
+`java.lang.Class<T>.getDeclaredConstructor(vararg parameterTypes: Class<*>)` is
+source-backed and returns the registered `Constructor<T>` handle whose JVM
+erased parameter class tokens match the request. `__kk_kconstructor_set_parameter_type`
+records those tokens during constructor metadata registration, and
+`__kk_class_declared_constructor` performs the lookup against the opaque Class
+and constructor handles. Enum constructor metadata includes the JVM synthetic
+`String` name and `Int` ordinal parameters before the declared Kotlin parameters.
+These two private entries have the §13-2 reason **metadata / memory
+representation**: Native Class and Constructor values are opaque runtime
+handles, while exact lookup requires their corresponding type metadata. This
+increases `__kk_*` by two with no public `kk_*` additions; RuntimeABISpec
+registration updates the canonical ABI specVersion.

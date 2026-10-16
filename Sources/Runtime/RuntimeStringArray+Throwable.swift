@@ -21,13 +21,12 @@ private let runtimeThrowableCauseVtableMethod: @convention(c) (Int, UnsafeMutabl
     return __kk_throwable_cause(raw)
 }
 
-// Keep these slots aligned with the bundled Throwable layout. The inherited
-// Any members occupy slots between the methods and the open property getters.
+// Keep these slots aligned with the bundled kotlin.Throwable layout.
 enum RuntimeThrowableVtableSlot {
     static let getStackTrace = 0
     static let toString = 1
-    static let message = 8
-    static let cause = 9
+    static let message = 2
+    static let cause = 3
 }
 
 func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {

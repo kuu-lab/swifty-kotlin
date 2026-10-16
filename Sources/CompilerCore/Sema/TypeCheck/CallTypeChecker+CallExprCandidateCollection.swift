@@ -227,10 +227,19 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             var resolvedFromLocalShadow = false
+            let localFunctionCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
+                ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
+            })
+            if !localFunctionCandidates.isEmpty {
+                // Call-position lookup keeps every same-scope local overload,
+                // even when a value with the same name occupies the value namespace.
+                candidates = localFunctionCandidates
+                resolvedFromLocalShadow = true
+            }
             // Lambda parameters carry synthetic (negative) symbol IDs with no
             // symbol-table entry, so a missing symbol must not skip the shadow
             // check: such a local is still a value that hides same-named functions.
-            if let local = locals[calleeName] {
+            if localFunctionCandidates.isEmpty, let local = locals[calleeName] {
                 let localSymbolKind = ctx.cachedSymbol(local.symbol)?.kind
                 let localIsCallableValue: Bool = {
                     if case .functionType = sema.types.kind(of: local.type) {
@@ -424,65 +433,140 @@ extension CallTypeChecker {
             }
             // --- Typealias constructor calls ---
             // If the callee is a typealias (e.g. `typealias IntPair = Pair<Int, Int>`),
-            // expand it to the underlying class and resolve its constructor.
-            if candidates.isEmpty {
-                let aliasSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
-                    guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                    return symbol.kind == .typeAlias
+            // expand it to the underlying class and resolve its constructor. An actual
+            // typealias paired with an expect class must also replace that expect class's
+            // constructor candidate, which otherwise wins scope lookup but has no platform
+            // implementation.
+            var aliasSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.kind == .typeAlias
+            }
+            for candidate in ctx.scope.lookupClassifier(calleeName, matching: { aliasID in
+                guard let symbol = ctx.cachedSymbol(aliasID) else { return false }
+                return symbol.kind == .typeAlias
+            }) where !aliasSymbols.contains(candidate) {
+                aliasSymbols.append(candidate)
+            }
+            let calleeClassifierID: SymbolID? = if case let .call(calleeExpr, _, _, _) = ctx.ast.arena.expr(id) {
+                sema.bindings.identifierSymbol(for: calleeExpr)
+            } else {
+                nil
+            }
+            let aliasLinkedFromCallee = calleeClassifierID.flatMap { candidate -> SymbolID? in
+                guard ctx.cachedSymbol(candidate)?.kind == .typeAlias,
+                      ctx.cachedSymbol(candidate)?.flags.contains(.actualDeclaration) == true
+                else {
+                    return nil
                 }
-                if let aliasSym = aliasSymbols.first {
-                    let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSym)
-                    if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
-                        sema.diagnostics.error(
-                            "KSWIFTK-SEMA-0062",
-                            "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
-                            range: range
-                        )
-                        sema.bindings.bindExprType(id, type: sema.types.errorType)
-                        return sema.types.errorType
+                return candidate
+            }
+            var expectClassCandidates = calleeClassifierID.map { [$0] } ?? []
+            expectClassCandidates.append(contentsOf: ctx.scope.lookupClassifier(calleeName, matching: { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.kind == .class && symbol.flags.contains(.expectDeclaration)
+            }))
+            let aliasLinkedFromExpect = expectClassCandidates.first { expectID in
+                guard let actualID = sema.symbols.actualSymbol(for: expectID) else { return false }
+                return ctx.cachedSymbol(expectID)?.kind == .class
+                    && ctx.cachedSymbol(expectID)?.flags.contains(.expectDeclaration) == true
+                    && ctx.cachedSymbol(actualID)?.kind == .typeAlias
+            }.flatMap { sema.symbols.actualSymbol(for: $0) }
+            let pairedAliasID = aliasLinkedFromCallee ?? aliasLinkedFromExpect
+            let pairedExpectClass: SymbolID? = pairedAliasID.flatMap { aliasID -> SymbolID? in
+                guard let alias = ctx.cachedSymbol(aliasID) else { return nil }
+                return sema.symbols.lookupAll(fqName: alias.fqName).first { expectID in
+                    ctx.cachedSymbol(expectID)?.kind == .class
+                        && ctx.cachedSymbol(expectID)?.flags.contains(.expectDeclaration) == true
+                        && sema.symbols.actualSymbol(for: expectID) == aliasID
+                }
+            }
+            let aliasToExpand = pairedAliasID ?? (candidates.isEmpty ? aliasSymbols.first : nil)
+            if let aliasSym = aliasToExpand {
+                let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSym)
+                if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
+                    sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0062",
+                        "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+                let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+                    aliasTypeParameters.map {
+                        .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
                     }
-                    let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
-                        aliasTypeParameters.map {
-                            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
-                        }
-                    } else {
-                        explicitTypeArgs.enumerated().map { index, type in
-                            let resolved = type == TypeID.invalid
-                                ? sema.types.make(.typeParam(TypeParamType(symbol: aliasTypeParameters[index], nullability: .nonNull)))
-                                : type
-                            return .invariant(resolved)
-                        }
+                } else {
+                    explicitTypeArgs.enumerated().map { index, type in
+                        let resolved = type == TypeID.invalid
+                            ? sema.types.make(.typeParam(TypeParamType(symbol: aliasTypeParameters[index], nullability: .nonNull)))
+                            : type
+                        return .invariant(resolved)
                     }
-                    if let expanded = driver.helpers.expandTypeAlias(
-                        aliasSym,
-                        typeArgs: aliasTypeArgs,
-                        sema: sema,
-                        visited: [],
-                        depth: 0,
-                        diagnostics: ctx.sema.diagnostics
-                    ),
-                       case let .classType(classType) = sema.types.kind(of: expanded)
-                    {
-                        let constructorOwner = sema.symbols.actualSymbol(for: classType.classSymbol)
-                            ?? classType.classSymbol
-                        if let underlyingSymbol = ctx.cachedSymbol(constructorOwner) {
-                            let initName = interner.intern("<init>")
-                            let ctorFQName = underlyingSymbol.fqName + [initName]
-                            let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
-                                sema.symbols.parentSymbol(for: $0) == constructorOwner
+                }
+                if let expanded = driver.helpers.expandTypeAlias(
+                    aliasSym,
+                    typeArgs: aliasTypeArgs,
+                    sema: sema,
+                    visited: [],
+                    depth: 0,
+                    diagnostics: ctx.sema.diagnostics
+                ),
+                   case let .classType(classType) = sema.types.kind(of: expanded)
+                {
+                    let constructorOwner = sema.symbols.actualSymbol(for: classType.classSymbol)
+                        ?? classType.classSymbol
+                    if let underlyingSymbol = ctx.cachedSymbol(constructorOwner) {
+                        let initName = interner.intern("<init>")
+                        let ctorFQName = underlyingSymbol.fqName + [initName]
+                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
+                            sema.symbols.parentSymbol(for: $0) == constructorOwner
+                        }
+                        if !ctorSymbols.isEmpty {
+                            let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
+                            var existingCandidates = candidates
+                            if let pairedExpectClass {
+                                existingCandidates.removeAll { candidate in
+                                    sema.symbols.symbol(candidate)?.kind == .constructor
+                                        && sema.symbols.parentSymbol(for: candidate) == pairedExpectClass
+                                }
                             }
-                            if !ctorSymbols.isEmpty {
-                                let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
-                                candidates = vis
-                                constructorTypeAlias = aliasSym
-                                typeAliasConstructor = TypeAliasConstructorContext(
-                                    typeParameterSymbols: aliasTypeParameters,
-                                    expandedType: sema.types.make(.classType(ClassType(
-                                        classSymbol: constructorOwner, args: classType.args, nullability: .nonNull
-                                    )))
-                                )
-                                callInvisible.append(contentsOf: invis)
+                            let constructorParameterTypes = vis.compactMap {
+                                sema.symbols.functionSignature(for: $0)?.parameterTypes
                             }
+                            existingCandidates.removeAll { existingID in
+                                guard isHiddenByDeprecatedAnnotation(existingID, symbols: sema.symbols),
+                                      let signature = sema.symbols.functionSignature(for: existingID)
+                                else {
+                                    return false
+                                }
+                                return constructorParameterTypes.contains(signature.parameterTypes)
+                            }
+                            let newCtorVis = vis.filter { ctorID in
+                                guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
+                                    return true
+                                }
+                                return !existingCandidates.contains { existingID in
+                                    sema.symbols.functionSignature(for: existingID)?.parameterTypes == ctorSignature.parameterTypes
+                                }
+                            }
+                            candidates = existingCandidates + newCtorVis
+                            constructorTypeAlias = aliasSym
+                            let aliasResultType = pairedExpectClass.map { expectID in
+                                sema.types.make(.classType(ClassType(
+                                    classSymbol: expectID,
+                                    args: aliasTypeArgs,
+                                    nullability: .nonNull
+                                )))
+                            }
+                            typeAliasConstructor = TypeAliasConstructorContext(
+                                typeParameterSymbols: aliasTypeParameters,
+                                expandedType: sema.types.make(.classType(ClassType(
+                                    classSymbol: constructorOwner, args: classType.args, nullability: .nonNull
+                                ))),
+                                resultType: aliasResultType
+                            )
+                            callInvisible.append(contentsOf: invis)
                         }
                     }
                 }

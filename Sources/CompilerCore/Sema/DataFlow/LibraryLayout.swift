@@ -412,6 +412,13 @@ extension DataFlowSemaPhase {
             .filter { $0.kind == .function }
         let candidates = functionSymbols
             .filter { symbol in
+                // Reject impossible overloads from routing shape before a
+                // semantic query decodes their signature and nominal owner.
+                if let shape = symbols.importedMemberIndexShape(for: symbol.id),
+                   shape.arity != arity || symbol.flags.contains(.suspendFunction) != isSuspend
+                {
+                    return false
+                }
                 guard let signature = symbols.functionSignature(for: symbol.id) else {
                     return false
                 }

@@ -54,7 +54,6 @@ public final class PhaseTimer {
 
     public init() {}
 
-
     /// Mark the beginning of a phase.
     public func beginPhase(_ name: String) {
         currentPhaseName = name
@@ -97,31 +96,47 @@ public final class PhaseTimer {
         }
     }
 
+    private func appendAccumulatedRecord(name: String, startTime: UInt64, endTime: UInt64, duration: UInt64) {
+        if let index = accumulatedRecords.firstIndex(where: { $0.name == name }) {
+            let previous = accumulatedRecords[index]
+            accumulatedRecords[index] = PhaseRecord(
+                name: name, startTime: previous.startTime,
+                endTime: endTime, accumulatedDurationNanos: previous.durationNanos + duration
+            )
+        } else {
+            accumulatedRecords.append(PhaseRecord(
+                name: name, startTime: startTime, endTime: endTime,
+                accumulatedDurationNanos: duration
+            ))
+        }
+    }
+
     /// Measure a scope, including work completed before an error is thrown.
     /// Accumulated scopes are reported once under the active top-level phase;
     /// recursive invocations of the same scope are included only once.
     /// They overlap other inclusive scopes and are not added to TOTAL.
     fileprivate func measure<Result>(
-        _ name: String, accumulating: Bool, _ body: () throws -> Result
+        _ name: String,
+        accumulating: Bool,
+        attributingAccumulationToCurrentSubPhase: Bool = false,
+        _ body: () throws -> Result
     ) rethrows -> Result {
         guard currentPhaseName != nil else { return try body() }
         if accumulating {
             guard activeAccumulations.insert(name).inserted else { return try body() }
+            let attributedName = attributingAccumulationToCurrentSubPhase
+                ? subPhaseStack.last.map { "\(name).\($0.name)" }
+                : nil
             let start = DispatchTime.now().uptimeNanoseconds
             defer {
                 let end = DispatchTime.now().uptimeNanoseconds
                 let duration = end - start
                 activeAccumulations.remove(name)
-                if let index = accumulatedRecords.firstIndex(where: { $0.name == name }) {
-                    let previous = accumulatedRecords[index]
-                    accumulatedRecords[index] = PhaseRecord(
-                        name: name, startTime: previous.startTime,
-                        endTime: end, accumulatedDurationNanos: previous.durationNanos + duration
+                appendAccumulatedRecord(name: name, startTime: start, endTime: end, duration: duration)
+                if let attributedName {
+                    appendAccumulatedRecord(
+                        name: attributedName, startTime: start, endTime: end, duration: duration
                     )
-                } else {
-                    accumulatedRecords.append(PhaseRecord(
-                        name: name, startTime: start, endTime: end, accumulatedDurationNanos: duration
-                    ))
                 }
             }
             return try body()
@@ -208,8 +223,13 @@ package func withSubPhaseTiming<Result>(
     _ name: @autoclosure () -> String,
     timer: PhaseTimer?,
     accumulating: Bool = false,
+    attributingAccumulationToCurrentSubPhase: Bool = false,
     _ body: () throws -> Result
 ) rethrows -> Result {
     guard let timer else { return try body() }
-    return try timer.measure(name(), accumulating: accumulating, body)
+    return try timer.measure(
+        name(), accumulating: accumulating,
+        attributingAccumulationToCurrentSubPhase: attributingAccumulationToCurrentSubPhase,
+        body
+    )
 }

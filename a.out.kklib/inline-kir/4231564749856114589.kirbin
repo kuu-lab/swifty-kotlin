@@ -1,0 +1,18 @@
+version=2
+nameB64=Y29udGV4dA==
+params=10
+paramSymbols=3888,3889,3890,3891,3892,3893,3894,3895,3896,3897
+suspend=false
+body:
+const result=60074 value=symbol:3888
+const result=60075 value=symbol:3889
+const result=60076 value=symbol:3890
+const result=60077 value=symbol:3891
+const result=60078 value=symbol:3892
+const result=60079 value=symbol:3893
+const result=60080 value=symbol:3894
+const result=60081 value=symbol:3895
+const result=60082 value=symbol:3896
+const result=60083 value=symbol:3897
+call symbol=3897 calleeB64=a2tfZnVuY3Rpb25faW52b2tlXzk= args=[60083,60074,60075,60076,60077,60078,60079,60080,60081,60082] result=60084 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ symbolFQNameB64=a290bGluLmNvbnRleHQuJDM4NzcuYmxvY2s=
+returnValue value=60084

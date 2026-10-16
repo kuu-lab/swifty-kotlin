@@ -56,6 +56,18 @@ struct StringInternerTests {
         #expect(id1 != id2)
     }
 
+    @Test func testInternQualifiedNameMatchesComponentInterning() {
+        let interner = StringInterner()
+        let first = interner.internQualifiedName("pkg.Outer.member")
+        let second = interner.internQualifiedName("pkg.Other.member")
+
+        #expect(first.map(interner.resolve) == ["pkg", "Outer", "member"])
+        #expect(second.map(interner.resolve) == ["pkg", "Other", "member"])
+        #expect(first[0] == second[0])
+        #expect(first[2] == second[2])
+        #expect(interner.internQualifiedName(".pkg..Outer.").map(interner.resolve) == ["pkg", "Outer"])
+    }
+
     @Test func testResolveReturnsOriginalString() {
         let interner = StringInterner()
         let id = interner.intern("test string")

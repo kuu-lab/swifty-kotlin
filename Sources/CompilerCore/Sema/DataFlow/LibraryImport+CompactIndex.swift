@@ -19,7 +19,7 @@ extension DataFlowSemaPhase {
             }
         }
         func fqName(_ value: String) -> [InternedString] {
-            value.split(separator: ".").map { interner.intern(String($0)) }
+            interner.internQualifiedName(value)
         }
         func optionalFQName(_ value: String?) -> [InternedString]? {
             guard let value else { return nil }
@@ -28,9 +28,9 @@ extension DataFlowSemaPhase {
         }
         let name = fqName(record.fqName)
         guard !name.isEmpty else { return nil }
-        let ownerSignature = name.count >= 2
-            ? nominalTypeParametersByFQName[name.dropLast().map { interner.resolve($0) }.joined(separator: ".")]
-            : nil
+        let ownerSignature = record.fqName.lastIndex(of: ".").flatMap {
+            nominalTypeParametersByFQName[String(record.fqName[..<$0])]
+        }
         return ImportedLibrarySymbolRecord(
             kind: record.kind,
             visibility: record.visibility,
