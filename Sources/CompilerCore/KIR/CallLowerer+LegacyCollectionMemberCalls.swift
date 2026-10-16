@@ -1,8 +1,3 @@
-/// Legacy concrete-collection member calls: the `reduceRightOrNull` Set
-/// fallback, `isNullOrEmpty`, array `get`/`fill`/`firstNotNullOf`, list
-/// sort/aggregate bridges, array `toList`-family conversions, and the
-/// `chunked`/`windowed`/`zip`/`zipWithNext` transform bridges.
-
 extension CallLowerer {
 
     func lowerLegacyReduceRightOrNullFallback(
@@ -17,8 +12,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // KSP-426: List.sortedWith is source-backed and accepts Comparator<T>.
-
         // BUG-167: reduceRightOrNull's bundled Kotlin-source declaration
         // (ListAggregateHOF.kt) is scoped to `List<T>` specifically (its body
         // needs indexed access), so bindBundledListSourceFunction
@@ -76,7 +69,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Collection nullable-receiver isNullOrEmpty fallback.
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = calleeNameStr
