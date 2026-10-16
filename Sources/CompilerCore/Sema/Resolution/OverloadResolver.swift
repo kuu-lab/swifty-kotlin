@@ -55,10 +55,14 @@ public struct CallArg {
 public struct TypeAliasConstructorContext {
     public let typeParameterSymbols: [SymbolID]
     public let expandedType: TypeID
+    /// Optional source-level result type when an expect declaration gives the
+    /// alias a distinct nominal type from its expanded constructor target.
+    public let resultType: TypeID?
 
-    public init(typeParameterSymbols: [SymbolID], expandedType: TypeID) {
+    public init(typeParameterSymbols: [SymbolID], expandedType: TypeID, resultType: TypeID? = nil) {
         self.typeParameterSymbols = typeParameterSymbols
         self.expandedType = expandedType
+        self.resultType = resultType
     }
 }
 

@@ -724,6 +724,48 @@ extension TypeSystem {
         guard let symbolTable else { return false }
         return symbolTable.actualSymbol(for: lhs) == rhs
             || symbolTable.actualSymbol(for: rhs) == lhs
+            || actualTypeAliasTargetNominalSymbol(for: lhs, symbols: symbolTable) == rhs
+            || actualTypeAliasTargetNominalSymbol(for: rhs, symbols: symbolTable) == lhs
+    }
+
+    private func actualTypeAliasTargetNominalSymbol(
+        for symbolID: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        var currentID = symbolID
+        var visited: Set<SymbolID> = []
+        while visited.insert(currentID).inserted {
+            guard let symbol = symbols.symbol(currentID) else { return nil }
+            let aliasID: SymbolID?
+            if symbol.kind == .typeAlias {
+                aliasID = currentID
+            } else if symbol.flags.contains(.expectDeclaration),
+                      let actualID = symbols.actualSymbol(for: currentID),
+                      symbols.symbol(actualID)?.kind == .typeAlias
+            {
+                aliasID = actualID
+            } else {
+                return nil
+            }
+            guard let aliasID,
+                  let underlying = symbols.typeAliasUnderlyingType(for: aliasID),
+                  case let .classType(classType) = kind(of: underlying),
+                  let target = symbols.symbol(classType.classSymbol)
+            else {
+                return nil
+            }
+            if target.kind == .typeAlias {
+                currentID = target.id
+                continue
+            }
+            if target.flags.contains(.expectDeclaration),
+               let actualTargetID = symbols.actualSymbol(for: target.id)
+            {
+                return actualTargetID
+            }
+            return target.id
+        }
+        return nil
     }
 
     enum Projection {
