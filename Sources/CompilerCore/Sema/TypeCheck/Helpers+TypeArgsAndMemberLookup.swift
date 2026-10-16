@@ -607,17 +607,35 @@ extension TypeCheckHelpers {
             _ candidates: [(symbol: SymbolID, owner: SymbolID, depth: Int)],
             alignedMethodParameters: [SymbolID]
         ) -> [(symbol: SymbolID, owner: SymbolID, depth: Int)] {
-            guard case let .intersection(parts) = sema.types.kind(of: receiverType),
-                  candidates.count > 1
-            else {
+            // Type parameters expose members through the full upper-bound intersection,
+            // so use its parts just like for a narrowed intersection receiver.
+            let intersectionParts: [TypeID]
+            switch sema.types.kind(of: receiverType) {
+            case let .intersection(parts):
+                intersectionParts = parts
+            case let .typeParam(typeParameter):
+                let upperBounds = typeParameter.capture.map { [$0.upper] }
+                    ?? sema.symbols.typeParameterUpperBounds(for: typeParameter.symbol)
+                let parts = upperBounds.flatMap { bound -> [TypeID] in
+                    if case let .intersection(nested) = sema.types.kind(of: bound) {
+                        return nested
+                    }
+                    return [bound]
+                }
+                guard parts.count > 1 else {
+                    return candidates
+                }
+                intersectionParts = parts
+            default:
                 return candidates
             }
+            guard candidates.count > 1 else { return candidates }
 
             let returnTypes: [(symbol: SymbolID, type: TypeID)] = candidates.compactMap { candidate in
                 guard let signature = sema.symbols.functionSignature(for: candidate.symbol) else {
                     return nil
                 }
-                let matchingParts = parts.filter {
+                let matchingParts = intersectionParts.filter {
                     allNominalSymbols(of: $0, types: sema.types, symbols: sema.symbols, interner: interner)
                         .contains(candidate.owner)
                 }
