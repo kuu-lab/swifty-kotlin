@@ -878,7 +878,7 @@ extension TypeCheckHelpers {
                 return (
                     candidate,
                     resolveMemberPropertyType(
-                        propType,
+                        propertyReadType(for: candidate, declaredType: propType, sema: sema) ?? propType,
                         receiverType: receiverType,
                         ownerSymbol: owner,
                         sema: sema
@@ -888,6 +888,35 @@ extension TypeCheckHelpers {
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
         return nil
+    }
+
+    /// Returns the source-visible value type for a stable property read.
+    /// An immutable property with a synthesized getter keeps the declared
+    /// property type for its API while its explicit backing field can retain a
+    /// more specific initializer type for reads in the same compilation.
+    func propertyReadType(
+        for property: SymbolID,
+        declaredType: TypeID? = nil,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let propertySymbol = sema.symbols.symbol(property),
+              propertySymbol.kind == .property,
+              !propertySymbol.flags.contains(.mutable),
+              !propertySymbol.flags.contains(.openType),
+              !propertySymbol.flags.contains(.abstractType),
+              !propertySymbol.flags.contains(.importedLibrary),
+              !sema.symbols.propertyHasCustomGetter(for: property),
+              let declaredType = declaredType ?? sema.symbols.propertyType(for: property)
+        else {
+            return declaredType
+        }
+        guard let backingField = sema.symbols.backingFieldSymbol(for: property),
+              let backingFieldType = sema.symbols.propertyType(for: backingField),
+              sema.types.isSubtype(backingFieldType, declaredType)
+        else {
+            return declaredType
+        }
+        return backingFieldType
     }
 
     /// Looks up a property declared directly in the body of an enum entry.

@@ -197,6 +197,30 @@ extension DeclTypeChecker {
     ) {
         let sema = ctx.sema
 
+        for declID in memberProperties {
+            guard !driver.precheckedPropertyDecls.contains(declID),
+                  case let .propertyDecl(property)? = ctx.ast.arena.decl(declID),
+                  canSafelyPrecheckExplicitBackingFieldProperty(
+                      property,
+                      in: ctx,
+                      initialLocals: initialLocals
+                  ),
+                  let propertySymbol = sema.bindings.declSymbols[declID]
+            else {
+                continue
+            }
+            typeCheckBoundPropertyDecl(
+                property,
+                declID: declID,
+                symbol: propertySymbol,
+                ctx: ctx.with(currentDeclSymbol: propertySymbol),
+                initialLocals: initialLocals,
+                solver: solver,
+                diagnostics: diagnostics
+            )
+            driver.precheckedPropertyDecls.insert(declID)
+        }
+
         // Revisit member properties until their dependencies resolve. Calls and
         // member reads are eligible only when their referenced signatures or
         // property types are already concrete; inferred-return calls and cycles
@@ -230,6 +254,35 @@ extension DeclTypeChecker {
                 didPrecheckProperty = true
             }
         } while didPrecheckProperty
+    }
+
+    func canSafelyPrecheckExplicitBackingFieldProperty(
+        _ property: PropertyDecl,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
+        guard !property.isVar,
+              property.type != nil,
+              property.getter == nil,
+              property.setter == nil,
+              property.delegateExpression == nil,
+              property.receiverType == nil,
+              let explicitField = property.explicitBackingField,
+              case let .call(callee, typeArgs, args, _)? = ctx.ast.arena.expr(explicitField.initializer),
+              typeArgs.isEmpty,
+              args.isEmpty,
+              case let .nameRef(name, _)? = ctx.ast.arena.expr(callee),
+              initialLocals[name] == nil,
+              name == ctx.interner.intern("mutableListOf")
+        else {
+            return false
+        }
+
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        let factoryFQName = [knownNames.kotlin, knownNames.collections, name]
+        let visibleCandidates = ctx.cachedScopeLookup(name).compactMap(ctx.cachedSymbol)
+        return visibleCandidates.contains(where: { $0.kind == .function && $0.fqName == factoryFQName })
+            && visibleCandidates.allSatisfy { $0.fqName == factoryFQName }
     }
 
     func precheckIndependentObjectLiteralMemberProperties(
