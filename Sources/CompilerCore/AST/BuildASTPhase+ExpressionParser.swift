@@ -240,7 +240,7 @@ extension BuildASTPhase {
                   let nextToken = peek(1),
                   canStartExpression(nextToken)
             else { return nil }
-            guard let calleeName = identifierFromToken(token) else { return nil }
+            guard let calleeName = simpleIdentifierFromToken(token) else { return nil }
             _ = consume()
             guard let rhs = parseExpression(
                 minPrecedence: infixPrecedence + 1,
@@ -434,6 +434,10 @@ extension BuildASTPhase {
         }
 
         func labelNameFromToken(_ token: Token) -> InternedString? {
+            simpleIdentifierFromToken(token)
+        }
+
+        func simpleIdentifierFromToken(_ token: Token) -> InternedString? {
             token.kind.isLabelName ? tokenText(token) : nil
         }
 
@@ -476,23 +480,18 @@ extension BuildASTPhase {
             return parenDepth > 0 || bracketDepth > 0
         }
 
+        /// Infix callees use Kotlin `simpleIdentifier`, which also includes soft and modifier keywords.
         /// Excludes identifiers already handled as known BinaryOp (downTo, step) by binaryOperator().
         private func isInfixIdentifierToken(_ token: Token) -> Bool {
-            switch token.kind {
-            case let .identifier(name):
+            guard token.kind.isLabelName else { return false }
+            if case let .identifier(name) = token.kind {
                 let resolved = interner.resolve(name)
                 if resolved == "downTo" || resolved == "step" {
                     return false
                 }
-                return true
-            case .backtickedIdentifier:
-                // Note: backticked identifiers intentionally bypass the special BinaryOp handling.
-                // `downTo` and `step` written with backticks are treated as general infix function
-                // calls (desugared to memberCall), not as BinaryOp.downTo/step.
-                return true
-            default:
-                return false
             }
+            // Backticked `downTo` and `step` intentionally bypass special BinaryOp handling.
+            return true
         }
 
         private func canStartExpression(_ token: Token) -> Bool {

@@ -85,6 +85,21 @@ struct InfixCallModifierTests {
     }
 
     @Test
+    func softKeywordNamedFunctionStillRequiresInfixModifier() throws {
+        let source = """
+        class A { fun infix(s: String): String = s }
+        fun rejected() { A() infix "K" }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 1, "Unexpected diagnostics: \(errors)")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0307")
+        }
+    }
+
+    @Test
     func memberExtensionsRequireInfix() throws {
         let source = """
         class Scope {
