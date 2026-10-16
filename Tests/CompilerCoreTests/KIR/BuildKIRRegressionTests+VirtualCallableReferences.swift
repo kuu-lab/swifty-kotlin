@@ -72,9 +72,18 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
-    func testListMaxByExtensionCallKeepsStaticDispatch() throws {
+    func testTopLevelExtensionStaysStaticBesideInterfaceMemberDispatch() throws {
         let ctx = makeContextFromSource("""
-        fun <T, R : Comparable<R>> largest(xs: List<T>, selector: (T) -> R): T = xs.maxBy(selector)
+        import kotlin.text.Appendable
+
+        fun <T, R : Comparable<R>, A : Appendable> largest(
+            xs: List<T>,
+            selector: (T) -> R,
+            buffer: A
+        ): T {
+            buffer.append("interface")
+            return xs.maxBy(selector)
+        }
         """)
         try runToKIR(ctx)
 
@@ -93,6 +102,16 @@ extension BuildKIRRegressionTests {
         }
         #expect(maxByCalls.contains { if case .call = $0 { return true }; return false })
         #expect(!maxByCalls.contains { if case .virtualCall = $0 { return true }; return false })
+
+        let appendCalls = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> KIRInstruction? in
+                guard case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "append"
+                else { return nil }
+                return instruction
+            }
+        }
+        #expect(!appendCalls.isEmpty, "Appendable.append must retain interface virtual dispatch")
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 

@@ -1598,11 +1598,10 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
-    // Top-level extension functions can be parented by their receiver type for
-    // lookup, but they are static functions and do not occupy virtual slots.
-    // Keep member extensions eligible because their dispatch receiver is the
-    // enclosing owner rather than the extension receiver.
-    if sema.symbols.functionSignature(for: callee)?.receiverType != nil,
+    // Bundled top-level extensions can be parented by their receiver nominal
+    // for lookup, but remain static calls. Use the semantic receiver/owner
+    // relationship so regular interface and class members keep virtual dispatch.
+    if TypeCheckHelpers().declaresExtensionReceiver(callee, sema: sema, interner: interner),
        sema.symbols.memberExtensionOwnerSymbol(for: callee) == nil
     {
         return nil
