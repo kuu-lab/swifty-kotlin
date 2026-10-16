@@ -647,24 +647,30 @@ extension KIRLoweringDriver {
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-            let initValue = lowerPropertyInitializerValue(
-                explicitField.initializer,
-                shared: shared, emit: &body
-            )
-            emitFieldStore(
-                propSymbol: propSymbol, targetSymbol: targetSymbol,
-                value: initValue, valueType: backingFieldType,
-                shared: shared, body: &body
-            )
+            if !isDefaultFieldInitializer(
+                explicitField.initializer, fieldType: backingFieldType, shared: shared
+            ) {
+                let initValue = lowerPropertyInitializerValue(
+                    explicitField.initializer,
+                    shared: shared, emit: &body
+                )
+                emitFieldStore(
+                    propSymbol: propSymbol, targetSymbol: targetSymbol,
+                    value: initValue, valueType: backingFieldType,
+                    shared: shared, body: &body
+                )
+            }
             // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-                let propInitValue = lowerPropertyInitializerValue(initExpr, shared: shared, emit: &body)
-                emitFieldStore(
-                    propSymbol: propSymbol, targetSymbol: targetSymbol,
-                    value: propInitValue, valueType: propType,
-                    shared: shared, body: &body
-                )
+                if !isDefaultFieldInitializer(initExpr, fieldType: propType, shared: shared) {
+                    let propInitValue = lowerPropertyInitializerValue(initExpr, shared: shared, emit: &body)
+                    emitFieldStore(
+                        propSymbol: propSymbol, targetSymbol: targetSymbol,
+                        value: propInitValue, valueType: propType,
+                        shared: shared, body: &body
+                    )
+                }
             }
             return
         }
@@ -674,6 +680,7 @@ extension KIRLoweringDriver {
         guard let initExpr = prop.initializer else { return }
         let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
         let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
+        guard !isDefaultFieldInitializer(initExpr, fieldType: propType, shared: shared) else { return }
         let initValue = lowerPropertyInitializerValue(
             initExpr,
             shared: shared, emit: &body
@@ -682,6 +689,24 @@ extension KIRLoweringDriver {
             propSymbol: propSymbol, targetSymbol: targetSymbol,
             value: initValue, valueType: propType,
             shared: shared, body: &body
+        )
+    }
+
+    private func isDefaultFieldInitializer(
+        _ exprID: ExprID,
+        fieldType: TypeID,
+        shared: KIRLoweringSharedContext
+    ) -> Bool {
+        let collector = ConstantCollector(
+            resolvedConstant: { shared.sema.bindings.constExprValue(for: $0) }
+        )
+        guard let value = collector.literalConstantExpr(
+            exprID, ast: shared.ast, interner: shared.interner
+        ) else {
+            return false
+        }
+        return KIRDefaultFieldInitializer.isDefaultValue(
+            value, for: fieldType, types: shared.sema.types
         )
     }
 

@@ -34,5 +34,13 @@ public object System {
     public fun getProperty(propertyName: String, defaultValue: String): String =
         java.lang.System.getProperty(propertyName, defaultValue)
 
+    public fun arraycopy(
+        src: Any?,
+        srcPos: Int,
+        dest: Any?,
+        destPos: Int,
+        length: Int
+    ): Unit = java.lang.System.arraycopy(src, srcPos, dest, destPos, length)
+
     public fun exit(status: Int): Unit = java.lang.System.exit(status)
 }

@@ -657,6 +657,38 @@ struct DeclarationBoundaryTests {
         #expect(hasDirectBlock)
     }
 
+    @Test(arguments: [
+        """
+        fun <T : Any, B : UInt> sample(value: T): Int
+            where B : Comparable<UInt> {
+            return 1
+        }
+        fun after(): String = "OK"
+        """,
+        """
+        fun <T : Any, B : UInt> sample(value: T): Int
+            where
+                B : Comparable<UInt>,
+                T : Any
+            = 1
+        fun after(): String = "OK"
+        """,
+    ])
+    func functionWhereClauseAfterReturnTypeNewlineStaysInHeader(source: String) throws {
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        let sample = try #require(functions.first)
+        let sampleID = NodeID(rawValue: Int32(sample.offset))
+        let sampleTokens = parsed.arena.children(of: sampleID).compactMap { child -> TokenKind? in
+            guard case let .token(tokenID) = child else { return nil }
+            return parsed.arena.token(tokenID)?.kind
+        }
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(functions.count == 2)
+        #expect(sampleTokens.contains(.softKeyword(.where)))
+    }
+
     @Test
     func testRootRangeReachesTrailingEnumBody() {
         let source = """

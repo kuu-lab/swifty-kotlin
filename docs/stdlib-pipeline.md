@@ -950,6 +950,21 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    `RuntimeABISpec.systemFunctions` registers the ABI and its canonical hash
    updates `specVersion`.
 
+   KUU-2223 adds one private `__kk_system_arraycopy` bridge and two
+   `__kk_array_store_exception_new*` constructor bridges (reason: memory
+   representation). The source-backed `java.lang.System.arraycopy` and the
+   default-import `kotlin.system.System` facade keep the public API in Kotlin;
+   the bridge operates on opaque `RuntimeArrayBox` storage to preserve overlap,
+   primitive-array kind checks, and per-element reference-array stores. The
+   source-backed `java.lang.ArrayStoreException` constructors create the
+   corresponding native throwable box so partial reference copies retain JVM
+   behavior. `__kk_*` increases by three with no public `kk_*` export added;
+   `RuntimeABISpec.systemFunctions` and `exceptionFunctions` register the
+   signatures and update the canonical `specVersion` hash. The pinned
+   TheAlgorithms/Kotlin `MergeSort.kt`, a minimal call, and an `Array.copyInto`
+   control compile against a fresh `.kklib` at O0/O2; the bundled execution
+   regression covers arraycopy behavior at both optimization levels.
+
    KUU-2016 adds two private constructor bridges, `__kk_input_stream_reader_new`
    and `__kk_buffered_reader_new` (reason: memory representation). The bundled
    Java reader constructors produce native reader handles used by the existing

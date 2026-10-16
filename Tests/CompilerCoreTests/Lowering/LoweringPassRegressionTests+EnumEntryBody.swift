@@ -121,5 +121,91 @@ extension LoweringPassRegressionTests {
             })
         }
     }
+
+    @Test
+    func testInnerClassInEnumEntryBodyResolvesAndLowers() throws {
+        let source = """
+        enum class A {
+            X {
+                val x = "OK"
+                inner class Inner {
+                    val y = x
+                }
+                val z = Inner()
+                override val test: String
+                    get() = z.y
+            };
+            abstract val test: String
+        }
+        fun boxA() = A.X.test
+
+        enum class B {
+            X {
+                val x = "OK"
+                inner class Inner {
+                    fun foo() = this@X.x
+                }
+                val z = Inner()
+                override val test = z.foo()
+            };
+            abstract val test: String
+        }
+        fun boxB() = B.X.test
+
+        enum class Mode {
+            A {
+                inner class Child
+                val child = Child()
+            }
+        }
+
+        class RegularOwner {
+            inner class Child
+        }
+        fun ordinaryInnerControl() = RegularOwner().Child()
+
+        enum class EntryControl {
+            A {
+                val result = "OK"
+                fun read() = result
+                override val value = read()
+            };
+            abstract val value: String
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "EnumEntryNestedInnerClass",
+                emit: .kirDump
+            )
+            try runToLowering(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { $0.message }.joined(separator: ", ")
+            #expect(
+                !ctx.diagnostics.hasError,
+                "enum-entry nested inner classes should resolve and lower: \(diagnosticSummary)"
+            )
+
+            let module = try #require(ctx.kir)
+            let functions = findAllKIRFunctions(in: module)
+            let computedGetterHelpers = functions.filter { function in
+                ctx.interner.resolve(function.name).hasPrefix("$enumConstructorProperty$")
+                    && function.body.contains { instruction in
+                        guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                        return callee == ctx.interner.intern("get")
+                    }
+            }
+            #expect(computedGetterHelpers.count == 1)
+
+            let sema = try #require(ctx.sema)
+            let entryClassName = ctx.interner.intern("Child")
+            let expectedFQName = ["Mode", "A", "Child"].map { ctx.interner.intern($0) }
+            let child = try #require(sema.symbols.lookupByShortName(entryClassName).first { symbol in
+                sema.symbols.symbol(symbol)?.fqName == expectedFQName
+            })
+            #expect(sema.symbols.symbol(child)?.flags.contains(.innerClass) == true)
+            #expect(sema.symbols.outerInstanceFieldSymbol(for: child) != nil)
+        }
+    }
 }
 #endif

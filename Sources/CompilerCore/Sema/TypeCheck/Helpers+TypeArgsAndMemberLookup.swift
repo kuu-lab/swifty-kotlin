@@ -737,6 +737,8 @@ extension TypeCheckHelpers {
         }
 
         var candidates: [SymbolID] = []
+        // Overrides hide inherited declarations only for the same dispatch key;
+        // arity alone would drop unrelated overloads with the same parameter count.
         var overrideDepthByKey: [MemberDispatchKey: Int] = [:]
         for key in keyOrder {
             guard let grouped = candidatesByKey[key] else { continue }
@@ -888,6 +890,43 @@ extension TypeCheckHelpers {
         return nil
     }
 
+    /// Looks up a property declared directly in the body of an enum entry.
+    /// Its entry field owns the declaration, while the receiver still has the
+    /// containing enum's runtime type.
+    func lookupEnumEntryMemberProperty(
+        named calleeName: InternedString,
+        entrySymbol: SymbolID,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        guard let entryInfo = sema.symbols.symbol(entrySymbol),
+              entryInfo.kind == .field,
+              let enumOwner = sema.symbols.parentSymbol(for: entrySymbol),
+              sema.symbols.symbol(enumOwner)?.kind == .enumClass
+        else {
+            return nil
+        }
+        for candidate in sema.symbols.lookupAll(fqName: entryInfo.fqName + [calleeName]) {
+            guard sema.symbols.parentSymbol(for: candidate) == entrySymbol,
+                  let candidateInfo = sema.symbols.symbol(candidate),
+                  candidateInfo.kind == .property || candidateInfo.kind == .field,
+                  let propertyType = sema.symbols.propertyType(for: candidate)
+            else {
+                continue
+            }
+            return (
+                candidate,
+                resolveMemberPropertyType(
+                    propertyType,
+                    receiverType: receiverType,
+                    ownerSymbol: enumOwner,
+                    sema: sema
+                )
+            )
+        }
+        return nil
+    }
+
     func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
@@ -930,7 +969,10 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
-                substitution[typeVar] = sema.types.nullableAnyType
+                substitution[typeVar] = sema.types.capturedTypeForStarProjection(
+                    parameter: typeParamSymbol,
+                    ownerTypeParameters: ownerTypeParamSymbols
+                )
             }
         }
 

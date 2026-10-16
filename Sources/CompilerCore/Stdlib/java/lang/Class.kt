@@ -22,6 +22,8 @@ private external fun <T> __declaredConstructor(
     value: Class<T>,
     parameterTypes: Array<out Class<*>>
 ): Constructor<T>
+@KsSymbolName("__kk_class_for_name")
+private external fun __classForName(className: String): Class<*>
 @KsSymbolName("__kk_class_canonical_name")
 private external fun <T> __classCanonicalName(type: Class<T>): String?
 
@@ -69,5 +71,9 @@ public class Class<T> {
 
     public fun getDeclaringClass(): Class<*>? = null
 
+    public companion object {
+        /** Resolves a JVM binary class name to its native class token. */
+        public fun forName(className: String): Class<*> = __classForName(className)
+    }
     public override fun toString(): String = __classToString(this)
 }

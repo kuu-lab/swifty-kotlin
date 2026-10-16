@@ -182,6 +182,19 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_system_arraycopy",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "sourcePosition", type: .intptr),
+                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
+                RuntimeABIParameter(name: "destinationPosition", type: .intptr),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .void,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_runtime_getRuntime",
             parameters: [],
             returnType: .intptr,

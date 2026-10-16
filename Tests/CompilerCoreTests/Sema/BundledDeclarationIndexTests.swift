@@ -129,6 +129,35 @@ struct BundledDeclarationIndexTests {
             "Expected bundled collection HOFs to type-check, got: \(ctx.diagnostics.diagnostics)"
         )
         let sema = try #require(ctx.sema)
+        let coroutinesPackage = intern(["kotlinx", "coroutines"], ctx.interner)
+        let handleCoroutineException = ctx.interner.intern("handleCoroutineException")
+        let handleCoroutineExceptionFunctions = matchingFunctions(
+            owner: coroutinesPackage,
+            name: handleCoroutineException,
+            arity: 2,
+            sema: sema
+        )
+        #expect(
+            handleCoroutineExceptionFunctions.contains {
+                guard let symbol = sema.symbols.symbol($0), !symbol.flags.contains(.synthetic) else {
+                    return false
+                }
+                return sourcePath(for: $0, sema: sema, ctx: ctx)?.hasSuffix("CoroutineExceptionHandlerApi.kt") == true
+            },
+            "Expected handleCoroutineException to resolve to its bundled Kotlin source declaration"
+        )
+        #expect(
+            !handleCoroutineExceptionFunctions.contains {
+                sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
+            },
+            "Expected the bundled handleCoroutineException declaration to suppress its synthetic stub"
+        )
+        #expect(
+            !ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0102" && $0.message.contains("handleCoroutineException")
+            },
+            "Expected no duplicate synthetic declaration warning for handleCoroutineException"
+        )
         let listOwner = intern(["kotlin", "collections", "List"], ctx.interner)
         let iterableOwner = intern(["kotlin", "collections", "Iterable"], ctx.interner)
         let collectionsPackage = intern(["kotlin", "collections"], ctx.interner)
@@ -244,6 +273,44 @@ struct BundledDeclarationIndexTests {
         #expect(
             listJoinTransforms.isEmpty,
             "Expected bundled Iterable.joinToString transform overloads to replace List synthetic stubs"
+        )
+    }
+
+    @Test
+    func fullSemaSkipsSyntheticHandleCoroutineExceptionWhenBundledSourceExists() throws {
+        let ctx = makeContextFromSource(
+            """
+            import kotlinx.coroutines.CoroutineContext
+            import kotlinx.coroutines.handleCoroutineException
+
+            fun useBundledHandleCoroutineException(context: CoroutineContext, exception: Throwable) {
+                handleCoroutineException(context, exception)
+            }
+            """,
+            allowDefaultStdlibLibrary: false
+        )
+        try runSema(ctx)
+
+        let duplicateStubDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0102" && $0.message.contains("handleCoroutineException")
+        }
+        #expect(
+            duplicateStubDiagnostics.isEmpty,
+            "Expected the bundled handleCoroutineException declaration to suppress its synthetic stub"
+        )
+
+        let sema = try #require(ctx.sema)
+        let coroutinesPackage = intern(["kotlinx", "coroutines"], ctx.interner)
+        let declarations = matchingFunctions(
+            owner: coroutinesPackage,
+            name: ctx.interner.intern("handleCoroutineException"),
+            arity: 2,
+            sema: sema
+        )
+        #expect(!declarations.isEmpty, "Expected the bundled handleCoroutineException declaration")
+        #expect(
+            declarations.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) != true },
+            "Expected no synthetic handleCoroutineException declaration alongside bundled source"
         )
     }
 

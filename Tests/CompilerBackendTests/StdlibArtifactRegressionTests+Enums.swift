@@ -7,6 +7,110 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
+    /// KUU-2414: enum and companion initialization order for Kotlin source input.
+    @Test(arguments: [0, 2])
+    func testEnumCompanionInitFromSource(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let inputPath = repoRoot.appendingPathComponent(
+            "Tests/CompilerBackendTests/Fixtures/EnumCompanionInit/enum_companion_init_minimal.kt"
+        ).path
+        let outputPath = directory.appendingPathComponent("enum_companion_init_minimal").path
+        let options = CompilerOptions(
+            moduleName: "EnumCompanionInitSource",
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let result = try CommandRunner.run(executable: outputPath, arguments: [])
+        #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+    }
+
+    /// The pinned JetBrains box case also exercises `Enum.values()` through a fresh stdlib artifact.
+    @Test(arguments: [0, 2])
+    func testJetBrainsEnumCompanionInitThroughFreshArtifact(optimization: Int) throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let inputPath = repoRoot.appendingPathComponent("Scripts/diff_cases/enum_companion_init.kt").path
+        let outputPath = directory.appendingPathComponent("enum_companion_init").path
+        let options = CompilerOptions(
+            moduleName: "JetBrainsEnumCompanionInit",
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            includeStdlib: false,
+            stdlibLibraryPath: artifactPath,
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let result = try CommandRunner.run(executable: outputPath, arguments: [])
+        #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+        #expect(result.stdout == "OK\n")
+
+        let minimalInputPath = repoRoot.appendingPathComponent(
+            "Tests/CompilerBackendTests/Fixtures/EnumCompanionInit/enum_companion_init_minimal.kt"
+        ).path
+        let minimalOutputPath = directory.appendingPathComponent("enum_companion_init_minimal").path
+        let minimalOptions = CompilerOptions(
+            moduleName: "EnumCompanionInitArtifact",
+            inputs: [minimalInputPath],
+            outputPath: minimalOutputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            includeStdlib: false,
+            stdlibLibraryPath: artifactPath,
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: minimalOptions))
+
+        let minimalResult = try CommandRunner.run(executable: minimalOutputPath, arguments: [])
+        #expect(minimalResult.exitCode == 0, "Execution stderr: \(minimalResult.stderr)")
+    }
+
+    /// KUU-2414: execute the same public box test while lowering the bundled stdlib from source.
+    @Test(arguments: [0, 2])
+    func testJetBrainsEnumCompanionInitThroughBundledStdlibSource(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let inputPath = repoRoot.appendingPathComponent("Scripts/diff_cases/enum_companion_init.kt").path
+        let outputPath = directory.appendingPathComponent("enum_companion_init").path
+        let options = CompilerOptions(
+            moduleName: "JetBrainsEnumCompanionInitSource",
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            includeStdlib: true,
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let result = try CommandRunner.run(executable: outputPath, arguments: [])
+        #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
+        #expect(result.stdout == "OK\n")
+    }
+
     /// KUU-1320: reified enumValues specializes in both stdlib modes.
     @Test(arguments: [false, true])
     func testReifiedEnumValues(useArtifact: Bool) throws {

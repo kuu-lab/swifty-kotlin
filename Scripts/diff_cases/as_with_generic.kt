@@ -1,0 +1,29 @@
+// Adapted from JetBrains Kotlin v2.3.10 compiler/testData/codegen/box/casts/asWithGeneric.kt.
+// The main wrapper prints the upstream box result for native execution tests.
+fun <T> test1() = null as T
+
+fun <T> test2(): T {
+    val a: Any? = null
+    return a as T
+}
+
+fun <T: Any> test3() = null as T
+
+fun box(): String {
+    if (test1<Int?>() != null) return "fail: test1"
+    if (test2<Int?>() != null) return "fail: test2"
+
+    var result3 = "fail"
+    try {
+        test3<Int>()
+    } catch (e: NullPointerException) {
+        result3 = "OK"
+    }
+    if (result3 != "OK") return "fail: test3"
+
+    return "OK"
+}
+
+fun main() {
+    println(box())
+}

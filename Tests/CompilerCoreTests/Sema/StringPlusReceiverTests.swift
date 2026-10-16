@@ -50,5 +50,23 @@ struct StringPlusReceiverTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func nullableStringPlusSelectsApplicableUserOperator() throws {
+        let ctx = makeContextFromSource("""
+        operator fun String?.plus(other: String): String = "CUSTOM"
+        fun combine(left: String?, right: String): String = left + right
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let userPlus = try #require(sema.symbols.allSymbols().first { symbol in
+            symbol.kind == .function
+                && symbol.name == ctx.interner.intern("plus")
+                && sema.symbols.sourceFileID(for: symbol.id).map(ctx.sourceManager.origin(of:)) == .user
+        })
+        #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == userPlus.id })
+    }
 }
 #endif

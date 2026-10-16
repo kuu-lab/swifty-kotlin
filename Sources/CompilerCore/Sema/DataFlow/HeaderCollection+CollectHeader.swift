@@ -918,6 +918,15 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: propertyDecl.range
             ) {
+                checkAndReportDuplicateExtensionPropertyReceiver(
+                    propertySymbol: symbol,
+                    receiverType: receiverType,
+                    fqName: fqName,
+                    range: propertyDecl.range,
+                    newFlags: declaration.flags,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
                 symbols.setExtensionPropertyReceiverType(receiverType, for: symbol)
 
                 let getterSymbol = symbols.define(

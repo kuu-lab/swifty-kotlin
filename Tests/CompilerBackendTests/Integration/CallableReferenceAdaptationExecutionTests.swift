@@ -32,4 +32,22 @@ struct CallableReferenceAdaptationExecutionTests {
             moduleName: "KUU2098CallableReference"
         )
     }
+
+    @Test func virtualStringVarargCallableReferenceUsesPackedArrayABI() throws {
+        try compileAndRunKotlin(
+            """
+            open class VirtualWords { open fun take(vararg values: String): String = "base:" + values.size }
+            class DerivedWords : VirtualWords() { override fun take(vararg values: String): String = "derived:" + values.size }
+
+            fun main() {
+                val receiver: VirtualWords = DerivedWords()
+                val scalar: (String) -> String = receiver::take
+                println(scalar("x"))
+            }
+            """,
+            expectedOutput: "derived:1\n",
+            moduleName: "KUUVirtualStringVarargABI",
+            optLevel: .O2
+        )
+    }
 }
