@@ -408,7 +408,10 @@ final class LocalDeclTypeChecker {
             guard sym.kind == .property else { return false }
             guard let parentID = ctx.sema.symbols.parentSymbol(for: sym.id),
                   let parentSym = ctx.sema.symbols.symbol(parentID) else { return true }
-            return parentSym.kind == .package || (ctx.implicitReceiverType != nil
+            // A scope-visible object member can be an explicit import such as
+            // `import C.p`; singleton properties need no lexical receiver.
+            // Class and interface members still require an implicit receiver.
+            return parentSym.kind == .package || parentSym.kind == .object || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         }) {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
