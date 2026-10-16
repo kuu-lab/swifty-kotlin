@@ -266,6 +266,9 @@ extension BuildASTPhase {
     }
 
     static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
+        if isUninitializedLocalPropertyDeclaration(tokens) {
+            return false
+        }
         guard let last = tokens.last else {
             return false
         }
@@ -283,6 +286,29 @@ extension BuildASTPhase {
         default:
             return false
         }
+    }
+
+    /// A local property without an initializer is a declaration, not an
+    /// expression that can receive a trailing lambda on the next line.
+    private static func isUninitializedLocalPropertyDeclaration<C: Collection>(
+        _ tokens: C
+    ) -> Bool where C.Element == Token {
+        var depth = BracketDepth()
+        var sawLocalPropertyKeyword = false
+        for token in tokens {
+            if depth.isBracketBraceParenTopLevel {
+                switch token.kind {
+                case .keyword(.val), .keyword(.var):
+                    sawLocalPropertyKeyword = true
+                case .symbol(.assign):
+                    return false
+                default:
+                    break
+                }
+            }
+            depth.track(token.kind)
+        }
+        return sawLocalPropertyKeyword
     }
 
     /// Shared by the CST-driven top-level path (blockExpressions) and the
