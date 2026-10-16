@@ -306,7 +306,7 @@ extension CallTypeChecker {
         } else if isULongRangeLiteralContainsCall {
             argumentExpectedTypeOverrides[0] = sema.types.ulongType
         }
-        prepareSingleCandidateNestedCallExpectedTypes(
+        prepareUnambiguousNestedCallExpectedTypes(
             args: args,
             callRange: range,
             candidates: candidates,
