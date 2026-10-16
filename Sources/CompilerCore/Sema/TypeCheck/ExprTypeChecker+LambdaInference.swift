@@ -174,6 +174,19 @@ extension ExprTypeChecker {
         let inferredImplicitItType = params.isEmpty
             ? inferItParameterType(ctx: ctx, id: id, sema: sema, locals: locals)
             : nil
+        let inferredAssignmentItType: TypeID? = if !expectedTypeIsHintOnly, params.isEmpty,
+                                                   let inferredImplicitItType
+        {
+            inferFromAssignmentContext(
+                id,
+                expectedParameterType: inferredImplicitItType,
+                ctx: ctx,
+                sema: sema,
+                locals: locals
+            )
+        } else {
+            nil
+        }
 
         // Implicit `it` parameter for no-arrow lambdas with single expected param.
         // Enhanced to support complex type inference contexts and generic types.
@@ -227,8 +240,17 @@ extension ExprTypeChecker {
             }
             return inferredImplicitItType
         }()
+        let inferredAssignmentParameterTypes: [TypeID]? = if effectiveParams == [ctx.interner.intern("it")],
+                                                              let inferredAssignmentItType
+        {
+            [inferredAssignmentItType]
+        } else {
+            nil
+        }
         let expectedParameterTypes: [TypeID] = if let inferredCallableItType {
             [inferredCallableItType]
+        } else if let inferredAssignmentParameterTypes {
+            inferredAssignmentParameterTypes
         } else if let declaredParameterTypes {
             declaredParameterTypes
         } else if effectiveParams.count == 1 && effectiveParams.contains(ctx.interner.intern("it")) {
@@ -618,11 +640,18 @@ extension ExprTypeChecker {
                 && zip(parameterTypes, expectedFunctionType.params).contains { actual, expected in
                     actual != expected && typeMentionsTypeParameter(expected, sema: sema)
                 }
+            let hasInferredUnresolvedUnitInput =
+                lambdaUsesUnitCoercion
+                && inferredAssignmentItType != nil
+                && zip(parameterTypes, expectedFunctionType.params).contains { actual, expected in
+                    actual != expected && typeMentionsTypeParameter(expected, sema: sema)
+                }
             let shouldReturnResolvedFunctionType = expectedTypeIsHintOnly
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
                 || expectedReturnIsErasedNonHOFPlaceholder
                 || hasAnnotatedUnresolvedUnitInput
+                || hasInferredUnresolvedUnitInput
                 || sema.bindings.isDirectlyInvokedLambdaExpr(id)
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
@@ -701,11 +730,6 @@ extension ExprTypeChecker {
         if let parentCall = findParentCallContext(for: id, ctx: ctx, sema: sema) {
             return inferTypeFromHOFContext(parentCall, ctx: ctx, sema: sema, locals: locals)
         }
-
-        if let assignmentType = inferFromAssignmentContext() {
-            return assignmentType
-        }
-
         return nil
     }
 
@@ -872,10 +896,250 @@ extension ExprTypeChecker {
             : explicitType
     }
 
-    /// Infers lambda parameter type from assignment context
-    private func inferFromAssignmentContext() -> TypeID? {
-        // This would analyze assignments like `val x: (Int) -> String = { it.toString() }`
-        return nil
+    /// Refines an unresolved callback input from assignments such as
+    /// `fun <T> consume(block: (Result<T>) -> Unit) { ... }` with
+    /// `var result: Result<Int>? = null; consume { result = it }`.
+    private func inferFromAssignmentContext(
+        _ lambdaID: ExprID,
+        expectedParameterType: TypeID,
+        ctx: TypeInferenceContext,
+        sema: SemaModule,
+        locals: LocalBindings
+    ) -> TypeID? {
+        guard typeMentionsTypeParameter(expectedParameterType, sema: sema),
+              case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(lambdaID)
+        else {
+            return nil
+        }
+
+        let implicitIt = ctx.interner.intern("it")
+        var targetTypes: [TypeID] = []
+        var visited: Set<ExprID> = []
+        func collectAssignmentTargets(in expressionID: ExprID) {
+            guard visited.insert(expressionID).inserted,
+                  let expression = ctx.ast.arena.expr(expressionID)
+            else {
+                return
+            }
+            if case let .localAssign(name, value, _) = expression,
+               case let .nameRef(valueName, _) = ctx.ast.arena.expr(value),
+               valueName == implicitIt,
+               let local = locals[name]
+            {
+                let targetType = sema.symbols.propertyType(for: local.symbol) ?? local.type
+                if targetType != sema.types.errorType {
+                    targetTypes.append(targetType)
+                }
+            }
+            for child in assignmentContextChildren(of: expression) {
+                collectAssignmentTargets(in: child)
+            }
+        }
+        collectAssignmentTargets(in: body)
+        guard var targetType = targetTypes.first else {
+            return nil
+        }
+        for candidateType in targetTypes.dropFirst() {
+            if sema.types.isSubtype(candidateType, targetType) {
+                targetType = candidateType
+            } else if !sema.types.isSubtype(targetType, candidateType) {
+                return nil
+            }
+        }
+
+        var substitutions: [SymbolID: TypeID] = [:]
+        guard inferAssignmentTypeParameters(
+            in: expectedParameterType,
+            from: targetType,
+            substitutions: &substitutions,
+            sema: sema
+        ), !substitutions.isEmpty else {
+            return nil
+        }
+        let inferredType = substitutingAssignmentTypeParameters(
+            in: expectedParameterType,
+            substitutions: substitutions,
+            sema: sema
+        )
+        guard inferredType != expectedParameterType,
+              sema.types.isSubtype(inferredType, targetType)
+        else {
+            return nil
+        }
+        return inferredType
+    }
+
+    private func inferAssignmentTypeParameters(
+        in template: TypeID,
+        from target: TypeID,
+        substitutions: inout [SymbolID: TypeID],
+        sema: SemaModule
+    ) -> Bool {
+        switch sema.types.kind(of: template) {
+        case let .typeParam(parameter):
+            guard parameter.capture == nil, target != sema.types.errorType else {
+                return false
+            }
+            if let previous = substitutions[parameter.symbol] {
+                return previous == target
+            }
+            substitutions[parameter.symbol] = target
+            return true
+
+        case let .classType(templateClass):
+            guard case let .classType(targetClass) = sema.types.kind(of: sema.types.makeNonNullable(target)),
+                  templateClass.classSymbol == targetClass.classSymbol,
+                  templateClass.args.count == targetClass.args.count
+            else {
+                return false
+            }
+            for (templateArgument, targetArgument) in zip(templateClass.args, targetClass.args) {
+                func projectedType(_ argument: TypeArg) -> TypeID? {
+                    switch argument {
+                    case let .invariant(type), let .out(type), let .in(type): type
+                    case .star: nil
+                    }
+                }
+                guard let templateType = projectedType(templateArgument),
+                      let targetType = projectedType(targetArgument)
+                else {
+                    return false
+                }
+                guard inferAssignmentTypeParameters(
+                    in: templateType,
+                    from: targetType,
+                    substitutions: &substitutions,
+                    sema: sema
+                ) else {
+                    return false
+                }
+            }
+            return true
+
+        case let .functionType(templateFunction):
+            guard case let .functionType(targetFunction) = sema.types.kind(of: target),
+                  templateFunction.params.count == targetFunction.params.count,
+                  templateFunction.isSuspend == targetFunction.isSuspend
+            else {
+                return false
+            }
+            for (templateParameter, targetParameter) in zip(templateFunction.params, targetFunction.params) {
+                guard inferAssignmentTypeParameters(
+                    in: templateParameter,
+                    from: targetParameter,
+                    substitutions: &substitutions,
+                    sema: sema
+                ) else {
+                    return false
+                }
+            }
+            return inferAssignmentTypeParameters(
+                in: templateFunction.returnType,
+                from: targetFunction.returnType,
+                substitutions: &substitutions,
+                sema: sema
+            )
+
+        case let .kClassType(templateKClass):
+            guard case let .kClassType(targetKClass) = sema.types.kind(of: target) else {
+                return false
+            }
+            return inferAssignmentTypeParameters(
+                in: templateKClass.argument,
+                from: targetKClass.argument,
+                substitutions: &substitutions,
+                sema: sema
+            )
+
+        default:
+            return !typeMentionsTypeParameter(template, sema: sema)
+                && sema.types.isSubtype(target, template)
+        }
+    }
+
+    private func substitutingAssignmentTypeParameters(
+        in type: TypeID,
+        substitutions: [SymbolID: TypeID],
+        sema: SemaModule
+    ) -> TypeID {
+        if case let .typeParam(parameter) = sema.types.kind(of: type),
+           parameter.capture == nil,
+           let replacement = substitutions[parameter.symbol]
+        {
+            switch parameter.nullability {
+            case .nonNull:
+                return replacement
+            case .nullable:
+                return sema.types.makeNullable(replacement)
+            case .platformType:
+                return sema.types.withNullability(.platformType, for: replacement)
+            }
+        }
+        return sema.types.make(sema.types.kind(of: type).mapTypes { nestedType in
+            substitutingAssignmentTypeParameters(in: nestedType, substitutions: substitutions, sema: sema)
+        })
+    }
+
+    private func assignmentContextChildren(of expression: Expr) -> [ExprID] {
+        switch expression {
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .nullLiteral,
+             .boolLiteral, .stringLiteral, .nameRef, .breakExpr, .continueExpr,
+             .superRef, .thisRef, .lambdaLiteral, .localFunDecl,
+             .localNominalDecl, .objectLiteral:
+            []
+        case let .stringTemplate(parts, _):
+            parts.compactMap { part in
+                if case let .expression(child) = part { return child }
+                return nil
+            }
+        case let .forExpr(_, iterable, body, _, _),
+             let .forDestructuringExpr(_, iterable, body, _):
+            [iterable, body]
+        case let .whileExpr(condition, body, _, _):
+            [condition, body]
+        case let .doWhileExpr(body, condition, _, _):
+            [body, condition]
+        case let .localDecl(_, _, _, initializer, _, _, _):
+            initializer.map { [$0] } ?? []
+        case let .localAssign(_, value, _), let .compoundAssign(_, _, value, _),
+             let .throwExpr(value, _):
+            [value]
+        case let .memberAssign(receiver, _, value, _),
+             let .memberCompoundAssign(_, receiver, _, value, _):
+            [receiver, value]
+        case let .indexedAssign(receiver, indices, value, _),
+             let .indexedCompoundAssign(_, receiver, indices, value, _):
+            [receiver] + indices + [value]
+        case let .call(callee, _, args, _):
+            [callee] + args.map(\.expr)
+        case let .memberCall(receiver, _, _, args, _),
+             let .safeMemberCall(receiver, _, _, args, _):
+            [receiver] + args.map(\.expr)
+        case let .indexedAccess(receiver, indices, _):
+            [receiver] + indices
+        case let .binary(_, lhs, rhs, _), let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
+            [lhs, rhs]
+        case let .whenExpr(subject, branches, elseExpr, _):
+            (subject.map { [$0] } ?? [])
+                + branches.flatMap { $0.conditions + ($0.guard_.map { [$0] } ?? []) + [$0.body] }
+                + (elseExpr.map { [$0] } ?? [])
+        case let .returnExpr(value, _, _):
+            value.map { [$0] } ?? []
+        case let .ifExpr(condition, thenExpr, elseExpr, _):
+            [condition, thenExpr] + (elseExpr.map { [$0] } ?? [])
+        case let .tryExpr(body, catchClauses, finallyExpr, _):
+            [body] + catchClauses.map(\.body) + (finallyExpr.map { [$0] } ?? [])
+        case let .unaryExpr(_, operand, _), let .isCheck(operand, _, _, _),
+             let .asCast(operand, _, _, _), let .nullAssert(operand, _):
+            [operand]
+        case let .callableRef(receiver, _, _):
+            receiver.map { [$0] } ?? []
+        case let .blockExpr(statements, trailingExpr, _):
+            statements + (trailingExpr.map { [$0] } ?? [])
+        case let .destructuringDecl(_, _, initializer, _):
+            [initializer]
+        }
     }
 
     /// Optimizes return type inference for lambda expressions
