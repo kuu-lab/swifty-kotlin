@@ -26,7 +26,23 @@ TEST_INDEX_PATH = HERE / "upstream-tests-index.json"
 LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
+VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
+UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
+REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
+CANDIDATE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "native-executions.expected.json"
 EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
+VALIDATION_EVIDENCE_SCHEMA_VERSION = 1
+VALIDATION_LANES_BY_OBLIGATION = {
+    "jvm-descriptor": ("jvm-descriptor",),
+    "native-source": (
+        "source-O0",
+        "source-O2",
+        "stdlib-library-O0",
+        "stdlib-library-O2",
+    ),
+    "native-bridge": ("producer-consumer-O0", "producer-consumer-O2"),
+}
 
 LEDGER_COLUMNS = [
     "row_id",
@@ -220,6 +236,315 @@ def clean(value: object) -> str:
 def git_blob_sha(data: bytes) -> str:
     header = f"blob {len(data)}\0".encode("ascii")
     return hashlib.sha1(header + data).hexdigest()
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            fail(f"duplicate JSON field in validation evidence: {key}")
+        result[key] = value
+    return result
+
+
+def _validation_input_files(
+    references: str,
+    root: Path,
+    namespace: str,
+    locked_files: dict[str, dict] | None = None,
+) -> dict[str, str]:
+    files = {}
+    root = root.resolve()
+    for reference in references.split(";"):
+        reference = reference.strip()
+        if not reference or reference == "none" or reference.startswith("none ("):
+            continue
+        relative = reference.split("#", 1)[0]
+        line_suffix = re.match(r"^(.*?):\d+(?::\d+)?$", relative)
+        if line_suffix:
+            relative = line_suffix.group(1)
+        path = Path(relative)
+        if path.is_absolute():
+            fail(f"absolute path in validation input reference: {reference}")
+        resolved = (root / path).resolve()
+        if root not in resolved.parents:
+            fail(f"unsafe path in validation input reference: {reference}")
+        key = f"{namespace}/{relative}"
+        if resolved.is_file():
+            data = resolved.read_bytes()
+            if locked_files is not None:
+                locked = locked_files.get(relative)
+                if locked is None or len(data) != locked["size"] or git_blob_sha(data) != locked["gitBlobSha"]:
+                    fail(f"upstream test input does not match its lock: {reference}")
+            files[key] = hashlib.sha256(data).hexdigest()
+        elif locked_files is not None and relative in locked_files:
+            # The upstream test sources are pinned by Git blob SHA and size in the checked-in index.
+            descriptor = json.dumps(
+                locked_files[relative], sort_keys=True, separators=(",", ":")
+            )
+            files[key] = hashlib.sha256(descriptor.encode("utf-8")).hexdigest()
+        else:
+            fail(f"missing validation input file: {reference}")
+    return files
+
+
+def validation_input_hashes(
+    row: dict,
+    repository: Path = REPO,
+    upstream: Path = UPSTREAM,
+) -> dict[str, str]:
+    """Hash the implementation and test files currently mapped to one ledger row."""
+    locked_upstream_tests = None
+    if upstream.resolve() == UPSTREAM.resolve():
+        try:
+            lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+            index_bytes = TEST_INDEX_PATH.read_bytes()
+            if hashlib.sha256(index_bytes).hexdigest() != lock.get("upstreamTestsIndexSha256"):
+                fail("upstream test index changed while hashing validation inputs")
+            test_index = json.loads(index_bytes.decode("utf-8"))
+            lock_entries = {entry["path"]: entry for entry in lock.get("upstreamTests", [])}
+            if set(lock_entries) != {entry["path"] for entry in test_index.get("files", [])}:
+                fail("upstream test index and lock file list differ while hashing validation inputs")
+            locked_upstream_tests = {}
+            for entry in test_index["files"]:
+                locked = lock_entries[entry["path"]]
+                if (entry.get("gitBlobSha"), entry.get("size")) != (
+                    locked.get("gitBlobSha"), locked.get("size")
+                ):
+                    fail(f"upstream test input lock mismatch: {entry['path']}")
+                locked_upstream_tests[entry["path"]] = {
+                    "gitBlobSha": entry["gitBlobSha"],
+                    "size": entry["size"],
+                }
+        except (OSError, json.JSONDecodeError) as error:
+            fail(f"cannot load upstream test input hashes: {error}")
+
+    implementation_files = _validation_input_files(
+        ";".join((row.get("local_candidate_refs", ""), row.get("local_implementation_refs", ""))),
+        repository,
+        "repo",
+    )
+    test_files = _validation_input_files(row.get("local_test_refs", ""), repository, "repo")
+    test_files.update(
+        _validation_input_files(
+            row.get("upstream_test_refs", ""), upstream, "upstream", locked_upstream_tests
+        )
+    )
+
+    def digest(files: dict[str, str]) -> str:
+        encoded = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    return {
+        "implementation_input_sha256": digest(implementation_files),
+        "test_input_sha256": digest(test_files),
+    }
+
+
+def validation_obligations(row: dict) -> list[str]:
+    """Return the compatibility obligations that apply to this ledger representation."""
+    if row.get("representation") == "JVM public ABI dump":
+        return ["jvm-descriptor"]
+    return ["native-source", "native-bridge"]
+
+
+def required_execution_lanes(obligations: list[str]) -> list[str]:
+    return [lane for obligation in obligations for lane in VALIDATION_LANES_BY_OBLIGATION[obligation]]
+
+
+def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
+    try:
+        lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
+        if lock.get("commit") != EXPECTED_TAG_COMMIT:
+            fail("validation execution catalogs use a different upstream commit")
+        catalogs = {}
+        for subject, path, lock_key in (
+            ("reference", REFERENCE_EXECUTIONS_PATH, "jvm_execution_catalog_sha256"),
+            ("candidate", CANDIDATE_EXECUTIONS_PATH, "native_execution_catalog_sha256"),
+        ):
+            contents = path.read_bytes()
+            if hashlib.sha256(contents).hexdigest() != lock.get(lock_key):
+                fail(f"{subject} execution catalog does not match its lock")
+            entries = json.loads(contents.decode("utf-8"))
+            if not isinstance(entries, list):
+                fail(f"{subject} execution catalog must be an array")
+            catalog = {}
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    fail(f"{subject} execution catalog contains a malformed entry")
+                execution_id = entry.get("execution_id")
+                case_id = entry.get("upstream_id")
+                if not isinstance(execution_id, str) or not execution_id:
+                    fail(f"{subject} execution catalog has an empty execution_id")
+                if not isinstance(case_id, str) or not case_id:
+                    fail(f"{subject} execution catalog has an empty upstream_id")
+                if execution_id in catalog:
+                    fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
+                catalog[execution_id] = case_id
+            catalogs[subject] = catalog
+        return catalogs
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"cannot load validation execution catalogs: {error}")
+
+
+def _case_id_matches_row(row: dict, case_id: str) -> bool:
+    case_path, separator, case_name = case_id.partition("#")
+    if not separator or not case_path or not case_name:
+        return False
+    for reference in row.get("upstream_test_refs", "").split(";"):
+        reference_path, marker, reference_name = reference.partition("#")
+        if not marker or case_path != reference_path:
+            continue
+        if reference_name == "suite-reference" or case_name == reference_name:
+            return True
+    return False
+
+
+def apply_validation_evidence(
+    rows: list[dict],
+    lock: dict,
+    evidence_path: Path = VALIDATION_EVIDENCE_PATH,
+    repository: Path = REPO,
+    upstream: Path = UPSTREAM,
+    execution_catalogs: dict[str, dict[str, str]] | None = None,
+) -> None:
+    """Promote rows only when their pinned, current evidence satisfies every obligation."""
+    by_id = {}
+    for row in rows:
+        row_id = row.get("row_id")
+        if not isinstance(row_id, str) or not row_id:
+            fail("API inventory row has an empty row_id")
+        if row_id in by_id:
+            fail(f"duplicate API inventory row_id: {row_id}")
+        by_id[row_id] = row
+        row["status"] = row.get("_inventory_status", row.get("status", "missing"))
+
+    try:
+        evidence = json.loads(
+            evidence_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object
+        )
+    except OSError as error:
+        fail(f"cannot read validation evidence {evidence_path}: {error}")
+    except json.JSONDecodeError as error:
+        fail(f"invalid validation evidence JSON: {error}")
+    except UnicodeDecodeError as error:
+        fail(f"validation evidence is not UTF-8: {error}")
+
+    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
+        fail("validation evidence must contain only schema_version and records")
+    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != VALIDATION_EVIDENCE_SCHEMA_VERSION:
+        fail("unsupported validation evidence schema_version")
+    records = evidence["records"]
+    if not isinstance(records, list):
+        fail("validation evidence records must be an array")
+    if records:
+        if execution_catalogs is None:
+            execution_catalogs = _load_validation_execution_catalogs()
+        if set(execution_catalogs) != {"reference", "candidate"}:
+            fail("validation execution catalogs must include reference and candidate entries")
+
+    record_fields = {
+        "row_id",
+        "candidate_sha",
+        "reference_version",
+        "reference_commit",
+        "implementation_input_sha256",
+        "test_input_sha256",
+        "compatibility_obligations",
+        "executions",
+    }
+    execution_fields = {"case_id", "lane", "reference", "candidate"}
+    result_fields = {"execution_id", "result", "exit_code"}
+    seen_ids = set()
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    candidate_sha_pattern = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+
+    for record in records:
+        if not isinstance(record, dict) or set(record) != record_fields:
+            fail("each validation record must contain exactly the schema v1 fields")
+        row_id = record["row_id"]
+        if not isinstance(row_id, str) or not row_id:
+            fail("validation record has an empty row_id")
+        if row_id in seen_ids:
+            fail(f"duplicate validation evidence row_id: {row_id}")
+        seen_ids.add(row_id)
+        row = by_id.get(row_id)
+        if row is None:
+            fail(f"validation evidence references unknown row_id: {row_id}")
+        if row["status"] != "unverified":
+            fail(f"validation evidence cannot promote {row_id} from status {row['status']}")
+
+        candidate_sha = record["candidate_sha"]
+        if not isinstance(candidate_sha, str) or not candidate_sha_pattern.fullmatch(candidate_sha):
+            fail(f"malformed candidate SHA for row {row_id}")
+        if (record["reference_version"], record["reference_commit"]) != (
+            lock.get("tag"),
+            lock.get("commit"),
+        ):
+            fail(f"reference version mismatch for row {row_id}")
+
+        hashes = validation_input_hashes(row, repository, upstream)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = record[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} for row {row_id}")
+            if value != hashes[field]:
+                fail(f"stale {field} for row {row_id}")
+
+        obligations = validation_obligations(row)
+        recorded_obligations = record["compatibility_obligations"]
+        if (not isinstance(recorded_obligations, list)
+                or recorded_obligations != obligations):
+            fail(f"compatibility obligations mismatch for row {row_id}")
+        executions = record["executions"]
+        if not isinstance(executions, list) or not executions:
+            fail(f"validation evidence has no executed cases for row {row_id}")
+        required_lanes = required_execution_lanes(obligations)
+        covered_lanes = set()
+        seen_cases = set()
+        seen_execution_ids = {"reference": set(), "candidate": set()}
+        for execution in executions:
+            if not isinstance(execution, dict) or set(execution) != execution_fields:
+                fail(f"malformed execution record for row {row_id}")
+            case_id = execution["case_id"]
+            lane = execution["lane"]
+            if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
+                fail(f"empty execution case_id for row {row_id}")
+            if not _case_id_matches_row(row, case_id):
+                fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
+            if not isinstance(lane, str) or lane not in required_lanes:
+                fail(f"unexpected validation lane {lane!r} for row {row_id}")
+            identity = (lane, case_id)
+            if identity in seen_cases:
+                fail(f"duplicate execution case {case_id!r} in lane {lane!r} for row {row_id}")
+            seen_cases.add(identity)
+            covered_lanes.add(lane)
+            for subject in ("reference", "candidate"):
+                result = execution[subject]
+                if not isinstance(result, dict) or set(result) != result_fields:
+                    fail(f"malformed {subject} result for row {row_id} case {case_id}")
+                execution_id = result["execution_id"]
+                if (not isinstance(execution_id, str) or not execution_id.strip()
+                        or execution_id != execution_id.strip()):
+                    fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
+                catalog_case_id = execution_catalogs[subject].get(execution_id)
+                if catalog_case_id is None:
+                    fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                if catalog_case_id != case_id:
+                    fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
+                execution_identity = (lane, execution_id)
+                if execution_identity in seen_execution_ids[subject]:
+                    fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
+                seen_execution_ids[subject].add(execution_identity)
+                if result["result"] != "PASS":
+                    fail(f"non-passing {subject} result for row {row_id} case {case_id}")
+                if type(result["exit_code"]) is not int or result["exit_code"] != 0:
+                    fail(f"non-zero {subject} exit code for row {row_id} case {case_id}")
+
+        missing_lanes = set(required_lanes) - covered_lanes
+        if missing_lanes:
+            fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
+        row["status"] = "verified"
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1442,6 +1767,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
     kinds = Counter(row["api_kind"] for row in rows)
     missing = [row for row in rows if row["status"] == "missing"]
     unverified = [row for row in rows if row["status"] == "unverified"]
+    verified = [row for row in rows if row["status"] == "verified"]
     source_rows = [row for row in rows if row["representation"] == "Kotlin source API / KLIB dump"]
     klib_internal_rows = [row for row in rows if row["representation"] == "Internal implementation ABI / KLIB dump"]
     abi_rows = [row for row in rows if row["representation"] == "JVM public ABI dump"]
@@ -1467,11 +1793,12 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         f"- `@PublishedApi internal` implementation ABI rows: **{len(internal_rows)}**.",
         f"- Rows marked missing because no exact owner/receiver/parameter local declaration was found: **{len(missing)}**.",
         f"- Rows with exact local declarations or generated ABI entries, without semantic verification: **{len(unverified)}**.",
+        f"- Rows promoted by current passing reference/candidate evidence: **{len(verified)}**.",
         f"- Public JVM exception typealiases tracked separately: **{sum(row['representation'] == 'Kotlin platform typealias' for row in rows)}**.",
         f"- Source exception contracts documented with `@throws`/`@Throws`: **{len(exception_rows)}** rows.",
         "- Source deprecation levels found: "
         + (", ".join(f"{level}={count}" for level, count in sorted(deprecation_counts.items())) or "none"),
-        "- No row is marked `verified` by this inventory generator; the test harness and behavior work own semantic verification.",
+        "- `verified` is derived only from current, passing evidence records; declaration matching and status strings alone cannot promote a row.",
         "",
         "`api-inventory.tsv` includes the authoritative KLIB source declaration and the JVM ABI entries as separate representations. "
         "KLIB records whose source declaration is internal/private are retained in their own implementation-ABI representation. "
@@ -1608,8 +1935,12 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
             if test_path not in tests:
                 fail(f"unlocked upstream test reference: {test_path}")
 
+    for row in api_rows:
+        row["_inventory_status"] = row["status"]
+
     pair_rows(api_rows)
     api_rows.sort(key=lambda row: (row["module"], row["representation"], row["row_id"]))
+    apply_validation_evidence(api_rows, lock)
     check_negative_guards(api_rows)
     scope_rows = parse_platform_public_declarations(sources, api_rows, index)
     return lock, api_rows, scope_rows
@@ -1617,12 +1948,36 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
+    mode = parser.add_mutually_exclusive_group(required=False)
     mode.add_argument("--write", action="store_true", help="regenerate the TSV and summary files")
     mode.add_argument("--check", action="store_true", help="verify inputs and generated outputs")
+    mode.add_argument("--show-input-hashes", metavar="ROW_ID", help="print current validation inputs for one ledger row")
     parser.add_argument("--verify-jars", type=Path, help="verify previously downloaded jars in this directory")
     parser.add_argument("--download-jars", action="store_true", help="download and verify the two pinned Maven Central jars")
     args = parser.parse_args()
+
+    if args.show_input_hashes:
+        if args.verify_jars or args.download_jars:
+            parser.error("--show-input-hashes cannot be combined with jar verification")
+        with LEDGER_PATH.open(encoding="utf-8", newline="") as stream:
+            matches = [row for row in csv.DictReader(stream, delimiter="\t")
+                       if row.get("row_id") == args.show_input_hashes]
+        if len(matches) != 1:
+            fail(f"expected exactly one ledger row with row_id {args.show_input_hashes!r}; found {len(matches)}")
+        hashes = validation_input_hashes(matches[0])
+        lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+        print(json.dumps({
+            "row_id": args.show_input_hashes,
+            "reference_version": lock["tag"],
+            "reference_commit": lock["commit"],
+            "compatibility_obligations": validation_obligations(matches[0]),
+            "required_execution_lanes": required_execution_lanes(validation_obligations(matches[0])),
+            **hashes,
+        }, indent=2))
+        return 0
+
+    if not args.write and not args.check:
+        parser.error("choose exactly one of --write, --check, or --show-input-hashes")
 
     lock, rows, scope_rows = build_outputs()
     ledger_text = render_tsv(LEDGER_PATH, LEDGER_COLUMNS, rows)

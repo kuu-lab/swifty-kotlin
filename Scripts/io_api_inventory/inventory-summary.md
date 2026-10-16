@@ -11,10 +11,11 @@ Kotlin compiler baseline: `2.3.10`.
 - `@PublishedApi internal` implementation ABI rows: **19**.
 - Rows marked missing because no exact owner/receiver/parameter local declaration was found: **5**.
 - Rows with exact local declarations or generated ABI entries, without semantic verification: **701**.
+- Rows promoted by current passing reference/candidate evidence: **0**.
 - Public JVM exception typealiases tracked separately: **3**.
 - Source exception contracts documented with `@throws`/`@Throws`: **241** rows.
 - Source deprecation levels found: ERROR=4
-- No row is marked `verified` by this inventory generator; the test harness and behavior work own semantic verification.
+- `verified` is derived only from current, passing evidence records; declaration matching and status strings alone cannot promote a row.
 
 `api-inventory.tsv` includes the authoritative KLIB source declaration and the JVM ABI entries as separate representations. KLIB records whose source declaration is internal/private are retained in their own implementation-ABI representation. The API dump cannot prove implementation semantics; Kotlin PSI and JVM metadata establish declaration identity, with `unverified` for exact local declarations and `missing` when none exists. `local_contract_differences` preserves parameter/default/visibility differences and `local_implementation_refs` points to source bodies or declared runtime bridges.
 
