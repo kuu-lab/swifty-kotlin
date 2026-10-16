@@ -183,6 +183,37 @@ func runtimeArrayHasAssignableComponent(rawValue: Int, targetComponent: Int) -> 
     return runtimeArrayComponentIsAssignable(sourceComponent, to: targetComponent)
 }
 
+func runtimeArrayElementIsAssignable(
+    _ value: RuntimeValue,
+    sourceComponent: Int?,
+    to targetComponent: Int?
+) -> Bool {
+    let rawValue = value.legacyRawValue
+    if rawValue == runtimeNullSentinelInt { return true }
+    guard let targetComponent,
+          let target = runtimeArrayComponentTypes.descriptor(targetComponent) else { return false }
+
+    let hasObjectIdentity = UnsafeMutableRawPointer(bitPattern: rawValue).map(runtimeIsObjectPointer) ?? false
+    let targetBase = Int64(target.classifier) & RuntimeTypeTokenEncoding.baseMask
+    if !hasObjectIdentity {
+        // Unboxed values have no dynamic class pointer. Use the source array's
+        // component as their JVM wrapper identity instead of kk_op_is, whose
+        // primitive checks intentionally accept unboxed words without knowing
+        // whether they came from Int, Long, Char, or another primitive.
+        if targetBase == RuntimeTypeTokenEncoding.anyBase { return true }
+        guard let sourceComponent,
+              runtimeArrayComponentIsAssignable(sourceComponent, to: targetComponent) else { return false }
+        return true
+    }
+
+    if kk_op_is(rawValue, target.classifier) != 0 {
+        guard target.element != 0 else { return true }
+        return runtimeArrayHasAssignableComponent(rawValue: rawValue, targetComponent: target.element)
+    }
+
+    return false
+}
+
 @_cdecl("__kk_array_new_same_component")
 public func __kk_array_new_same_component(_ sourceRaw: Int, _ size: Int) -> Int {
     guard let source = runtimeArrayBox(from: sourceRaw), size >= 0 else { return runtimeNullSentinelInt }
