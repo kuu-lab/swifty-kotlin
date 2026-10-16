@@ -127,55 +127,50 @@ golden mismatch が出る。これは `git checkout -- Sources` した素の状�
 の残存範囲だと考えている（詳細は `equal-constraint-lub-glb-pollution-bug` メモリファイル参照）。
 別タスクとして spawn_task 済み。
 
-## IO-F03: 固定版 ktor-io macOS source set（2026-10-16）
+## IO-F03: 固定版 ktor-io macOS consumer（2026-10-16）
 
-KUU-2404 は bundled coroutine source に top-level `kotlinx.coroutines.IO` を追加する。
-固定版 Ktor 3.6.0 の POSIX actual source はこの名前を import する一方、bundled stdlib の利用側からは
-`internal` 宣言を import できないため、KSwiftK の互換 alias は `public` とする。alias の getter は
-`Dispatchers.IO` を返すため dispatcher identity と挙動は既存 API と共有される。upstream
-kotlinx-coroutines 1.11.0 Native source の `internal` 宣言より可視性が広い互換面である。
+PR #9138 で actual-only companion call の解決を修正した。POSIX dispatcher が import する
+`kotlinx.coroutines.IO` は PR #9196（KUU-2404）で bundled coroutine source に追加済みである。
+その getter は `Dispatchers.IO` を返すため identity を共有する。KUU-2339（PR #9163）の platform-only
+supertype 対応も master に入っている。これらを前提に、固定した Ktor source と bundled library を
+使う再現ハーネス `Scripts/ktor_io_consumer.sh` を追加した。
 
-KUU-1824 の consumer 調査では、Ktor 3.6.0 tag を次の commit に固定した。
-Ktor の version catalog が宣言する依存は Kotlin 2.3.21、kotlinx-io 0.9.1、kotlinx-coroutines 1.11.0、
-atomicfu 0.33.0。
+入力の pin は次のとおり。スクリプトは Ktor の version catalog と、bundled kotlinx-io の
+`upstream-lock.json` に記録された commit を照合する。
 
 | 入力 | 固定値 |
 |---|---|
-| Ktor 3.6.0 | `111c5807d0a9004c8e0f17ae01e12a71aae56a29` |
-| kotlinx-io 0.9.1 | `362bdc35e159bad6da1e08101c8321792d762281` |
-| kotlinx-coroutines 1.11.0 | `8564f65764d3d05893cec026c6e94250e2b23874` |
-| Kotlin target | `arm64-apple-macosx` |
-| Ktor source set | `common`, `nonJvm`, `jvmAndPosix`, `posix`, `darwin`（63 files） |
-
-fresh stdlib `.kklib` を用意し、上記5つの `ktor-io` source root を1つの library として compile する。
-以下の source root とオプションを使い、`-O0` と `-O2` をそれぞれ実行する。
+| Ktor 3.6.0 | commit `111c5807d0a9004c8e0f17ae01e12a71aae56a29` |
+| kotlinx-io 0.9.1 | commit `362bdc35e159bad6da1e08101c8321792d762281` |
+| kotlinx-coroutines 1.11.0 | commit `8564f65764d3d05893cec026c6e94250e2b23874` |
+| Kotlin | 2.3.21 |
+| atomicfu | 0.33.0 |
+| target | `arm64-apple-macosx` |
+| `ktor-io` source roots | `common`, `nonJvm`, `jvmAndPosix`, `posix`, `darwin`（63 files） |
 
 ```bash
-KTOR_ROOT=/path/to/ktor-at-111c5807
-STDLIB_KKLIB=/path/to/fresh-stdlib.kklib
-roots=(common nonJvm jvmAndPosix posix darwin)
-sources=()
-for root in "${roots[@]}"; do
-  while IFS= read -r file; do sources+=("$file"); done \
-    < <(find "$KTOR_ROOT/ktor-io/$root/src" -type f -name '*.kt' | sort)
-done
-
-.build/debug/kswiftc --emit library -m ktor_io_macos -O0 \
-  --target arm64-apple-macosx --stdlib-library "$STDLIB_KKLIB" \
-  -I "$STDLIB_KKLIB" -o /tmp/ktor-io-macos-O0.kklib "${sources[@]}"
+swift build
+bash Scripts/ktor_io_consumer.sh
 ```
 
-2026-10-16 の O0/O2 compile はどちらも 63 files に対して 103 diagnostics で停止し、library artifact は生成されなかった。
-Ktor `common` source だけの compile は成功したが、expect declaration に actual がないため consumer library としては使えず、
-packet / stream / channel / ByteString の consumer compile・link・run はまだできていない。
+スクリプトは Ktor の commit と version catalog を検証し、fresh bundled stdlib `.kklib` を生成する。
+5 source roots をまとめて O0/O2 で library compile し、成功後に consumer を compile・link・実行する。
+consumer は packet、stream copy、UTF-8 / CRLF / 空行、buffered channel、flush / close / EOF、
+cancellation cause、ByteString peek、unsafe buffer read を扱い、各最適化で stdout を期待バイト列と
+完全比較する。プロセスの30秒 timeout でハングも検出する。全ログは既定で一時ディレクトリの
+`ktor-io-consumer-111c5807/out/` に残る。既知の fresh `.kklib` を使うときは
+`KTOR_IO_STDLIB_KKLIB=/path/to/KSwiftKStdlib.kklib` を指定できる。
 
-調査中に見つけた `expect class` にない `actual` companion member の class-name call 解決を修正し、
-`Charset.forName` / `Charset.isSupported` の unresolved を除去した。回帰は
-`Tests/CompilerCoreTests/Sema/ExpectActualCompatibilityTests.swift` に追加した。
-残る platform blockers は [KUU-2339](https://linear.app/kuu/issue/KUU-2339)、
-[KUU-2403](https://linear.app/kuu/issue/KUU-2403)、
-[KUU-2404](https://linear.app/kuu/issue/KUU-2404) に記録し、KUU-1824 の dependency に設定した。
-この結果は compile probe であり、consumer O0/O2 の link・実行・データ一致・非ハング検証の完了を意味しない。
+実行結果: `swift build` と fresh stdlib compile は成功。2026-10-16 の pinned 63-file library compile は
+O0/O2 とも `KSWIFTK` error 102件、warning 8件で停止し、library artifact は生成されなかった。
+主な残件は `PosixErrors.kt` の errno 定数、`ByteOrderNative.kt` の `Platform`、POSIX `memcpy` / pointer
+overload、`CharsetDarwin.kt` の Foundation 型・関数と型推論である。よってこの実行では consumer compile・
+link・run、stdout 一致、非ハングは未検証である。
+
+残る blocker は [KUU-2403](https://linear.app/kuu/issue/KUU-2403)（In Progress、PR #9197）と
+[KUU-2415](https://linear.app/kuu/issue/KUU-2415)（expect class を actual typealias で実装した際の
+重複宣言・member lookup）で、どちらもこの source set の library compile を妨げる。
+KUU-2404 と KUU-2339 はそれぞれ PR #9196 / #9163 で完了している。
 
 ## まとめ
 
