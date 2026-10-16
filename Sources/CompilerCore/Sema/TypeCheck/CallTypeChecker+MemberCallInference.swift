@@ -69,6 +69,7 @@ extension CallTypeChecker {
                 receiverID: receiverID,
                 receiverType: receiverType,
                 calleeName: calleeName,
+                isPropertyAccess: args.isEmpty && !ctx.ast.arena.isExplicitCall(id),
                 ctx: ctx
             )
         }
@@ -399,6 +400,7 @@ extension CallTypeChecker {
         receiverID: ExprID,
         receiverType: TypeID,
         calleeName: InternedString,
+        isPropertyAccess: Bool,
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
@@ -421,12 +423,21 @@ extension CallTypeChecker {
             let superType = sema.types.make(.classType(ClassType(classSymbol: superSymbol, args: typeArgs)))
             // Supertype selection precedes overload applicability: even different
             // parameter lists require super<T> when both supertypes define the name.
-            let members = driver.helpers.collectMemberFunctionCandidates(
-                named: calleeName,
-                receiverType: superType,
-                sema: sema,
-                interner: ctx.interner
-            )
+            let members: [SymbolID]
+            if isPropertyAccess {
+                members = driver.helpers.lookupMemberProperty(
+                    named: calleeName,
+                    receiverType: superType,
+                    sema: sema
+                ).map { [$0.symbol] } ?? []
+            } else {
+                members = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: superType,
+                    sema: sema,
+                    interner: ctx.interner
+                )
+            }
             guard !members.isEmpty else { continue }
             memberSupertypes.append(superType)
             let concreteMembers = members.filter { sema.symbols.symbol($0)?.flags.contains(.abstractType) == false }
