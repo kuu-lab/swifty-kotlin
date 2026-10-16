@@ -98,6 +98,31 @@ extension CallTypeChecker {
                     expectedType: nil
                 )
                 callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
+            } else if let property = implicitReceiverFunctionProperty(named: calleeName, ctx: ctx) {
+                guard let propertySymbol = sema.symbols.symbol(property.symbol) else {
+                    return nil
+                }
+                guard ctx.visibilityChecker.isAccessible(
+                    propertySymbol,
+                    fromFile: ctx.currentFileID,
+                    enclosingClass: ctx.enclosingClassSymbol
+                ) else {
+                    driver.helpers.emitVisibilityError(
+                        for: propertySymbol,
+                        name: interner.resolve(calleeName),
+                        range: range,
+                        diagnostics: sema.diagnostics
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+                callableCalleeType = driver.inferExpr(
+                    calleeID,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: nil
+                )
+                callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
             }
         } else if calleeName == nil {
             let contextualCalleeType: TypeID?
@@ -241,6 +266,31 @@ extension CallTypeChecker {
             }
         }
 
+        return nil
+    }
+
+    /// Finds the first implicit-receiver property that name lookup would read.
+    /// The caller only uses it after ordinary call candidates and scoped values
+    /// have had their existing resolution priority.
+    func implicitReceiverFunctionProperty(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        let sema = ctx.sema
+        for receiver in ctx.implicitReceiverMemberLookupEntries() {
+            guard let property = driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: sema.types.makeNonNullable(receiver.type),
+                sema: sema
+            ) else {
+                continue
+            }
+            guard case let .functionType(function) = sema.types.kind(of: property.type),
+                  function.nullability == .nonNull else {
+                return nil
+            }
+            return property
+        }
         return nil
     }
 }
