@@ -57,6 +57,21 @@ extension ExprLowerer {
         {
             return receiverExprID
         }
+        if let receiverSymbol = sema.bindings.identifierSymbol(for: exprID),
+           sema.symbols.symbol(receiverSymbol)?.kind == .object
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: receiverSymbol,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let receiverType = boundType ?? sema.symbols.propertyType(for: receiverSymbol) ?? sema.types.anyType
+            let receiver = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(receiverSymbol)))
+            return receiver
+        }
         if let label,
            let receiverExprID = driver.ctx.qualifiedThisReceiverExprID(for: label)
         {
