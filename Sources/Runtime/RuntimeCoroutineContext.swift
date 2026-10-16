@@ -224,6 +224,14 @@ func runtimeCanonicalCoroutineContext(_ context: RuntimeCoroutineContext) -> Run
     RuntimeCoroutineContextCanonicalizer.shared.canonical(context)
 }
 
+/// Whether two runtime context models contain the same elements in the same order.
+func runtimeCoroutineContextsHaveSameContent(
+    _ lhs: RuntimeCoroutineContext,
+    _ rhs: RuntimeCoroutineContext
+) -> Bool {
+    RuntimeCoroutineContextIdentity(lhs) == RuntimeCoroutineContextIdentity(rhs)
+}
+
 /// The canonical object for the given content, creating it only on a miss so
 /// repeated `coroutineContext` reads on an unchanged context allocate nothing.
 func runtimeCanonicalCoroutineContext(
