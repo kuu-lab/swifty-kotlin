@@ -24,7 +24,9 @@ extension CallTypeChecker {
         memberExtensionReceiverMarks: inout [SymbolID: SymbolID],
         mergedImplicitReceiverMembers: inout [SymbolID],
         callInvisible: inout [SemanticSymbol],
-        knownApplicableImplicitMembers: inout Set<SymbolID>
+        knownApplicableImplicitMembers: inout Set<SymbolID>,
+        typeNameCompanionInvokeCandidates: inout Set<SymbolID>,
+        typeNameCompanionInvokeReceiverType: inout TypeID?
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -333,7 +335,8 @@ extension CallTypeChecker {
                 // handling below.
                 let scopedClassSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                    return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass || symbol.kind == .object
+                    return symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass
+                        || symbol.kind == .annotationClass || symbol.kind == .object
                 }).filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate),
                           symbol.flags.contains(.expectDeclaration)
@@ -343,7 +346,7 @@ extension CallTypeChecker {
                 let inheritedClassSymbols = inheritedNestedClassifiers(named: calleeName, in: ctx)
                 let localClassSymbol = locals[calleeName].flatMap { local -> SymbolID? in
                     guard let symbol = ctx.cachedSymbol(local.symbol),
-                          symbol.kind == .class || symbol.kind == .enumClass
+                          symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass
                             || symbol.kind == .annotationClass || symbol.kind == .object
                     else { return nil }
                     return local.symbol
@@ -353,13 +356,40 @@ extension CallTypeChecker {
                     ?? inheritedClassSymbols.first
                     ?? scopedClassSymbols.first
                 if let classSym, let classSymbol = ctx.cachedSymbol(classSym) {
-                    if classSymbol.flags.contains(.abstractType) {
+                    if let companionSymbol = sema.symbols.companionObjectSymbol(for: classSym) {
+                        let companionType = sema.symbols.propertyType(for: companionSymbol)
+                            ?? sema.types.make(.classType(ClassType(
+                                classSymbol: companionSymbol,
+                                args: [],
+                                nullability: .nonNull
+                            )))
+                        let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+                            named: interner.intern("invoke"),
+                            receiverType: companionType,
+                            sema: sema,
+                            interner: interner
+                        ).filter { candidate in
+                            sema.symbols.symbol(candidate)?.flags.contains(.operatorFunction) == true
+                        }
+                        let (visibleInvokes, invisibleInvokes) = ctx.filterByVisibility(invokeCandidates)
+                        candidates.append(contentsOf: visibleInvokes)
+                        callInvisible.append(contentsOf: invisibleInvokes)
+                        typeNameCompanionInvokeCandidates.formUnion(visibleInvokes)
+                        if !visibleInvokes.isEmpty {
+                            typeNameCompanionInvokeReceiverType = companionType
+                        }
+                    }
+
+                    if classSymbol.kind == .interface {
+                        // Interfaces have no constructors; any call candidate
+                        // added above must come from the companion object.
+                    } else if classSymbol.flags.contains(.abstractType) {
                         // P5-112: Prohibit direct instantiation of abstract classes,
                         // but only when there is no other viable candidate (e.g. a
                         // coexisting top-level factory function): an abstract
                         // class's own constructor is never itself a usable call
                         // target, so it must not blot out a real candidate.
-                        if candidates.isEmpty {
+                        if candidates.isEmpty, callInvisible.isEmpty {
                             let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                             ctx.sema.diagnostics.error(
                                 "KSWIFTK-SEMA-ABSTRACT",
@@ -412,7 +442,13 @@ extension CallTypeChecker {
                                     return true
                                 }
                                 return !candidates.contains { existingID in
-                                    sema.symbols.functionSignature(for: existingID)?.parameterTypes == ctorSignature.parameterTypes
+                                    // A same-signature companion `invoke` is a
+                                    // distinct call target: Kotlin prefers the
+                                    // constructor when applicable, then falls
+                                    // back to `invoke` when it is not.
+                                    !typeNameCompanionInvokeCandidates.contains(existingID)
+                                        && sema.symbols.functionSignature(for: existingID)?.parameterTypes
+                                        == ctorSignature.parameterTypes
                                 }
                             }
                             candidates.append(contentsOf: newCtorVis)
