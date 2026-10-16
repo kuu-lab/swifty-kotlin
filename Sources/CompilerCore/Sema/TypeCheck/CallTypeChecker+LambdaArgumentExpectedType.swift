@@ -51,7 +51,8 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
-        guard signature.classTypeParameterCount > 0,
+        guard sema.symbols.symbol(candidate)?.kind != .constructor,
+              signature.classTypeParameterCount > 0,
               let owner = sema.symbols.parentSymbol(for: candidate)
         else { return parameterType }
         let receivers = ctx.implicitReceiverStack.reversed().map(\.type)
