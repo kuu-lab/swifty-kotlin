@@ -4,6 +4,7 @@ import csv
 import json
 import contextlib
 import io
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -116,6 +117,107 @@ class F02GateTests(unittest.TestCase):
         matrix.check_ledger_events(complete, manifest)
         for invalid in (complete.replace(b"CALL:a:1\nCALL-END:a:1\n", b""), complete + b"END:a\n"):
             with self.assertRaises(RuntimeError): matrix.check_ledger_events(invalid, manifest)
+
+    def test_segment_limit_probe_checks_jvm_accessor_descriptors_and_synthetic_flags(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-limit-internal-boundary")
+        self.assertTrue(case["fixture"].is_file())
+        expected_rows = [
+            "internal-11e61a31ae5fe3d2",
+            "jvm-92721bc63200d18d",
+            "jvm-98dc8444d3a4ea0f",
+            "klib-2d963e0c76f5e362",
+            "klib-b170c0f57a48a601",
+            "klib-c08a0991fed339e4",
+        ]
+        self.assertEqual(case["row_ids"], expected_rows)
+        hashes_by_row = matrix.validation_input_hashes_for_rows(case["row_ids"])
+        self.assertEqual(set(hashes_by_row), set(expected_rows))
+        self.assertTrue(all(set(hashes) == {"implementation_input_sha256", "test_input_sha256"}
+                            for hashes in hashes_by_row.values()))
+        output = """\
+public final class kotlinx.io.Segment {
+  public final int getLimit();
+    descriptor: ()I
+    flags: (0x1011) ACC_PUBLIC, ACC_FINAL, ACC_SYNTHETIC
+
+  public final void setLimit(int);
+    descriptor: (I)V
+    flags: (0x1011) ACC_PUBLIC, ACC_FINAL, ACC_SYNTHETIC
+}
+"""
+        result = matrix.check_jvm_abi(output, case["jvm_abi"])
+        self.assertEqual([method["descriptor"] for method in result["methods"]], ["()I", "(I)V"])
+        with self.assertRaisesRegex(RuntimeError, "descriptor mismatch"):
+            matrix.check_jvm_abi(output.replace("descriptor: (I)V", "descriptor: ()V"), case["jvm_abi"])
+        with self.assertRaisesRegex(RuntimeError, "ACC_SYNTHETIC"):
+            matrix.check_jvm_abi(output.replace("ACC_FINAL, ACC_SYNTHETIC", "ACC_FINAL", 1), case["jvm_abi"])
+
+    def test_segment_limit_candidate_klib_preserves_property_and_accessor_contract(self):
+        record = (
+            "property symbol fq=kotlinx.io.Segment.limit schema=v1 visibility=internal "
+            "sig=I mutable=1 annotations=kotlin.PublishedApi|retention:BINARY;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:get;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:set\n"
+        ).encode()
+        strings = ["", "kotlinx.io.Segment.limit", "_segment_limit"]
+        string_table = b"".join(
+            struct.pack("<I", len(value.encode("utf-8"))) + value.encode("utf-8")
+            for value in strings
+        )
+
+        def metadata_with_record(
+            body_record: bytes, *, compact_visibility: int = 2, compact_mutable: bool = True,
+        ) -> bytes:
+            flags = (1 << 6) if compact_mutable else 0
+            entry = struct.pack(
+                "<QQIIII12I", 0, len(body_record), 0, flags, 9, compact_visibility,
+                1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            )
+            return (
+                b"kklib-metadata-v3\n"
+                + struct.pack("<IIII", 1, len(strings), len(string_table), 80)
+                + string_table + entry + body_record
+            )
+
+        result = matrix.check_segment_limit_metadata(metadata_with_record(record))
+        self.assertEqual(result["visibility"], "internal")
+        self.assertEqual(result["signature"], "Int")
+        self.assertTrue(result["mutable"])
+        self.assertIsNone(result["getter_link"])
+        self.assertIsNone(result["setter_link"])
+        self.assertEqual(result["accessor_link_mode"], "property-backed")
+        self.assertEqual(result["compact_index"]["visibility"], "internal")
+        self.assertTrue(result["compact_index"]["mutable"])
+        self.assertTrue(result["property_record_sha256"])
+
+        with self.assertRaisesRegex(RuntimeError, "property is not internal"):
+            matrix.check_segment_limit_metadata(
+                metadata_with_record(record.replace(b"visibility=internal", b"visibility=public"))
+            )
+        with self.assertRaisesRegex(RuntimeError, "annotations mismatch"):
+            matrix.check_segment_limit_metadata(
+                metadata_with_record(record.replace(b"target:set", b"target:field"))
+            )
+        with self.assertRaisesRegex(RuntimeError, "Int signature mismatch"):
+            matrix.check_segment_limit_metadata(metadata_with_record(record.replace(b"sig=I", b"sig=J")))
+        with self.assertRaisesRegex(RuntimeError, "property is not mutable"):
+            matrix.check_segment_limit_metadata(metadata_with_record(record.replace(b"mutable=1 ", b"")))
+        with self.assertRaisesRegex(RuntimeError, "compact-index visibility is not internal"):
+            matrix.check_segment_limit_metadata(metadata_with_record(record, compact_visibility=0))
+        with self.assertRaisesRegex(RuntimeError, "compact-index property is not mutable"):
+            matrix.check_segment_limit_metadata(metadata_with_record(record, compact_mutable=False))
+
+        legacy_record = (
+            "property symbol fq=kotlinx.io.Segment.limit schema=v1 visibility=internal sig=I "
+            "getterLink=kk_segment_limit_get setterLink=kk_segment_limit_set mutable=1 "
+            "annotations=kotlin.PublishedApi|retention:BINARY;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:get;"
+            "kotlin.jvm.JvmSynthetic|retention:BINARY|target:set\n"
+        ).encode()
+        legacy_result = matrix.check_segment_limit_metadata(b"kklib-metadata-v2\nbody\n" + legacy_record)
+        self.assertEqual(legacy_result["getter_link"], "kk_segment_limit_get")
+        self.assertEqual(legacy_result["setter_link"], "kk_segment_limit_set")
+        self.assertEqual(legacy_result["accessor_link_mode"], "explicit")
 
     def test_only_owned_path_prefixes_are_normalized(self):
         work = Path("/private/tmp/f02/lane/run-work")
