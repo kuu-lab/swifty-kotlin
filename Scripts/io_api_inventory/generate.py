@@ -27,6 +27,7 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+PROBE_EXECUTIONS_PATH = HERE / "api-probe-executions.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -382,6 +383,31 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        inventory_lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+        probe_bytes = PROBE_EXECUTIONS_PATH.read_bytes()
+        if hashlib.sha256(probe_bytes).hexdigest() != inventory_lock.get("probeExecutionCatalogSha256"):
+            fail("local API probe execution catalog does not match its lock")
+        probe_catalog = json.loads(probe_bytes.decode("utf-8"))
+        if (not isinstance(probe_catalog, dict)
+                or set(probe_catalog) != {"schema_version", "executions"}
+                or type(probe_catalog["schema_version"]) is not int
+                or probe_catalog["schema_version"] != 1
+                or not isinstance(probe_catalog["executions"], list)):
+            fail("local API probe execution catalog has an invalid schema")
+        for entry in probe_catalog["executions"]:
+            if not isinstance(entry, dict) or set(entry) != {"subject", "execution_id", "case_id"}:
+                fail("local API probe execution catalog contains a malformed entry")
+            subject = entry["subject"]
+            execution_id = entry["execution_id"]
+            case_id = entry["case_id"]
+            if subject not in catalogs:
+                fail("local API probe execution catalog has an unknown subject")
+            if (not isinstance(execution_id, str) or not execution_id
+                    or not isinstance(case_id, str) or not case_id):
+                fail("local API probe execution catalog has an empty execution or case ID")
+            if execution_id in catalogs[subject]:
+                fail(f"duplicate {subject} execution ID in validation catalogs: {execution_id}")
+            catalogs[subject][execution_id] = case_id
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
@@ -391,7 +417,11 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
-    for reference in row.get("upstream_test_refs", "").split(";"):
+    references = (
+        row.get("upstream_test_refs", "").split(";")
+        + row.get("local_test_refs", "").split(";")
+    )
+    for reference in references:
         reference_path, marker, reference_name = reference.partition("#")
         # A suite mapping is a discovery hint, not row-level execution evidence.
         if not marker or reference_name == "suite-reference" or case_path != reference_path:
@@ -438,11 +468,10 @@ def apply_validation_evidence(
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
-    if records:
-        if execution_catalogs is None:
-            execution_catalogs = _load_validation_execution_catalogs()
-        if set(execution_catalogs) != {"reference", "candidate"}:
-            fail("validation execution catalogs must include reference and candidate entries")
+    if execution_catalogs is None:
+        execution_catalogs = _load_validation_execution_catalogs()
+    if set(execution_catalogs) != {"reference", "candidate"}:
+        fail("validation execution catalogs must include reference and candidate entries")
 
     record_fields = {
         "row_id",
@@ -1239,6 +1268,12 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in {
+        "internal-659f2b30aca378db",
+        "jvm-11b8ac13bf35acdc",
+        "klib-fd49c613d2925d70",
+    }:
+        return "KUU-2593"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1522,6 +1557,24 @@ def local_contract_differences(row: dict, index: SourceIndex) -> str:
 
 
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
+    direct_probe_refs = {
+        "internal-659f2b30aca378db": [
+            "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+            "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal",
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSegmentIsEmptyMetadataTests.swift#freshStdlibKlibRetainsPublishedInternalPredicateShape",
+        ],
+        "klib-fd49c613d2925d70": [
+            "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe",
+            "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal",
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSegmentIsEmptyMetadataTests.swift#freshStdlibKlibRetainsPublishedInternalPredicateShape",
+        ],
+        "jvm-11b8ac13bf35acdc": [
+            "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_is_empty_jvm_descriptor",
+            "Tests/CompilerBackendTests/Integration/KotlinxIOSegmentIsEmptyMetadataTests.swift#freshStdlibKlibRetainsPublishedInternalPredicateShape",
+        ],
+    }
+    if row.get("row_id") in direct_probe_refs:
+        return direct_probe_refs[row["row_id"]]
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []

@@ -254,15 +254,35 @@ descriptor evidence.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must match a method-specific upstream test reference for that row;
-`#suite-reference` discovery metadata cannot authorize an arbitrary case from
-the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
-and reads the evidence file without rewriting it. `--check` verifies upstream
-snapshots, the test index lock, negative guards, evidence, any execution
+unrun executions, duplicate cases, and missing or unrelated lanes. A case ID
+must match either a method-specific upstream test reference or an exact local
+probe function reference for that row. `#suite-reference` discovery metadata
+cannot authorize an arbitrary case from the same file. Upstream execution IDs
+are checked against the locked JVM and Native catalogs; local API probe IDs are
+checked against the separately hashed `api-probe-executions.json` catalog.
+Evidence-bearing API probe cases always run separately so each receipt retains its
+method-specific execution ID, even when the general matrix uses batching.
+`--write` changes only the three generated ledger output files and reads the
+evidence file without rewriting it. `--check` verifies upstream snapshots, the
+test index lock, the local probe catalog, negative guards, evidence, execution
 catalogs used by evidence, and byte-for-byte output without modifying files.
+
+The `Segment.isEmpty()` probe is a local direct consumer because the pinned
+upstream tests have no method-specific assertion for this internal predicate.
+It exercises empty, non-empty, and consumed states against Kotlin 2.3.10, then
+runs source, fresh stdlib-library, and independent library-consumer lanes at O0
+and O2. It also checks the negative visibility boundary and the pinned
+`SegmentKt.isEmpty(Segment): boolean` JVM descriptor. A targeted Swift test
+reads the compiled stdlib KLIB metadata and verifies its receiver, internal
+visibility, and `PublishedApi` marker:
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --case segment-is-empty \
+  --output /tmp/kuu-2593-segment-is-empty \
+  --kotlin-home /path/to/kotlin-2.3.10 \
+  --java /path/to/java21/bin/java --dependencies .runtime-build/deps
+```
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

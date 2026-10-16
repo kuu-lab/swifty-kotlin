@@ -7,6 +7,7 @@ immutable artifact receipts. A selected passing subset is never issue completion
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
@@ -131,7 +132,20 @@ def scenarios() -> list[dict]:
                   "consumer": apple / pins["consumer"], "entry": pins["entry"],
                   "expected": apple / pins["expected"], "provenance": apple / "originals-provenance.json",
                   "reference": "pinned-Native-derived-original-assertions", "host": "darwin"})
+    segment_is_empty = HERE / "probes/segment_is_empty"
+    cases.append({"id": "segment-is-empty", "producer": [segment_is_empty / "Producer.kt"],
+                  "consumer": segment_is_empty / "Consumer.kt",
+                  "negative_consumer": segment_is_empty / "NegativeConsumer.kt",
+                  "entry": "kuu2593.segmentisemptyconsumer.main",
+                  "jvm_class": "kuu2593.segmentisemptyconsumer.ConsumerKt", "reference": "jvm",
+                  "evidence_id_prefix": "io-probe:segment-is-empty",
+                  "evidence_case_id": "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe"})
     return cases
+
+
+def run_cases_separately(selected: list[dict], requested: bool) -> bool:
+    """Keep evidence-bearing API probes mapped to their individual execution IDs."""
+    return requested or any(case.get("evidence_id_prefix") for case in selected)
 
 
 def prepare(case: dict, directory: Path) -> tuple[list[Path], Path]:
@@ -292,11 +306,96 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
     expected_inputs = {name + ".evidence" if route == "producer-consumer" and name in producer_names else name: digest
                        for name, digest in inputs_before.items()}
     if snapshot(directory / "inputs") != expected_inputs: raise RuntimeError("staged inputs changed")
-    return {"status": "PASS", "route": route, "optimization": optimization,
+    result = {"status": "PASS", "route": route, "optimization": optimization,
             "stdlib_files_sha256": stdlib_before, "producer_files_sha256": artifact_before,
             "inputs_sha256": inputs_before, "executable_sha256": sha(binary), "stdout_sha256": sha(directory / "run.stdout"),
+            "output_line_count": len(stdout.splitlines()), "stdout_byte_count": len(stdout),
             "normalized_stdout_sha256": hashlib.sha256(observed).hexdigest(),
             "reference_kind": case["reference"], "compiler_processes_separated": route == "producer-consumer"}
+    if case.get("evidence_id_prefix"):
+        result["execution_id"] = f"{case['evidence_id_prefix']}:candidate:{route}-{optimization}"
+    return result
+
+
+def check_segment_is_empty_jvm_descriptor(javap: Path, core_jar: Path, output: Path) -> dict:
+    case_id = "Scripts/io_api_inventory/run_f02_matrix.py#check_segment_is_empty_jvm_descriptor"
+    javap_directory = output / "segment-is-empty-jvm-descriptor"
+    javap_directory.mkdir()
+    command = [str(javap), "-p", "-s", "-classpath", str(core_jar), "kotlinx.io.SegmentKt"]
+    code = execute(command, javap_directory, "javap", 30)
+    if code != 0:
+        raise RuntimeError("javap failed for the pinned kotlinx-io JVM artifact")
+    stdout = (javap_directory / "javap.stdout").read_bytes()
+    text = stdout.decode("utf-8")
+    method = re.search(
+        r"(?m)^\s*public static final boolean isEmpty\(kotlinx\.io\.Segment\);\s*\n\s*descriptor: \(Lkotlinx/io/Segment;\)Z$",
+        text,
+    )
+    if method is None:
+        raise RuntimeError("pinned JVM SegmentKt lacks public static isEmpty(Segment):boolean")
+    api_path = HERE / "upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.api"
+    api_text = api_path.read_text(encoding="utf-8")
+    api_signature = "public static final fun isEmpty (Lkotlinx/io/Segment;)Z"
+    if api_signature not in api_text:
+        raise RuntimeError("pinned JVM API dump no longer records the SegmentKt isEmpty descriptor")
+    ledger_path = HERE / "api-inventory.tsv"
+    with ledger_path.open(encoding="utf-8", newline="") as stream:
+        rows = [row for row in csv.DictReader(stream, delimiter="\t")
+                if row.get("row_id") == "jvm-11b8ac13bf35acdc"]
+    if len(rows) != 1:
+        raise RuntimeError("SegmentKt JVM API row is missing or duplicated")
+    row = rows[0]
+    if (row["signature"] != api_signature or row["owner_issue"] != "KUU-2593"
+            or "PublishedApi" not in row["annotations"]
+            or row["status"] not in {"unverified", "verified"}):
+        raise RuntimeError("generated SegmentKt JVM ledger row does not match the pinned declaration")
+    return {
+        "case_id": case_id,
+        "reference": {"execution_id": "io-probe:segment-is-empty:jvm-descriptor:reference",
+                      "result": "PASS", "exit_code": 0, "javap_stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+                      "api_dump_sha256": sha(api_path)},
+        "candidate": {"execution_id": "io-probe:segment-is-empty:jvm-descriptor:candidate",
+                      "result": "PASS", "exit_code": 0, "row_id": row["row_id"],
+                      "signature": row["signature"], "owner_issue": row["owner_issue"]},
+        "javap_command": command,
+    }
+
+
+def check_segment_is_empty_visibility(
+    compiler: Path, stdlib: Path, negative_consumer: Path, kotlin_home: Path,
+    java: Path, core_jar: Path, output: Path, timeout: float,
+) -> dict:
+    case_id = "Scripts/io_api_inventory/probes/segment_is_empty/NegativeConsumer.kt#segmentIsEmptyMustRemainInternal"
+    reference_directory = output / "segment-is-empty-reference-visibility"
+    candidate_directory = output / "segment-is-empty-candidate-visibility"
+    reference_directory.mkdir()
+    candidate_directory.mkdir()
+    reference_jar = reference_directory / "negative.jar"
+    reference_command = [str((kotlin_home / "bin/kotlinc").resolve()), str(negative_consumer),
+                         "-classpath", str(core_jar), "-d", str(reference_jar)]
+    reference_code = execute(reference_command, reference_directory, "compile", timeout,
+                             {"JAVA_HOME": str(java.resolve().parent.parent)})
+    candidate_output = candidate_directory / "negative"
+    candidate_command = [str(compiler), "-O0", "--no-incremental", "--stdlib-library", str(stdlib),
+                         str(negative_consumer), "-o", str(candidate_output)]
+    candidate_code = execute(candidate_command, candidate_directory, "compile", timeout)
+    results = {}
+    for subject, code, directory, execution_id in (
+        ("reference", reference_code, reference_directory, "io-probe:segment-is-empty:visibility:reference"),
+        ("candidate", candidate_code, candidate_directory, "io-probe:segment-is-empty:visibility:candidate"),
+    ):
+        stdout = (directory / "compile.stdout").read_bytes()
+        stderr = (directory / "compile.stderr").read_bytes()
+        diagnostic = (stdout + stderr).decode("utf-8", errors="replace").lower()
+        if code == 0 or "isempty" not in diagnostic or not any(
+            marker in diagnostic for marker in ("internal", "invisible", "visibility")
+        ):
+            raise RuntimeError(f"{subject} compiler did not reject the unsuppressed internal isEmpty call")
+        results[subject] = {"execution_id": execution_id, "result": "PASS", "exit_code": 0,
+                            "rejection_exit_code": code,
+                            "diagnostic_sha256": hashlib.sha256(stdout + stderr).hexdigest()}
+    return {"case_id": case_id, **results,
+            "commands": {"reference": reference_command, "candidate": candidate_command}}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -321,20 +420,24 @@ def main(argv: list[str] | None = None) -> int:
         identifiers = {case["id"] for case in selected}
         if len(set(args.case)) != len(args.case) or set(args.case) - identifiers: parser.error("unknown/duplicate case")
         selected = [case for case in selected if case["id"] in args.case]
+    separate_cases = run_cases_separately(selected, args.separate_cases)
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
-               "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "subset": bool(args.case), "separate_cases": separate_cases,
+               "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
         provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
                       HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "api-probe-executions.json",
                       ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
-        scenario_inputs |= {case[key] for case in selected for key in ("consumer", "expected", "fixture", "provenance") if key in case}
+        scenario_inputs |= {case[key] for case in selected for key in
+                            ("consumer", "expected", "fixture", "provenance", "negative_consumer") if key in case}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
         resources = next((path for path in (
             compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
@@ -372,6 +475,20 @@ def main(argv: list[str] | None = None) -> int:
                 or manifest.get("kotlinLanguageVersion") != CANDIDATE_KOTLIN_LANGUAGE_VERSION):
             raise RuntimeError("stdlib artifact module/language mismatch")
         summary["stdlib_files_sha256"] = snapshot(stdlib)
+        segment_case = next((case for case in selected if case["id"] == "segment-is-empty"), None)
+        if segment_case is not None:
+            core_jar = next((jar for jar in jars if jar.name.startswith("kotlinx-io-core-jvm-")), None)
+            if core_jar is None:
+                raise RuntimeError("the locked kotlinx-io core JVM artifact is required for Segment probes")
+            javap = args.java.resolve().parent / "javap"
+            if not javap.is_file():
+                raise RuntimeError("javap from the locked Java 21 runtime is required for Segment ABI verification")
+            descriptor = check_segment_is_empty_jvm_descriptor(javap, core_jar, output)
+            visibility = check_segment_is_empty_visibility(
+                compiler, stdlib, segment_case["negative_consumer"], args.kotlin_home.resolve(),
+                args.java.resolve(), core_jar, output, args.compile_timeout,
+            )
+            summary["api_probe_checks"] = {"jvm_descriptor": descriptor, "internal_visibility": visibility}
         def record_lane(case: dict, expected: bytes, directory: Path, route: str, optimization: str) -> None:
             print(f"RUN {case['id']} {route} {optimization}", flush=True)
             try:
@@ -380,6 +497,19 @@ def main(argv: list[str] | None = None) -> int:
                 result = {"status": "FAIL", "route": route, "optimization": optimization,
                           "error": str(error), "evidence_directory": str(directory)}
             summary["results"].append({"case": case["id"], **result})
+            if case.get("evidence_id_prefix"):
+                probe = summary.setdefault("api_probe_runs", {}).setdefault(case["id"], {
+                    "case_id": case["evidence_case_id"], "reference": None, "candidate": []
+                })
+                probe["candidate"].append({
+                    "execution_id": result.get("execution_id"),
+                    "lane": result.get("route", route) + "-" + result.get("optimization", optimization),
+                    "result": result.get("status", "FAIL"),
+                    "exit_code": 0 if result.get("status") == "PASS" else None,
+                    "stdout_sha256": result.get("stdout_sha256"),
+                    "normalized_stdout_sha256": result.get("normalized_stdout_sha256"),
+                    "output_line_count": result.get("output_line_count"),
+                })
             save(output / "summary.json", summary)
             print(f"{result['status']} {case['id']} {route} {optimization}", flush=True)
 
@@ -407,14 +537,27 @@ def main(argv: list[str] | None = None) -> int:
                 reject_unhandled_events(expected)
                 if (directory / "reference-run.stderr").read_bytes(): raise RuntimeError("reference runtime stderr")
                 if case.get("ledger"): check_ledger_events(expected, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
+                if case.get("evidence_id_prefix"):
+                    summary.setdefault("api_probe_runs", {})[case["id"]] = {
+                        "case_id": case["evidence_case_id"],
+                        "reference": {
+                            "execution_id": f"{case['evidence_id_prefix']}:reference",
+                            "result": "PASS", "exit_code": 0,
+                            "stdout_sha256": sha(directory / "reference-run.stdout"),
+                            "normalized_stdout_sha256": hashlib.sha256(expected).hexdigest(),
+                            "output_line_count": len(expected.splitlines()),
+                            "stdout_byte_count": len(expected),
+                        },
+                        "candidate": [],
+                    }
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
             expectations.append(expected)
-            if not args.separate_cases: continue
+            if not separate_cases: continue
             for route, optimization in LANES:
                 record_lane(case, expected, directory / f"{route}-{optimization}", route, optimization)
-        if not args.separate_cases:
+        if not separate_cases:
             summary["selected_reference_kinds"] = {case["id"]: case["reference"] for case in selected}
             # The original Native test module has helper declarations in actual
             # stdlib packages. Keep that module's failures independent so its

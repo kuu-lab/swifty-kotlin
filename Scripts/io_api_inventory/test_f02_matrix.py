@@ -30,6 +30,22 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_segment_is_empty_has_a_dedicated_direct_consumer_case(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "segment-is-empty")
+        producer = case["producer"][0].read_text(encoding="utf-8")
+        consumer = case["consumer"].read_text(encoding="utf-8")
+        negative = case["negative_consumer"].read_text(encoding="utf-8")
+        self.assertEqual(case["evidence_case_id"],
+                         "Scripts/io_api_inventory/probes/segment_is_empty/Producer.kt#segmentIsEmptyProbe")
+        self.assertIn("segment.isEmpty()", producer)
+        self.assertIn("segmentIsEmptyProbe()", consumer)
+        self.assertIn("segment.isEmpty()", negative)
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(len(matrix.LANES), 6)
+        self.assertTrue(matrix.run_cases_separately([case], requested=False))
+        self.assertFalse(matrix.run_cases_separately([{"id": "ordinary"}], requested=False))
+        self.assertTrue(matrix.run_cases_separately([{"id": "ordinary"}], requested=True))
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])
