@@ -272,6 +272,7 @@ final class TypeCheckDriver {
             case let .classDecl(classDecl):
                 pendingDeclarations += classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects
                 pendingDeclarations += classDecl.enumEntries.flatMap(\.memberProperties)
+                pendingDeclarations += classDecl.enumEntries.flatMap(\.nestedClasses)
                 if let companion = classDecl.companionObject { pendingDeclarations.append(companion) }
             case let .interfaceDecl(interfaceDecl):
                 pendingDeclarations += interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
@@ -279,7 +280,7 @@ final class TypeCheckDriver {
             case let .objectDecl(objectDecl):
                 pendingDeclarations += objectDecl.memberProperties + objectDecl.nestedClasses + objectDecl.nestedObjects
             case let .enumEntryDecl(entry):
-                pendingDeclarations += entry.memberProperties
+                pendingDeclarations += entry.memberProperties + entry.nestedClasses
             default:
                 break
             }

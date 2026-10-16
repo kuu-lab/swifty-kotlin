@@ -167,9 +167,31 @@ extension ExprLowerer {
            let propertyInfo = sema.symbols.symbol(symbol),
            propertyInfo.kind == .property,
            let entryField = sema.symbols.parentSymbol(for: symbol),
-           driver.callLowerer.enumClassOwnerSymbol(forEntryField: entryField, sema: sema) != nil,
-           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+           let enumOwnerSymbol = driver.callLowerer.enumClassOwnerSymbol(forEntryField: entryField, sema: sema),
+           let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
+            let receiverExprID: KIRExprID
+            // An inner class stores its enclosing enum instance in `$outer`;
+            // enum-entry properties must dispatch on that ordinal value,
+            // not on the inner object currently being initialized.
+            var outerInstructions: [KIRInstruction] = []
+            if let outerReceiver = resolveOuterChainValue(
+                from: activeReceiverExprID,
+                to: enumOwnerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &outerInstructions
+            ) {
+                instructions.append(contentsOf: outerInstructions)
+                receiverExprID = outerReceiver
+            } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+                      let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
+            {
+                receiverExprID = capturedReceiver
+            } else {
+                receiverExprID = activeReceiverExprID
+            }
             let resultType = boundType ?? sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
             let result = arena.appendTemporary(type: resultType)
             if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {

@@ -87,7 +87,8 @@ extension BuildASTPhase {
                     annotations: annotations,
                     constructorArgs: constructorArgs,
                     memberFunctions: members.functions,
-                    memberProperties: members.properties
+                    memberProperties: members.properties,
+                    nestedClasses: members.nestedClasses
                 ))
             }
             return entries

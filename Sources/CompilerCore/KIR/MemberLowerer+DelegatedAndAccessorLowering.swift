@@ -553,6 +553,16 @@ extension MemberLowerer {
             : sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
         let semanticSignature = semanticAccessor.flatMap { sema.symbols.functionSignature(for: $0) }
         let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+        let receiverOwnerSymbol: SymbolID? = {
+            guard let ownerSymbol,
+                  sema.symbols.symbol(ownerSymbol)?.kind == .field,
+                  let enumOwner = sema.symbols.parentSymbol(for: ownerSymbol),
+                  sema.symbols.symbol(enumOwner)?.kind == .enumClass
+            else {
+                return ownerSymbol
+            }
+            return enumOwner
+        }()
         let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
         var params: [KIRParameter] = []
 
@@ -586,8 +596,8 @@ extension MemberLowerer {
                 symbol: receiverSymbol,
                 exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
             )
-        } else if let ownerSymbol,
-                  let ownerSym = sema.symbols.symbol(ownerSymbol)
+        } else if let receiverOwnerSymbol,
+                  let ownerSym = sema.symbols.symbol(receiverOwnerSymbol)
         {
             let ownerType = sema.types.make(
                 .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
@@ -750,7 +760,7 @@ extension MemberLowerer {
         let previousSignature = sema.symbols.functionSignature(for: syntheticAccessorSymbol)
         sema.symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: extensionReceiverType ?? ownerSymbol.flatMap { owner in
+                receiverType: extensionReceiverType ?? receiverOwnerSymbol.flatMap { owner in
                     sema.symbols.symbol(owner).map { ownerInfo in
                         sema.types.make(.classType(ClassType(
                             classSymbol: ownerInfo.id,

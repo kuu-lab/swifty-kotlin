@@ -24,13 +24,29 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let entryMemberProperty: (symbol: SymbolID, type: TypeID)? = {
+            guard case let .thisRef(label?, _) = ast.arena.expr(request.receiverID),
+                  let entrySymbol = ctx.enumEntryReceiverSymbol(forQualifiedThisLabel: label)
+            else {
+                return nil
+            }
+            return driver.helpers.lookupEnumEntryMemberProperty(
+                named: calleeName,
+                entrySymbol: entrySymbol,
+                receiverType: memberLookupType,
+                sema: sema
+            )
+        }()
+        let memberProperty = entryMemberProperty ?? driver.helpers.lookupMemberProperty(
+            named: calleeName,
+            receiverType: memberLookupType,
+            sema: sema
+        )
 
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
-           driver.helpers.lookupMemberProperty(
-               named: calleeName, receiverType: memberLookupType, sema: sema
-           ) == nil,
+           memberProperty == nil,
            let sourceFile = ctx.currentASTFile,
            let preferredSourcePackage = preferredBundledStdlibPackage(
                sourceFile: sourceFile,
@@ -55,14 +71,16 @@ extension CallTypeChecker {
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
-           let propResult = driver.helpers.lookupMemberProperty(
-               named: calleeName,
-               // Property reads are resolved from the receiver's static type.
-               // In particular, `super.p` must select the direct superclass
-               // declaration instead of the most-derived override.
-               receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
-               sema: sema
-           )
+           let propResult = isSuperCall
+               ? driver.helpers.lookupMemberProperty(
+                   named: calleeName,
+                   // Property reads are resolved from the receiver's static type.
+                   // In particular, `super.p` must select the direct superclass
+                   // declaration instead of the most-derived override.
+                   receiverType: lookupReceiverType,
+                   sema: sema
+               )
+               : memberProperty
         {
             if let propSymbol = sema.symbols.symbol(propResult.symbol),
                !ctx.visibilityChecker.isAccessible(
