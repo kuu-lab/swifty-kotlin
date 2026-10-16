@@ -30,6 +30,15 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_buffer_seek_case_entry_matches_generated_consumer(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "buffer-seek")
+        with tempfile.TemporaryDirectory() as temporary:
+            producers, consumer = matrix.prepare(case, Path(temporary))
+            self.assertEqual(case["entry"], "f02consumer.main")
+            self.assertIn("package f02consumer", consumer.read_text())
+            self.assertIn("fun main() { f02fixture.main() }", consumer.read_text())
+            self.assertEqual(len(producers), 1)
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

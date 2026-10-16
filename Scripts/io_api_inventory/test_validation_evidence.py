@@ -51,6 +51,34 @@ class ValidationEvidenceTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_buffer_seek_probe_maps_only_to_its_exact_api_rows(self):
+        probes = [
+            "Scripts/diff_cases/kotlinx_io_buffer_seek.kt",
+            "Scripts/io_api_inventory/probes/buffer_seek_external_visibility.kt",
+        ]
+        local_tests = [(probe, "fun main() { buffer.write(bytes); buffer.seek(0L) { _, _ -> 1 } }") for probe in probes]
+        seek_row = {
+            "module": "core",
+            "_candidate_name": "seek",
+            "owner_fqn": "kotlinx.io.Buffer",
+            "upstream_source_refs": "core/common/src/Buffer.kt:651",
+        }
+        write_row = {**seek_row, "_candidate_name": "write", "upstream_source_refs": "core/common/src/Buffer.kt:418"}
+        self.assertEqual(self.generator.local_test_refs(seek_row, local_tests), probes)
+        self.assertEqual(self.generator.local_test_refs(write_row, local_tests), [])
+
+    def test_buffer_seek_upstream_reference_names_the_method_specific_assertion(self):
+        row = {
+            "module": "core",
+            "_candidate_name": "seek",
+            "upstream_source_refs": "core/common/src/Buffer.kt:651",
+        }
+        test_index = json.loads((HERE / "upstream-tests-index.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            self.generator.upstream_test_refs(row, test_index),
+            ["core/common/test/CommonBufferTest.kt#byteAt"],
+        )
+
     def _write(self, relative, content, root=None):
         path = (root or self.repository) / relative
         path.parent.mkdir(parents=True, exist_ok=True)
