@@ -5,6 +5,29 @@ import Testing
 @Suite
 struct UnitCoercionGenericCallInferenceTests {
     @Test
+    func unitUpperBoundOutputVariableCoercesLambdaBody() throws {
+        let source = """
+        fun <U : Unit> fork(task: () -> U) {}
+        fun <T> infer(task: () -> T) {}
+        fun test() {
+            fork { 42 }
+            infer { 42 }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let forkCall = try call(named: "fork", path: path, in: ctx)
+            let inferCall = try call(named: "infer", path: path, in: ctx)
+            #expect(sema.bindings.callBinding(for: forkCall)?.substitutedTypeArguments == [sema.types.unitType])
+            #expect(sema.bindings.callBinding(for: inferCall)?.substitutedTypeArguments == [sema.types.intType])
+        }
+    }
+
+    @Test
     func discardedGenericCallUsesItsEffectiveUpperBound() throws {
         let source = """
         fun <K> materialize(): K = "str" as K
