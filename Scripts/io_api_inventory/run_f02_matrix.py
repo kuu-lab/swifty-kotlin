@@ -7,12 +7,14 @@ immutable artifact receipts. A selected passing subset is never issue completion
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
 import os
 import re
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -37,6 +39,26 @@ def sha(path: Path) -> str:
 def snapshot(path: Path) -> dict[str, str]:
     return {str(item.relative_to(path)): sha(item) for item in sorted(path.rglob("*"))
             if item.is_file() and "__pycache__" not in item.parts}
+
+
+def validation_input_hashes_for_rows(row_ids: list[str]) -> dict[str, dict[str, str]]:
+    import generate as inventory_generator
+
+    with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+        rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+    hashes = {}
+    for row_id in row_ids:
+        row = rows.get(row_id)
+        if row is None:
+            raise RuntimeError(f"validation row is missing from the generated inventory: {row_id}")
+        required_local_refs = set(inventory_generator.VALIDATION_PROBE_TEST_REFS.get(row_id, ()))
+        if not required_local_refs:
+            raise RuntimeError(f"validation probe references are missing for {row_id}")
+        local_refs = set(row["local_test_refs"].split(";"))
+        if not required_local_refs.issubset(local_refs):
+            raise RuntimeError(f"generated validation inputs do not pin the dedicated probe for {row_id}")
+        hashes[row_id] = inventory_generator.validation_input_hashes(row)
+    return hashes
 
 
 def save(path: Path, value: object) -> None:
@@ -108,6 +130,28 @@ def scenarios() -> list[dict]:
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
+        {"id": "segment-next-internal-link",
+         "fixture": base / "IOGate2600/SegmentNext.kt",
+         "reference": "jvm",
+         "row_ids": [
+             "internal-d1c20f446e10b19f",
+             "jvm-75ca446cf19a0e77",
+             "jvm-aaa06115c93e5fce",
+             "klib-19925a48464b1d65",
+             "klib-24bd7c6ad4634b77",
+             "klib-52085b69c8c0292e",
+         ],
+         "jvm_abi": {
+             "class": "kotlinx.io.Segment",
+             "methods": [
+                 {"name": "getNext", "declaration_suffix": "getNext();",
+                  "descriptor": "()Lkotlinx/io/Segment;",
+                  "required_flags": ["ACC_PUBLIC", "ACC_FINAL", "ACC_SYNTHETIC"]},
+                 {"name": "setNext", "declaration_suffix": "setNext(kotlinx.io.Segment);",
+                  "descriptor": "(Lkotlinx/io/Segment;)V",
+                  "required_flags": ["ACC_PUBLIC", "ACC_FINAL", "ACC_SYNTHETIC"]},
+             ],
+         }},
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],
          "consumer": base / "IOBuffer1729/Consumer.kt", "entry": "kuu1729consumer.main",
          "expected": base / "IOBuffer1729/reference.stdout", "reference": "pinned-JVM"},
@@ -202,6 +246,155 @@ def check_ledger_events(stdout: bytes, manifest: dict) -> None:
         expected = manifest["required_call_ids"] if marker.startswith(b"CALL") else manifest["paired_source_rows"]
         if observed != expected:
             raise RuntimeError(f"missing, duplicate or reordered ledger {marker!r} events")
+
+
+def check_jvm_abi(output: str, expectation: dict) -> dict:
+    lines = output.splitlines()
+    checked_methods = []
+    for method in expectation["methods"]:
+        suffix = method["declaration_suffix"]
+        matches = [index for index, line in enumerate(lines) if line.strip().endswith(suffix)]
+        if len(matches) != 1:
+            raise RuntimeError(f"expected exactly one JVM method ending in {suffix!r}, found {len(matches)}")
+        start = matches[0]
+        stop = next((index for index in range(start + 1, len(lines)) if not lines[index].strip()), len(lines))
+        block = lines[start:stop]
+        descriptors = [line.partition(":")[2].strip() for line in block
+                       if line.strip().startswith("descriptor:")]
+        if descriptors != [method["descriptor"]]:
+            raise RuntimeError(f"JVM {method['name']} descriptor mismatch: {descriptors}")
+        flags_line = next((line.partition(":")[2] for line in block if "flags:" in line), "")
+        flags = set(re.findall(r"\bACC_[A-Z0-9_]+\b", flags_line))
+        missing_flags = set(method["required_flags"]) - flags
+        if missing_flags:
+            raise RuntimeError(f"JVM {method['name']} is missing classfile flags: {sorted(missing_flags)}")
+        checked_methods.append({"name": method["name"], "descriptor": descriptors[0],
+                                "flags": sorted(flags)})
+    return {"status": "PASS", "class": expectation["class"], "methods": checked_methods}
+
+
+def segment_next_property_records(metadata: bytes) -> list[tuple[str, dict | None]]:
+    magic = b"kklib-metadata-v3\n"
+    if metadata.startswith(magic):
+        header_end = len(magic) + 16
+        if len(metadata) < header_end:
+            raise RuntimeError("truncated KLIB metadata v3 header")
+        count, string_count, string_bytes, entry_size = struct.unpack_from("<IIII", metadata, len(magic))
+        if entry_size != 80 or string_count == 0:
+            raise RuntimeError("invalid KLIB metadata v3 index header")
+        strings_start = header_end
+        strings_end = strings_start + string_bytes
+        index_end = strings_end + count * entry_size
+        if strings_end > len(metadata) or index_end > len(metadata):
+            raise RuntimeError("KLIB metadata v3 index exceeds artifact bounds")
+
+        strings = []
+        cursor = strings_start
+        for _ in range(string_count):
+            if cursor + 4 > strings_end:
+                raise RuntimeError("truncated KLIB metadata v3 string table")
+            length = struct.unpack_from("<I", metadata, cursor)[0]
+            cursor += 4
+            end = cursor + length
+            if end > strings_end:
+                raise RuntimeError("KLIB metadata v3 string exceeds string table bounds")
+            try:
+                strings.append(metadata[cursor:end].decode("utf-8"))
+            except UnicodeDecodeError as error:
+                raise RuntimeError("KLIB metadata v3 string is not valid UTF-8") from error
+            cursor = end
+        if cursor != strings_end or strings[0] != "":
+            raise RuntimeError("invalid KLIB metadata v3 string table")
+
+        body_start = index_end
+        records = []
+        visibility_names = ("public", "private", "internal", "protected")
+        for index in range(count):
+            entry = struct.unpack_from("<QQIIII12I", metadata, strings_end + index * entry_size)
+            offset, length, _, flags, kind, visibility, *string_ids = entry
+            if any(string_id >= len(strings) for string_id in string_ids):
+                raise RuntimeError("KLIB metadata v3 entry references an unknown string")
+            if kind != 9 or strings[string_ids[0]] != "kotlinx.io.Segment.next":
+                continue
+            if visibility >= len(visibility_names):
+                raise RuntimeError("KLIB Segment.next has an invalid compact-index visibility")
+            start = body_start + offset
+            end = start + length
+            if length == 0 or end > len(metadata):
+                raise RuntimeError("KLIB Segment.next metadata body exceeds artifact bounds")
+            try:
+                records.append((metadata[start:end].decode("utf-8").strip(), {
+                    "visibility": visibility_names[visibility],
+                    "mutable": bool(flags & (1 << 6)),
+                    "entry_sha256": hashlib.sha256(
+                        metadata[strings_end + index * entry_size:strings_end + (index + 1) * entry_size]
+                    ).hexdigest(),
+                }))
+            except UnicodeDecodeError as error:
+                raise RuntimeError("KLIB Segment.next metadata body is not valid UTF-8") from error
+        return records
+
+    try:
+        text = metadata.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError("unsupported KLIB metadata encoding") from error
+    _, marker, body = text.partition("\nbody\n")
+    records = (body if marker else text).splitlines()
+    return [(record, None) for record in records
+            if "property " in record and " fq=kotlinx.io.Segment.next schema=v1 " in record]
+
+
+def check_segment_next_metadata(metadata: bytes) -> dict:
+    property_records = segment_next_property_records(metadata)
+    if len(property_records) != 1:
+        raise RuntimeError(f"expected exactly one KLIB Segment.next property record, found {len(property_records)}")
+    property_record, compact_index = property_records[0]
+    if compact_index is not None and compact_index["visibility"] != "internal":
+        raise RuntimeError("KLIB Segment.next compact-index visibility is not internal")
+    if compact_index is not None and not compact_index["mutable"]:
+        raise RuntimeError("KLIB Segment.next compact-index property is not mutable")
+    if " visibility=internal " not in property_record:
+        raise RuntimeError("KLIB Segment.next property is not internal")
+    if " sig=Q<Lkotlinx.io.Segment;> " not in property_record:
+        raise RuntimeError("KLIB Segment.next nullable type signature mismatch")
+    if " mutable=1 " not in property_record:
+        raise RuntimeError("KLIB Segment.next property is not mutable")
+
+    def field_value(name: str, required: bool = True) -> str | None:
+        prefix = name + "="
+        values = [token[len(prefix):] for token in property_record.split() if token.startswith(prefix)]
+        if not values and not required:
+            return None
+        if len(values) != 1 or not values[0]:
+            raise RuntimeError(f"KLIB Segment.next {name} link is missing or ambiguous")
+        return values[0]
+
+    getter_link = field_value("getterLink", required=False)
+    setter_link = field_value("setterLink", required=False)
+    if getter_link is not None and getter_link == setter_link:
+        raise RuntimeError("KLIB Segment.next getter and setter links must be distinct")
+    annotations = field_value("annotations").split(";")
+    has_published_api = any(annotation.startswith("kotlin.PublishedApi")
+                             and "target:" not in annotation for annotation in annotations)
+    has_synthetic_getter = any(annotation.startswith("kotlin.jvm.JvmSynthetic")
+                                and "target:get" in annotation for annotation in annotations)
+    has_synthetic_setter = any(annotation.startswith("kotlin.jvm.JvmSynthetic")
+                                and "target:set" in annotation for annotation in annotations)
+    if not (has_published_api and has_synthetic_getter and has_synthetic_setter):
+        raise RuntimeError("KLIB Segment.next PublishedApi/JvmSynthetic accessor annotations mismatch")
+
+    return {
+        "status": "PASS",
+        "visibility": "internal",
+        "signature": "Segment?",
+        "mutable": True,
+        "getter_link": getter_link,
+        "setter_link": setter_link,
+        "accessor_link_mode": "explicit" if getter_link or setter_link else "property-backed",
+        "compact_index": compact_index,
+        "annotations": annotations,
+        "property_record_sha256": hashlib.sha256(property_record.encode("utf-8")).hexdigest(),
+    }
 
 
 def batch_group_stdout(stdout: bytes, identifier: str) -> bytes:
@@ -323,14 +516,22 @@ def main(argv: list[str] | None = None) -> int:
         selected = [case for case in selected if case["id"] in args.case]
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
-               "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "subset": bool(args.case), "issue_complete": False, "results": [], "reference_abi": {},
+               "row_ids_by_case": {case["id"]: case.get("row_ids", []) for case in selected},
+               "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
-        provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
-                      HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
-                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
+        selected_row_ids = [row_id for case in selected for row_id in case.get("row_ids", [])]
+        if selected_row_ids:
+            summary["validation_input_hashes_by_row"] = validation_input_hashes_for_rows(selected_row_ids)
+        provenance = [Path(__file__), HERE / "generate.py", HERE / "generate_f02_consumers.py",
+                      HERE / "generate_f01_consumers.py", HERE / "api-inventory.tsv",
+                      HERE / "source-declarations.json", HERE / "upstream-lock.json", HERE / "api-validation-evidence.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/native-executions.expected.json", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
@@ -372,6 +573,12 @@ def main(argv: list[str] | None = None) -> int:
                 or manifest.get("kotlinLanguageVersion") != CANDIDATE_KOTLIN_LANGUAGE_VERSION):
             raise RuntimeError("stdlib artifact module/language mismatch")
         summary["stdlib_files_sha256"] = snapshot(stdlib)
+        if any(case["id"] == "segment-next-internal-link" for case in selected):
+            metadata_path = stdlib / "metadata.bin"
+            summary["candidate_klib_contract"] = {
+                "artifact_metadata_sha256": sha(metadata_path),
+                **check_segment_next_metadata(metadata_path.read_bytes()),
+            }
         def record_lane(case: dict, expected: bytes, directory: Path, route: str, optimization: str) -> None:
             print(f"RUN {case['id']} {route} {optimization}", flush=True)
             try:
@@ -400,6 +607,16 @@ def main(argv: list[str] | None = None) -> int:
                 require_stage([str((args.kotlin_home / "bin/kotlinc").resolve()), *map(str, producers), str(consumer),
                                "-classpath", classpath, "-include-runtime", "-d", str(jar)], directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
+                if "jvm_abi" in case:
+                    javap = args.java.resolve().with_name("javap")
+                    require_stage([str(javap), "-classpath", classpath, "-p", "-s", "-v", case["jvm_abi"]["class"]],
+                                  directory, "reference-abi", 30)
+                    abi_check = check_jvm_abi((directory / "reference-abi.stdout").read_text(), case["jvm_abi"])
+                    summary["reference_abi"][case["id"]] = {
+                        **abi_check,
+                        "javap_sha256": sha(javap),
+                        "classfile_output_sha256": sha(directory / "reference-abi.stdout"),
+                    }
                 require_stage([str(args.java.resolve()), "-Djava.io.tmpdir=" + str(directory / "reference-run-work/tmp"),
                                "-cp", str(jar) + os.pathsep + classpath,
                                case.get("jvm_class", "f02consumer.ConsumerKt")], directory, "reference-run", 30)

@@ -163,6 +163,30 @@ declaration-derived expected-output classification, rather than being described
 as new official Native reference runs. Other boundary/resource/annotation
 contracts and the parent's full upstream execution gate remain separate checks.
 
+KUU-2600 adds the dedicated `segment-next-internal-link` scenario. Its consumer
+directly assigns and reads `Segment.next`, including a `null` terminal link.
+The six candidate lanes compare source and fresh KLIB execution at O0/O2 with
+the locked Kotlin/JVM 2.3.10 reference. The candidate KLIB record is checked for
+the internal nullable mutable property, accessor annotations, and whether
+accessors use explicit links or the property-backed representation. Read/write
+execution through the fresh KLIB and producer/consumer lanes checks accessor
+resolution. The pinned JVM artifact is checked for both accessor descriptors
+and synthetic public/final flags. Apple reference execution does not apply to
+this common-only property.
+
+```sh
+python3 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/debug/kswiftc --output /tmp/kuu2600-run \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --case segment-next-internal-link --separate-cases
+```
+
+The run receipt records the six row IDs, implementation/test input hashes,
+candidate KLIB metadata record hash, locked JVM ABI output, and all six lane
+results. The rows stay `unverified` until KUU-2469 supports mapping this local
+probe to a promotable exact execution record.
+
 ### F02 pre-rebase acceptance snapshot, 2026-10-14
 
 KUU-1822 remains incomplete. The full pre-rebase run used retrieved master
