@@ -86,7 +86,7 @@ extension TypeCheckDriver {
     ) -> TypeInferenceContext {
         switch ast.arena.decl(declarationID) {
         case let .classDecl(classDecl):
-            return classDecl.isInner ? context : context.copying(outerReceiverTypes: [])
+            return context.nestedClassContext(isInner: classDecl.isInner)
         case .interfaceDecl:
             return context.copying(outerReceiverTypes: [])
         default:

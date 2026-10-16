@@ -692,9 +692,8 @@ extension DeclTypeChecker {
         else { return }
         switch decl {
         case let .classDecl(classDecl):
-            // Inner classes inherit outer receiver context (can use this@Outer).
-            // Non-inner nested classes are effectively static: clear outer receivers.
-            let nestedCtx: TypeInferenceContext = classDecl.isInner ? ctx : ctx.copying(outerReceiverTypes: [])
+            // Non-inner nested classes do not capture instances, while singleton objects remain lexical receivers.
+            let nestedCtx = ctx.nestedClassContext(isInner: classDecl.isInner)
             typeCheckClassDecl(
                 classDecl,
                 symbol: symbol,

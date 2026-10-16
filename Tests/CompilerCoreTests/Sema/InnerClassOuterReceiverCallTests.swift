@@ -77,19 +77,65 @@ struct InnerClassOuterReceiverCallTests {
     }
 
     @Test func unqualifiedCallResolvesToOuterClassMember() throws {
-        let ctx = makeContextFromSource("""
+        try withSemaContext("""
         class Outer(val value: Int) {
             fun fetch(index: Int): Int = value + index
             inner class Inner {
                 fun compute(): Int = fetch(1)
             }
         }
-        """)
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected unqualified outer member call to resolve, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
 
-        try runSema(ctx)
+    @Test func nestedClassCanCallEnclosingObjectMembers() throws {
+        try withSemaContext("""
+        object Owner {
+            fun answer(): Int = 1
+            fun answerFromBody(): Int = answer()
+            class Nested {
+                fun answerFromOwner(): Int = answer()
+                fun qualifiedAnswer(): Int = Owner.answer()
+            }
+        }
+        """) { ctx in
+            #expect(!ctx.diagnostics.hasError,
+                    "Expected nested class calls to resolve through the enclosing object, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
 
-        #expect(!ctx.diagnostics.hasError,
-                "Expected unqualified outer member call to resolve, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+    @Test func regularNestedClassDoesNotCaptureEnclosingInstance() throws {
+        try withSemaContext("""
+        class RegularOwner {
+            fun answer(): Int = 2
+            class Nested {
+                fun implicitAnswer(): Int = answer()
+                fun qualifiedAnswer(owner: RegularOwner): Int = owner.answer()
+            }
+        }
+        """) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 1, "Expected only the implicit instance-member call to fail, got: \(errors)")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0002",
+                    "Expected the non-inner nested class to keep rejecting an implicit outer instance call, got: \(errors)")
+        }
+    }
+
+    private func withSemaContext(
+        _ source: String,
+        body: (CompilationContext) throws -> Void
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            try body(ctx)
+        }
     }
 }
 #endif
