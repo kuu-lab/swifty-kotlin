@@ -720,6 +720,17 @@ final class ObjectLiteralLowerer {
         sema: SemaModule,
         arena: KIRArena
     ) -> KIRExprID? {
+        // `field` is bound to its backing-field symbol, but its receiver is
+        // the instance whose getter owns that field. Prefer the captured owner
+        // value so a nested lambda's same-typed implicit receiver cannot
+        // redirect the read to another instance.
+        if sema.symbols.symbol(symbol)?.kind == .backingField,
+           let owner = sema.symbols.parentSymbol(for: symbol),
+           let receiver = driver.ctx.localValue(for: owner)
+        {
+            return receiver
+        }
+
         // Once an object literal starts initializing its own properties, the
         // active receiver value is the object, even though the enclosing
         // function signature may still have an extension receiver type.
