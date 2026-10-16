@@ -119,6 +119,10 @@ final class RuntimeContinuationState: @unchecked Sendable {
     private var suspendedCallChild: RuntimeContinuationState?
     private let interceptionLock = NSRecursiveLock()
     private var generatedContextRaw: Int?
+    /// The exact continuation context inherited by a directly-called suspend
+    /// function. This is kept separate from `generatedContextRaw`, which is
+    /// owned by this state's completion continuation.
+    private var inheritedContextRaw: Int?
     private var interceptedContinuationRaw: Int?
     private var continuationInterceptorRaw: Int = 0
     private var interceptionReleased = false
@@ -258,6 +262,29 @@ final class RuntimeContinuationState: @unchecked Sendable {
             generatedContextRaw = context
         }
         return context
+    }
+
+    /// Return the original context object when no runtime elements have been
+    /// added to this continuation. Kotlin's `coroutineContext` property returns
+    /// the continuation's context object itself, so reconstructing an equal
+    /// runtime context would break identity checks against EmptyCoroutineContext
+    /// and user-provided context elements.
+    func unmodifiedCoroutineContextRaw() -> Int? {
+        guard scope == nil, jobHandle == nil, builderContext == nil, eventLoop == nil else {
+            return nil
+        }
+        interceptionLock.lock()
+        defer { interceptionLock.unlock() }
+        return generatedContextRaw ?? inheritedContextRaw
+    }
+
+    /// Propagate a caller's exact continuation context to a direct suspend
+    /// child, but only when that context has no runtime-added elements.
+    func inheritCoroutineContext(from caller: RuntimeContinuationState) {
+        guard let contextRaw = caller.unmodifiedCoroutineContextRaw() else { return }
+        interceptionLock.lock()
+        inheritedContextRaw = contextRaw
+        interceptionLock.unlock()
     }
 
     func intercepted(continuationRaw: Int, interceptorKey: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {

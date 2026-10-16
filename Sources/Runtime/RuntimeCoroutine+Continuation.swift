@@ -100,6 +100,7 @@ public func kk_coroutine_call_direct_suspend(
         childState.builderContext = callerState.builderContext
         childState.flowCollectContext = callerState.flowCollectContext
         childState.resumesInline = callerState.resumesInline
+        childState.inheritCoroutineContext(from: callerState)
         if let scheduler = callerState.blockingScheduler {
             childState.blockingScheduler = scheduler
             childState.eventLoop = callerState.eventLoop
@@ -496,9 +497,13 @@ public func kk_coroutine_current_context() -> Int {
     // install only a scope), the installed scope's own context object is the
     // ambient context; a shared empty context is the last resort. All three
     // return a canonical object so repeated reads stay `===`-stable.
-    let context = RuntimeContinuationState.current?.makeContinuationContext()
-        ?? RuntimeCoroutineScope.current?.context
-        ?? RuntimeCoroutineContext()
+    if let state = RuntimeContinuationState.current {
+        if let originalContext = state.unmodifiedCoroutineContextRaw() {
+            return originalContext
+        }
+        return runtimeRegisterObject(runtimeCanonicalCoroutineContext(state.makeContinuationContext()))
+    }
+    let context = RuntimeCoroutineScope.current?.context ?? RuntimeCoroutineContext()
     return runtimeRegisterObject(runtimeCanonicalCoroutineContext(context))
 }
 

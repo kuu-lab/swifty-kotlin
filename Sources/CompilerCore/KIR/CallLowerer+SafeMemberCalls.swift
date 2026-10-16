@@ -1745,12 +1745,25 @@ private func resolveItableDispatchKind(
         guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
 
         if receiverClassSym.kind == .class {
+            let hasSubtypes = !sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty
+            let needsAbstractInterfaceDispatch = sema.symbols.symbol(callee)?.flags.contains(.abstractType) == true
             // If the receiver is a concrete class with no subtypes, use direct
-            // dispatch.  Kotlin classes are final by default, so this is safe and
-            // avoids the itable path which requires runtime typeInfo support.
-            if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
-            guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
-            let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
+            // dispatch when the selected method has a concrete body. An
+            // abstract interface declaration still needs the implementing
+            // class's itable, even when this final class cannot have subtypes.
+            guard hasSubtypes || needsAbstractInterfaceDispatch,
+                  let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID)
+            else { return nil }
+            let interfaceSlot: Int
+            if let registeredSlot = receiverLayout.itableSlots[parentID] {
+                interfaceSlot = registeredSlot
+            } else if hasSubtypes {
+                // Preserve the established fallback for a class whose subtype
+                // metadata is incomplete in this compilation unit.
+                interfaceSlot = 0
+            } else {
+                return nil
+            }
             return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
         }
 
