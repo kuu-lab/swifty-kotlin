@@ -49,11 +49,14 @@ extension CallTypeChecker {
             // inherited members are included without exposing owner instances.
             let classNameReceiverCompanionSymbol: SymbolID? = {
                 guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
-                if let companion = sema.symbols.companionObjectSymbol(for: ownerNominal) {
+                // In a platform module, resolve through the implementation companion
+                // so member calls bind to actual declarations with emitted symbols.
+                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
+                   let companion = sema.symbols.companionObjectSymbol(for: actualOwner)
+                {
                     return companion
                 }
-                guard let actualOwner = sema.symbols.actualSymbol(for: ownerNominal) else { return nil }
-                return sema.symbols.companionObjectSymbol(for: actualOwner)
+                return sema.symbols.companionObjectSymbol(for: ownerNominal)
             }()
             if let companionSymbol = classNameReceiverCompanionSymbol {
                 let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
