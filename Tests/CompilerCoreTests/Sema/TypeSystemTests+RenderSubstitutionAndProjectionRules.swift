@@ -27,6 +27,64 @@ extension TypeSystemTests {
         }
     }
 
+    @Test
+    func nominalFunctionTypeReadsStarProjectedReturnUpperBoundsAcrossArities() throws {
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        types.symbolTable = symbols
+
+        for arity in [0, 1, 2] {
+            let functionSymbol = SymbolID(rawValue: Int32(300 + arity))
+            let typeParameters = (0 ... arity).map { index in
+                SymbolID(rawValue: Int32(400 + arity * 10 + index))
+            }
+            types.functionNInterfaceSymbols[arity] = functionSymbol
+            types.setNominalTypeParameterSymbols(typeParameters, for: functionSymbol)
+            types.setNominalTypeParameterVariances(
+                Array(repeating: .in, count: arity) + [.out], for: functionSymbol
+            )
+
+            let firstBound = types.make(.classType(ClassType(classSymbol: SymbolID(rawValue: 500 + Int32(arity)))))
+            let secondBound = types.make(.classType(ClassType(classSymbol: SymbolID(rawValue: 600 + Int32(arity)))))
+            let returnParameter = try #require(typeParameters.last)
+            symbols.setTypeParameterUpperBounds([firstBound, secondBound], for: returnParameter)
+
+            let arguments = Array(repeating: TypeArg.invariant(types.anyType), count: arity) + [.star]
+            let nominal = types.make(.classType(ClassType(classSymbol: functionSymbol, args: arguments)))
+            let function = try #require(types.nominalFunctionType(for: nominal))
+
+            #expect(function.params == Array(repeating: types.anyType, count: arity))
+            #expect(function.returnType == types.make(.intersection([firstBound, secondBound])))
+        }
+
+        let function1 = SymbolID(rawValue: 700)
+        let inputParameter = SymbolID(rawValue: 701)
+        let returnParameter = SymbolID(rawValue: 702)
+        types.functionNInterfaceSymbols[1] = function1
+        types.setNominalTypeParameterSymbols([inputParameter, returnParameter], for: function1)
+        types.setNominalTypeParameterVariances([.in, .out], for: function1)
+        symbols.setTypeParameterUpperBounds([types.stringType], for: returnParameter)
+        let function = types.make(.classType(ClassType(
+            classSymbol: function1,
+            args: [.invariant(types.anyType), .star]
+        )))
+        #expect(types.nominalFunctionType(for: function)?.returnType == types.stringType)
+
+        let unresolvedInput = types.make(.typeParam(TypeParamType(symbol: inputParameter)))
+        symbols.setTypeParameterUpperBounds([types.stringType, unresolvedInput], for: returnParameter)
+        let partiallyReadableFunction = types.make(.classType(ClassType(
+            classSymbol: function1,
+            args: [.in(types.anyType), .star]
+        )))
+        #expect(types.nominalFunctionType(for: partiallyReadableFunction)?.returnType == types.stringType)
+
+        let starInput = types.make(.classType(ClassType(
+            classSymbol: function1,
+            args: [.star, .star]
+        )))
+        #expect(types.nominalFunctionType(for: starInput) == nil)
+    }
+
     @Test func testNominalFunctionTypeRejectsUnrelatedAndIncompleteTypes() {
         let ts = TypeSystem()
         let symbol = SymbolID(rawValue: 100)

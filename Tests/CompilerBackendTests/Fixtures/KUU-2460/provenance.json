@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/JetBrains/kotlin",
+  "commit": "679366a83f99851b42f64795f10ed803ff011c73",
+  "path": "compiler/testData/codegen/box/inference/lambdaWithStarReturn.kt",
+  "license": "Apache-2.0",
+  "source_sha256": "c36a3cd8abe81570f5f96af2da50f2453dfe1855685c1d32aae671aeb3ff6c60",
+  "source_git_blob": "d0f7e1c0ee6df7ccc158236425d8157f5ae7b7cb",
+  "execution_copy_sha256": "9937a09fb23cbf2d92ac4e72ab1331371c4d2efbbd90aeb5503fe3d9ec0ad8d7",
+  "minimal_sha256": "97b867fd65491eaec522bff29076d6b36ba90760b6501d30e3e014c1636e7257",
+  "issue_recorded_minimal_sha256": "6a75a3a6a524a2deb3d686fe143ddb7e094a1cd10670fd392617723891c0895e",
+  "modifications": "The upstream source is unchanged. lambdaWithStarReturnExecutable.kt is the issue-provided executable copy. minimal.kt is the issue's compact reproducer, placed in its own package so the original, minimal case, and runner can be compiled and executed together. minimalAndControlsRunner.kt exercises both positive cases plus explicit input types, concrete return types, and Function0/Function2 star returns. negativeLambdaParameter.kt preserves the incompatible-input control."
+}
