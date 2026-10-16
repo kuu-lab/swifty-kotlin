@@ -47,6 +47,31 @@ struct InheritedFunInterfaceSamTests {
     }
 
     @Test
+    func explicitAnyToStringOverrideIsSam() throws {
+        let ctx = context("""
+        fun interface SomeFun { override fun toString(): String }
+        fun box(): String {
+            val x = SomeFun { "OK" }
+            return x.toString()
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func explicitAnyToStringAndAnotherAbstractFunctionIsRejected() throws {
+        let ctx = context("""
+        fun interface SomeFun {
+            override fun toString(): String
+            fun run()
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0406" })
+    }
+
+    @Test
     func inheritedSecondAbstractFunctionIsRejected() throws {
         let ctx = context("""
         interface A { fun a() }
