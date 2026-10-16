@@ -254,14 +254,13 @@ extension OverloadResolver {
                 ctx: ctx
             )
         }
-        let defaultArgumentOwners: [SymbolID: SymbolID] = if let implicitReceiverType {
-            Dictionary(uniqueKeysWithValues: Set(candidates).compactMap { candidate in
-                ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable(implicitReceiverType))
-                    .map { (candidate, $0) }
-            })
-        } else {
-            [:]
-        }
+        let defaultArgumentOwners = Dictionary(uniqueKeysWithValues: Set(candidates).compactMap { candidate in
+            let inheritedOwner = implicitReceiverType.flatMap {
+                ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable($0))
+            }
+            let owner = inheritedOwner ?? ctx.symbols.expectActualDefaultArgumentOwner(for: candidate)
+            return owner.map { (candidate, $0) }
+        })
         let key = SemaCacheContext.makeCallResolutionKey(
             candidates: candidates,
             call: call,
@@ -679,9 +678,11 @@ extension OverloadResolver {
             }
         }
 
-        let defaultArgumentOwner = candidateImplicitReceiverType.flatMap {
+        let inheritedDefaultArgumentOwner = candidateImplicitReceiverType.flatMap {
             ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable($0))
         }
+        let defaultArgumentOwner = inheritedDefaultArgumentOwner
+            ?? ctx.symbols.expectActualDefaultArgumentOwner(for: candidate)
         let inheritedDefaultValues = defaultArgumentOwner.flatMap {
             ctx.symbols.functionSignature(for: $0)?.valueParameterHasDefaultValues
         }
