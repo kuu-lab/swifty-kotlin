@@ -593,8 +593,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 diagnostics: ctx.diagnostics, interner: ctx.interner
             )
         }
-        withSubPhaseTiming("collectDataObjectToString", timer: ctx.phaseTimer) {
-            collectDataObjectToStringAfterInheritance(
+        withSubPhaseTiming("collectDataTypeToString", timer: ctx.phaseTimer) {
+            collectDataTypeToStringAfterInheritance(
                 ast: ast,
                 symbols: symbols,
                 bindings: bindings,
