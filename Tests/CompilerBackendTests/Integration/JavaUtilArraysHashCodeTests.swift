@@ -50,15 +50,14 @@ struct JavaUtilArraysHashCodeTests {
         #expect(result.stdout == expectedOutput)
     }
 
-    // KUU-2241 blocks source-injected O2 even for trivial programs; cover source/O0 and fresh-artifact O0/O2 here.
-    @Test
-    func pinnedKotlinDataClassArrayHashCodeTestPassesFromSourceO0() throws {
+    @Test(arguments: [0, 2])
+    func pinnedKotlinDataClassArrayHashCodeTestPassesFromSource(optimization: Int) throws {
         try compileAndRun(
             ["array.kt", "array_main.kt"],
             expectedOutput: "OK",
             moduleName: "KUU2388PinnedArrayHashCode",
             fromSource: true,
-            optimization: 0
+            optimization: optimization
         )
     }
 
@@ -73,14 +72,14 @@ struct JavaUtilArraysHashCodeTests {
         )
     }
 
-    @Test
-    func minimalFullyQualifiedReproductionPassesFromSourceO0() throws {
+    @Test(arguments: [0, 2])
+    func minimalFullyQualifiedReproductionPassesFromSource(optimization: Int) throws {
         try compileAndRun(
             ["hashcode_minimal.kt"],
             expectedOutput: "OK",
             moduleName: "KUU2388MinimalArrayHashCode",
             fromSource: true,
-            optimization: 0
+            optimization: optimization
         )
     }
 
@@ -95,14 +94,14 @@ struct JavaUtilArraysHashCodeTests {
         )
     }
 
-    @Test
-    func fullyQualifiedAndStaticImportCallsMatchJvmHashesFromSourceO0() throws {
+    @Test(arguments: [0, 2])
+    func fullyQualifiedAndStaticImportCallsMatchJvmHashesFromSource(optimization: Int) throws {
         try compileAndRun(
             ["hashcode_contracts.kt"],
             expectedOutput: "1\n1\n32\n32\n30817\n30817\n28891\n28891\n0\n0\nfill:OK\n",
             moduleName: "KUU2388ArrayHashCodeContracts",
             fromSource: true,
-            optimization: 0
+            optimization: optimization
         )
     }
 
