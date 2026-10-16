@@ -85,15 +85,7 @@ extension CallTypeChecker {
             let ownerType = sema.types.make(.classType(ClassType(
                 classSymbol: owner, args: [], nullability: .nonNull
             )))
-            var receiverTypes = ctx.outerReceiverTypes.map(\.type)
-            if let implicitReceiverType = ctx.implicitReceiverType {
-                receiverTypes.append(implicitReceiverType)
-            }
-            if let enclosingClass = ctx.enclosingClassSymbol {
-                receiverTypes.append(sema.types.make(.classType(ClassType(
-                    classSymbol: enclosingClass, args: [], nullability: .nonNull
-                ))))
-            }
+            let receiverTypes = ctx.implicitReceiverMemberLookupEntries().map(\.type)
             return receiverTypes.contains { receiver in
                 if sema.types.isSubtype(receiver, ownerType) { return true }
                 guard case let .classType(type) = sema.types.kind(of: sema.types.makeNonNullable(receiver)) else { return false }
@@ -120,6 +112,7 @@ extension CallTypeChecker {
         func collectGetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
+                  !ctx.isCandidateBlockedByDslMarker(candidate),
                   !requireSynthetic || symbol.flags.contains(.synthetic),
                   hasDispatchReceiverOrImport(for: candidate),
                   isInInvocationScope(candidate),
@@ -150,6 +143,59 @@ extension CallTypeChecker {
                 getterCandidates.append(getterAccessor)
                 propertyForGetter[getterAccessor] = candidate
             }
+        }
+        var implicitMemberExtensionProperties: Set<SymbolID> = []
+        for dispatchReceiver in ctx.implicitReceiverMemberLookupEntries() {
+            let receiverRoots = driver.helpers.allNominalSymbols(
+                of: dispatchReceiver.type,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: ctx.interner
+            )
+            for candidate in sema.symbols.lookupByShortName(calleeName) {
+                guard !ctx.isCandidateBlockedByDslMarker(candidate),
+                      let owner = sema.symbols.memberExtensionOwnerSymbol(for: candidate),
+                      receiverRoots.contains(where: { root in
+                          root == owner || sema.types.isNominalSubtypeSymbol(root, of: owner)
+                      }),
+                      let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
+                      extensionSyntheticFallbackReceiverMatches(
+                          callSiteReceiver: receiverType,
+                          declaredReceiver: receiver,
+                          sema: sema
+                      )
+                else {
+                    continue
+                }
+                implicitMemberExtensionProperties.insert(candidate)
+                collectGetterCandidate(from: candidate, requireSynthetic: false)
+            }
+        }
+        let overridingMemberExtensionProperties = implicitMemberExtensionProperties.filter { property in
+            sema.symbols.symbol(property)?.flags.contains(.overrideMember) == true
+        }
+        if !overridingMemberExtensionProperties.isEmpty {
+            getterCandidates.removeAll { getter in
+                guard let property = propertyForGetter[getter],
+                      let propertyOwner = sema.symbols.memberExtensionOwnerSymbol(for: property),
+                      let propertyReceiver = sema.symbols.extensionPropertyReceiverType(for: property)
+                else {
+                    return false
+                }
+                return overridingMemberExtensionProperties.contains { overridingProperty in
+                    guard overridingProperty != property,
+                          let overridingOwner = sema.symbols.memberExtensionOwnerSymbol(for: overridingProperty),
+                          overridingOwner != propertyOwner,
+                          sema.types.isNominalSubtypeSymbol(overridingOwner, of: propertyOwner),
+                          let overridingReceiver = sema.symbols.extensionPropertyReceiverType(for: overridingProperty)
+                    else {
+                        return false
+                    }
+                    return sema.types.isSubtype(overridingReceiver, propertyReceiver)
+                        && sema.types.isSubtype(propertyReceiver, overridingReceiver)
+                }
+            }
+            propertyForGetter = propertyForGetter.filter { getter, _ in getterCandidates.contains(getter) }
         }
         func isUnavailableKotlinMathProperty(_ candidate: SymbolID) -> Bool {
             guard let symbol = sema.symbols.symbol(candidate) else {
@@ -193,6 +239,14 @@ extension CallTypeChecker {
         }
         for candidate in visible {
             collectGetterCandidate(from: candidate, requireSynthetic: false)
+        }
+        let implicitMemberExtensionGetters = Set(getterCandidates.filter { getter in
+            guard let property = propertyForGetter[getter] else { return false }
+            return implicitMemberExtensionProperties.contains(property)
+        })
+        if !implicitMemberExtensionGetters.isEmpty {
+            getterCandidates = getterCandidates.filter(implicitMemberExtensionGetters.contains)
+            propertyForGetter = propertyForGetter.filter { implicitMemberExtensionGetters.contains($0.key) }
         }
         // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection
         // properties (e.g. KClass<T>.java). Restricted to known JVM property names
@@ -306,12 +360,26 @@ extension CallTypeChecker {
             candidates: [chosen],
             ctx: ctx
         )[chosen]
+        let memberExtensionDispatchReceiver = sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
+            ctx.implicitReceiverMemberLookupEntries().first { entry in
+                let roots = driver.helpers.allNominalSymbols(
+                    of: entry.type,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: ctx.interner
+                )
+                return roots.contains { root in
+                    root == owner || sema.types.isNominalSubtypeSymbol(root, of: owner)
+                }
+            }?.symbol
+        }
+        let dispatchReceiver = importedDispatchReceiver ?? memberExtensionDispatchReceiver
 
         sema.bindings.bindExtensionPropertyGetterCall(id, binding: CallBinding(
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value),
             parameterMapping: resolved.parameterMapping,
-            dispatchReceiverSymbol: importedDispatchReceiver
+            dispatchReceiverSymbol: dispatchReceiver
         ))
         if bindCall {
             sema.bindings.bindCall(
@@ -322,7 +390,7 @@ extension CallTypeChecker {
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                         .map(\.value),
                     parameterMapping: resolved.parameterMapping,
-                    dispatchReceiverSymbol: importedDispatchReceiver
+                    dispatchReceiverSymbol: dispatchReceiver
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
