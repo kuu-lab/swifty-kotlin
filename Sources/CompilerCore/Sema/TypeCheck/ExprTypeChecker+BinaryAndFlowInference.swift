@@ -116,9 +116,31 @@ extension ExprTypeChecker {
             else { return nil }
             return rhsType
         }()
+        let isElvisCallLhs: Bool = if op == .elvis {
+            switch ast.arena.expr(lhsID) {
+            case .call, .memberCall, .safeMemberCall:
+                true
+            default:
+                false
+            }
+        } else {
+            false
+        }
+        // A call on the Elvis LHS can use the enclosing result type as a
+        // generic-inference hint. Other expressions keep their natural type so
+        // the context does not incorrectly constrain the Elvis LUB.
+        let lhsExpectedType: TypeID? = if isSafeLetElvisFailure {
+            expectedType ?? earlyElvisRhs
+        } else if isElvisCallLhs {
+            expectedType
+        } else {
+            nil
+        }
+        var lhsCtx = ctx
+        lhsCtx.isElvisLhsExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
         let inferredLhs = driver.inferExpr(
-            lhsID, ctx: ctx, locals: &locals,
-            expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
+            lhsID, ctx: lhsCtx, locals: &locals,
+            expectedType: lhsExpectedType
         )
         var lhs = sema.types.capturedOperatorReceiverType(of: inferredLhs)
         // Elvis uses an enclosing expected type for its RHS, but the LHS's

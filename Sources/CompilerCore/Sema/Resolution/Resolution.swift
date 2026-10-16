@@ -20,7 +20,8 @@ private extension CallExpr {
             explicitTypeArgs: explicitTypeArgs,
             dispatchReceiverTypes: dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
-            typeAliasConstructor: typeAliasConstructor
+            typeAliasConstructor: typeAliasConstructor,
+            elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint
         )
     }
 }
@@ -784,15 +785,41 @@ extension OverloadResolver {
         // in that case so overload candidates aren't rejected solely because
         // none of them happen to return Unit.
         if let expectedType, expectedType != ctx.types.unitType {
-            let returnDecomposed = decomposeSubtypeConstraint(
-                subtype: signature.returnType,
-                supertype: expectedType,
-                typeVarBySymbol: typeVarBySymbol,
-                typeSystem: ctx.types,
-                blameRange: call.range
-            )
-            constraints.append(contentsOf: returnDecomposed)
-            inputConstraints.append(contentsOf: returnDecomposed)
+            if call.elvisLhsExpectedTypeHint {
+                let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
+                    signature.classTypeParameterCount
+                )
+                let methodTypeVarBySymbol = typeVarBySymbol.filter { symbol, _ in
+                    methodTypeParameters.contains(symbol)
+                }
+                if containsTypeVariable(
+                    signature.returnType,
+                    typeVarBySymbol: methodTypeVarBySymbol,
+                    typeSystem: ctx.types
+                ) {
+                    let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                    let expectedTypeHint = ctx.types.makeNonNullable(expectedType)
+                    let returnDecomposed = decomposeSubtypeConstraint(
+                        subtype: returnTypeHint,
+                        supertype: expectedTypeHint,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: ctx.types,
+                        blameRange: call.range
+                    )
+                    constraints.append(contentsOf: returnDecomposed)
+                    inputConstraints.append(contentsOf: returnDecomposed)
+                }
+            } else {
+                let returnDecomposed = decomposeSubtypeConstraint(
+                    subtype: signature.returnType,
+                    supertype: expectedType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                )
+                constraints.append(contentsOf: returnDecomposed)
+                inputConstraints.append(contentsOf: returnDecomposed)
+            }
         }
 
         var solveResult = solveConstraints(

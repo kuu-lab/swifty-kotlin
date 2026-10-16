@@ -53,6 +53,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `zero_null_print.kt`: `println(0)` と `println(null)` の表示分離
 - `type_error.kt`: compile-error parity case
 - `type_constraints.kt`: type parameter upper bounds and `where` clause parity
+- `elvis_generic_call_expected_type.kt`: generic member-call inference on the Elvis left, covering the pinned JetBrains reproducer plus explicit-type-argument and direct-return controls (KUU-2406)
 - `invoke_operator.kt`: `operator fun invoke` による `obj(args)` 呼び出し（top-level property / object / 式結果）
 - `char_escape.kt`: Char escape / Unicode escape の runtime parity（`'\n'`, `'\t'`, `'\\'`, `'\u0041'`）
 - `char_get_error.kt`: `Char.get(Int)` 呼び出しの compile-error parity（kotlinc では未解決参照）
