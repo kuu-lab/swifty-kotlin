@@ -629,6 +629,8 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         bindsObjectDispatchReceiver: Bool = false,
+        additionalDispatchReceiverTypes: [TypeID] = [],
+        additionalBoundObjectDispatchReceiverCandidates: Set<SymbolID> = [],
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
@@ -649,12 +651,14 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: (bindsObjectDispatchReceiver
+            dispatchReceiverTypes: additionalDispatchReceiverTypes + (bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
                 : []) + ctx.implicitReceiverMemberLookupEntries().map(\.type),
-            boundObjectDispatchReceiverCandidates: bindsObjectDispatchReceiver
+            boundObjectDispatchReceiverCandidates: additionalBoundObjectDispatchReceiverCandidates.union(
+                bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
-                : [],
+                : []
+            ),
             typeAliasConstructor: typeAliasConstructor,
             elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
         )
@@ -874,12 +878,20 @@ extension CallTypeChecker {
                   sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                   let owner = sema.symbols.parentSymbol(for: candidate),
                   let ownerKind = sema.symbols.symbol(owner)?.kind,
-                  ownerKind == .class || ownerKind == .interface || ownerKind == .object,
-                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
-                  case let .classType(receiverClass) = sema.types.kind(of: receiver),
-                  receiverClass.classSymbol == owner
+                  ownerKind == .class || ownerKind == .interface || ownerKind == .object
             else { return nil }
-            return receiver
+            if let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiver),
+               receiverClass.classSymbol == owner
+            {
+                return receiver
+            }
+            guard ownerKind == .object else { return nil }
+            return sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: [],
+                nullability: .nonNull
+            )))
         }
 
         // Except for bound object members, a candidate that declares an
