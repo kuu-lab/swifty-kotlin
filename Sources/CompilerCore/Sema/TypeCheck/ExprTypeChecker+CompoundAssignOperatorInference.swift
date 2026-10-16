@@ -6,6 +6,7 @@ extension ExprTypeChecker {
         receiverType: TypeID,
         valueType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext,
         requireUnitReturn: Bool,
         emitDiagnostics: Bool = true,
@@ -33,9 +34,14 @@ extension ExprTypeChecker {
         let operatorNames = requireUnitReturn
             ? operatorFunctionNames(for: op, interner: interner)
             : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
+        let call = CallExpr(
+            range: range, calleeName: operatorNames[0], args: [CallArg(type: valueType)]
+        )
         var operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: receiverType,
+            call: call,
+            locals: locals,
             ctx: ctx
         )
         var usesScopedCharExtensions = false
@@ -64,11 +70,7 @@ extension ExprTypeChecker {
 
         let resolved = ctx.resolver.resolveCall(
             candidates: operatorCandidates,
-            call: CallExpr(
-                range: range,
-                calleeName: operatorNames[0],
-                args: [CallArg(type: valueType)]
-            ),
+            call: call,
             expectedType: nil,
             implicitReceiverType: receiverType,
             ctx: ctx.sema
@@ -155,6 +157,7 @@ extension ExprTypeChecker {
         op: CompoundAssignOp,
         receiverType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> TypeID? {
         let sema = ctx.sema
@@ -168,9 +171,16 @@ extension ExprTypeChecker {
             nil
         }
         guard let operatorName else { return nil }
+        let call = CallExpr(
+            range: range,
+            calleeName: operatorName,
+            args: []
+        )
         let operatorCandidates = collectOperatorCandidates(
             names: [operatorName],
             receiverType: receiverType,
+            call: call,
+            locals: locals,
             ctx: ctx
         )
         guard !operatorCandidates.isEmpty else {
@@ -179,11 +189,7 @@ extension ExprTypeChecker {
 
         let resolved = ctx.resolver.resolveCall(
             candidates: operatorCandidates,
-            call: CallExpr(
-                range: range,
-                calleeName: operatorName,
-                args: []
-            ),
+            call: call,
             expectedType: nil,
             implicitReceiverType: receiverType,
             ctx: ctx.sema
@@ -259,6 +265,7 @@ extension ExprTypeChecker {
         receiverType: TypeID,
         isMutable: Bool,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> TypeID? {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
@@ -273,6 +280,7 @@ extension ExprTypeChecker {
             op: op,
             receiverType: receiverType,
             range: range,
+            locals: locals,
             ctx: ctx
         ) {
             guard resolvedType != ctx.sema.types.errorType else {
@@ -400,6 +408,7 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             isMutable: false,
             range: range,
+            locals: locals,
             ctx: ctx
         ) {
             return resolvedType
@@ -411,6 +420,7 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: true,
             allowFallbackOnNoViableOverload: true,
@@ -424,6 +434,7 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: false,
             inferCandidateReturnTypes: true
@@ -488,6 +499,7 @@ extension ExprTypeChecker {
                 receiverType: local.type,
                 isMutable: local.isMutable,
                 range: range,
+                locals: locals,
                 ctx: ctx
             ) {
                 if resolvedType != sema.types.errorType {
@@ -501,6 +513,7 @@ extension ExprTypeChecker {
                 receiverType: local.type,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: true
             ) {
@@ -511,6 +524,7 @@ extension ExprTypeChecker {
                        receiverType: local.type,
                        valueType: valueType,
                        range: range,
+                       locals: locals,
                        ctx: ctx,
                        requireUnitReturn: false,
                        emitDiagnostics: false,
@@ -534,6 +548,7 @@ extension ExprTypeChecker {
                 receiverType: local.type,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: false
             ) {
@@ -665,6 +680,7 @@ extension ExprTypeChecker {
                 receiverType: propType,
                 isMutable: propSymbol.flags.contains(.mutable),
                 range: range,
+                locals: locals,
                 ctx: ctx
             ) {
                 return resolvedType
@@ -675,6 +691,7 @@ extension ExprTypeChecker {
                 receiverType: propType,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: true
             ) {
@@ -685,6 +702,7 @@ extension ExprTypeChecker {
                        receiverType: propType,
                        valueType: valueType,
                        range: range,
+                       locals: locals,
                        ctx: ctx,
                        requireUnitReturn: false,
                        emitDiagnostics: false,
@@ -708,6 +726,7 @@ extension ExprTypeChecker {
                 receiverType: propType,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: false
             ) {
@@ -908,6 +927,7 @@ extension ExprTypeChecker {
             receiverType: propType,
             isMutable: propSymbol?.flags.contains(.mutable) == true,
             range: range,
+            locals: locals,
             ctx: ctx
         ) {
             return resolvedType
@@ -919,6 +939,7 @@ extension ExprTypeChecker {
             receiverType: propType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: true
         ) {
@@ -929,6 +950,7 @@ extension ExprTypeChecker {
                    receiverType: propType,
                    valueType: valueType,
                    range: range,
+                   locals: locals,
                    ctx: ctx,
                    requireUnitReturn: false,
                    emitDiagnostics: false,
@@ -953,6 +975,7 @@ extension ExprTypeChecker {
             receiverType: propType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: false
         ) {

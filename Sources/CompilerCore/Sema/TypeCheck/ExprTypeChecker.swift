@@ -347,6 +347,7 @@ final class ExprTypeChecker {
                     hasCapturedOperand: sema.types.containsCapturedTypes(inferredOperand),
                     range: range,
                     ctx: ctx,
+                    locals: locals,
                     expectedType: expectedType
                 ) {
                     return overloadedType
@@ -388,6 +389,7 @@ final class ExprTypeChecker {
                         hasCapturedOperand: sema.types.containsCapturedTypes(inferredOperand),
                         range: range,
                         ctx: ctx,
+                        locals: locals,
                         expectedType: expectedType
                     ) {
                         return overloadedType
@@ -1572,6 +1574,8 @@ final class ExprTypeChecker {
     func collectOperatorCandidates(
         names: [InternedString],
         receiverType: TypeID,
+        call: CallExpr,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
@@ -1703,6 +1707,13 @@ final class ExprTypeChecker {
             }
         }
 
+        let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
+            names: names, receiverType: receiverType, call: call, locals: locals, ctx: ctx
+        )
+        if !localExtensionCandidates.isEmpty {
+            return localExtensionCandidates
+        }
+
         for name in names {
             // Name lookup must advance past a scope whose extensions have
             // unrelated receivers, while retaining the nearest matching tier.
@@ -1721,7 +1732,16 @@ final class ExprTypeChecker {
                    sema.symbols.actualSymbol(for: candidate) != nil {
                     return false
                 }
-                return operatorCandidateMatchesReceiver(candidate)
+                guard operatorCandidateMatchesReceiver(candidate) else {
+                    return false
+                }
+                if symbol.flags.contains(.localFunction) {
+                    return !ctx.resolver.probeCall(
+                        candidates: [candidate], call: call, expectedType: nil,
+                        implicitReceiverType: receiverType, ctx: sema
+                    ).viableCandidates.isEmpty
+                }
+                return true
             })
             for candidate in scopedCandidates where seen.insert(candidate).inserted {
                 candidates.append(candidate)
@@ -1827,15 +1847,24 @@ final class ExprTypeChecker {
         hasCapturedOperand: Bool = false,
         range: SourceRange,
         ctx: TypeInferenceContext,
+        locals: LocalBindings,
         expectedType: TypeID?
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operandType) { true } else { false }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
+        let operatorCall = CallExpr(
+            range: range,
+            calleeName: operatorNames[0],
+            args: [],
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+        )
         let operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: operandType,
+            call: operatorCall,
+            locals: locals,
             ctx: ctx
         )
         let displayOperatorName = interner.resolve(operatorNames[0])
@@ -1843,12 +1872,7 @@ final class ExprTypeChecker {
         if !operatorCandidates.isEmpty {
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
-                call: CallExpr(
-                    range: range,
-                    calleeName: operatorNames[0],
-                    args: [],
-                    dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
-                ),
+                call: operatorCall,
                 expectedType: expectedType,
                 implicitReceiverType: operandType,
                 ctx: ctx.sema
