@@ -10,13 +10,24 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: driver.interner)
         let receiver = sema.types.makeNonNullable(receiverType)
+        let isUnsignedReceiver = receiver == sema.types.uintType || receiver == sema.types.ulongType
         guard calleeName == knownNames.compareTo,
-              receiver == sema.types.byteType || receiver == sema.types.shortType,
+              receiver == sema.types.byteType || receiver == sema.types.shortType || isUnsignedReceiver,
               sema.symbols.parentSymbol(for: candidate) == sema.types.comparableInterfaceSymbol
         else {
             return true
         }
         guard argTypes.count == 1 else { return false }
+        if isUnsignedReceiver {
+            switch sema.types.kind(of: argTypes[0]) {
+            case .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull),
+                 .primitive(.uint, .nonNull), .primitive(.ulong, .nonNull),
+                 .nothing(.nonNull):
+                return true
+            default:
+                return false
+            }
+        }
         switch sema.types.kind(of: argTypes[0]) {
         case .primitive(.byte, .nonNull), .primitive(.short, .nonNull),
              .primitive(.int, .nonNull), .primitive(.long, .nonNull),
