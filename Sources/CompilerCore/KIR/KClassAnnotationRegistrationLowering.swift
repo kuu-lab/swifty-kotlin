@@ -12,7 +12,31 @@ func emitKClassAnnotationRegistration(
     registrationCallee: String = "__kk_kclass_register_single_annotation",
     annotations selectedAnnotations: [MetadataAnnotationRecord]? = nil
 ) {
-    let annotations = (selectedAnnotations ?? sema.symbols.annotations(for: objectSymbol)).filter {
+    let annotations = selectedAnnotations ?? sema.symbols.annotations(for: objectSymbol)
+    emitRuntimeAnnotationRegistration(
+        annotations: annotations,
+        keyArguments: [typeTokenExpr],
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions,
+        registrationCallee: registrationCallee
+    )
+}
+
+/// Emits registration calls for runtime-retained annotation values attached to
+/// an arbitrary runtime reflection key.
+func emitRuntimeAnnotationRegistration(
+    annotations: [MetadataAnnotationRecord],
+    keyArguments: [KIRExprID],
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction],
+    registrationCallee: String,
+    factoryRegistrationCallee: String? = nil
+) {
+    let annotations = annotations.filter {
         resolvedAnnotationRetention($0, symbols: sema.symbols, interner: interner) == .runtime
     }
     guard !annotations.isEmpty else { return }
@@ -35,7 +59,7 @@ func emitKClassAnnotationRegistration(
         instructions.append(.constValue(result: argCountExpr, value: .intLiteral(argCount)))
 
         var callee = registrationCallee
-        var registrationArguments = [typeTokenExpr, nameExpr, argsExpr, argCountExpr]
+        var registrationArguments = keyArguments + [nameExpr, argsExpr, argCountExpr]
         var factory = annotation.factorySymbol
         if factory == nil, let linkName = annotation.factoryLinkName {
             let name = interner.intern(linkName)
@@ -53,8 +77,8 @@ func emitKClassAnnotationRegistration(
             let pointer = arena.appendExpr(.symbolRef(factory), type: sema.types.anyType)
             instructions.append(.constValue(result: pointer, value: .symbolRef(factory)))
             registrationArguments.append(pointer)
-            callee = registrationCallee == "__kk_kcallable_register_single_annotation"
-                ? "__kk_kcallable_register_annotation_factory" : "__kk_kclass_register_annotation_factory"
+            callee = factoryRegistrationCallee ?? (registrationCallee == "__kk_kcallable_register_single_annotation"
+                ? "__kk_kcallable_register_annotation_factory" : "__kk_kclass_register_annotation_factory")
         }
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(

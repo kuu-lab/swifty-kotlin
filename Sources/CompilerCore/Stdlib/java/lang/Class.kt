@@ -1,6 +1,7 @@
 package java.lang
 
 import java.lang.reflect.Constructor
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import kotlin.internal.KsSymbolName
 
@@ -34,6 +35,9 @@ private external fun __classGetDeclaredMethod(
     name: String,
     parameterTypes: Array<out Class<*>>
 ): Method
+
+@KsSymbolName("__kk_java_class_get_declared_field")
+private external fun __classGetDeclaredField(type: Class<*>, name: String): Field
 
 @KsSymbolName("__kk_java_class_get_name")
 private external fun __classGetName(type: Class<*>): String
@@ -76,6 +80,13 @@ public class Class<T> {
     /** Returns the method declared by this class with the given parameter types. */
     public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
         __classGetDeclaredMethod(this, name, parameterTypes)
+
+    /**
+     * Returns an enum entry field declared by this class.
+     * The native runtime panics with `java.lang.NoSuchFieldException` when the
+     * name is absent or names a field outside the supported enum-entry surface.
+     */
+    public fun getDeclaredField(name: String): Field = __classGetDeclaredField(this, name)
 
     /** Returns the JVM name of this class. */
     public val name: String
