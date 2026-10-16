@@ -5,6 +5,39 @@ This directory contains a strict paired-run harness for cases from the pinned
 `Scripts/diff_kotlinc.sh`, whose cases are compiler-authored programs rather
 than upstream test IDs.
 
+## Integrated CI gate (KUU-1826)
+
+`.github/workflows/kotlinx-io-gate.yml` runs on manual dispatch and nightly on
+the selected commit. It audits all API rows and upstream function IDs, runs the
+locked JVM and macOS Native reference catalogs, the six F02
+source/library/producer-consumer lanes, the complete macOS Native candidate
+catalog at O0/O2, the pinned Ktor IO consumer, every `kotlinx_io*.kt` diff case
+at O0/O2, and the Sema golden suite containing the IO fixtures. Each diff job
+runs only its selected optimization, so O0/O2 are each executed once. The gate stays
+scoped to kotlinx-io and does not repeat the repository-wide suite on each small
+API PR; regular CI and `nightly-full.yml` keep their existing roles.
+
+Every job checks out `github.sha`, writes a receipt only after verifying the
+actual checkout SHA, and uploads results even after failure. The final job
+rejects missing or duplicate receipts, summaries, mappings, a different SHA,
+failed jobs, and any recorded summary that is not all-PASS. The API artifact
+contains `api-gate-summary.json` with API and upstream test counts, plus
+`api-coverage-mapping.json`, which joins each API row to its local and upstream
+test references and lists concrete JVM/Native execution IDs for every source
+test. Each job publishes its raw logs and result maps as artifacts; the final
+summary artifact records the SHA, job conclusions, counts, and evidence paths.
+
+At the current inventory snapshot the audit intentionally fails: 5 API rows
+are `missing`, 701 are `unverified`, and 680 of 684 upstream function IDs are
+unmapped. The API ledger and source-declaration catalog must remain fresh;
+`generate.py --check` runs as part of the gate. Completing the implementation
+and verified mappings is required before a full run can become green. Run the
+local failure-injection tests with:
+
+```sh
+python3 -m unittest discover -s Scripts/kotlinx_io_upstream/tests -p 'test_verify_gate.py' -v
+```
+
 ## Runner contract
 
 `run_matrix.py` takes a JSON manifest. Each `run` case has one reference and

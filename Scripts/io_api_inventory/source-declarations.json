@@ -72596,7 +72596,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 17,
+      "line": 18,
       "name": "decodeToString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72644,7 +72644,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 24,
+      "line": 25,
       "name": "encodeToByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72704,7 +72704,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 33,
+      "line": 34,
       "name": "asReadOnlyByteBuffer",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72751,7 +72751,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 50,
+      "line": 51,
       "name": "getByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72811,7 +72811,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 74,
+      "line": 75,
       "name": "getByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72883,7 +72883,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 95,
+      "line": 96,
       "name": "putByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72927,7 +72927,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 112,
+      "line": 113,
       "name": "putByteString",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -72983,7 +72983,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 120,
+      "line": 121,
       "name": "checkIndexAndCapacity",
       "origin": "local",
       "owner": "kotlinx.io.bytestring",
@@ -73616,7 +73616,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "interface",
-      "line": 18,
+      "line": 19,
       "name": "FileSystem",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -73643,7 +73643,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 19,
+      "line": 20,
       "name": "exists",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73687,7 +73687,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 20,
+      "line": 21,
       "name": "delete",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73739,7 +73739,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 21,
+      "line": 22,
       "name": "createDirectories",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73791,7 +73791,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 22,
+      "line": 23,
       "name": "atomicMove",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73843,7 +73843,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 23,
+      "line": 24,
       "name": "source",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73887,7 +73887,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 24,
+      "line": 25,
       "name": "sink",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73943,7 +73943,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 25,
+      "line": 26,
       "name": "metadataOrNull",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -73990,7 +73990,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 26,
+      "line": 27,
       "name": "resolve",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -74034,7 +74034,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 27,
+      "line": 28,
       "name": "list",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSystem",
@@ -74087,7 +74087,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "property",
-      "line": 30,
+      "line": 31,
       "name": "SystemFileSystem",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -74118,7 +74118,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "object",
-      "line": 32,
+      "line": 33,
       "name": "NativeSystemFileSystem",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -74145,7 +74145,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 33,
+      "line": 34,
       "name": "exists",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74189,7 +74189,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 35,
+      "line": 36,
       "name": "delete",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74241,7 +74241,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 39,
+      "line": 40,
       "name": "createDirectories",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74293,7 +74293,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 43,
+      "line": 44,
       "name": "atomicMove",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74345,7 +74345,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 47,
+      "line": 48,
       "name": "source",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74389,7 +74389,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 49,
+      "line": 50,
       "name": "sink",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74445,7 +74445,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 52,
+      "line": 53,
       "name": "metadataOrNull",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74492,7 +74492,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 57,
+      "line": 58,
       "name": "resolve",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74536,7 +74536,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 59,
+      "line": 60,
       "name": "list",
       "origin": "local",
       "owner": "kotlinx.io.files.NativeSystemFileSystem",
@@ -74589,7 +74589,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "class",
-      "line": 68,
+      "line": 69,
       "name": "FileMetadata",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -74616,7 +74616,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "constructor",
-      "line": 68,
+      "line": 69,
       "name": "<init>",
       "origin": "local",
       "owner": "kotlinx.io.files.FileMetadata",
@@ -74680,7 +74680,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 69,
+      "line": 70,
       "name": "isRegularFile",
       "origin": "local",
       "owner": "kotlinx.io.files.FileMetadata",
@@ -74711,7 +74711,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 70,
+      "line": 71,
       "name": "isDirectory",
       "origin": "local",
       "owner": "kotlinx.io.files.FileMetadata",
@@ -74742,7 +74742,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 71,
+      "line": 72,
       "name": "size",
       "origin": "local",
       "owner": "kotlinx.io.files.FileMetadata",
@@ -74785,7 +74785,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "class",
-      "line": 79,
+      "line": 80,
       "name": "FileSource",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -74812,7 +74812,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "constructor",
-      "line": 79,
+      "line": 80,
       "name": "<init>",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSource",
@@ -74852,7 +74852,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 79,
+      "line": 80,
       "name": "fd",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSource",
@@ -74883,7 +74883,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 80,
+      "line": 81,
       "name": "readAtMostTo",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSource",
@@ -74939,7 +74939,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 93,
+      "line": 94,
       "name": "close",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSource",
@@ -74966,7 +74966,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 101,
+      "line": 102,
       "name": "toString",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSource",
@@ -75009,7 +75009,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "class",
-      "line": 107,
+      "line": 108,
       "name": "FileSink",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75036,7 +75036,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "constructor",
-      "line": 107,
+      "line": 108,
       "name": "<init>",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSink",
@@ -75076,7 +75076,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "property",
-      "line": 107,
+      "line": 108,
       "name": "fd",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSink",
@@ -75107,7 +75107,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 108,
+      "line": 109,
       "name": "write",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSink",
@@ -75159,7 +75159,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 128,
+      "line": 129,
       "name": "flush",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSink",
@@ -75186,7 +75186,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 132,
+      "line": 133,
       "name": "close",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSink",
@@ -75213,7 +75213,7 @@
       "hasBody": true,
       "implicit": false,
       "kind": "function",
-      "line": 140,
+      "line": 141,
       "name": "toString",
       "origin": "local",
       "owner": "kotlinx.io.files.FileSink",
@@ -75256,7 +75256,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 144,
+      "line": 145,
       "name": "ioFsExists",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75312,7 +75312,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 147,
+      "line": 148,
       "name": "ioFsDelete",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75376,7 +75376,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 150,
+      "line": 151,
       "name": "ioFsCreateDirectories",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75440,7 +75440,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 153,
+      "line": 154,
       "name": "ioFsAtomicMove",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75504,7 +75504,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 156,
+      "line": 157,
       "name": "ioFsMetadata",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75563,7 +75563,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 159,
+      "line": 160,
       "name": "ioFsList",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75628,7 +75628,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 162,
+      "line": 163,
       "name": "ioFsResolve",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75684,7 +75684,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 165,
+      "line": 166,
       "name": "ioFsOpenRead",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75740,7 +75740,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 168,
+      "line": 169,
       "name": "ioFsOpenWrite",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75808,7 +75808,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 171,
+      "line": 172,
       "name": "ioFsReadInto",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75900,7 +75900,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 174,
+      "line": 175,
       "name": "ioFsWrite",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -75988,7 +75988,7 @@
       "hasBody": false,
       "implicit": false,
       "kind": "function",
-      "line": 177,
+      "line": 178,
       "name": "ioFsClose",
       "origin": "local",
       "owner": "kotlinx.io.files",
@@ -83164,6 +83164,11 @@
         },
         {
           "alias": null,
+          "name": "kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations",
+          "wildcard": false
+        },
+        {
+          "alias": null,
           "name": "java.nio.ByteBuffer",
           "wildcard": false
         },
@@ -83176,7 +83181,7 @@
       "origin": "local",
       "package": "kotlinx.io.bytestring",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringJvmExt.kt",
-      "sha256": "a8f40fdce03901341b7ee20232e628f37598ab0610e1b44f836a10409438c501"
+      "sha256": "c8d571482ac8d0131c30daa4e4835589a89e6cac35e91794f00b1bae85ac4ac4"
     },
     {
       "fileAnnotations": [],
@@ -83252,6 +83257,11 @@
         },
         {
           "alias": null,
+          "name": "kotlinx.io.IOException",
+          "wildcard": false
+        },
+        {
+          "alias": null,
           "name": "kotlinx.io.RawSink",
           "wildcard": false
         },
@@ -83274,7 +83284,7 @@
       "origin": "local",
       "package": "kotlinx.io.files",
       "path": "Sources/CompilerCore/Stdlib/kotlinx/io/files/FileSystem.kt",
-      "sha256": "b1fe75e11645a1763ec992e6c2fdfdc45863e94bc2813c19b510613447ec1df3"
+      "sha256": "be1b7fc6531152c8ed599885c78140840adbb24d9ec97dbc35b32895cfb816e6"
     },
     {
       "fileAnnotations": [],
@@ -83430,19 +83440,19 @@
   "runtimeFiles": [
     {
       "path": "Sources/Runtime/RuntimeAppleFoundation.swift",
-      "sha256": "c6d2c74c77d573a29c6eff81d003af59d9e73a901610eb25d1118c6a6dc79084"
+      "sha256": "9f09711cd94954f34ef0f7545f0aba0b5c56de3c870f9465ea1f870efa17bc1b"
     },
     {
       "path": "Sources/Runtime/RuntimeAppleFoundationBindings.swift",
-      "sha256": "ab929733fe4c5d01f32ad64052417691d5c4c6869754cbb3cb812e02c2cdb9cf"
+      "sha256": "574f848b7938514fff823d389e39daa8ec94a7ba1fb4e733e6ffb8cf4317c1dc"
     },
     {
       "path": "Sources/Runtime/RuntimeArrayBasics.swift",
-      "sha256": "40311297d8c68f4725746642c053d7ff85fbc6caf302755bb0f17029162c5041"
+      "sha256": "358721873952062b47035ee59b853581e30b40c83135e9f72182410ad60c39d1"
     },
     {
       "path": "Sources/Runtime/RuntimeArrayComponentTypes.swift",
-      "sha256": "0d590d42bcf86ab83c9d3d491758c54ce38584791483346ffc0f696cc7bcb64d"
+      "sha256": "416343bfa996612394b4d1648b86fc57330076b5238bf779374dc02ad8fdc2ac"
     },
     {
       "path": "Sources/Runtime/RuntimeArrayDequeAndUtility.swift",
@@ -83450,7 +83460,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeAssertions.swift",
-      "sha256": "4f465b8254372c0335d754e69eb91fddd703ac0820b31fefebc8cacf4e0c4b90"
+      "sha256": "e402affce720ac7837413453c3143d0e8d8335dd586b611d724ab72963db6fcd"
     },
     {
       "path": "Sources/Runtime/RuntimeAtomic.swift",
@@ -83470,7 +83480,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeBuilderDSL.swift",
-      "sha256": "4a29849f7ced483dbce8b20a4516ddc67f10212539627fed791163feee0606cd"
+      "sha256": "2ea0b25b8c4337c39e2728177d4402a632f07e9482ce76ef46bb57f41fd2fe00"
     },
     {
       "path": "Sources/Runtime/RuntimeCInteropArena.swift",
@@ -83478,11 +83488,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCallableInvocation.swift",
-      "sha256": "998a66342f97da30439197406d6866d29b449c4f1b7eb6fec39cd25941091953"
+      "sha256": "a6475ca8c2e068338cbf2831ba778d461db9a24c86acb6133def171a9a6974f1"
     },
     {
       "path": "Sources/Runtime/RuntimeCancellableContinuation.swift",
-      "sha256": "6d8e8b47ab26ada5fd2d06268998f2797c82f16cda0e1479a6d4a731ab0fd16e"
+      "sha256": "9916640f6ebf2cb02fd39658ad128e5397f503d4607f3eb2bef62acf7ea6d389"
     },
     {
       "path": "Sources/Runtime/RuntimeChar.swift",
@@ -83498,7 +83508,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+CollectionBoxes.swift",
-      "sha256": "aaf409c8632b78050e019970a5929d8bf55b0f6d01601d1358b17afcc41d9e20"
+      "sha256": "8941367b3b52d383191526ff40a78839388cc29fd6527e4d74d51ebdbc259986"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+Comparison.swift",
@@ -83506,11 +83516,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+ElementString.swift",
-      "sha256": "383241c039042a5a1433c2aecb06269de88058166e34e5bac69da9ffa735eb7a"
+      "sha256": "ddc8c3c801cead16e0d0d9c9ca87bd46d40036c0d54cb703c38a8c5f209743a5"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+Equality.swift",
-      "sha256": "e25394ed2fb1ce2c22d78ae387604fc50316802a62b0d19f0c2ab0cc7d79be2f"
+      "sha256": "246ee87b898d1a461611bc4972fbfeb14a184548fdfe76ac0e7d307233eb8e19"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+HOF.swift",
@@ -83518,15 +83528,15 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+Iterators.swift",
-      "sha256": "241cbfb4bf689736127e7782867a1b40b8b8be7ffd9e69cff39d71b78761e844"
+      "sha256": "4085bd384873dab4f90202837a05d44e4ac582a906481db71b141d454b9af863"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers+SourceInterface.swift",
-      "sha256": "f50e5a8e80176299f6a88ad6535fbbc6e467bcf30b6144dce21bce3da8e31cb7"
+      "sha256": "5864fb09c3bc9487db93ef783d13bbeb84c976a9620c2d100ef5b729fab7e7f2"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionHelpers.swift",
-      "sha256": "e7e66457638bafedd5d90304628d7354e417ac8e7754ee6259ac393a9cf5a924"
+      "sha256": "a35d057ede032949c749c4872abb5443247215cc182fdcb2989e98abd0e563b9"
     },
     {
       "path": "Sources/Runtime/RuntimeCollectionMutation.swift",
@@ -83534,7 +83544,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCollections.swift",
-      "sha256": "c8d72b1976b4794243e012f994ea49ede3750480399236255126c41518a9a294"
+      "sha256": "88aaa373fd13cc0be9b4fff60fc08f5e8ecb4f4454dd02781f325dcc52f72751"
     },
     {
       "path": "Sources/Runtime/RuntimeComparator.swift",
@@ -83546,7 +83556,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+ExceptionHandler.swift",
-      "sha256": "7eb095c177d80a0059e489493faea8e6921aa6e41ba61226f49aa8f39dc0b537"
+      "sha256": "1efb71980f5e09cb6b24d4a4143a90d988d8cd1d5b98e11397cca6f1f0ff60f7"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+Job.swift",
@@ -83554,7 +83564,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+JobLifecycle.swift",
-      "sha256": "b85459d294b357a7fa2218856a4749a30ecfedd4124adb8d661ba77e8c2afe95"
+      "sha256": "f70f5a984bddddb75ba54377b7b283273705b3efd12261df451452153130f0fc"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+Launch.swift",
@@ -83562,7 +83572,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+Scope.swift",
-      "sha256": "4bbd8261855aea681236d68f7abf3e2399bfdc7ce39ce60c03dceb0bd0e47b5f"
+      "sha256": "41ac5b2160daf88df9acc41e2fd5f406010778f955228d3e016bf70f0e68ce54"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+Suspend.swift",
@@ -83570,7 +83580,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+SyncGate.swift",
-      "sha256": "63afc68344e14a21f1fb69fcdc6e2bf2ec1c9d5c94214cd0cee545a0f1cd25c4"
+      "sha256": "4521d11660071d250ac516b12b53f89bd1a8897245823c7eb55644fd3f72a350"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutine+TestSupport.swift",
@@ -83582,11 +83592,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineChannel.swift",
-      "sha256": "89fdb558d670649a85ef1786de5853ac31ef9336e488165ac52a38253c7c5815"
+      "sha256": "64e2b57d6b8974ca4d5175d638704d04e5761508d41d0c388495e297ca2fc7a6"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineContext.swift",
-      "sha256": "6a0e7acf70a7f07e2bf556af7b4e13664926b9da4b627a5623221f2c964d3a99"
+      "sha256": "f5256ad79870718ebc70088ef62c9029e9211bcbbe191c21b276a09e32c67da0"
     },
     {
       "path": "Sources/Runtime/RuntimeCoroutineEventLoop.swift",
@@ -83605,6 +83615,10 @@
       "sha256": "9e33897f38ef296800bc8a89552b5101890e6cffe0fe3f59518439f95f55a7ac"
     },
     {
+      "path": "Sources/Runtime/RuntimeDateFormat.swift",
+      "sha256": "4f87bde0092136c2a3b2baad35eaac59083baa62f424457b5067686b317d217b"
+    },
+    {
       "path": "Sources/Runtime/RuntimeDebug.swift",
       "sha256": "f05b99839d32de0c2784b98547ece3699fb7d5db27a91fdba1e449a861d056b6"
     },
@@ -83614,7 +83628,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeDelegates.swift",
-      "sha256": "ea5da0881a59e584e2799baf58e0ba82a0c3ef3371d54cfb7f584ef640a46784"
+      "sha256": "40b3c15275c25768973ed97c3d27294225a1f7f94889b1087b114126f18eef86"
     },
     {
       "path": "Sources/Runtime/RuntimeDuration.swift",
@@ -83622,7 +83636,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeEnum.swift",
-      "sha256": "cd365e01faa1c42599ca9654836b1d8ff84eea734b643c1987c28fc2d2230cc7"
+      "sha256": "b85343f574f5236eed692a863e47993ced167b844806b4a85b134f5728de7a5f"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeEnumSet.swift",
+      "sha256": "fb06e0643c1ea2975fd80e9de3114dc4340870b158b2bd38df20f2ea0ead4f6f"
     },
     {
       "path": "Sources/Runtime/RuntimeFileIO.swift",
@@ -83642,7 +83660,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeFunctionTypes.swift",
-      "sha256": "528bb40b1cf4b9b0c22e56cc0d254a2f2231c5e5445df8c52e03e18a34c419e7"
+      "sha256": "9eba7508dc60aeec96c7ce7c3b486bad21f58cfaa561222202bb58b8055caf5c"
     },
     {
       "path": "Sources/Runtime/RuntimeGC+RetainedAtomicPayloads.swift",
@@ -83650,7 +83668,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeGC.swift",
-      "sha256": "93aa9bb2ce1c4a9fcc3e3d7697b539a407c7ed036fe5f9304f0e4c67c5b08114"
+      "sha256": "0eb4cba29708ec74ea7a8de49acc0807b063454f84286bb9097305c67d0644bf"
     },
     {
       "path": "Sources/Runtime/RuntimeHOFShared.swift",
@@ -83697,12 +83715,24 @@
       "sha256": "bc299138833e45f5cba7674f3f9f8571f0085410be4e6f05ea7c980c81dd5aed"
     },
     {
+      "path": "Sources/Runtime/RuntimeJavaReflection.swift",
+      "sha256": "ca443ea202f759fde53ee6b390cc1893c37121bb87a43cad200173236a170171"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeJvmClass.swift",
+      "sha256": "1c1d23e5b03137106197a303d2858892a2ee9c69377ff78f4997497ff1b8d91a"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeJvmClassReflection.swift",
+      "sha256": "ade98dedcf8bd99177011615edd6c979282c4223f0ff4639b65c3354e8183ed8"
+    },
+    {
       "path": "Sources/Runtime/RuntimeKClassObjects.swift",
       "sha256": "218dc5d13cefbbfa5f98556d80d04761e888d3543136496a27e6052daff93faa"
     },
     {
       "path": "Sources/Runtime/RuntimeKotlinVersion.swift",
-      "sha256": "6442d43b873976d140eb56f29d5e381eed19d64db92abe2fe5e72b60d5c2bd9c"
+      "sha256": "d0295adc770f5488cc6a8887948f98823ca08d668f8c5f22361df55c67d95ed0"
     },
     {
       "path": "Sources/Runtime/RuntimeLiveHandleRegistry.swift",
@@ -83714,7 +83744,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeMemory.swift",
-      "sha256": "28ad4312649740e220247aacde2d9d7c1b5478d4acca890429e36748d77d7d47"
+      "sha256": "3e025e9552035983a8a568281faff55a076edb67df8a0aebf660719abf42a100"
     },
     {
       "path": "Sources/Runtime/RuntimeMetadata.swift",
@@ -83738,15 +83768,15 @@
     },
     {
       "path": "Sources/Runtime/RuntimeNumberConversionDispatch.swift",
-      "sha256": "0a137ef505cddca44ad2941add1c821b9f21b427655d45155bcf60fd660b0db2"
+      "sha256": "e63c74168ca335a9ddaab4335355d8db0916cecf34a548ab2a50bb657b24374e"
     },
     {
       "path": "Sources/Runtime/RuntimeNumericCoercion.swift",
-      "sha256": "89bc8464b99fda8116dd503598fd9810f5c75e9ba9ded5dfa660e26dbd3d0c15"
+      "sha256": "576d67c5772282eca790264c145ba03988f7e4bf63bd24f532195571b619abf3"
     },
     {
       "path": "Sources/Runtime/RuntimeNumericCompat.swift",
-      "sha256": "7203dec381544618b33b2d2c9f2706229124f161f1816e22929d66c3fdd4d2bf"
+      "sha256": "ec18cd87677105df86fe59bbd2293dad815adfb2d508f8376e934b485a9693eb"
     },
     {
       "path": "Sources/Runtime/RuntimeObjectOwnership.swift",
@@ -83790,11 +83820,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeRangeValueSemantics.swift",
-      "sha256": "11139ad4e8aeb035c3ca14c613d26fbd0c44d983df4752ddc41d4d73b395ad11"
+      "sha256": "70eb159f7cf3056358156413ecda444168113fd29d9f64f888553e5bca7897b6"
     },
     {
       "path": "Sources/Runtime/RuntimeReflection.swift",
-      "sha256": "e4edde9fda2bc1cd37bd637a30d533ce39b6d695cd01b5c422a0b7af26fdf2fb"
+      "sha256": "7dbe772b8652c30996264138424bb5b1f5c75236e37fab3abca0798b4d23d5da"
     },
     {
       "path": "Sources/Runtime/RuntimeReflectionTypeMetadata.swift",
@@ -83838,7 +83868,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeSetAndMap.swift",
-      "sha256": "7d10c34f7c5b9b7204d8884728f9686d8020284197f7ebca81c5bd5b2eda054d"
+      "sha256": "f6463725afb6a2d7e7dea2fca07492a45c98c3f89d457c53ad4d237b874c1a28"
     },
     {
       "path": "Sources/Runtime/RuntimeSortedCollections.swift",
@@ -83854,11 +83884,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+Arrays.swift",
-      "sha256": "1c47ebf130082081c6ef2e746aade478298ee3d3b7f5ed826aa4bf0960ec457b"
+      "sha256": "683213ab67af98393c3c88b4789bfd144c7f79ae0b38463da79bfb872b52bc58"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+KClass.swift",
-      "sha256": "59bb757284bca924fe073a3b5466827550b5c44fb566af9366a7b401da1fda80"
+      "sha256": "70d506610378454ef66619feaa9e46bd20598f228e4148c5f817139e6a06bf65"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+KClassMembers.swift",
@@ -83866,7 +83896,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+KClassSupertypes.swift",
-      "sha256": "a38de85629a3afc91553517461ffc50e46e9ab4d56982b9e844eeedf87082852"
+      "sha256": "649554daeed348f007094f2997b3487857137d6852314e20c72129d2c2b20dd5"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+KType.swift",
@@ -83874,19 +83904,19 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+Objects.swift",
-      "sha256": "88de7da92ac3e18bdcd8f0d1ab100d07c3b0f4a60598689e215e7d119cbaca26"
+      "sha256": "5d3f0fc22bea2b979622a871461d72182dc2f93cf2b78a80e928d6776d64de73"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+Printing.swift",
-      "sha256": "3d62c1f6fd850e9bca5ea2db07f79a99c70f99e140a752c89acd436162450b5b"
+      "sha256": "49c5c4c20cc5bf09ce45a6f21b81434e20aa45d6f9f210c599ca525a09495631"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+Throwable.swift",
-      "sha256": "f385c2837b472a5451a2ee49adf8535f37b96677e799448fbf9b794c1c5929a7"
+      "sha256": "052ee27d07230d7b70195dbf4c596365c4aee94dc8ae089f411f68e8f2aa2c9e"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray+TypeChecks.swift",
-      "sha256": "eaa7ae14ae373fd23a7d2a176d7d2347b9156a70351dfd4169e9e5abe7231a51"
+      "sha256": "0c6028fd5d8f606a6c56a7e2b16b9058edce1b130db1e8cf458fa1dea45e7668"
     },
     {
       "path": "Sources/Runtime/RuntimeStringArray.swift",
@@ -83902,11 +83932,11 @@
     },
     {
       "path": "Sources/Runtime/RuntimeStringConversion.swift",
-      "sha256": "6453628a1c5bec60ce6a08bd4635f88b2cd524bbcd52db4a0e512790fe23b427"
+      "sha256": "15c9cfa84a1d4f8bb6658e342b3ff98c5645481d2c235d532412d238c71f6520"
     },
     {
       "path": "Sources/Runtime/RuntimeStringEncoding.swift",
-      "sha256": "0141f65f13d1f0516676a764302f0116d4186bb03b646ef8a75eab0952cb5563"
+      "sha256": "f65040e20fec18421515def78aa8f391a4fc38aff35acb69b01211dd47094fe3"
     },
     {
       "path": "Sources/Runtime/RuntimeStringFlat.swift",
@@ -83946,11 +83976,15 @@
     },
     {
       "path": "Sources/Runtime/RuntimeSync.swift",
-      "sha256": "50e9ad70ec19fca2fa7d07bc9ec5c8486b09ac6213e37a98f100a196ef96c855"
+      "sha256": "076bf3fa819f9994d1c85fe12c246c6693b19843331e8f2958fde5318c3ecdf8"
     },
     {
       "path": "Sources/Runtime/RuntimeSystem.swift",
-      "sha256": "135fbcf1f4d79d924a4c010491551dd87fd8d8390ac047ed52dcf812f97b5912"
+      "sha256": "a352e67e1153ae099a09b66faa084d5ffc7e89befe25a243a7dbce5a73f845e3"
+    },
+    {
+      "path": "Sources/Runtime/RuntimeSystemArrayCopy.swift",
+      "sha256": "174172467beeafb606c681620d9ffd93ec8e302817757ac00ef9d2788954256d"
     },
     {
       "path": "Sources/Runtime/RuntimeThreadLocal.swift",
@@ -83966,7 +84000,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+CoreTypes.swift",
-      "sha256": "0b20520d1e95305460b29a2536eff8c2452098364b99b7aa204fd1b58c7490cf"
+      "sha256": "d0905adc84a18559e0901e1e9a3305d729bfe0705021027ad19c9454a7bed655"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+IOBoxes.swift",
@@ -83974,19 +84008,19 @@
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+ListBoxes.swift",
-      "sha256": "eebbab272380fa804ae52c92fd47adae753affbd62c8b5f58bcb3cee8ad3ee3f"
+      "sha256": "e0bf5727ff7448ae2b9e1e92353470fb5ab5005fb416218bb425720e0ea010d9"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+MapBoxes.swift",
-      "sha256": "dad9c49ba3fb6992998bd857d24ab361f11e05d432c60fa3ca1f841a071b7c2c"
+      "sha256": "83c8e878d7de6ccc4c3030a2c9ddff97597884239e4142eb3e2b5c8cbf00a692"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+ObjectBoxes.swift",
-      "sha256": "4ef5a9d34b0c5ae38a7d648c89b5c440f7bbde644152fc15adfd1554f1266353"
+      "sha256": "797b539dc59bf96c137ff194ffd3651ee89d7dca530cbda677ca997251920a25"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+Reflection.swift",
-      "sha256": "ab8e604191e9fdfa58672b4fb2e496aee3bd1ea50fb021f68ae8ace1b414cd6b"
+      "sha256": "ceb6b16213919cdb377929063e64e86d6965b867d66807ac88fb006a568e8e01"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+SequenceBuilders.swift",
@@ -83994,7 +84028,7 @@
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+SetBoxes.swift",
-      "sha256": "763748823de8deac9ac20b8109bdff9980299fde1b8a44eccf6065d1a27224ea"
+      "sha256": "b1037e71e4a99a08a5e5b4f0c25cf3d185a50b163c50d0f95a6992337ce4f29a"
     },
     {
       "path": "Sources/Runtime/RuntimeTypes+ThrowableBoxes.swift",
