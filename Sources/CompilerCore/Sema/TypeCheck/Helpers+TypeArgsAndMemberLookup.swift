@@ -737,6 +737,8 @@ extension TypeCheckHelpers {
         }
 
         var candidates: [SymbolID] = []
+        // Overrides hide inherited declarations only for the same dispatch key;
+        // arity alone would drop unrelated overloads with the same parameter count.
         var overrideDepthByKey: [MemberDispatchKey: Int] = [:]
         for key in keyOrder {
             guard let grouped = candidatesByKey[key] else { continue }
