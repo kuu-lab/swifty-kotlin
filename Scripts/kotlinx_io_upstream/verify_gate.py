@@ -8,6 +8,7 @@ import collections
 import csv
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
