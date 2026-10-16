@@ -345,6 +345,7 @@ final class ComparableCharEscapeAnalyzer {
             for ctor in classDecl.secondaryConstructors { eachCtor(ctor) }
             for entry in classDecl.enumEntries {
                 for arg in entry.constructorArgs { visit(arg.expr, depth, false) }
+                for initBlock in entry.initBlocks { eachBody(initBlock) }
                 for member in entry.memberFunctions + entry.memberProperties + entry.nestedClasses {
                     eachDeclChild(of: member, depth: depth, visit)
                 }

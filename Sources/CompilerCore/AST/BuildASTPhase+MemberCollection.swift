@@ -86,6 +86,12 @@ extension BuildASTPhase {
                     name: name,
                     annotations: annotations,
                     constructorArgs: constructorArgs,
+                    initBlocks: declarationInitBlocks(
+                        from: entryNodeID, in: arena, interner: interner, astArena: astArena
+                    ),
+                    classBodyInitOrder: declarationClassBodyInitOrder(
+                        from: entryNodeID, in: arena, interner: interner
+                    ),
                     memberFunctions: members.functions,
                     memberProperties: members.properties,
                     nestedClasses: members.nestedClasses

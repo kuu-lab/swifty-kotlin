@@ -41,9 +41,10 @@ extension KIRLoweringDriver {
     }
 
     private struct EnumEntryBodyProperty {
+        let propertyIndex: Int
         let name: InternedString
         let symbol: SymbolID
-        let initializer: ExprID
+        let initializer: ExprID?
         let type: TypeID
     }
 
@@ -179,11 +180,12 @@ extension KIRLoweringDriver {
             ))
         }
         let entryBodyProperties: [[EnumEntryBodyProperty]] = classDecl.enumEntries.map { entry in
-            entry.memberProperties.compactMap { declID in
+            entry.memberProperties.enumerated().compactMap { propertyIndex, declID in
                 guard let decl = ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
                       isPlainStoredEnumProperty(property),
-                      let initializer = property.initializer,
+                      property.receiverType == nil,
+                      !property.modifiers.contains(.abstract),
                       let propertySymbol = sema.bindings.declSymbols[declID]
                 else {
                     return nil
@@ -192,7 +194,11 @@ extension KIRLoweringDriver {
                     ?? sema.symbols.propertyType(for: propertySymbol)
                     ?? sema.types.anyType
                 return EnumEntryBodyProperty(
-                    name: property.name, symbol: propertySymbol, initializer: initializer, type: type
+                    propertyIndex: propertyIndex,
+                    name: property.name,
+                    symbol: propertySymbol,
+                    initializer: property.initializer,
+                    type: type
                 )
             }
         }
@@ -213,7 +219,9 @@ extension KIRLoweringDriver {
         for entryProperties in entryBodyProperties {
             for property in entryProperties {
                 let isMutable = classPropertySymbol(named: property.name)
-                    .flatMap { sema.symbols.symbol($0)?.flags.contains(.mutable) } ?? false
+                    .flatMap { sema.symbols.symbol($0)?.flags.contains(.mutable) }
+                    ?? sema.symbols.symbol(property.symbol)?.flags.contains(.mutable)
+                    ?? false
                 addStoredProperty(EnumStoredProperty(name: property.name, type: property.type, isMutable: isMutable))
             }
         }
@@ -234,6 +242,7 @@ extension KIRLoweringDriver {
                 return chosen != primaryConstructorSymbol
             }
             || !classDecl.initBlocks.isEmpty
+            || classDecl.enumEntries.contains(where: { !$0.initBlocks.isEmpty })
             || !bodyStoredPropertySymbols.isEmpty
             || entryBodyProperties.contains(where: { !$0.isEmpty })
             || entryBodyGetterSymbols.contains(where: { !$0.isEmpty })
@@ -647,15 +656,38 @@ extension KIRLoweringDriver {
                 }
                 ctx.enumEntryStorageSlots = [:]
 
-                // Entry body (`A { override val x = ... }`) runs after the
-                // enum class constructor, like a subclass initializer.
-                for property in entryBodyProperties[ordinal] {
-                    guard let slotSymbol = entrySlots[ordinal][property.name] else { continue }
-                    let value = lowerExpr(property.initializer, shared: shared, emit: &body)
-                    let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: property.type)
-                    body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
-                    body.append(.copy(from: value, to: slotRef))
+                // Entry body declarations run after the enum class constructor,
+                // in their source order, like an anonymous subclass initializer.
+                ctx.enumEntryStorageSlots = Dictionary(
+                    uniqueKeysWithValues: entryBodyProperties[ordinal].compactMap { property in
+                        entrySlots[ordinal][property.name].map { (property.symbol, $0) }
+                    }
+                )
+                let entryBodyInitOrder = entry.classBodyInitOrder.isEmpty
+                    ? entry.memberProperties.indices.map(ClassBodyInitMember.property)
+                        + entry.initBlocks.indices.map(ClassBodyInitMember.initBlock)
+                    : entry.classBodyInitOrder
+                for member in entryBodyInitOrder {
+                    switch member {
+                    case let .property(index):
+                        guard let property = entryBodyProperties[ordinal].first(where: {
+                                  $0.propertyIndex == index
+                              }),
+                              let initializer = property.initializer,
+                              let slotSymbol = entrySlots[ordinal][property.name]
+                        else {
+                            continue
+                        }
+                        let value = lowerExpr(initializer, shared: shared, emit: &body)
+                        let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: property.type)
+                        body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+                        body.append(.copy(from: value, to: slotRef))
+                    case let .initBlock(index):
+                        guard entry.initBlocks.indices.contains(index) else { continue }
+                        emitInitBlock(entry.initBlocks[index], shared: shared, body: &body)
+                    }
                 }
+                ctx.enumEntryStorageSlots = [:]
 
                 ctx.clearImplicitReceiver()
             }

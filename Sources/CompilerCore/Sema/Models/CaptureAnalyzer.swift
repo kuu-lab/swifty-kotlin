@@ -403,7 +403,7 @@ struct CaptureAnalyzer {
                         .flatMap(\.constructorArgs).map(\.expr)
                     memberFunctionDecls = classDecl.memberFunctions
                     memberPropertyDecls = classDecl.memberProperties
-                    initBlocks = classDecl.initBlocks
+                    initBlocks = classDecl.initBlocks + classDecl.enumEntries.flatMap(\.initBlocks)
                 default:
                     constructorArgExprs = []
                     memberFunctionDecls = []

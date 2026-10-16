@@ -664,7 +664,8 @@ struct DeclarationPositionValidator {
             let entrySite = OwnerSite.nominal(NominalSite(
                 kind: .enumEntry,
                 isLocal: site.isLocal,
-                ownerModifiers: []
+                ownerModifiers: [],
+                allowsImperativeInit: !entry.initBlocks.isEmpty
             ))
             for declID in entry.memberFunctions {
                 validate(declID: declID, site: entrySite)

@@ -553,6 +553,9 @@ public struct EnumEntryDecl: Codable {
     public let name: InternedString
     public let annotations: [AnnotationNode]
     public let constructorArgs: [CallArgument]
+    public let initBlocks: [FunctionBody]
+    /// Property initializers and init blocks execute in declaration order.
+    public let classBodyInitOrder: [ClassBodyInitMember]
     /// These declarations are kept separate from the enum class members. The
     /// runtime still represents enum values as ordinals, so the lowering pass
     /// can synthesize ordinal-based dispatch for overrides without creating a
@@ -571,6 +574,8 @@ public struct EnumEntryDecl: Codable {
         name: InternedString,
         annotations: [AnnotationNode] = [],
         constructorArgs: [CallArgument] = [],
+        initBlocks: [FunctionBody] = [],
+        classBodyInitOrder: [ClassBodyInitMember] = [],
         memberFunctions: [DeclID] = [],
         memberProperties: [DeclID] = [],
         nestedClasses: [DeclID] = []
@@ -579,6 +584,8 @@ public struct EnumEntryDecl: Codable {
         self.name = name
         self.annotations = annotations
         self.constructorArgs = constructorArgs
+        self.initBlocks = initBlocks
+        self.classBodyInitOrder = classBodyInitOrder
         self.memberFunctions = memberFunctions
         self.memberProperties = memberProperties
         self.nestedClasses = nestedClasses
@@ -589,6 +596,8 @@ public struct EnumEntryDecl: Codable {
         case name
         case annotations
         case constructorArgs
+        case initBlocks
+        case classBodyInitOrder
         case memberFunctions
         case memberProperties
         case nestedClasses
@@ -600,6 +609,10 @@ public struct EnumEntryDecl: Codable {
         name = try container.decode(InternedString.self, forKey: .name)
         annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
         constructorArgs = try container.decodeIfPresent([CallArgument].self, forKey: .constructorArgs) ?? []
+        initBlocks = try container.decodeIfPresent([FunctionBody].self, forKey: .initBlocks) ?? []
+        classBodyInitOrder = try container.decodeIfPresent(
+            [ClassBodyInitMember].self, forKey: .classBodyInitOrder
+        ) ?? []
         memberFunctions = try container.decodeIfPresent([DeclID].self, forKey: .memberFunctions) ?? []
         memberProperties = try container.decodeIfPresent([DeclID].self, forKey: .memberProperties) ?? []
         nestedClasses = try container.decodeIfPresent([DeclID].self, forKey: .nestedClasses) ?? []
