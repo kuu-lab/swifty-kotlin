@@ -221,7 +221,19 @@ extension ExprTypeChecker {
             }
             receiverType = unboundClassType
         } else if let receiver {
-            receiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+            let inferredReceiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+            // A qualified classifier such as `A.B` is parsed as a member
+            // expression before `::` is recognized. Its final identifier is
+            // nevertheless bound to the nested classifier symbol; preserve
+            // that type receiver as unbound instead of capturing it as a value.
+            if let symbolID = sema.bindings.identifierSymbols[receiver],
+               let symbol = sema.symbols.symbol(symbolID),
+               symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass,
+               case .classType = sema.types.kind(of: inferredReceiverType)
+            {
+                unboundClassType = inferredReceiverType
+            }
+            receiverType = inferredReceiverType
         } else {
             receiverType = nil
         }
