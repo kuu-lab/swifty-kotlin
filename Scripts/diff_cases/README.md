@@ -45,6 +45,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `nullable_receiver_ext.kt`: nullable receiver 拡張（`fun T?.foo()`）の直接呼び出しと優先順位 parity（出力は `1/0` 比較）
 - `local_var.kt`: block 内 local `val` 宣言と参照
 - `local_assign.kt`: block 内 local `var` 再代入
+- `kuu_2437_uninitialized_local_block.kt`: 未初期化 `var` の次行にある単独ブロックと trailing lambda の境界 parity（KUU-2437）
 - `loop_basic.kt`: `while` / `do-while` の制御フローと `break` の基本実行
 - `array_index.kt`: `IntArray` の index read/write と算術
 - `overload.kt`: overload resolution by parameter type
