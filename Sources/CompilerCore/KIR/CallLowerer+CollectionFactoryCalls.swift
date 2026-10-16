@@ -266,9 +266,8 @@ extension CallLowerer {
         return (array, count)
     }
 
-    /// Boxes a lowered argument into `Any?` when it is an unboxed primitive, so it can be
-    /// stored as an element of an `Any?`-typed array/list. Reused by other vararg-into-`Any?`
-    /// lowering paths (e.g. `StringBuilder.append(vararg value: Any?)`).
+    /// Reused by other vararg-into-`Any?` lowering paths (e.g.
+    /// `StringBuilder.append(vararg value: Any?)`).
     ///
     /// A value class with no interface is unboxed to its underlying primitive
     /// elsewhere (ValueClassUnboxingPass), so its *declared* type here is still
