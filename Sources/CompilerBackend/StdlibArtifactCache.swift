@@ -397,8 +397,10 @@ public enum StdlibArtifactCache {
         return .valid
     }
 
-    /// Works on both the indexed (v2) metadata layout, where each index line is
-    /// prefixed by "<offset>\t<length>\t", and the legacy line-per-record layout.
+    /// Mangled names of every metadata record marked `inline=1` — i.e. every
+    /// inline-KIR blob a consumer may demand. Works on both the indexed (v2)
+    /// metadata layout, where each index line is prefixed by
+    /// "<offset>\t<length>\t", and the legacy line-per-record layout.
     private static func inlineKIRMangledNames(metadataText: String) -> Set<String> {
         var names: Set<String> = []
         for rawLine in metadataText.split(separator: "\n") {
