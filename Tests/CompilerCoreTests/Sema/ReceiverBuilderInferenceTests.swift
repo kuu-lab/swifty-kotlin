@@ -11,6 +11,12 @@ struct ReceiverBuilderInferenceTests {
     fun <R> build(builder: Builder<R>.() -> Unit): R = null as R
     """
 
+    private let nonUnitBuilder = """
+    class Buildee<T> { fun materialize(): T = null as T }
+    class UserKlass
+    fun <T> build(block: Buildee<T>.() -> UserKlass): Buildee<T> = null as Buildee<T>
+    """
+
     @Test func callbackResultInfersBuilderType() throws {
         try expectIntResult(builder + """
 
@@ -19,6 +25,65 @@ struct ReceiverBuilderInferenceTests {
             println(result)
         }
         """)
+    }
+
+    @Test func nonUnitReceiverLambdaBodyReturnInfersBuilderType() throws {
+        let source = nonUnitBuilder + """
+
+        fun main() {
+            val result = build { materialize() }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(calleeID, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeID)
+                else { return false }
+                return ctx.interner.resolve(name) == "build"
+            }
+            #expect(calls.count == 1)
+            let call = try #require(calls.first)
+            let userKlass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("UserKlass")]))
+            let expectedType = sema.types.make(.classType(ClassType(
+                classSymbol: userKlass, args: [], nullability: .nonNull
+            )))
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(binding.substitutedTypeArguments == [expectedType])
+        }
+    }
+
+    @Test func nonUnitReceiverLambdaKeepsExplicitAndExpectedTypes() throws {
+        let source = nonUnitBuilder + """
+
+        fun main() {
+            val explicit = build<UserKlass> { materialize() }
+            val expected: Buildee<UserKlass> = build { materialize() }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func nonUnitReceiverLambdaRejectsIncompatibleReturnType() throws {
+        let source = nonUnitBuilder + """
+
+        fun main() {
+            val incompatible: Buildee<String> = build { materialize() }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
     }
 
     @Test func multipleCallbacksAndNestedCallsInferBuilderType() throws {

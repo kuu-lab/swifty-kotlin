@@ -523,6 +523,7 @@ extension ExprTypeChecker {
                let session = ctx.builderInference,
                inferenceReturnType != sema.types.unitType,
                session.mentionsVariable(inferenceReturnType, types: sema.types)
+                || session.mentionsVariable(sourceLevelInferredBodyType, types: sema.types)
             {
                 session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                     subtype: sourceLevelInferredBodyType,

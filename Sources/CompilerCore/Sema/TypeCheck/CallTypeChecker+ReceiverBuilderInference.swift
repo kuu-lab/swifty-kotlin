@@ -83,7 +83,7 @@ extension CallTypeChecker {
             guard case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr),
                   let parameter = mapping[index],
                   case let .functionType(function) = sema.types.kind(of: signature.parameterTypes[parameter]),
-                  function.returnType == sema.types.unitType
+                  function.returnType == sema.types.unitType || function.receiver != nil
             else { return false }
             // Ordinary callback parameters carry postponed variables too:
             // `(Continuation<T>) -> Unit` can infer T from uses in the body.
