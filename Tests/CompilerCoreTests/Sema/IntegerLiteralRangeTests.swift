@@ -79,6 +79,62 @@ struct IntegerLiteralRangeTests {
     }
 
     @Test
+    func smallUnsignedRangeFallbackPromotesToUInt() throws {
+        let source = """
+        fun iterateSmallUnsignedRanges(
+            byteLower: UByte,
+            byteUpper: UByte,
+            shortLower: UShort,
+            shortUpper: UShort
+        ) {
+            for (byteValue in byteLower..byteUpper) {
+                val promotedByte: UInt = byteValue
+            }
+            for (shortValue in shortLower..shortUpper) {
+                val promotedShort: UInt = shortValue
+            }
+        }
+        """
+        let (ctx, ast, fileID) = try buildFrontend(source)
+
+        try SemaPhase().run(ctx)
+
+        let sema = try #require(ctx.sema)
+        let rangeExprIDs = ast.arena.exprs.enumerated().compactMap { (index, expr) -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .binary(op, _, _, _) = expr,
+                  op == .rangeTo,
+                  ast.arena.exprRange(exprID)?.start.file == fileID
+            else {
+                return nil
+            }
+            return exprID
+        }
+        let loopIDsByName = Dictionary(uniqueKeysWithValues: ast.arena.exprs.enumerated().compactMap { (index, expr) -> (String, ExprID)? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .forExpr(loopVariable?, _, _, _, _) = expr,
+                  ast.arena.exprRange(exprID)?.start.file == fileID
+            else {
+                return nil
+            }
+            return (ctx.interner.resolve(loopVariable), exprID)
+        })
+
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error },
+                "Small unsigned ranges must allow UInt-valued loop elements: \(ctx.diagnostics.diagnostics)")
+        #expect(rangeExprIDs.count == 2)
+        for rangeExpr in rangeExprIDs {
+            #expect(sema.bindings.exprType(for: rangeExpr) == sema.types.uintType)
+            #expect(sema.bindings.isUIntRangeExpr(rangeExpr))
+        }
+        for loopVariable in ["byteValue", "shortValue"] {
+            let forExpr = try #require(loopIDsByName[loopVariable])
+            let loopVariableSymbol = try #require(sema.bindings.identifierSymbol(for: forExpr))
+            #expect(sema.symbols.propertyType(for: loopVariableSymbol) == sema.types.uintType)
+        }
+    }
+
+    @Test
     func signedLiteralsBeyondInt64DoNotWrapToNegativeValues() throws {
         let source = """
         val hexadecimal = 0xFFFFFFFFFFFFFFFF

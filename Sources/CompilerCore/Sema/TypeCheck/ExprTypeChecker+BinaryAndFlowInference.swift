@@ -39,6 +39,8 @@ extension ExprTypeChecker {
         let doubleType = sema.types.doubleType
         let charType = sema.types.charType
         let stringType = sema.types.stringType
+        let ubyteType = sema.types.ubyteType
+        let ushortType = sema.types.ushortType
         let ulongType = sema.types.ulongType
         let uintType = sema.types.uintType
 
@@ -596,7 +598,10 @@ extension ExprTypeChecker {
                     sema.bindings.markRangeExpr(id)
                     if lhs == ulongType || rhs == ulongType {
                         sema.bindings.markULongRangeExpr(id)
-                    } else if lhs == uintType || rhs == uintType {
+                    } else if lhs == uintType || rhs == uintType
+                        || lhs == ubyteType || rhs == ubyteType
+                        || lhs == ushortType || rhs == ushortType
+                    {
                         sema.bindings.markUIntRangeExpr(id)
                     }
                     if lhs == charType || rhs == charType {
@@ -785,13 +790,16 @@ extension ExprTypeChecker {
             }
         case .rangeTo, .rangeUntil, .downTo:
             // LongRange when either operand is Long; ULongRange when ULong (STDLIB-524);
-            // UIntRange when UInt (STDLIB-523); IntRange otherwise.
+            // UIntRange when UInt, UShort, or UByte (STDLIB-523); IntRange otherwise.
             if lhs == longType || rhs == longType {
                 type = longType
             } else if lhs == ulongType || rhs == ulongType {
                 type = ulongType
                 sema.bindings.markULongRangeExpr(id)
-            } else if lhs == uintType || rhs == uintType {
+            } else if lhs == uintType || rhs == uintType
+                || lhs == ubyteType || rhs == ubyteType
+                || lhs == ushortType || rhs == ushortType
+            {
                 type = uintType
                 sema.bindings.markUIntRangeExpr(id)
             } else {
