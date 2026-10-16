@@ -10,6 +10,49 @@ package kotlin.test
 
 import kotlin.contracts.contract
 
+internal fun <T> assertIterableContentEquals(
+    typeName: String,
+    message: String?,
+    expected: T?,
+    actual: T?,
+    iterator: T.() -> Iterator<*>
+) = assertIterableContentEquals(typeName, { message }, expected, actual, iterator)
+
+internal fun <T> assertIterableContentEquals(
+    typeName: String,
+    lazyMessage: () -> String?,
+    expected: T?,
+    actual: T?,
+    iterator: T.() -> Iterator<*>
+) {
+    if (checkReferenceAndNullEquality(typeName, lazyMessage, expected, actual) { this.toString() }) return
+
+    var index = 0
+    val expectedIt = expected.iterator()
+    val actualIt = actual.iterator()
+
+    while (expectedIt.hasNext() && actualIt.hasNext()) {
+        val expectedElement = expectedIt.next()
+        val actualElement = actualIt.next()
+
+        if (expectedElement != actualElement) {
+            fail(messagePrefix(lazyMessage()) + elementsDifferMessage(typeName, index, expectedElement, actualElement))
+        }
+
+        index++
+    }
+
+    if (expectedIt.hasNext()) {
+        check(!actualIt.hasNext())
+        fail(messagePrefix(lazyMessage()) + "$typeName lengths differ. Expected length is bigger than $index, actual length is $index.")
+    }
+
+    if (actualIt.hasNext()) {
+        check(!expectedIt.hasNext())
+        fail(messagePrefix(lazyMessage()) + "$typeName lengths differ. Expected length is $index, actual length is bigger than $index.")
+    }
+}
+
 internal fun <T> assertArrayContentEquals(
     message: String?,
     expected: T?,

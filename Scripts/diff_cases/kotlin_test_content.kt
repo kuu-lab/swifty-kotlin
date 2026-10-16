@@ -1,7 +1,38 @@
-@file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
+@file:OptIn(kotlin.ExperimentalUnsignedTypes::class, kotlin.test.ExperimentalKotlinTestApi::class)
+@file:Suppress("DEPRECATION_ERROR")
 import kotlin.test.*
 
 fun main() {
+    val iterable: Iterable<String>? = listOf("a", "b")
+    assertContentEquals(iterable, listOf("a", "b"))
+    assertContentEquals(null as Iterable<String>?, null)
+    try { assertContentEquals(iterable, listOf("a", "c"), "Iterable-element") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(iterable, listOf("a"), "Iterable-size") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(listOf("a"), iterable, "Iterable-size-actual") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(iterable, null, "Iterable-null") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(null as Iterable<String>?, listOf("a", "b"), "Iterable-null-expected") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(iterable, listOf("a", "c")) { "Iterable-lazy" } } catch (e: AssertionError) { println(e.message) }
+
+    val set: Set<String>? = linkedSetOf("a", "b")
+    assertContentEquals(set, linkedSetOf("a", "b"))
+    assertContentEquals(null as Set<String>?, null)
+    try { assertContentEquals(set, linkedSetOf("a", "c"), "Set-element") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(set, linkedSetOf("a"), "Set-size") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(linkedSetOf("a"), set, "Set-size-actual") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(set, null, "Set-null") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(null as Set<String>?, linkedSetOf("a", "b"), "Set-null-expected") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(set, linkedSetOf("a", "c")) { "Set-lazy" } } catch (e: AssertionError) { println(e.message) }
+
+    val sequence: Sequence<String>? = sequenceOf("a", "b")
+    assertContentEquals(sequence, sequenceOf("a", "b"))
+    assertContentEquals(null as Sequence<String>?, null)
+    try { assertContentEquals(sequence, sequenceOf("a", "c"), "Sequence-element") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(sequence, sequenceOf("a"), "Sequence-size") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(sequenceOf("a"), sequence, "Sequence-size-actual") } catch (e: AssertionError) { println(e.message) }
+    try { assertContentEquals(sequence, null, "Sequence-null") } catch (e: AssertionError) { println("Sequence-null:${e.message?.contains("Expected non-null Sequence <")}") }
+    try { assertContentEquals(null as Sequence<String>?, sequenceOf("a", "b"), "Sequence-null-expected") } catch (e: AssertionError) { println("Sequence-null-expected:${e.message?.contains("Expected <null> Sequence, actual <")}") }
+    try { assertContentEquals(sequence, sequenceOf("a", "c")) { "Sequence-lazy" } } catch (e: AssertionError) { println(e.message) }
+
     val aArray: Array<String?>? = arrayOf<String?>("a", null)
     assertContentEquals(aArray, arrayOf<String?>("a", null))
     assertContentEquals(null as Array<String?>?, null)
