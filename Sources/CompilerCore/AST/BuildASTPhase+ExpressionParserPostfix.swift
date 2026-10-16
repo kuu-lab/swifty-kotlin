@@ -39,6 +39,12 @@ extension BuildASTPhase.ExpressionParser {
         return parseLabeledTrailingLambda()
     }
 
+    func parseLambdaLiteralWithPostfixSuffixes(label: InternedString) -> ExprID? {
+        let lambdaStartIndex = index
+        guard let lambda = parseLambdaLiteral(label: label) else { return nil }
+        return parsePostfixSuffixes(lambda, receiverStartIndex: lambdaStartIndex)
+    }
+
     func parsePostfixOrPrimary() -> ExprID? {
         let receiverStartIndex = index
         guard let expr = parsePrimary() else {
