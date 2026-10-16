@@ -379,7 +379,8 @@ extension ExprTypeChecker {
         // (excluded from the resulting function type's parameter list) the same
         // way a bound `obj::method` reference is, or `(Int) -> Foo` would gain
         // a spurious leading `Foo` parameter. An inner constructor is the
-        // exception: its enclosing instance is the unbound first parameter.
+        // exception for a type receiver: its enclosing instance is the unbound
+        // first parameter. A value receiver binds that enclosing instance.
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
@@ -590,6 +591,29 @@ extension ExprTypeChecker {
                         candidates = ctorCandidates
                         isConstructorReference = true
                         unboundInnerConstructorReceiverType = nonNullReceiver
+                    }
+                }
+                if candidates.isEmpty, unboundClassType == nil {
+                    let innerConstructors = driver.helpers.collectInnerClassConstructorCandidates(
+                        named: member,
+                        receiverType: nonNullReceiver,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let visibleInnerConstructors = ctx.filterByVisibility(innerConstructors).0.filter { constructor in
+                        guard let innerClassID = sema.symbols.parentSymbol(for: constructor),
+                              let innerClass = ctx.cachedSymbol(innerClassID),
+                              innerClass.kind == .class,
+                              innerClass.flags.contains(.innerClass),
+                              !innerClass.flags.contains(.abstractType)
+                        else {
+                            return false
+                        }
+                        return !ctx.filterByVisibility([innerClassID]).0.isEmpty
+                    }
+                    if !visibleInnerConstructors.isEmpty {
+                        candidates = visibleInnerConstructors
+                        isConstructorReference = true
                     }
                 }
             }

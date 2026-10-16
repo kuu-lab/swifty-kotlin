@@ -362,6 +362,14 @@ extension LambdaLowerer {
             memberName: memberName,
             sema: sema
         )
+        let isInnerConstructorTarget = targetSymbol.flatMap { target -> Bool? in
+            guard sema.symbols.symbol(target)?.kind == .constructor,
+                  let owner = sema.symbols.parentSymbol(for: target)
+            else {
+                return false
+            }
+            return sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true
+        } ?? false
         // KSP-505: a property ref whose owner is a genuine singleton
         // (`.object` — companion object or plain `object`) never captures a
         // receiver, in *either* bare or explicit-receiver form. Kotlin
@@ -393,7 +401,8 @@ extension LambdaLowerer {
         var captureArguments: [KIRExprID] = []
         if let receiverExpr,
            !isUnbound,
-           (targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor || isAdaptedCallableReference)
+           (targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor
+               || isAdaptedCallableReference || isInnerConstructorTarget)
         {
             let loweredReceiver = driver.lowerExpr(
                 receiverExpr,
@@ -756,9 +765,21 @@ extension LambdaLowerer {
                     type: type
                 )
             }
-            let wrapperParams = (closureParam.map { [$0] } ?? []) + valueParams
+            let captureParams = captureArguments.enumerated().map { index, capture in
+                KIRParameter(
+                    symbol: syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: index),
+                    type: arena.exprType(capture) ?? sema.types.anyType
+                )
+            }
+            let wrapperParams = (closureParam.map { [$0] } ?? captureParams) + valueParams
 
             var body: [KIRInstruction] = [.beginBlock]
+            let capturedValues = captureArguments.enumerated().map { index, _ -> KIRExprID in
+                let parameter = closureParam ?? captureParams[index]
+                let reference = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+                body.append(.constValue(result: reference, value: .symbolRef(parameter.symbol)))
+                return reference
+            }
             var callArgExprs: [KIRExprID] = []
             for valueParam in valueParams {
                 let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
@@ -779,14 +800,14 @@ extension LambdaLowerer {
                 callArgExprs.append(normalizedParamExpr)
             }
 
-            let isInnerConstructor = sema.symbols.parentSymbol(for: callTargetSymbol)
-                .flatMap { sema.symbols.symbol($0) }?.flags.contains(.innerClass) == true
+            let isInnerConstructor = isInnerConstructorTarget
             let constructorOuterReceiver: KIRExprID? = isInnerConstructor && isUnbound
                 ? callArgExprs.first
+                : isInnerConstructor ? capturedValues.first
                 : nil
-            let constructorArguments = constructorOuterReceiver == nil
-                ? callArgExprs
-                : Array(callArgExprs.dropFirst())
+            let constructorArguments = isInnerConstructor && isUnbound
+                ? Array(callArgExprs.dropFirst())
+                : callArgExprs
 
             let constructedValue = driver.callLowerer.lowerResolvedCallBody(
                 exprID,
