@@ -1,4 +1,286 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "row_id": "internal-b45a777a1eaf039c",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "d3ed2b3d61cb0888f4a332547523ca087a8f4aeb59dc8e7e8f77ac842a94cde5",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge",
+        "apple-native-reference"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "apple-native-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:apple-candidate:O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "apple-native-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:apple-candidate:O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "jvm-f72f86a64f90dc84",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "b58a246dd97d8ed1b3dc3be10fe3a16dedca259b12fa3211f752406a6b0c196d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Producer.kt#publishedBackingArrayForProbe",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm-descriptor:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:jvm-descriptor:candidate",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-28163803c351e2f6",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "72d72fb5b76cf50cf0076848ce953c925c365ae5c631c3110ce9781a08ab63f4",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge",
+        "apple-native-reference"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:source-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:source-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:stdlib-library-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:stdlib-library-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:producer-consumer-O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:f02:producer-consumer-O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "apple-native-O0",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:apple-candidate:O0",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/bytestring_backing_array/Probe.kt#directBackingArrayIdentity",
+          "lane": "apple-native-O2",
+          "reference": {
+            "execution_id": "bytestring-backing-array:jvm:reference",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "bytestring-backing-array:apple-candidate:O2",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }

@@ -27,6 +27,8 @@ LEDGER_PATH = HERE / "api-inventory.tsv"
 SCOPE_PATH = HERE / "platform-scope.tsv"
 SUMMARY_PATH = HERE / "inventory-summary.md"
 VALIDATION_EVIDENCE_PATH = HERE / "api-validation-evidence.json"
+VALIDATION_PROBE_MANIFEST_PATH = HERE / "bytestring_backing_array/probe-manifest.json"
+VALIDATION_PROBE_EXECUTIONS_PATH = HERE / "bytestring_backing_array/execution-catalog.json"
 UPSTREAM_RUNNER = REPO / "Scripts/kotlinx_io_upstream"
 UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
@@ -42,6 +44,11 @@ VALIDATION_LANES_BY_OBLIGATION = {
         "stdlib-library-O2",
     ),
     "native-bridge": ("producer-consumer-O0", "producer-consumer-O2"),
+    "apple-native-reference": ("apple-native-O0", "apple-native-O2"),
+}
+APPLE_NATIVE_REFERENCE_ROW_IDS = {
+    "internal-b45a777a1eaf039c",
+    "klib-28163803c351e2f6",
 }
 
 LEDGER_COLUMNS = [
@@ -345,14 +352,118 @@ def validation_obligations(row: dict) -> list[str]:
     """Return the compatibility obligations that apply to this ledger representation."""
     if row.get("representation") == "JVM public ABI dump":
         return ["jvm-descriptor"]
-    return ["native-source", "native-bridge"]
+    obligations = ["native-source", "native-bridge"]
+    if row.get("row_id") in APPLE_NATIVE_REFERENCE_ROW_IDS:
+        obligations.append("apple-native-reference")
+    return obligations
 
 
 def required_execution_lanes(obligations: list[str]) -> list[str]:
     return [lane for obligation in obligations for lane in VALIDATION_LANES_BY_OBLIGATION[obligation]]
 
 
-def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
+def _load_validation_probe_manifest(repository: Path = REPO) -> dict[str, dict]:
+    path = repository / VALIDATION_PROBE_MANIFEST_PATH.relative_to(REPO)
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+    except OSError as error:
+        fail(f"cannot read validation probe manifest {path}: {error}")
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"invalid validation probe manifest: {error}")
+    if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "probes"}:
+        fail("validation probe manifest must contain only schema_version and probes")
+    if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
+        fail("unsupported validation probe manifest schema_version")
+    if not isinstance(manifest["probes"], list):
+        fail("validation probe manifest probes must be an array")
+    probes = {}
+    for probe in manifest["probes"]:
+        fields = {"case_id", "row_ids", "input_refs", "receipt_ref"}
+        if not isinstance(probe, dict) or set(probe) != fields:
+            fail("each validation probe must contain exactly case_id, row_ids, input_refs, and receipt_ref")
+        case_id = probe["case_id"]
+        case_path, separator, case_name = case_id.partition("#") if isinstance(case_id, str) else ("", "", "")
+        if not separator or not case_path or not case_name or case_id != case_id.strip():
+            fail("validation probe case_id must be a trimmed path#function reference")
+        if case_id in probes:
+            fail(f"duplicate validation probe case_id: {case_id}")
+        row_ids = probe["row_ids"]
+        if (not isinstance(row_ids, list) or not row_ids
+                or any(not isinstance(row_id, str) or not row_id for row_id in row_ids)
+                or len(row_ids) != len(set(row_ids))):
+            fail(f"validation probe has invalid row_ids: {case_id}")
+        input_refs = probe["input_refs"]
+        if (not isinstance(input_refs, list) or not input_refs
+                or any(not isinstance(reference, str) or not reference for reference in input_refs)
+                or len(input_refs) != len(set(input_refs))):
+            fail(f"validation probe has invalid input_refs: {case_id}")
+        refs = [*input_refs, probe["receipt_ref"]]
+        if not isinstance(probe["receipt_ref"], str) or not probe["receipt_ref"]:
+            fail(f"validation probe has invalid receipt_ref: {case_id}")
+        for reference in [case_path, *refs]:
+            candidate = (repository / reference).resolve()
+            if repository.resolve() not in candidate.parents or not candidate.is_file():
+                fail(f"validation probe input is missing or outside the repository: {reference}")
+        source = (repository / case_path).read_text(encoding="utf-8")
+        declaration = re.search(rf"\bfun\s+{re.escape(case_name)}\s*(?:<[^>]*>)?\s*\(", source)
+        if not declaration or "getBackingArrayReference" not in source:
+            fail(f"validation probe does not declare a direct backing-array call: {case_id}")
+        probes[case_id] = probe
+    return probes
+
+
+def _load_validation_probe_execution_records(
+    repository: Path = REPO,
+    probe_manifest: dict[str, dict] | None = None,
+) -> dict[str, dict]:
+    probe_manifest = probe_manifest if probe_manifest is not None else _load_validation_probe_manifest(repository)
+    path = repository / VALIDATION_PROBE_EXECUTIONS_PATH.relative_to(REPO)
+    try:
+        catalog = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+    except OSError as error:
+        fail(f"cannot read validation probe execution catalog {path}: {error}")
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail(f"invalid validation probe execution catalog: {error}")
+    if not isinstance(catalog, dict) or set(catalog) != {"schema_version", "executions"}:
+        fail("validation probe execution catalog must contain only schema_version and executions")
+    if type(catalog["schema_version"]) is not int or catalog["schema_version"] != 1:
+        fail("unsupported validation probe execution catalog schema_version")
+    if not isinstance(catalog["executions"], list):
+        fail("validation probe executions must be an array")
+    records = {}
+    fields = {"execution_id", "case_id", "lane", "side", "result", "exit_code", "stdout_sha256", "stderr_sha256"}
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    for record in catalog["executions"]:
+        if not isinstance(record, dict) or set(record) != fields:
+            fail("each validation probe execution must contain the exact receipt fields")
+        execution_id = record["execution_id"]
+        case_id = record["case_id"]
+        if not isinstance(execution_id, str) or not execution_id or execution_id != execution_id.strip():
+            fail("validation probe execution has an invalid execution_id")
+        if execution_id in records:
+            fail(f"duplicate validation probe execution_id: {execution_id}")
+        if case_id not in probe_manifest:
+            fail(f"validation probe execution uses an unregistered case_id: {case_id}")
+        if record["side"] not in {"reference", "candidate"}:
+            fail(f"validation probe execution has an invalid side: {execution_id}")
+        if not isinstance(record["lane"], str) or not record["lane"]:
+            fail(f"validation probe execution has an invalid lane: {execution_id}")
+        if not isinstance(record["result"], str) or not record["result"]:
+            fail(f"validation probe execution has an invalid result: {execution_id}")
+        if type(record["exit_code"]) is not int:
+            fail(f"validation probe execution has an invalid exit_code: {execution_id}")
+        for field in ("stdout_sha256", "stderr_sha256"):
+            if not isinstance(record[field], str) or not sha256_pattern.fullmatch(record[field]):
+                fail(f"validation probe execution has a malformed {field}: {execution_id}")
+        records[execution_id] = record
+    return records
+
+
+def _load_validation_execution_catalogs(
+    repository: Path = REPO,
+    probe_manifest: dict[str, dict] | None = None,
+    probe_execution_records: dict[str, dict] | None = None,
+) -> dict[str, dict[str, str]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
         if lock.get("commit") != EXPECTED_TAG_COMMIT:
@@ -382,12 +493,25 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
                     fail(f"duplicate {subject} execution ID in locked catalog: {execution_id}")
                 catalog[execution_id] = case_id
             catalogs[subject] = catalog
+        probe_manifest = probe_manifest if probe_manifest is not None else _load_validation_probe_manifest(repository)
+        probe_execution_records = (probe_execution_records if probe_execution_records is not None
+                                   else _load_validation_probe_execution_records(repository, probe_manifest))
+        for execution_id, record in probe_execution_records.items():
+            side = record["side"]
+            if execution_id in catalogs[side]:
+                fail(f"validation probe execution_id conflicts with locked catalog: {execution_id}")
+            catalogs[side][execution_id] = record["case_id"]
         return catalogs
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
         fail(f"cannot load validation execution catalogs: {error}")
 
 
-def _case_id_matches_row(row: dict, case_id: str) -> bool:
+def _case_id_matches_row(
+    row: dict,
+    case_id: str,
+    repository: Path = REPO,
+    probe_manifest: dict[str, dict] | None = None,
+) -> bool:
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
@@ -398,6 +522,11 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
             continue
         if case_name == reference_name:
             return True
+    probe_manifest = probe_manifest if probe_manifest is not None else _load_validation_probe_manifest(repository)
+    probe = probe_manifest.get(case_id)
+    if probe is None or row.get("row_id") not in probe["row_ids"]:
+        return False
+    return case_path in row.get("local_test_refs", "").split(";")
     return False
 
 
@@ -408,6 +537,7 @@ def apply_validation_evidence(
     repository: Path = REPO,
     upstream: Path = UPSTREAM,
     execution_catalogs: dict[str, dict[str, str]] | None = None,
+    probe_execution_records: dict[str, dict] | None = None,
 ) -> None:
     """Promote rows only when their pinned, current evidence satisfies every obligation."""
     by_id = {}
@@ -438,9 +568,14 @@ def apply_validation_evidence(
     records = evidence["records"]
     if not isinstance(records, list):
         fail("validation evidence records must be an array")
+    probe_manifest = _load_validation_probe_manifest(repository)
+    if probe_execution_records is None:
+        probe_execution_records = _load_validation_probe_execution_records(repository, probe_manifest)
     if records:
         if execution_catalogs is None:
-            execution_catalogs = _load_validation_execution_catalogs()
+            execution_catalogs = _load_validation_execution_catalogs(
+                repository, probe_manifest, probe_execution_records
+            )
         if set(execution_catalogs) != {"reference", "candidate"}:
             fail("validation execution catalogs must include reference and candidate entries")
 
@@ -511,7 +646,7 @@ def apply_validation_evidence(
             lane = execution["lane"]
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
-            if not _case_id_matches_row(row, case_id):
+            if not _case_id_matches_row(row, case_id, repository, probe_manifest):
                 fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
             if not isinstance(lane, str) or lane not in required_lanes:
                 fail(f"unexpected validation lane {lane!r} for row {row_id}")
@@ -533,6 +668,15 @@ def apply_validation_evidence(
                     fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
                 if catalog_case_id != case_id:
                     fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
+                probe_execution = probe_execution_records.get(execution_id)
+                if probe_execution is not None and (
+                    probe_execution["case_id"] != case_id
+                    or probe_execution["lane"] not in {lane, "*"}
+                    or probe_execution["side"] != subject
+                    or probe_execution["result"] != result["result"]
+                    or probe_execution["exit_code"] != result["exit_code"]
+                ):
+                    fail(f"{subject} execution receipt does not match case/lane/result for row {row_id}")
                 execution_identity = (lane, execution_id)
                 if execution_identity in seen_execution_ids[subject]:
                     fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
@@ -1526,11 +1670,22 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path == "Tests/CompilerCoreTests/Sema/KotlinxIOByteStringBackingArrayTests.swift":
+            continue
+        if path.startswith("Scripts/io_api_inventory/bytestring_backing_array/"):
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    manifest_path = HERE / "bytestring_backing_array/probe-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for probe in manifest.get("probes", []):
+        if row.get("row_id") in probe.get("row_ids", []):
+            refs.extend(probe["input_refs"])
+            refs.append(manifest_path.relative_to(REPO).as_posix())
+            refs.append(probe["receipt_ref"])
     return list(dict.fromkeys(refs))
 
 
@@ -1904,6 +2059,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
     local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
+    local_paths.extend(HERE.joinpath("bytestring_backing_array").glob("*.kt"))
+    local_paths.extend(HERE.joinpath("bytestring_backing_array").glob("*.json"))
     for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
