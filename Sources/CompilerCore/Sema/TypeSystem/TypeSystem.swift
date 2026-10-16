@@ -8,6 +8,25 @@ public final class TypeSystem {
             symbol: parameter, nullability: nullability(of: upper), capture: capture
         )))
     }
+
+    /// Preserves the readable upper bound when a star projection crosses a
+    /// nominal substitution. Dependent bounds fall back to `Any?` rather than
+    /// constructing a recursive capture.
+    func capturedTypeForStarProjection(parameter: SymbolID, ownerTypeParameters: [SymbolID]) -> TypeID {
+        let upperBounds = symbolTable?.typeParameterUpperBounds(for: parameter) ?? []
+        let hasDependentUpperBound = upperBounds.contains { bound in
+            ownerTypeParameters.contains { typeContainsTypeParam(bound, symbol: $0) }
+        }
+        let upperBound: TypeID
+        if upperBounds.isEmpty || hasDependentUpperBound {
+            upperBound = nullableAnyType
+        } else if upperBounds.count == 1 {
+            upperBound = upperBounds[0]
+        } else {
+            upperBound = make(.intersection(upperBounds))
+        }
+        return makeCapturedType(parameter: parameter, lower: nothingType, upper: upperBound)
+    }
     private var kindToID: [TypeKind: TypeID] = [:]
     private var idToKind: [TypeKind] = []
     private var nominalDirectSupertypes: [SymbolID: [SymbolID]] = [:]
@@ -652,7 +671,10 @@ public final class TypeSystem {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[variable] = inner
             case .star:
-                substitution[variable] = nullableAnyType
+                substitution[variable] = capturedTypeForStarProjection(
+                    parameter: symbol,
+                    ownerTypeParameters: typeParamSymbols
+                )
             }
         }
 

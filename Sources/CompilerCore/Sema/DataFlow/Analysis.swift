@@ -769,6 +769,13 @@ final class DataFlowAnalyzer {
                 branches: branches,
                 sema: sema
             )
+        case .typeParam:
+            guard let upperBoundClassTypes = capturedUpperBoundClassTypes(for: subjectType, sema: sema) else {
+                return false
+            }
+            return upperBoundClassTypes.contains {
+                isClassWhenExhaustive(classType: $0, branches: branches, sema: sema)
+            }
         case .any(.nullable):
             return false
         default:
@@ -791,6 +798,16 @@ final class DataFlowAnalyzer {
                 return false
             }
             return classSymbol.kind == .enumClass || classSymbol.flags.contains(.sealedType)
+        case .typeParam:
+            guard let upperBoundClassTypes = capturedUpperBoundClassTypes(for: subjectType, sema: sema) else {
+                return false
+            }
+            return upperBoundClassTypes.contains { classType in
+                guard let classSymbol = sema.symbols.symbol(classType.classSymbol) else {
+                    return false
+                }
+                return classSymbol.kind == .enumClass || classSymbol.flags.contains(.sealedType)
+            }
         default:
             return false
         }
@@ -806,12 +823,19 @@ final class DataFlowAnalyzer {
         if branches.hasElse {
             return nil
         }
-        let kind = sema.types.kind(of: subjectType)
-        guard case let .classType(classType) = kind else {
+        let classTypes: [ClassType]
+        switch sema.types.kind(of: subjectType) {
+        case let .classType(classType):
+            classTypes = [classType]
+        case .typeParam:
+            classTypes = capturedUpperBoundClassTypes(for: subjectType, sema: sema) ?? []
+        default:
             return nil
         }
-        guard let classSymbol = sema.symbols.symbol(classType.classSymbol),
-              classSymbol.flags.contains(.sealedType)
+        guard let classType = classTypes.first(where: { classType in
+            sema.symbols.symbol(classType.classSymbol)?.flags.contains(.sealedType) == true
+        }),
+              let classSymbol = sema.symbols.symbol(classType.classSymbol)
         else {
             return nil
         }
@@ -824,6 +848,39 @@ final class DataFlowAnalyzer {
             return nil
         }
         return Array(Set(missing.compactMap { sema.symbols.symbol($0)?.name }))
+    }
+
+    /// Exposes nominal components of a captured parameter's upper bound for
+    /// closed-world `when` checks while preserving possible null values.
+    private func capturedUpperBoundClassTypes(for subjectType: TypeID, sema: SemaModule) -> [ClassType]? {
+        guard case let .typeParam(parameter) = sema.types.kind(of: subjectType),
+              let capture = parameter.capture
+        else {
+            return nil
+        }
+
+        let upperBoundNullability = sema.types.nullability(of: capture.upper)
+        let effectiveNullability: Nullability = parameter.nullability == .nonNull
+            && upperBoundNullability == .nonNull
+            ? .nonNull
+            : .nullable
+
+        func classTypes(in upperBound: TypeID) -> [ClassType] {
+            switch sema.types.kind(of: upperBound) {
+            case let .classType(classType):
+                return [ClassType(
+                    classSymbol: classType.classSymbol,
+                    args: classType.args,
+                    nullability: effectiveNullability
+                )]
+            case let .intersection(parts):
+                return parts.flatMap(classTypes(in:))
+            default:
+                return []
+            }
+        }
+
+        return classTypes(in: capture.upper)
     }
 
     private func isClassWhenExhaustive(

@@ -911,7 +911,10 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
-                substitution[typeVar] = sema.types.nullableAnyType
+                substitution[typeVar] = sema.types.capturedTypeForStarProjection(
+                    parameter: typeParamSymbol,
+                    ownerTypeParameters: ownerTypeParamSymbols
+                )
             }
         }
 
