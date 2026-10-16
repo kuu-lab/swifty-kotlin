@@ -185,7 +185,8 @@ class F02GateTests(unittest.TestCase):
             stdlib = root / "stdlib"
             stdlib.mkdir()
             (stdlib / "manifest.json").write_text(json.dumps({
-                "moduleName": "KSwiftKStdlib", "kotlinLanguageVersion": "2.3.10",
+                "moduleName": "KSwiftKStdlib",
+                "kotlinLanguageVersion": matrix.CANDIDATE_KOTLIN_LANGUAGE_VERSION,
             }))
             locks = root / "Scripts/kotlinx_io_upstream"
             locks.mkdir(parents=True)

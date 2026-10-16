@@ -25,6 +25,9 @@ ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 LANES = [(route, optimization) for route in ("source", "stdlib-library", "producer-consumer")
          for optimization in ("O0", "O2")]
+# The reference compiler is pinned to Kotlin 2.3.10; KSwiftK currently emits
+# artifacts with its product language version, Kotlin 2.4.20.
+CANDIDATE_KOTLIN_LANGUAGE_VERSION = "2.4.20"
 
 
 def sha(path: Path) -> str:
@@ -363,7 +366,8 @@ def main(argv: list[str] | None = None) -> int:
             require_stage([str(compiler), "--stdlib-only", "--no-incremental", "-o", str(stdlib)], output, "stdlib", args.compile_timeout)
             summary["stdlib_origin"] = "fresh CLI --stdlib-only process in this run"
         manifest = json.loads((stdlib / "manifest.json").read_text())
-        if manifest.get("moduleName") != "KSwiftKStdlib" or manifest.get("kotlinLanguageVersion") != "2.3.10":
+        if (manifest.get("moduleName") != "KSwiftKStdlib"
+                or manifest.get("kotlinLanguageVersion") != CANDIDATE_KOTLIN_LANGUAGE_VERSION):
             raise RuntimeError("stdlib artifact module/language mismatch")
         summary["stdlib_files_sha256"] = snapshot(stdlib)
         def record_lane(case: dict, expected: bytes, directory: Path, route: str, optimization: str) -> None:

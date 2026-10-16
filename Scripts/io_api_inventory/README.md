@@ -127,6 +127,8 @@ SDK fixture plus 25 original Apple bodies. Explicit `--case ledger-jvm` selects 
 case has source, explicit bundled stdlib and independent `.kklib` producer/consumer
 lanes at O0/O2. Selected cases are batched to avoid recompiling the whole bundled
 source stdlib for each small fixture; `--separate-cases` gives individual lanes.
+The locked reference compiler is Kotlin 2.3.10; candidate stdlib artifacts use
+KSwiftK's product language version, currently 2.4.20.
 `--entry-point` selects the intended qualified consumer entry and
 preserves other fixture mains. Producer source paths are retired before the
 consumer process starts; producer/consumer cwd, temporary directories and
