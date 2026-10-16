@@ -619,6 +619,41 @@ extension DataFlowSemaPhase {
         }
     }
 
+    func checkAndReportDuplicateExtensionPropertyReceiver(
+        propertySymbol: SymbolID,
+        receiverType: TypeID,
+        fqName: [InternedString],
+        range: SourceRange?,
+        newFlags: SymbolFlags,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        let matchingDeclarations = symbols.lookupAll(fqName: fqName).compactMap { id -> SemanticSymbol? in
+            guard id != propertySymbol,
+                  let existing = symbols.symbol(id),
+                  existing.kind == .property,
+                  !existing.flags.contains(.synthetic),
+                  symbols.hasExtensionPropertyReceiver(id),
+                  symbols.extensionPropertyReceiverType(for: id) == receiverType
+            else {
+                return nil
+            }
+            return existing
+        }
+        guard !matchingDeclarations.isEmpty else { return }
+        if matchingDeclarations.count == 1,
+           let existing = matchingDeclarations.first,
+           isCompatibleExpectActualPair(newKind: .property, newFlags: newFlags, existing: existing)
+        {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0001",
+            "Duplicate declaration in the same package scope.",
+            range: range
+        )
+    }
+
     private func hasUserDeclaredFunction(
         fqName: [InternedString],
         receiverType: TypeID,
@@ -661,7 +696,8 @@ extension DataFlowSemaPhase {
                 return
             }
         }
-        if symbols.symbol(ownerSymbol)?.kind == .object,
+        // Kotlin data classes and data objects keep a final superclass toString().
+        if symbols.symbol(ownerSymbol)?.flags.contains(.dataType) == true,
            hasInheritedFinalToString(ownerSymbol: ownerSymbol, symbols: symbols, types: types, interner: interner) {
             return
         }
@@ -709,7 +745,8 @@ extension DataFlowSemaPhase {
         scope?.insert(funcSymbol)
     }
 
-    func collectDataObjectToStringAfterInheritance(
+    /// Collects data-class and data-object `toString()` members after superclass edges are bound.
+    func collectDataTypeToStringAfterInheritance(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
@@ -718,23 +755,44 @@ extension DataFlowSemaPhase {
     ) {
         for rawDeclID in 0 ..< ast.arena.declCount {
             let declID = DeclID(rawValue: Int32(rawDeclID))
-            guard case let .objectDecl(objectDecl)? = ast.arena.decl(declID),
-                  objectDecl.modifiers.contains(.data),
-                  let ownerSymbol = bindings.declSymbols[declID],
-                  let owner = symbols.symbol(ownerSymbol)
-            else {
+            let ownerSymbol: SymbolID
+            let owner: SemanticSymbol
+            let requireDataTypeFlag: Bool
+            switch ast.arena.decl(declID) {
+            case let .classDecl(classDecl) where classDecl.modifiers.contains(.data):
+                guard let symbol = bindings.declSymbols[declID],
+                      let info = symbols.symbol(symbol)
+                else {
+                    continue
+                }
+                ownerSymbol = symbol
+                owner = info
+                requireDataTypeFlag = true
+            case let .objectDecl(objectDecl) where objectDecl.modifiers.contains(.data):
+                guard let symbol = bindings.declSymbols[declID],
+                      let info = symbols.symbol(symbol)
+                else {
+                    continue
+                }
+                ownerSymbol = symbol
+                owner = info
+                requireDataTypeFlag = false
+            default:
                 continue
+            }
+            let typeArguments = types.nominalTypeParameterSymbols(for: ownerSymbol).map {
+                TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
             }
             let ownerType = types.make(.classType(ClassType(
                 classSymbol: ownerSymbol,
-                args: [],
+                args: typeArguments,
                 nullability: .nonNull
             )))
             collectSyntheticToString(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: owner.fqName,
                 ownerType: ownerType,
-                requireDataTypeFlag: false,
+                requireDataTypeFlag: requireDataTypeFlag,
                 symbols: symbols,
                 types: types,
                 scope: nil,
@@ -743,7 +801,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns whether an object inherits a final `toString(): String` implementation.
+    /// Returns whether the closest superclass declaration of `toString(): String` is final.
     private func hasInheritedFinalToString(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,
@@ -751,29 +809,27 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> Bool {
         let toStringName = interner.intern("toString")
-        var visited: Set<SymbolID> = [ownerSymbol]
-        var pending = symbols.directSupertypes(for: ownerSymbol)
-        while !pending.isEmpty {
-            let supertype = pending.removeFirst()
-            guard visited.insert(supertype).inserted,
-                  let supertypeSymbol = symbols.symbol(supertype)
-            else {
-                continue
-            }
-            for memberID in symbols.children(ofFQName: supertypeSymbol.fqName) {
+        var currentSuperclass = symbols.directSupertypes(for: ownerSymbol).first {
+            symbols.symbol($0)?.kind == .class
+        }
+        while let superclass = currentSuperclass,
+              let superclassSymbol = symbols.symbol(superclass) {
+            if let memberID = symbols.children(ofFQName: superclassSymbol.fqName).first(where: { memberID in
                 guard let member = symbols.symbol(memberID),
                       member.kind == .function,
                       member.name == toStringName,
-                      member.flags.contains(.finalMember),
-                      let signature = symbols.functionSignature(for: memberID),
-                      signature.parameterTypes.isEmpty,
-                      signature.returnType == types.stringType || signature.returnType == types.anyType
+                      let signature = symbols.functionSignature(for: memberID)
                 else {
-                    continue
+                    return false
                 }
-                return true
+                return signature.parameterTypes.isEmpty
+                    && (signature.returnType == types.stringType || signature.returnType == types.anyType)
+            }) {
+                return symbols.symbol(memberID)?.flags.contains(.finalMember) == true
             }
-            pending.append(contentsOf: symbols.directSupertypes(for: supertype))
+            currentSuperclass = symbols.directSupertypes(for: superclass).first {
+                symbols.symbol($0)?.kind == .class
+            }
         }
         return false
     }
@@ -817,8 +873,9 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
-                ? [.synthetic, .overrideMember] : [.synthetic]
+            // Synthesized equals replaces Any.equals in the vtable, including
+            // when the class has an explicit superclass implementation.
+            flags: [.synthetic, .overrideMember]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")
@@ -1132,18 +1189,9 @@ extension DataFlowSemaPhase {
                 localTypeParameters: localTypeParameters
             )
         case .afterMemberHeaders:
-            // Must run after member headers so a user-declared hashCode() suppresses the synthetic one.
+            // Keep hashCode() and equals() collection here. toString() depends on
+            // the resolved superclass chain and is collected after inheritance.
             collectSyntheticHashCode(
-                ownerSymbol: ownerSymbol,
-                ownerFQName: ownerFQName,
-                ownerType: ownerType,
-                requireDataTypeFlag: true,
-                symbols: symbols,
-                types: types,
-                scope: scope,
-                interner: interner
-            )
-            collectSyntheticToString(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,
                 ownerType: ownerType,

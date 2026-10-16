@@ -301,10 +301,17 @@ extension CallTypeChecker {
 
         validateReifiedPropertyArguments(chosen, arguments: resolved.substitutedTypeArguments, range: range, ctx: ctx)
 
+        let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
+            named: calleeName,
+            candidates: [chosen],
+            ctx: ctx
+        )[chosen]
+
         sema.bindings.bindExtensionPropertyGetterCall(id, binding: CallBinding(
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value),
-            parameterMapping: resolved.parameterMapping
+            parameterMapping: resolved.parameterMapping,
+            dispatchReceiverSymbol: importedDispatchReceiver
         ))
         if bindCall {
             sema.bindings.bindCall(
@@ -314,7 +321,8 @@ extension CallTypeChecker {
                     substitutedTypeArguments: resolved.substitutedTypeArguments
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                         .map(\.value),
-                    parameterMapping: resolved.parameterMapping
+                    parameterMapping: resolved.parameterMapping,
+                    dispatchReceiverSymbol: importedDispatchReceiver
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
@@ -403,7 +411,28 @@ extension CallTypeChecker {
         let sema = ctx.sema
         var setterCandidates: [SymbolID] = []
         var propertyForSetter: [SymbolID: SymbolID] = [:]
-        var invisibleProperties: [SymbolID] = []
+        var invisibleProperties: [SemanticSymbol] = []
+        var lexicalClassOwners: [SymbolID] = []
+        var lexicalScope: Scope? = ctx.scope
+        while let scope = lexicalScope as? BaseScope {
+            if let memberScope = scope as? ClassMemberScope {
+                lexicalClassOwners.append(memberScope.owner)
+            }
+            lexicalScope = scope.parent
+        }
+        func isAccessibleFromLexicalScope(_ symbol: SemanticSymbol) -> Bool {
+            ctx.visibilityChecker.isAccessible(
+                symbol,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            ) || lexicalClassOwners.contains {
+                ctx.visibilityChecker.isAccessible(
+                    symbol,
+                    fromFile: ctx.currentFileID,
+                    enclosingClass: $0
+                )
+            }
+        }
         func collectSetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
@@ -418,15 +447,28 @@ extension CallTypeChecker {
             else {
                 return
             }
-            guard ctx.visibilityChecker.isAccessible(
-                symbol,
-                fromFile: ctx.currentFileID,
-                enclosingClass: ctx.enclosingClassSymbol
-            ) else {
-                if !invisibleProperties.contains(candidate) {
-                    invisibleProperties.append(candidate)
+            guard isAccessibleFromLexicalScope(symbol) else {
+                if !invisibleProperties.contains(where: { $0.id == symbol.id }) {
+                    invisibleProperties.append(symbol)
                 }
                 return
+            }
+            if let setterVisibility = sema.symbols.propertySetterVisibility(for: candidate) {
+                let setter = SemanticSymbol(
+                    id: symbol.id,
+                    kind: symbol.kind,
+                    name: symbol.name,
+                    fqName: symbol.fqName,
+                    declSite: symbol.declSite,
+                    visibility: setterVisibility,
+                    flags: symbol.flags
+                )
+                guard isAccessibleFromLexicalScope(setter) else {
+                    if !invisibleProperties.contains(where: { $0.id == setter.id }) {
+                        invisibleProperties.append(setter)
+                    }
+                    return
+                }
             }
             if !setterCandidates.contains(setterAccessor) {
                 setterCandidates.append(setterAccessor)
@@ -452,9 +494,7 @@ extension CallTypeChecker {
             }
         }
         guard !setterCandidates.isEmpty else {
-            if let firstInvisible = invisibleProperties.first,
-               let invisibleSymbol = sema.symbols.symbol(firstInvisible)
-            {
+            if let invisibleSymbol = invisibleProperties.first {
                 driver.helpers.emitVisibilityError(
                     for: invisibleSymbol,
                     name: ctx.interner.resolve(calleeName),
@@ -488,6 +528,17 @@ extension CallTypeChecker {
             return nil
         }
 
+        let dispatchReceiverSymbol = sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
+            ctx.implicitReceiverMemberLookupEntries().first { entry in
+                guard case let .classType(receiverClass) = sema.types.kind(
+                    of: sema.types.makeNonNullable(entry.type)
+                ) else {
+                    return false
+                }
+                return sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+            }?.symbol
+        }
+
         sema.bindings.bindCall(
             id,
             binding: CallBinding(
@@ -495,7 +546,8 @@ extension CallTypeChecker {
                 substitutedTypeArguments: resolved.substitutedTypeArguments
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                     .map(\.value),
-                parameterMapping: resolved.parameterMapping
+                parameterMapping: resolved.parameterMapping,
+                dispatchReceiverSymbol: dispatchReceiverSymbol
             )
         )
         validateReifiedPropertyArguments(chosen, arguments: resolved.substitutedTypeArguments, range: range, ctx: ctx)

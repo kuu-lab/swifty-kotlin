@@ -61,6 +61,42 @@ struct GenericCallableReferenceInferenceTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors)")
     }
 
+    @Test
+    func infersGenericArgumentsFromReflectiveCallableReturnType() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KFunction
+        fun <T> collect(vararg values: T): Array<out T> = values
+        fun <T : CharSequence> collectBounded(vararg values: T): Array<out T> = values
+        fun main() {
+            val generic: KFunction<Array<out String>> = ::collect
+            val bounded: KFunction<Array<out String>> = ::collectBounded
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors)")
+        let sema = try #require(ctx.sema)
+        #expect(sema.bindings.callableReferenceBindings.count == 2)
+        for (reference, binding) in sema.bindings.callableReferenceBindings {
+            let type = try #require(sema.bindings.exprType(for: reference))
+            #expect(!sema.types.typeContainsAnyTypeParam(type))
+            let argument = try #require(binding.substitutedTypeArguments.first)
+            #expect(
+                sema.types.isSubtype(argument, sema.types.stringType),
+                "Expected String-compatible inference, got \(sema.types.displayName(of: argument, symbols: sema.symbols, interner: ctx.interner))"
+            )
+            if ctx.interner.resolve(sema.symbols.symbol(binding.chosenCallee)?.name ?? .invalid) == "collectBounded",
+               let charSequence = sema.types.charSequenceInterfaceSymbol
+            {
+                let bound = sema.types.make(.classType(ClassType(classSymbol: charSequence)))
+                #expect(
+                    sema.types.isSubtype(argument, bound),
+                    "Bounded inference must retain CharSequence, got \(sema.types.displayName(of: argument, symbols: sema.symbols, interner: ctx.interner))"
+                )
+            }
+        }
+    }
+
     @Test func adaptsVarargAndTrailingDefaultArguments() throws {
         let ctx = makeContextFromSource("""
         fun useArray(factory: (Int, Int) -> Array<Int>): Array<Int> = factory(11, 22)

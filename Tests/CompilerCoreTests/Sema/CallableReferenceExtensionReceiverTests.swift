@@ -13,6 +13,22 @@ import Testing
 @Suite
 struct CallableReferenceExtensionReceiverTests {
 
+    @Test func testBoundCallableReferenceCanBeGenericExtensionReceiver() throws {
+        try withTemporaryFile(contents: """
+        class Host { fun t() {} }
+        fun <T, R> T.let(block: (T) -> R): R = block(this)
+        fun main() { (Host()::t).let { it() } }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "A bound callable reference used as a generic extension receiver must type its lambda parameter: \(errors)"
+            )
+        }
+    }
+
     // MARK: - Bare `::` must reject extension declarations
 
     @Test func testBareCallableRefRejectsExtensionFunction() throws {

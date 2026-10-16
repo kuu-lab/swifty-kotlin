@@ -10,7 +10,8 @@ private extension CallExpr {
                 type: replacements[index] ?? arg.type,
                 signedIntegerLiteral: arg.signedIntegerLiteral,
                 unsignedIntegerLiteral: arg.unsignedIntegerLiteral,
-                isTrailingLambda: arg.isTrailingLambda
+                isTrailingLambda: arg.isTrailingLambda,
+                bindsToLastParameter: arg.bindsToLastParameter
             )
         }
         return CallExpr(
@@ -20,7 +21,8 @@ private extension CallExpr {
             explicitTypeArgs: explicitTypeArgs,
             dispatchReceiverTypes: dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
-            typeAliasConstructor: typeAliasConstructor
+            typeAliasConstructor: typeAliasConstructor,
+            elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint
         )
     }
 }
@@ -358,17 +360,29 @@ extension OverloadResolver {
         // receiver, including direct and aliased imports. Derive this per
         // candidate so imports from different objects share an overload set.
         // Member extensions still require their separate extension receiver.
-        let implicitReceiverType: TypeID? = if call.boundObjectDispatchReceiverCandidates.contains(candidate),
-            ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
-            let owner = ctx.symbols.parentSymbol(for: candidate),
-            ctx.symbols.symbol(owner)?.kind == .object,
-            let receiverType = signature.receiverType,
-            case let .classType(receiverClass) = ctx.types.kind(of: receiverType),
-            receiverClass.classSymbol == owner
-        {
-            receiverType
+        let candidateImplicitReceiverType: TypeID?
+        if call.boundObjectDispatchReceiverCandidates.contains(candidate),
+           ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+           let owner = ctx.symbols.parentSymbol(for: candidate),
+           let importedReceiver = call.dispatchReceiverTypes.first(where: { receiver in
+               guard case let .classType(receiverClass) = ctx.types.kind(of: ctx.types.makeNonNullable(receiver))
+               else { return false }
+               return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+           }) {
+            // Use the imported singleton type, rather than the declaring
+            // supertype's receiver, so generic supertype arguments are applied
+            // to inherited members during overload resolution.
+            candidateImplicitReceiverType = importedReceiver
+        } else if call.boundObjectDispatchReceiverCandidates.contains(candidate),
+                  ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                  let owner = ctx.symbols.parentSymbol(for: candidate),
+                  ctx.symbols.symbol(owner)?.kind == .object,
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClass) = ctx.types.kind(of: receiverType),
+                  receiverClass.classSymbol == owner {
+            candidateImplicitReceiverType = receiverType
         } else {
-            implicitReceiverType
+            candidateImplicitReceiverType = implicitReceiverType
         }
 
         let javaMapArgument = javaCollectionsMapArgument(fqName: symbol.fqName, signature: signature, call: call, ctx: ctx)
@@ -403,7 +417,7 @@ extension OverloadResolver {
         } else {
             guard let receiverConstraints = buildReceiverConstraints(
                 signature: signature,
-                implicitReceiverType: implicitReceiverType,
+                implicitReceiverType: candidateImplicitReceiverType,
                 explicitTypeArgs: call.explicitTypeArgs,
                 typeVarBySymbol: typeVarBySymbol,
                 range: call.range,
@@ -425,11 +439,42 @@ extension OverloadResolver {
                 return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
             }
         } else {
-            implicitReceiverType
+            candidateImplicitReceiverType
         }
         let classReceiverType = unapproximatedClassReceiverType.map { ctx.types.capturedReadableUpperBound(of: $0) }
 
+        func nominalReceiverClassType(in type: TypeID, for owner: SymbolID) -> ClassType? {
+            func matchingClassType(_ type: TypeID) -> ClassType? {
+                guard case let .classType(classType) = ctx.types.kind(
+                    of: ctx.types.makeNonNullable(type)
+                ),
+                    ctx.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+                else {
+                    return nil
+                }
+                return classType
+            }
+
+            switch ctx.types.kind(of: ctx.types.makeNonNullable(type)) {
+            case let .intersection(parts):
+                for part in parts {
+                    if let classType = matchingClassType(part) {
+                        return classType
+                    }
+                }
+                return nil
+            default:
+                return matchingClassType(type)
+            }
+        }
+
         var starProjectedReceiverParameters: Set<SymbolID> = []
+        let receiverOwner = memberExtensionOwner ?? ctx.symbols.parentSymbol(for: candidate)
+        let matchingReceiverClassType: ClassType? = if let classReceiverType, let receiverOwner {
+            nominalReceiverClassType(in: classReceiverType, for: receiverOwner)
+        } else {
+            nil
+        }
         // A nominal member's leading type parameters belong to the declaring
         // class/interface. Constrain them from the dispatch receiver, not an
         // unrelated extension receiver. Otherwise an inherited
@@ -440,15 +485,8 @@ extension OverloadResolver {
            signature.classTypeParameterCount > 0,
            let classReceiverType,
            (isNominalMemberFunction(candidate, typeSystem: ctx.types) || memberExtensionOwner != nil),
-           let owner = memberExtensionOwner ?? ctx.symbols.parentSymbol(for: candidate),
-           memberExtensionOwner != nil || signature.receiverType == nil || {
-               guard case let .classType(receiverClass) = ctx.types.kind(
-                   of: ctx.types.makeNonNullable(classReceiverType)
-               ) else {
-                   return false
-               }
-               return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
-           }()
+           let owner = receiverOwner,
+           memberExtensionOwner != nil || signature.receiverType == nil || matchingReceiverClassType != nil
         {
             let ownerArguments: [TypeArg] = signature.typeParameterSymbols
                 .prefix(signature.classTypeParameterCount)
@@ -464,13 +502,12 @@ extension OverloadResolver {
                 nullability: .nonNull
             )))
             let receiverOwnerType: TypeID = {
-                let nonNullReceiverType = ctx.types.makeNonNullable(classReceiverType)
-                guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
+                guard let receiverClassType = matchingReceiverClassType,
                       let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
-                          from: receiverClassType.classSymbol,
-                          childArgs: receiverClassType.args,
-                          to: owner
-                      )
+                    from: receiverClassType.classSymbol,
+                    childArgs: receiverClassType.args,
+                    to: owner
+                )
                 else {
                     return classReceiverType
                 }
@@ -529,7 +566,7 @@ extension OverloadResolver {
             }
         }
 
-        let defaultArgumentOwner = implicitReceiverType.flatMap {
+        let defaultArgumentOwner = candidateImplicitReceiverType.flatMap {
             ctx.symbols.inheritedDefaultsOwner(for: candidate, receiver: ctx.types.makeNonNullable($0))
         }
         let inheritedDefaultValues = defaultArgumentOwner.flatMap {
@@ -604,6 +641,55 @@ extension OverloadResolver {
                     && concreteInputVariables.contains(variable) {
                     guard case .primitive = ctx.types.kind(of: ctx.types.makeNonNullable(type)) else { continue }
                     literalTypeSubstitution[variable] = type
+                }
+
+                // If no concrete input inferred this parameter, an unambiguous
+                // unsigned primitive upper bound can still contextualize a
+                // constant UInt literal. The normal solve and bound validation
+                // below remain authoritative, including the literal's range.
+                var boundSubstitution = partial
+                for (variable, type) in explicitTypeSubstitution {
+                    boundSubstitution[variable] = type
+                }
+                for literalIndex in literalIndices {
+                    guard let parameterIndex = parameterMapping[literalIndex],
+                          signature.parameterTypes.indices.contains(parameterIndex),
+                          case let .typeParam(parameter) = ctx.types.kind(of: ctx.types.makeNonNullable(
+                              signature.parameterTypes[parameterIndex]
+                          )),
+                          let variable = typeVarBySymbol[parameter.symbol],
+                          explicitTypeSubstitution[variable] == nil,
+                          literalTypeSubstitution[variable] == nil,
+                          partial[variable] == nil || partial[variable] == ctx.types.errorType,
+                          let typeParameterIndex = signature.typeParameterSymbols.firstIndex(of: parameter.symbol)
+                    else { continue }
+
+                    let signatureBounds = typeParameterIndex < signature.typeParameterUpperBoundsList.count
+                        ? signature.typeParameterUpperBoundsList[typeParameterIndex] : []
+                    let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: parameter.symbol)
+                    let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+                    var unsignedPrimitiveBounds: [TypeID] = []
+                    for upperBound in upperBounds {
+                        let substitutedBound = ctx.types.makeNonNullable(ctx.types.substituteTypeParameters(
+                            in: upperBound,
+                            substitution: boundSubstitution,
+                            typeVarBySymbol: typeVarBySymbol
+                        ))
+                        guard case let .primitive(primitive, _) = ctx.types.kind(of: substitutedBound) else {
+                            continue
+                        }
+                        switch primitive {
+                        case .ubyte, .ushort, .uint, .ulong:
+                            if !unsignedPrimitiveBounds.contains(substitutedBound) {
+                                unsignedPrimitiveBounds.append(substitutedBound)
+                            }
+                        default:
+                            continue
+                        }
+                    }
+                    if unsignedPrimitiveBounds.count == 1, let bound = unsignedPrimitiveBounds.first {
+                        literalTypeSubstitution[variable] = bound
+                    }
                 }
             }
         }
@@ -761,15 +847,41 @@ extension OverloadResolver {
         // in that case so overload candidates aren't rejected solely because
         // none of them happen to return Unit.
         if let expectedType, expectedType != ctx.types.unitType {
-            let returnDecomposed = decomposeSubtypeConstraint(
-                subtype: signature.returnType,
-                supertype: expectedType,
-                typeVarBySymbol: typeVarBySymbol,
-                typeSystem: ctx.types,
-                blameRange: call.range
-            )
-            constraints.append(contentsOf: returnDecomposed)
-            inputConstraints.append(contentsOf: returnDecomposed)
+            if call.elvisLhsExpectedTypeHint {
+                let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
+                    signature.classTypeParameterCount
+                )
+                let methodTypeVarBySymbol = typeVarBySymbol.filter { symbol, _ in
+                    methodTypeParameters.contains(symbol)
+                }
+                if containsTypeVariable(
+                    signature.returnType,
+                    typeVarBySymbol: methodTypeVarBySymbol,
+                    typeSystem: ctx.types
+                ) {
+                    let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                    let expectedTypeHint = ctx.types.makeNonNullable(expectedType)
+                    let returnDecomposed = decomposeSubtypeConstraint(
+                        subtype: returnTypeHint,
+                        supertype: expectedTypeHint,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: ctx.types,
+                        blameRange: call.range
+                    )
+                    constraints.append(contentsOf: returnDecomposed)
+                    inputConstraints.append(contentsOf: returnDecomposed)
+                }
+            } else {
+                let returnDecomposed = decomposeSubtypeConstraint(
+                    subtype: signature.returnType,
+                    supertype: expectedType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                )
+                constraints.append(contentsOf: returnDecomposed)
+                inputConstraints.append(contentsOf: returnDecomposed)
+            }
         }
 
         var solveResult = solveConstraints(

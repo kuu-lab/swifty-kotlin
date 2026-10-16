@@ -32,5 +32,19 @@ struct CodegenBackendNestedObjectInitializationTests {
             )
         }
     }
+
+    @Test(arguments: [true, false])
+    func testClassCompanionInitializesBeforeConstructorArguments(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary { _ = try testStdlibArtifactPath() }
+        for optLevel in [OptimizationLevel.O0, .O2] {
+            try assertKotlinOutput(
+                try diffCaseSource("constructor_companion_init_before_args.kt"),
+                moduleName: "ConstructorCompanionInitBeforeArgs",
+                expected: "OK\nCABI|CABICDI|PI|CXI\n",
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+        }
+    }
 }
 #endif

@@ -29,6 +29,18 @@ internal external fun __foundation_data_length(handle: Long): ULong
 @KsSymbolName("__kk_foundation_data_bytes")
 internal external fun __foundation_data_bytes(handle: Long): CPointer<ByteVar>?
 
+@KsSymbolName("__kk_foundation_mutable_data_create")
+internal external fun __foundation_mutable_data_create(): Long
+
+@KsSymbolName("__kk_foundation_mutable_data_append")
+internal external fun __foundation_mutable_data_append(handle: Long, bytes: CPointer<*>?, length: ULong): Unit
+
+@KsSymbolName("__kk_foundation_string_data_using_encoding")
+internal external fun __foundation_string_data_using_encoding(text: String, encoding: ULong): Long?
+
+@KsSymbolName("__kk_foundation_string_from_data")
+internal external fun __foundation_string_from_data(handle: Long, encoding: ULong): String?
+
 @KsSymbolName("__kk_foundation_error_create")
 internal external fun __foundation_error_create(domain: String, code: Long, description: String?, underlying: Any?): Long
 
@@ -114,7 +126,7 @@ internal external fun __foundation_errno(): Int
 internal external fun __foundation_strerror(code: Int): CPointer<ByteVar>?
 
 @KsSymbolName("__kk_foundation_byte_pointer_add")
-internal external fun __foundation_byte_pointer_add(pointer: CPointer<*>, offset: Int): CPointer<ByteVar>
+internal external fun __foundation_byte_pointer_add(pointer: CPointer<*>, offset: Long): CPointer<ByteVar>
 
 @KsSymbolName("__kk_foundation_lock_create")
 internal external fun __foundation_lock_create(): Long

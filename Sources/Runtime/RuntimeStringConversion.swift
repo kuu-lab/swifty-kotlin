@@ -701,6 +701,112 @@ public func __kk_bignum_toString(_ numRaw: Int) -> Int {
     return runtimeMakeStringRaw(box.value)
 }
 
+private func runtimeBigDecimalValue(_ numRaw: Int, caller: String) -> String {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: numRaw),
+          let box = tryCast(ptr, to: RuntimeBigNumberBox.self),
+          box.kind == .decimal
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid BigDecimal handle")
+    }
+    return box.value
+}
+
+/// Return the low 64 bits of a BigDecimal truncated toward zero.
+private func runtimeBigDecimalIntegerBits(_ source: String) -> UInt64 {
+    let value = parseBigDecimalParts(source)
+    guard !value.digits.isEmpty, value.pointExponent > 0 else { return 0 }
+
+    let digits = Array(value.digits.utf8)
+    let integerDigitCount = value.pointExponent
+    let retainedDigitCount = min(integerDigitCount, digits.count)
+    var bits: UInt64 = 0
+    if retainedDigitCount > 0 {
+        for index in 0 ..< retainedDigitCount {
+            bits = bits &* 10 &+ UInt64(digits[index] - UInt8(ascii: "0"))
+        }
+    }
+
+    let appendedZeroCount = integerDigitCount - retainedDigitCount
+    if appendedZeroCount >= 64 {
+        bits = 0
+    } else if appendedZeroCount > 0 {
+        for _ in 0 ..< appendedZeroCount {
+            bits = bits &* 10
+        }
+    }
+
+    return value.negative ? 0 &- bits : bits
+}
+
+@_cdecl("__kk_bignum_toDouble")
+public func __kk_bignum_toDouble(_ numRaw: Int) -> Int {
+    let source = runtimeBigDecimalValue(numRaw, caller: #function)
+    if parseBigDecimalParts(source).digits.isEmpty {
+        return 0
+    }
+    guard let value = Double(source) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid BigDecimal numeric representation")
+    }
+    return Int(bitPattern: UInt(value.bitPattern))
+}
+
+@_cdecl("__kk_bignum_toFloat")
+public func __kk_bignum_toFloat(_ numRaw: Int) -> Int {
+    let source = runtimeBigDecimalValue(numRaw, caller: #function)
+    if parseBigDecimalParts(source).digits.isEmpty {
+        return 0
+    }
+    guard let value = Float(source) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid BigDecimal numeric representation")
+    }
+    return runtimeFloatBitsToInt(value)
+}
+
+@_cdecl("__kk_bignum_toLong")
+public func __kk_bignum_toLong(_ numRaw: Int) -> Int {
+    Int(truncatingIfNeeded: runtimeBigDecimalIntegerBits(runtimeBigDecimalValue(numRaw, caller: #function)))
+}
+
+@_cdecl("__kk_bignum_toInt")
+public func __kk_bignum_toInt(_ numRaw: Int) -> Int {
+    let bits = runtimeBigDecimalIntegerBits(runtimeBigDecimalValue(numRaw, caller: #function))
+    return Int(Int32(bitPattern: UInt32(truncatingIfNeeded: bits)))
+}
+
+@_cdecl("__kk_bignum_toShort")
+public func __kk_bignum_toShort(_ numRaw: Int) -> Int {
+    let bits = runtimeBigDecimalIntegerBits(runtimeBigDecimalValue(numRaw, caller: #function))
+    return Int(Int16(bitPattern: UInt16(truncatingIfNeeded: bits)))
+}
+
+@_cdecl("__kk_bignum_toByte")
+public func __kk_bignum_toByte(_ numRaw: Int) -> Int {
+    let bits = runtimeBigDecimalIntegerBits(runtimeBigDecimalValue(numRaw, caller: #function))
+    return Int(Int8(bitPattern: UInt8(truncatingIfNeeded: bits)))
+}
+
+/// Dispatch a BigDecimal conversion when the value is viewed through Number.
+/// BigDecimal uses a runtime box instead of a compiler-generated class vtable.
+func runtimeBigDecimalNumberConversion(_ numRaw: Int, targetKind: Int32) -> Int? {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: numRaw),
+          let box = tryCast(pointer, to: RuntimeBigNumberBox.self),
+          box.kind == .decimal
+    else {
+        return nil
+    }
+
+    return switch targetKind {
+    case 0: __kk_bignum_toDouble(numRaw)
+    case 1: __kk_bignum_toFloat(numRaw)
+    case 2: __kk_bignum_toLong(numRaw)
+    case 3: __kk_bignum_toInt(numRaw)
+    case 4: __kk_bignum_toShort(numRaw)
+    case 5: __kk_bignum_toByte(numRaw)
+    case 6: kk_int_to_char(__kk_bignum_toInt(numRaw))
+    default: nil
+    }
+}
+
 /// BigDecimal.compareTo: exact comparison of two validated decimal strings.
 /// Unlike `equals`, Java/Kotlin BigDecimal comparison ignores scale
 /// (1.0 == 1.00) and treats any zero as equal regardless of sign.

@@ -36,6 +36,7 @@ extension DataFlowSemaPhase {
             switch decl {
             case let .classDecl(classDecl):
                 nestedDeclIDs = classDecl.nestedClasses + classDecl.nestedObjects
+                    + classDecl.enumEntries.flatMap(\.nestedClasses)
                     + (classDecl.companionObject.map { [$0] } ?? [])
                 if let symbol = bindings.declSymbols[declID],
                    symbols.symbol(symbol)?.kind == .enumClass,
@@ -100,7 +101,9 @@ extension DataFlowSemaPhase {
         classTypeParameterSymbols: [SymbolID] = [],
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
-        for entry in entries where !entry.memberFunctions.isEmpty || !entry.memberProperties.isEmpty {
+        for entry in entries where !entry.memberFunctions.isEmpty
+            || !entry.memberProperties.isEmpty || !entry.nestedClasses.isEmpty
+        {
             let entryFQName = ownerFQName + [entry.name]
             guard let entrySymbol = symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
                 symbols.symbol(symbolID)?.kind == .field
@@ -119,7 +122,7 @@ extension DataFlowSemaPhase {
                 members: MemberDeclarations(
                     functions: entry.memberFunctions,
                     properties: entry.memberProperties,
-                    nestedClasses: [],
+                    nestedClasses: entry.nestedClasses,
                     nestedObjects: []
                 ),
                 owner: OwnerContext(

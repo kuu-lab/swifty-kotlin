@@ -25,6 +25,8 @@ private enum RuntimeNumberConversionTargetKind: Int32 {
 /// Recognize the box directly and perform the native conversion, reusing the
 /// exact intrinsics the statically-typed fast path already uses (see
 /// CallLowerer+LegacyMemberLikeCalls.swift's primitive conversion switch).
+/// BigDecimal also has a dedicated runtime box rather than a compiler-
+/// synthesized class vtable, so route that box to its decimal conversions.
 /// A receiver that isn't one of those boxes is a genuine user-defined
 /// `Number` subclass instance (e.g. `class Money(...) : Number()`), which
 /// *does* have a real vtable — fall back to `kk_vtable_lookup` for that case,
@@ -52,6 +54,9 @@ public func kk_number_to_primitive(_ receiver: Int, _ slot: Int, _ targetKindRaw
             }
             if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
                 return runtimeConvertBoxedNumberFloat(floatBox.value, to: targetKind)
+            }
+            if let bigDecimalResult = runtimeBigDecimalNumberConversion(receiver, targetKind: targetKindRaw) {
+                return bigDecimalResult
             }
         }
     }

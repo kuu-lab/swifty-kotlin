@@ -37,6 +37,14 @@ extension CallLowerer {
             return unit
         }
 
+        emitCompanionInitializationBeforeConstructorArguments(
+            exprID: exprID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
         // SAM constructor calls: `Transformer { ... }` — the single lambda
         // argument is already marked as a SAM conversion and no call binding
         // exists for the constructor (the callee name is the fun interface itself).

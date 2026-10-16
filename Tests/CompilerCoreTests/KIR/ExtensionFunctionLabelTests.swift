@@ -4,6 +4,20 @@ import Testing
 
 @Suite
 struct ExtensionFunctionLabelTests {
+    @Test
+    func extensionReceiverLabelRemainsTypedAcrossBlockReturn() throws {
+        let source = """
+        class Scope(val value: Int)
+        fun Scope.readLabel(): Int {
+            val direct = this@readLabel.value
+            return direct
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+    }
+
     @Test(arguments: [false, true])
     func qualifiedExtensionReceiverIsCapturedBySuspendReceiverLambda(fullyLowered: Bool) throws {
         let ctx = makeContextFromSource("""

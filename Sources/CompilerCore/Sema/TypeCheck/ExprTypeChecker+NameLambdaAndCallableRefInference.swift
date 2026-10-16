@@ -556,7 +556,11 @@ extension ExprTypeChecker {
         }
         if symbol.kind == .property || symbol.kind == .field {
             driver.resolveInferredPropertyType(for: symbol.id)
-            return sema.symbols.propertyType(for: symbol.id)
+            return driver.helpers.propertyReadType(
+                for: symbol.id,
+                declaredType: sema.symbols.propertyType(for: symbol.id),
+                sema: sema
+            )
         }
         // Objects are singletons – always resolve to their nominal type so
         // that `ObjectName.member()` works.

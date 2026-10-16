@@ -92,6 +92,45 @@ struct PropertyAccessorParsingTests {
     }
 
     @Test
+    func mixedTypeUseAnnotationPlacementKeepsEachComputedGetterAttached() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        @Target(AnnotationTarget.TYPE)
+        annotation class TypeAnn(val name: String)
+        class C {
+            val getterAnnotated: Int
+                get(): @TypeAnn("1") Int = 123
+            val propertyAnnotated: @TypeAnn("1") Int
+                get(): Int = 123
+        }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let getterAnnotated = try #require(memberProperty(named: "getterAnnotated", ofClass: "C", in: ast, interner: ctx.interner))
+        let propertyAnnotated = try #require(memberProperty(named: "propertyAnnotated", ofClass: "C", in: ast, interner: ctx.interner))
+        guard case .expr = getterAnnotated.getter?.body else {
+            Issue.record("The getter-return-annotated property's getter body must remain attached")
+            return
+        }
+        guard case .expr = propertyAnnotated.getter?.body else {
+            Issue.record("The property-type-annotated property's getter body must remain attached")
+            return
+        }
+
+        guard let getterPropertyType = getterAnnotated.type,
+              case .named = ast.arena.typeRef(getterPropertyType)
+        else {
+            Issue.record("A getter return type annotation must not move onto the property type")
+            return
+        }
+        guard let propertyType = propertyAnnotated.type,
+              case .annotated = ast.arena.typeRef(propertyType)
+        else {
+            Issue.record("The annotation written on the property type must remain on that type")
+            return
+        }
+    }
+
+    @Test
     func semicolonSeparatedGetterAndSetterAreBothParsed() throws {
         let (ast, ctx) = try buildASTModule(from: """
         class T {

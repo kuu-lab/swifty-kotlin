@@ -80,6 +80,14 @@ extension CallTypeChecker {
                 interner: interner
             ) == .ulongRange
             && driver.callChecker.isContextualizableUnsignedIntegerLiteral(args[0].expr, ast: ast)
+        let isLongBitwiseOperator: Bool = switch interner.resolve(calleeName) {
+        case "and", "or", "xor": true
+        default: false
+        }
+        let isLongBitwiseLiteralCall = isLongBitwiseOperator
+            && args.count == 1
+            && sema.types.makeNonNullable(receiverType) == sema.types.longType
+            && driver.callChecker.isContextualizableIntegerLiteral(args[0].expr, ast: ast)
         contextualizeArrayComparatorArgument(
             calleeName: calleeName, receiverID: receiverID, receiverType: receiverType,
             args: args, ctx: ctx, locals: &locals
@@ -107,6 +115,14 @@ extension CallTypeChecker {
                     ctx: ctx,
                     locals: &locals,
                     expectedType: sema.types.ulongType
+                )
+            }
+            if isLongBitwiseLiteralCall {
+                return driver.inferExpr(
+                    arg.expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: sema.types.longType
                 )
             }
             // Speculative declaration checks can leave names bound to
@@ -322,6 +338,48 @@ extension CallTypeChecker {
         // accessible (not instance methods).  This prevents `Foo.instanceMethod()`
         // from resolving when there is no companion with that name.
         let classNameReceiverNominalSymbol: SymbolID? = {
+            func nominalSymbol(for symbolID: SymbolID) -> SymbolID? {
+                guard let symbol = sema.symbols.symbol(symbolID) else { return nil }
+                switch symbol.kind {
+                case .class, .interface, .enumClass, .annotationClass:
+                    return symbolID
+                case .typeAlias:
+                    let aliasParams = sema.symbols.typeAliasTypeParameters(for: symbolID)
+                    let expanded = driver.helpers.expandTypeAlias(
+                        symbolID,
+                        typeArgs: [],
+                        sema: sema,
+                        visited: [],
+                        depth: 0
+                    )
+                    guard aliasParams.isEmpty,
+                          let expanded
+                    else {
+                        return nil
+                    }
+                    let targetID: SymbolID
+                    switch sema.types.kind(of: expanded) {
+                    case let .classType(aliasTarget):
+                        targetID = sema.symbols.actualSymbol(for: aliasTarget.classSymbol)
+                            ?? aliasTarget.classSymbol
+                    case .stringStruct:
+                        guard let stringClassSymbol = sema.types.stringClassSymbol else { return nil }
+                        targetID = stringClassSymbol
+                    default:
+                        return nil
+                    }
+                    guard let target = sema.symbols.symbol(targetID) else { return nil }
+                    switch target.kind {
+                    case .class, .interface, .enumClass, .annotationClass:
+                        return targetID
+                    default:
+                        return nil
+                    }
+                default:
+                    return nil
+                }
+            }
+
             // BUG-inner-outer: a qualified `this@Label`/`super@Label` is by
             // definition an instance receiver, never a type/class-name
             // qualifier -- regardless of what symbol kind its
@@ -337,29 +395,16 @@ extension CallTypeChecker {
             default: false
             }
             if !receiverIsQualifiedThisOrSuper,
-               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID),
-               let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
+               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverID)
             {
-                switch receiverSymbol.kind {
-                case .class, .interface, .enumClass, .annotationClass:
-                    return receiverSymbolID
-                default:
-                    // A resolved value must not fall back to a same-named imported classifier.
-                    return nil
-                }
+                // A resolved value must not fall back to a same-named imported classifier.
+                return nominalSymbol(for: receiverSymbolID)
             }
             if case let .nameRef(receiverName, _) = ast.arena.expr(receiverID) {
                 return ctx.cachedScopeLookup(receiverName).first { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate) else {
-                        return false
-                    }
-                    switch symbol.kind {
-                    case .class, .interface, .enumClass, .annotationClass:
-                        return true
-                    default:
-                        return false
-                    }
+                    nominalSymbol(for: candidate) != nil
                 }
+                .flatMap(nominalSymbol)
             }
             return nil
         }()

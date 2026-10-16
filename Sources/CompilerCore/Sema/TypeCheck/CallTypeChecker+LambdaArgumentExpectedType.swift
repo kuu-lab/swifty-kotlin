@@ -51,7 +51,8 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
-        guard signature.classTypeParameterCount > 0,
+        guard sema.symbols.symbol(candidate)?.kind != .constructor,
+              signature.classTypeParameterCount > 0,
               let owner = sema.symbols.parentSymbol(for: candidate)
         else { return parameterType }
         let receivers = ctx.implicitReceiverStack.reversed().map(\.type)
@@ -106,16 +107,22 @@ extension CallTypeChecker {
     ) -> TypeID {
         guard sema.symbols.symbol(candidate)?.kind != .constructor,
               !signature.typeParameterSymbols.isEmpty,
-              let callSiteReceiverType = receiverType,
-              let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema)
+              let callSiteReceiverType = receiverType
         else {
             return parameterType
         }
 
+        let declaredReceiverClass = signature.receiverType.flatMap { resolveClassType($0, sema: sema) }
+        let receiverOwner = declaredReceiverClass?.classSymbol ?? sema.symbols.parentSymbol(for: candidate)
+        let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema)
+            ?? receiverOwner.flatMap {
+                receiverClassTypeFromUpperBounds(callSiteReceiverType, matching: $0, sema: sema)
+            }
+        guard let callSiteClass else { return parameterType }
+
         let declaredClassArgs: [TypeArg]
         let concreteClassArgs: [TypeArg]
-        if let signatureReceiverType = signature.receiverType,
-           let declaredClass = resolveClassType(signatureReceiverType, sema: sema) {
+        if let declaredClass = declaredReceiverClass {
             if declaredClass.classSymbol == callSiteClass.classSymbol,
                declaredClass.args.count == callSiteClass.args.count {
                 declaredClassArgs = declaredClass.args
@@ -184,6 +191,42 @@ extension CallTypeChecker {
             substitution: substitution,
             typeVarBySymbol: typeVarBySymbol
         )
+    }
+
+    /// Resolves a type-parameter receiver to the nominal upper bound used by a
+    /// generic member or extension. Keeping the bound's own arguments preserves
+    /// enclosing type-parameter identity while allowing callback expectations
+    /// to substitute the candidate's receiver type parameters.
+    private func receiverClassTypeFromUpperBounds(
+        _ receiverType: TypeID,
+        matching receiverOwner: SymbolID,
+        sema: SemaModule
+    ) -> ClassType? {
+        var pending = [receiverType]
+        var visitedTypes: Set<TypeID> = []
+        while let current = pending.popLast() {
+            let readable = sema.types.makeNonNullable(sema.types.capturedReadableUpperBound(of: current))
+            guard visitedTypes.insert(readable).inserted else { continue }
+            switch sema.types.kind(of: readable) {
+            case .classType:
+                guard let nominal = resolveClassType(readable, sema: sema),
+                      nominal.classSymbol == receiverOwner
+                          || sema.types.isNominalSubtypeSymbol(nominal.classSymbol, of: receiverOwner)
+                else {
+                    continue
+                }
+                return nominal
+            case let .typeParam(parameter):
+                let bounds = parameter.capture.map { [$0.upper] }
+                    ?? sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+                pending.append(contentsOf: bounds.reversed())
+            case let .intersection(parts):
+                pending.append(contentsOf: parts.reversed())
+            default:
+                continue
+            }
+        }
+        return nil
     }
 
     /// Substitutes the receiver type parameter of `signature` with the concrete

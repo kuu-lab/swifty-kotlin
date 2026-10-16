@@ -5,9 +5,24 @@ extension CallTypeChecker {
         named name: InternedString,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
+        // Same-package properties do not occupy the callable namespace, so
+        // they must not hide default-imported functions in call syntax.
+        let samePackage = ctx.currentASTFile?.packageFQName
+        let callableCandidates = ctx.scope.lookup(name, matching: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  !ctx.isExpectDeclarationSupersededByActual(candidate)
+            else { return false }
+            if symbol.kind == .property,
+               let samePackage,
+               Array(symbol.fqName.dropLast()) == samePackage
+            {
+                return false
+            }
+            return true
+        })
         let candidates = scopeCallCandidatesWithExplicitImportOverloads(
             named: name,
-            candidates: ctx.cachedScopeLookup(name),
+            candidates: callableCandidates,
             ctx: ctx
         )
         guard !candidates.isEmpty else { return candidates }

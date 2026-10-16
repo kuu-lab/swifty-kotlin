@@ -146,9 +146,9 @@ extension BuildASTPhase {
             parseExpression(minPrecedence: 0)
         }
 
-        func parseExpression(minPrecedence: Int) -> ExprID? {
+        func parseExpression(minPrecedence: Int, implicitLambdaLabel: InternedString? = nil) -> ExprID? {
             defer { leaveRecursion() }
-            guard enterRecursion(), let lhs = parsePrefixUnary() else {
+            guard enterRecursion(), let lhs = parsePrefixUnary(implicitLambdaLabel: implicitLambdaLabel) else {
                 hasIncompleteExpression = true
                 return nil
             }
@@ -242,7 +242,10 @@ extension BuildASTPhase {
             else { return nil }
             guard let calleeName = identifierFromToken(token) else { return nil }
             _ = consume()
-            guard let rhs = parseExpression(minPrecedence: infixPrecedence + 1) else { return nil }
+            guard let rhs = parseExpression(
+                minPrecedence: infixPrecedence + 1,
+                implicitLambdaLabel: calleeName
+            ) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), astArena.exprRange(rhs), fallback: token.range)
             let call = astArena.appendExpr(.memberCall(
                 receiver: lhs,
@@ -255,11 +258,16 @@ extension BuildASTPhase {
             return call
         }
 
-        func parsePrefixUnary() -> ExprID? {
+        func parsePrefixUnary(implicitLambdaLabel: InternedString? = nil) -> ExprID? {
             defer { leaveRecursion() }
             guard enterRecursion() else { return nil }
             guard let token = current() else {
                 return nil
+            }
+            if let implicitLambdaLabel,
+               let lambda = parseLambdaLiteralWithPostfixSuffixes(label: implicitLambdaLabel)
+            {
+                return lambda
             }
             switch token.kind {
             case .symbol(.at):

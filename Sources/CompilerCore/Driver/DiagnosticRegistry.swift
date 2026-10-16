@@ -415,6 +415,12 @@ enum DiagnosticRegistry {
             summary: "Incompatible types in when-branch condition."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0033",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An explicit type is required on a local function value parameter."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0040",
             pass: "SEMA",
             defaultSeverity: .error,

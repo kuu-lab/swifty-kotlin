@@ -23,4 +23,17 @@ struct CodegenBackendGenericNonNullCastTests {
             allowDefaultStdlibLibrary: useArtifact
         )
     }
+
+    /// KUU-2410: Keep the upstream Kotlin/JVM box regression executable.
+    @Test(arguments: [(false, 0), (true, 0), (true, 2)])
+    func publicAsWithGenericBox(useArtifact: Bool, optimizationLevel: Int) throws {
+        let source = try diffCaseSource("as_with_generic.kt", file: #filePath)
+        try assertKotlinOutput(
+            source,
+            moduleName: "AsWithGenericPublic",
+            expected: "OK\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimizationLevel)),
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
 }

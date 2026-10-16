@@ -136,7 +136,8 @@ extension DataFlowSemaPhase {
             fqName: invokeFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic, .operatorFunction]
+            // SAM discovery must see the compiler-known invoke as an abstract member.
+            flags: [.synthetic, .operatorFunction, .abstractType]
         )
         symbols.setParentSymbol(ownerSymbol, for: invokeSymbol)
         let runtimeInvoke = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"

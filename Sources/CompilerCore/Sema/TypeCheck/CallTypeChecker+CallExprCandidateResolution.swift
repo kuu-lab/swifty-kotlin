@@ -142,6 +142,7 @@ extension CallTypeChecker {
                     && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null_throwing"
             }
             var resolvedImplicitReceiverType = callImplicitReceiverType
+            let resolutionDiagnosticsCheckpoint = ctx.sema.diagnostics.checkpoint()
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: resolvedCandidates,
                 args: args,
@@ -160,6 +161,34 @@ extension CallTypeChecker {
                 hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
                 ctx: ctx
             )
+            let hasUninferredLinkedHashMapArgument = args.indices.contains { index in
+                !preparedArgs.lambdaLiteralIndices.contains(index)
+                    && index < argTypes.count
+                    && isReinferableLinkedHashMapConstructor(args[index].expr, ctx: ctx)
+            }
+            if hasUninferredLinkedHashMapArgument,
+               let retried = retryResolutionReinferringNestedCallArguments(
+                   candidates: resolvedCandidates,
+                   args: args,
+                   argTypes: argTypes,
+                   range: range,
+                   calleeName: calleeName ?? InternedString(),
+                   explicitTypeArgs: explicitTypeArgs,
+                   expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                   implicitReceiverType: callImplicitReceiverType,
+                   bindsObjectDispatchReceiver: true,
+                   lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                   inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                   blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                   hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                   ctx: ctx,
+                   locals: &locals
+               )
+            {
+                ctx.sema.diagnostics.rollback(to: resolutionDiagnosticsCheckpoint)
+                resolved = retried
+                resolvedImplicitReceiverType = callImplicitReceiverType
+            }
             // An applicable member keeps precedence even when the surrounding
             // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,
@@ -374,7 +403,18 @@ extension CallTypeChecker {
                 range: range,
                 diagnostics: ctx.sema.diagnostics
             )
-            let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+            let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
+                named: calleeName,
+                candidates: [chosen],
+                ctx: ctx
+            )[chosen]
+            let returnType = bindCallAndResolveReturnType(
+                id,
+                chosen: chosen,
+                resolved: resolved,
+                sema: sema,
+                dispatchReceiverSymbol: importedDispatchReceiver
+            )
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionReceiverSymbol)
             }

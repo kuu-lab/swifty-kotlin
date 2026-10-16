@@ -6,6 +6,53 @@ import Testing
 
 @Suite
 struct KotlinCompilationObjectEmissionTests {
+    @Test(arguments: [0, 2])
+    func testCompileArrayFlatMapIterableTransform(
+        optimization: Int
+    ) throws {
+        let source = """
+        fun <T> flatten(values: Array<Iterable<T>>): List<T> = values.flatMap { it }
+        fun <T> flattenLists(values: Array<List<T>>): List<T> = values.flatMap { it }
+        fun <T> flattenIterable(values: Iterable<Iterable<T>>): List<T> = values.flatMap { it }
+
+        fun main() {
+            val iterableValues: Array<Iterable<Int>> = arrayOf<Iterable<Int>>(listOf(1, 2), listOf(3))
+            val listValues = arrayOf(listOf(4, 5), listOf(6))
+            flatten(iterableValues)
+            flattenLists(listValues)
+            flattenIterable(iterableValues.asIterable())
+        }
+        """
+
+        let optLevel = try #require(OptimizationLevel(rawValue: optimization))
+        let fileManager = FileManager.default
+        let inputPath = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt")
+            .path
+        let outputPath = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let objectPath = outputPath + ".o"
+        defer {
+            try? fileManager.removeItem(atPath: inputPath)
+            try? fileManager.removeItem(atPath: objectPath)
+        }
+        try source.write(toFile: inputPath, atomically: true, encoding: .utf8)
+
+        let options = makeTestOptions(
+            moduleName: "ArrayFlatMapIterableTransform",
+            inputs: [inputPath],
+            outputPath: outputPath,
+            emit: .object,
+            allowDefaultStdlibLibrary: true,
+            optLevel: optLevel
+        )
+        let result = makeTestDriver().runForTesting(options: options)
+        try assertCompilationSucceeded(result, context: "Array.flatMap Iterable transform")
+        #expect(fileManager.fileExists(atPath: objectPath), "Object file should be emitted")
+        #expect((try? Data(contentsOf: URL(fileURLWithPath: objectPath)).isEmpty) == false)
+    }
+
     @Test func testCompileToObject_minimalMain() throws {
         try assertKotlinCompilesToObject("""
         fun main() = 0

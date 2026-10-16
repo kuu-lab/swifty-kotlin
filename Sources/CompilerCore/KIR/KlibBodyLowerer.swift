@@ -55,8 +55,8 @@ final class KlibBodyLowerer {
     private var reportedUnsupported: Set<String> = []
 
     private struct ClassInitInfo {
-        /// `(field symbol, initializer bodyIndex)` in member-declaration order.
-        var fieldInitializers: [(field: SymbolID, bodyIndex: Int32)] = []
+        /// `(field symbol, initializer bodyIndex, declared type index)` in member-declaration order.
+        var fieldInitializers: [(field: SymbolID, bodyIndex: Int32, typeIndex: Int32)] = []
         /// `IrAnonymousInitializer` bodies, also in declaration order.
         var anonymousInitBodyIndices: [Int32] = []
         var fileIndex: Int = 0
@@ -453,7 +453,11 @@ final class KlibBodyLowerer {
                    let fieldSymbol = symbol(for: field.base.symbol)
                 {
                     initInfo.fieldInitializers.append(
-                        (field: fieldSymbol, bodyIndex: initializerIndex)
+                        (
+                            field: fieldSymbol,
+                            bodyIndex: initializerIndex,
+                            typeIndex: field.nameType.typeIndex
+                        )
                     )
                 }
             case .anonymousInit(let initializer):
@@ -745,6 +749,12 @@ final class KlibBodyLowerer {
         case .getValue(let ref, _):
             if let bound = valueExprs[ref.signatureIndex] {
                 return bound
+            }
+            if ref.kind == .receiverParameter, let thisExpr {
+                // Some Klib producers encode the dispatch receiver as a
+                // scoped receiver local rather than the declaration's
+                // signature-table parameter. It still denotes this instance.
+                return thisExpr
             }
             if let symbol = symbol(for: ref) {
                 let expr = arena.appendExpr(.symbolRef(symbol), type: resultType)
@@ -1180,6 +1190,13 @@ final class KlibBodyLowerer {
             guard let initExpr = try? ir.expressionBody(
                 fieldInit.bodyIndex, fileIndex: fileIndex
             ) else { continue }
+            let fieldType = decodeType(fieldInit.typeIndex) ?? decodeType(initExpr.typeIndex)
+            if let fieldType,
+               let value = defaultFieldInitializerValue(initExpr),
+               KIRDefaultFieldInitializer.isDefaultValue(value, for: fieldType, types: types)
+            {
+                continue
+            }
             let value = translateExpression(initExpr, into: &body)
             guard let offset = fieldOffsetExpr(fieldSymbol: fieldInit.field, into: &body) else {
                 reportUnsupported("no field offset for init store")
@@ -1196,6 +1213,29 @@ final class KlibBodyLowerer {
             if let statement = try? ir.body(bodyIndex, fileIndex: fileIndex) {
                 translateStatement(statement, into: &body)
             }
+        }
+    }
+
+    private func defaultFieldInitializerValue(_ expression: KlibIrExpression) -> KIRExprKind? {
+        switch expression.kind {
+        case .constNull:
+            .null
+        case let .constBool(value):
+            .boolLiteral(value)
+        case let .constChar(value):
+            .charLiteral(UInt32(bitPattern: value))
+        case let .constByte(value), let .constShort(value), let .constInt(value):
+            .intLiteral(Int64(value))
+        case let .constLong(value):
+            .longLiteral(value)
+        case let .constFloat(bits):
+            .floatLiteral(Double(Float(bitPattern: bits)))
+        case let .constDouble(bits):
+            .doubleLiteral(Double(bitPattern: bits))
+        case let .typeOp(op, _, argument) where op == .implicitCast || op == .implicitIntegerCoercion:
+            defaultFieldInitializerValue(argument)
+        default:
+            nil
         }
     }
 
