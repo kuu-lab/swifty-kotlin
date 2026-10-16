@@ -37,6 +37,27 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
+        if let entrySymbol = sema.bindings.enumEntryInvokeReceiverSymbol(for: exprID) {
+            let receiverType = sema.symbols.propertyType(for: entrySymbol) ?? sema.types.anyType
+            let entryValue = arena.appendExpr(.symbolRef(entrySymbol), type: receiverType)
+            instructions.instructions.append(.constValue(result: entryValue, value: .symbolRef(entrySymbol)))
+            return lowerMemberLikeCallExpr(
+                exprID,
+                receiverExpr: receiverExpr,
+                calleeName: interner.intern("invoke"),
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                requireNonNullableReceiverForConstFold: false,
+                prependReceiverForUnresolvedCollectionCall: true,
+                instructions: &instructions.instructions,
+                loweredReceiverOverride: entryValue
+            )
+        }
+
         if sema.bindings.isTypeQualifiedConstructorCallExpr(exprID) {
             emitCompanionInitializationBeforeConstructorArguments(
                 exprID: exprID,
