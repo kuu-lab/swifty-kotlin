@@ -893,7 +893,7 @@ extension KIRLoweringDriver {
             delegateExpr: delegateExpr, ast: shared.ast, interner: shared.interner
         )
 
-        if delegateKind == .lazy {
+        if delegateKind == .lazy, propertyDecl.delegateBody != nil {
             emitLazyDelegatePropertyInitializer(
                 propertyDecl: propertyDecl, propSymbol: propSymbol,
                 delegateStorageSym: delegateStorageSym, sema: sema, arena: arena,

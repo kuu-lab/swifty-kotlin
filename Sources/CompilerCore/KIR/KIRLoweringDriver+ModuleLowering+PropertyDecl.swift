@@ -349,12 +349,22 @@ extension KIRLoweringDriver {
         initInstructions: inout KIRLoweringEmitContext
     ) {
         switch delegateKind {
-        case .lazy:
+        case .lazy where propertyDecl.delegateBody != nil:
             emitLazyDelegateInit(
                 propertyDecl: propertyDecl, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol,
                 delegateType: delegateType, shared: shared,
                 initInstructions: &initInstructions
+            )
+        case .lazy:
+            // `lazy(initializer)` supplies a Function0 argument instead of a
+            // trailing delegate body. Lower the factory call itself so that
+            // its initializer argument is preserved.
+            emitDelegateInit(
+                propertyDecl: propertyDecl, symbol: symbol,
+                delegateStorageSymbol: delegateStorageSymbol,
+                delegateType: delegateType, shared: shared,
+                compilationCtx: compilationCtx, initInstructions: &initInstructions
             )
         case .observable, .vetoable, .notNull, .custom:
             emitDelegateInit(

@@ -6,6 +6,42 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
     @Test
+    func testGenericLazyDelegateUsesExplicitInitializerFunction() throws {
+        let source = try diffCaseSource(
+            "kuu_2466_generic_lazy_initializer.kt",
+            file: #filePath
+        )
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let artifactPath = try Self.buildStdlibArtifact()
+        let input = directory.appendingPathComponent("KUU2466.kt").path
+        let output = directory.appendingPathComponent("KUU2466").path
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        let options = CompilerOptions(
+            moduleName: "KUU2466",
+            inputs: [input],
+            outputPath: output,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: 0)),
+            includeStdlib: false,
+            stdlibLibraryPath: artifactPath,
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(
+            makeTestDriver().runForTesting(options: options),
+            context: "KUU-2466, fresh .kklib, O0"
+        )
+
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "KUU-2466: \(result.stderr)")
+        #expect(result.stdout == "K")
+    }
+
+    @Test
     func testDelegatedPropertyInitializersInCompanionAndNamedObject() throws {
         // Source-mode O2 currently fails in unrelated bundled-stdlib codegen (KSWIFTK-BACKEND-1006).
         let configurations: [(useArtifact: Bool, optimization: Int)] = [
