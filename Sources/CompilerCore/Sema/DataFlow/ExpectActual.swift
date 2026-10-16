@@ -19,7 +19,17 @@ extension DataFlowSemaPhase {
         let expects = symbols.allSymbols().filter { sym in
             sym.flags.contains(.expectDeclaration)
                 && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
-        }
+        }.map { symbol in
+            (
+                symbol: symbol,
+                nestingDepth: expectActualNestingDepth(of: symbol.id, symbols: symbols)
+            )
+        }.sorted { lhs, rhs in
+            if lhs.nestingDepth != rhs.nestingDepth {
+                return lhs.nestingDepth < rhs.nestingDepth
+            }
+            return lhs.symbol.id.rawValue < rhs.symbol.id.rawValue
+        }.map { $0.symbol }
         guard !expects.isEmpty else { return }
         let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
             guard case let .funDecl(function) = decl else { return nil }
@@ -53,9 +63,19 @@ extension DataFlowSemaPhase {
                     return true
                 }
 
-            let candidates = actuals.filter { actual in
+            let aliasTargetMembers = actualTypeAliasMembers(
+                for: expectSym,
+                symbols: symbols,
+                types: types
+            )
+            let aliasTargetMemberIDs = Set(aliasTargetMembers.map(\.id))
+            let candidates = (actuals + aliasTargetMembers).filter { actual in
                 actual.kind == expectSym.kind
                     || (expectSym.kind == .annotationClass && actual.kind == .typeAlias)
+                    || (expectSym.kind == .class && actual.kind == .typeAlias)
+            }
+                .filter { actual in
+                    actual.flags.contains(.actualDeclaration) || aliasTargetMemberIDs.contains(actual.id)
             }
                 .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
@@ -201,6 +221,74 @@ extension DataFlowSemaPhase {
             && !hasCompilerAnnotation(.ksSymbolName, on: function.annotations)
     }
 
+    private func expectActualNestingDepth(of symbol: SymbolID, symbols: SymbolTable) -> Int {
+        var depth = 0
+        var current = symbols.parentSymbol(for: symbol)
+        var visited: Set<SymbolID> = [symbol]
+        while let parent = current, visited.insert(parent).inserted {
+            depth += 1
+            current = symbols.parentSymbol(for: parent)
+        }
+        return depth
+    }
+
+    private func actualTypeAliasMembers(
+        for expectMember: SemanticSymbol,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [SemanticSymbol] {
+        guard let expectOwnerID = symbols.parentSymbol(for: expectMember.id),
+              let expectOwner = symbols.symbol(expectOwnerID),
+              expectOwner.flags.contains(.expectDeclaration),
+              let actualAliasID = symbols.actualSymbol(for: expectOwnerID),
+              let actualAlias = symbols.symbol(actualAliasID),
+              actualAlias.kind == .typeAlias,
+              let actualOwnerID = actualTypeAliasTargetClassSymbol(
+                  for: actualAlias,
+                  symbols: symbols,
+                  types: types
+              ),
+              let actualOwner = symbols.symbol(actualOwnerID)
+        else {
+            return []
+        }
+
+        let memberFQName = actualOwner.fqName + [expectMember.name]
+        return symbols.lookupAll(fqName: memberFQName).compactMap { symbols.symbol($0) }
+            .filter {
+                $0.kind == expectMember.kind
+                    && symbols.parentSymbol(for: $0.id) == actualOwnerID
+            }
+    }
+
+    private func actualTypeAliasTargetClassSymbol(
+        for alias: SemanticSymbol,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> SymbolID? {
+        var currentAlias = alias
+        var visited: Set<SymbolID> = []
+        while visited.insert(currentAlias.id).inserted,
+              let underlyingType = symbols.typeAliasUnderlyingType(for: currentAlias.id),
+              case let .classType(classType) = types.kind(of: underlyingType),
+              classType.nullability == .nonNull,
+              let target = symbols.symbol(classType.classSymbol)
+        {
+            guard target.kind == .typeAlias else {
+                if target.flags.contains(.expectDeclaration),
+                   let actualID = symbols.actualSymbol(for: target.id),
+                   let actualTarget = symbols.symbol(actualID),
+                   actualTarget.kind == .class
+                {
+                    return actualID
+                }
+                return target.kind == .class ? target.id : nil
+            }
+            currentAlias = target
+        }
+        return nil
+    }
+
     private func areExpectActualCompatible(
         expect: SemanticSymbol,
         actual: SemanticSymbol,
@@ -221,6 +309,36 @@ extension DataFlowSemaPhase {
                 return underlyingSymbol.kind == .annotationClass
             }
             return false
+        }
+
+        if expect.kind == .class, actual.kind == .typeAlias {
+            let expectTypeParameters = types.nominalTypeParameterSymbols(for: expect.id)
+            let aliasTypeParameters = symbols.typeAliasTypeParameters(for: actual.id)
+            guard let targetClassID = actualTypeAliasTargetClassSymbol(
+                for: actual,
+                symbols: symbols,
+                types: types
+            ), let targetClass = symbols.symbol(targetClassID),
+                let underlyingType = symbols.typeAliasUnderlyingType(for: actual.id),
+                case let .classType(underlyingClassType) = types.kind(of: underlyingType),
+                expectTypeParameters.count == aliasTypeParameters.count,
+                let immediateTarget = symbols.symbol(underlyingClassType.classSymbol),
+                underlyingClassType.args.count == (immediateTarget.kind == .typeAlias
+                    ? symbols.typeAliasTypeParameters(for: immediateTarget.id).count
+                    : types.nominalTypeParameterSymbols(for: immediateTarget.id).count),
+                expect.flags.contains(.valueType) == targetClass.flags.contains(.valueType)
+            else {
+                return false
+            }
+
+            let typeParameterMapping = Dictionary(uniqueKeysWithValues: zip(expectTypeParameters, aliasTypeParameters))
+            return expectActualTypeBoundListsMatch(
+                expectTypeParameters.map { symbols.typeParameterUpperBounds(for: $0) },
+                aliasTypeParameters.map { symbols.typeParameterUpperBounds(for: $0) },
+                typeParamMapping: typeParameterMapping,
+                symbols: symbols,
+                types: types
+            )
         }
 
         switch expect.kind {
@@ -298,7 +416,7 @@ extension DataFlowSemaPhase {
                 let actualSuper: SymbolID
                 if expect.kind == .class {
                     guard let matchingActualSuper = actualSupertypes.first(where: { actualSuper in
-                        expectActualNominalSymbolsMatch(expectSuper, actualSuper, symbols: symbols)
+                        expectActualNominalSymbolsMatch(expectSuper, actualSuper, symbols: symbols, types: types)
                     }) else {
                         return false
                     }
@@ -307,7 +425,7 @@ extension DataFlowSemaPhase {
                     actualSuper = actualSupertypes[index]
                 }
 
-                guard expectActualNominalSymbolsMatch(expectSuper, actualSuper, symbols: symbols) else {
+                guard expectActualNominalSymbolsMatch(expectSuper, actualSuper, symbols: symbols, types: types) else {
                     return false
                 }
                 let expectArgs = types.nominalSupertypeTypeArgs(for: expect.id, supertype: expectSuper)
@@ -445,7 +563,7 @@ extension DataFlowSemaPhase {
     ) -> [SymbolID: SymbolID] {
         guard let expectOwner = symbols.parentSymbol(for: expect.id),
               let actualOwner = symbols.parentSymbol(for: actual.id),
-              expectActualNominalSymbolsMatch(expectOwner, actualOwner, symbols: symbols)
+              expectActualNominalSymbolsMatch(expectOwner, actualOwner, symbols: symbols, types: types)
         else {
             return [:]
         }
@@ -617,7 +735,12 @@ extension DataFlowSemaPhase {
 
         case let (.classType(expectClass), .classType(actualClass)):
             return expectClass.nullability == actualClass.nullability
-                && expectActualNominalSymbolsMatch(expectClass.classSymbol, actualClass.classSymbol, symbols: symbols)
+                && expectActualNominalSymbolsMatch(
+                    expectClass.classSymbol,
+                    actualClass.classSymbol,
+                    symbols: symbols,
+                    types: types
+                )
                 && expectActualTypeArgsMatch(
                     expectClass.args,
                     actualClass.args,
@@ -685,13 +808,26 @@ extension DataFlowSemaPhase {
     private func expectActualNominalSymbolsMatch(
         _ expectSymbolID: SymbolID,
         _ actualSymbolID: SymbolID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        types: TypeSystem
     ) -> Bool {
         guard let expectSymbol = symbols.symbol(expectSymbolID),
               let actualSymbol = symbols.symbol(actualSymbolID)
         else {
             return false
         }
-        return expectSymbol.kind == actualSymbol.kind && expectSymbol.fqName == actualSymbol.fqName
+        if expectSymbol.kind == actualSymbol.kind && expectSymbol.fqName == actualSymbol.fqName {
+            return true
+        }
+        guard expectSymbol.kind == .class,
+              let actualAliasID = symbols.actualSymbol(for: expectSymbolID),
+              let actualAlias = symbols.symbol(actualAliasID),
+              actualAlias.kind == .typeAlias,
+              actualAlias.id == actualSymbolID
+                  || actualTypeAliasTargetClassSymbol(for: actualAlias, symbols: symbols, types: types) == actualSymbolID
+        else {
+            return false
+        }
+        return true
     }
 }

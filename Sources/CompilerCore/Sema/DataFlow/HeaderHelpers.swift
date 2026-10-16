@@ -543,8 +543,8 @@ extension DataFlowSemaPhase {
     /// Checks for a duplicate declaration conflict at the given fully-qualified name and
     /// emits the standard KSWIFTK-SEMA-0001 diagnostic when a conflict is detected.
     /// An `expect` and `actual` pair sharing the same FQ name is NOT a conflict.
-    /// This includes the `expect annotation class` + `actual typealias` shape used
-    /// by `kotlin.concurrent.Volatile`.
+    /// This includes `actual typealias` implementations of expect classes and
+    /// annotation classes, such as `kotlin.concurrent.Volatile`.
     func checkAndReportDuplicateDeclaration(
         newKind: SymbolKind,
         fqName: [InternedString],

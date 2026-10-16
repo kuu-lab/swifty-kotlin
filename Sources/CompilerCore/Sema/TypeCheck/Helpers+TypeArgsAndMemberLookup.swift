@@ -456,6 +456,51 @@ extension TypeCheckHelpers {
         }
     }
 
+    private func actualImplementationNominalSymbols(
+        of receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        guard case let .classType(classType) = sema.types.kind(of: receiverType),
+              let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return []
+        }
+
+        let aliasID: SymbolID?
+        if receiverSymbol.kind == .typeAlias {
+            aliasID = receiverSymbol.id
+        } else if receiverSymbol.flags.contains(.expectDeclaration),
+                  let actualID = sema.symbols.actualSymbol(for: receiverSymbol.id),
+                  let actualSymbol = sema.symbols.symbol(actualID)
+        {
+            if actualSymbol.kind == .class {
+                return [actualID]
+            }
+            aliasID = actualSymbol.kind == .typeAlias ? actualID : nil
+        } else {
+            aliasID = nil
+        }
+        guard let aliasID,
+              let expandedType = expandTypeAlias(
+                  aliasID,
+                  typeArgs: classType.args,
+                  sema: sema,
+                  visited: [],
+                  depth: 0
+              )
+        else {
+            return []
+        }
+
+        return allNominalSymbols(
+            of: expandedType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner
+        )
+    }
+
     func collectMemberFunctionCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -478,6 +523,10 @@ extension TypeCheckHelpers {
             of: receiverType,
             types: sema.types,
             symbols: sema.symbols,
+            interner: interner
+        ) + actualImplementationNominalSymbols(
+            of: receiverType,
+            sema: sema,
             interner: interner
         )
 
@@ -619,8 +668,7 @@ extension TypeCheckHelpers {
         ) {
             let memberFQName = ownerFQName + [calleeName]
             for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
-                guard seenCandidates.insert(candidate).inserted,
-                      let symbol = sema.symbols.symbol(candidate),
+                guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let signatureReceiverType = signature.receiverType
@@ -632,6 +680,9 @@ extension TypeCheckHelpers {
                     && sema.symbols.parentSymbol(for: candidate) == nil
                     && sema.symbols.symbol(owner)?.kind == .package
                 guard parentMatchesOwner || isUnattachedPackageExtension else {
+                    continue
+                }
+                guard seenCandidates.insert(candidate).inserted else {
                     continue
                 }
                 if requireReceiverSubtype,

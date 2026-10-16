@@ -195,7 +195,10 @@ extension CallTypeChecker {
                 lookupReceiverType = baseLookupReceiverType
             }
         } else {
-            lookupReceiverType = baseLookupReceiverType
+            lookupReceiverType = driver.helpers.actualImplementationType(
+                of: baseLookupReceiverType,
+                sema: sema
+            ) ?? baseLookupReceiverType
         }
         // `f.invoke(...)` where `f`'s own type is a function type
         // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
