@@ -301,10 +301,17 @@ extension CallTypeChecker {
 
         validateReifiedPropertyArguments(chosen, arguments: resolved.substitutedTypeArguments, range: range, ctx: ctx)
 
+        let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
+            named: calleeName,
+            candidates: [chosen],
+            ctx: ctx
+        )[chosen]
+
         sema.bindings.bindExtensionPropertyGetterCall(id, binding: CallBinding(
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value),
-            parameterMapping: resolved.parameterMapping
+            parameterMapping: resolved.parameterMapping,
+            dispatchReceiverSymbol: importedDispatchReceiver
         ))
         if bindCall {
             sema.bindings.bindCall(
@@ -314,7 +321,8 @@ extension CallTypeChecker {
                     substitutedTypeArguments: resolved.substitutedTypeArguments
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue })
                         .map(\.value),
-                    parameterMapping: resolved.parameterMapping
+                    parameterMapping: resolved.parameterMapping,
+                    dispatchReceiverSymbol: importedDispatchReceiver
                 )
             )
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
