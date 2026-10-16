@@ -1008,9 +1008,12 @@ struct TypeCheckHelpers {
                         }
                         return sema.types.makeKClassType(argument: argumentType, nullability: nullability)
                     }
-                    return sema.types.make(.classType(ClassType(
-                        classSymbol: symbolID,
-                        args: resolvedArgs,
+                    // Qualified inner-class references (`Outer<V>.Inner`) supply the
+                    // qualifier's arguments; route through the nominal split so they
+                    // land in enclosingTypeArgs rather than the class's own args.
+                    return sema.types.make(.classType(sema.types.classType(
+                        for: symbolID,
+                        arguments: resolvedArgs,
                         nullability: nullability
                     )))
                 }
