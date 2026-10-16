@@ -130,7 +130,7 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: expectedType,
                     arityPolicy: sema.symbols.extensionPropertyReceiverType(for: propResult.symbol) == nil
-                        ? .receiverNeverExplicit : .receiverRequiredExplicit
+                        ? .receiverExplicitOrMemberDispatch(memberLookupType) : .receiverRequiredExplicit
                 ) {
                     let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
                     sema.bindings.bindExprType(id, type: finalType)

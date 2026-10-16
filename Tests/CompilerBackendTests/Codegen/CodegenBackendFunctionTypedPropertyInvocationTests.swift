@@ -140,6 +140,58 @@ struct CodegenBackendFunctionTypedPropertyInvocationTests {
         )
     }
 
+    @Test(arguments: [false, true], [0, 2])
+    func memberReceiverFunctionPropertyAcceptsExplicitReceiverArgument(
+        allowDefaultStdlibLibrary: Bool,
+        optimization: Int
+    ) throws {
+        let source = """
+        class Holder(val f: Int.() -> String)
+        fun box(): String = Holder({ if (this == 3) "OK" else "FAIL" }).f(3)
+        class TwoArgHolder(val f: Int.(Int) -> String)
+        class RegularHolder(val f: (Int) -> String)
+        class Greeter(val greet: Greeter.(Int) -> String) {
+            val name = "world"
+        }
+        fun main() {
+            val holder = Holder({ if (this == 3) "OK" else "FAIL" })
+            println(box())
+            println(holder.f(3))
+            val local: Int.() -> String = { if (this == 4) "local" else "FAIL" }
+            println(local(4))
+            println(with(holder) { 3.f() })
+            val twoArgHolder = TwoArgHolder({ value -> if (this == 3 && value == 4) "two-arg" else "FAIL" })
+            println(twoArgHolder.f(3, 4))
+            val regularHolder = RegularHolder({ value -> if (value == 6) "regular" else "FAIL" })
+            println(regularHolder.f(6))
+            val greeter = Greeter({ value -> "hi " + name + " " + value })
+            println(greeter.greet(7))
+            val nullableHolder: Holder? = holder
+            println(nullableHolder?.f(3))
+            val nullHolder: Holder? = null
+            println(nullHolder?.f(3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberReceiverFunctionPropertyExplicitReceiver",
+            expected: """
+            OK
+            OK
+            local
+            OK
+            two-arg
+            regular
+            hi world 7
+            OK
+            null
+            """ + "\n",
+            optLevel: optimization == 0 ? .O0 : .O2,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func functionTypedPropertyInvokesThroughSafeCallSyntax() throws {
         let source = """
