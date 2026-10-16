@@ -53,6 +53,11 @@ public final class TypeSystem {
     /// `FunctionN` nominal and vice versa (KUU-1084).
     public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
+    /// The symbols of the synthetic `kotlin.coroutines.SuspendFunctionN`
+    /// interfaces, keyed by arity. These keep suspend function types distinct
+    /// from regular `FunctionN` types while exposing their suspend `invoke`.
+    public internal(set) var suspendFunctionNInterfaceSymbols: [Int: SymbolID] = [:]
+
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 
     /// The symbol ID of the synthetic `kotlin.Number` abstract class, set during header registration.
@@ -129,6 +134,7 @@ public final class TypeSystem {
         worker.kCallableInterfaceSymbol = kCallableInterfaceSymbol
         worker.functionInterfaceSymbol = functionInterfaceSymbol
         worker.functionNInterfaceSymbols = functionNInterfaceSymbols
+        worker.suspendFunctionNInterfaceSymbols = suspendFunctionNInterfaceSymbols
         worker.kClassInterfaceSymbol = kClassInterfaceSymbol
         worker.numberClassSymbol = numberClassSymbol
         worker.stringClassSymbol = stringClassSymbol
