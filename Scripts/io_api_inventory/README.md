@@ -288,3 +288,24 @@ automatically `verified`; upstream execution and candidate behavior tests belong
 to KUU-1727 and the implementation children. A test reference is a candidate
 mapping or labelled suite reference, not evidence that the test ran or that its
 assertions cover that overload. Full integration remains owned by KUU-1725.
+
+### ByteString Hex default bridges
+
+KUU-2621 assigns the three generated `HexKt` default wrappers to dedicated
+upstream assertions and a direct native consumer. The physical reference JVM
+shape is checked separately against the pinned bytestring artifact:
+
+```sh
+python3 Scripts/io_api_inventory/probe_bytestring_hex_jvm_abi.py --download
+```
+
+The probe verifies exact wrapper names and descriptors, public source
+visibility, public/static/synthetic classfile flags, absence of `ACC_BRIDGE`,
+mask bits derived from the locked Kotlin metadata defaults, the `Object`
+marker, the source declaration, and the artifact SHA-256. It reports reference
+classfile evidence only. KSwiftK emits
+native binaries, so source and fresh `.kklib` default-dispatch runs in
+`kotlinx_io_bytestring_hex_default_bridges.kt` remain separate evidence and do
+not prove candidate JVM classfile ABI. Keep these JVM ABI rows `unverified`
+unless candidate physical ABI evidence becomes available; do not record a
+reference-only probe as a passing candidate execution.
