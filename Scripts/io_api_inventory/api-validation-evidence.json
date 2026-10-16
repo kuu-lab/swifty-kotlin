@@ -1,4 +1,1321 @@
 {
-  "schema_version": 1,
-  "records": []
+  "schema_version": 2,
+  "records": [],
+  "declaration_shape_records": [
+    {
+      "row_id": "jvm-30aa8296be3c5f34",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "c0d7e7cd526eda726b0d9421565f5ad5425bee0bf47e774bc9e83bc7ed23ddcf",
+      "compatibility_obligations": [
+        "declaration-shape"
+      ],
+      "case_id": "bytestring-declaration-shape",
+      "assertion": {
+        "assertion_id": "jvm-bytestring-public-final-comparable",
+        "reference_assertion": "public final ByteString implements Comparable<ByteString> with its generic signature",
+        "candidate_probe": "cross-library Comparable<ByteString> assignment and rejected ByteString subclass"
+      },
+      "assertion_count": 1,
+      "target_row_count": 5,
+      "candidate_lane_count": 6,
+      "expected_output": "ByteString.compareTo:-1\nByteString.Companion.public-type:true\nByteString.Companion.singleton:true\n",
+      "expected_output_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+      "expected_output_bytes": 98,
+      "candidate_compiler_sha256": "5783ed36f444ce540b8a52a55e4bc30d90beec4930dc969a42a788f5cbe33062",
+      "matrix_summary_sha256": "2107c0364fcf9c153b74007b8159513805271c53a4372af819873c109b97903a",
+      "matrix_dirty_patch_sha256": "1e0f89969ffdbc1c125b64a1ef50fe639c0fac7aa3a0c53355e5a0b956aacd70",
+      "fresh_stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+      "origin_input_sha256": {
+        "bytestring/common/src/ByteString.kt": "6fbe8960fb142ef0220839d5b211baa518ec015adb9b42e054eca0db754c1da2",
+        "bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+        "bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+      },
+      "probe_input_sha256": {
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt": "2617a9fdcfedb3eac616a59f0009f4d2f9c60a7cee8ae01b4125e2a686eda446",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt": "946e121c6611c15a61004fca19e13fc4cf4df51827411e3cd35172b636d18cf2",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+        "Scripts/io_api_inventory/run_f02_matrix.py": "cddeb44de7388d3750a8002299c59f87d4046c13bfb39fd64de9d17d9acb49f1"
+      },
+      "reference_artifacts": {
+        "jvm_artifact_sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+        "native_klib_sha256": "b20ec12601f9bd20c346be668b5d0429fa960f22782b73955891273913c6db04",
+        "native_compiler_archive_sha256": "6726393c58b504991034ec4cc54745efe65446c30cdb5329657d26a91a6ddcb3",
+        "native_klib_tool_sha256": "7ac6362f406d2f901d0a6a6e4d6551e37a8362d22cffdb04dc622e8ccc5991cc"
+      },
+      "reference_checks": {
+        "jvm_positive": {
+          "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+          "result": "PASS",
+          "exit_code": 0,
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "jvm_negative": {
+          "execution_id": "reference:jvm-negative:bytestring-declaration-shape:2107c0364fcf",
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "0394c33a56c899e56d16db329c5aaa779fc893724123a31333a7621276d9ed6b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "jvm_abi": {
+          "result": "PASS",
+          "api_row_ids": [
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d"
+          ],
+          "byte_string_stdout_sha256": "52048893f359bb11ac0e84161096db7a86d44c4ad8e1153faea75e0d962bf7dc",
+          "companion_stdout_sha256": "65dc2ff0a6623bdb9da9bb84d15c4f5cdfcc17b0c6ea5841fe369fabd1428619"
+        },
+        "native_klib": {
+          "result": "PASS",
+          "api_row_ids": [
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984"
+          ],
+          "metadata_stdout_sha256": "97afa76afe90fba99527b1e1642de6ca4c981f53d37b564ebda732083b2bcfd7",
+          "abi_stdout_sha256": "402b0333ff36661b03689f537306c2c0b01d6b1561e236ce134570426d9d142d"
+        }
+      },
+      "executions": [
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "lane_outputs": {
+        "source-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "source-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        }
+      },
+      "negative_probes": {
+        "source-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "6fe2986098af586c8f37bd637a42f2e9ff370ff1062953ae7a5044c8e17112f6",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "source-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "93c0d0ac8e72c381f06cef639f1871420eabe01b69242833be469925184a76dc",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "d7a699156c73da336d7899444955152a96ae7daf1f1c7cf6721b02a02ecf76e9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "4ceb940dcb4598e7025da007bc579efc33a12c55a7c860c9b27c8cf13386fa1b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "30c3b59a67ca07258d105d18d917c5be87499f4cc2c931f7a3b9ea00f4291c7e",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "f5ce6fc371f0633bbcbbb645b6c79179df85512735476c93b8db3eced5a770d9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        }
+      }
+    },
+    {
+      "row_id": "jvm-513421237a6901bd",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "5a87eab3e302148b719e4b4446f150494e472a8072d79f54fe9a989f3d1538a6",
+      "compatibility_obligations": [
+        "declaration-shape"
+      ],
+      "case_id": "bytestring-declaration-shape",
+      "assertion": {
+        "assertion_id": "jvm-bytestring-companion-public-final-class",
+        "reference_assertion": "public final ByteString$Companion class",
+        "candidate_probe": "cross-library public ByteString.Companion type and rejected companion subclass"
+      },
+      "assertion_count": 1,
+      "target_row_count": 5,
+      "candidate_lane_count": 6,
+      "expected_output": "ByteString.compareTo:-1\nByteString.Companion.public-type:true\nByteString.Companion.singleton:true\n",
+      "expected_output_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+      "expected_output_bytes": 98,
+      "candidate_compiler_sha256": "5783ed36f444ce540b8a52a55e4bc30d90beec4930dc969a42a788f5cbe33062",
+      "matrix_summary_sha256": "2107c0364fcf9c153b74007b8159513805271c53a4372af819873c109b97903a",
+      "matrix_dirty_patch_sha256": "1e0f89969ffdbc1c125b64a1ef50fe639c0fac7aa3a0c53355e5a0b956aacd70",
+      "fresh_stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+      "origin_input_sha256": {
+        "bytestring/common/src/ByteString.kt": "6fbe8960fb142ef0220839d5b211baa518ec015adb9b42e054eca0db754c1da2",
+        "bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+        "bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+      },
+      "probe_input_sha256": {
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt": "2617a9fdcfedb3eac616a59f0009f4d2f9c60a7cee8ae01b4125e2a686eda446",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt": "946e121c6611c15a61004fca19e13fc4cf4df51827411e3cd35172b636d18cf2",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+        "Scripts/io_api_inventory/run_f02_matrix.py": "cddeb44de7388d3750a8002299c59f87d4046c13bfb39fd64de9d17d9acb49f1"
+      },
+      "reference_artifacts": {
+        "jvm_artifact_sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+        "native_klib_sha256": "b20ec12601f9bd20c346be668b5d0429fa960f22782b73955891273913c6db04",
+        "native_compiler_archive_sha256": "6726393c58b504991034ec4cc54745efe65446c30cdb5329657d26a91a6ddcb3",
+        "native_klib_tool_sha256": "7ac6362f406d2f901d0a6a6e4d6551e37a8362d22cffdb04dc622e8ccc5991cc"
+      },
+      "reference_checks": {
+        "jvm_positive": {
+          "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+          "result": "PASS",
+          "exit_code": 0,
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "jvm_negative": {
+          "execution_id": "reference:jvm-negative:bytestring-declaration-shape:2107c0364fcf",
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "0394c33a56c899e56d16db329c5aaa779fc893724123a31333a7621276d9ed6b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "jvm_abi": {
+          "result": "PASS",
+          "api_row_ids": [
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d"
+          ],
+          "byte_string_stdout_sha256": "52048893f359bb11ac0e84161096db7a86d44c4ad8e1153faea75e0d962bf7dc",
+          "companion_stdout_sha256": "65dc2ff0a6623bdb9da9bb84d15c4f5cdfcc17b0c6ea5841fe369fabd1428619"
+        },
+        "native_klib": {
+          "result": "PASS",
+          "api_row_ids": [
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984"
+          ],
+          "metadata_stdout_sha256": "97afa76afe90fba99527b1e1642de6ca4c981f53d37b564ebda732083b2bcfd7",
+          "abi_stdout_sha256": "402b0333ff36661b03689f537306c2c0b01d6b1561e236ce134570426d9d142d"
+        }
+      },
+      "executions": [
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "lane_outputs": {
+        "source-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "source-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        }
+      },
+      "negative_probes": {
+        "source-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "6fe2986098af586c8f37bd637a42f2e9ff370ff1062953ae7a5044c8e17112f6",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "source-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "93c0d0ac8e72c381f06cef639f1871420eabe01b69242833be469925184a76dc",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "d7a699156c73da336d7899444955152a96ae7daf1f1c7cf6721b02a02ecf76e9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "4ceb940dcb4598e7025da007bc579efc33a12c55a7c860c9b27c8cf13386fa1b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "30c3b59a67ca07258d105d18d917c5be87499f4cc2c931f7a3b9ea00f4291c7e",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "f5ce6fc371f0633bbcbbb645b6c79179df85512735476c93b8db3eced5a770d9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        }
+      }
+    },
+    {
+      "row_id": "jvm-bbea794ad47ba10d",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "test_input_sha256": "b7714896261e0874a78c8baa968ff9adaa62011cda224132fd09aad92a17aa48",
+      "compatibility_obligations": [
+        "declaration-shape"
+      ],
+      "case_id": "bytestring-declaration-shape",
+      "assertion": {
+        "assertion_id": "jvm-bytestring-companion-static-final-field",
+        "reference_assertion": "public static final Companion field with the exact ByteString$Companion descriptor",
+        "candidate_probe": "cross-library companion access and singleton identity"
+      },
+      "assertion_count": 1,
+      "target_row_count": 5,
+      "candidate_lane_count": 6,
+      "expected_output": "ByteString.compareTo:-1\nByteString.Companion.public-type:true\nByteString.Companion.singleton:true\n",
+      "expected_output_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+      "expected_output_bytes": 98,
+      "candidate_compiler_sha256": "5783ed36f444ce540b8a52a55e4bc30d90beec4930dc969a42a788f5cbe33062",
+      "matrix_summary_sha256": "2107c0364fcf9c153b74007b8159513805271c53a4372af819873c109b97903a",
+      "matrix_dirty_patch_sha256": "1e0f89969ffdbc1c125b64a1ef50fe639c0fac7aa3a0c53355e5a0b956aacd70",
+      "fresh_stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+      "origin_input_sha256": {
+        "bytestring/common/src/ByteString.kt": "6fbe8960fb142ef0220839d5b211baa518ec015adb9b42e054eca0db754c1da2",
+        "bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+        "bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+      },
+      "probe_input_sha256": {
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt": "2617a9fdcfedb3eac616a59f0009f4d2f9c60a7cee8ae01b4125e2a686eda446",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt": "946e121c6611c15a61004fca19e13fc4cf4df51827411e3cd35172b636d18cf2",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+        "Scripts/io_api_inventory/run_f02_matrix.py": "cddeb44de7388d3750a8002299c59f87d4046c13bfb39fd64de9d17d9acb49f1"
+      },
+      "reference_artifacts": {
+        "jvm_artifact_sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+        "native_klib_sha256": "b20ec12601f9bd20c346be668b5d0429fa960f22782b73955891273913c6db04",
+        "native_compiler_archive_sha256": "6726393c58b504991034ec4cc54745efe65446c30cdb5329657d26a91a6ddcb3",
+        "native_klib_tool_sha256": "7ac6362f406d2f901d0a6a6e4d6551e37a8362d22cffdb04dc622e8ccc5991cc"
+      },
+      "reference_checks": {
+        "jvm_positive": {
+          "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+          "result": "PASS",
+          "exit_code": 0,
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "jvm_negative": {
+          "execution_id": "reference:jvm-negative:bytestring-declaration-shape:2107c0364fcf",
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "0394c33a56c899e56d16db329c5aaa779fc893724123a31333a7621276d9ed6b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "jvm_abi": {
+          "result": "PASS",
+          "api_row_ids": [
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d"
+          ],
+          "byte_string_stdout_sha256": "52048893f359bb11ac0e84161096db7a86d44c4ad8e1153faea75e0d962bf7dc",
+          "companion_stdout_sha256": "65dc2ff0a6623bdb9da9bb84d15c4f5cdfcc17b0c6ea5841fe369fabd1428619"
+        },
+        "native_klib": {
+          "result": "PASS",
+          "api_row_ids": [
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984"
+          ],
+          "metadata_stdout_sha256": "97afa76afe90fba99527b1e1642de6ca4c981f53d37b564ebda732083b2bcfd7",
+          "abi_stdout_sha256": "402b0333ff36661b03689f537306c2c0b01d6b1561e236ce134570426d9d142d"
+        }
+      },
+      "executions": [
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "lane_outputs": {
+        "source-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "source-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        }
+      },
+      "negative_probes": {
+        "source-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "6fe2986098af586c8f37bd637a42f2e9ff370ff1062953ae7a5044c8e17112f6",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "source-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "93c0d0ac8e72c381f06cef639f1871420eabe01b69242833be469925184a76dc",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "d7a699156c73da336d7899444955152a96ae7daf1f1c7cf6721b02a02ecf76e9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "4ceb940dcb4598e7025da007bc579efc33a12c55a7c860c9b27c8cf13386fa1b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "30c3b59a67ca07258d105d18d917c5be87499f4cc2c931f7a3b9ea00f4291c7e",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "f5ce6fc371f0633bbcbbb645b6c79179df85512735476c93b8db3eced5a770d9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        }
+      }
+    },
+    {
+      "row_id": "klib-6ac82acec38abefe",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "c0d7e7cd526eda726b0d9421565f5ad5425bee0bf47e774bc9e83bc7ed23ddcf",
+      "compatibility_obligations": [
+        "declaration-shape"
+      ],
+      "case_id": "bytestring-declaration-shape",
+      "assertion": {
+        "assertion_id": "klib-bytestring-final-comparable",
+        "reference_assertion": "final ByteString class with Comparable<ByteString> supertype",
+        "candidate_probe": "cross-library Comparable<ByteString> assignment and rejected ByteString subclass"
+      },
+      "assertion_count": 1,
+      "target_row_count": 5,
+      "candidate_lane_count": 6,
+      "expected_output": "ByteString.compareTo:-1\nByteString.Companion.public-type:true\nByteString.Companion.singleton:true\n",
+      "expected_output_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+      "expected_output_bytes": 98,
+      "candidate_compiler_sha256": "5783ed36f444ce540b8a52a55e4bc30d90beec4930dc969a42a788f5cbe33062",
+      "matrix_summary_sha256": "2107c0364fcf9c153b74007b8159513805271c53a4372af819873c109b97903a",
+      "matrix_dirty_patch_sha256": "1e0f89969ffdbc1c125b64a1ef50fe639c0fac7aa3a0c53355e5a0b956aacd70",
+      "fresh_stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+      "origin_input_sha256": {
+        "bytestring/common/src/ByteString.kt": "6fbe8960fb142ef0220839d5b211baa518ec015adb9b42e054eca0db754c1da2",
+        "bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+        "bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+      },
+      "probe_input_sha256": {
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt": "2617a9fdcfedb3eac616a59f0009f4d2f9c60a7cee8ae01b4125e2a686eda446",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt": "946e121c6611c15a61004fca19e13fc4cf4df51827411e3cd35172b636d18cf2",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+        "Scripts/io_api_inventory/run_f02_matrix.py": "cddeb44de7388d3750a8002299c59f87d4046c13bfb39fd64de9d17d9acb49f1"
+      },
+      "reference_artifacts": {
+        "jvm_artifact_sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+        "native_klib_sha256": "b20ec12601f9bd20c346be668b5d0429fa960f22782b73955891273913c6db04",
+        "native_compiler_archive_sha256": "6726393c58b504991034ec4cc54745efe65446c30cdb5329657d26a91a6ddcb3",
+        "native_klib_tool_sha256": "7ac6362f406d2f901d0a6a6e4d6551e37a8362d22cffdb04dc622e8ccc5991cc"
+      },
+      "reference_checks": {
+        "jvm_positive": {
+          "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+          "result": "PASS",
+          "exit_code": 0,
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "jvm_negative": {
+          "execution_id": "reference:jvm-negative:bytestring-declaration-shape:2107c0364fcf",
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "0394c33a56c899e56d16db329c5aaa779fc893724123a31333a7621276d9ed6b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "jvm_abi": {
+          "result": "PASS",
+          "api_row_ids": [
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d"
+          ],
+          "byte_string_stdout_sha256": "52048893f359bb11ac0e84161096db7a86d44c4ad8e1153faea75e0d962bf7dc",
+          "companion_stdout_sha256": "65dc2ff0a6623bdb9da9bb84d15c4f5cdfcc17b0c6ea5841fe369fabd1428619"
+        },
+        "native_klib": {
+          "result": "PASS",
+          "api_row_ids": [
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984"
+          ],
+          "metadata_stdout_sha256": "97afa76afe90fba99527b1e1642de6ca4c981f53d37b564ebda732083b2bcfd7",
+          "abi_stdout_sha256": "402b0333ff36661b03689f537306c2c0b01d6b1561e236ce134570426d9d142d"
+        }
+      },
+      "executions": [
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "lane_outputs": {
+        "source-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "source-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        }
+      },
+      "negative_probes": {
+        "source-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "6fe2986098af586c8f37bd637a42f2e9ff370ff1062953ae7a5044c8e17112f6",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "source-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "93c0d0ac8e72c381f06cef639f1871420eabe01b69242833be469925184a76dc",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "d7a699156c73da336d7899444955152a96ae7daf1f1c7cf6721b02a02ecf76e9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "4ceb940dcb4598e7025da007bc579efc33a12c55a7c860c9b27c8cf13386fa1b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "30c3b59a67ca07258d105d18d917c5be87499f4cc2c931f7a3b9ea00f4291c7e",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "f5ce6fc371f0633bbcbbb645b6c79179df85512735476c93b8db3eced5a770d9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        }
+      }
+    },
+    {
+      "row_id": "klib-b3c4163f48365984",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "b3de6c106236f0ab52307cb69b8954be657b4d6e0207b6c1f312d858a1de2d5f",
+      "test_input_sha256": "5a87eab3e302148b719e4b4446f150494e472a8072d79f54fe9a989f3d1538a6",
+      "compatibility_obligations": [
+        "declaration-shape"
+      ],
+      "case_id": "bytestring-declaration-shape",
+      "assertion": {
+        "assertion_id": "klib-bytestring-final-companion-object",
+        "reference_assertion": "final ByteString.Companion object in Native metadata and ABI",
+        "candidate_probe": "cross-library public companion type, singleton identity, and rejected companion subclass"
+      },
+      "assertion_count": 1,
+      "target_row_count": 5,
+      "candidate_lane_count": 6,
+      "expected_output": "ByteString.compareTo:-1\nByteString.Companion.public-type:true\nByteString.Companion.singleton:true\n",
+      "expected_output_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+      "expected_output_bytes": 98,
+      "candidate_compiler_sha256": "5783ed36f444ce540b8a52a55e4bc30d90beec4930dc969a42a788f5cbe33062",
+      "matrix_summary_sha256": "2107c0364fcf9c153b74007b8159513805271c53a4372af819873c109b97903a",
+      "matrix_dirty_patch_sha256": "1e0f89969ffdbc1c125b64a1ef50fe639c0fac7aa3a0c53355e5a0b956aacd70",
+      "fresh_stdlib_manifest_sha256": "60db43cee285f7415d24f0210d00d6ca70078e454aac5109b98147a3e1282569",
+      "origin_input_sha256": {
+        "bytestring/common/src/ByteString.kt": "6fbe8960fb142ef0220839d5b211baa518ec015adb9b42e054eca0db754c1da2",
+        "bytestring/api/kotlinx-io-bytestring.api": "02921223ed48787ea218108be213b566ecc81f902d2376905437e2f77837ca04",
+        "bytestring/api/kotlinx-io-bytestring.klib.api": "e6f9cc2e0b124a7b9c520d4a26d5a08efdd7f9be5f59562e06088a6d461c7670"
+      },
+      "probe_input_sha256": {
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt": "2617a9fdcfedb3eac616a59f0009f4d2f9c60a7cee8ae01b4125e2a686eda446",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt": "946e121c6611c15a61004fca19e13fc4cf4df51827411e3cd35172b636d18cf2",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+        "Scripts/io_api_inventory/run_f02_matrix.py": "cddeb44de7388d3750a8002299c59f87d4046c13bfb39fd64de9d17d9acb49f1"
+      },
+      "reference_artifacts": {
+        "jvm_artifact_sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4",
+        "native_klib_sha256": "b20ec12601f9bd20c346be668b5d0429fa960f22782b73955891273913c6db04",
+        "native_compiler_archive_sha256": "6726393c58b504991034ec4cc54745efe65446c30cdb5329657d26a91a6ddcb3",
+        "native_klib_tool_sha256": "7ac6362f406d2f901d0a6a6e4d6551e37a8362d22cffdb04dc622e8ccc5991cc"
+      },
+      "reference_checks": {
+        "jvm_positive": {
+          "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+          "result": "PASS",
+          "exit_code": 0,
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "jvm_negative": {
+          "execution_id": "reference:jvm-negative:bytestring-declaration-shape:2107c0364fcf",
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "0394c33a56c899e56d16db329c5aaa779fc893724123a31333a7621276d9ed6b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "jvm_abi": {
+          "result": "PASS",
+          "api_row_ids": [
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d"
+          ],
+          "byte_string_stdout_sha256": "52048893f359bb11ac0e84161096db7a86d44c4ad8e1153faea75e0d962bf7dc",
+          "companion_stdout_sha256": "65dc2ff0a6623bdb9da9bb84d15c4f5cdfcc17b0c6ea5841fe369fabd1428619"
+        },
+        "native_klib": {
+          "result": "PASS",
+          "api_row_ids": [
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984"
+          ],
+          "metadata_stdout_sha256": "97afa76afe90fba99527b1e1642de6ca4c981f53d37b564ebda732083b2bcfd7",
+          "abi_stdout_sha256": "402b0333ff36661b03689f537306c2c0b01d6b1561e236ce134570426d9d142d"
+        }
+      },
+      "executions": [
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:source-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:stdlib-library-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O0:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "bytestring-declaration-shape",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "reference:jvm:bytestring-declaration-shape:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "candidate:fd01a5e98145e8295e5b299b0a7190cc8d44e3a7:producer-consumer-O2:2107c0364fcf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ],
+      "lane_outputs": {
+        "source-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "source-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "stdlib-library-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O0": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        },
+        "producer-consumer-O2": {
+          "stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "normalized_stdout_sha256": "fb18525c7ccc18a7bbcd71b9882d44e433634423f53335aa388be1991a140d04",
+          "stdout_bytes": 98
+        }
+      },
+      "negative_probes": {
+        "source-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "6fe2986098af586c8f37bd637a42f2e9ff370ff1062953ae7a5044c8e17112f6",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "source-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "93c0d0ac8e72c381f06cef639f1871420eabe01b69242833be469925184a76dc",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "d7a699156c73da336d7899444955152a96ae7daf1f1c7cf6721b02a02ecf76e9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "stdlib-library-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "4ceb940dcb4598e7025da007bc579efc33a12c55a7c860c9b27c8cf13386fa1b",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O0": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "30c3b59a67ca07258d105d18d917c5be87499f4cc2c931f7a3b9ea00f4291c7e",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        },
+        "producer-consumer-O2": {
+          "result": "EXPECTED_REJECTION",
+          "exit_code": 1,
+          "source_sha256": "caf10823fbc873125dee8b4ffe3e60427bd9e8de51d1e6749027c5820bfa4d38",
+          "diagnostic_sha256": "f5ce6fc371f0633bbcbbb645b6c79179df85512735476c93b8db3eced5a770d9",
+          "rejected_declarations": [
+            "ByteStringSubclassProbe",
+            "ByteStringCompanionSubclassProbe"
+          ]
+        }
+      }
+    }
+  ]
 }

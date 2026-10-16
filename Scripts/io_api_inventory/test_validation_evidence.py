@@ -98,7 +98,11 @@ class ValidationEvidenceTests(unittest.TestCase):
 
     def _apply(self, records, row=None):
         fixture_row = copy.deepcopy(row or self.row)
-        self.evidence_path.write_text(json.dumps({"schema_version": 1, "records": records}), encoding="utf-8")
+        self.evidence_path.write_text(json.dumps({
+            "schema_version": 2,
+            "records": records,
+            "declaration_shape_records": [],
+        }), encoding="utf-8")
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
             self._execution_catalogs(),
@@ -195,6 +199,51 @@ class ValidationEvidenceTests(unittest.TestCase):
             with self.subTest(records=records):
                 with self.assertRaises(SystemExit):
                     self._apply(records)
+
+    def _apply_real_shape_records(self, records):
+        lock, rows, _ = self.generator.build_outputs()
+        rows = copy.deepcopy(rows)
+        self.evidence_path.write_text(json.dumps({
+            "schema_version": 2,
+            "records": [],
+            "declaration_shape_records": records,
+        }), encoding="utf-8")
+        self.generator.apply_validation_evidence(
+            rows, lock, self.evidence_path, self.generator.REPO, self.generator.UPSTREAM
+        )
+        return rows
+
+    def test_declaration_shape_records_are_checked_without_promoting_rows(self):
+        evidence = json.loads((HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        records = copy.deepcopy(evidence["declaration_shape_records"])
+        rows = self._apply_real_shape_records(records)
+        statuses = {row["row_id"]: row["status"] for row in rows if row["row_id"] in {
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d",
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984",
+        }}
+        self.assertEqual(len(statuses), 5)
+        self.assertEqual(set(statuses.values()), {"unverified"})
+
+    def test_declaration_shape_records_reject_stale_probe_hash_and_missing_lane(self):
+        evidence = json.loads((HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        stale_probe = copy.deepcopy(evidence["declaration_shape_records"])
+        stale_probe[0]["probe_input_sha256"]["Scripts/io_api_inventory/run_f02_matrix.py"] = "0" * 64
+        missing_lane = copy.deepcopy(evidence["declaration_shape_records"])
+        missing_lane[0]["executions"] = missing_lane[0]["executions"][:-1]
+        for records in (stale_probe, missing_lane):
+            with self.subTest(records=len(records[0]["executions"])):
+                with self.assertRaises(SystemExit):
+                    self._apply_real_shape_records(records)
+
+    def test_declaration_shape_records_reject_a_failed_candidate_lane(self):
+        evidence = json.loads((HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        records = copy.deepcopy(evidence["declaration_shape_records"])
+        records[0]["executions"][0]["candidate"]["result"] = "FAIL"
+        with self.assertRaisesRegex(SystemExit, "non-passing candidate declaration-shape lane"):
+            self._apply_real_shape_records(records)
 
 
 if __name__ == "__main__":
