@@ -9,6 +9,14 @@ private struct MissingFunctionDeclaration: Error, CustomStringConvertible {
     }
 }
 
+private struct MissingClassDeclaration: Error, CustomStringConvertible {
+    let name: String
+
+    var description: String {
+        "Missing class declaration: \(name)"
+    }
+}
+
 @Suite
 struct TypeConstraintBoundsTests {
 
@@ -77,6 +85,47 @@ struct TypeConstraintBoundsTests {
             #expect(unbounded.diagnostics.diagnostics.contains {
                 $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
             }, "Got diagnostics: \(unbounded.diagnostics.diagnostics.map { ($0.code, $0.message) })")
+        }
+    }
+
+    @Test
+    func classWhereClauseOnFollowingLineKeepsTopLevelDeclarationBoundary() throws {
+        let source = """
+        interface Base<out T> { val value: T }
+        interface FirstBound
+        interface SecondBound
+        class Multiple<T>(override val value: T) : Base<T>
+            where T : FirstBound, T : SecondBound
+        class Following
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToKIR(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Got diagnostics: \(ctx.diagnostics.diagnostics.map { ($0.code, $0.message) })"
+            )
+
+            let ast = try #require(ctx.ast)
+            let file = try #require(ast.files.first)
+            func classDecl(named targetName: String) throws -> ClassDecl {
+                for declID in file.topLevelDecls {
+                    guard let decl = ast.arena.decl(declID),
+                          case let .classDecl(classDecl) = decl,
+                          ctx.interner.resolve(classDecl.name) == targetName
+                    else {
+                        continue
+                    }
+                    return classDecl
+                }
+                throw MissingClassDeclaration(name: targetName)
+            }
+
+            let multiple = try classDecl(named: "Multiple")
+            #expect(multiple.typeParams.first?.upperBounds.count == 2)
+            let following = try classDecl(named: "Following")
+            #expect(multiple.range.end.offset <= following.range.start.offset)
         }
     }
 
