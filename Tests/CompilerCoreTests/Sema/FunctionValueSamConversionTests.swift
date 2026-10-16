@@ -52,6 +52,76 @@ struct FunctionValueSamConversionTests {
         #expect(try #require(ctx.sema).bindings.samConversionExprs.count == 1)
     }
 
+    @Test func nonSuspendFunctionValuesAdaptToSuspendSam() throws {
+        let ctx = makeSamContext("""
+        fun interface FunInterface {
+            suspend operator fun invoke()
+        }
+        fun func(f: FunInterface) { }
+
+        fun box(): String {
+            val lambda: () -> Unit = { }
+            func(f = lambda)
+            func(lambda)
+            func { }
+            return "OK"
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        #expect(sema.bindings.samConversionExprs.count >= 2)
+        for expr in sema.bindings.samConversionExprs {
+            guard let underlyingType = sema.bindings.samUnderlyingFunctionType(for: expr),
+                  case let .functionType(functionType) = sema.types.kind(of: underlyingType)
+            else {
+                Issue.record("Missing suspend SAM function type")
+                continue
+            }
+            #expect(functionType.isSuspend)
+        }
+    }
+
+    @Test func suspendSamFunctionValuesPreserveReceiverAndContextShape() throws {
+        let ctx = makeSamContext("""
+        fun interface SuspendIntAction { suspend fun run(value: Int) }
+        fun interface ContextSuspendAction { context(String) suspend fun run() }
+        fun takeInt(action: SuspendIntAction) {}
+        fun takeContext(action: ContextSuspendAction) {}
+
+        fun acceptsReceiver(action: Int.() -> Unit) { takeInt(action) }
+        fun acceptsMatchingContext(action: context(String) () -> Unit) { takeContext(action) }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        #expect(try #require(ctx.sema).bindings.samConversionExprs.count == 2)
+    }
+
+    @Test(arguments: [
+        "fun invalid(action: suspend () -> Unit) { takePlain(action) }",
+        "fun invalid(action: () -> Int) { takeSuspend(action) }",
+        "fun invalid(action: () -> Unit) { takeInt(action) }",
+        "fun invalid(action: (String) -> Unit) { takeInt(action) }",
+        "fun invalid(action: context(Int) () -> Unit) { takeContext(action) }",
+    ])
+    func suspendSamFunctionValuesRejectIncompatibleShapes(declaration: String) throws {
+        let ctx = makeSamContext("""
+        fun interface PlainAction { fun run() }
+        fun interface SuspendAction { suspend fun run() }
+        fun interface SuspendIntAction { suspend fun run(value: Int) }
+        fun interface ContextSuspendAction { context(String) suspend fun run() }
+        fun takePlain(action: PlainAction) {}
+        fun takeSuspend(action: SuspendAction) {}
+        fun takeInt(action: SuspendIntAction) {}
+        fun takeContext(action: ContextSuspendAction) {}
+        \(declaration)
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+        #expect(try #require(ctx.sema).bindings.samConversionExprs.isEmpty)
+    }
+
     @Test func nullableFunctionValuesConvertToNullableSam() throws {
         let ctx = makeSamContext("""
         fun interface Action { fun run() }

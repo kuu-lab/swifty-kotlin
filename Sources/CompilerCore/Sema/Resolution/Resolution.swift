@@ -1318,6 +1318,7 @@ extension OverloadResolver {
             // Constrain the function value against the SAM method so generic
             // interface arguments participate in ordinary candidate inference.
             let constraintParameterType: TypeID
+            let constraintArgumentType: TypeID
             if !arg.isSpread,
                case .functionType = typeSystem.kind(of: argType),
                let samFunction = TypeCheckHelpers().samFunctionType(for: paramType, sema: sema)
@@ -1326,11 +1327,18 @@ extension OverloadResolver {
                     typeSystem.nullability(of: paramType),
                     for: typeSystem.make(.functionType(samFunction))
                 )
+                // Suspend conversion applies to function arguments even when
+                // the target is represented by a SAM interface at this call site.
+                constraintArgumentType = typeSystem.suspendConversionType(
+                    from: argType,
+                    to: constraintParameterType
+                ) ?? argType
             } else {
                 constraintParameterType = paramType
+                constraintArgumentType = argType
             }
             let decomposed = decomposeSubtypeConstraint(
-                subtype: argType,
+                subtype: constraintArgumentType,
                 supertype: constraintParameterType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,

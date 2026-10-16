@@ -67,7 +67,11 @@ extension CallTypeChecker {
                 sema.types.nullability(of: interfaceType),
                 for: functionType
             )
-            guard sema.types.isSubtype(sourceType, compatibleFunctionType) else { continue }
+            let compatibleSourceType = sema.types.suspendConversionType(
+                from: sourceType,
+                to: compatibleFunctionType
+            ) ?? sourceType
+            guard sema.types.isSubtype(compatibleSourceType, compatibleFunctionType) else { continue }
             sema.bindings.markSamConversion(argument.expr)
             sema.bindings.bindSamUnderlyingFunctionType(argument.expr, type: functionType)
             sema.bindings.bindSamInterfaceType(argument.expr, type: interfaceType)
