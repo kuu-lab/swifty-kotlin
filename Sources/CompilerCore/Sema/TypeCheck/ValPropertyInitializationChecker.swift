@@ -52,6 +52,7 @@ final class ValPropertyInitializationChecker {
 
     private let ast: ASTModule
     private let sema: SemaModule
+    private let sourceManager: SourceManager?
     private let declarationValidator: DeclarationPositionValidator
     private var checkingConstructorBody = false
     private var owner: SymbolID?
@@ -61,9 +62,10 @@ final class ValPropertyInitializationChecker {
     private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
 
-    init(ast: ASTModule, sema: SemaModule, interner: StringInterner) {
+    init(ast: ASTModule, sema: SemaModule, interner: StringInterner, sourceManager: SourceManager? = nil) {
         self.ast = ast
         self.sema = sema
+        self.sourceManager = sourceManager
         declarationValidator = DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil)
     }
 
@@ -107,9 +109,22 @@ final class ValPropertyInitializationChecker {
                   declarationValidator.accessorHasBody(property.setter) else { return nil }
             return sema.bindings.declSymbol(for: id)
         })
-        // DeclarationPositionValidator handles owners without imperative initialization.
-        // Recheck only its deferred cases, avoiding duplicate declaration diagnostics.
-        let required = checksDefiniteInitialization && (!blocks.isEmpty || !constructors.isEmpty)
+        // DeclarationPositionValidator handles owners without an initializer
+        // flow. Recheck deferred cases here, avoiding duplicate diagnostics.
+        let isBundledStdlibOwner: Bool
+        if let fileID = sema.symbols.symbol(symbol)?.declSite?.start.file {
+            isBundledStdlibOwner = sourceManager?.origin(of: fileID)?.isBundledStdlib == true
+        } else {
+            isBundledStdlibOwner = false
+        }
+        let hasPropertyInitializationExpression = !isBundledStdlibOwner && properties.contains { id in
+            guard case let .propertyDecl(property) = ast.arena.decl(id) else { return false }
+            return property.initializer != nil
+                || property.delegateExpression != nil
+                || property.explicitBackingField != nil
+        }
+        let required = checksDefiniteInitialization
+            && (!blocks.isEmpty || !constructors.isEmpty || hasPropertyInitializationExpression)
             ? Set(properties.compactMap { id -> SymbolID? in
                 guard case let .propertyDecl(property) = ast.arena.decl(id),
                       let field = sema.bindings.declSymbol(for: id),
@@ -180,9 +195,20 @@ final class ValPropertyInitializationChecker {
             visiting.remove(symbol)
             return flow
         }
-        if hasPrimaryConstructor { reportMissing(required, in: initial) }
+        // Properties after a class initializer sequence that never reaches a
+        // normal exit cannot be observed on a constructed instance. Keep the
+        // constructor-body checks below for normally completing initializers:
+        // a secondary constructor that itself never returns still follows the
+        // existing definite-initialization rule.
+        let hasNormalInitializationPath = initial.paths[.normal] != nil
+        if hasPrimaryConstructor && hasNormalInitializationPath {
+            reportMissing(required, in: initial)
+        }
         for ctor in constructors {
-            if let symbol = constructorSymbol(ctor) { reportMissing(required, in: summary(symbol)) }
+            if let symbol = constructorSymbol(ctor) {
+                let flow = summary(symbol)
+                if hasNormalInitializationPath { reportMissing(required, in: flow) }
+            }
         }
     }
 
@@ -198,8 +224,6 @@ final class ValPropertyInitializationChecker {
     }
 
     private func reportMissing(_ required: Set<SymbolID>, in flow: Flow) {
-        // Kotlin also rejects deferred properties in a constructor that never
-        // completes, even if it writes them before throwing or looping forever.
         let initialized = flow.paths[.normal]?.definite ?? []
         for field in required.subtracting(initialized).sorted(by: { $0.rawValue < $1.rawValue }) {
             guard reportedMissing.insert(field).inserted else { continue }
