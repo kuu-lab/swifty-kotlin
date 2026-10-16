@@ -48,6 +48,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
+            inputs.extend(REPO / reference for reference in original.SEGMENT_NEXT_PROBE_REFS)
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -76,6 +77,22 @@ class ReproducibilityTests(unittest.TestCase):
         paired = [row for row in self.rows if row["row_id"] in refs]
         self.assertTrue(paired)
         self.assertTrue(all(row["_source_key"] == declaration["_source_key"] for row in paired))
+
+    def test_segment_next_probe_is_pinned_to_its_six_owned_rows(self):
+        expected = set(self.generator.SEGMENT_NEXT_PROBE_REFS)
+        row_ids = set(self.generator.VALIDATION_PROBE_TEST_REFS)
+        self.assertEqual(row_ids, {
+            "internal-d1c20f446e10b19f",
+            "jvm-75ca446cf19a0e77",
+            "jvm-aaa06115c93e5fce",
+            "klib-19925a48464b1d65",
+            "klib-24bd7c6ad4634b77",
+            "klib-52085b69c8c0292e",
+        })
+        for row_id in row_ids:
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            self.assertTrue(expected.issubset(set(row["local_test_refs"].split(";"))))
+            self.assertEqual(row["status"], "unverified")
 
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
         index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)
