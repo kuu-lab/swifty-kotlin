@@ -47,6 +47,57 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains(runtimeCallee(.arraySet)), "An in-place plusAssign must not write the element back, got: \(callees)")
     }
 
+    @Test func testIndexedPlusAssignSkipsTopLevelSetExtensionWriteBack() throws {
+        let callees = try mainCallees("""
+        class Acc { operator fun plusAssign(n: Int) {} }
+        class AccBox { operator fun get(index: Int): Acc = Acc() }
+        operator fun AccBox.set(index: Int, value: Acc) {}
+        fun main() {
+            val anchor = intArrayOf(1)
+            val ignored = anchor[0]
+            val box = AccBox()
+            box[0] += 5
+        }
+        """)
+        #expect(callees.contains("plusAssign"), "Expected Acc.plusAssign, got: \(callees)")
+        #expect(!callees.contains("set"), "An in-place plusAssign must not call the top-level set extension, got: \(callees)")
+    }
+
+    @Test func testIndexedStringPlusAssignUsesStringConcatWithTopLevelMapSet() throws {
+        let ctx = makeContextFromSource("""
+        operator fun <K, V> MutableMap<K, V>.set(key: K, value: V) = put(key, value)
+        fun main() {
+            val commands: MutableMap<String, String> = HashMap()
+            commands["c1"] += "932"
+        }
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("__kk_string_concat_flat"), "Expected nullable String concatenation, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.opAdd)), "String aggregates must not use integer addition, got: \(callees)")
+    }
+
+    @Test func testIndexedNonNullableStringPlusAssignUsesStringConcat() throws {
+        let ctx = makeContextFromSource("""
+        class Box { operator fun get(index: Int): String = "239" }
+        operator fun Box.set(index: Int, value: String) {}
+        fun main() {
+            val box = Box()
+            box[0] += "932"
+        }
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("__kk_string_concat_flat"), "Expected String concatenation, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.opAdd)), "String aggregates must not use integer addition, got: \(callees)")
+    }
+
     @Test func testIndexedIncrementCallsElementIncOperator() throws {
         let callees = try mainCallees("""
         class C(val n: Int) { operator fun inc() = C(n + 1) }
