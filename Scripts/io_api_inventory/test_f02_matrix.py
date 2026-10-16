@@ -33,6 +33,50 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_writable_segment_contract_cases_are_independently_selectable(self):
+        cases = {case["id"]: case for case in matrix.scenarios()}
+        expected = {
+            "writable-segment-invalid-capacity": (
+                "InvalidCapacityConsumer.kt", "runInvalidCapacityProbe",
+            ),
+            "writable-segment-empty-tail": (
+                "EmptyTailConsumer.kt", "runEmptyTailProbe",
+            ),
+            "writable-segment-tail-reuse-append": (
+                "TailReuseAndAppendConsumer.kt", "runTailReuseAndAppendProbe",
+            ),
+        }
+        for scenario_id, (consumer, probe_name) in expected.items():
+            with self.subTest(scenario=scenario_id):
+                case = cases[scenario_id]
+                self.assertEqual(case["reference"], "jvm")
+                self.assertEqual(case["producer"], [matrix.HERE / "probes/buffer-writable-segment/Producer.kt"])
+                self.assertEqual(case["consumer"].name, consumer)
+                case_id = matrix.writable_segment_local_probe_case_id(scenario_id)
+                self.assertTrue(case_id.endswith("#" + probe_name))
+                spec = inventory_generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+                self.assertEqual(spec["row_ids"], {
+                    "internal-e9ce5d759c494cb5", "klib-ab8cfb69f8e21afb",
+                })
+                self.assertEqual(spec["lanes"], inventory_generator.LOCAL_NATIVE_PROBE_LANES)
+
+    def test_writable_segment_jvm_row_uses_reference_abi_and_candidate_source_metadata(self):
+        case_id = (
+            "local:Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#"
+            "verifyWritableSegmentJvmAbi"
+        )
+        spec = inventory_generator.LOCAL_PROBE_EVIDENCE_CASES[case_id]
+        self.assertEqual(spec["row_ids"], {"jvm-2ee912ef99c6a874"})
+        self.assertEqual(spec["lanes"], ("jvm-descriptor",))
+        self.assertEqual(spec["methods"], {
+            "reference": "jvm-abi-reflection", "candidate": "source-metadata",
+        })
+        metadata = matrix.verify_writable_segment_source_metadata()
+        self.assertEqual(metadata["status"], "PASS")
+        self.assertEqual(metadata["parameters"], "minimumCapacity: Int")
+        self.assertEqual(metadata["return_type"], "Segment")
+        self.assertTrue({"PublishedApi", "JvmSynthetic"}.issubset(metadata["annotations"]))
+
     def test_segment_data_as_byte_array_is_an_independently_selectable_jvm_paired_case(self):
         cases = {case["id"]: case for case in matrix.scenarios()}
         case = cases["segment-data-as-byte-array"]
@@ -292,7 +336,8 @@ class F02GateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             compiler = root / "compiler"
-            compiler.write_text(FAKE_COMPILER)
+            compiler.write_text(FAKE_COMPILER.replace(
+                "value:7", "BEGIN-CASE:typed\\nvalue:7\\nEND-CASE:typed"))
             compiler.chmod(0o755)
             stdlib = root / "stdlib"
             stdlib.mkdir()
@@ -305,11 +350,51 @@ class F02GateTests(unittest.TestCase):
                     "entry": "consumer.main", "reference": "test"}
             case = {"id": "batch", "groups": [part], "entry": "f02allconsumer.main", "reference": "test"}
             lane = root / "lane"
-            matrix.run_lane(case, compiler, stdlib, b"value:7\n", lane, "producer-consumer", "O2", 5)
+            expected = b"BEGIN-CASE:typed\nvalue:7\nEND-CASE:typed\n"
+            matrix.run_lane(case, compiler, stdlib, expected, lane, "producer-consumer", "O2", 5)
             argv = json.loads((lane / "consumer.json").read_text())["command"]
             self.assertIn(str(lane / "inputs/consumers/C000.kt"), argv)
             self.assertNotIn(str(lane / "inputs/G000P000.kt"), argv)
             self.assertTrue((lane / "inputs/G000P000.kt.evidence").exists())
+
+    def test_writable_segment_scenarios_use_direct_probe_execution_ids(self):
+        expected = {
+            "writable-segment-invalid-capacity": ("runInvalidCapacityProbe", "f02invalidcapacityconsumer"),
+            "writable-segment-empty-tail": ("runEmptyTailProbe", "f02emptytailconsumer"),
+            "writable-segment-tail-reuse-append": ("runTailReuseAndAppendProbe", "f02tailreuseconsumer"),
+        }
+        cases = {case["id"]: case for case in matrix.scenarios()}
+        for case_id, (method, package) in expected.items():
+            with self.subTest(case=case_id):
+                case = cases[case_id]
+                self.assertEqual(case["jvm_class"], f"{package}.ConsumerKt")
+                self.assertEqual(case["entry"], f"{package}.main")
+                probe_case_id = matrix.writable_segment_local_probe_case_id(case_id)
+                self.assertEqual(probe_case_id,
+                                 f"local:Scripts/io_api_inventory/probes/buffer-writable-segment/Producer.kt#{method}")
+                spec = inventory_generator.LOCAL_PROBE_EVIDENCE_CASES[probe_case_id]
+                self.assertEqual(spec["lanes"], inventory_generator.LOCAL_NATIVE_PROBE_LANES)
+                self.assertEqual(spec["methods"], {"reference": "jvm-probe", "candidate": "native-matrix"})
+
+        jvm_case_id = (
+            "local:Scripts/io_api_inventory/probes/buffer-writable-segment/JvmAbiProbe.kt#"
+            "verifyWritableSegmentJvmAbi"
+        )
+        abi = inventory_generator.LOCAL_PROBE_EVIDENCE_CASES[jvm_case_id]
+        self.assertEqual(abi["row_ids"], {"jvm-2ee912ef99c6a874"})
+        self.assertEqual(abi["lanes"], ("jvm-descriptor",))
+        self.assertEqual(abi["methods"], {
+            "reference": "jvm-abi-reflection", "candidate": "source-metadata",
+        })
+
+    def test_writable_segment_probe_isolated_from_fixture_setup(self):
+        producer = (matrix.HERE / "probes/buffer-writable-segment/Producer.kt").read_text()
+        self.assertIn("fun runInvalidCapacityProbe()", producer)
+        self.assertIn("fun runEmptyTailProbe()", producer)
+        self.assertIn("fun runTailReuseAndAppendProbe()", producer)
+        for setup in ("SegmentPool.take()", "seedBufferTail", "nonOwnerTail.owner = false"):
+            self.assertIn(setup, producer)
+        self.assertEqual(sum(case["id"].startswith("writable-segment-") for case in matrix.scenarios()), 3)
 
     def test_failed_lane_does_not_suppress_other_routes_or_apple_originals(self):
         with tempfile.TemporaryDirectory() as temporary:
