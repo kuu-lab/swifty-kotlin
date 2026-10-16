@@ -56,9 +56,12 @@ extension ExprTypeChecker {
                 ctx: ctx,
                 locals: &locals
             )
+            let typeArgs = sema.types.nominalTypeParameterSymbols(for: classSymbol).map { typeParameterSymbol in
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol))))
+            }
             let classType = sema.types.make(.classType(ClassType(
                 classSymbol: classSymbol,
-                args: [],
+                args: typeArgs,
                 nullability: .nonNull
             )))
             // Scope insertion lives here rather than inside
@@ -167,8 +170,63 @@ extension ExprTypeChecker {
         )
         sema.bindings.bindDecl(declID, symbol: classSymbol)
         sema.symbols.setSourceFileID(ctx.currentFileID, for: classSymbol)
-        // Constructor and member headers can refer to the class itself.
-        ctx.scope.insert(classSymbol)
+
+        let sourceFile = ast.file(for: ctx.currentFileID)
+        var enclosingTypeParameters: [InternedString: SymbolID] = [:]
+        for typeParameterSymbol in driver.helpers.lexicalTypeParameterSymbols(in: ctx) {
+            guard let name = sema.symbols.symbol(typeParameterSymbol)?.name,
+                  let visibleSymbol = driver.helpers.resolveTypeParameterSymbol(
+                      name, scope: ctx.scope, sema: sema
+                  )
+            else {
+                continue
+            }
+            enclosingTypeParameters[name] = visibleSymbol
+        }
+        let typeParameterResult = DataFlowSemaPhase().registerNominalTypeParameters(
+            classDecl.typeParams,
+            ownerSymbol: classSymbol,
+            fqName: classFQName,
+            namespacePrefix: "$localClass",
+            declSite: classDecl.range,
+            currentPackageFQName: sourceFile?.packageFQName,
+            imports: sourceFile?.imports ?? [],
+            ast: ast,
+            symbols: sema.symbols,
+            types: sema.types,
+            interner: interner,
+            sourceManager: ctx.visibilityChecker.sourceManager,
+            diagnostics: sema.diagnostics,
+            enclosingTypeParameters: enclosingTypeParameters
+        )
+        let classTypeArgs = typeParameterResult.symbols.map { typeParameterSymbol in
+            TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol))))
+        }
+        let classType = sema.types.make(.classType(ClassType(
+            classSymbol: classSymbol,
+            args: classTypeArgs,
+            nullability: .nonNull
+        )))
+        let classScope = ClassMemberScope(
+            parent: ctx.scope,
+            symbols: sema.symbols,
+            ownerSymbol: classSymbol,
+            thisType: classType
+        )
+        // Class type parameters and the class itself are visible in headers
+        // and members without escaping into the enclosing lexical scope.
+        classScope.insert(classSymbol)
+        for typeParameterSymbol in typeParameterResult.symbols {
+            classScope.insert(typeParameterSymbol)
+        }
+        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
+            label: classDecl.name,
+            type: classType
+        ).copying(
+            scope: classScope,
+            implicitReceiverType: classType,
+            enclosingClassSymbol: classSymbol
+        )
 
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(classDecl.superTypeEntries.count)
@@ -180,7 +238,7 @@ extension ExprTypeChecker {
                 ast: ast,
                 sema: sema,
                 interner: interner,
-                scope: ctx.scope,
+                scope: classScope,
                 diagnostics: ctx.sema.diagnostics
             )
             directSuperTypes.append(resolved)
@@ -232,11 +290,6 @@ extension ExprTypeChecker {
             )
         }
 
-        let classType = sema.types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
 
         let initName = interner.intern("<init>")
         let hasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty
@@ -261,7 +314,7 @@ extension ExprTypeChecker {
             var paramSymbols: [SymbolID] = []
             for param in header.params {
                 let parameterCtx = driver.helpers.primaryConstructorParameterOptInContext(
-                    param, ctx: driver.helpers.localFunctionOptInContext(ctx).with(currentDeclSymbol: ctorSymbol)
+                    param, ctx: driver.helpers.localFunctionOptInContext(classCtx).with(currentDeclSymbol: ctorSymbol)
                 )
                 let paramType: TypeID = if let typeRefID = param.type {
                     driver.helpers.resolveTypeRef(
@@ -269,7 +322,7 @@ extension ExprTypeChecker {
                         ast: ast,
                         sema: sema,
                         interner: interner,
-                        scope: ctx.scope,
+                        scope: classScope,
                         diagnostics: ctx.sema.diagnostics,
                         inferenceContext: parameterCtx,
                         usageRange: header.range
@@ -297,18 +350,14 @@ extension ExprTypeChecker {
                     returnType: classType,
                     valueParameterSymbols: paramSymbols,
                     valueParameterHasDefaultValues: header.params.map(\.hasDefaultValue),
-                    valueParameterIsVararg: header.params.map(\.isVararg)
+                    valueParameterIsVararg: header.params.map(\.isVararg),
+                    typeParameterSymbols: typeParameterResult.symbols,
+                    classTypeParameterCount: typeParameterResult.symbols.count
                 ),
                 for: ctorSymbol
             )
         }
 
-        let classScope = ClassMemberScope(
-            parent: ctx.scope,
-            symbols: sema.symbols,
-            ownerSymbol: classSymbol,
-            thisType: classType
-        )
         let propertySymbolsByDecl = registerLocalNominalMemberProperties(
             classDecl.memberProperties,
             ownerFQName: classFQName,
@@ -375,12 +424,12 @@ extension ExprTypeChecker {
         var nestedEnclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
         nestedEnclosingClassScopes.append(contentsOf: lexicalLocalNominalScopes)
         nestedEnclosingClassScopes.append(classFQName)
-        if let sourceFile = ast.file(for: ctx.currentFileID) {
+        if sourceFile != nil {
             for nestedDeclID in classDecl.nestedClasses + classDecl.nestedObjects {
                 DataFlowSemaPhase().bindInheritanceEdges(
                     declID: nestedDeclID,
-                    currentPackage: sourceFile.packageFQName,
-                    imports: sourceFile.imports,
+                    currentPackage: sourceFile?.packageFQName ?? [],
+                    imports: sourceFile?.imports ?? [],
                     enclosingTypeParameters: [:],
                     enclosingClassScopes: nestedEnclosingClassScopes,
                     ast: ast,
@@ -412,8 +461,9 @@ extension ExprTypeChecker {
             memberFQNamePrefix: classFQName,
             objectSymbol: classSymbol,
             objectType: classType,
+            classTypeParameterSymbols: typeParameterResult.symbols,
             objectScope: classScope,
-            ctx: ctx
+            ctx: classCtx
         )
         inheritance.synthesizeDelegationForwardingForClass(
             range: classDecl.range,
@@ -443,15 +493,6 @@ extension ExprTypeChecker {
         for ctorSymbol in constructorSymbols {
             classScope.insert(ctorSymbol)
         }
-        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
-            label: classDecl.name,
-            type: classType
-        ).copying(
-            scope: classScope,
-            implicitReceiverType: classType,
-            enclosingClassSymbol: classSymbol
-        )
-
         for nestedClassDeclID in classDecl.nestedClasses {
             driver.declChecker.typeCheckNestedClassDecl(
                 declID: nestedClassDeclID,

@@ -565,10 +565,11 @@ extension DeclTypeChecker {
         guard let expectedType,
               case let .classType(ownerType) = sema.types.kind(of: expectedType)
         else { return false }
-        let ownerParameters = sema.types.nominalTypeParameterSymbols(for: ownerType.classSymbol)
+        let ownerParameters = sema.types.allTypeParameterSymbols(for: ownerType.classSymbol)
+        let ownerArguments = sema.types.allTypeArguments(for: ownerType)
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(ownerParameters)
         var substitution: [TypeVarID: TypeID] = [:]
-        for (parameter, argument) in zip(ownerParameters, ownerType.args) {
+        for (parameter, argument) in zip(ownerParameters, ownerArguments) {
             guard let variable = typeVarBySymbol[parameter] else { continue }
             switch argument {
             case let .invariant(type), let .in(type), let .out(type):
@@ -642,12 +643,12 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID? {
         guard let ownerSymbol else { return nil }
-        let typeArguments = ctx.sema.types.nominalTypeParameterSymbols(for: ownerSymbol).map {
+        let typeArguments = ctx.sema.types.allTypeParameterSymbols(for: ownerSymbol).map {
             TypeArg.invariant(ctx.sema.types.make(.typeParam(TypeParamType(symbol: $0))))
         }
-        return ctx.sema.types.make(.classType(ClassType(
-            classSymbol: ownerSymbol,
-            args: typeArguments,
+        return ctx.sema.types.make(.classType(ctx.sema.types.classType(
+            for: ownerSymbol,
+            arguments: typeArguments,
             nullability: .nonNull
         )))
     }
@@ -671,9 +672,9 @@ extension DeclTypeChecker {
         let typeArguments = ctx.sema.symbols.supertypeTypeArgs(
             for: ownerSymbol, supertype: registeredSuperclass
         )
-        return ctx.sema.types.make(.classType(ClassType(
-            classSymbol: superclassSymbol,
-            args: typeArguments,
+        return ctx.sema.types.make(.classType(ctx.sema.types.classType(
+            for: superclassSymbol,
+            arguments: typeArguments,
             nullability: .nonNull
         )))
     }

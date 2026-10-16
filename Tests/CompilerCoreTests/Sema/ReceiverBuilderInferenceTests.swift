@@ -142,6 +142,135 @@ struct ReceiverBuilderInferenceTests {
         """, callee: "choose")
     }
 
+    @Test func localClassInitializerInfersOuterReceiverBuilderType() throws {
+        try expectBuilderResultType("""
+        class Buildee<T> {
+            fun materialize(): T = null as T
+        }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        fun consume(arg: UserKlass) {}
+        fun main() {
+            val result = build {
+                class LocalClass {
+                    init { consume(materialize()) }
+                }
+            }
+        }
+        """, expectedArgumentName: "UserKlass")
+    }
+
+    @Test func localClassPropertyInitializerInfersOuterReceiverBuilderType() throws {
+        try expectBuilderResultType("""
+        class Buildee<T> { fun materialize(): T = null as T }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        fun main() {
+            build {
+                class LocalClass { val value: UserKlass = materialize() }
+            }
+        }
+        """, expectedArgumentName: "UserKlass")
+    }
+
+    @Test func localClassMemberBodyInfersOuterReceiverBuilderType() throws {
+        try expectBuilderResultType("""
+        class Buildee<T> { fun materialize(): T = null as T }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        fun main() {
+            build {
+                class LocalClass { fun create(): UserKlass = materialize() }
+            }
+        }
+        """, expectedArgumentName: "UserKlass")
+    }
+
+    @Test func localClassInitializerAcceptsExplicitBuilderType() throws {
+        try expectBuilderResultType("""
+        class Buildee<T> { fun materialize(): T = null as T }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        fun consume(arg: UserKlass) {}
+        fun main() {
+            build<UserKlass> {
+                class LocalClass { init { consume(materialize()) } }
+            }
+        }
+        """, expectedArgumentName: "UserKlass")
+    }
+
+    @Test func localClassMemberShadowsOuterBuilderMember() throws {
+        let source = """
+        class Buildee<T> { fun materialize(): T = null as T }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        fun consume(arg: UserKlass) {}
+        fun main() {
+            build {
+                class LocalClass {
+                    fun materialize(): UserKlass = null as UserKlass
+                    init { consume(materialize()) }
+                }
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-INFER", in: ctx)
+        }
+    }
+
+    @Test func localClassInnerReceiverShadowsOuterBuilderReceiver() throws {
+        let source = """
+        class Buildee<T> { fun materialize(): T = null as T }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        class OtherReceiver { fun materialize(): UserKlass = null as UserKlass }
+        fun consume(arg: UserKlass) {}
+        fun enter(receiver: OtherReceiver, block: OtherReceiver.() -> Unit) {}
+        fun main() {
+            build {
+                enter(OtherReceiver()) {
+                    class LocalClass { init { consume(materialize()) } }
+                }
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-INFER", in: ctx)
+        }
+    }
+
+    @Test func localClassInitializerRejectsIncompatibleBuilderReceiverType() throws {
+        let source = """
+        class Buildee<T> { fun materialize(): T = null as T }
+        fun <T> build(instructions: Buildee<T>.() -> Unit): Buildee<T> = null as Buildee<T>
+        class UserKlass
+        class WrongKlass
+        fun consume(arg: UserKlass) {}
+        fun main() {
+            build<WrongKlass> {
+                class LocalClass { init { consume(materialize()) } }
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
     @Test func expectedTypeAndExplicitArgumentsRemainSupported() throws {
         try expectIntResult(builder + """
 
@@ -278,6 +407,48 @@ struct ReceiverBuilderInferenceTests {
                 let binding = try #require(sema.bindings.callBinding(for: call))
                 #expect(binding.substitutedTypeArguments == [userType])
             }
+        }
+    }
+
+    private func expectBuilderResultType(_ source: String, expectedArgumentName: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], includeStdlib: false, allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let buildCalls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(calleeID, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeID)
+                else { return false }
+                return ctx.interner.resolve(name) == "build"
+            }
+            #expect(buildCalls.count == 1)
+            let buildCall = try #require(buildCalls.first)
+            let resultType = try #require(sema.bindings.exprType(for: buildCall))
+            guard case let .classType(builderType) = sema.types.kind(of: resultType),
+                  let builderSymbol = sema.symbols.symbol(builderType.classSymbol)
+            else {
+                #expect(Bool(false), "Expected a generic builder result type")
+                return
+            }
+            #expect(ctx.interner.resolve(builderSymbol.name) == "Buildee")
+            #expect(builderType.args.count == 1)
+            guard let builderArgument = builderType.args.first else { return }
+            let inferredType: TypeID = switch builderArgument {
+            case let .invariant(type), let .in(type), let .out(type): type
+            case .star: .invalid
+            }
+            guard case let .classType(inferredClassType) = sema.types.kind(of: inferredType),
+                  let inferredSymbol = sema.symbols.symbol(inferredClassType.classSymbol)
+            else {
+                #expect(Bool(false), "Expected a concrete class type argument")
+                return
+            }
+            #expect(ctx.interner.resolve(inferredSymbol.name) == expectedArgumentName)
+            #expect(inferredClassType.args.isEmpty)
         }
     }
 }

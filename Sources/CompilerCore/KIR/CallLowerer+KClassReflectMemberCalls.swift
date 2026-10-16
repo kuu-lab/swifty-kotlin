@@ -458,6 +458,14 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+        emitJavaClassDeclaredFieldsRegistration(
+            for: classSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
     }
 
     /// Registers Java-shaped method names from this class's own declarations.
@@ -591,6 +599,53 @@ extension CallLowerer {
             default:
                 continue
             }
+        }
+    }
+
+    /// Registers enum entry fields and their runtime-retained annotations.
+    /// Native reflection currently exposes this field subset only.
+    private func emitJavaClassDeclaredFieldsRegistration(
+        for classSymbol: SymbolID,
+        typeTokenExpr: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let owner = sema.symbols.symbol(classSymbol), owner.kind == .enumClass else { return }
+
+        let intType = sema.types.intType
+        let stringType = sema.types.stringType
+        for fieldSymbol in sema.symbols.children(ofFQName: owner.fqName) {
+            guard let field = sema.symbols.symbol(fieldSymbol),
+                  sema.symbols.enumOwnerSymbol(for: field) == classSymbol
+            else {
+                continue
+            }
+
+            let fieldName = interner.resolve(field.name)
+            let fieldNameInterned = interner.intern(fieldName)
+            let fieldNameExpr = arena.appendExpr(.stringLiteral(fieldNameInterned), type: stringType)
+            instructions.append(.constValue(result: fieldNameExpr, value: .stringLiteral(fieldNameInterned)))
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_java_class_register_declared_field"),
+                arguments: [typeTokenExpr, fieldNameExpr],
+                result: arena.appendTemporary(type: intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            emitRuntimeAnnotationRegistration(
+                annotations: sema.symbols.annotations(for: fieldSymbol),
+                keyArguments: [typeTokenExpr, fieldNameExpr],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                registrationCallee: "__kk_java_field_register_single_annotation",
+                factoryRegistrationCallee: "__kk_java_field_register_annotation_factory"
+            )
         }
     }
 

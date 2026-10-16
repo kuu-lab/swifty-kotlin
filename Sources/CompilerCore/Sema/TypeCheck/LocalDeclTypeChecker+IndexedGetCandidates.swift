@@ -5,6 +5,7 @@ extension LocalDeclTypeChecker {
         named name: InternedString,
         receiverType: TypeID,
         call: CallExpr? = nil,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
@@ -31,6 +32,11 @@ extension LocalDeclTypeChecker {
                 implicitReceiverType: receiverType, ctx: sema
             ).viableCandidates.isEmpty
         }
+
+        let localCandidates = driver.exprChecker.collectLocalOperatorExtensionCandidates(
+            names: [name], receiverType: receiverType, call: call, locals: locals, ctx: ctx
+        )
+        if !localCandidates.isEmpty { return localCandidates }
 
         let scoped = ctx.scope.lookup(name, matching: matches)
         if !scoped.isEmpty { return scoped }

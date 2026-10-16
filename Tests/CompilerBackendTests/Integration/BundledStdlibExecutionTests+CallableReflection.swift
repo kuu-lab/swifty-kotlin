@@ -1,6 +1,19 @@
+@testable import CompilerCore
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [false, true], [0, 2])
+    func companionPropertyCallableReferenceFromTypeReceiver(fromSource: Bool, optimization: Int) throws {
+        let level = try #require(OptimizationLevel(rawValue: optimization))
+        try compileAndRunKotlin(
+            try diffCaseSource("companion_property_callable_reference.kt", file: #filePath),
+            expectedOutput: "OK\n",
+            moduleName: "KUU2446CompanionPropertyCallableReference",
+            allowDefaultStdlibLibrary: !fromSource,
+            optLevel: level
+        )
+    }
+
     @Test(arguments: [false, true])
     func inheritedListPropertyReferenceReadsSize(fromArtifact: Bool) throws {
         try compileAndRunKotlin(

@@ -29,7 +29,7 @@ extension TypeSystem {
         case let .typeParam(parameter):
             return parameter.capture != nil
         case let .classType(nominal):
-            return nominal.args.contains { arg in
+            return allTypeArguments(for: nominal).contains { arg in
                 switch arg {
                 case let .invariant(inner), let .in(inner), let .out(inner): containsCapturedTypes(inner)
                 case .star: false
@@ -55,8 +55,9 @@ extension TypeSystem {
             guard let capture = parameter.capture else { return type }
             return withNullability(parameter.nullability, for: capture.upper)
         case let .classType(nominal):
-            let variances = normalizedNominalVariances(for: nominal.classSymbol, arity: nominal.args.count)
-            let args = nominal.args.enumerated().map { index, arg -> TypeArg in
+            let arguments = allTypeArguments(for: nominal)
+            let variances = allTypeParameterVariances(for: nominal.classSymbol)
+            let approximatedArguments = arguments.enumerated().map { index, arg -> TypeArg in
                 let inner: TypeID
                 switch arg {
                 case let .in(type): return .in(capturedLowerApproximation(of: type))
@@ -64,8 +65,9 @@ extension TypeSystem {
                 case .star: return .star
                 case let .invariant(type): inner = type
                 }
+                let variance = variances.indices.contains(index) ? variances[index] : .invariant
                 if case let .typeParam(parameter) = kind(of: inner), let capture = parameter.capture {
-                    if variances[index] == .in || (variances[index] == .invariant && capture.lower != nothingType) {
+                    if variance == .in || (variance == .invariant && capture.lower != nothingType) {
                         return .in(withNullability(parameter.nullability, for: capture.lower))
                     }
                     return .out(withNullability(parameter.nullability, for: capture.upper))
@@ -74,10 +76,18 @@ extension TypeSystem {
                 // A nested existential must not become a concrete invariant
                 // argument merely because its own readable bound was widened.
                 if approximation == inner { return arg }
-                return variances[index] == .in ? .in(capturedLowerApproximation(of: inner)) : .out(approximation)
+                return variance == .in ? .in(capturedLowerApproximation(of: inner)) : .out(approximation)
             }
-            guard args != nominal.args else { return type }
-            return make(.classType(ClassType(classSymbol: nominal.classSymbol, args: args, nullability: nominal.nullability)))
+            let enclosingCount = nominal.enclosingTypeArgs.count
+            let enclosingTypeArgs = Array(approximatedArguments.prefix(enclosingCount))
+            let args = Array(approximatedArguments.dropFirst(enclosingCount))
+            guard args != nominal.args || enclosingTypeArgs != nominal.enclosingTypeArgs else { return type }
+            return make(.classType(ClassType(
+                classSymbol: nominal.classSymbol,
+                args: args,
+                enclosingTypeArgs: enclosingTypeArgs,
+                nullability: nominal.nullability
+            )))
         case let .kClassType(klass):
             let argument = approximatingCapturedTypes(in: klass.argument)
             guard argument != klass.argument else { return type }

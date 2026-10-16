@@ -446,7 +446,8 @@ extension CallTypeChecker {
                 candidates: extensionCandidates,
                 call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
                     CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
-                }, elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint),
+                }, elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint,
+                   elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
                 ctx: ctx.sema

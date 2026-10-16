@@ -76,7 +76,8 @@ extension CallTypeChecker {
         }
         if let memberType = inferPostponedImplicitReceiverMemberCall(
             id, calleeName: calleeName, args: args, range: range,
-            ctx: ctx, locals: &locals, explicitTypeArgs: explicitTypeArgs
+            ctx: ctx, locals: &locals, expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs
         ) {
             return memberType
         }
@@ -434,6 +435,8 @@ extension CallTypeChecker {
         var mergedImplicitReceiverMembers: [SymbolID] = []
         var callInvisible: [SemanticSymbol] = []
         var knownApplicableImplicitMembers: Set<SymbolID> = []
+        var typeNameCompanionInvokeCandidates: Set<SymbolID> = []
+        var typeNameCompanionInvokeReceiverType: TypeID?
         var typeAliasConstructor: TypeAliasConstructorContext?
 
         if let inferred = collectCallExprCandidates(
@@ -454,7 +457,9 @@ extension CallTypeChecker {
             memberExtensionReceiverMarks: &memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: &mergedImplicitReceiverMembers,
             callInvisible: &callInvisible,
-            knownApplicableImplicitMembers: &knownApplicableImplicitMembers
+            knownApplicableImplicitMembers: &knownApplicableImplicitMembers,
+            typeNameCompanionInvokeCandidates: &typeNameCompanionInvokeCandidates,
+            typeNameCompanionInvokeReceiverType: &typeNameCompanionInvokeReceiverType
         ) {
             return inferred
         }
@@ -574,7 +579,7 @@ extension CallTypeChecker {
             receiverType: callImplicitReceiverType,
             boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
                 named: calleeName, candidates: candidates, ctx: ctx
-            ),
+            ).union(typeNameCompanionInvokeCandidates),
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
@@ -603,6 +608,7 @@ extension CallTypeChecker {
 
         if let inferred = resolveCallExprCandidates(
             id,
+            calleeID: calleeID,
             args: args,
             range: range,
             ctx: ctx,
@@ -613,6 +619,8 @@ extension CallTypeChecker {
             candidates: candidates,
             constructorTypeAlias: constructorTypeAlias,
             typeAliasConstructor: typeAliasConstructor,
+            typeNameCompanionInvokeCandidates: typeNameCompanionInvokeCandidates,
+            typeNameCompanionInvokeReceiverType: typeNameCompanionInvokeReceiverType,
             callImplicitReceiverType: callImplicitReceiverType,
             memberExtensionReceiverMarks: memberExtensionReceiverMarks,
             mergedImplicitReceiverMembers: mergedImplicitReceiverMembers,

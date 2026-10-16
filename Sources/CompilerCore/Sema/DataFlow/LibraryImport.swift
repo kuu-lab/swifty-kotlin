@@ -1433,7 +1433,7 @@ extension DataFlowSemaPhase {
             }
             let ownerTypeParameters: [SymbolID] = if signature.classTypeParameterCount > 0 {
                 symbols.parentSymbol(for: binding.symbol)
-                    .map { types.nominalTypeParameterSymbols(for: $0) } ?? []
+                    .map { types.allTypeParameterSymbols(for: $0) } ?? []
             } else {
                 []
             }

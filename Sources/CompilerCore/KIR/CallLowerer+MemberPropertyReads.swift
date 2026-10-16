@@ -251,6 +251,31 @@ extension CallLowerer {
             instructions.append(.constValue(result: id, value: constant))
             return id
         }
+        let isFQNQualifiedValue = sema.bindings.isFQNQualifiedValueExpr(exprID)
+        let receiverIsUnboundNameRef: Bool
+        if case .nameRef = ast.arena.expr(receiverExpr) {
+            receiverIsUnboundNameRef = sema.bindings.identifierSymbol(for: receiverExpr) == nil
+        } else {
+            receiverIsUnboundNameRef = false
+        }
+        let loweredReceiverID: KIRExprID?
+        if !objectMemberPropertyUsesGetterAccessor(valueSym, sema: sema),
+           !isFQNQualifiedValue,
+           !receiverIsUnboundNameRef
+        {
+            // Object-member stored properties live in global storage, but
+            // Kotlin still evaluates an explicit receiver before reading that
+            // storage. Keep the resulting value alive in the instruction
+            // stream even though the global load does not consume it.
+            loweredReceiverID = driver.lowerExpr(
+                receiverExpr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        } else {
+            loweredReceiverID = nil
+        }
         // BUG-274: reading any other object-member property is a real
         // access to the object's state, so it must trigger the object's
         // lazy clinit-equivalent first. Imported-library objects restore the
@@ -291,16 +316,26 @@ extension CallLowerer {
         return lowerObjectMemberPropertyReadValue(
             propertySymbol: valueSym,
             receiverExpr: receiverExpr,
-            loweredReceiverID: nil,
+            loweredReceiverID: loweredReceiverID,
             resultType: propType,
             ast: ast,
             sema: sema,
             arena: arena,
             interner: interner,
-            isFQNQualifiedValue: sema.bindings.isFQNQualifiedValueExpr(exprID),
+            isFQNQualifiedValue: isFQNQualifiedValue,
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+    }
+
+    private func objectMemberPropertyUsesGetterAccessor(
+        _ propertySymbol: SymbolID,
+        sema: SemaModule
+    ) -> Bool {
+        sema.symbols.propertyHasCustomGetter(for: propertySymbol)
+            || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+            || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
+            || sema.symbols.delegateGetValueSymbol(for: propertySymbol) != nil
     }
 
     /// Read core for `object` member properties, shared between
@@ -308,8 +343,10 @@ extension CallLowerer {
     /// access expression's bindings) and the callable-property invocation
     /// path in `lowerStoredMemberPropertyReadValue`, which supplies the
     /// property symbol and the function-typed result directly (KUU-644).
-    /// The receiver is lowered lazily — only the custom-getter arm needs it;
-    /// callers that already lowered it pass `loweredReceiverID`.
+    /// Direct stored-property reads pass the explicit receiver lowered before
+    /// the object-init guard, even though the global-slot load does not use it.
+    /// Getter paths lower the receiver here when the caller has not already
+    /// supplied `loweredReceiverID`.
     func lowerObjectMemberPropertyReadValue(
         propertySymbol: SymbolID,
         receiverExpr: ExprID,
@@ -334,11 +371,7 @@ extension CallLowerer {
         // Object-member delegated properties have generated getter accessors
         // too. Reading their backing global bypasses getValue and can return a
         // stale default value after setValue has updated the delegate.
-        if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
-            || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
-            || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
-            || sema.symbols.delegateGetValueSymbol(for: propertySymbol) != nil
-        {
+        if objectMemberPropertyUsesGetterAccessor(propertySymbol, sema: sema) {
             let receiverID: KIRExprID
             let receiverIsUnboundNameRef: Bool
             if case .nameRef = ast.arena.expr(receiverExpr) {

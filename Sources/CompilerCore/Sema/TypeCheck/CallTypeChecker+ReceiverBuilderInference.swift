@@ -455,47 +455,92 @@ extension CallTypeChecker {
     func inferPostponedImplicitReceiverMemberCall(
         _ id: ExprID, calleeName: InternedString?, args: [CallArgument],
         range: SourceRange, ctx: TypeInferenceContext, locals: inout LocalBindings,
-        explicitTypeArgs: [TypeID]
+        expectedType: TypeID?, explicitTypeArgs: [TypeID]
     ) -> TypeID? {
         guard let session = ctx.builderInference, !session.isFinalized,
-              let calleeName, locals[calleeName] == nil, explicitTypeArgs.isEmpty,
-              let receiver = ctx.implicitReceiverType else { return nil }
-        let candidates = ctx.filterByVisibility(driver.helpers.collectMemberFunctionCandidates(
-            named: calleeName, receiverType: receiver, sema: ctx.sema, interner: ctx.interner
-        )).visible
-        guard candidates.count == 1, let chosen = candidates.first,
-              ctx.sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
-              let signature = ctx.sema.symbols.functionSignature(for: chosen),
-              signature.classTypeParameterCount > 0,
-              signature.typeParameterSymbols.count == signature.classTypeParameterCount
+              let calleeName, locals[calleeName] == nil, explicitTypeArgs.isEmpty
         else { return nil }
         let sema = ctx.sema
-        func specialize(_ type: TypeID) -> TypeID {
-            applyReceiverClassTypeArgs(to: type, signature: signature, candidate: chosen,
-                                       receiverType: receiver, sema: sema)
+        for receiverEntry in ctx.implicitReceiverMemberLookupEntries() {
+            let rawCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: sema.types.makeNonNullable(receiverEntry.type),
+                sema: sema,
+                interner: ctx.interner
+            )
+            guard !rawCandidates.isEmpty else { continue }
+            let candidates = ctx.filterByVisibility(rawCandidates).visible.filter {
+                !ctx.isCandidateBlockedByDslMarker($0)
+            }
+            // A declaration on a nearer receiver shadows outer receivers even
+            // when it needs the ordinary overload path. Do not borrow an
+            // enclosing builder receiver's type arguments in that case.
+            guard candidates.count == 1, let chosen = candidates.first,
+                  sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
+                  let signature = sema.symbols.functionSignature(for: chosen),
+                  signature.classTypeParameterCount > 0,
+                  signature.typeParameterSymbols.count == signature.classTypeParameterCount
+            else { return nil }
+            func specialize(_ type: TypeID) -> TypeID {
+                applyReceiverClassTypeArgs(
+                    to: type, signature: signature, candidate: chosen,
+                    receiverType: receiverEntry.type, sema: sema
+                )
+            }
+            let resultType = specialize(signature.returnType)
+            let hasPostponedBuilderType = session.mentionsVariable(resultType, types: sema.types)
+                || signature.parameterTypes.contains(where: {
+                    session.mentionsVariable(specialize($0), types: sema.types)
+                })
+            let hasConcreteExpectedType = expectedType.map {
+                $0 != sema.types.unitType && $0 != sema.types.errorType
+            } ?? false
+            guard hasPostponedBuilderType || hasConcreteExpectedType else { return nil }
+            let prepared = prepareCallArguments(
+                args: args, callRange: range, candidates: candidates,
+                receiverType: receiverEntry.type, ctx: ctx, locals: &locals
+            )
+            guard let mapping = ctx.resolver.buildParameterMapping(
+                signature: signature,
+                callArgs: zip(args, prepared.argTypes).map {
+                    CallArg.source($0.0, type: $0.1, callRange: range, ast: ctx.ast)
+                },
+                symbols: sema.symbols,
+                typeSystem: sema.types
+            ) else { return nil }
+            if let expectedType,
+               expectedType != sema.types.unitType,
+               expectedType != sema.types.errorType
+            {
+                session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: resultType,
+                    supertype: expectedType,
+                    typeVarBySymbol: session.typeVarBySymbol,
+                    typeSystem: sema.types,
+                    blameRange: range
+                ))
+            }
+            let arguments = signature.typeParameterSymbols.map {
+                specialize(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: arguments,
+                parameterMapping: mapping
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+            if let receiverSymbol = receiverEntry.symbol {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+            }
+            sema.bindings.bindExprType(id, type: resultType)
+            driver.helpers.checkDeprecation(
+                for: chosen, sema: sema, interner: ctx.interner,
+                range: range, diagnostics: ctx.sema.diagnostics
+            )
+            driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
+            return resultType
         }
-        let resultType = specialize(signature.returnType)
-        guard session.mentionsVariable(resultType, types: sema.types)
-            || signature.parameterTypes.contains(where: { session.mentionsVariable(specialize($0), types: sema.types) })
-        else { return nil }
-        let prepared = prepareCallArguments(args: args, callRange: range, candidates: candidates,
-                                            receiverType: receiver, ctx: ctx, locals: &locals)
-        guard let mapping = ctx.resolver.buildParameterMapping(
-            signature: signature,
-            callArgs: zip(args, prepared.argTypes).map { CallArg.source($0.0, type: $0.1, callRange: range, ast: ctx.ast) },
-            symbols: sema.symbols, typeSystem: sema.types
-        ) else { return nil }
-        let arguments = signature.typeParameterSymbols.map {
-            specialize(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
-        }
-        sema.bindings.bindCall(id, binding: CallBinding(chosenCallee: chosen,
-            substitutedTypeArguments: arguments, parameterMapping: mapping))
-        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-        sema.bindings.bindExprType(id, type: resultType)
-        driver.helpers.checkDeprecation(for: chosen, sema: sema, interner: ctx.interner,
-                                       range: range, diagnostics: ctx.sema.diagnostics)
-        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
-        return resultType
+        return nil
     }
 }
