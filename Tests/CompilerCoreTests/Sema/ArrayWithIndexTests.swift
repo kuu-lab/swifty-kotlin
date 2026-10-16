@@ -84,4 +84,52 @@ struct ArrayWithIndexTests {
             }
         }
     }
+
+    @Test
+    func unsignedArrayWithIndexResolvesInBracketDestructuringLoops() throws {
+        let source = """
+            fun withIndexAndValue(values: UIntArray) {
+                for ([i, ui] in values.withIndex()) {
+                    val index: Int = i
+                    val value: UInt = ui
+                }
+            }
+            fun withValueOnly(values: UIntArray) {
+                for ([_, ui] in values.withIndex()) {
+                    val value: UInt = ui
+                }
+            }
+            fun withIndexOnly(values: UIntArray) {
+                for ([i, _] in values.withIndex()) {
+                    val index: Int = i
+                }
+            }
+            fun withSizeOnlyConstructor() {
+                for ([i, ui] in UIntArray(2).withIndex()) {
+                    val index: Int = i
+                    val value: UInt = ui
+                }
+            }
+            fun main() {}
+            """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error
+        }
+        #expect(errors.isEmpty, "Unexpected unsigned withIndex/for-in diagnostics: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let calls = memberCallExprIDs(named: "withIndex", in: ast, interner: ctx.interner)
+            .filter { isUserSourceExpr($0, in: ctx) }
+        #expect(calls.count == 4)
+        for call in calls {
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.symbol(binding.chosenCallee)?.fqName ==
+                ["kotlin", "collections", "withIndex"].map(ctx.interner.intern))
+        }
+    }
 }
