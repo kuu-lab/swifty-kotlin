@@ -33,6 +33,8 @@ class ValidationEvidenceTests(unittest.TestCase):
         self._write("Sources/CompilerCore/Stdlib/kotlinx/io/Foo.kt", "fun foo() = 1\n")
         self._write("Sources/Runtime/io_bridge.swift", "func kk_io_foo() {}\n")
         self._write("Tests/CompilerBackendTests/FooTests.swift", "func testFoo() {}\n")
+        self._write("Scripts/io_api_inventory/candidate-probes.json", "{}\n")
+        self._write("Scripts/io_api_inventory/probes/Reference.java", "class ReferenceProbe {}\n")
         self._write("core/common/test/FooTest.kt", "fun testFoo() = assertEquals(1, foo())\n", self.upstream)
         self.row = {
             "row_id": "klib-fixture-foo",
@@ -96,12 +98,12 @@ class ValidationEvidenceTests(unittest.TestCase):
             | {"candidate-wrong": other_case_id},
         }
 
-    def _apply(self, records, row=None):
+    def _apply(self, records, row=None, candidate_probes=None):
         fixture_row = copy.deepcopy(row or self.row)
         self.evidence_path.write_text(json.dumps({"schema_version": 1, "records": records}), encoding="utf-8")
         self.generator.apply_validation_evidence(
             [fixture_row], self.lock, self.evidence_path, self.repository, self.upstream,
-            self._execution_catalogs(),
+            self._execution_catalogs(), candidate_probes,
         )
         return fixture_row
 
@@ -174,6 +176,71 @@ class ValidationEvidenceTests(unittest.TestCase):
         record = self._record(row)
         self.assertEqual(record["compatibility_obligations"], ["jvm-descriptor"])
         self.assertEqual(self._apply([record], row)["status"], "verified")
+
+    def test_jvm_abi_accepts_only_row_specific_reference_and_candidate_probes(self):
+        row = copy.deepcopy(self.row)
+        row["row_id"] = "jvm-fixture-foo"
+        row["representation"] = "JVM public ABI dump"
+        row["upstream_test_refs"] = "core/common/test/FooTest.kt#testFoo"
+        probe = {
+            "row_id": row["row_id"],
+            "case_id": "core/common/test/FooTest.kt#testFoo",
+            "reference_execution_id": "reference-probe-foo",
+            "candidate_execution_id": "candidate-probe-foo",
+            "reference_probe_ref": "Scripts/io_api_inventory/probes/Reference.java",
+            "candidate_probe_ref": "Tests/CompilerBackendTests/FooTests.swift#testFoo",
+            "test_refs": [
+                "Scripts/io_api_inventory/candidate-probes.json",
+                "Scripts/io_api_inventory/probes/Reference.java",
+                "Tests/CompilerBackendTests/FooTests.swift#testFoo",
+            ],
+        }
+        row["local_test_refs"] = ";".join(probe["test_refs"])
+        record = self._record(row)
+        record["executions"][0]["reference"]["execution_id"] = probe["reference_execution_id"]
+        record["executions"][0]["candidate"]["execution_id"] = probe["candidate_execution_id"]
+
+        self.assertEqual(self._apply([record], row, [probe])["status"], "verified")
+
+        wrong_case = copy.deepcopy(probe)
+        wrong_case["case_id"] = "core/common/test/BarTest.kt#testBar"
+        with self.assertRaisesRegex(SystemExit, "does not map to row"):
+            self._apply([record], row, [wrong_case])
+
+        wrong_subject = copy.deepcopy(probe)
+        wrong_subject["candidate_execution_id"] = "reference-probe-foo"
+        with self.assertRaisesRegex(SystemExit, "duplicate local candidate probe execution ID"):
+            self._apply([record], row, [wrong_subject])
+
+    def test_bytebuffer_remaining_default_row_routes_to_its_dedicated_probe(self):
+        row = {
+            "row_id": self.generator.BYTEBUFFER_GET_BYTESTRING_DEFAULT_ROW_ID,
+            "module": "bytestring",
+            "representation": "JVM public ABI dump",
+            "platform_scope": "JVM",
+            "owner_fqn": "kotlinx/io/bytestring/ByteStringJvmExtKt",
+            "name": "getByteString$default",
+            "signature": "public static synthetic fun getByteString$default",
+            "_candidate_name": "getByteString$default",
+            "_candidate_kind": "default/synthetic bridge",
+        }
+        probes = self.generator.load_candidate_probe_catalog()
+        self.assertEqual(self.generator.owner_for(row), "KUU-2622")
+        self.assertEqual(
+            self.generator.local_candidates(row),
+            ["Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringJvmExt.kt:51"],
+        )
+        self.assertEqual(self.generator.local_implementation_refs(row, None, {}), self.generator.local_candidates(row))
+        self.assertEqual(
+            self.generator.upstream_test_refs(row, {}),
+            ["bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt#getByteString"],
+        )
+        refs = self.generator.local_test_refs(row, [], probes)
+        self.assertIn("Scripts/io_api_inventory/candidate-probes.json", refs)
+        self.assertIn(
+            "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+JVMInteropNio.swift#testJVMInteropNioByteBufferGetByteStringRemainingDefault",
+            refs,
+        )
 
     def test_unknown_duplicate_and_malformed_evidence_is_rejected(self):
         valid = self._record()

@@ -5,6 +5,16 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true], [0, 2])
+    func testJVMInteropNioByteBufferGetByteStringRemainingDefault(useProducerLibrary: Bool, optimization: Int) throws {
+        let level: OptimizationLevel = optimization == 2 ? .O2 : .O0
+        try runJVMInteropNioFixture("bytebuffer-getbytestring", useProducerLibrary: useProducerLibrary, level: level,
+            producerHash: "b8cf44a85928522e71528223acdf61fb6acd4629066716e8ce2ac19a2c3ca538",
+            consumerHash: "fcc00fe966a2d07924bee56dbf8bfa30b3cb1d603b3c0246879a4622a07c2164",
+            expectedHash: "988c58ecab01293b4a9d505503470cbd64a3cc2befc2824226798b09b01b239f",
+            fixtureDirectory: "JVMInteropByteBufferGetByteString")
+    }
+
+    @Test(arguments: [false, true], [0, 2])
     func testJVMInteropNioReferenceBehavior(useProducerLibrary: Bool, optimization: Int) throws {
         let level: OptimizationLevel = optimization == 2 ? .O2 : .O0
         try runJVMInteropNioFixture("native156", useProducerLibrary: useProducerLibrary, level: level,
