@@ -155,6 +155,10 @@ extension DataFlowSemaPhase {
         }
 
         for sym in functionSymbols where sym.flags.contains(.overrideMember) {
+            // A parameterless override cannot inherit any default arguments.
+            // Its compact-index shape answers this without decoding its own
+            // signature, owner metadata, or overridden hierarchy.
+            if symbols.importedMemberIndexShape(for: sym.id)?.arity == 0 { continue }
             guard !hasOwnDefault(sym.id) else { continue }
             if let base = resolve(sym.id) {
                 resolvedBase[sym.id] = base

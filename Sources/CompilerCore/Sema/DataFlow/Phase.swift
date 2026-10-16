@@ -233,26 +233,32 @@ final class DataFlowSemaPhase: CompilerPhase {
         // registration and before bundled source headers are collected, so
         // imported vtable/itable slots can resolve against final symbols.
         withSubPhaseTiming("applyImportedLibraryDeferredWork", timer: ctx.phaseTimer) {
-            applyImportedLibraryDeferredWork(
-                importDeferredWork,
-                symbols: symbols,
-                types: types,
-                diagnostics: ctx.diagnostics,
-                interner: ctx.interner,
-                bundledIndex: bundledIndex
-            )
-            normalizeImportedLibraryMemberSignatures(
-                importDeferredWork,
-                symbols: symbols,
-                types: types,
-                diagnostics: ctx.diagnostics,
-                interner: ctx.interner
-            )
-            initializeSourceBackedCloseableTypes(
-                symbols: symbols,
-                types: types,
-                interner: ctx.interner
-            )
+            withSubPhaseTiming("applyDeferredLayouts", timer: ctx.phaseTimer) {
+                applyImportedLibraryDeferredWork(
+                    importDeferredWork,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner,
+                    bundledIndex: bundledIndex
+                )
+            }
+            withSubPhaseTiming("normalizeImportedMemberSignatures", timer: ctx.phaseTimer) {
+                normalizeImportedLibraryMemberSignatures(
+                    importDeferredWork,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner
+                )
+            }
+            withSubPhaseTiming("initializeSourceBackedCloseableTypes", timer: ctx.phaseTimer) {
+                initializeSourceBackedCloseableTypes(
+                    symbols: symbols,
+                    types: types,
+                    interner: ctx.interner
+                )
+            }
         }
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
