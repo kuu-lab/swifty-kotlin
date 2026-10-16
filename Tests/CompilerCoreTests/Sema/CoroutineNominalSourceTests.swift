@@ -105,7 +105,7 @@ struct CoroutineNominalSourceTests {
             guard let range = ast.arena.exprRange(call),
                   ctx.options.inputs.contains(ctx.sourceManager.path(of: range.start.file)),
                   case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
-                  case let .superRef(qualifier?, _) = ast.arena.expr(receiver)
+                  case let .superRef(qualifier?, _, _) = ast.arena.expr(receiver)
             else { return false }
             return ctx.interner.resolve(qualifier) == "JobSupport"
         }

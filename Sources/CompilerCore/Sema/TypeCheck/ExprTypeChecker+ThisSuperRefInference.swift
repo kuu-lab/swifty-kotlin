@@ -3,6 +3,7 @@ extension ExprTypeChecker {
     func inferSuperRefExpr(
         _ id: ExprID,
         interfaceQualifier: InternedString?,
+        label: InternedString?,
         range: SourceRange,
         ctx: TypeInferenceContext
     ) -> TypeID {
@@ -16,18 +17,39 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        if interfaceQualifier == nil,
+        if interfaceQualifier == nil, label == nil,
            let entrySuperContext = ctx.enumEntrySuperContext,
            ctx.enclosingClassSymbol == entrySuperContext.ownerSymbol
         {
             sema.bindings.bindExprType(id, type: entrySuperContext.type)
             return entrySuperContext.type
         }
-        let superReceiverType = memberExtensionDispatchReceiverType(ctx) ?? receiverType
+        let superReceiverType: TypeID
+        if let label {
+            guard let labeledReceiverType = ctx.resolveQualifiedThis(label: label),
+                  let ownerSymbol = driver.helpers.nominalSymbol(of: labeledReceiverType, types: sema.types)
+            else {
+                let labelStr = ctx.interner.resolve(label)
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0053",
+                    "Unresolved label '\(labelStr)' for qualified 'super'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            sema.bindings.bindIdentifier(
+                id,
+                symbol: ctx.resolveQualifiedThisReceiverSymbol(label: label) ?? ownerSymbol
+            )
+            superReceiverType = labeledReceiverType
+        } else {
+            superReceiverType = memberExtensionDispatchReceiverType(ctx) ?? receiverType
+        }
         guard let classSymbol = driver.helpers.nominalSymbol(of: superReceiverType, types: sema.types) else {
             return emitNoSuperclass(id: id, range: range, ctx: ctx)
         }
-        if interfaceQualifier == nil,
+        if interfaceQualifier == nil, label == nil,
            isEnumEntryMemberBody(classSymbol: classSymbol, ctx: ctx)
         {
             sema.bindings.bindExprType(id, type: receiverType)

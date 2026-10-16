@@ -439,8 +439,12 @@ struct ASTIDRemapper {
             .localNominalDecl(declID: remap(declID), range: range)
         case let .blockExpr(statements, trailingExpr, range):
             .blockExpr(statements: statements.map { remap($0) }, trailingExpr: trailingExpr.map { remap($0) }, range: range)
-        case let .superRef(interfaceQualifier, range):
-            .superRef(interfaceQualifier: interfaceQualifier.map { remap($0) }, range)
+        case let .superRef(interfaceQualifier, label, range):
+            .superRef(
+                interfaceQualifier: interfaceQualifier.map { remap($0) },
+                label: label.map { remap($0) },
+                range
+            )
         case let .thisRef(label, range):
             .thisRef(label: label.map { remap($0) }, range)
         case let .inExpr(lhs, rhs, range):
