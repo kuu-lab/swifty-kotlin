@@ -241,9 +241,11 @@ struct KotlinxIOSegmentWriteContextShapeTests {
         """
         let ctx = try context(source, library: library)
         try runSema(ctx)
-        let warnings = ctx.diagnostics.diagnostics.filter { $0.severity == .warning }
-        #expect(warnings.count == 1, "One isolated unopted type use must warn: \(warnings)")
-        #expect(warnings.contains { $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.message.contains("UnsafeIoApi") })
+        let optInWarnings = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .warning && $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+        #expect(optInWarnings.count == 1, "One isolated unopted type use must warn: \(optInWarnings)")
+        #expect(optInWarnings.first?.message.contains("UnsafeIoApi") == true)
     }
 
     private func checkPinnedReferenceViews(_ expected: ShapeIndex) throws {
