@@ -273,7 +273,7 @@ extension ExprTypeChecker {
         default:
             true
         }
-        let collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
+        var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
                 names: operatorNames,
                 receiverType: lhs,
@@ -281,6 +281,45 @@ extension ExprTypeChecker {
             )
         } else {
             []
+        }
+        if op == .add, sema.types.isString(lhs) {
+            let scopedStringPlusCandidates = collectScopedOperatorExtensionCandidates(
+                names: operatorNames,
+                receiverType: lhs,
+                ctx: ctx
+            )
+            for candidate in scopedStringPlusCandidates where !collectedOperatorCandidates.contains(candidate) {
+                collectedOperatorCandidates.append(candidate)
+            }
+            let hasApplicableNonBuiltinStringPlusCandidate = collectedOperatorCandidates.contains { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1
+                else {
+                    return false
+                }
+                let isBuiltinStringFallback = symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "text", "plus"]
+                    && signature.receiverType.map(sema.types.isString) == true
+                    && signature.parameterTypes == [sema.types.nullableAnyType]
+                guard !isBuiltinStringFallback else { return false }
+                if let receiverType = signature.receiverType,
+                   !sema.types.typeContainsAnyTypeParam(receiverType),
+                   !sema.types.typeContainsAnyTypeParam(lhs),
+                   !sema.types.isSubtype(lhs, receiverType)
+                {
+                    return false
+                }
+                let parameterType = signature.parameterTypes[0]
+                return sema.types.typeContainsAnyTypeParam(parameterType)
+                    || sema.types.typeContainsAnyTypeParam(rhs)
+                    || sema.types.isSubtype(rhs, parameterType)
+            }
+            // Keep the direct concatenation path unless another applicable
+            // operator could override the stdlib's String?.plus(Any?) fallback.
+            if !hasApplicableNonBuiltinStringPlusCandidate {
+                sema.bindings.bindExprType(id, type: stringType)
+                return stringType
+            }
         }
         var operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
             collectedOperatorCandidates,
@@ -342,9 +381,10 @@ extension ExprTypeChecker {
         // Kotlin, and `listOf("x") + "y"` must resolve via the List plus fallback
         // below, not collapse to `String`).
         if op == .add,
-           sema.types.isString(lhs)
-            || (lhs == charType && sema.types.isString(rhs)
-                && sema.types.isDefinitelyNonNull(rhs) && operatorCandidates.isEmpty)
+           lhs == charType,
+           sema.types.isString(rhs),
+           sema.types.isDefinitelyNonNull(rhs),
+           operatorCandidates.isEmpty
         {
             sema.bindings.bindExprType(id, type: stringType)
             return stringType
@@ -499,7 +539,7 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
         }
-        // String/Char concatenation and applicable operator overloads return above.
+        // Char concatenation and applicable operator overloads return above.
         // A textual RHS alone must not enable the primitive arithmetic fallback.
         if sema.types.containsCapturedTypes(inferredLhs) || sema.types.containsCapturedTypes(inferredRhs),
            [.add, .subtract, .multiply, .divide, .modulo].contains(op),
