@@ -1,5 +1,176 @@
 {
   "schema_version": 1,
-  "reference": [],
-  "candidate": []
+  "reference": [
+    {
+      "execution_id": "kuu2636-reference-17c52a5c46a886fd47949e10",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "producer-consumer-O0",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-reference-473456ca683066de9653a017",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "producer-consumer-O2",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-reference-b43337cd273141fa77d74995",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "source-O0",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-reference-5268ab8067171c55546617d0",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "source-O2",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-reference-164ac4934b80f0d6472b4b2a",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "stdlib-library-O0",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-reference-7cca451e3d26b749fed83f4a",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "stdlib-library-O2",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-reference-4a4f26968326d665cae6d4c2",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemJvmAbiProbe.java#main",
+      "lane": "jvm-descriptor",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "88d44a52fc7cafb28c4d1bffd975eeaa68e669e6b0124430aa242244e8af9c54",
+      "normalized_stdout_sha256": "88d44a52fc7cafb28c4d1bffd975eeaa68e669e6b0124430aa242244e8af9c54",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "83069d6b9e8bca820e2ec0940f91a931ea57a8d26d09a9355095d2c35963c6f3",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    }
+  ],
+  "candidate": [
+    {
+      "execution_id": "kuu2636-candidate-d458aeeb98c0216ec6f64a30",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "producer-consumer-O0",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-candidate-49c31b768d50c1fd872c9444",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "producer-consumer-O2",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-candidate-79b1c645a21f2718d7b7d98a",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "source-O0",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-candidate-aec5c1c0ebd74e80d820348c",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "source-O2",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-candidate-0e70accb80da499c2639e7cc",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "stdlib-library-O0",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    },
+    {
+      "execution_id": "kuu2636-candidate-241f02d79eb1aabc8eaba6bc",
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "lane": "stdlib-library-O2",
+      "result": "PASS",
+      "exit_code": 0,
+      "stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "normalized_stdout_sha256": "2c1998d8f5d7f6722a58174c3390bee6c1e0958d25f3fbb859e6295257f3b8ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe_input_sha256": "95206f28b20f85c38080c672a43225e4a74cb6e6f1f92d8b51dc5917578eb879",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281"
+    }
+  ]
 }

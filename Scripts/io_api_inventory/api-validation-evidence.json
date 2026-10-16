@@ -1,4 +1,229 @@
 {
   "schema_version": 2,
-  "records": []
+  "records": [
+    {
+      "row_id": "jvm-3ecb129cb4283041",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "164961b7d26f2a120ee136f74e23e6590edd181a5bc75de63d774398421c2588",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemJvmAbiProbe.java#main",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "kuu2636-reference-4a4f26968326d665cae6d4c2",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": null,
+            "result": "NOT_APPLICABLE",
+            "exit_code": null,
+            "reason": "KSwiftK Native backend does not emit JVM classfiles"
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-22e7eedbcb644510",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "07a3717e5ba25aa583078d2cb735253dcddbaa90dd9f2c03526c0832b3ca3369",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu2636-reference-b43337cd273141fa77d74995",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-79b1c645a21f2718d7b7d98a",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu2636-reference-5268ab8067171c55546617d0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-aec5c1c0ebd74e80d820348c",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu2636-reference-164ac4934b80f0d6472b4b2a",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-0e70accb80da499c2639e7cc",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu2636-reference-7cca451e3d26b749fed83f4a",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-241f02d79eb1aabc8eaba6bc",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu2636-reference-17c52a5c46a886fd47949e10",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-d458aeeb98c0216ec6f64a30",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu2636-reference-473456ca683066de9653a017",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-49c31b768d50c1fd872c9444",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-eb2e0cdf209de26a",
+      "candidate_sha": "e5a2d151ff22839fae6561e50cb9a839387d92df",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "75f942a2555ab6d98ac947e519c0d02e8cf41334ea4b655805be598db4c0568b",
+      "test_input_sha256": "07a3717e5ba25aa583078d2cb735253dcddbaa90dd9f2c03526c0832b3ca3369",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "kuu2636-reference-b43337cd273141fa77d74995",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-79b1c645a21f2718d7b7d98a",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "kuu2636-reference-5268ab8067171c55546617d0",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-aec5c1c0ebd74e80d820348c",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "kuu2636-reference-164ac4934b80f0d6472b4b2a",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-0e70accb80da499c2639e7cc",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "kuu2636-reference-7cca451e3d26b749fed83f4a",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-241f02d79eb1aabc8eaba6bc",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "kuu2636-reference-17c52a5c46a886fd47949e10",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-d458aeeb98c0216ec6f64a30",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "kuu2636-reference-473456ca683066de9653a017",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "kuu2636-candidate-49c31b768d50c1fd872c9444",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }
