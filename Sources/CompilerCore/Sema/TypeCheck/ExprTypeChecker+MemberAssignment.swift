@@ -73,16 +73,13 @@ extension ExprTypeChecker {
                 )
             }
         } else {
-            // Extension properties keep their existing overload/setter resolution.
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
+            // Extension setter resolution provides the RHS context when its
+            // candidates agree on a value type, just as member-property writes do.
             let errorsBeforeResolution = sema.diagnostics.errorCount
             let setter = driver.callChecker.resolveExtensionPropertySetter(
-                id: id,
-                calleeName: name,
-                range: range,
+                id: id, calleeName: name, range: range,
                 receiverType: isSafeCall ? nonNullReceiver : receiverType,
-                valueType: valueType,
-                ctx: ctx
+                value: value, locals: &locals, ctx: ctx
             )
             if setter == nil, sema.diagnostics.errorCount == errorsBeforeResolution {
                 sema.diagnostics.error(
