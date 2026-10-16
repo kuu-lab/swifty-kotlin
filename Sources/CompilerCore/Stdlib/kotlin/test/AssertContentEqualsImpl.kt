@@ -25,7 +25,7 @@ internal fun <T> assertIterableContentEquals(
     actual: T?,
     iterator: T.() -> Iterator<*>
 ) {
-    if (checkReferenceAndNullEquality(typeName, lazyMessage, expected, actual, Any?::toString)) return
+    if (checkReferenceAndNullEquality(typeName, lazyMessage, expected, actual) { this.toString() }) return
 
     var index = 0
     val expectedIt = expected.iterator()
