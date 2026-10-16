@@ -95,6 +95,75 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
     }
 
     @Test
+    func testObjectLiteralOverrideDispatchesThroughPairedActualClass() throws {
+        let expectSource = """
+        package x
+        interface Pool<T> { fun borrow(): T }
+        expect abstract class DP<T : Any>(val capacity: Int) : Pool<T> {
+            protected fun produce(): T
+        }
+        """
+        let actualSource = """
+        package x
+        actual abstract class DP<T : Any>(actual override val capacity: Int) : Pool<T> {
+            protected actual open fun produce(): T = TODO()
+            actual override fun borrow(): T = produce()
+        }
+        val P2: Pool<Int> = object : DP<Int>(8) { override fun produce(): Int = 4096 }
+        val P3: Pool<String> = object : DP<String>(8) { override fun produce(): String = "ok" }
+        fun main() { println(P2.borrow()); println(P3.borrow()) }
+        """
+        try withTemporaryFiles(contents: [expectSource, actualSource]) { paths in
+            let context = makeCompilationContext(
+                inputs: paths,
+                moduleName: "ObjectLiteralPairedActualClassOverrideDispatch",
+                allowDefaultStdlibLibrary: true
+            )
+            try runSema(context)
+
+            let sema = try #require(context.sema)
+            let symbols = sema.symbols
+            let dpFQName = [context.interner.intern("x"), context.interner.intern("DP")]
+            let dpSymbols = symbols.lookupAll(fqName: dpFQName).compactMap { symbols.symbol($0) }
+            let expectDP = try #require(dpSymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualDP = try #require(dpSymbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(symbols.actualSymbol(for: expectDP.id) == actualDP.id)
+
+            let actualProduce = try #require(symbols.lookupAll(fqName: dpFQName + [context.interner.intern("produce")]).first {
+                symbols.symbol($0)?.flags.contains(.actualDeclaration) == true
+            })
+            let actualLayout = try #require(symbols.nominalLayout(for: actualDP.id))
+            let actualProduceSlot = try #require(actualLayout.vtableSlots[actualProduce])
+            let anonymousClasses = symbols.allSymbols().filter { symbol in
+                guard symbol.kind == .class else { return false }
+                return symbols.directSupertypes(for: symbol.id).contains(expectDP.id)
+                    || symbols.directSupertypes(for: symbol.id).contains(actualDP.id)
+            }
+            #expect(anonymousClasses.count == 2)
+            for anonymousClass in anonymousClasses {
+                let override = try #require(symbols.children(of: anonymousClass.id).first { memberID in
+                    symbols.symbol(memberID)?.name == context.interner.intern("produce")
+                })
+                let layout = try #require(symbols.nominalLayout(for: anonymousClass.id))
+                #expect(layout.superClass == actualDP.id)
+                #expect(layout.vtableSlots[override] == actualProduceSlot)
+                let registrations = kirVtableImplementations(for: anonymousClass.id, sema: sema)
+                #expect(registrations.contains {
+                    $0.slot == actualProduceSlot
+                        && $0.dispatchMethod == actualProduce
+                        && $0.implementation == override
+                })
+            }
+        }
+        try compileAndRunKotlinSources(
+            [expectSource, actualSource],
+            expectedOutput: "4096\nok\n",
+            moduleName: "ObjectLiteralPairedActualClassOverrideDispatch",
+            allowDefaultStdlibLibrary: true
+        )
+    }
+
+    @Test
     func testObjectLiteralRunsSuperclassConstructorWithArguments() throws {
         let source = """
         open class Vehicle(val name: String) {

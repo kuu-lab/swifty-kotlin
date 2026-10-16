@@ -39,6 +39,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// An Elvis branch call may use its peer's type to infer generic return
     /// arguments without requiring the call result to be a subtype of that type.
     var isElvisBranchExpectedTypeHint = false
+    /// A direct generic call on the Elvis RHS may use the LHS's non-null type
+    /// to fill type variables that its inputs did not determine.
+    var elvisRhsCallResultTypeHint: TypeID?
+    var elvisRhsCallResultTypeHintExpr: ExprID?
     /// A failed call may retry once using its arguments' natural types while
     /// keeping the outer result constraint in overload resolution.
     var allowsLiftedCallExpectedTypeHints = true

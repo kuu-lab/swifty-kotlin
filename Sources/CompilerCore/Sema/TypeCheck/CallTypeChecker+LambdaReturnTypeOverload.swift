@@ -662,7 +662,8 @@ extension CallTypeChecker {
                 : []
             ),
             typeAliasConstructor: typeAliasConstructor,
-            elvisLhsExpectedTypeHint: ctx.isElvisBranchExpectedTypeHint
+            elvisLhsExpectedTypeHint: ctx.isElvisBranchExpectedTypeHint,
+            elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint
         )
 
         if candidates.contains(where: {

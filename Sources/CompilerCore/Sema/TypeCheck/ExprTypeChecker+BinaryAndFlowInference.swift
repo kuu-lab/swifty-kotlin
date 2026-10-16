@@ -202,6 +202,24 @@ extension ExprTypeChecker {
         } else {
             nil
         }
+        let rhsIsCall: Bool = if op == .elvis {
+            switch ast.arena.expr(rhsID) {
+            case .call, .memberCall, .safeMemberCall:
+                true
+            default:
+                false
+            }
+        } else {
+            false
+        }
+        var rhsCtx = ctx
+        if op == .elvis, expectedType == nil, rhsIsCall,
+           nonNullLhs != sema.types.errorType,
+           nonNullLhs != sema.types.nothingType
+        {
+            rhsCtx.elvisRhsCallResultTypeHint = nonNullLhs
+            rhsCtx.elvisRhsCallResultTypeHintExpr = rhsID
+        }
         var rhs: TypeID
         if let earlyElvisRhs {
             rhs = earlyElvisRhs
@@ -220,7 +238,6 @@ extension ExprTypeChecker {
                 expectedTypeIsHintOnly: true
             )
         } else {
-            var rhsCtx = ctx
             rhsCtx.isElvisBranchExpectedTypeHint = rhsUsesElvisPeerTypeHint
             rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &locals, expectedType: rhsExpectedType)
         }
