@@ -96,11 +96,9 @@ package enum CommandRunner {
         return try body()
     }
 
-    /// Resolves an executable by scanning `$PATH`, but only trusts directories
-    /// whose directory and final executable cannot be tampered with by another
-    /// local user. Empty, relative, group/other-writable, or foreign-owned PATH
-    /// entries and unsafe executable files are skipped; if no trusted match is
-    /// found, `fallback` is returned.
+    /// Only trusts directories whose directory and final executable cannot be
+    /// tampered with by another local user. If no trusted match is found,
+    /// `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
         resolveExecutable(
             name,
@@ -156,9 +154,6 @@ package enum CommandRunner {
         return status.st_uid == 0 || status.st_uid == getuid()
     }
 
-    /// Runs a command and records its wall-clock time as a sub-phase in the
-    /// given `PhaseTimer`, if non-nil.  The `subPhaseName` label appears in
-    /// the `time-phases` output.
     package static func run(
         executable: String,
         arguments: [String],
@@ -249,13 +244,11 @@ package enum CommandRunner {
                 if process.isRunning {
                     let killResult = kill(process.processIdentifier, SIGKILL)
                     if killResult != 0 && errno != ESRCH {
-                        // kill() failed with error other than ESRCH (no such process)
                         // ESRCH is expected if process exited between isRunning check and kill call
                         // Other errors are unusual but we continue anyway
                     }
                 }
                 didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
-                // Verify process exited after SIGKILL
                 if !didExit && process.isRunning {
                     // Process is still running despite SIGKILL - this is unusual but possible
                     // Log warning and continue - process should be dead by now
@@ -289,10 +282,8 @@ package enum CommandRunner {
             stderr: stderr
         )
 
-        // If process exited but drain failed, check exit status
         if !didDrain {
             if result.exitCode == 0 {
-                // Process succeeded but drain failed - report as timeout
                 throw CommandRunnerError.timedOut(timeoutMessage(
                     executable: executable,
                     arguments: arguments,
@@ -303,7 +294,6 @@ package enum CommandRunner {
                     didDrain: didDrain
                 ))
             }
-            // Process failed with non-zero exit code - fall through to throw nonZeroExit below
         }
         if result.exitCode != 0 {
             throw CommandRunnerError.nonZeroExit(result)
