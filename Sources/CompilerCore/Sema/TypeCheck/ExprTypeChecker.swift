@@ -1507,7 +1507,12 @@ final class ExprTypeChecker {
 
         guard !candidates.isEmpty else { return }
 
-        let callArgs = [CallArg(type: elementType)]
+        let integerLiteral = driver.callChecker.integerLiteralValues(elementExpr, ast: ctx.ast)
+        let callArgs = [CallArg(
+            type: elementType,
+            signedIntegerLiteral: integerLiteral.signed,
+            unsignedIntegerLiteral: integerLiteral.unsigned
+        )]
         let call = CallExpr(range: range, calleeName: containsName, args: callArgs)
         let retainedMembers = candidates.filter { memberCandidates.contains($0) }
         let hasViableMember = !ctx.resolver.probeCall(
@@ -1550,6 +1555,12 @@ final class ExprTypeChecker {
                     .map { _, value in value },
                 parameterMapping: resolved.parameterMapping
             )
+        )
+        driver.callChecker.contextualizeResolvedIntegerArguments(
+            args: [CallArgument(expr: elementExpr)],
+            resolved: resolved,
+            ctx: ctx,
+            locals: &locals
         )
     }
 
