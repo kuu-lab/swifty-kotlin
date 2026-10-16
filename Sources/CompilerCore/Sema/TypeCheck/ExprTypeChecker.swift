@@ -413,7 +413,8 @@ final class ExprTypeChecker {
                 scope: ctx.scope,
                 diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
-                usageRange: range
+                usageRange: range,
+                allowBareGenericTypeAliasProjection: true
             )
             if case .functionType = sema.types.kind(of: targetType),
                !sema.types.isSubtype(
@@ -493,7 +494,8 @@ final class ExprTypeChecker {
                 scope: ctx.scope,
                 diagnostics: ctx.sema.diagnostics,
                 inferenceContext: ctx,
-                usageRange: range
+                usageRange: range,
+                allowBareGenericTypeAliasProjection: true
             )
             // A bare generic cast recovers arguments from the source's known
             // nominal type, just as a bare `is` check does. Explicit arguments

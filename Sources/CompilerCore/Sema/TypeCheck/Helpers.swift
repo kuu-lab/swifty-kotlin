@@ -804,7 +804,8 @@ struct TypeCheckHelpers {
         scope: Scope? = nil,
         diagnostics: DiagnosticEngine? = nil,
         inferenceContext: TypeInferenceContext? = nil,
-        usageRange: SourceRange? = nil
+        usageRange: SourceRange? = nil,
+        allowBareGenericTypeAliasProjection: Bool = false
     ) -> TypeID {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return sema.types.errorType
@@ -961,9 +962,22 @@ struct TypeCheckHelpers {
                     )
                     // Expand typealias at call-site
                     if let sym = sema.symbols.symbol(symbolID), sym.kind == .typeAlias {
+                        let aliasTypeArgs: [TypeArg]
+                        // Bare generic aliases erase their omitted parameters in runtime checks and casts.
+                        // Other type-reference contexts keep the normal arity diagnostic.
+                        if allowBareGenericTypeAliasProjection,
+                           argRefs.isEmpty
+                        {
+                            let typeParameterCount = sema.symbols.typeAliasTypeParameters(for: symbolID).count
+                            aliasTypeArgs = typeParameterCount == 0
+                                ? resolvedArgs
+                                : Array(repeating: .star, count: typeParameterCount)
+                        } else {
+                            aliasTypeArgs = resolvedArgs
+                        }
                         if let expanded = expandTypeAlias(
                             symbolID,
-                            typeArgs: resolvedArgs,
+                            typeArgs: aliasTypeArgs,
                             sema: sema,
                             visited: [],
                             depth: 0,
