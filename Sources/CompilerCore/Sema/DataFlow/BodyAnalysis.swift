@@ -242,7 +242,14 @@ extension DataFlowSemaPhase {
                     }
                     return types.makeKClassType(argument: argumentType, nullability: nullability)
                 }
-                return types.make(.classType(ClassType(classSymbol: resolved.id, args: resolvedArgs, nullability: nullability)))
+                // Qualified inner-class references (`Outer<V>.Inner`) supply
+                // the qualifier's arguments; route through the nominal split so
+                // they land in enclosingTypeArgs rather than the class's own args.
+                return types.make(.classType(types.classType(
+                    for: resolved.id,
+                    arguments: resolvedArgs,
+                    nullability: nullability
+                )))
             }
             if candidates.isEmpty,
                let builtinNestedSymbol = resolveBuiltinClassNestedType(

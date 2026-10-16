@@ -981,6 +981,7 @@ extension TypeCheckHelpers {
             let constructorType = sema.types.make(.classType(ClassType(
                 classSymbol: classSymbol,
                 args: classType.args,
+                enclosingTypeArgs: classType.enclosingTypeArgs,
                 nullability: .nonNull
             )))
             guard let outerReceiverType = innerClassOuterReceiverType(
@@ -1038,8 +1039,16 @@ extension TypeCheckHelpers {
         ), case let .classType(innerClass) = sema.types.kind(of: expanded) else {
             return []
         }
-        let usedInInnerClassArguments = Set(parameters.filter { parameter in
-            innerClass.args.contains { argument in
+        // Enclosing arguments lead the combined argument list. Alias
+        // parameters that appear there fill the outer class's parameters;
+        // the remainder belong to the inner class itself. The underlying
+        // type may store them flat in `args` when it was recorded before
+        // enclosing-parameter metadata was available, so classify by
+        // position rather than by which field holds them.
+        let enclosingCount = sema.types.enclosingTypeParameterSymbols(for: innerClass.classSymbol).count
+        let enclosingArguments = Array(sema.types.allTypeArguments(for: innerClass).prefix(enclosingCount))
+        return parameters.filter { parameter in
+            enclosingArguments.contains { argument in
                 switch argument {
                 case let .invariant(type), let .out(type), let .in(type):
                     sema.types.typeContainsTypeParam(type, symbol: parameter)
@@ -1047,8 +1056,7 @@ extension TypeCheckHelpers {
                     false
                 }
             }
-        })
-        return parameters.filter { !usedInInnerClassArguments.contains($0) }
+        }
     }
 
     /// Returns the receiver type only when it can enclose the aliased inner
