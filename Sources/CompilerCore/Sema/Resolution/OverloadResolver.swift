@@ -77,8 +77,8 @@ public struct CallExpr {
     /// Explicit member calls must retain their actual receiver type.
     public let boundObjectDispatchReceiverCandidates: Set<SymbolID>
     public let typeAliasConstructor: TypeAliasConstructorContext?
-    /// The surrounding Elvis result type may guide generic inference for its LHS,
-    /// without requiring the nullable call result itself to match that type.
+    /// An Elvis branch's peer or enclosing type may guide generic inference
+    /// without requiring the call result to be a subtype of that type.
     public let elvisLhsExpectedTypeHint: Bool
 
     public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil, elvisLhsExpectedTypeHint: Bool = false) {

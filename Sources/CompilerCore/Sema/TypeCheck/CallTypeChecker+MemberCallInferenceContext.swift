@@ -429,7 +429,7 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: callArgs,
             explicitTypeArgs: explicitTypeArgs,
-            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
+            elvisLhsExpectedTypeHint: ctx.isElvisBranchExpectedTypeHint
         )
         let resolved: ResolvedCall
         if let preparedArgs {

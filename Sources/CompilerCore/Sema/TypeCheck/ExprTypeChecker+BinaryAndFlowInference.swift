@@ -137,7 +137,7 @@ extension ExprTypeChecker {
             nil
         }
         var lhsCtx = ctx
-        lhsCtx.isElvisLhsExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
+        lhsCtx.isElvisBranchExpectedTypeHint = isElvisCallLhs && !isSafeLetElvisFailure && expectedType != nil
         let inferredLhs = driver.inferExpr(
             lhsID, ctx: lhsCtx, locals: &locals,
             expectedType: lhsExpectedType
@@ -168,6 +168,24 @@ extension ExprTypeChecker {
                 return false
             }
         }()
+        // A zero-argument branch call has no argument evidence for its generic
+        // result. The resolver treats its peer type as a hint, leaving concrete
+        // fallback return types unchanged.
+        let rhsIsZeroArgumentCallWithoutExplicitTypeArguments: Bool = {
+            switch ast.arena.expr(rhsID) {
+            case let .call(_, typeArgs, args, _),
+                 let .memberCall(_, _, typeArgs, args, _),
+                 let .safeMemberCall(_, _, typeArgs, args, _):
+                return typeArgs.isEmpty && args.isEmpty
+            default:
+                return false
+            }
+        }()
+        let rhsUsesElvisPeerTypeHint = op == .elvis
+            && expectedType == nil
+            && rhsIsZeroArgumentCallWithoutExplicitTypeArguments
+            && nonNullLhs != sema.types.errorType
+            && nonNullLhs != sema.types.nothingType
         let rhsExpectedType: TypeID? = if op == .elvis {
             if let expectedType {
                 expectedType
@@ -175,6 +193,8 @@ extension ExprTypeChecker {
                       nonNullLhs != sema.types.nothingType,
                       rhsIsIntegerLiteral
             {
+                nonNullLhs
+            } else if rhsUsesElvisPeerTypeHint {
                 nonNullLhs
             } else {
                 nil
@@ -200,7 +220,9 @@ extension ExprTypeChecker {
                 expectedTypeIsHintOnly: true
             )
         } else {
-            rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+            var rhsCtx = ctx
+            rhsCtx.isElvisBranchExpectedTypeHint = rhsUsesElvisPeerTypeHint
+            rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &locals, expectedType: rhsExpectedType)
         }
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)

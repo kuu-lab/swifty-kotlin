@@ -90,7 +90,7 @@ final class SemaCacheContext {
         let unsignedIntegerLiterals: [UInt64?]
         let explicitTypeArgs: [TypeID]
         let expectedType: TypeID?
-        let elvisLhsExpectedTypeHint: Bool
+        let elvisBranchExpectedTypeHint: Bool
         let implicitReceiverType: TypeID?
         let dispatchReceiverTypes: [TypeID]
         let boundObjectDispatchReceiverCandidates: Set<SymbolID>
@@ -143,7 +143,7 @@ final class SemaCacheContext {
             unsignedIntegerLiterals: call.args.map(\.unsignedIntegerLiteral),
             explicitTypeArgs: call.explicitTypeArgs,
             expectedType: expectedType,
-            elvisLhsExpectedTypeHint: call.elvisLhsExpectedTypeHint,
+            elvisBranchExpectedTypeHint: call.elvisLhsExpectedTypeHint,
             implicitReceiverType: implicitReceiverType,
             dispatchReceiverTypes: call.dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: call.boundObjectDispatchReceiverCandidates
