@@ -52,13 +52,24 @@ extension CallTypeChecker {
         let callableReferenceExtensionReceiverType: TypeID? = {
             guard let callableReferenceFunctionType,
                   candidates.contains(where: { candidate in
-                      guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                      guard let signature = sema.symbols.functionSignature(for: candidate),
+                            let receiver = signature.receiverType
+                      else {
                           return false
                       }
-                      if case .functionType = sema.types.kind(of: receiver) {
+                      switch sema.types.kind(of: receiver) {
+                      case .functionType:
                           return true
+                      case let .typeParam(parameter):
+                          // A generic extension such as `fun <T> T.let(...)`
+                          // must infer T from the structural function type of a
+                          // bound callable reference. Lookup uses its KFunction
+                          // view for reflection, but that nominal view cannot be
+                          // invoked from the extension's callback parameter.
+                          return signature.typeParameterSymbols.contains(parameter.symbol)
+                      default:
+                          return false
                       }
-                      return false
                   })
             else {
                 return nil
