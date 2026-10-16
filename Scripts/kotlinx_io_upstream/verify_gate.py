@@ -291,6 +291,107 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def validate_candidate_artifacts(summary: dict[str, Any], summary_path: Path,
+                                 label: str,
+                                 expected_native_execution_ids: set[str] | None = None,
+                                 expected_native_source_ids: set[str] | None = None,
+                                 expected_native_catalog_sha256: str | None = None,
+                                 expected_upstream_commit: str | None = None) -> list[str]:
+    """Check that a Native candidate summary matches its immutable selection and result files."""
+    problems: list[str] = []
+    manifest_path = summary_path.with_name("selection.json")
+    results_path = summary_path.with_name("results.json")
+    selection = summary.get("selection")
+    if not manifest_path.is_file():
+        problems.append(f"{label}: candidate selection manifest is missing")
+    else:
+        try:
+            manifest = read_json(manifest_path)
+            if not isinstance(manifest, dict) or manifest != selection:
+                problems.append(f"{label}: candidate selection manifest differs from summary")
+            if isinstance(manifest, dict):
+                if manifest.get("target") != "macos":
+                    problems.append(f"{label}: candidate target is not macos")
+                if expected_upstream_commit and manifest.get("upstream_commit") != expected_upstream_commit:
+                    problems.append(f"{label}: candidate upstream commit differs from the audit lock")
+                if manifest.get("selection_mode") != "full-target-catalog":
+                    problems.append(f"{label}: candidate selection mode is not full-target-catalog")
+                if not manifest.get("covers_full_catalog"):
+                    problems.append(f"{label}: candidate selection does not cover the full target catalog")
+                if (expected_native_catalog_sha256
+                        and manifest.get("catalog_sha256") != expected_native_catalog_sha256):
+                    problems.append(f"{label}: candidate Native catalog hash differs from the audit lock")
+                input_hashes = manifest.get("input_hashes")
+                if not isinstance(input_hashes, dict):
+                    problems.append(f"{label}: candidate selection input hashes are missing")
+                elif (expected_native_catalog_sha256
+                      and input_hashes.get("catalog_sha256") != expected_native_catalog_sha256):
+                    problems.append(f"{label}: candidate input Native catalog hash differs from the audit lock")
+                elif isinstance(input_hashes, dict):
+                    for key in ("compiler_sha256", "runtime_sources_sha256", "catalog_sha256",
+                                "runner_sha256", "driver_sha256"):
+                        digest = input_hashes.get(key)
+                        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                            problems.append(f"{label}: candidate input hash {key} is missing or malformed")
+                    summary_inputs = summary.get("inputs")
+                    if not isinstance(summary_inputs, dict):
+                        problems.append(f"{label}: candidate summary input hashes are missing")
+                    else:
+                        for key, digest in input_hashes.items():
+                            if summary_inputs.get(key) != digest:
+                                problems.append(f"{label}: candidate selection input hash {key} differs from summary")
+                        if summary_inputs.get("selection_manifest_sha256") != hashlib.sha256(
+                                manifest_path.read_bytes()).hexdigest():
+                            problems.append(f"{label}: candidate summary selection hash does not match")
+                    recorded_workspace_sha = input_hashes.get("workspace_git_sha")
+                    if expected_upstream_commit and not isinstance(recorded_workspace_sha, str):
+                        problems.append(f"{label}: candidate workspace Git SHA is missing")
+                selected_source_ids = manifest.get("selected_source_function_ids")
+                if (not isinstance(selected_source_ids, list)
+                        or len(selected_source_ids) != len(set(selected_source_ids))):
+                    problems.append(f"{label}: selected source-function IDs are missing or duplicated")
+                elif (expected_native_source_ids is not None
+                      and set(selected_source_ids) != expected_native_source_ids):
+                    problems.append(f"{label}: selected source-function IDs do not cover the full Native catalog")
+                selected_ids = manifest.get("selected_execution_ids")
+                if not isinstance(selected_ids, list) or any(not isinstance(value, str) for value in selected_ids):
+                    problems.append(f"{label}: selected execution IDs are missing or malformed")
+                elif len(selected_ids) != len(set(selected_ids)):
+                    problems.append(f"{label}: selected execution IDs are duplicated")
+                else:
+                    if manifest.get("selected_execution_count") != len(selected_ids):
+                        problems.append(f"{label}: selected execution count differs from its manifest")
+                    if expected_native_execution_ids is not None and set(selected_ids) != expected_native_execution_ids:
+                        problems.append(f"{label}: selected execution IDs do not cover the full Native catalog")
+            recorded_hash = summary.get("selection_manifest_sha256")
+            actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+            if recorded_hash != actual_hash:
+                problems.append(f"{label}: candidate selection manifest hash does not match")
+        except (OSError, json.JSONDecodeError) as error:
+            problems.append(f"{label}: candidate selection manifest is unreadable: {error}")
+    if not results_path.is_file():
+        problems.append(f"{label}: candidate results file is missing")
+        return problems
+    try:
+        results = read_json(results_path)
+        if not isinstance(results, list) or not isinstance(selection, dict):
+            raise TypeError("candidate results and selection must be lists/objects")
+        result_ids = [str(row.get("execution_id", "")) for row in results if isinstance(row, dict)]
+        if len(result_ids) != len(results) or len(result_ids) != len(set(result_ids)):
+            problems.append(f"{label}: candidate result IDs are malformed or duplicated")
+        selected_ids = selection.get("selected_execution_ids")
+        if not isinstance(selected_ids, list) or len(selected_ids) != len(set(selected_ids)):
+            problems.append(f"{label}: selected execution IDs are missing or duplicated")
+        elif result_ids != selected_ids:
+            problems.append(f"{label}: candidate result IDs differ from the selection manifest")
+        if any(str(row.get("status", "NOT_RUN")).upper() != "PASS" for row in results
+               if isinstance(row, dict)):
+            problems.append(f"{label}: candidate results contain a non-PASS execution")
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+        problems.append(f"{label}: candidate results are unreadable: {error}")
+    return problems
+
+
 def audit_command(args: argparse.Namespace) -> int:
     root = args.root.resolve()
     output = args.output.resolve()
@@ -442,6 +543,10 @@ def finalize_command(args: argparse.Namespace) -> int:
 
     expected_jvm_execution_count: int | None = None
     expected_native_execution_count: int | None = None
+    expected_native_execution_ids: set[str] | None = None
+    expected_native_source_ids: set[str] | None = None
+    expected_native_catalog_sha256: str | None = None
+    expected_upstream_commit: str | None = None
     api_mapping_files = [path for path in evidence.rglob("api-coverage-mapping.json")
                          if "kotlinx-io-gate-api-" in path.as_posix()] if evidence.exists() else []
     api_summary_files = [path for path in evidence.rglob("api-gate-summary.json")
@@ -457,6 +562,38 @@ def finalize_command(args: argparse.Namespace) -> int:
             expected_native_execution_count = api_report.get("upstream_tests", {}).get(
                 "native_concrete_execution_count"
             )
+            expected_native_execution_ids = {
+                str(identifier)
+                for row in api_mapping.get("execution_coverage", []) if isinstance(row, dict)
+                for identifier in row.get("native_execution_ids", [])
+            }
+            expected_native_source_ids = {
+                str(row.get("upstream_id", ""))
+                for row in api_mapping.get("execution_coverage", []) if isinstance(row, dict)
+                if row.get("native_execution_ids")
+            }
+            expected_native_source_ids.discard("")
+            expected_native_catalog_sha256 = api_report.get("upstream_tests", {}).get(
+                "native_execution_catalog_sha256"
+            )
+            expected_upstream_commit = api_report.get("upstream_commit")
+            mapping_catalog_hash = api_mapping.get("execution_catalog_sha256", {}).get("native")
+            if not isinstance(expected_upstream_commit, str) or not expected_upstream_commit:
+                blockers.append("API audit summary is missing its locked upstream commit")
+            if (not isinstance(expected_native_catalog_sha256, str)
+                    or len(expected_native_catalog_sha256) != 64
+                    or any(character not in "0123456789abcdef" for character in expected_native_catalog_sha256)):
+                blockers.append("API audit summary is missing its locked Native catalog hash")
+            if api_mapping.get("upstream_commit") != expected_upstream_commit:
+                blockers.append("API mapping upstream commit differs from the audit summary")
+            if expected_native_catalog_sha256 != mapping_catalog_hash:
+                blockers.append("API mapping Native catalog hash differs from the audit summary")
+            if (expected_native_execution_count is not None
+                    and len(expected_native_execution_ids) != expected_native_execution_count):
+                blockers.append("API mapping Native execution IDs differ from the audit catalog count")
+            native_source_count = api_report.get("upstream_tests", {}).get("native_source_function_count")
+            if native_source_count is not None and len(expected_native_source_ids) != native_source_count:
+                blockers.append("API mapping Native source-function IDs differ from the audit catalog count")
             expected_jvm_execution_count = api_report.get("upstream_tests", {}).get(
                 "jvm_concrete_execution_count"
             )
@@ -502,7 +639,8 @@ def finalize_command(args: argparse.Namespace) -> int:
                 "expected_count", "candidate_executions", "concrete_execution_count", "reference_counts",
                 "candidate_counts", "counts", "selected_cases", "lanes", "optimization_lanes",
                 "expected_lane_count", "api", "upstream_tests", "blocker_count",
-                "inventory_generation", "expected_case_count", "expected_case_ids",
+                "inventory_generation", "expected_case_count", "expected_case_ids", "selection",
+                "selection_manifest_sha256",
             ) if key in value}
             try:
                 if isinstance(value.get("results"), list):
@@ -538,8 +676,14 @@ def finalize_command(args: argparse.Namespace) -> int:
                     }
                 summary_blockers = validate_summary(
                     value, artifact_file, args.commit, expected_native_execution_count,
-                    expected_jvm_execution_count,
+                    expected_jvm_execution_count, expected_native_execution_ids,
                 )
+                if "/candidate/" in artifact_file:
+                    summary_blockers.extend(validate_candidate_artifacts(
+                        value, path, artifact_file, expected_native_execution_ids,
+                        expected_native_source_ids, expected_native_catalog_sha256,
+                        expected_upstream_commit,
+                    ))
             except (TypeError, ValueError, KeyError, AttributeError) as error:
                 summary = {"status": "INVALID", "error": str(error)}
                 summary_blockers = [f"{artifact_file}: malformed summary: {error}"]
@@ -580,6 +724,7 @@ def validate_summary(
     value: dict[str, Any], label: str, expected_commit: str | None = None,
     expected_native_execution_count: int | None = None,
     expected_jvm_execution_count: int | None = None,
+    expected_native_execution_ids: set[str] | None = None,
 ) -> list[str]:
     """Reject failed summaries even if a workflow step masked its exit code."""
     problems: list[str] = []
@@ -625,6 +770,49 @@ def validate_summary(
                 problems.append(f"{label}: candidate test-body route does not match its artifact lane")
             if expected_native_execution_count is not None and int(value.get("expected_count", 0)) != expected_native_execution_count:
                 problems.append(f"{label}: candidate execution count does not cover the full Native catalog")
+            selection = value.get("selection")
+            if not isinstance(selection, dict):
+                problems.append(f"{label}: candidate selection manifest is missing from the summary")
+            else:
+                if selection.get("selection_mode") != "full-target-catalog":
+                    problems.append(f"{label}: candidate selection mode is {selection.get('selection_mode')!r}; expected full-target-catalog")
+                full_count = selection.get("target_catalog_execution_count")
+                selected_count = selection.get("selected_execution_count")
+                selected_ids = selection.get("selected_execution_ids")
+                if expected_native_execution_count is not None and full_count != expected_native_execution_count:
+                    problems.append(f"{label}: selection full-catalog count differs from the Native catalog")
+                if selected_count != value.get("expected_count"):
+                    problems.append(f"{label}: selection count differs from expected execution count")
+                if not isinstance(selected_ids, list) or len(selected_ids) != len(set(selected_ids)):
+                    problems.append(f"{label}: selected execution IDs are missing or duplicated")
+                else:
+                    if len(selected_ids) != selected_count:
+                        problems.append(f"{label}: selected execution ID count differs from its manifest")
+                    if expected_native_execution_ids is not None and set(selected_ids) != expected_native_execution_ids:
+                        problems.append(f"{label}: selected execution IDs do not cover the full Native catalog")
+                if selection.get("covers_full_catalog") is not True:
+                    problems.append(f"{label}: candidate selection is not marked as full-catalog coverage")
+                if selection.get("requested_source_function_ids") or selection.get("requested_execution_ids"):
+                    problems.append(f"{label}: full-catalog run contains an explicit ID selection")
+                input_hashes = selection.get("input_hashes")
+                if not isinstance(input_hashes, dict):
+                    problems.append(f"{label}: candidate input hashes are missing from the selection manifest")
+                else:
+                    for key in ("compiler_sha256", "runtime_sources_sha256", "catalog_sha256",
+                                "runner_sha256", "driver_sha256"):
+                        digest = input_hashes.get(key)
+                        if (not isinstance(digest, str) or len(digest) != 64
+                                or any(character not in "0123456789abcdef" for character in digest)):
+                            problems.append(f"{label}: candidate selection input hash {key} is missing or malformed")
+                    recorded_workspace_sha = input_hashes.get("workspace_git_sha")
+                    if expected_commit and recorded_workspace_sha != expected_commit:
+                        problems.append(f"{label}: selection workspace SHA does not match the workflow commit")
+                if expected_commit and value.get("workspace_git_sha") != expected_commit:
+                    problems.append(f"{label}: candidate workspace SHA does not match the workflow commit")
+            manifest_hash = value.get("selection_manifest_sha256")
+            if (not isinstance(manifest_hash, str) or len(manifest_hash) != 64
+                    or any(character not in "0123456789abcdef" for character in manifest_hash)):
+                problems.append(f"{label}: candidate selection manifest hash is missing or malformed")
 
     if value.get("kind") == "kotlinx-io-diff-matrix":
         expected_cases = int(value.get("expected_case_count", 0))
