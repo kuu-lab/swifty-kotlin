@@ -549,6 +549,47 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testBuildKIRInfersUIntElementsForSmallUnsignedRanges() throws {
+        let source = """
+        fun iterateUByteRange() {
+            for (kuu2302UByteValue in 3.toUByte()..5.toUByte()) println(kuu2302UByteValue)
+        }
+
+        fun iterateUShortRange() {
+            for (kuu2302UShortValue in 3.toUShort()..5.toUShort()) println(kuu2302UShortValue)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let loopIDsByName = Dictionary(uniqueKeysWithValues: ast.arena.exprs.enumerated().compactMap { (index, expr) -> (String, ExprID)? in
+            guard case let .forExpr(loopVariable?, _, _, _, _) = expr else { return nil }
+            let name = ctx.interner.resolve(loopVariable)
+            guard ["kuu2302UByteValue", "kuu2302UShortValue"].contains(name) else { return nil }
+            return (name, ExprID(rawValue: Int32(index)))
+        })
+
+        for loopVariable in ["kuu2302UByteValue", "kuu2302UShortValue"] {
+            let loopID = try #require(loopIDsByName[loopVariable])
+            let loopSymbol = try #require(sema.bindings.identifierSymbol(for: loopID))
+            let elementType = try #require(sema.symbols.propertyType(for: loopSymbol))
+            #expect(elementType == sema.types.uintType,
+                    "\(loopVariable): expected UInt loop element, got: \(sema.types.displayName(of: elementType, symbols: sema.symbols, interner: ctx.interner))")
+        }
+
+        for functionName in ["iterateUByteRange", "iterateUShortRange"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(!callees.contains(runtimeCallee(.rangeIterator)),
+                    "\(functionName): small unsigned ranges must not use the signed range iterator, got: \(callees)")
+        }
+    }
+
     // KSP-996 review regression: generic iterator bridges have a trailing
     // outThrown ABI channel, so their KIR calls must be marked throwing.
     @Test
