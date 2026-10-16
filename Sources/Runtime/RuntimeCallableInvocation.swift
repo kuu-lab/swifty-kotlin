@@ -153,7 +153,7 @@ public func __kk_callable_ref_set_identity(_ callable: Int, _ targetRaw: Int, _ 
         return
     }
     runtimeStorage.withDelegateLock { state in
-        guard var metadata = state.callableRefMetadataByValue[callable], metadata.kind == .function else { return }
+        guard var metadata = state.callableRefMetadataByValue[callable] else { return }
         metadata.identityTargetRaw = targetRaw
         metadata.identityCaptures = captures
         state.callableRefMetadataByValue[callable] = metadata
