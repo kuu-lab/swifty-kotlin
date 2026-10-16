@@ -1668,6 +1668,25 @@ final class ExprTypeChecker {
             return candidates
         }
 
+        // A member extension operator's dispatch receiver comes from the
+        // implicit-receiver tower, not from the expression's operand. Search
+        // that member scope before package-scope extensions so an inherited
+        // interface operator keeps the same priority as an ordinary member
+        // extension call.
+        if names.count == 1,
+           let name = names.first,
+           ["unaryPlus", "unaryMinus"].contains(interner.resolve(name))
+        {
+            let memberExtensionCandidates = collectImplicitReceiverMemberExtensionOperatorCandidates(
+                named: name,
+                receiverType: receiverType,
+                ctx: ctx
+            )
+            if !memberExtensionCandidates.isEmpty {
+                return memberExtensionCandidates
+            }
+        }
+
         for name in names {
             // Name lookup must advance past a scope whose extensions have
             // unrelated receivers, while retaining the nearest matching tier.
@@ -1745,6 +1764,46 @@ final class ExprTypeChecker {
         return candidates
     }
 
+    private func collectImplicitReceiverMemberExtensionOperatorCandidates(
+        named name: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        guard receiverType != sema.types.errorType else { return [] }
+
+        for dispatchReceiver in ctx.implicitReceiverMemberLookupEntries() {
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: name,
+                receiverType: dispatchReceiver.type,
+                sema: sema,
+                interner: ctx.interner
+            )
+            let eligible = members.filter { candidate in
+                guard !ctx.isCandidateBlockedByDslMarker(candidate),
+                      let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                      let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+                else {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: receiverType,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            let visible = ctx.filterByVisibility(eligible).visible
+            if !visible.isEmpty {
+                return visible
+            }
+        }
+
+        return []
+    }
+
     private func inferUnaryOperatorExpr(
         _ id: ExprID,
         op: UnaryOp,
@@ -1771,7 +1830,8 @@ final class ExprTypeChecker {
                 call: CallExpr(
                     range: range,
                     calleeName: operatorNames[0],
-                    args: []
+                    args: [],
+                    dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                 ),
                 expectedType: expectedType,
                 implicitReceiverType: operandType,
@@ -1797,6 +1857,19 @@ final class ExprTypeChecker {
                 resolved: resolved,
                 sema: sema
             )
+            if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
+                let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
+                    driver.helpers.allNominalSymbols(
+                        of: entry.type,
+                        types: sema.types,
+                        symbols: sema.symbols
+                    ).contains(dispatchOwner)
+                }
+                sema.bindings.markImplicitReceiverMember(id, name: operatorNames[0])
+                if let symbol = dispatchReceiver?.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: symbol)
+                }
+            }
             sema.bindings.bindExprType(id, type: returnType)
             return returnType
         }
