@@ -202,6 +202,32 @@ TEST_HINTS = {
     "FileSystemApple.kt": ["core/common/test/files/SmokeFileTest.kt"],
 }
 
+# These generated JVM bridge rows are tracked separately from the public KLIB
+# declarations. Keep their source counterpart and direct assertion references
+# explicit so unrelated Sink.write overloads cannot widen the audit scope.
+SINK_WRITE_DEFAULT_BRIDGES = {
+    "jvm-03ad4cbeb43abc13": {
+        "source_row_id": "klib-00fa8d5d9f11e43f",
+        "upstream_tests": ["core/common/test/AbstractSinkTest.kt#writeByteArray"],
+        "local_implementation_refs": (
+            "Sources/CompilerCore/Stdlib/kotlinx/io/Buffer.kt:390;"
+            "Sources/CompilerCore/Stdlib/kotlinx/io/RealSink.kt:29"
+        ),
+    },
+    "jvm-ff3de7f8d455d172": {
+        "source_row_id": "klib-b7a1e3746605766a",
+        "upstream_tests": [
+            "core/common/test/AbstractSinkTest.kt#writeByteString",
+            "core/common/test/AbstractSinkTest.kt#writeByteStringOffset",
+        ],
+        "local_implementation_refs": "Sources/CompilerCore/Stdlib/kotlinx/io/ByteStrings.kt:16",
+    },
+}
+SINK_WRITE_DEFAULT_BRIDGE_LOCAL_TESTS = ";".join((
+    "Scripts/io_api_inventory/f02_consumers/sink_write_default_bridges.kt",
+    "Scripts/io_api_inventory/probe_sink_write_default_bridges.py",
+))
+
 LOCAL_IO_TEST_PREFIXES = (
     "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
@@ -1239,6 +1265,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row["row_id"] in SINK_WRITE_DEFAULT_BRIDGES:
+        return "KUU-2627"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1827,7 +1855,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "",
         "## Owner routing",
         "",
-        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
+        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). The two extracted Sink.write default-bridge rows route to KUU-2627 under KUU-1826; missing declarations stay in scope.",
         "",
         "## JVM ABI classification",
         "",
@@ -1935,6 +1963,43 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
             test_path = test_ref.split("#", 1)[0]
             if test_path not in tests:
                 fail(f"unlocked upstream test reference: {test_path}")
+
+    rows_by_id = {row["row_id"]: row for row in api_rows}
+    for row_id, bridge in SINK_WRITE_DEFAULT_BRIDGES.items():
+        row = rows_by_id.get(row_id)
+        source_row = rows_by_id.get(bridge["source_row_id"])
+        if row is None or source_row is None:
+            fail(f"missing dedicated Sink.write bridge/source row: {row_id}")
+        for field in (
+            "default_parameter_count",
+            "annotations",
+            "deprecation",
+            "exception_contract",
+            "upstream_source_refs",
+        ):
+            row[field] = source_row[field]
+        row["local_candidate_refs"] = source_row["local_candidate_refs"]
+        row["local_implementation_refs"] = bridge["local_implementation_refs"]
+        row["local_contract_differences"] = (
+            "KSwiftK source counterpart carries the pinned declaration defaults; "
+            "this Native source/KLIB mapping does not assert a KSwiftK JVM classfile"
+        )
+        row["owner_issue"] = "KUU-2627"
+        row["upstream_test_refs"] = ";".join(bridge["upstream_tests"])
+        row["local_test_refs"] = SINK_WRITE_DEFAULT_BRIDGE_LOCAL_TESTS
+        row["notes"] += (
+            "; mapped to source row %s for Native default dispatch; the physical JVM "
+            "bridge is checked against the pinned reference artifact" % bridge["source_row_id"]
+        )
+        if row_id == "jvm-ff3de7f8d455d172":
+            row["notes"] += "; @OptIn on the extension body does not require caller opt-in"
+        for test_ref in row["upstream_test_refs"].split(";"):
+            test_path = test_ref.split("#", 1)[0]
+            if test_path not in tests:
+                fail(f"unlocked direct upstream test reference: {test_path}")
+        for local_ref in row["local_test_refs"].split(";"):
+            if not (REPO / local_ref).is_file():
+                fail(f"missing direct local probe reference: {local_ref}")
 
     for row in api_rows:
         row["_inventory_status"] = row["status"]

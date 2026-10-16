@@ -102,7 +102,10 @@ def scenarios() -> list[dict]:
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
-              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
+              "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"},
+             {"id": "sink-write-default-bridges",
+              "fixture": HERE / "f02_consumers/sink_write_default_bridges.kt",
+              "reference": "jvm"}]
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
@@ -296,6 +299,7 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
             "stdlib_files_sha256": stdlib_before, "producer_files_sha256": artifact_before,
             "inputs_sha256": inputs_before, "executable_sha256": sha(binary), "stdout_sha256": sha(directory / "run.stdout"),
             "normalized_stdout_sha256": hashlib.sha256(observed).hexdigest(),
+            "compile_exit_code": 0, "run_exit_code": 0,
             "reference_kind": case["reference"], "compiler_processes_separated": route == "producer-consumer"}
 
 
@@ -323,7 +327,8 @@ def main(argv: list[str] | None = None) -> int:
         selected = [case for case in selected if case["id"] in args.case]
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
-               "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "subset": bool(args.case), "issue_complete": False, "results": [], "reference_results": {},
+               "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
@@ -407,6 +412,19 @@ def main(argv: list[str] | None = None) -> int:
                 reject_unhandled_events(expected)
                 if (directory / "reference-run.stderr").read_bytes(): raise RuntimeError("reference runtime stderr")
                 if case.get("ledger"): check_ledger_events(expected, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
+                summary["reference_results"][case["id"]] = {
+                    "status": "PASS",
+                    "reference_kind": case["reference"],
+                    "compile_execution_id": f"{case['id']}/reference-compile",
+                    "run_execution_id": f"{case['id']}/reference-run",
+                    "compile_exit_code": 0,
+                    "run_exit_code": 0,
+                    "jar_sha256": sha(jar),
+                    "stdout_sha256": sha(directory / "reference-run.stdout"),
+                    "normalized_stdout_sha256": hashlib.sha256(expected).hexdigest(),
+                    "stderr_sha256": sha(directory / "reference-run.stderr"),
+                }
+                save(output / "summary.json", summary)
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
@@ -444,6 +462,8 @@ def main(argv: list[str] | None = None) -> int:
         summary["runtime_object_sha256"] = {str(path.relative_to(ROOT)): sha(path)
             for path in sorted((ROOT / ".runtime-build").rglob("*.o")) if path.is_file()}
         failures = [result for result in summary["results"] if result["status"] != "PASS"]
+        summary["lane_result_count"] = len(summary["results"])
+        summary["passing_lane_count"] = len(summary["results"]) - len(failures)
         summary["status"] = "FAILED_OR_INCOMPLETE" if failures else "SELECTED_MATRIX_PASS"
         if failures: summary["error"] = f"{len(failures)} selected lanes failed; raw evidence retained"
     except Exception as error:

@@ -30,6 +30,28 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_sink_write_default_bridge_fixture_is_a_dedicated_jvm_referenced_case(self):
+        cases = {case["id"]: case for case in matrix.scenarios()}
+        case = cases["sink-write-default-bridges"]
+        self.assertEqual(case["reference"], "jvm")
+        self.assertEqual(case["fixture"].name, "sink_write_default_bridges.kt")
+        fixture = case["fixture"].read_text()
+        self.assertNotIn("@file:OptIn", fixture)
+        self.assertIn("val arrayDefaultSink: Sink", fixture)
+        self.assertIn("arrayDefaultSink.write(array)", fixture)
+        self.assertIn("arrayStartSink.write(array, 1)", fixture)
+        self.assertIn("byteStringDefaultSink.write(byteString)", fixture)
+        self.assertIn("byteStringStartSink.write(byteString, 1)", fixture)
+        self.assertIn("import kotlinx.io.readByteArray", fixture)
+        self.assertIn('check(actual == expected)', fixture)
+        self.assertIn('"IllegalStateException"', fixture)
+        self.assertIn('"IOException"', fixture)
+        self.assertIn('attemptArrayDefault("bytearray-closed-sink"', fixture)
+        self.assertIn('attemptByteStringDefault("bytestring-closed-sink"', fixture)
+        self.assertIn('attemptArrayDefault("bytearray-io-failure"', fixture)
+        self.assertIn('attemptByteStringDefault("bytestring-io-failure"', fixture)
+        self.assertNotIn("block: () -> Unit", fixture)
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

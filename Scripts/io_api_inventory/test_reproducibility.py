@@ -2,6 +2,8 @@
 """Check that the ledger survives relocation and filesystem creation order."""
 
 import importlib.util
+import hashlib
+import json
 import shutil
 import tempfile
 import unittest
@@ -144,6 +146,118 @@ class ReproducibilityTests(unittest.TestCase):
         for row in self.rows:
             if "/ KLIB dump" in row["representation"] or "_source_key" in row:
                 self.assertNotIn("unmapped", row["upstream_source_refs"], row["_api_id"])
+
+    def test_sink_write_default_bridges_have_exact_source_and_direct_probe_refs(self):
+        expected = {
+            "jvm-03ad4cbeb43abc13": {
+                "upstream_tests": ["core/common/test/AbstractSinkTest.kt#writeByteArray"],
+                "source": "core/common/src/Sink.kt:88",
+                "owner": "kotlinx/io/Sink",
+            },
+            "jvm-ff3de7f8d455d172": {
+                "upstream_tests": [
+                    "core/common/test/AbstractSinkTest.kt#writeByteString",
+                    "core/common/test/AbstractSinkTest.kt#writeByteStringOffset",
+                ],
+                "source": "core/common/src/ByteStrings.kt:31",
+                "owner": "kotlinx/io/ByteStringsKt",
+            },
+        }
+        dedicated_tests = self.generator.SINK_WRITE_DEFAULT_BRIDGE_LOCAL_TESTS.split(";")
+        for row_id, facts in expected.items():
+            row = next(row for row in self.rows if row["row_id"] == row_id)
+            self.assertEqual(row["owner_issue"], "KUU-2627")
+            self.assertEqual(row["owner_fqn"], facts["owner"])
+            self.assertEqual(row["default_parameter_count"], "2")
+            self.assertEqual(row["upstream_source_refs"], facts["source"])
+            self.assertEqual(row["upstream_test_refs"].split(";"), facts["upstream_tests"])
+            self.assertEqual(row["local_test_refs"].split(";"), dedicated_tests)
+            self.assertEqual(row["status"], "unverified")
+            self.assertIn("does not assert a KSwiftK JVM classfile", row["local_contract_differences"])
+            self.assertTrue(row["local_candidate_refs"].startswith("Sources/CompilerCore/Stdlib/kotlinx/io/"))
+
+        byte_string = next(row for row in self.rows if row["row_id"] == "jvm-ff3de7f8d455d172")
+        self.assertIn("OptIn", byte_string["annotations"])
+        self.assertIn("IndexOutOfBoundsException", byte_string["exception_contract"])
+        self.assertIn("IllegalArgumentException", byte_string["exception_contract"])
+        byte_array = next(row for row in self.rows if row["row_id"] == "jvm-03ad4cbeb43abc13")
+        self.assertIn("IndexOutOfBoundsException", byte_array["exception_contract"])
+        self.assertIn("IllegalArgumentException", byte_array["exception_contract"])
+
+    def test_sink_write_default_attempt_is_current_and_cannot_promote_rows(self):
+        report_path = HERE / "probe-results/kuu-2627-sink-write-default-bridges.json"
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["issue_id"], "KUU-2627")
+        self.assertEqual(report["evidence_kind"], "non-promoting-attempt")
+        self.assertEqual(report["status"], "BLOCKED_UNVERIFIED")
+        self.assertEqual(report["candidate"]["commit"], "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7")
+        self.assertEqual(report["reference"]["tag"], self.lock["tag"])
+        self.assertEqual(report["reference"]["commit"], self.lock["commit"])
+
+        by_id = {row["row_id"]: row for row in self.rows}
+        report_rows = {row["row_id"]: row for row in report["rows"]}
+        self.assertEqual(set(report_rows), {"jvm-03ad4cbeb43abc13", "jvm-ff3de7f8d455d172"})
+        for row_id, attempt in report_rows.items():
+            row = by_id[row_id]
+            self.assertEqual(row["status"], "unverified")
+            self.assertEqual(attempt["status"], "unverified")
+            self.assertEqual(attempt["compatibility_obligations"], ["jvm-descriptor"])
+            self.assertEqual(
+                {key: attempt[key] for key in ("implementation_input_sha256", "test_input_sha256")},
+                self.generator.validation_input_hashes(row),
+            )
+
+        abi = report["jvm_abi_probe"]
+        self.assertEqual(abi["checked_method_count"], 2)
+        self.assertIn("NOT_APPLICABLE", abi["candidate_jvm_classfile"])
+        for result in abi["rows"]:
+            self.assertEqual(result["result"], "PASS")
+            self.assertEqual(result["access_flags"], ["ACC_PUBLIC", "ACC_STATIC", "ACC_SYNTHETIC"])
+            self.assertFalse(result["bridge"])
+            self.assertEqual(result["default_mask_bits"], {"startIndex": 2, "endIndex": 4})
+            self.assertEqual(result["marker_parameter_slot"], 5)
+
+        reference = report["reference"]["consumer"]
+        self.assertEqual(reference["result"], "PASS")
+        self.assertEqual(reference["compile_exit_code"], 0)
+        self.assertEqual(reference["run_exit_code"], 0)
+        self.assertEqual(
+            hashlib.sha256(reference["stdout"].encode("utf-8")).hexdigest(),
+            reference["stdout_sha256"],
+        )
+
+        matrix = report["candidate_behavior_matrix"]
+        self.assertEqual(matrix["case_id"], "sink-write-default-bridges")
+        self.assertEqual(
+            hashlib.sha256((HERE / "f02_consumers/sink_write_default_bridges.kt").read_bytes()).hexdigest(),
+            matrix["fixture_sha256"],
+        )
+        self.assertEqual(
+            hashlib.sha256((REPO / matrix["harness"]).read_bytes()).hexdigest(),
+            matrix["harness_sha256"],
+        )
+        expected_lanes = {
+            "source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2",
+            "producer-consumer-O0", "producer-consumer-O2",
+        }
+        self.assertEqual(matrix["lane_count"], 6)
+        self.assertEqual(matrix["passing_lane_count"], 0)
+        self.assertEqual({lane["lane"] for lane in matrix["results"]}, expected_lanes)
+        failure_stderr_sha = hashlib.sha256(matrix["shared_failure_stderr"].encode("utf-8")).hexdigest()
+        for lane in matrix["results"]:
+            self.assertEqual(lane["result"], "FAIL")
+            self.assertEqual(lane["compile_exit_code"], 0)
+            self.assertEqual(lane["run_exit_code"], -5)
+            self.assertEqual(lane["run_signal"], "SIGTRAP")
+            self.assertEqual(hashlib.sha256(lane["stdout"].encode("utf-8")).hexdigest(), lane["stdout_sha256"])
+            self.assertEqual(lane["stderr_sha256"], failure_stderr_sha)
+            self.assertEqual(lane["diagnostic"],
+                             "KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed")
+        self.assertEqual(report["blocker"]["issue_id"], "KUU-2652")
+
+        evidence = json.loads((HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        self.assertFalse({row["row_id"] for row in evidence["records"]} & set(report_rows))
 
     def test_constructor_implementations_include_initializers_and_delegation(self):
         for name in ("ByteString", "ByteStringBuilder", "FileMetadata"):
