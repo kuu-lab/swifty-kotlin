@@ -36,7 +36,6 @@ struct ConstantCollector {
             // Mutable (var) properties must never be constant-folded because
             // their value can change at runtime via assignment.
             if property.isVar { return }
-            // Prioritize const val values stored during sema (compile-time constants)
             if let constKind = sema.symbols.constValueExprKind(for: symbol) {
                 mapping[symbol] = constKind
                 if let propertySymbol = sema.symbols.symbol(symbol) {
@@ -229,8 +228,6 @@ struct ConstantCollector {
         }
     }
 
-    /// Handle binary expressions on literal operands: `1024 * 1024`,
-    /// `Long.MIN_VALUE / 10L` (via a resolved literal), `"a" + "b"`.
     private func literalConstantBinaryExpr(
         op: BinaryOp, lhs: ExprID, rhs: ExprID, ast: ASTModule, interner: StringInterner?
     ) -> KIRExprKind? {
@@ -355,9 +352,6 @@ struct ConstantCollector {
         return result.map { width == 32 ? Int64(Int32(truncatingIfNeeded: $0)) : $0 }
     }
 
-    /// Handle the handful of no-argument member calls that appear in
-    /// constant-like initializers translated from JVM stdlib sources:
-    /// `'\r'.code`, `<int>.toByte()`, `<int>.toInt()`, `<int>.toLong()`.
     /// `.code` is parsed as a property read elsewhere; it only reaches here
     /// when written as a zero-arg call in some source shapes, so both are
     /// covered by the same `calleeName` dispatch.
@@ -540,9 +534,6 @@ struct ConstantCollector {
             || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
     }
 
-    /// `Any?.toString()` text of a folded constant for string concatenation:
-    /// the same formatting Kotlin applies when a constant `+` operand is not
-    /// itself a String.
     private func stringConcatOperandText(
         of constant: KIRExprKind,
         interner: StringInterner
@@ -684,7 +675,6 @@ struct ConstantCollector {
         return "\(sign)\(firstDigit).\(mantissaFraction)E\(exponent)"
     }
 
-    /// Handle unary prefix expressions applied to literal operands, e.g. `-100` or `+42`.
     private func literalConstantUnaryExpr(
         op: UnaryOp, operand: ExprID, ast: ASTModule, interner: StringInterner?
     ) -> KIRExprKind? {
