@@ -23,6 +23,8 @@ struct ExtensionMemberAliasLayoutTests {
     @KsSymbolName("\(interfaceProbeLink)")
     internal external fun CharSequence.\(interfaceProbeLink)(): Int
 
+    internal fun CharSequence.__kk_kuu545_source_extension_probe(): Int = 0
+
     @KsSymbolName("\(classProbeLink)")
     internal external fun StringBuilder.\(classProbeLink)(): Int
     """
@@ -71,6 +73,14 @@ struct ExtensionMemberAliasLayoutTests {
         let aliasInfo = try #require(sema.symbols.symbol(aliasSymbol))
         #expect(aliasInfo.flags.contains(.extensionMemberAlias))
         #expect(sema.symbols.externalLinkName(for: aliasSymbol) == Self.interfaceProbeLink)
+
+        // Source-backed top-level extensions are also parented by their
+        // receiver for lookup, but they remain statically dispatched.
+        let sourceExtension = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("text"),
+            interner.intern("__kk_kuu545_source_extension_probe"),
+        ]))
+        #expect(sema.symbols.parentSymbol(for: sourceExtension) == charSequenceSymbol)
 
         // But it owns no vtable slot: CharSequence's method space is exactly
         // get@0/subSequence@1, and the `length` property getter stays at

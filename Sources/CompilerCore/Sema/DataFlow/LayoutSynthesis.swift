@@ -652,7 +652,17 @@ extension DataFlowSemaPhase {
     /// members of an expect class and platform-only actual members stay attached
     /// to the declaration that contains them.
     private static func ownMembers(of nominalSymbol: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
-        let members = symbols.children(of: nominalSymbol.id).compactMap { symbols.symbol($0) }
+        let members = symbols.children(of: nominalSymbol.id).compactMap { childID -> SemanticSymbol? in
+            guard let child = symbols.symbol(childID),
+                  Array(child.fqName.dropLast()) == nominalSymbol.fqName
+            else {
+                // Top-level extensions are also parented by their receiver
+                // nominal for member lookup, but their package FQName does not
+                // make them declarations of that nominal's dispatch layout.
+                return nil
+            }
+            return child
+        }
         let expectsActualCounterpart = nominalSymbol.flags.contains(.expectDeclaration)
             ? SymbolFlags.actualDeclaration
             : SymbolFlags.expectDeclaration
