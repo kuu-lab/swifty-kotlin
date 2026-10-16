@@ -248,6 +248,44 @@ struct BundledDeclarationIndexTests {
     }
 
     @Test
+    func fullSemaSkipsSyntheticHandleCoroutineExceptionWhenBundledSourceExists() throws {
+        let ctx = makeContextFromSource(
+            """
+            import kotlinx.coroutines.CoroutineContext
+            import kotlinx.coroutines.handleCoroutineException
+
+            fun useBundledHandleCoroutineException(context: CoroutineContext, exception: Throwable) {
+                handleCoroutineException(context, exception)
+            }
+            """,
+            allowDefaultStdlibLibrary: false
+        )
+        try runSema(ctx)
+
+        let duplicateStubDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0102" && $0.message.contains("handleCoroutineException")
+        }
+        #expect(
+            duplicateStubDiagnostics.isEmpty,
+            "Expected the bundled handleCoroutineException declaration to suppress its synthetic stub"
+        )
+
+        let sema = try #require(ctx.sema)
+        let coroutinesPackage = intern(["kotlinx", "coroutines"], ctx.interner)
+        let declarations = matchingFunctions(
+            owner: coroutinesPackage,
+            name: ctx.interner.intern("handleCoroutineException"),
+            arity: 2,
+            sema: sema
+        )
+        #expect(!declarations.isEmpty, "Expected the bundled handleCoroutineException declaration")
+        #expect(
+            declarations.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.synthetic) != true },
+            "Expected no synthetic handleCoroutineException declaration alongside bundled source"
+        )
+    }
+
+    @Test
     func syntheticBundledOverlapDiagnosticWarnsForGuardLeaks() throws {
         let (ast, ctx) = try buildBundledAST(
             """
