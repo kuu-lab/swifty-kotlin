@@ -23,7 +23,8 @@ fun main() {
     restoringSegment.limit = 4
     check(restoringSegment.limit == 4)
     check(restoringBuffer.size == 4L)
-    val bytes = restoringBuffer.readByteArray()
+    val bytes = ByteArray(4)
+    check(restoringBuffer.readAtMostTo(bytes, 0, bytes.size) == bytes.size)
     check(bytes.joinToString(",") == "17,34,51,68")
     println("limit-restore=${restoringSegment.limit}:${restoringBuffer.size}")
     println("limit-bytes=${bytes.joinToString(",")}")
