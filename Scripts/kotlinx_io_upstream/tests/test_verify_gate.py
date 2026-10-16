@@ -226,6 +226,69 @@ class VerifyGateTests(unittest.TestCase):
         )
         self.assertTrue(any("full Native catalog" in problem for problem in problems))
 
+    def test_candidate_matrix_rejects_a_selected_manifest_with_missing_execution_ids(self):
+        selection = {
+            "selection_mode": "explicit-ids", "target_catalog_execution_count": 4,
+            "selected_execution_count": 3, "requested_source_function_ids": ["source#one"],
+            "requested_execution_ids": [],
+            "selected_execution_ids": ["native.one", "native.two", "native.three"],
+            "input_hashes": {
+                "workspace_git_sha": "abc123", "compiler_sha256": "a" * 64,
+                "runtime_sources_sha256": "b" * 64, "catalog_sha256": "c" * 64,
+                "runner_sha256": "d" * 64, "driver_sha256": "e" * 64,
+            },
+        }
+        summary = {
+            "status": "PASS", "optimization": "O2", "stdlib_mode": "library",
+            "test_body_mode": "source", "workspace_git_sha": "abc123",
+            "expected_count": 3, "counts": {"PASS": 3}, "selection": selection,
+            "selection_manifest_sha256": "f" * 64,
+        }
+        problems = verify_gate.validate_summary(
+            summary, "artifact/candidate/stdlib-library-O2/summary.json", "abc123", 4,
+            expected_native_execution_ids={"native.one", "native.two", "native.three", "native.four"},
+        )
+        self.assertTrue(any("selection mode" in problem for problem in problems))
+        self.assertTrue(any("candidate execution count" in problem for problem in problems))
+        self.assertTrue(any("selected execution IDs do not cover" in problem for problem in problems))
+
+    def test_candidate_artifacts_reject_partial_results_and_a_different_locked_catalog(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            summary_path = Path(temporary) / "summary.json"
+            selected_ids = ["native.One.read", "native.Two.read"]
+            selection = {
+                "schema_version": 1, "selection_mode": "full-target-catalog", "target": "macos",
+                "upstream_commit": "pinned", "catalog_sha256": "a" * 64,
+                "catalog_execution_count": 2, "target_catalog_execution_count": 2,
+                "covers_full_catalog": True, "selected_execution_count": 2,
+                "requested_source_function_ids": [], "requested_execution_ids": [],
+                "selected_execution_ids": selected_ids,
+                "selected_source_function_ids": ["core/common/test/One.kt#read"],
+                "input_hashes": {
+                    "workspace_git_sha": "pinned", "compiler_sha256": "a" * 64,
+                    "runtime_sources_sha256": "b" * 64, "catalog_sha256": "b" * 64,
+                    "runner_sha256": "d" * 64, "driver_sha256": "e" * 64,
+                },
+            }
+            manifest_path = summary_path.with_name("selection.json")
+            write_json(manifest_path, selection)
+            write_json(summary_path.with_name("results.json"), [
+                {"execution_id": selected_ids[0], "status": "PASS"},
+            ])
+            summary = {
+                "selection": selection,
+                "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                "inputs": {**selection["input_hashes"],
+                           "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest()},
+            }
+            problems = verify_gate.validate_candidate_artifacts(
+                summary, summary_path, "candidate/source-O0/summary.json",
+                set(selected_ids), {"core/common/test/One.kt#read"}, "c" * 64, "pinned",
+            )
+            self.assertTrue(any("candidate Native catalog hash" in problem for problem in problems))
+            self.assertTrue(any("candidate input Native catalog hash" in problem for problem in problems))
+            self.assertTrue(any("result IDs differ" in problem for problem in problems))
+
     def test_finalizer_rejects_receipts_from_another_workflow_attempt(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -263,14 +326,19 @@ class VerifyGateTests(unittest.TestCase):
 
             api_artifact = evidence / "kotlinx-io-gate-api-42-1"
             write_json(api_artifact / "api-gate-summary.json", {
-                "status": "PASS", "commit": "abc123", "api": {"row_count": 1},
+                "status": "PASS", "commit": "abc123", "upstream_commit": "abc123",
+                "api": {"row_count": 1},
                 "upstream_tests": {
                     "coverage_case_count": 1,
                     "jvm_concrete_execution_count": 1,
                     "native_concrete_execution_count": 1,
+                    "native_source_function_count": 1,
+                    "native_execution_catalog_sha256": "c" * 64,
                 },
             })
             write_json(api_artifact / "api-coverage-mapping.json", {
+                "upstream_commit": "abc123",
+                "execution_catalog_sha256": {"native": "c" * 64},
                 "api_rows": [{}],
                 "upstream_test_cases": [{"upstream_id": "core/common/test/One.kt#read"}],
                 "execution_coverage": [{
@@ -292,11 +360,34 @@ class VerifyGateTests(unittest.TestCase):
             for route in ("source", "stdlib-library", "producer-consumer"):
                 for optimization in ("O0", "O2"):
                     lane = f"{route}-{optimization}"
-                    write_json(evidence / f"kotlinx-io-gate-candidate-{lane}-42-1/candidate/{lane}/summary.json", {
+                    summary_path = evidence / f"kotlinx-io-gate-candidate-{lane}-42-1/candidate/{lane}/summary.json"
+                    selection = {
+                        "schema_version": 1, "selection_mode": "full-target-catalog", "target": "macos",
+                        "upstream_commit": "abc123", "catalog_sha256": "c" * 64,
+                        "catalog_execution_count": 1, "target_catalog_execution_count": 1,
+                        "covers_full_catalog": True, "selected_execution_count": 1,
+                        "requested_source_function_ids": [], "requested_execution_ids": [],
+                        "selected_execution_ids": ["native.One.read"],
+                        "selected_source_function_ids": ["core/common/test/One.kt#read"],
+                        "input_hashes": {
+                            "workspace_git_sha": "abc123", "compiler_sha256": "a" * 64,
+                            "runtime_sources_sha256": "b" * 64, "catalog_sha256": "c" * 64,
+                            "runner_sha256": "d" * 64, "driver_sha256": "e" * 64,
+                        },
+                    }
+                    manifest_path = summary_path.with_name("selection.json")
+                    write_json(manifest_path, selection)
+                    write_json(summary_path.with_name("results.json"), [
+                        {"execution_id": "native.One.read", "status": "PASS"},
+                    ])
+                    write_json(summary_path, {
                         "status": "PASS", "workspace_git_sha": "abc123", "optimization": optimization,
                         "stdlib_mode": "source" if route == "source" else "library",
                         "test_body_mode": "library-consumer" if route == "producer-consumer" else "source",
-                        "expected_count": 1, "counts": {"PASS": 1},
+                        "expected_count": 1, "counts": {"PASS": 1}, "selection": selection,
+                        "inputs": {**selection["input_hashes"],
+                                   "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest()},
+                        "selection_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                     })
 
             write_json(evidence / "kotlinx-io-gate-ktor-42-1/ktor/summary.json", {
