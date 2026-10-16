@@ -32,6 +32,46 @@ UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
 CANDIDATE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "native-executions.expected.json"
 EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
+SHAPE_PROBE_ROW_IDS = {
+    "jvm-b7a5748618f52f9c",
+    "klib-4ee0099543291bca",
+}
+SHAPE_PROBE_CANDIDATE_BASE_SHA = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
+SHAPE_PROBE_ID = "kotlinx-io-segment-write-context-interface-shape"
+SHAPE_PROBE_UNVERIFIED_REASON = (
+    "No method-specific upstream test is mapped to either row; this direct shape audit does not promote behavioral status."
+)
+SHAPE_PROBE_INPUTS = {
+    "probe": (
+        "Scripts/kotlinx_io_upstream/unsafe/segment-write-context-shape.expected.json",
+        "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+        "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOSegmentWriteContextShapeTests.swift",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/unsafe/UnsafeBufferOperations.kt",
+        "Sources/CompilerCore/Sema/Models/MetadataSerializer+Encoder.swift",
+        "Scripts/io_api_inventory/source-declarations.json",
+        "Scripts/io_api_inventory/upstream-lock.json",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/test_validation_evidence.py",
+    ),
+    "upstream": (
+        "core/api/kotlinx-io-core.api",
+        "core/api/kotlinx-io-core.klib.api",
+        "core/common/src/unsafe/UnsafeBufferOperations.kt",
+    ),
+}
+SHAPE_PROBE_LANES = {
+    "source-O0": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+    "source-O2": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+    "stdlib-library-O0": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+    "stdlib-library-O2": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+}
+SHAPE_PROBE_LOCAL_TEST_FILES = {
+    "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+    "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+    "Tests/CompilerCoreTests/Sema/KotlinxIOSegmentWriteContextShapeTests.swift",
+}
+SHAPE_PROBE_STDOUT = "SegmentWriteContext declares four direct setUnchecked overloads\n"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 1
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
@@ -401,6 +441,258 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     return False
 
 
+def _sha256_json(value: dict) -> str:
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _shape_probe_inputs(repository: Path, upstream: Path) -> tuple[dict, dict]:
+    probe_inputs = {}
+    for relative in SHAPE_PROBE_INPUTS["probe"]:
+        path = repository / relative
+        if not path.is_file():
+            fail(f"missing SegmentWriteContext probe input: {relative}")
+        probe_inputs[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    upstream_inputs = {}
+    upstream_prefix = upstream.relative_to(repository).as_posix()
+    for relative in SHAPE_PROBE_INPUTS["upstream"]:
+        path = upstream / relative
+        if not path.is_file():
+            fail(f"missing SegmentWriteContext upstream input: {relative}")
+        key = f"{upstream_prefix}/{relative}"
+        upstream_inputs[key] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return probe_inputs, upstream_inputs
+
+
+def _validate_shape_probe_evidence(
+    probes: list[dict],
+    rows_by_id: dict[str, dict],
+    generic_record_ids: set[str],
+    lock: dict,
+    repository: Path,
+    upstream: Path,
+) -> None:
+    if not isinstance(probes, list):
+        fail("shape_probes must be an array")
+    if not probes:
+        return
+    if len(probes) != 1:
+        fail("expected exactly one SegmentWriteContext direct shape probe record")
+
+    probe = probes[0]
+    probe_fields = {
+        "probe_id",
+        "row_ids",
+        "candidate_sha",
+        "candidate_base_sha",
+        "upstream_version",
+        "upstream_commit",
+        "reference",
+        "probe_inputs",
+        "upstream_inputs",
+        "probe_input_sha256",
+        "upstream_input_sha256",
+        "candidate_stdlib_manifest_hash",
+        "candidate_stdlib_tree_sha256",
+        "candidate_stdlib_build_command",
+        "ledger_status_reason",
+        "related_findings",
+        "swift_test",
+        "lanes",
+        "apple_reference",
+    }
+    if not isinstance(probe, dict) or set(probe) != probe_fields:
+        fail("each direct shape probe must contain exactly the schema v2 fields")
+    if probe["probe_id"] != SHAPE_PROBE_ID:
+        fail("unknown direct shape probe ID")
+    if probe["row_ids"] != sorted(SHAPE_PROBE_ROW_IDS):
+        fail("SegmentWriteContext shape probe row IDs do not match the audit scope")
+    if probe["candidate_base_sha"] != SHAPE_PROBE_CANDIDATE_BASE_SHA:
+        fail("SegmentWriteContext shape probe uses a different candidate base SHA")
+    if not isinstance(probe["candidate_sha"], str) or not re.fullmatch(r"[0-9a-f]{40}", probe["candidate_sha"]):
+        fail("malformed tested candidate SHA for SegmentWriteContext shape probe")
+    if probe["ledger_status_reason"] != SHAPE_PROBE_UNVERIFIED_REASON:
+        fail("SegmentWriteContext shape probe must explain why the rows remain unverified")
+    findings = probe["related_findings"]
+    if not isinstance(findings, list) or len(findings) != 1:
+        fail("SegmentWriteContext audit must retain its one duplicate-checked related finding")
+    finding = findings[0]
+    if not isinstance(finding, dict) or set(finding) != {
+        "issue_id", "minimal_reproductions", "observed_failure", "scope"
+    }:
+        fail("SegmentWriteContext related finding is malformed")
+    if (
+        finding["issue_id"] != "KUU-2652"
+        or finding["minimal_reproductions"] != [
+            "fun main() { Buffer().writeByte(1) }",
+            "fun main() { UnsafeBufferOperations.writeToTail(Buffer(), 1) { _, _ -> 0 } }",
+        ]
+        or finding["observed_failure"] != "RuntimeStringArray.swift:18: kk_array_get_inbounds precondition failed"
+        or finding["scope"] != "Buffer writableSegment runtime path; unrelated to SegmentWriteContext overload resolution and tracked by the duplicate issue."
+    ):
+        fail("SegmentWriteContext related finding no longer matches the duplicate-checked reproduction")
+    if (probe["upstream_version"], probe["upstream_commit"]) != (
+        lock.get("tag"), lock.get("commit")
+    ):
+        fail("SegmentWriteContext shape probe uses a different upstream pin")
+
+    catalog_path = repository / "Scripts/io_api_inventory/source-declarations.json"
+    try:
+        source_catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot read Kotlin reference toolchain catalog: {error}")
+    toolchain = source_catalog.get("toolchain", {})
+    reference = probe["reference"]
+    reference_fields = {
+        "kotlin_version",
+        "compiler_jar_sha256",
+        "jvm_artifact_coordinate",
+        "jvm_artifact_sha256",
+        "jvm_api_sha256",
+        "klib_api_sha256",
+    }
+    if not isinstance(reference, dict) or set(reference) != reference_fields:
+        fail("SegmentWriteContext reference metadata is malformed")
+    if reference["kotlin_version"] != "2.3.10" or toolchain.get("kotlinVersion") != "2.3.10":
+        fail("SegmentWriteContext reference compiler must be Kotlin 2.3.10")
+    if reference["compiler_jar_sha256"] != toolchain.get("compilerJarSha256"):
+        fail("SegmentWriteContext Kotlin compiler hash does not match the source catalog")
+    core_artifact = next(
+        (item for item in lock.get("mavenArtifacts", [])
+         if item.get("coordinate") == "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1"),
+        None,
+    )
+    if core_artifact is None or (
+        reference["jvm_artifact_coordinate"], reference["jvm_artifact_sha256"]
+    ) != (core_artifact["coordinate"], core_artifact["sha256"]):
+        fail("SegmentWriteContext JVM reference artifact does not match the locked 0.9.1 JAR")
+
+    expected_probe_inputs, expected_upstream_inputs = _shape_probe_inputs(repository, upstream)
+    if probe["probe_inputs"] != expected_probe_inputs:
+        fail("SegmentWriteContext probe inputs are stale")
+    if probe["upstream_inputs"] != expected_upstream_inputs:
+        fail("SegmentWriteContext upstream inputs are stale")
+    jvm_api_path = f"{upstream.relative_to(repository).as_posix()}/core/api/kotlinx-io-core.api"
+    klib_api_path = f"{upstream.relative_to(repository).as_posix()}/core/api/kotlinx-io-core.klib.api"
+    if (reference["jvm_api_sha256"], reference["klib_api_sha256"]) != (
+        expected_upstream_inputs[jvm_api_path], expected_upstream_inputs[klib_api_path]
+    ):
+        fail("SegmentWriteContext API view hashes do not match the pinned dumps")
+    if probe["probe_input_sha256"] != _sha256_json(expected_probe_inputs):
+        fail("SegmentWriteContext probe input hash is stale")
+    if probe["upstream_input_sha256"] != _sha256_json(expected_upstream_inputs):
+        fail("SegmentWriteContext upstream input hash is stale")
+
+    hex16 = re.compile(r"^[0-9a-f]{16}$")
+    if not isinstance(probe["candidate_stdlib_manifest_hash"], str) or not hex16.fullmatch(
+        probe["candidate_stdlib_manifest_hash"]
+    ):
+        fail("malformed SegmentWriteContext candidate stdlib manifest hash")
+    hex64 = re.compile(r"^[0-9a-f]{64}$")
+    if not isinstance(probe["candidate_stdlib_tree_sha256"], str) or not hex64.fullmatch(
+        probe["candidate_stdlib_tree_sha256"]
+    ):
+        fail("malformed SegmentWriteContext candidate stdlib tree hash")
+    if not isinstance(probe["candidate_stdlib_build_command"], str) or not all(
+        token in probe["candidate_stdlib_build_command"]
+        for token in ("kswiftc", "--stdlib-only", "--emit library")
+    ):
+        fail("SegmentWriteContext fresh KLIB build command is malformed")
+
+    swift_test = probe["swift_test"]
+    if not isinstance(swift_test, dict) or set(swift_test) != {
+        "command", "test_count", "passed", "failed", "summary", "summary_sha256"
+    }:
+        fail("SegmentWriteContext Swift probe result is malformed")
+    if not isinstance(swift_test["command"], str) or "KotlinxIOSegmentWriteContextShapeTests" not in swift_test["command"]:
+        fail("SegmentWriteContext Swift probe command is malformed")
+    if (swift_test["test_count"], swift_test["passed"], swift_test["failed"]) != (4, 4, 0):
+        fail("SegmentWriteContext Swift probe must record all four passing tests")
+    if not isinstance(swift_test["summary"], str) or not isinstance(swift_test["summary_sha256"], str):
+        fail("SegmentWriteContext Swift probe summary is malformed")
+    if hashlib.sha256(swift_test["summary"].encode("utf-8")).hexdigest() != swift_test["summary_sha256"]:
+        fail("SegmentWriteContext Swift probe summary hash does not match")
+
+    apple_reference = probe["apple_reference"]
+    if not isinstance(apple_reference, dict) or set(apple_reference) != {"result", "reason"}:
+        fail("SegmentWriteContext Apple reference result is malformed")
+    if apple_reference["result"] != "NOT_APPLICABLE" or not isinstance(apple_reference["reason"], str) or not apple_reference["reason"].strip():
+        fail("SegmentWriteContext Apple reference must be explicitly not applicable")
+
+    lanes = probe["lanes"]
+    if not isinstance(lanes, list) or len(lanes) != len(SHAPE_PROBE_LANES):
+        fail("SegmentWriteContext shape probe must record source and KLIB O0/O2 lanes")
+    seen_lanes = set()
+    for lane in lanes:
+        lane_fields = {"lane", "case_id", "case_count", "command", "candidate", "reference"}
+        if not isinstance(lane, dict) or set(lane) != lane_fields:
+            fail("SegmentWriteContext lane record is malformed")
+        name = lane["lane"]
+        if not isinstance(name, str) or name not in SHAPE_PROBE_LANES or name in seen_lanes:
+            fail(f"unexpected or duplicate SegmentWriteContext lane: {name!r}")
+        seen_lanes.add(name)
+        if lane["case_id"] != SHAPE_PROBE_LANES[name] or type(lane["case_count"]) is not int or lane["case_count"] != 1:
+            fail(f"SegmentWriteContext lane {name} has the wrong case or count")
+        command = lane["command"]
+        optimization = "-O0" if name.endswith("O0") else "-O2"
+        if not isinstance(command, str) or "Scripts/diff_kotlinc.sh" not in command or optimization not in command:
+            fail(f"SegmentWriteContext lane command is malformed: {name}")
+        if name.startswith("source-") and "--stdlib-library" in command:
+            fail(f"SegmentWriteContext source lane must compile bundled sources directly: {name}")
+        if name.startswith("stdlib-library-") and "--stdlib-library" not in command:
+            fail(f"SegmentWriteContext KLIB lane must name its fresh artifact: {name}")
+        candidate = lane["candidate"]
+        if not isinstance(candidate, dict) or set(candidate) != {
+            "result", "exit_code", "stdout", "stdout_sha256"
+        }:
+            fail(f"SegmentWriteContext candidate result is malformed in {name}")
+        if candidate["result"] != "PASS" or type(candidate["exit_code"]) is not int or candidate["exit_code"] != 0:
+            fail(f"SegmentWriteContext candidate lane did not pass: {name}")
+        if not isinstance(candidate["stdout"], str) or candidate["stdout"] != SHAPE_PROBE_STDOUT or hashlib.sha256(
+            candidate["stdout"].encode("utf-8")
+        ).hexdigest() != candidate["stdout_sha256"]:
+            fail(f"SegmentWriteContext candidate output mismatch in {name}")
+        reference_result = lane["reference"]
+        if name.startswith("source-"):
+            if not isinstance(reference_result, dict) or set(reference_result) != {"result", "reason"}:
+                fail(f"SegmentWriteContext source reference result is malformed in {name}")
+            if (
+                reference_result["result"] != "NOT_APPLICABLE"
+                or not isinstance(reference_result["reason"], str)
+                or not reference_result["reason"].strip()
+            ):
+                fail(f"SegmentWriteContext source reference must be explicitly not applicable in {name}")
+        else:
+            if not isinstance(reference_result, dict) or set(reference_result) != {
+                "result", "exit_code", "stdout", "stdout_sha256"
+            }:
+                fail(f"SegmentWriteContext JVM reference result is malformed in {name}")
+            if reference_result["result"] != "PASS" or type(reference_result["exit_code"]) is not int or reference_result["exit_code"] != 0:
+                fail(f"SegmentWriteContext JVM reference lane did not pass: {name}")
+            if not isinstance(reference_result["stdout"], str) or reference_result["stdout"] != SHAPE_PROBE_STDOUT or hashlib.sha256(
+                reference_result["stdout"].encode("utf-8")
+            ).hexdigest() != reference_result["stdout_sha256"]:
+                fail(f"SegmentWriteContext JVM output mismatch in {name}")
+
+    if seen_lanes != set(SHAPE_PROBE_LANES):
+        fail("SegmentWriteContext shape probe is missing a required lane")
+    target_rows = {row_id: rows_by_id.get(row_id) for row_id in SHAPE_PROBE_ROW_IDS}
+    if any(row is None for row in target_rows.values()):
+        fail("SegmentWriteContext shape probe refers to a missing inventory row")
+    if generic_record_ids.intersection(SHAPE_PROBE_ROW_IDS):
+        fail("direct shape probe cannot be used as generic execution evidence")
+    for row_id, row in target_rows.items():
+        if row["status"] != "unverified":
+            fail("SegmentWriteContext shape evidence must not promote rows without method-specific tests")
+        upstream_refs = row.get("upstream_test_refs", "").split(";")
+        if not upstream_refs or not all(reference.endswith("#suite-reference") for reference in upstream_refs):
+            fail(f"SegmentWriteContext row {row_id} now has method-specific upstream evidence; refresh its probe record")
+        local_refs = set(row.get("local_test_refs", "").split(";"))
+        if not SHAPE_PROBE_LOCAL_TEST_FILES.issubset(local_refs):
+            fail(f"SegmentWriteContext row {row_id} lost its dedicated local shape probes")
+
+
 def apply_validation_evidence(
     rows: list[dict],
     lock: dict,
@@ -431,9 +723,20 @@ def apply_validation_evidence(
     except UnicodeDecodeError as error:
         fail(f"validation evidence is not UTF-8: {error}")
 
-    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
-        fail("validation evidence must contain only schema_version and records")
-    if type(evidence["schema_version"]) is not int or evidence["schema_version"] != VALIDATION_EVIDENCE_SCHEMA_VERSION:
+    if not isinstance(evidence, dict):
+        fail("validation evidence must be a JSON object")
+    schema_version = evidence.get("schema_version")
+    if type(schema_version) is not int:
+        fail("unsupported validation evidence schema_version")
+    if schema_version == VALIDATION_EVIDENCE_SCHEMA_VERSION:
+        if set(evidence) != {"schema_version", "records"}:
+            fail("schema v1 validation evidence must contain only schema_version and records")
+        shape_probes = []
+    elif schema_version == 2:
+        if set(evidence) != {"schema_version", "records", "shape_probes"}:
+            fail("schema v2 validation evidence must contain schema_version, records, and shape_probes")
+        shape_probes = evidence["shape_probes"]
+    else:
         fail("unsupported validation evidence schema_version")
     records = evidence["records"]
     if not isinstance(records, list):
@@ -546,6 +849,8 @@ def apply_validation_evidence(
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
         row["status"] = "verified"
+
+    _validate_shape_probe_evidence(shape_probes, by_id, seen_ids, lock, repository, upstream)
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1526,11 +1831,15 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path in SHAPE_PROBE_LOCAL_TEST_FILES:
+            continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
+    if row["row_id"] in SHAPE_PROBE_ROW_IDS:
+        refs.extend(sorted(SHAPE_PROBE_LOCAL_TEST_FILES))
     return list(dict.fromkeys(refs))
 
 

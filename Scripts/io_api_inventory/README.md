@@ -264,6 +264,13 @@ and reads the evidence file without rewriting it. `--check` verifies upstream
 snapshots, the test index lock, negative guards, evidence, any execution
 catalogs used by evidence, and byte-for-byte output without modifying files.
 
+Schema v2 adds `shape_probes` for direct interface/type-shape audits that have
+no method-specific upstream test case. These records pin both upstream API
+views and the local probe inputs, and retain the successful source and fresh
+KLIB O0/O2 outputs. They remain separate from behavioral `records`, so they do
+not promote inventory rows to `verified`; suite-only references still cannot
+authorize row-level behavioral evidence. Schema v1 records remain supported.
+
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
 ```

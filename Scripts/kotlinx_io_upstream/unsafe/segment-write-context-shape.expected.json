@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "rowIDs": [
+    "jvm-b7a5748618f52f9c",
+    "klib-4ee0099543291bca"
+  ],
+  "apiPaths": {
+    "jvm": "core/api/kotlinx-io-core.api",
+    "klib": "core/api/kotlinx-io-core.klib.api"
+  },
+  "jvmInterfaceBlock": "public abstract interface class kotlinx/io/unsafe/SegmentWriteContext {\n\tpublic abstract fun setUnchecked (Lkotlinx/io/Segment;IB)V\n\tpublic abstract fun setUnchecked (Lkotlinx/io/Segment;IBB)V\n\tpublic abstract fun setUnchecked (Lkotlinx/io/Segment;IBBB)V\n\tpublic abstract fun setUnchecked (Lkotlinx/io/Segment;IBBBB)V\n}",
+  "klibInterfaceBlock": "abstract interface kotlinx.io.unsafe/SegmentWriteContext { // kotlinx.io.unsafe/SegmentWriteContext|null[0]\n    abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte) // kotlinx.io.unsafe/SegmentWriteContext.setUnchecked|setUnchecked(kotlinx.io.Segment;kotlin.Int;kotlin.Byte){}[0]\n    abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte, kotlin/Byte) // kotlinx.io.unsafe/SegmentWriteContext.setUnchecked|setUnchecked(kotlinx.io.Segment;kotlin.Int;kotlin.Byte;kotlin.Byte){}[0]\n    abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte, kotlin/Byte, kotlin/Byte) // kotlinx.io.unsafe/SegmentWriteContext.setUnchecked|setUnchecked(kotlinx.io.Segment;kotlin.Int;kotlin.Byte;kotlin.Byte;kotlin.Byte){}[0]\n    abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte, kotlin/Byte, kotlin/Byte, kotlin/Byte) // kotlinx.io.unsafe/SegmentWriteContext.setUnchecked|setUnchecked(kotlinx.io.Segment;kotlin.Int;kotlin.Byte;kotlin.Byte;kotlin.Byte;kotlin.Byte){}[0]\n}",
+  "interface": {
+    "fqName": "kotlinx.io.unsafe.SegmentWriteContext",
+    "visibility": "public",
+    "annotations": [
+      "kotlinx.io.UnsafeIoApi"
+    ],
+    "superFQNames": [],
+    "members": [
+      {
+        "name": "setUnchecked",
+        "parameterNames": ["segment", "offset", "value"],
+        "parameterTypeSignatures": ["Lkotlinx.io.Segment;", "I", "B"],
+        "returnTypeSignature": "U",
+        "jvmDescriptor": "(Lkotlinx/io/Segment;IB)V",
+        "klibSignature": "abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte)"
+      },
+      {
+        "name": "setUnchecked",
+        "parameterNames": ["segment", "offset", "b0", "b1"],
+        "parameterTypeSignatures": ["Lkotlinx.io.Segment;", "I", "B", "B"],
+        "returnTypeSignature": "U",
+        "jvmDescriptor": "(Lkotlinx/io/Segment;IBB)V",
+        "klibSignature": "abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte, kotlin/Byte)"
+      },
+      {
+        "name": "setUnchecked",
+        "parameterNames": ["segment", "offset", "b0", "b1", "b2"],
+        "parameterTypeSignatures": ["Lkotlinx.io.Segment;", "I", "B", "B", "B"],
+        "returnTypeSignature": "U",
+        "jvmDescriptor": "(Lkotlinx/io/Segment;IBBB)V",
+        "klibSignature": "abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte, kotlin/Byte, kotlin/Byte)"
+      },
+      {
+        "name": "setUnchecked",
+        "parameterNames": ["segment", "offset", "b0", "b1", "b2", "b3"],
+        "parameterTypeSignatures": ["Lkotlinx.io.Segment;", "I", "B", "B", "B", "B"],
+        "returnTypeSignature": "U",
+        "jvmDescriptor": "(Lkotlinx/io/Segment;IBBBB)V",
+        "klibSignature": "abstract fun setUnchecked(kotlinx.io/Segment, kotlin/Int, kotlin/Byte, kotlin/Byte, kotlin/Byte, kotlin/Byte)"
+      }
+    ]
+  }
+}

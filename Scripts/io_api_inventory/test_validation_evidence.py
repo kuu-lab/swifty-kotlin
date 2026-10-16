@@ -2,6 +2,7 @@
 """Exercise validation evidence application with a one-row inventory fixture."""
 
 import copy
+import csv
 import importlib.util
 import json
 import tempfile
@@ -166,6 +167,63 @@ class ValidationEvidenceTests(unittest.TestCase):
         row["upstream_test_refs"] = "core/common/test/FooTest.kt#suite-reference"
         with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
             self._apply([self._record(row)], row)
+
+    def test_segment_write_context_shape_rows_have_no_direct_upstream_test_evidence(self):
+        targets = {"jvm-b7a5748618f52f9c", "klib-4ee0099543291bca"}
+        inventory_path = HERE / "api-inventory.tsv"
+        with inventory_path.open(encoding="utf-8", newline="") as stream:
+            rows = {
+                row["row_id"]: row
+                for row in csv.DictReader(stream, delimiter="\t")
+                if row["row_id"] in targets
+            }
+
+        self.assertEqual(set(rows), targets)
+        for row_id, row in rows.items():
+            with self.subTest(row_id=row_id):
+                references = row["upstream_test_refs"].split(";")
+                self.assertEqual(row["status"], "unverified")
+                self.assertTrue(references)
+                self.assertTrue(all(reference.endswith("#suite-reference") for reference in references))
+
+        evidence = json.loads((HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        self.assertEqual(evidence["schema_version"], 2)
+        self.assertFalse(targets.intersection(record["row_id"] for record in evidence["records"]))
+        probes = [
+            probe for probe in evidence["shape_probes"]
+            if targets.intersection(probe["row_ids"])
+        ]
+        self.assertEqual(len(probes), 1)
+        probe = probes[0]
+        self.assertEqual(set(probe["row_ids"]), targets)
+        self.assertEqual(probe["ledger_status_reason"], self.generator.SHAPE_PROBE_UNVERIFIED_REASON)
+        self.assertEqual(
+            {execution["lane"] for execution in probe["lanes"]},
+            {"source-O0", "source-O2", "stdlib-library-O0", "stdlib-library-O2"},
+        )
+        self.assertTrue(all(execution["candidate"]["result"] == "PASS" for execution in probe["lanes"]))
+        self.assertEqual(probe["swift_test"]["passed"], probe["swift_test"]["test_count"])
+        self.assertEqual(probe["swift_test"]["failed"], 0)
+
+    def test_segment_write_context_shape_probe_hashes_are_checked(self):
+        repository = HERE.parents[1]
+        evidence = json.loads((HERE / "api-validation-evidence.json").read_text(encoding="utf-8"))
+        probe = next(item for item in evidence["shape_probes"] if item["probe_id"] == self.generator.SHAPE_PROBE_ID)
+        with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+            rows_by_id = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        lock = json.loads((HERE / "upstream-lock.json").read_text(encoding="utf-8"))
+        upstream = HERE / "upstream/kotlinx-io-0.9.1"
+
+        self.generator._validate_shape_probe_evidence(
+            [probe], rows_by_id, set(), lock, repository, upstream
+        )
+
+        stale = copy.deepcopy(probe)
+        stale["probe_inputs"]["Tests/CompilerCoreTests/Sema/KotlinxIOSegmentWriteContextShapeTests.swift"] = "0" * 64
+        with self.assertRaisesRegex(SystemExit, "probe inputs are stale"):
+            self.generator._validate_shape_probe_evidence(
+                [stale], rows_by_id, set(), lock, repository, upstream
+            )
 
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)
