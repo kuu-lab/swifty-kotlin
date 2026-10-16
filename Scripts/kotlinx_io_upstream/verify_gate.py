@@ -20,6 +20,13 @@ REPO = HERE.parents[1]
 VERIFIED_DISPOSITIONS = {"paired", "verified"}
 VERIFIED_MAPPING_STATES = {"paired", "pass", "verified"}
 VERIFIED_API_STATES = {"implemented", "verified"}
+INVOCATION_FIELDS = (
+    "display_name", "concrete_class", "declaring_class", "method_name", "parameter_types",
+)
+OBSERVATION_KINDS = {
+    "value", "exception_type", "bytes_consumed", "buffer_state", "byte_buffer_state",
+    "close_flush", "resource_lifecycle",
+}
 F02_LANES = {
     ("source", "O0"), ("source", "O2"),
     ("stdlib-library", "O0"), ("stdlib-library", "O2"),
@@ -68,6 +75,290 @@ def inventory_case_list(index: dict[str, Any]) -> list[str]:
     ]
 
 
+def compose_verified_coverage(
+    seed_cases: list[dict[str, Any]],
+    test_index: dict[str, Any],
+    reference_lock: dict[str, Any],
+    verified_map: dict[str, Any],
+    jvm_catalog: list[dict[str, Any]],
+    native_catalog: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], dict[str, Any]]:
+    """Join durable assertion mappings to the generated seed without editing it."""
+    blockers: list[dict[str, str]] = []
+    if not isinstance(verified_map, dict):
+        blockers.append({
+            "kind": "test-mapping", "id": "coverage-map.verified.json",
+            "reason": "verified coverage map must be a JSON object",
+        })
+        verified_map = {}
+    cases_by_id = {
+        str(case.get("upstream_id", case.get("id", ""))): case
+        for case in seed_cases if isinstance(case, dict)
+    }
+    indexed_ids = set(inventory_case_list(test_index))
+    target_ids = {
+        identifier for identifier, case in cases_by_id.items()
+        if identifier and str(case.get("disposition", "")).lower() != "unsupported"
+    }
+    source_files = {
+        row.get("path"): row for row in reference_lock.get("upstream_files", [])
+        if isinstance(row, dict) and isinstance(row.get("path"), str)
+    }
+    expected_by_id: dict[str, dict[tuple[str, str], dict[str, Any]]] = collections.defaultdict(dict)
+    for platform_name, catalog in (("jvm", jvm_catalog), ("native", native_catalog)):
+        for row in catalog:
+            if not isinstance(row, dict):
+                continue
+            identifier = row.get("upstream_id")
+            execution_id = row.get("execution_id")
+            if isinstance(identifier, str) and isinstance(execution_id, str) and execution_id:
+                expected_by_id[identifier][(platform_name, execution_id)] = row
+
+    def add_blocker(identifier: str, reason: str) -> None:
+        blockers.append({"kind": "test-mapping", "id": identifier or "<empty>", "reason": reason})
+
+    def observation_is_present(kind: str, observations: dict[str, Any]) -> bool:
+        if kind not in observations:
+            return False
+        value = observations[kind]
+        if kind == "exception_type":
+            return value is None or isinstance(value, str)
+        if kind == "bytes_consumed":
+            return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        if kind in {"buffer_state", "byte_buffer_state"}:
+            return isinstance(value, dict) and bool(value)
+        if kind in {"close_flush", "resource_lifecycle"}:
+            return isinstance(value, list)
+        return True
+
+    schema_valid = verified_map.get("schema_version") == 1
+    if not schema_valid:
+        add_blocker("coverage-map.verified.json", "unsupported or missing schema_version")
+    locked_commit = reference_lock.get("commit")
+    commit_valid = verified_map.get("upstream_commit") == locked_commit
+    if not commit_valid:
+        add_blocker(
+            "coverage-map.verified.json",
+            f"upstream commit {verified_map.get('upstream_commit')!r} differs from reference lock {locked_commit!r}",
+        )
+
+    entries = verified_map.get("mappings", [])
+    if not isinstance(entries, list):
+        add_blocker("coverage-map.verified.json", "mappings must be an array")
+        entries = []
+    entry_ids = [
+        row.get("upstream_id", "") for row in entries
+        if isinstance(row, dict) and isinstance(row.get("upstream_id", ""), str)
+    ]
+    entry_counts = collections.Counter(entry_ids)
+    duplicate_ids = {identifier for identifier, count in entry_counts.items() if not identifier or count > 1}
+    for identifier in sorted(duplicate_ids, key=str):
+        add_blocker(str(identifier), "empty or duplicate verified upstream function ID")
+
+    valid_entries: dict[str, dict[str, Any]] = {}
+    seen_executions: set[tuple[str, str]] = set()
+    for entry_index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            add_blocker(f"mapping[{entry_index}]", "verified mapping entry must be an object")
+            continue
+        identifier = entry.get("upstream_id")
+        identifier_text = identifier if isinstance(identifier, str) else ""
+        errors: list[str] = []
+        if not identifier_text:
+            errors.append("upstream_id is required")
+        if identifier_text in duplicate_ids:
+            errors.append("verified upstream function ID is duplicated")
+        if identifier_text not in indexed_ids or identifier_text not in cases_by_id:
+            errors.append("unknown upstream function ID")
+        elif identifier_text not in target_ids:
+            errors.append("mapping targets an unsupported or non-target upstream function ID")
+
+        seed_case = cases_by_id.get(identifier_text, {})
+        expected_path = seed_case.get("upstream_path")
+        path = entry.get("upstream_path")
+        if not isinstance(path, str) or path != expected_path:
+            errors.append(f"upstream_path {path!r} does not match generated seed {expected_path!r}")
+        source_record = source_files.get(expected_path) if isinstance(expected_path, str) else None
+        if source_record is None:
+            errors.append(f"source path {expected_path!r} is absent from the reference lock")
+        else:
+            if entry.get("source_sha256") != source_record.get("sha256"):
+                errors.append("source SHA-256 differs from the pinned upstream file")
+            if entry.get("source_git_blob_sha") != source_record.get("git_blob_sha"):
+                errors.append("source Git blob hash differs from the pinned upstream file")
+            seed_metadata = seed_case.get("upstream_metadata", {})
+            seed_blob = seed_metadata.get("git_blob_sha") if isinstance(seed_metadata, dict) else None
+            if seed_blob != source_record.get("git_blob_sha"):
+                errors.append("generated seed source Git blob hash differs from the reference lock")
+
+        disposition = entry.get("disposition")
+        if not isinstance(disposition, str) or disposition not in VERIFIED_DISPOSITIONS:
+            errors.append(f"disposition {disposition!r} is not verified")
+
+        assertions = entry.get("assertions")
+        assertion_ids: set[str] = set()
+        assertion_observations: dict[str, set[str]] = {}
+        if not isinstance(assertions, list) or not assertions:
+            errors.append("at least one original assertion mapping is required")
+            assertions = []
+        for assertion_index, assertion in enumerate(assertions):
+            label = f"assertions[{assertion_index}]"
+            if not isinstance(assertion, dict):
+                errors.append(f"{label} must be an object")
+                continue
+            assertion_id = assertion.get("id")
+            if not isinstance(assertion_id, str) or not assertion_id.strip() or assertion_id in assertion_ids:
+                errors.append(f"{label}.id must be a unique non-empty string")
+                continue
+            assertion_ids.add(assertion_id)
+            assertion_path = assertion.get("source_path")
+            assertion_source = source_files.get(assertion_path) if isinstance(assertion_path, str) else None
+            if assertion_source is None:
+                errors.append(f"{label}.source_path is absent from the reference lock")
+            elif assertion.get("source_sha256") != assertion_source.get("sha256"):
+                errors.append(f"{label} source SHA-256 differs from the pinned upstream file")
+            line_start = assertion.get("line_start")
+            line_end = assertion.get("line_end")
+            if (not isinstance(line_start, int) or isinstance(line_start, bool) or line_start <= 0
+                    or not isinstance(line_end, int) or isinstance(line_end, bool) or line_end < line_start):
+                errors.append(f"{label} must identify a valid original assertion line range")
+            if not isinstance(assertion.get("expression"), str) or not assertion["expression"].strip():
+                errors.append(f"{label}.expression must preserve the original assertion text")
+            required = assertion.get("required_observations")
+            if (not isinstance(required, list) or not required
+                    or any(not isinstance(kind, str) or kind not in OBSERVATION_KINDS for kind in required)):
+                errors.append(f"{label}.required_observations must contain supported observation kinds")
+                assertion_observations[assertion_id] = set()
+            else:
+                assertion_observations[assertion_id] = set(required)
+
+        execution_rows = entry.get("executions")
+        if not isinstance(execution_rows, list) or not execution_rows:
+            errors.append("concrete execution mappings are missing")
+            execution_rows = []
+        mapped_pairs: set[tuple[str, str]] = set()
+        mapped_assertions: set[str] = set()
+        for execution_index, execution in enumerate(execution_rows):
+            label = f"executions[{execution_index}]"
+            if not isinstance(execution, dict):
+                errors.append(f"{label} must be an object")
+                continue
+            platform_name = execution.get("platform")
+            execution_id = execution.get("execution_id")
+            if not isinstance(platform_name, str) or platform_name not in {"jvm", "native"} or not isinstance(execution_id, str) or not execution_id:
+                errors.append(f"{label} must name a JVM or Native concrete execution ID")
+                continue
+            pair = (platform_name, execution_id)
+            expected = expected_by_id.get(identifier_text, {}).get(pair)
+            if pair in mapped_pairs or pair in seen_executions:
+                errors.append(f"duplicate concrete execution mapping {platform_name}:{execution_id}")
+            mapped_pairs.add(pair)
+            seen_executions.add(pair)
+            if expected is None:
+                errors.append(f"unknown concrete execution ID {platform_name}:{execution_id}")
+            else:
+                if expected.get("upstream_path") != path:
+                    errors.append(f"{label} source path differs from the locked execution catalog")
+                if source_record is not None and expected.get("git_blob_sha") != source_record.get("git_blob_sha"):
+                    errors.append(f"{label} source Git blob hash differs from the locked execution catalog")
+                invocation = execution.get("invocation")
+                if not isinstance(invocation, dict):
+                    errors.append(f"{label}.invocation is missing catalog factory/parameter identity")
+                else:
+                    for field in INVOCATION_FIELDS:
+                        if not isinstance(expected.get(field), str):
+                            errors.append(f"{label} locked execution catalog is missing {field}")
+                        elif field not in invocation or invocation.get(field) != expected[field]:
+                            errors.append(f"{label}.invocation.{field} differs from the locked execution catalog")
+
+            mapped_assertion_ids = execution.get("assertion_ids")
+            if (not isinstance(mapped_assertion_ids, list) or not mapped_assertion_ids
+                    or any(not isinstance(assertion_id, str) or assertion_id not in assertion_ids
+                           for assertion_id in mapped_assertion_ids)):
+                errors.append(f"{label}.assertion_ids must map to original assertions")
+                mapped_assertion_ids = []
+            mapped_assertions.update(mapped_assertion_ids)
+            for side in ("reference", "candidate"):
+                result = execution.get(side)
+                if not isinstance(result, dict) or not isinstance(result.get("result"), dict):
+                    errors.append(f"{label}.{side} runner result is missing")
+                    continue
+                if not isinstance(result.get("runner"), str) or not result["runner"].strip():
+                    errors.append(f"{label}.{side}.runner is required")
+                detail = result["result"]
+                status = str(detail.get("status", "")).upper().replace("-", "_")
+                if status != "PASS":
+                    errors.append(f"{label}.{side} result is {status or 'NOT_RUN'}; only PASS completes a mapping")
+                if not isinstance(detail.get("artifact"), str) or not detail["artifact"].strip():
+                    errors.append(f"{label}.{side}.result.artifact is required")
+                digest = detail.get("sha256")
+                if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                    errors.append(f"{label}.{side}.result.sha256 must be a SHA-256 digest")
+                observations = result.get("observations")
+                if not isinstance(observations, dict):
+                    errors.append(f"{label}.{side}.observations must preserve assertion evidence")
+                    continue
+                for assertion_id in mapped_assertion_ids:
+                    missing = {
+                        kind for kind in assertion_observations.get(assertion_id, set())
+                        if not observation_is_present(kind, observations)
+                    }
+                    if missing:
+                        errors.append(
+                            f"{label}.{side} is missing required observations for {assertion_id}: {sorted(missing)}"
+                        )
+
+        expected_pairs = set(expected_by_id.get(identifier_text, {}))
+        if not expected_pairs and identifier_text in target_ids:
+            errors.append("upstream function has no concrete execution in either locked catalog")
+        for platform_name, execution_id in sorted(expected_pairs - mapped_pairs):
+            errors.append(f"missing concrete execution mapping {platform_name}:{execution_id}")
+        if assertion_ids - mapped_assertions:
+            errors.append(f"original assertions are not connected to an execution: {sorted(assertion_ids - mapped_assertions)}")
+
+        if errors:
+            for error in errors:
+                add_blocker(identifier_text or f"mapping[{entry_index}]", error)
+        elif schema_valid and commit_valid and identifier_text in target_ids:
+            valid_entries[identifier_text] = entry
+
+    merged_cases: list[dict[str, Any]] = []
+    for case in seed_cases:
+        if not isinstance(case, dict):
+            continue
+        identifier = str(case.get("upstream_id", case.get("id", "")))
+        entry = valid_entries.get(identifier) if commit_valid else None
+        merged = dict(case)
+        if entry is not None:
+            merged["disposition"] = entry["disposition"]
+            merged["reason"] = entry.get("reason", "Complete verified assertion and execution mapping.")
+            merged_mapping = dict(case.get("mapping", {})) if isinstance(case.get("mapping"), dict) else {}
+            merged_mapping.update({
+                "status": "verified",
+                "verified_assertion_mapping": True,
+                "verified_evidence": entry,
+            })
+            merged["mapping"] = merged_mapping
+        elif str(case.get("disposition", "")).lower() != "unsupported":
+            merged["disposition"] = "unmapped"
+            merged["reason"] = "No complete, current verified assertion mapping exists."
+            seed_mapping = dict(case.get("mapping", {})) if isinstance(case.get("mapping"), dict) else {}
+            seed_mapping.update({"status": "unmapped", "verified_assertion_mapping": False})
+            seed_mapping.pop("verified_evidence", None)
+            merged["mapping"] = seed_mapping
+        merged_cases.append(merged)
+
+    summary = {
+        "mapping_entry_count": len(entries),
+        "verified_source_function_count": len(valid_entries),
+        "expected_source_function_count": len(target_ids),
+        "missing_source_function_count": len(target_ids - set(valid_entries)),
+        "verified_execution_count": sum(len(entry.get("executions", [])) for entry in valid_entries.values()),
+        "upstream_commit_matches": commit_valid,
+    }
+    return merged_cases, blockers, summary
+
+
 def validate_execution_counts(counts: dict[str, int], expected: int, label: str) -> list[str]:
     """Require an exact all-PASS execution count; never accept an empty run."""
     normalized = {str(key).upper().replace("-", "_"): int(value) for key, value in counts.items()}
@@ -92,6 +383,7 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     lock_path = root / "Scripts/io_api_inventory/upstream-lock.json"
     reference_lock_path = root / "Scripts/kotlinx_io_upstream/reference-lock.json"
     coverage_path = root / "Scripts/kotlinx_io_upstream/coverage-map.seed.json"
+    verified_coverage_path = root / "Scripts/kotlinx_io_upstream/coverage-map.verified.json"
     jvm_catalog_path = root / "Scripts/kotlinx_io_upstream/jvm-executions.expected.json"
     native_catalog_path = root / "Scripts/kotlinx_io_upstream/native-executions.expected.json"
 
@@ -100,9 +392,14 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     lock = read_json(lock_path)
     reference_lock = read_json(reference_lock_path)
     coverage = read_json(coverage_path)
+    verified_coverage = read_json(verified_coverage_path)
     jvm_catalog = read_json(jvm_catalog_path)
     native_catalog = read_json(native_catalog_path)
     blockers: list[dict[str, str]] = []
+    cases, verified_mapping_blockers, verified_mapping_summary = compose_verified_coverage(
+        coverage.get("cases", []), test_index, reference_lock, verified_coverage, jvm_catalog, native_catalog,
+    )
+    blockers.extend(verified_mapping_blockers)
 
     required_api_columns = {"row_id", "status", "owner_issue", "upstream_test_refs", "local_test_refs"}
     actual_api_columns = set(api_rows[0]) if api_rows else set()
@@ -133,7 +430,6 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         if count > 1:
             blockers.append({"kind": "test-identity", "id": identifier,
                              "reason": f"duplicate upstream test index ID ({count} entries)"})
-    cases = coverage.get("cases", [])
     coverage_ids = [case.get("upstream_id", case.get("id", "")) for case in cases]
     duplicate_coverage_ids = sorted(identifier for identifier, count in
                                     collections.Counter(coverage_ids).items() if not identifier or count > 1)
@@ -252,6 +548,10 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
                 "mapping": case.get("mapping", {}),
                 "jvm_execution_ids": sorted(executions_by_source[identifier]["jvm"]),
                 "native_execution_ids": sorted(executions_by_source[identifier]["native"]),
+                "verified_execution_mappings": (
+                    case.get("mapping", {}).get("verified_evidence", {}).get("executions", [])
+                    if isinstance(case.get("mapping"), dict) else []
+                ),
             }
             for case in sorted(cases, key=lambda row: str(row.get("upstream_id", row.get("id", ""))))
             for identifier in [str(case.get("upstream_id", case.get("id", "")))]
@@ -280,6 +580,8 @@ def audit_static(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
             "native_concrete_execution_count": len(native_catalog),
             "native_execution_catalog_sha256": catalog_hashes["native"],
             "native_source_function_count": len(native_source_ids),
+            **verified_mapping_summary,
+            "verified_mapping_sha256": hashlib.sha256(verified_coverage_path.read_bytes()).hexdigest(),
         },
         "blocker_count": len(blockers),
         "blockers": blockers,
@@ -444,7 +746,8 @@ def audit_command(args: argparse.Namespace) -> int:
     (output / "inventory-generation.stdout").write_text(generation_result.get("stdout", ""), encoding="utf-8")
     (output / "inventory-generation.stderr").write_text(generation_result.get("stderr", ""), encoding="utf-8")
     for relative in ("Scripts/io_api_inventory/api-inventory.tsv",
-                     "Scripts/kotlinx_io_upstream/coverage-map.seed.json"):
+                     "Scripts/kotlinx_io_upstream/coverage-map.seed.json",
+                     "Scripts/kotlinx_io_upstream/coverage-map.verified.json"):
         source = root / relative
         if source.is_file():
             shutil.copy2(source, output / source.name)
