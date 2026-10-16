@@ -32,6 +32,11 @@ UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
 CANDIDATE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "native-executions.expected.json"
 EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
+NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS = {
+    "core/common/src/files/Paths.kt:115",
+    "core/common/src/files/Paths.kt:133",
+}
+NO_DIRECT_UPSTREAM_ASSERTION = "none (no direct upstream assertion mapped)"
 VALIDATION_EVIDENCE_SCHEMA_VERSION = 1
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
@@ -1551,6 +1556,10 @@ def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: di
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
+    if row.get("upstream_source_refs") in NO_DIRECT_UPSTREAM_ASSERTION_SOURCE_REFS:
+        # The upstream smoke cases use SystemFileSystem raw methods; they do not
+        # exercise these deprecated Path extensions or assert their annotations.
+        return []
     source_paths = row.get("_source_paths", [])
     hints = []
     for source in source_paths:
@@ -1926,11 +1935,14 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
             row["status"] = "unverified"
             row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
-        row["upstream_test_refs"] = ";".join(upstream_test_refs(row, test_index)) or "no upstream test file mapped"
+        direct_upstream_tests = upstream_test_refs(row, test_index)
+        row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):
+            if test_ref == "none" or test_ref.startswith("none ("):
+                continue
             test_path = test_ref.split("#", 1)[0]
             if test_path not in tests:
                 fail(f"unlocked upstream test reference: {test_path}")

@@ -77,6 +77,27 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertTrue(paired)
         self.assertTrue(all(row["_source_key"] == declaration["_source_key"] for row in paired))
 
+    def test_deprecated_path_rows_do_not_claim_unrelated_upstream_assertions(self):
+        rows = {row["row_id"]: row for row in self.rows}
+        for row_id in (
+            "jvm-23bdc46eecb769ad",
+            "jvm-4a6ead57ff31eb51",
+            "klib-91d3efd901de8c9b",
+            "klib-ec16724d485f26fc",
+        ):
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["upstream_test_refs"], self.generator.NO_DIRECT_UPSTREAM_ASSERTION)
+                self.assertEqual(row["status"], "unverified")
+                self.assertIn("Scripts/diff_cases/kotlinx_io_file_legacy_suppressed.kt", row["local_test_refs"])
+                self.assertIn("Tests/CompilerCoreTests/Sema/KotlinxIOF01ContractTests.swift", row["local_test_refs"])
+                for unrelated_case in (
+                    "core/common/test/files/SmokeFileTest.kt#createAnEmptyFileUsingSink",
+                    "core/common/test/files/SmokeFileTest.kt#closeFileSinkTwice",
+                    "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
+                ):
+                    self.assertFalse(self.generator._case_id_matches_row(row, unrelated_case))
+
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
         index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)
         for api_id in (
