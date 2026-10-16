@@ -309,7 +309,16 @@ final class LocalDeclTypeChecker {
                 let mutatedInClosure = ctx.dataFlow.localDeclarations[local.symbol].map {
                     ctx.dataFlow.localStability.isMutatedInClosure($0, sema: ctx.sema)
                 } ?? false
-                let assignedType = !mutatedInClosure
+                // A sequenced write gives a stable mutable local the written
+                // value's subtype for subsequent reads in this flow branch.
+                // Keep the declared type when a deferred closure may overwrite it.
+                let assignedType: TypeID = local.isMutable
+                    && !mutatedInClosure
+                    && valueType != ctx.sema.types.errorType
+                    && valueType != declaredType
+                    && ctx.sema.types.isSubtype(valueType, declaredType)
+                    ? valueType
+                    : !mutatedInClosure
                     && ctx.sema.types.nullability(of: declaredType) == .nullable
                     && ctx.sema.types.nullability(of: valueType) == .nonNull
                     && valueType != ctx.sema.types.errorType
