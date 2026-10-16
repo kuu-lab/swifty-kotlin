@@ -19,14 +19,17 @@ extension DataFlowSemaPhase {
         let expects = symbols.allSymbols().filter { sym in
             sym.flags.contains(.expectDeclaration)
                 && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
+        }.map { symbol in
+            (
+                symbol: symbol,
+                nestingDepth: expectActualNestingDepth(of: symbol.id, symbols: symbols)
+            )
         }.sorted { lhs, rhs in
-            let lhsDepth = expectActualNestingDepth(of: lhs.id, symbols: symbols)
-            let rhsDepth = expectActualNestingDepth(of: rhs.id, symbols: symbols)
-            if lhsDepth != rhsDepth {
-                return lhsDepth < rhsDepth
+            if lhs.nestingDepth != rhs.nestingDepth {
+                return lhs.nestingDepth < rhs.nestingDepth
             }
-            return lhs.id.rawValue < rhs.id.rawValue
-        }
+            return lhs.symbol.id.rawValue < rhs.symbol.id.rawValue
+        }.map { $0.symbol }
         guard !expects.isEmpty else { return }
         let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
             guard case let .funDecl(function) = decl else { return nil }
