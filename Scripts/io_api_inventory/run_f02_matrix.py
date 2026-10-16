@@ -106,6 +106,9 @@ def scenarios() -> list[dict]:
     fixtures = sorted((ROOT / "Scripts/diff_cases").glob("kotlinx_io*.kt"))
     cases.append({"id": "diff-consumers", "fixtures": fixtures, "reference": "jvm",
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
+    cases.append({"id": "path-hashcode", "fixtures": [ROOT / "Scripts/diff_cases/kotlinx_io_path_hashcode.kt"],
+                  "reference": "jvm", "entry": "f02corpusconsumer.main",
+                  "jvm_class": "f02corpusconsumer.ConsumerKt"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],

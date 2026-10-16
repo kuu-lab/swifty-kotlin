@@ -352,6 +352,21 @@ def required_execution_lanes(obligations: list[str]) -> list[str]:
     return [lane for obligation in obligations for lane in VALIDATION_LANES_BY_OBLIGATION[obligation]]
 
 
+PATH_HASHCODE_PROBE_CASE = "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main"
+
+
+def validation_case_lanes(row: dict, case_id: str) -> list[str]:
+    lanes = required_execution_lanes(validation_obligations(row))
+    if row.get("row_id") == "klib-07cfd563616534cf" and case_id == PATH_HASHCODE_PROBE_CASE:
+        lanes.append("macos-apple-reference")
+    return lanes
+
+
+def validation_probe_execution_id(subject: str, case_id: str, lane: str) -> str:
+    identity = hashlib.sha256((case_id + "\0" + lane).encode("utf-8")).hexdigest()[:24]
+    return f"local-probe:{subject}:{identity}"
+
+
 def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
     try:
         lock = json.loads(UPSTREAM_RUNNER_LOCK_PATH.read_text(encoding="utf-8"))
@@ -387,7 +402,27 @@ def _load_validation_execution_catalogs() -> dict[str, dict[str, str]]:
         fail(f"cannot load validation execution catalogs: {error}")
 
 
-def _case_id_matches_row(row: dict, case_id: str) -> bool:
+def _case_id_matches_row(row: dict, case_id: str, repository: Path = REPO) -> bool:
+    probe = re.fullmatch(r"probe:([^#]+)#([A-Za-z_][A-Za-z0-9_]*)", case_id)
+    if probe:
+        case_path, case_name = probe.groups()
+        relative_path = Path(case_path)
+        if (relative_path.is_absolute() or ".." in relative_path.parts
+                or relative_path.suffix != ".kt"
+                or not case_path.startswith("Scripts/diff_cases/")
+                or case_path not in row.get("local_test_refs", "").split(";")):
+            return False
+        try:
+            source = (repository / relative_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+        declaration = re.compile(
+            rf"^\s*(?:(?:public|private|internal|inline|suspend)\s+)*"
+            rf"fun\s+{re.escape(case_name)}\s*\(",
+            re.MULTILINE,
+        )
+        return declaration.search(source) is not None
+
     case_path, separator, case_name = case_id.partition("#")
     if not separator or not case_path or not case_name:
         return False
@@ -500,7 +535,8 @@ def apply_validation_evidence(
         executions = record["executions"]
         if not isinstance(executions, list) or not executions:
             fail(f"validation evidence has no executed cases for row {row_id}")
-        required_lanes = required_execution_lanes(obligations)
+        case_ids = {execution.get("case_id") for execution in executions if isinstance(execution, dict)}
+        required_lanes = validation_case_lanes(row, next(iter(case_ids)) if len(case_ids) == 1 else "")
         covered_lanes = set()
         seen_cases = set()
         seen_execution_ids = {"reference": set(), "candidate": set()}
@@ -511,7 +547,7 @@ def apply_validation_evidence(
             lane = execution["lane"]
             if not isinstance(case_id, str) or not case_id.strip() or case_id != case_id.strip():
                 fail(f"empty execution case_id for row {row_id}")
-            if not _case_id_matches_row(row, case_id):
+            if not _case_id_matches_row(row, case_id, repository):
                 fail(f"execution case {case_id!r} is not mapped to row {row_id}'s upstream tests")
             if not isinstance(lane, str) or lane not in required_lanes:
                 fail(f"unexpected validation lane {lane!r} for row {row_id}")
@@ -528,11 +564,16 @@ def apply_validation_evidence(
                 if (not isinstance(execution_id, str) or not execution_id.strip()
                         or execution_id != execution_id.strip()):
                     fail(f"empty {subject} execution_id for row {row_id} case {case_id}")
-                catalog_case_id = execution_catalogs[subject].get(execution_id)
-                if catalog_case_id is None:
-                    fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
-                if catalog_case_id != case_id:
-                    fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
+                if case_id.startswith("probe:"):
+                    expected_execution_id = validation_probe_execution_id(subject, case_id, lane)
+                    if execution_id != expected_execution_id:
+                        fail(f"{subject} execution_id does not match probe {case_id} in lane {lane}")
+                else:
+                    catalog_case_id = execution_catalogs[subject].get(execution_id)
+                    if catalog_case_id is None:
+                        fail(f"unknown {subject} execution_id for row {row_id}: {execution_id}")
+                    if catalog_case_id != case_id:
+                        fail(f"{subject} execution_id does not map to case {case_id} for row {row_id}")
                 execution_identity = (lane, execution_id)
                 if execution_identity in seen_execution_ids[subject]:
                     fail(f"duplicate {subject} execution_id for row {row_id}: {execution_id}")
@@ -546,6 +587,8 @@ def apply_validation_evidence(
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
         row["status"] = "verified"
+        if row.get("local_contract_differences") == "none detected (semantics unverified)":
+            row["local_contract_differences"] = "none detected (targeted semantics verified by evidence)"
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1244,6 +1287,8 @@ def owner_for(row: dict) -> str:
     ).lower()
     if row["platform_scope"] == "apple-only" or "platform.foundation" in text:
         return "KUU-1763"
+    if row["name"] == "hashCode" and row["owner_fqn"].replace("/", ".") == "kotlinx.io.files.Path":
+        return "KUU-2644"
     key = repr(row.get("_source_key", "")).lower()
     if row["representation"] == "Kotlin platform typealias" or "java." in key or (row["representation"] == "JVM public ABI dump" and "_source_key" not in row):
         return "KUU-1762"
@@ -1526,6 +1571,9 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
     refs = []
     for path, content in local_tests:
+        if path == "Scripts/diff_cases/kotlinx_io_path_hashcode.kt":
+            if row["name"] != "hashCode" or row["owner_fqn"].replace("/", ".") != "kotlinx.io.files.Path":
+                continue
         haystack = content.lower()
         if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
@@ -1827,7 +1875,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "",
         "## Owner routing",
         "",
-        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
+        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), KUU-1763 (Apple), or KUU-2644 (Path.hashCode). All are children of KUU-1725 or its verification gate; missing declarations stay in scope.",
         "",
         "## JVM ABI classification",
         "",
@@ -1972,7 +2020,7 @@ def main() -> int:
             "reference_version": lock["tag"],
             "reference_commit": lock["commit"],
             "compatibility_obligations": validation_obligations(matches[0]),
-            "required_execution_lanes": required_execution_lanes(validation_obligations(matches[0])),
+            "required_execution_lanes": validation_case_lanes(matches[0], PATH_HASHCODE_PROBE_CASE),
             **hashes,
         }, indent=2))
         return 0

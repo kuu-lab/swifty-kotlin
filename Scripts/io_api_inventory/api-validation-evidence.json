@@ -1,4 +1,144 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "row_id": "jvm-e537ccd38bc7fca2",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "bb9c662f127bd41956368e7815f8a6e7d275ac94cad6f9cf37e88c30818ecc9d",
+      "compatibility_obligations": [
+        "jvm-descriptor"
+      ],
+      "executions": [
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "jvm-descriptor",
+          "reference": {
+            "execution_id": "local-probe:reference:17f19624da1fb3e48c3bb086",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:17f19624da1fb3e48c3bb086",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "row_id": "klib-07cfd563616534cf",
+      "candidate_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "reference_version": "0.9.1",
+      "reference_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "implementation_input_sha256": "e6ccf57cff69d41058d3365989d6339b2d297f6ea839aaf52c1d195847379095",
+      "test_input_sha256": "bb9c662f127bd41956368e7815f8a6e7d275ac94cad6f9cf37e88c30818ecc9d",
+      "compatibility_obligations": [
+        "native-source",
+        "native-bridge"
+      ],
+      "executions": [
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "source-O0",
+          "reference": {
+            "execution_id": "local-probe:reference:0821750c5af329da9de11504",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:0821750c5af329da9de11504",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "source-O2",
+          "reference": {
+            "execution_id": "local-probe:reference:2711394d3b99ed3c4b38a8cf",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:2711394d3b99ed3c4b38a8cf",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "stdlib-library-O0",
+          "reference": {
+            "execution_id": "local-probe:reference:4ec6cff9d1f1628149f0bc6f",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:4ec6cff9d1f1628149f0bc6f",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "stdlib-library-O2",
+          "reference": {
+            "execution_id": "local-probe:reference:10e38d1da090fc6bf97a81f9",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:10e38d1da090fc6bf97a81f9",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "producer-consumer-O0",
+          "reference": {
+            "execution_id": "local-probe:reference:af2e9bac7ff64ecd54227f5c",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:af2e9bac7ff64ecd54227f5c",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "producer-consumer-O2",
+          "reference": {
+            "execution_id": "local-probe:reference:dd8bdb80d0782dc70eaf1f1e",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:dd8bdb80d0782dc70eaf1f1e",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        },
+        {
+          "case_id": "probe:Scripts/diff_cases/kotlinx_io_path_hashcode.kt#main",
+          "lane": "macos-apple-reference",
+          "reference": {
+            "execution_id": "local-probe:reference:bf1804e64304a1ff5c374180",
+            "result": "PASS",
+            "exit_code": 0
+          },
+          "candidate": {
+            "execution_id": "local-probe:candidate:bf1804e64304a1ff5c374180",
+            "result": "PASS",
+            "exit_code": 0
+          }
+        }
+      ]
+    }
+  ]
 }

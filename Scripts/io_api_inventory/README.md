@@ -254,15 +254,27 @@ descriptor evidence.
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
-unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must match a method-specific upstream test reference for that row;
+unrun executions, duplicate cases, and missing or unrelated lanes. An upstream
+case ID must match a method-specific upstream test reference for that row;
 `#suite-reference` discovery metadata cannot authorize an arbitrary case from
-the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
-and reads the evidence file without rewriting it. `--check` verifies upstream
-snapshots, the test index lock, negative guards, evidence, any execution
-catalogs used by evidence, and byte-for-byte output without modifying files.
+the same file. For upstream cases, both execution IDs must map to the same case
+in the locked JVM and Native execution catalogs. A manual status edit is
+discarded when outputs are regenerated. `--write` changes only the three
+generated ledger output files and reads the evidence file without rewriting it.
+`--check` verifies upstream snapshots, the test index lock, negative guards,
+evidence, any execution catalogs used by evidence, and byte-for-byte output
+without modifying files.
+
+A dedicated local Kotlin probe may use `probe:<relative-path>#<top-level-function>`
+as its case ID when the exact `.kt` file is listed in that row's
+`local_test_refs`. Probe execution IDs are deterministic per subject, case and
+lane via `validation_probe_execution_id`; the test input hash binds the probe
+bytes. Its execution IDs are deterministic and do not claim an upstream suite
+asserted the API or use the upstream execution catalogs.
+
+The Path.hashCode KLIB row also requires `macos-apple-reference` for its exact
+probe case, in addition to the standard source, fresh-library and
+producer-consumer O0/O2 lanes. `--show-input-hashes` reports that full lane set.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py
