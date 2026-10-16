@@ -934,9 +934,13 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
-    private func isTrailingLambdaInfixContinuation(_ token: Token) -> Bool {
+    private func isTrailingLambdaOperatorContinuation(_ token: Token) -> Bool {
         guard !hasLeadingNewline(token) else { return false }
         switch token.kind {
+        case .keyword(.in):
+            return true
+        case .symbol(.bang):
+            return stream.peek(1).kind == .keyword(.in)
         case .identifier, .backtickedIdentifier:
             return canStartInfixCallArgument(stream.peek(1).kind)
         default:
@@ -1031,10 +1035,10 @@ extension KotlinParser {
                 {
                     continue
                 }
-                // A trailing-lambda call can be the receiver of an infix call,
-                // as in items.joinToString { it } to other. Keep the infix
-                // name and its operand in the same expression-bodied declaration.
-                if isTrailingLambdaInfixContinuation(nextAfterBlock) {
+                // A trailing-lambda call can be the receiver of an infix or
+                // membership operator. Keep the operator and its operand in
+                // the same expression-bodied declaration.
+                if isTrailingLambdaOperatorContinuation(nextAfterBlock) {
                     continue
                 }
                 break
