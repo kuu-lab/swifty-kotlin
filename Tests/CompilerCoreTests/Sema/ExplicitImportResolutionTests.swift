@@ -91,6 +91,114 @@ struct ExplicitImportResolutionTests {
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test(arguments: [false, true])
+    func inheritedObjectMemberImportsResolve(useArtifact: Bool) throws {
+        let source = """
+        import C.inherited
+        import C.fromInterface
+        import C.genericFromSuper
+        import C.overload
+        import C.own
+        import C.ownExtension
+        import C.ext
+        import C.g1
+        import C.g2
+        import C.fromClass
+        import HidingC.inherited as hiddenInherited
+
+        interface FromInterface<T> {
+            fun <E> E.fromInterface(): E = this
+            fun genericFromSuper(value: T): T = value
+            fun genericFromSuper(): T? = null
+        }
+        open class Base {
+            open fun inherited(): String = "OK"
+            fun overload(value: Int): String = "int"
+            fun overload(value: String): String = "string"
+            val <E> E.fromClass: E get() = this
+        }
+        object C : Base(), FromInterface<String> {
+            fun own(): String = "OK"
+            fun Boolean.ownExtension(): Int = 3
+            val Int.ext: Int get() = 6
+            fun <E> g1(value: E): E = value
+            val <E> E.g2: E get() = this
+        }
+        object HidingC : Base() {
+            override fun inherited(): String = "hidden"
+        }
+
+        fun importedClassMember(): String = inherited()
+        fun importedInterfaceExtension(): Int = 9.fromInterface()
+        fun importedClassExtensionProperty(): String = "OK".fromClass
+        fun importedOwnExtension(): Int = true.ownExtension()
+        fun importedOwnExtensionProperty(): Int = 5.ext
+        fun importedGenericExtensionFunction(): String = g1("OK")
+        fun importedGenericExtensionProperty(): String = "OK".g2
+        fun importedGenericMember(): String = genericFromSuper("OK")
+        fun importedGenericDefault(): String? = genericFromSuper()
+        fun importedIntOverload(): String = overload(1)
+        fun importedStringOverload(): String = overload("OK")
+        fun importedOwnMember(): String = own()
+        fun importedAlias(): String = hiddenInherited()
+        fun qualified(): String = C.inherited()
+        """
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let stdlibArtifact: String?
+        if useArtifact {
+            TestStdlibCache.shared.prepare()
+            stdlibArtifact = CompilerOptions.defaultStdlibLibraryPath
+        } else {
+            stdlibArtifact = nil
+        }
+        let ctx = makeCompilationContext(
+            inputs: [path],
+            includeStdlib: false,
+            stdlibLibraryPath: stdlibArtifact,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(ctx)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let objectC = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("C")]))
+        let hidingC = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("HidingC")]))
+        let importedCallNames: Set<String> = [
+            "inherited", "fromInterface", "fromClass", "genericFromSuper", "overload", "own",
+            "hiddenInherited", "ownExtension", "ext", "g1", "g2",
+        ]
+        let importedCalls = sema.bindings.callBindings.compactMap { expression, binding -> (String, SymbolID?)? in
+            let sourceName: InternedString?
+            switch ast.arena.expr(expression) {
+            case let .call(callee, _, _, _):
+                if case let .nameRef(name, _) = ast.arena.expr(callee) {
+                    sourceName = name
+                } else {
+                    sourceName = nil
+                }
+            case let .memberCall(_, name, _, _, _), let .safeMemberCall(_, name, _, _, _):
+                sourceName = name
+            default:
+                sourceName = nil
+            }
+            guard let sourceName,
+                  let range = ast.arena.exprRange(expression),
+                  ctx.sourceManager.path(of: range.start.file) == path
+            else { return nil }
+            let nameText = ctx.interner.resolve(sourceName)
+            guard importedCallNames.contains(nameText) else { return nil }
+            return (nameText, binding.dispatchReceiverSymbol)
+        }
+        #expect(importedCalls.count == 14, "Unexpected imported calls: \(importedCalls)")
+        #expect(importedCalls.allSatisfy { name, receiver in
+            receiver == (name == "hiddenInherited" ? hidingC : objectC)
+        }, "Imported calls must retain their singleton dispatch receiver: \(importedCalls)")
+    }
+
     @Test(arguments: [
         "", "import library.*", "import library.answer", "import library.answer as renamed",
         "import library.ordinary", "import library.ordinary as renamed",

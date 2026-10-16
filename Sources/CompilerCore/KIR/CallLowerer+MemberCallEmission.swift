@@ -74,7 +74,32 @@ extension CallLowerer {
                 )
             }
         }
-        if let selected = dispatchReceiverSymbol.flatMap({ driver.ctx.localValue(for: $0) }),
+        let boundDispatchReceiverSymbol = dispatchReceiverSymbol ?? callExprID.flatMap { expression in
+            (sema.bindings.extensionPropertyGetterCalls[expression] ?? sema.bindings.callBindings[expression])?
+                .dispatchReceiverSymbol
+        }
+        if let selectedSymbol = boundDispatchReceiverSymbol,
+           sema.symbols.symbol(selectedSymbol)?.kind == .object
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: selectedSymbol,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let selectedType = sema.types.make(.classType(ClassType(
+                classSymbol: selectedSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let selected = arena.appendExpr(.symbolRef(selectedSymbol), type: selectedType)
+            instructions.append(.constValue(result: selected, value: .symbolRef(selectedSymbol)))
+            if let resolved = resolveToOwner(selected) {
+                return resolved
+            }
+        }
+        if let selected = boundDispatchReceiverSymbol.flatMap({ driver.ctx.localValue(for: $0) }),
            let resolved = resolveToOwner(selected)
         {
             return resolved
