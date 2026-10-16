@@ -232,7 +232,8 @@ struct ASTIDRemapper {
             annotations: value.annotations.map { remap($0) },
             constructorArgs: value.constructorArgs.map { remap($0) },
             memberFunctions: value.memberFunctions.map { remap($0) },
-            memberProperties: value.memberProperties.map { remap($0) }
+            memberProperties: value.memberProperties.map { remap($0) },
+            nestedClasses: value.nestedClasses.map { remap($0) }
         )
     }
 

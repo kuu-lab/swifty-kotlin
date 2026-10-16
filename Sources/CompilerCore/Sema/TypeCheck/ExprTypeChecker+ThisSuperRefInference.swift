@@ -23,7 +23,8 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: entrySuperContext.type)
             return entrySuperContext.type
         }
-        guard let classSymbol = driver.helpers.nominalSymbol(of: receiverType, types: sema.types) else {
+        let superReceiverType = memberExtensionDispatchReceiverType(ctx) ?? receiverType
+        guard let classSymbol = driver.helpers.nominalSymbol(of: superReceiverType, types: sema.types) else {
             return emitNoSuperclass(id: id, range: range, ctx: ctx)
         }
         if interfaceQualifier == nil,
@@ -34,12 +35,31 @@ extension ExprTypeChecker {
         }
         if let qualifier = interfaceQualifier {
             return resolveQualifiedSuper(
-                id: id, qualifier: qualifier, classSymbol: classSymbol, range: range, ctx: ctx
+                id: id,
+                qualifier: qualifier,
+                classSymbol: classSymbol,
+                receiverType: superReceiverType,
+                range: range,
+                ctx: ctx
             )
         }
         return resolveUnqualifiedSuper(
-            id: id, classSymbol: classSymbol, receiverType: receiverType, range: range, ctx: ctx
+            id: id, classSymbol: classSymbol, receiverType: superReceiverType, range: range, ctx: ctx
         )
+    }
+
+    /// Returns the dispatch owner's type while checking a member extension body.
+    private func memberExtensionDispatchReceiverType(_ ctx: TypeInferenceContext) -> TypeID? {
+        guard let owner = ctx.enclosingClassSymbol,
+              let declaration = ctx.currentDeclSymbol,
+              ctx.sema.symbols.parentSymbol(for: declaration) == owner,
+              ctx.sema.symbols.functionSignature(for: declaration)?.receiverType != nil
+        else {
+            return nil
+        }
+        return ctx.implicitReceiverMemberLookupTypes().last { receiverType in
+            driver.helpers.nominalSymbol(of: receiverType, types: ctx.sema.types) == owner
+        }
     }
 
     private func isEnumEntryMemberBody(classSymbol: SymbolID, ctx: TypeInferenceContext) -> Bool {
@@ -61,6 +81,7 @@ extension ExprTypeChecker {
         id: ExprID,
         qualifier: InternedString,
         classSymbol: SymbolID,
+        receiverType: TypeID,
         range: SourceRange,
         ctx: TypeInferenceContext
     ) -> TypeID {
@@ -71,8 +92,7 @@ extension ExprTypeChecker {
             let isValidKind = superSym.kind == .interface || superSym.kind == .class || superSym.kind == .enumClass
             if isValidKind, superSym.name == qualifier {
                 let typeArgs: [TypeArg]
-                if let receiverType = ctx.implicitReceiverType,
-                   case let .classType(currentClass) = sema.types.kind(of: receiverType) {
+                if case let .classType(currentClass) = sema.types.kind(of: receiverType) {
                     typeArgs = sema.types.liftedNominalSupertypeArgs(
                         from: classSymbol, childArgs: currentClass.args, to: superID
                     ) ?? []

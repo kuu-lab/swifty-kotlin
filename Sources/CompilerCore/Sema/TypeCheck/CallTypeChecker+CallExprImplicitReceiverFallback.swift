@@ -271,7 +271,11 @@ extension CallTypeChecker {
                             calleeName: calleeName,
                             args: resolvedArgs,
                             explicitTypeArgs: explicitTypeArgs,
-                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                            dispatchReceiverTypes: importedObjectDispatchReceiverTypes(
+                                named: calleeName,
+                                candidates: group.symbols,
+                                ctx: ctx
+                            ) + ctx.implicitReceiverMemberLookupEntries().map(\.type),
                             boundObjectDispatchReceiverCandidates: importedObjectDispatchReceiverCandidates(
                                 named: calleeName, candidates: group.symbols, ctx: ctx
                             )
@@ -281,7 +285,18 @@ extension CallTypeChecker {
                         ctx: ctx.sema
                     )
                     if let chosen = resolved.chosenCallee {
-                        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+                        let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
+                            named: calleeName,
+                            candidates: [chosen],
+                            ctx: ctx
+                        )[chosen]
+                        let resultType = bindCallAndResolveReturnType(
+                            id,
+                            chosen: chosen,
+                            resolved: resolved,
+                            sema: sema,
+                            dispatchReceiverSymbol: importedDispatchReceiver
+                        )
                         sema.bindings.markImplicitReceiverMember(id, name: calleeName)
                         if let extensionSymbol = group.extensionSymbol {
                             sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionSymbol)

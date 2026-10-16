@@ -171,9 +171,20 @@ extension DeclTypeChecker {
                 of: valueType, sema: sema, interner: interner
             )
         }
+        let contextualDelegateType = expectedDelegateType == nil
+            ? inferredPropertyType.flatMap {
+                inferDelegateFactoryTypeFromConventionContext(
+                    delegateExpr,
+                    propertySymbol: symbol,
+                    valueType: $0,
+                    ctx: ctx,
+                    locals: locals
+                )
+            }
+            : nil
         let delegateType = driver.inferExpr(
             delegateExpr, ctx: ctx, locals: &locals,
-            expectedType: expectedDelegateType
+            expectedType: expectedDelegateType ?? contextualDelegateType
         )
 
         // Record the delegate type for KIR lowering.
@@ -271,7 +282,10 @@ extension DeclTypeChecker {
         let provideDelegateResolution = resolvePropertyDelegateFunction(
             named: provideDelegateName,
             receiverType: delegateType,
-            argumentTypes: Array(delegateAccessorArgs.prefix(2)),
+            argumentTypes: Array(propertyDelegateProvideDelegateArgumentTypes(
+                for: symbol,
+                ctx: ctx
+            ).prefix(2)),
             expectedType: nil,
             range: delegateCallRange,
             ctx: ctx,
@@ -706,7 +720,7 @@ extension DeclTypeChecker {
         return resolveExtensions(fallbackCandidates)
     }
 
-    private func isMutableMapDelegateType(
+    func isMutableMapDelegateType(
         _ type: TypeID,
         sema: SemaModule,
         interner: StringInterner
@@ -742,7 +756,7 @@ extension DeclTypeChecker {
         }
     }
 
-    private func bundledMapDelegateCandidates(
+    func bundledMapDelegateCandidates(
         named: InternedString,
         sema: SemaModule,
         interner: StringInterner
@@ -767,7 +781,7 @@ extension DeclTypeChecker {
         }
     }
 
-    private func propertyDelegateAccessorArgumentTypes(
+    func propertyDelegateAccessorArgumentTypes(
         for propertySymbol: SymbolID,
         valueType: TypeID?,
         ctx: TypeInferenceContext
@@ -795,6 +809,56 @@ extension DeclTypeChecker {
             result.append(valueType)
         }
         return result
+    }
+
+    /// `provideDelegate` receives the containing dispatch receiver for a
+    /// member extension property; its accessors receive the extension
+    /// receiver. Top-level extension properties keep their extension receiver.
+    func propertyDelegateProvideDelegateArgumentTypes(
+        for propertySymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> [TypeID] {
+        let sema = ctx.sema
+        let thisRefType: TypeID
+        if sema.symbols.symbol(propertySymbol)?.kind == .local {
+            thisRefType = sema.types.nullableAnyType
+        } else if let owner = sema.symbols.parentSymbol(for: propertySymbol),
+                  let ownerSymbol = sema.symbols.symbol(owner),
+                  [.class, .interface, .object, .enumClass].contains(ownerSymbol.kind)
+        {
+            let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
+                guard case let .classType(receiverClass) = sema.types.kind(
+                    of: sema.types.makeNonNullable(entry.type)
+                ) else {
+                    return false
+                }
+                return sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+            }?.type
+            let ownerTypeArgs = sema.types.nominalTypeParameterSymbols(for: owner).map {
+                TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            thisRefType = dispatchReceiver ?? sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: ownerTypeArgs,
+                nullability: .nonNull
+            )))
+        } else {
+            thisRefType = propertyDelegateThisRefType(for: propertySymbol, ctx: ctx)
+        }
+        let kPropertyType: TypeID = if let kPropertySymbol = sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("reflect"),
+            ctx.interner.intern("KProperty"),
+        ]) {
+            sema.types.make(.classType(ClassType(
+                classSymbol: kPropertySymbol,
+                args: [.star],
+                nullability: .nonNull
+            )))
+        } else {
+            sema.types.anyType
+        }
+        return [thisRefType, kPropertyType]
     }
 
     private func propertyDelegateThisRefType(

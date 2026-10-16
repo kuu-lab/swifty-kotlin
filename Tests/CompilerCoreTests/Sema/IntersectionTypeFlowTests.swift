@@ -144,6 +144,81 @@ struct IntersectionTypeFlowTests {
         }
     }
 
+    @Test
+    func testSubstitutedDnnMemberPropertyAndComponentRemainNarrow() throws {
+        let sources: [String] = [
+            """
+            package dnn
+
+            data class Some<T>(val data: T & Any)
+            fun typedProperty(x: Some<String?>): String = x.data
+            fun typedComponent(x: Some<String?>): String = x.component1()
+            fun anyExpectedType(x: Some<String?>): Any = x.data
+            """,
+            """
+            package sourcecontrol
+
+            data class TypedSource(val data: String)
+            fun typedSource(x: TypedSource): String = x.data
+            """,
+            """
+            package nullablecontrol
+
+            class Plain<T>(val data: T)
+            fun nullableProperty(x: Plain<String?>): String? = x.data
+            fun invalidStringProperty(x: Plain<String?>): String = x.data
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+
+            let dnnErrors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(dnnErrors.isEmpty, "Unexpected DNN diagnostics: \(dnnErrors.map(\.code))")
+
+            let propertyReads = memberCallExprIDs(
+                named: "data", in: ast, path: paths[0], ctx: ctx, interner: ctx.interner
+            )
+            #expect(propertyReads.count == 2)
+            for read in propertyReads {
+                let type = try #require(sema.bindings.exprType(for: read))
+                #expect(sema.types.isSubtype(type, sema.types.stringType))
+            }
+
+            let componentCalls = memberCallExprIDs(
+                named: "component1", in: ast, path: paths[0], ctx: ctx, interner: ctx.interner
+            )
+            #expect(componentCalls.count == 1)
+            for call in componentCalls {
+                let type = try #require(sema.bindings.exprType(for: call))
+                #expect(
+                    type != sema.types.errorType && sema.types.isSubtype(type, sema.types.stringType),
+                    "Expected component1() to return String, got \(sema.types.renderType(type))"
+                )
+            }
+
+            let sourceErrors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(sourceErrors.isEmpty, "Unexpected typed-source diagnostics: \(sourceErrors.map(\.code))")
+
+            let nullableReads = memberCallExprIDs(
+                named: "data", in: ast, path: paths[2], ctx: ctx, interner: ctx.interner
+            )
+            #expect(nullableReads.count == 2)
+            for read in nullableReads {
+                let type = try #require(sema.bindings.exprType(for: read))
+                #expect(sema.types.isSubtype(type, sema.types.makeNullable(sema.types.stringType)))
+                #expect(!sema.types.isSubtype(type, sema.types.stringType))
+            }
+
+            let nullableErrors = diagnosticsForPath(paths[2], in: ctx).filter { $0.severity == .error }
+            #expect(nullableErrors.map(\.code) == ["KSWIFTK-TYPE-0001"])
+        }
+    }
+
 }
 
 #endif

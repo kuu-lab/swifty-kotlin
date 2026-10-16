@@ -53,6 +53,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `zero_null_print.kt`: `println(0)` と `println(null)` の表示分離
 - `type_error.kt`: compile-error parity case
 - `type_constraints.kt`: type parameter upper bounds and `where` clause parity
+- `elvis_generic_call_expected_type.kt`: generic member-call inference on the Elvis left, covering the pinned JetBrains reproducer plus explicit-type-argument and direct-return controls (KUU-2406)
 - `invoke_operator.kt`: `operator fun invoke` による `obj(args)` 呼び出し（top-level property / object / 式結果）
 - `char_escape.kt`: Char escape / Unicode escape の runtime parity（`'\n'`, `'\t'`, `'\\'`, `'\u0041'`）
 - `char_get_error.kt`: `Char.get(Int)` 呼び出しの compile-error parity（kotlinc では未解決参照）
@@ -113,6 +114,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `random_xorwow_parity.kt`: `Random(seed)` の Int/Long factory、XorWow の warm-up、`nextInt`/`nextInt(until)`/`nextLong`/`nextBits`/`nextDouble` の固定 seed ビット列 parity（KSP-685）
 - `object_literal_local_capture.kt`: object 式のメンバ関数本体からの外側ローカル変数/パラメータキャプチャ（KSP-CAP-001）。`val` パラメータ・`var` local の複数回呼び出しをまたぐミューテーション・自プロパティによる同名 outer local の shadowing・関数型パラメータ（`() -> Int`）キャプチャの parity
 - `object_literal_nested_inner_class.kt`: object 式内の `inner class` を前方宣言の前後どちらでも使い、その primary-constructor property を読み取る parity。通常の object property と named class の対照ケースも含む（KUU-2230）
+- `local_class_inherited_capture.kt`: local base の captured outer local を local subclass の生成時に初期化し、複数段継承・derived 自身の capture・同名 property の shadowing でも保持する KUU-2272 parity。継承なし local class と top-level base の対照も含む
 - `object_literal_primary_constructor_property_capture.kt`: object 式のメンバ関数本体から、外側クラスの primary constructor の immutable property を読むキャプチャ（BUG-243）の parity
 - `contextual_keyword_parameter_names.kt`: コンストラクタ/関数パラメータ名が `inner`/`sealed`/`operator`/`override`/`vararg` 等の modifier keyword と一致する場合の parity。これらは modifier 位置以外では通常の識別子として有効だが、パーサーがパラメータごと無条件に drop していたバグの回帰
 - `vararg_explicit_type_arg_upcast.kt`: 明示的型引数（`mapOf<Any?, Number?>(...)` 等）を伴う vararg 呼び出しで、各要素の実際の型が型引数への upcast を要する場合の parity。型変数の等価制約（明示的型引数由来）を他の下限/上限境界と同じ lub/glb プールに混在させていたため、`Int`/`Nothing?` 等の下限が絡むと lub が `Any?` に暴走し `Conflicting bounds` を誤検出していたバグの回帰

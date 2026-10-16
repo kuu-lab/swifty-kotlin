@@ -30,6 +30,8 @@ extension MetadataEncoder {
         return MetadataRecord(
             kind: symbol.kind,
             visibility: symbol.visibility,
+            constructorVisibilityInherited: symbol.kind == .constructor
+                && symbol.flags.contains(.constructorVisibilityInherited),
             mangledName: "",
             fqName: symbol.fqName.map { interner.resolve($0) }.joined(separator: "."),
             arity: signature?.parameterTypes.count ?? indexedShape?.arity ?? 0,

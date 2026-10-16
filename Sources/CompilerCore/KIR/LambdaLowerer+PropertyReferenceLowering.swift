@@ -255,6 +255,15 @@ extension LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitCallableReferenceIdentity(
+            callableExpr: taggedValue,
+            targetSymbol: accessor.getterSymbol,
+            captures: captureArguments,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         driver.ctx.registerCallableValue(
             taggedValue,
             symbol: getterMethodSymbol,

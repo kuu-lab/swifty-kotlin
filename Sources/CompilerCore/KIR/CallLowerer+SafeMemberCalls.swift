@@ -927,6 +927,7 @@ extension CallLowerer {
                         callSymbol = localSym
                         var prefix = [functionValue]
                         if fnType.receiver != nil,
+                           callableBinding.receiverArgumentOffset == 0,
                            sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
                         {
                             prefix.append(loweredReceiverID)
@@ -1598,6 +1599,14 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
+    // Bundled top-level extensions can be parented by their receiver nominal
+    // for lookup, but remain static calls. Use the semantic receiver/owner
+    // relationship so regular interface and class members keep virtual dispatch.
+    if TypeCheckHelpers().declaresExtensionReceiver(callee, sema: sema, interner: interner),
+       sema.symbols.memberExtensionOwnerSymbol(for: callee) == nil
+    {
+        return nil
+    }
     // Private members cannot be overridden and are omitted from a user
     // library's exported dispatch metadata. Their own bodies must call them
     // directly even when the enclosing class has known subclasses.

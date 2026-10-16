@@ -47,6 +47,8 @@ extension KIRLoweringDriver {
         let type: TypeID
     }
 
+    private typealias EnumEntryBodyGetterSymbols = [[InternedString: SymbolID]]
+
     /// BUG-205: synthesizes the per-enum-class property helpers (and, when
     /// needed, the entry storage and lazy initializer described above).
     ///
@@ -194,11 +196,33 @@ extension KIRLoweringDriver {
                 )
             }
         }
+        let entryBodyGetterSymbols: EnumEntryBodyGetterSymbols = classDecl.enumEntries.map { entry in
+            var getterSymbols: [InternedString: SymbolID] = [:]
+            for declID in entry.memberProperties {
+                guard let decl = ast.arena.decl(declID),
+                      case let .propertyDecl(property) = decl,
+                      property.getter.map({ $0.body != .unit }) == true,
+                      let propertySymbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                getterSymbols[property.name] = propertySymbol
+            }
+            return getterSymbols
+        }
         for entryProperties in entryBodyProperties {
             for property in entryProperties {
                 let isMutable = classPropertySymbol(named: property.name)
                     .flatMap { sema.symbols.symbol($0)?.flags.contains(.mutable) } ?? false
                 addStoredProperty(EnumStoredProperty(name: property.name, type: property.type, isMutable: isMutable))
+            }
+        }
+        for getterSymbols in entryBodyGetterSymbols {
+            for (name, propertySymbol) in getterSymbols {
+                let type = classPropertySymbol(named: name).flatMap { sema.symbols.propertyType(for: $0) }
+                    ?? sema.symbols.propertyType(for: propertySymbol)
+                    ?? sema.types.anyType
+                addStoredProperty(EnumStoredProperty(name: name, type: type, isMutable: false))
             }
         }
 
@@ -212,6 +236,7 @@ extension KIRLoweringDriver {
             || !classDecl.initBlocks.isEmpty
             || !bodyStoredPropertySymbols.isEmpty
             || entryBodyProperties.contains(where: { !$0.isEmpty })
+            || entryBodyGetterSymbols.contains(where: { !$0.isEmpty })
             || zip(classDecl.enumEntries, argumentMappings).contains { entry, mapping in
                 params.indices.contains { paramIndex in
                     if let argIndex = mapping.first(where: { $0.value == paramIndex })?.key {
@@ -242,6 +267,7 @@ extension KIRLoweringDriver {
             storedProperties: storedProperties,
             bodyStoredPropertySymbols: bodyStoredPropertySymbols,
             entryBodyProperties: entryBodyProperties,
+            entryBodyGetterSymbols: entryBodyGetterSymbols,
             shared: shared
         )
     }
@@ -383,7 +409,9 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
-        let anyType = sema.types.anyType
+        let receiverType = sema.types.make(.classType(ClassType(
+            classSymbol: ownerInfo.id, args: [], nullability: .nonNull
+        )))
         let helperName = interner.intern(EnumPropertyHelperNames.getterPrefix + interner.resolve(property.name))
         guard !helperFunctionExists(name: helperName, ownerInfo: ownerInfo, sema: sema) else { return }
         let helperSymbol = defineEnumHelperSymbol(
@@ -394,7 +422,7 @@ extension KIRLoweringDriver {
         )
         sema.symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: [anyType],
+                parameterTypes: [receiverType],
                 returnType: property.type,
                 isSuspend: false,
                 canThrow: false,
@@ -408,7 +436,7 @@ extension KIRLoweringDriver {
         let helperBody = ctx.withNewScope { () -> [KIRInstruction] in
             ctx.setCurrentFunctionSymbol(helperSymbol)
             ctx.beginCallableLoweringScope()
-            let receiverRef = arena.appendExpr(.symbolRef(receiverParamSymbol), type: anyType)
+            let receiverRef = arena.appendExpr(.symbolRef(receiverParamSymbol), type: receiverType)
             var body: KIRLoweringEmitContext = [.beginBlock]
             body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParamSymbol)))
             emitPrologue(&body)
@@ -430,7 +458,7 @@ extension KIRLoweringDriver {
         declIDs.append(arena.appendDecl(.function(KIRFunction(
             symbol: helperSymbol,
             name: helperName,
-            params: [KIRParameter(symbol: receiverParamSymbol, type: anyType)],
+            params: [KIRParameter(symbol: receiverParamSymbol, type: receiverType)],
             returnType: property.type,
             body: helperBody,
             isSuspend: false,
@@ -487,6 +515,7 @@ extension KIRLoweringDriver {
         storedProperties: [EnumStoredProperty],
         bodyStoredPropertySymbols: [InternedString: SymbolID],
         entryBodyProperties: [[EnumEntryBodyProperty]],
+        entryBodyGetterSymbols: EnumEntryBodyGetterSymbols,
         shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
@@ -672,6 +701,26 @@ extension KIRLoweringDriver {
                 declIDs: &declIDs,
                 emitPrologue: emitEnsureInit
             ) { ordinal, body in
+                if let propertySymbol = entryBodyGetterSymbols[ordinal][property.name] {
+                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+                    let getterName = sema.symbols.symbol(getterSymbol)?.name ?? interner.intern("get")
+                    let enumType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol, args: [], nullability: .nonNull
+                    )))
+                    let entryValue = arena.appendExpr(.symbolRef(entrySymbols[ordinal]), type: enumType)
+                    body.append(.constValue(result: entryValue, value: .symbolRef(entrySymbols[ordinal])))
+                    let result = arena.appendTemporary(type: property.type)
+                    body.append(.call(
+                        symbol: getterSymbol,
+                        callee: getterName,
+                        arguments: [entryValue],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 guard let slotSymbol = slot(for: property.name, ordinal: ordinal) else { return nil }
                 let value = arena.appendExpr(.symbolRef(slotSymbol), type: property.type)
                 body.append(.loadGlobal(result: value, symbol: slotSymbol))
@@ -914,16 +963,27 @@ extension KIRLoweringDriver {
     func insertEnumLazyInitTriggers(arena: KIRArena, sema: SemaModule) {
         let lazyInits = ctx.enumLazyInitByOwner
         var companionLazyInits: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+        var enumLazyInitByCompanionLazyInit: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+        // A companion is initialized after its enclosing enum. Other nested
+        // objects have independent initialization and must not trigger it.
         for enumSymbol in sema.symbols.allSymbols() where enumSymbol.kind == .enumClass {
             guard let companionSymbol = sema.symbols.companionObjectSymbol(for: enumSymbol.id) else {
                 continue
             }
+            let companionLazyInit: (symbol: SymbolID, name: InternedString)?
             if let lazyInit = ctx.objectLazyInit(for: companionSymbol) {
-                companionLazyInits[enumSymbol.id] = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
+                companionLazyInit = (lazyInit.ensureInitSymbol, lazyInit.ensureInitName)
             } else if let importedInit = sema.symbols.objectLazyInitializerSymbol(for: companionSymbol),
                       let importedSymbol = sema.symbols.symbol(importedInit)
             {
-                companionLazyInits[enumSymbol.id] = (importedInit, importedSymbol.name)
+                companionLazyInit = (importedInit, importedSymbol.name)
+            } else {
+                companionLazyInit = nil
+            }
+            guard let companionLazyInit else { continue }
+            companionLazyInits[enumSymbol.id] = companionLazyInit
+            if let enumLazyInit = lazyInits[enumSymbol.id] {
+                enumLazyInitByCompanionLazyInit[companionLazyInit.symbol] = enumLazyInit
             }
         }
         guard !lazyInits.isEmpty || !companionLazyInits.isEmpty else { return }
@@ -954,6 +1014,10 @@ extension KIRLoweringDriver {
                             needsRewrite = true
                         }
                     }
+                case let .call(symbol?, _, _, _, _, _, _, _):
+                    if enumLazyInitByCompanionLazyInit[symbol] != nil {
+                        needsRewrite = true
+                    }
                 default:
                     break
                 }
@@ -970,6 +1034,20 @@ extension KIRLoweringDriver {
                     symbol
                 default:
                     nil
+                }
+                if case let .call(symbol?, _, _, _, _, _, _, _) = instruction,
+                   let enumLazyInit = enumLazyInitByCompanionLazyInit[symbol],
+                   enumLazyInit.symbol != function.symbol
+                {
+                    newBody.append(.call(
+                        symbol: enumLazyInit.symbol,
+                        callee: enumLazyInit.name,
+                        arguments: [],
+                        result: arena.appendTemporary(type: unitType),
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    newLocations.append(location)
                 }
                 if let referenced, let owner = enumOwnerForEntry(referenced) {
                     if let lazyInit = lazyInits[owner] {

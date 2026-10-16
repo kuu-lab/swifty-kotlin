@@ -97,6 +97,13 @@ extension DataFlowSemaPhase {
                         diagnostics: diagnostics, interner: interner
                     )
                 }
+                for member in entry.nestedClasses {
+                    validateSemanticDeclRules(
+                        declID: member, ownerPath: declPath + [entry.name], file: file,
+                        ast: ast, symbols: symbols, types: types,
+                        diagnostics: diagnostics, interner: interner
+                    )
+                }
             }
         case .interfaceDecl(let interfaceDecl):
             let declPath = ownerPath + [interfaceDecl.name]

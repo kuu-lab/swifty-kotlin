@@ -182,6 +182,25 @@ final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeArrayStoreExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.lang.ArrayStoreException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.lang.ArrayStoreException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("ArrayStoreException", message)
+    }
+}
+
 final class RuntimeStringIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "java.lang.StringIndexOutOfBoundsException"
@@ -590,6 +609,10 @@ func runtimeAllocateArrayIndexOutOfBoundsException(message: String?) -> Int {
     return runtimeRegisterThrowable(RuntimeArrayIndexOutOfBoundsExceptionBox(message: message))
 }
 
+func runtimeAllocateArrayStoreException(message: String?) -> Int {
+    return runtimeRegisterThrowable(RuntimeArrayStoreExceptionBox(message: message))
+}
+
 func runtimeAllocateStringIndexOutOfBoundsException(message: String?) -> Int {
     return runtimeRegisterThrowable(RuntimeStringIndexOutOfBoundsExceptionBox(message: message))
 }
@@ -858,6 +881,16 @@ public func kk_concurrent_modification_exception_new_cause(_ causeRaw: Int) -> I
 @_cdecl("__kk_array_index_out_of_bounds_exception_new")
 public func kk_array_index_out_of_bounds_exception_new() -> Int {
     runtimeAllocateArrayIndexOutOfBoundsException(message: nil)
+}
+
+@_cdecl("__kk_array_store_exception_new")
+public func kk_array_store_exception_new() -> Int {
+    runtimeAllocateArrayStoreException(message: nil)
+}
+
+@_cdecl("__kk_array_store_exception_new_message")
+public func kk_array_store_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateArrayStoreException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
 
 @_cdecl("__kk_array_index_out_of_bounds_exception_new_message")

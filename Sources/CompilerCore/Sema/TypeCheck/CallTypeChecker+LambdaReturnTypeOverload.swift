@@ -9,20 +9,74 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         ctx: TypeInferenceContext
     ) -> Set<SymbolID> {
-        guard let name, let file = ctx.currentASTFile else { return [] }
-        let paths = Set(file.imports.filter {
-            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
-        }.map(\.path))
-        guard !paths.isEmpty else { return [] }
-        return Set(candidates.filter { candidate in
-            guard let symbol = ctx.sema.symbols.symbol(candidate),
-                  ctx.sema.symbols.functionSignature(for: candidate)?.receiverType == nil,
-                  let owner = ctx.sema.symbols.parentSymbol(for: candidate),
-                  ctx.sema.symbols.symbol(owner)?.kind == .object,
-                  ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
-            else { return false }
-            return paths.contains(symbol.fqName)
+        let owners = importedObjectDispatchReceiverOwners(named: name, candidates: candidates, ctx: ctx)
+        return Set(owners.keys.filter {
+            ctx.sema.symbols.memberExtensionOwnerSymbol(for: $0) == nil
         })
+    }
+
+    /// Resolve the singleton that supplies the dispatch receiver for an
+    /// explicitly imported object member, including a member declared by one
+    /// of that object's supertypes.
+    func importedObjectDispatchReceiverOwners(
+        named name: InternedString?,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID: SymbolID] {
+        guard let name, let file = ctx.currentASTFile else { return [:] }
+        let imports = file.imports.filter {
+            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
+        }
+        guard !imports.isEmpty else { return [:] }
+
+        var result: [SymbolID: SymbolID] = [:]
+        for candidate in candidates {
+            guard let symbol = ctx.sema.symbols.symbol(candidate),
+                  symbol.kind == .function
+            else { continue }
+            let accessorProperty = ctx.sema.symbols.accessorOwnerProperty(for: candidate)
+                ?? ctx.sema.symbols.parentSymbol(for: candidate).flatMap { parent in
+                    ctx.sema.symbols.symbol(parent)?.kind == .property ? parent : nil
+                }
+            let importedMemberName = accessorProperty.flatMap { ctx.sema.symbols.symbol($0)?.name }
+                ?? symbol.name
+            let dispatchOwner = ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate)
+                ?? accessorProperty.flatMap { ctx.sema.symbols.parentSymbol(for: $0) }
+                ?? ctx.sema.symbols.parentSymbol(for: candidate)
+            guard let dispatchOwner,
+                  let ownerSymbol = ctx.sema.symbols.symbol(dispatchOwner),
+                  ownerSymbol.kind == .class || ownerSymbol.kind == .interface || ownerSymbol.kind == .object
+            else { continue }
+
+            for importDecl in imports where importDecl.path.last == importedMemberName {
+                let importedObjects = ctx.sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+                if let object = importedObjects.first(where: { object in
+                    ctx.sema.symbols.symbol(object)?.kind == .object
+                        && ctx.sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)
+                }) {
+                    result[candidate] = object
+                    break
+                }
+            }
+        }
+        return result
+    }
+
+    /// Member extensions still need their source-level extension receiver,
+    /// but an import through an object also supplies its dispatch receiver.
+    func importedObjectDispatchReceiverTypes(
+        named name: InternedString?,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> [TypeID] {
+        let owners = Set(importedObjectDispatchReceiverOwners(named: name, candidates: candidates, ctx: ctx).values)
+        return owners.sorted { $0.rawValue < $1.rawValue }.map { owner in
+            ctx.sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
     }
 
     struct PreparedCallArguments {
@@ -39,6 +93,66 @@ extension CallTypeChecker {
         /// unresolvable regardless of that annotation: there is no locally-known type
         /// to check the lambda body against.
         let hasUnresolvableImplicitLambdaParameter: Bool
+    }
+
+    private func contextualCallableReferenceArgumentType(
+        at index: Int,
+        argumentLabel: InternedString?,
+        args: [CallArgument],
+        callRange: SourceRange,
+        expectedCandidates: [SymbolID],
+        callCandidates: [SymbolID],
+        explicitTypeArgs: [TypeID],
+        receiverType: TypeID?,
+        inferredNonLambdaArgTypes: [Int: TypeID],
+        callResultType: TypeID?,
+        resolver: OverloadResolver?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let expectation = callableReferenceExpectedType(
+            at: index,
+            argumentLabel: argumentLabel,
+            args: args,
+            callRange: callRange,
+            candidates: expectedCandidates,
+            explicitTypeArgs: explicitTypeArgs,
+            receiverType: receiverType,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
+            ctx: ctx
+        ) ?? lambdaLiteralExpectedType(
+            at: index,
+            args: args,
+            callRange: callRange,
+            candidates: expectedCandidates,
+            explicitTypeArgs: explicitTypeArgs,
+            receiverType: receiverType,
+            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            resolver: resolver,
+            sema: sema,
+            ctx: ctx
+        ).type
+        guard let contextualType = contextualCallableArgumentType(
+            expectation,
+            callResultType: callResultType,
+            candidates: callCandidates,
+            sema: sema
+        ) else {
+            return nil
+        }
+        guard expectedCandidates.count == 1,
+              let candidate = expectedCandidates.first,
+              let signature = sema.symbols.functionSignature(for: candidate)
+        else {
+            return contextualType
+        }
+        return applyDispatchReceiverClassTypeArgs(
+            to: contextualType,
+            signature: signature,
+            candidate: candidate,
+            ctx: ctx
+        )
     }
 
     func prepareCallArguments(
@@ -100,6 +214,12 @@ extension CallTypeChecker {
 
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {
+                continue
+            }
+            // Anonymous functions are blocks around a synthetic local function
+            // and callable reference. Defer them like callable references so
+            // their declaration body is first checked with the parameter type.
+            if ast.arena.isAnonymousFunction(argument.expr) {
                 continue
             }
             switch argumentExpr {
@@ -299,36 +419,37 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
-                    let expectation = callableReferenceExpectedType(
+                    // Keep the reference's concrete return type for final call
+                    // inference; the outer result is only an upper constraint.
+                    contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
                         at: index,
                         argumentLabel: argument.label,
                         args: args,
                         callRange: callRange,
-                        candidates: expectedTypeCandidates,
+                        expectedCandidates: expectedTypeCandidates,
+                        callCandidates: candidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        callResultType: nil,
                         resolver: ctx.resolver,
                         ctx: ctx
-                    ) ?? lambdaLiteralExpectedType(
-                        at: index, args: args, callRange: callRange, candidates: expectedTypeCandidates,
-                        explicitTypeArgs: explicitTypeArgs, receiverType: receiverType,
-                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                        resolver: ctx.resolver, sema: sema, ctx: ctx
-                    ).type
-                    // Keep the reference's concrete return type for final call
-                    // inference; the outer result is only an upper constraint.
-                    let contextualType = contextualCallableArgumentType(
-                        expectation, callResultType: nil,
-                        candidates: candidates, sema: sema
                     )
-                    if let contextualType, expectedTypeCandidates.count == 1,
-                       let candidate = expectedTypeCandidates.first,
-                       let signature = sema.symbols.functionSignature(for: candidate) {
-                        contextualArgExpectedTypes[index] = applyDispatchReceiverClassTypeArgs(
-                            to: contextualType, signature: signature, candidate: candidate, ctx: ctx
-                        )
-                    } else { contextualArgExpectedTypes[index] = contextualType }
+                case .blockExpr where ast.arena.isAnonymousFunction(argument.expr):
+                    contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
+                        at: index,
+                        argumentLabel: argument.label,
+                        args: args,
+                        callRange: callRange,
+                        expectedCandidates: expectedTypeCandidates,
+                        callCandidates: candidates,
+                        explicitTypeArgs: explicitTypeArgs,
+                        receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        callResultType: contextualCallResultType,
+                        resolver: ctx.resolver,
+                        ctx: ctx
+                    )
                 case .ifExpr:
                     contextualArgExpectedTypes[index] = uniformContextualParameterType(
                         for: argument,
@@ -414,7 +535,11 @@ extension CallTypeChecker {
 
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
                 var inferenceContext = lambdaContextOverrides[index] ?? ctx
-                if case .callableRef = ast.arena.expr(argument.expr) {
+                let isCallableReferenceArgument: Bool = {
+                    if case .callableRef = ast.arena.expr(argument.expr) { return true }
+                    return ast.arena.isAnonymousFunction(argument.expr)
+                }()
+                if isCallableReferenceArgument {
                     inferenceContext.isCallableReferenceArgument = true
                     let parameters = candidates.flatMap { candidate -> [SymbolID] in
                         guard let signature = sema.symbols.functionSignature(for: candidate) else { return [] }
@@ -524,11 +649,14 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            dispatchReceiverTypes: (bindsObjectDispatchReceiver
+                ? importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
+                : []) + ctx.implicitReceiverMemberLookupEntries().map(\.type),
             boundObjectDispatchReceiverCandidates: bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
                 : [],
-            typeAliasConstructor: typeAliasConstructor
+            typeAliasConstructor: typeAliasConstructor,
+            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
         )
 
         if candidates.contains(where: {
@@ -745,7 +873,8 @@ extension CallTypeChecker {
             guard boundObjectDispatchReceiverCandidates.contains(candidate),
                   sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                   let owner = sema.symbols.parentSymbol(for: candidate),
-                  sema.symbols.symbol(owner)?.kind == .object,
+                  let ownerKind = sema.symbols.symbol(owner)?.kind,
+                  ownerKind == .class || ownerKind == .interface || ownerKind == .object,
                   let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
                   case let .classType(receiverClass) = sema.types.kind(of: receiver),
                   receiverClass.classSymbol == owner

@@ -209,6 +209,8 @@ struct ConstantCollector {
             return .doubleLiteral(value)
         case let .charLiteral(value, _):
             return .charLiteral(value)
+        case .nullLiteral:
+            return .null
         case let .boolLiteral(value, _):
             return .boolLiteral(value)
         case let .stringLiteral(value, _):
@@ -401,6 +403,9 @@ struct ConstantCollector {
         case "toLong":
             guard let value = integerValue(of: receiverConst) else { return nil }
             return .longLiteral(value)
+        case "toChar":
+            guard let value = integerValue(of: receiverConst) else { return nil }
+            return .charLiteral(UInt32(UInt16(truncatingIfNeeded: value)))
         default:
             return nil
         }

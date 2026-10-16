@@ -562,6 +562,9 @@ public struct EnumEntryDecl: Codable {
     /// owned by the entry field symbol; their values live in the per-entry
     /// side storage that the enum's lazy initializer fills.
     public let memberProperties: [DeclID]
+    /// Nested classifier declarations belong to the entry scope while the
+    /// entry value itself keeps the enum's ordinal-backed representation.
+    public let nestedClasses: [DeclID]
 
     public init(
         range: SourceRange,
@@ -569,7 +572,8 @@ public struct EnumEntryDecl: Codable {
         annotations: [AnnotationNode] = [],
         constructorArgs: [CallArgument] = [],
         memberFunctions: [DeclID] = [],
-        memberProperties: [DeclID] = []
+        memberProperties: [DeclID] = [],
+        nestedClasses: [DeclID] = []
     ) {
         self.range = range
         self.name = name
@@ -577,6 +581,28 @@ public struct EnumEntryDecl: Codable {
         self.constructorArgs = constructorArgs
         self.memberFunctions = memberFunctions
         self.memberProperties = memberProperties
+        self.nestedClasses = nestedClasses
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case range
+        case name
+        case annotations
+        case constructorArgs
+        case memberFunctions
+        case memberProperties
+        case nestedClasses
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        name = try container.decode(InternedString.self, forKey: .name)
+        annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
+        constructorArgs = try container.decodeIfPresent([CallArgument].self, forKey: .constructorArgs) ?? []
+        memberFunctions = try container.decodeIfPresent([DeclID].self, forKey: .memberFunctions) ?? []
+        memberProperties = try container.decodeIfPresent([DeclID].self, forKey: .memberProperties) ?? []
+        nestedClasses = try container.decodeIfPresent([DeclID].self, forKey: .nestedClasses) ?? []
     }
 }
 

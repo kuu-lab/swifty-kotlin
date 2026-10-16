@@ -221,7 +221,19 @@ extension ExprTypeChecker {
             }
             receiverType = unboundClassType
         } else if let receiver {
-            receiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+            let inferredReceiverType = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
+            // A qualified classifier such as `A.B` is parsed as a member
+            // expression before `::` is recognized. Its final identifier is
+            // nevertheless bound to the nested classifier symbol; preserve
+            // that type receiver as unbound instead of capturing it as a value.
+            if let symbolID = sema.bindings.identifierSymbols[receiver],
+               let symbol = sema.symbols.symbol(symbolID),
+               symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass,
+               case .classType = sema.types.kind(of: inferredReceiverType)
+            {
+                unboundClassType = inferredReceiverType
+            }
+            receiverType = inferredReceiverType
         } else {
             receiverType = nil
         }
@@ -801,6 +813,9 @@ extension ExprTypeChecker {
             expectedFunctionType = nil
             expectedSamInterfaceType = nil
         }
+        let expectedCallableReferenceReturnType = expectedType.flatMap {
+            driver.helpers.reflectiveCallableReferenceReturnType(from: $0, sema: sema)
+        }
 
         let unboundMemberPropertyReferenceType: TypeID? = if let candidate = unboundMemberPropertyCandidate {
             kPropertyReferenceType(
@@ -956,10 +971,11 @@ extension ExprTypeChecker {
         )
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
-            expectedType: expectedFunctionType,
+            expectedType: expectedFunctionType ?? expectedType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
             unboundReceiverType: unboundInnerConstructorReceiverType,
+            expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
             sema: sema
@@ -1092,13 +1108,38 @@ extension ExprTypeChecker {
                            for: signature, bindReceiver: true,
                            boundReceiver: boundReceiverType.map { (chosen, $0) },
                            unboundReceiverType: unboundInnerConstructorReceiverType,
-                           expectedFunctionType: nil, interner: interner, sema: sema
+                           expectedFunctionType: nil,
+                           expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                           interner: interner, sema: sema
                        ) {
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
                     } else {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-INFER", "Reified callable reference requires contextual type arguments.", range: range
+                        )
+                    }
+                }
+                if let expectedCallableReferenceReturnType,
+                   !signature.typeParameterSymbols.isEmpty
+                {
+                    if let specialization = driver.helpers.contextualCallableReferenceBinding(
+                        for: signature,
+                        bindReceiver: isBoundReceiver,
+                        boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        unboundReceiverType: unboundInnerConstructorReceiverType,
+                        expectedFunctionType: nil,
+                        expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
+                        interner: interner,
+                        sema: sema
+                    ) {
+                        inferredType = specialization.functionType
+                        contextualSpecialization = specialization
+                    } else {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-TYPE-0001",
+                            "Type constraint could not be satisfied.",
+                            range: range
                         )
                     }
                 }

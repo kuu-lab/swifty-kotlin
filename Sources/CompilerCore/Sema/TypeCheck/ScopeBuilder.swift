@@ -120,7 +120,11 @@ struct TypeCheckScopeBuilder {
         return mapping
     }
 
-    private func resolveExplicitImport(_ path: [InternedString], sema: SemaModule) -> [SymbolID] {
+    private func resolveExplicitImport(
+        _ path: [InternedString],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
         let resolved = sema.symbols.lookupAll(fqName: path)
         guard resolved.isEmpty, let name = path.last else { return resolved }
         // Bundled companion constants are package-owned extension properties.
@@ -130,7 +134,48 @@ struct TypeCheckScopeBuilder {
             sema.symbols.symbol($0)?.kind == .object
         })
         guard !owners.isEmpty else { return [] }
+        let helpers = TypeCheckHelpers()
         var candidates: Set<SymbolID> = []
+        for owner in owners {
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: [],
+                nullability: .nonNull
+            )))
+            candidates.formUnion(helpers.collectMemberFunctionCandidates(
+                named: name,
+                receiverType: ownerType,
+                sema: sema,
+                interner: interner
+            ))
+            if let property = helpers.lookupMemberProperty(
+                named: name,
+                receiverType: ownerType,
+                sema: sema
+            ) {
+                candidates.insert(property.symbol)
+            }
+
+            var ownerQueue = [owner]
+            var visitedOwners: Set<SymbolID> = []
+            while !ownerQueue.isEmpty {
+                let memberOwner = ownerQueue.removeFirst()
+                guard visitedOwners.insert(memberOwner).inserted,
+                      let memberOwnerInfo = sema.symbols.symbol(memberOwner)
+                else {
+                    continue
+                }
+                candidates.formUnion(sema.symbols.lookupAll(fqName: memberOwnerInfo.fqName + [name]).filter {
+                    sema.symbols.symbol($0)?.kind == .property
+                        && sema.symbols.symbol($0)?.flags.contains(.memberExtension) == true
+                })
+                ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: memberOwner))
+            }
+        }
+
+        // Bundled companion constants are package-owned extension properties,
+        // not inherited nominal members. Preserve that import form after adding
+        // the ordinary inherited-member candidates above.
         for owner in owners {
             guard let ownerInfo = sema.symbols.symbol(owner) else { continue }
             // Imported metadata carries package parents; source nominal
@@ -154,6 +199,12 @@ struct TypeCheckScopeBuilder {
             }
         }
         return candidates.sorted { $0.rawValue < $1.rawValue }.filter { candidate in
+            if sema.symbols.parentSymbol(for: candidate).map({ owners.contains($0) }) == true
+                || sema.symbols.parentSymbol(for: candidate).map({ owner in
+                    owners.contains { sema.types.isNominalSubtypeSymbol($0, of: owner) }
+                }) == true {
+                return true
+            }
             guard sema.symbols.symbol(candidate)?.kind == .property,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
                   case let .classType(receiverClass) = sema.types.kind(of: receiver)
@@ -267,7 +318,7 @@ struct TypeCheckScopeBuilder {
                     continue
                 }
 
-                let resolved = resolveExplicitImport(importDecl.path, sema: sema)
+                let resolved = resolveExplicitImport(importDecl.path, sema: sema, interner: interner)
 
                 let isPackageOnlyImport = !resolved.isEmpty && resolved.allSatisfy {
                     sema.symbols.symbol($0)?.kind == .package
@@ -330,7 +381,7 @@ struct TypeCheckScopeBuilder {
 
             let resolved = importDecl.isWildcard
                 ? sema.symbols.lookupAll(fqName: importDecl.path)
-                : resolveExplicitImport(importDecl.path, sema: sema)
+                : resolveExplicitImport(importDecl.path, sema: sema, interner: interner)
             if importDecl.isWildcard, resolved.contains(where: {
                 sema.symbols.symbol($0)?.kind == .enumClass
             }) {
@@ -563,6 +614,7 @@ struct TypeCheckScopeBuilder {
             ["kotlin", "comparisons"],
             ["kotlin", "coroutines"],
             ["kotlin", "enums"],
+            ["kotlin", "native"],
             // kotlin.math is not a Kotlin default import; importing it here broke
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.
             ["kotlin", "io"],

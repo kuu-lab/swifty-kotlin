@@ -6,10 +6,10 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2234: Java-FQN HashMap imports reuse the Kotlin HashMap API and
-    /// runtime identity through both source stdlib and a fresh .kklib.
+    /// KUU-2234/KUU-2401: Java-FQN HashMap imports reuse the Kotlin HashMap
+    /// API, copy entries, and preserve runtime identity across stdlib surfaces.
     @Test
-    func testJavaUtilHashMapFacadeCompilesFromArtifactAndRunsFromSource() throws {
+    func testJavaUtilHashMapFacadeRunsAcrossSourceAndArtifact() throws {
         let source = """
         import java.util.HashMap
         import java.util.HashMap as JavaHashMap
@@ -21,12 +21,12 @@ extension StdlibArtifactRegressionTests {
         private fun asJavaMap(value: KotlinHashMap<String, Int>): JavaHashMap<String, Int> = value
 
         fun main() {
-            val javaMap = HashMap<String, Int>(8, 1.0F)
-            javaMap["answer"] = 42
-            val copied: HashMap<String, Int> = HashMap(javaMap)
-            val copiedAlias: JavaHashMap<String, Int> = JavaHashMap(javaMap)
+            val source = JavaHashMap<String, Int>(8, 1.0F)
+            source["answer"] = 42
+            val copied: HashMap<String, Int> = HashMap(source)
+            val copiedAlias: JavaHashMap<String, Int> = JavaHashMap(source)
 
-            val kotlinMap: KotlinHashMap<String, Int> = asKotlinMap(javaMap)
+            val kotlinMap: KotlinHashMap<String, Int> = asKotlinMap(source)
             val backToJava: JavaHashMap<String, Int> = asJavaMap(kotlinMap)
             val mutableMap: MutableMap<String, Int> = backToJava
 
@@ -37,16 +37,16 @@ extension StdlibArtifactRegressionTests {
                 kotlin.collections.HashMap()
             noImportKotlinMap["control"] = 7
 
-            val erasedJava: Any = javaMap
+            val erasedJava: Any = source
             val erasedKotlin: Any = noImportKotlinMap
 
             println(capacityHashMap(8).size)
-            println(copied == javaMap)
+            println(copied == source)
             println(copied["answer"])
-            println(copiedAlias == javaMap)
+            println(copiedAlias == source)
             println(copiedAlias["answer"])
-            println(kotlinMap === javaMap)
-            println(backToJava === javaMap)
+            println(kotlinMap === source)
+            println(backToJava === source)
             println(erasedJava is KotlinHashMap<*, *>)
             println(erasedKotlin is JavaHashMap<*, *>)
             println(mutableMap["answer"])
@@ -71,60 +71,52 @@ extension StdlibArtifactRegressionTests {
         """
         let artifactPath = try Self.buildStdlibArtifact()
 
-        for optLevel in [OptimizationLevel.O0, .O2] {
-            try withTemporaryFile(contents: source) { input in
-                let output = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString)
-                    .path
-                defer { try? FileManager.default.removeItem(atPath: output + ".o") }
+        for (surface, libraryPath) in [("source", nil), ("fresh .kklib", artifactPath)] {
+            for optLevel in [OptimizationLevel.O0, .O2] {
+                try withTemporaryFile(contents: source) { input in
+                    let output = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString)
+                        .path
+                    defer {
+                        try? FileManager.default.removeItem(atPath: output)
+                        try? FileManager.default.removeItem(atPath: output + ".o")
+                    }
 
-                let context = makeJavaUtilHashMapContext(
-                    input: input,
-                    output: output,
-                    libraryPath: artifactPath,
-                    emit: .object,
-                    optLevel: optLevel
-                )
-                try runToKIR(context)
-                try assertNoDiagnosticErrors(context)
-                try LoweringPhase().run(context)
-                try CodegenPhase().run(context)
+                    let context = makeJavaUtilHashMapContext(
+                        input: input,
+                        output: output,
+                        libraryPath: libraryPath,
+                        emit: .executable,
+                        optLevel: optLevel
+                    )
+                    do {
+                        try runToKIR(context)
+                        try assertNoDiagnosticErrors(context)
+                        try LoweringPhase().run(context)
+                        try CodegenPhase().run(context)
+                        try LinkPhase().run(context)
+                    } catch {
+                        throw CompilerPipelineError.invalidInput(
+                            "\(surface) \(optLevel) pipeline failed: \(error); "
+                                + "diagnostics: \(context.diagnostics.diagnostics)"
+                        )
+                    }
 
-                #expect(
-                    FileManager.default.fileExists(atPath: output + ".o"),
-                    "Expected an object file for fresh .kklib at \(optLevel)"
-                )
+                    let result: CommandResult
+                    do {
+                        result = try CommandRunner.run(executable: output, arguments: [])
+                    } catch {
+                        throw CompilerPipelineError.invalidInput(
+                            "\(surface) \(optLevel) execution failed: \(error)"
+                        )
+                    }
+                    #expect(result.exitCode == 0, "\(surface), \(optLevel): \(result.stderr)")
+                    #expect(
+                        result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                        "Unexpected \(surface) output at \(optLevel)"
+                    )
+                }
             }
-        }
-
-        try withTemporaryFile(contents: source) { input in
-            let output = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .path
-            defer {
-                try? FileManager.default.removeItem(atPath: output)
-                try? FileManager.default.removeItem(atPath: output + ".o")
-            }
-
-            let context = makeJavaUtilHashMapContext(
-                input: input,
-                output: output,
-                libraryPath: nil,
-                emit: .executable,
-                optLevel: .O0
-            )
-            try runToKIR(context)
-            try assertNoDiagnosticErrors(context)
-            try LoweringPhase().run(context)
-            try CodegenPhase().run(context)
-            try LinkPhase().run(context)
-
-            let result = try CommandRunner.run(executable: output, arguments: [])
-            #expect(result.exitCode == 0, "source stdlib: \(result.stderr)")
-            #expect(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
-                "Unexpected source stdlib output"
-            )
         }
     }
 }
@@ -138,11 +130,11 @@ private func makeJavaUtilHashMapContext(
 ) -> CompilationContext {
     CompilationContext(
         options: CompilerOptions(
-            moduleName: "KUU2234JavaUtilHashMap",
+            moduleName: "KUU2401JavaUtilHashMap",
             inputs: [input],
             outputPath: output,
             emit: emit,
-            target: defaultTargetTriple(),
+            target: CompilerTestSupport.defaultTargetTriple(),
             optLevel: optLevel,
             includeStdlib: libraryPath == nil,
             stdlibLibraryPath: libraryPath,
