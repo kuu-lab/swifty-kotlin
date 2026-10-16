@@ -54,11 +54,10 @@ extension OverloadResolver {
     }
 
     /// Derives a partial type-variable substitution for `signature`'s type
-    /// parameters using only the argument positions present in
-    /// `knownArgumentTypes`. Used to seed a lambda argument's expected type with
-    /// type-parameter bindings already inferred from the call's other
-    /// (non-lambda) arguments, before the lambda literal itself is type-checked
-    /// (see `lambdaLiteralExpectedType` in `CallTypeChecker+LambdaReturnTypeOverload.swift`).
+    /// parameters from known argument types and explicitly typed lambda inputs.
+    /// Used to seed a lambda argument's expected type before the lambda literal
+    /// itself is type-checked (see `lambdaLiteralExpectedType` in
+    /// `CallTypeChecker+LambdaReturnTypeOverload.swift`).
     /// A missing key in the result means that type parameter could not be
     /// constrained from the known arguments — callers must treat it as
     /// "unconstrained", not as an error.
@@ -66,6 +65,7 @@ extension OverloadResolver {
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
         knownArgumentTypes: [Int: TypeID],
+        knownLambdaInputAnnotations: [Int: [TypeID?]] = [:],
         typeSystem: TypeSystem,
         blameRange: SourceRange? = nil,
         implicitReceiverType: TypeID? = nil
@@ -74,6 +74,7 @@ extension OverloadResolver {
             return [:]
         }
         var constraints: [VariableConstraint] = []
+        var lambdaInputTypeVariables: Set<TypeVarID> = []
         for (index, argType) in knownArgumentTypes {
             guard index >= 0, index < signature.parameterTypes.count else { continue }
             constraints.append(contentsOf: decomposeSubtypeConstraint(
@@ -83,6 +84,29 @@ extension OverloadResolver {
                 typeSystem: typeSystem,
                 blameRange: blameRange
             ))
+        }
+        for (parameterIndex, annotations) in knownLambdaInputAnnotations {
+            guard signature.parameterTypes.indices.contains(parameterIndex),
+                  case let .functionType(functionType) = typeSystem.kind(
+                      of: signature.parameterTypes[parameterIndex]
+                  ),
+                  functionType.params.count == annotations.count
+            else { continue }
+            for (expectedInput, annotation) in zip(functionType.params, annotations) {
+                guard let annotation else { continue }
+                for (symbol, variable) in typeVarBySymbol where typeSystem.typeContainsTypeParam(
+                    expectedInput, symbol: symbol
+                ) {
+                    lambdaInputTypeVariables.insert(variable)
+                }
+                constraints.append(contentsOf: decomposeSubtypeConstraint(
+                    subtype: expectedInput,
+                    supertype: annotation,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: blameRange
+                ))
+            }
         }
         if let implicitReceiverType, let receiverType = signature.receiverType {
             constraints.append(contentsOf: decomposeSubtypeConstraint(
@@ -158,13 +182,12 @@ extension OverloadResolver {
             guard solution.isSuccess else { return [:] }
         }
 
-        // An upper bound alone is not a usable lambda context. For example,
-        // Comparator<Any> passed to Comparator<in R> only establishes R <: Any;
-        // the trailing selector still has to infer R from its return type. If
-        // this helper substituted Any eagerly, the selector would be checked as
-        // (T) -> Any and its concrete return type would be lost before the main
-        // call solver ran. Keep substitutions that have a concrete lower bound,
-        // while leaving upper-only variables unresolved for the lambda pass.
+        // An upper bound derived from an ordinary argument is not a usable
+        // lambda context. For example, Comparator<Any> passed to Comparator<in
+        // R> only establishes R <: Any; the trailing selector still has to
+        // infer R from its return type. Explicit lambda input annotations are
+        // different: their input variables are solved candidate-locally, while
+        // unrelated upper-only variables remain unresolved for the lambda pass.
         let lowerBoundedVariables: Set<TypeVarID> = Set(constraints.compactMap { constraint in
             guard case .type = constraint.left,
                   case let .variable(variable) = constraint.right
@@ -173,7 +196,9 @@ extension OverloadResolver {
             }
             return variable
         })
-        return solution.substitution.filter { lowerBoundedVariables.contains($0.key) }
+        return solution.substitution.filter {
+            lowerBoundedVariables.contains($0.key) || lambdaInputTypeVariables.contains($0.key)
+        }
     }
 
     public func resolveCall(
