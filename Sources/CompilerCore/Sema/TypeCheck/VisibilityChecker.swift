@@ -100,7 +100,13 @@ struct VisibilityChecker {
             if enclosingClass == ownerClass {
                 return true
             }
-            return isSubclass(enclosingClass, of: ownerClass)
+            if isSubclass(enclosingClass, of: ownerClass) {
+                return true
+            }
+            // Kotlin also grants protected access to declarations lexically
+            // nested inside the owner, including inner classes that are not
+            // themselves subclasses of that owner.
+            return isLexicallyNested(enclosingClass, within: ownerClass)
         }
     }
 
@@ -143,6 +149,18 @@ struct VisibilityChecker {
             if visited.contains(current.rawValue) { continue }
             visited.insert(current.rawValue)
             queue.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+        return false
+    }
+
+    private func isLexicallyNested(_ candidate: SymbolID, within owner: SymbolID) -> Bool {
+        var current = symbols.parentSymbol(for: candidate)
+        var visited: Set<SymbolID> = []
+        while let parent = current, visited.insert(parent).inserted {
+            if parent == owner {
+                return true
+            }
+            current = symbols.parentSymbol(for: parent)
         }
         return false
     }
