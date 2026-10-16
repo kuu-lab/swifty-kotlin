@@ -357,10 +357,10 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidateID),
                       let declaredReceiver = signature.receiverType
                 else { return false }
-                return extensionSyntheticFallbackReceiverMatches(
+                return extensionReceiverMatchesDuringBuilderInference(
                     callSiteReceiver: extensionReceiverType,
                     declaredReceiver: declaredReceiver,
-                    sema: sema
+                    ctx: ctx
                 )
             }
             if !candidates.isEmpty { return candidates }

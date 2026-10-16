@@ -36,7 +36,8 @@ extension ExprTypeChecker {
             chosenCallee: target,
             substitutedTypeArguments: specialization.typeArguments,
             parameterMapping: specialization.parameterMapping,
-            isCallableReferenceAdapter: specialization.requiresAdapter
+            isCallableReferenceAdapter: specialization.requiresAdapter,
+            boundContextParameterTypes: specialization.boundContextParameterTypes
         ))
     }
 
@@ -52,6 +53,10 @@ extension ExprTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let availableContextReceiverTypes = ctx.contextReceiverTypes
+            + ctx.implicitReceiverStack.map(\.type)
+            + ctx.outerReceiverTypes.map(\.type)
+            + (ctx.implicitReceiverType.map { [$0] } ?? [])
         let outerSymbols = Set(locals.values.map(\.symbol))
         sema.bindings.bindCallableReference(id, binding: nil)
 
@@ -588,7 +593,7 @@ extension ExprTypeChecker {
                 // extensions during scope lookup so only matching candidates
                 // participate in shadowing. Keep member candidates above as
                 // the higher-priority tier.
-                candidates = ctx.scope.lookup(member, matching: { symbolID in
+                func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
                     guard let symbol = ctx.cachedSymbol(symbolID),
                           symbol.kind == .function,
                           !(symbol.flags.contains(.expectDeclaration)
@@ -609,7 +614,26 @@ extension ExprTypeChecker {
                         declaredReceiver: declaredReceiver,
                         sema: sema
                     )
+                }
+                // Local functions can be present in value-position locals even
+                // when this callable-reference scope lookup cannot see them.
+                // Match direct explicit-receiver calls: applicable local
+                // extensions form the nearest candidate tier and shadow
+                // package extensions with the same name.
+                let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
+                    ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
+                        && isApplicableExtensionReferenceCandidate(symbolID)
                 })
+                if !localExtensionCandidates.isEmpty {
+                    candidates = localExtensionCandidates
+                } else if let local = locals[member],
+                          ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true,
+                          isApplicableExtensionReferenceCandidate(local.symbol)
+                {
+                    candidates = [local.symbol]
+                } else {
+                    candidates = ctx.scope.lookup(member, matching: isApplicableExtensionReferenceCandidate)
+                }
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
                 // has no receiver parameter, so it is folded into the bound
@@ -793,17 +817,26 @@ extension ExprTypeChecker {
             // `.function || .constructor` scope lookup above never finds them
             // -- mirrors the KSP-CAP-006 class+ctor lookup CallTypeChecker.swift
             // uses for a direct call `Foo(...)`.
+            // Fun interfaces take a separate synthetic SAM-factory path because
+            // they have no declared constructor symbol.
             if candidates.isEmpty {
                 let classCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
                     guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
-                    return symbol.kind == .class || symbol.kind == .enumClass
+                    return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .interface
                 }
                 if let classSym = classCandidates.first,
-                   let classSymbol = ctx.cachedSymbol(classSym),
-                   let ctorCandidates = visibleConstructorCandidates(of: classSymbol, ctx: ctx)
+                   let classSymbol = ctx.cachedSymbol(classSym)
                 {
-                    candidates = ctorCandidates
-                    isConstructorReference = true
+                    if classSymbol.kind == .interface, classSymbol.flags.contains(.funInterface) {
+                        if let type = inferFunInterfaceConstructorCallableReference(
+                            id, interfaceSymbol: classSym, expectedType: expectedType, range: range, ctx: ctx
+                        ) {
+                            return type
+                        }
+                    } else if let ctorCandidates = visibleConstructorCandidates(of: classSymbol, ctx: ctx) {
+                        candidates = ctorCandidates
+                        isConstructorReference = true
+                    }
                 }
             }
         }
@@ -944,6 +977,7 @@ extension ExprTypeChecker {
                     bindReceiver: false,
                     expectedFunctionType: expectedFunctionType,
                     interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
                     sema: sema
                 ) != nil
             }
@@ -1044,6 +1078,7 @@ extension ExprTypeChecker {
                     unboundReceiverType: unboundInnerConstructorReceiverType,
                     expectedFunctionType: inputType,
                     interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
                     sema: sema
                 ) != nil
             }
@@ -1063,6 +1098,7 @@ extension ExprTypeChecker {
             expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
+            availableContextReceiverTypes: availableContextReceiverTypes,
             sema: sema
         )
         if chosen == nil,
@@ -1131,6 +1167,7 @@ extension ExprTypeChecker {
                         expectedFunctionType: expectedFunctionType,
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -1149,7 +1186,10 @@ extension ExprTypeChecker {
                               boundReceiver: boundReceiverType.map { (chosen, $0) },
                               unboundReceiverType: unboundInnerConstructorReceiverType,
                               expectedFunctionType: expectedFunctionType,
-                              postponedReturnTypeParameter: postponedReturnParameter, interner: interner, sema: sema
+                              postponedReturnTypeParameter: postponedReturnParameter,
+                              interner: interner,
+                              availableContextReceiverTypes: availableContextReceiverTypes,
+                              sema: sema
                           ) {
                     inferredType = specialization.functionType
                     contextualSpecialization = specialization
@@ -1162,6 +1202,7 @@ extension ExprTypeChecker {
                         unboundReceiverType: unboundInnerConstructorReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -1195,7 +1236,9 @@ extension ExprTypeChecker {
                            unboundReceiverType: unboundInnerConstructorReceiverType,
                            expectedFunctionType: nil,
                            expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
-                           interner: interner, sema: sema
+                           interner: interner,
+                           availableContextReceiverTypes: availableContextReceiverTypes,
+                           sema: sema
                        ) {
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
@@ -1216,6 +1259,7 @@ extension ExprTypeChecker {
                         expectedFunctionType: nil,
                         expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                         interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType

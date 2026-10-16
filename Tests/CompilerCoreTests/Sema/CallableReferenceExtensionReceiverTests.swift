@@ -427,6 +427,132 @@ struct CallableReferenceExtensionReceiverTests {
         #expect(owner.kind == .class)
     }
 
+    @Test func testExplicitBoundReferenceFindsLocalExtensionAndSelectsOverload() throws {
+        let source = """
+        class Host { val text = "OK" }
+
+        fun capture(): () -> String {
+            fun Host.label(): String = text
+            fun Host.label(prefix: String): String = prefix + text
+            val label: () -> String = Host()::label
+            return label
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "A local extension must be visible to an explicit bound reference: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, member, range) = ast.arena.expr(exprID),
+                  ctx.interner.resolve(member) == "label",
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else {
+                return nil
+            }
+            return exprID
+        }.first)
+        guard case let .symbol(targetID)? = sema.bindings.callableTargets[reference],
+              let target = sema.symbols.symbol(targetID),
+              let signature = sema.symbols.functionSignature(for: targetID)
+        else {
+            Issue.record("Host()::label should bind to a local extension function")
+            return
+        }
+        #expect(target.flags.contains(.localFunction))
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(!sema.bindings.isUnboundCallableRef(reference))
+
+        let functionType = try #require(sema.bindings.exprType(for: reference))
+        guard case let .functionType(function) = sema.types.kind(of: functionType) else {
+            Issue.record("A bound local extension reference should have a function type")
+            return
+        }
+        #expect(function.params.isEmpty)
+        #expect(function.returnType == sema.types.stringType)
+    }
+
+    @Test func testExplicitBoundLocalExtensionReferenceCanBeInvoked() throws {
+        let ctx = makeContextFromSource("""
+        class Host { val text = "OK" }
+        fun box(): String {
+            fun Host.label() = text
+            val label = Host()::label
+            return label()
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "A local extension reference should stay callable from a same-named local value: \(errors)")
+    }
+
+    @Test func testExplicitBoundReferenceToLocalExtensionRejectsIncompatibleReceiver() throws {
+        let ctx = makeContextFromSource("""
+        class Host
+        class Other
+        fun capture() {
+            fun Host.label(): String = "host"
+            val label = Other()::label
+            println(label)
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "A local extension must not match an incompatible explicit receiver")
+    }
+
+    @Test func testExplicitBoundReferenceDoesNotLeakLocalExtensionOutsideScope() throws {
+        let ctx = makeContextFromSource("""
+        class Host
+        fun declaresLocalExtension() {
+            fun Host.label(): String = "host"
+        }
+        fun outside(): () -> String = Host()::label
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "A local extension must not escape its declaring function scope")
+    }
+
+    @Test func testExplicitMemberReferenceOutranksSameNamedLocalExtension() throws {
+        let ctx = makeContextFromSource("""
+        class Probe {
+            fun label(): String = "member"
+        }
+        fun capture(probe: Probe): () -> String {
+            fun Probe.label(): String = "local extension"
+            return probe::label
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The receiver member should remain a valid reference: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, member, range) = ast.arena.expr(exprID),
+                  ctx.interner.resolve(member) == "label",
+                  ctx.sourceManager.origin(of: range.start.file) == .user
+            else {
+                return nil
+            }
+            return exprID
+        }.first)
+        guard case let .symbol(targetID)? = sema.bindings.callableTargets[reference],
+              let ownerID = sema.symbols.parentSymbol(for: targetID),
+              let owner = sema.symbols.symbol(ownerID)
+        else {
+            Issue.record("probe::label should bind to the member function")
+            return
+        }
+        #expect(owner.kind == .class)
+        #expect(sema.symbols.symbol(targetID)?.flags.contains(.localFunction) != true)
+    }
+
     @Test(arguments: [
         "with(\"s\") { with(1) { ::tag } }",
         "with(\"s\") { with(1) { with(true) { ::tag } } }",

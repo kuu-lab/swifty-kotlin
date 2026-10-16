@@ -13,6 +13,108 @@ final class BuilderInferenceSession {
 }
 
 extension CallTypeChecker {
+    /// Return receiver constraints when an unresolved builder receiver could
+    /// become applicable after the builder variables are solved. This is a
+    /// speculative check: callers only append the returned constraints after
+    /// overload selection has produced a unique candidate.
+    func deferredBuilderReceiverConstraints(
+        callSiteReceiver: TypeID,
+        declaredReceiver: TypeID,
+        ctx: TypeInferenceContext,
+        blameRange: SourceRange? = nil
+    ) -> [VariableConstraint]? {
+        let sema = ctx.sema
+        guard let session = ctx.builderInference,
+              !session.isFinalized,
+              session.mentionsVariable(callSiteReceiver, types: sema.types)
+        else {
+            return nil
+        }
+
+        let actual = sema.types.makeNonNullable(callSiteReceiver)
+        let declared = sema.types.makeNonNullable(declaredReceiver)
+        guard !sema.types.isSubtype(actual, declared) else { return nil }
+        let constraints = ctx.resolver.decomposeSubtypeConstraint(
+            subtype: actual,
+            supertype: declared,
+            typeVarBySymbol: session.typeVarBySymbol,
+            typeSystem: sema.types,
+            blameRange: blameRange
+        )
+        let sessionVariables = Set(session.typeVarBySymbol.values)
+        let introducedVariables = Set(ctx.resolver.usedTypeVariables(from: constraints))
+        guard !sessionVariables.isDisjoint(with: introducedVariables) else { return nil }
+
+        let proposedConstraints = session.constraints + constraints
+        let solution = ConstraintSolver().solve(
+            vars: ctx.resolver.usedTypeVariables(from: proposedConstraints),
+            constraints: proposedConstraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else { return nil }
+        let resolvedActual = sema.types.substituteTypeParameters(
+            in: actual,
+            substitution: solution.substitution,
+            typeVarBySymbol: session.typeVarBySymbol
+        )
+        let resolvedDeclared = sema.types.substituteTypeParameters(
+            in: declared,
+            substitution: solution.substitution,
+            typeVarBySymbol: session.typeVarBySymbol
+        )
+        guard extensionSyntheticFallbackReceiverMatches(
+            callSiteReceiver: resolvedActual,
+            declaredReceiver: resolvedDeclared,
+            sema: sema
+        ) else {
+            return nil
+        }
+        return constraints
+    }
+
+    /// Check extension receiver applicability without committing speculative
+    /// constraints from competing overloads.
+    func extensionReceiverMatchesDuringBuilderInference(
+        callSiteReceiver: TypeID,
+        declaredReceiver: TypeID,
+        ctx: TypeInferenceContext,
+        blameRange: SourceRange? = nil
+    ) -> Bool {
+        extensionSyntheticFallbackReceiverMatches(
+            callSiteReceiver: callSiteReceiver,
+            declaredReceiver: declaredReceiver,
+            sema: ctx.sema
+        ) || deferredBuilderReceiverConstraints(
+            callSiteReceiver: callSiteReceiver,
+            declaredReceiver: declaredReceiver,
+            ctx: ctx,
+            blameRange: blameRange
+        ) != nil
+    }
+
+    /// Apply the builder session's current solution when resolving a nested
+    /// receiver call/property. The final callback pass still performs ordinary
+    /// resolution using the fully substituted receiver.
+    func resolvedBuilderInferenceType(_ type: TypeID, ctx: TypeInferenceContext) -> TypeID {
+        guard let session = ctx.builderInference,
+              !session.isFinalized,
+              !session.constraints.isEmpty
+        else {
+            return type
+        }
+        let solution = ConstraintSolver().solve(
+            vars: ctx.resolver.usedTypeVariables(from: session.constraints),
+            constraints: session.constraints,
+            typeSystem: ctx.sema.types
+        )
+        guard solution.isSuccess else { return type }
+        return ctx.sema.types.substituteTypeParameters(
+            in: type,
+            substitution: solution.substitution,
+            typeVarBySymbol: session.typeVarBySymbol
+        )
+    }
+
     func inferReceiverBuilderCall(
         _ id: ExprID,
         calleeName: InternedString?,

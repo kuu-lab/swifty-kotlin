@@ -100,6 +100,98 @@ struct ReceiverBuilderInferenceTests {
         """)
     }
 
+    @Test func extensionPropertyReceiverInfersBuilderType() throws {
+        try expectBuilderTypeArgument("""
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        class UserKlass
+        val Buildee<UserKlass>.typeInfoSourcingValue: UserKlass get() = UserKlass()
+        var Buildee<UserKlass>.typeInfoSourcingVariable: UserKlass
+            get() = UserKlass()
+            set(value) {}
+        fun box() {
+            build { this.typeInfoSourcingValue }
+            build { this.typeInfoSourcingVariable }
+        }
+        """, callCount: 2)
+    }
+
+    @Test func extensionFunctionReceiverInfersBuilderType() throws {
+        try expectBuilderTypeArgument("""
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        class UserKlass
+        fun Buildee<UserKlass>.sourceFunction(): Unit {}
+        fun box() {
+            build { this.sourceFunction() }
+        }
+        """)
+    }
+
+    @Test func implicitExtensionPropertyReceiverInfersBuilderType() throws {
+        try expectBuilderTypeArgument("""
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        class UserKlass
+        val Buildee<UserKlass>.typeInfo: UserKlass get() = UserKlass()
+        fun box() { build { typeInfo } }
+        """)
+    }
+
+    @Test func nestedDslReceiverScopeInfersBuilderFromInnerProperty() throws {
+        try expectBuilderTypeArgument("""
+        class Scope
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        class UserKlass
+        val Buildee<UserKlass>.typeInfo: UserKlass get() = UserKlass()
+        fun inScope(block: Scope.() -> Unit) { Scope().block() }
+        fun box() { inScope { build { typeInfo } } }
+        """, ignoreUnboundCallNodes: true)
+    }
+
+    @Test func extensionPropertyReceiverPreservesInferenceControls() throws {
+        try expectBuilderTypeArgument("""
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        class UserKlass
+        val Buildee<UserKlass>.typeInfo: UserKlass get() = UserKlass()
+        fun box() {
+            build<UserKlass> { this.typeInfo }
+            val expected: Buildee<UserKlass> = build { this.typeInfo }
+            Buildee<UserKlass>().typeInfo
+        }
+        """, callCount: 2)
+    }
+
+    @Test func extensionPropertyReceiverRejectsConflictingExpectedBuilderType() throws {
+        try withTemporaryFile(contents: """
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        class UserKlass
+        val Buildee<UserKlass>.typeInfo: Unit get() = Unit
+        fun box() { val wrong: Buildee<Int> = build { this.typeInfo } }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
+    @Test func competingExtensionPropertyReceiversDoNotChooseAnArbitraryBuilderType() throws {
+        try withTemporaryFile(contents: """
+        class Buildee<T>
+        fun <FT> build(instructions: Buildee<FT>.() -> Unit): Buildee<FT> = null as Buildee<FT>
+        val Buildee<Int>.typeInfo: Unit get() = Unit
+        val Buildee<String>.typeInfo: Unit get() = Unit
+        fun box() { build { this.typeInfo } }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
     @Test func memberExtensionCallbackInfersBuilderType() throws {
         try expectIntResult("""
         class Clause<T>
@@ -344,6 +436,42 @@ struct ReceiverBuilderInferenceTests {
             }
             #expect(calls.count == callCount)
             #expect(calls.allSatisfy { sema.bindings.exprType(for: $0) == sema.types.intType })
+        }
+    }
+
+    private func expectBuilderTypeArgument(
+        _ source: String,
+        callCount: Int = 1,
+        ignoreUnboundCallNodes: Bool = false
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let userClass = try #require(
+                sema.symbols.lookupByShortName(ctx.interner.intern("UserKlass")).first
+            )
+            let userType = sema.types.make(.classType(ClassType(
+                classSymbol: userClass,
+                args: [],
+                nullability: .nonNull
+            )))
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(calleeID, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeID)
+                else { return false }
+                return ctx.interner.resolve(name) == "build"
+            }
+            let resolvedCalls = ignoreUnboundCallNodes
+                ? calls.filter { sema.bindings.callBinding(for: $0) != nil }
+                : calls
+            #expect(resolvedCalls.count == callCount)
+            for call in resolvedCalls {
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                #expect(binding.substitutedTypeArguments == [userType])
+            }
         }
     }
 

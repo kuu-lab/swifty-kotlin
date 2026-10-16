@@ -328,9 +328,18 @@ extension BuildASTPhase.ExpressionParser {
                 index = savedIdx
             }
         }
-        let endPos = qualifier != nil ? tokens[index - 1].range.end : token.range.end
+        var label: InternedString?
+        if current()?.kind == .symbol(.at),
+           let labelToken = peek(1),
+           let labelName = labelNameFromToken(labelToken)
+        {
+            _ = consume()
+            _ = consume()
+            label = labelName
+        }
+        let endPos = tokens[index - 1].range.end
         let superRange = SourceRange(start: token.range.start, end: endPos)
-        return astArena.appendExpr(.superRef(interfaceQualifier: qualifier, superRange))
+        return astArena.appendExpr(.superRef(interfaceQualifier: qualifier, label: label, superRange))
     }
 
     private func parsePrimaryThis(_ token: Token) -> ExprID {

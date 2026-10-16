@@ -1,5 +1,10 @@
 
 extension ExprTypeChecker {
+    private struct IncrementDecrementInferenceResult {
+        let expressionType: TypeID
+        let assignedType: TypeID
+    }
+
     private func bindCompoundAssignmentOperatorCall(
         exprID: ExprID,
         op: CompoundAssignOp,
@@ -156,10 +161,11 @@ extension ExprTypeChecker {
         exprID: ExprID,
         op: CompoundAssignOp,
         receiverType: TypeID,
+        assignmentType: TypeID,
         range: SourceRange,
         locals: LocalBindings,
         ctx: TypeInferenceContext
-    ) -> TypeID? {
+    ) -> IncrementDecrementInferenceResult? {
         let sema = ctx.sema
         let interner = ctx.interner
         let operatorName: InternedString? = switch op {
@@ -197,7 +203,10 @@ extension ExprTypeChecker {
         if let diagnostic = resolved.diagnostic {
             ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(exprID, type: sema.types.errorType)
-            return sema.types.errorType
+            return IncrementDecrementInferenceResult(
+                expressionType: sema.types.errorType,
+                assignedType: sema.types.errorType
+            )
         }
         guard let chosen = resolved.chosenCallee else {
             ctx.sema.diagnostics.error(
@@ -206,7 +215,10 @@ extension ExprTypeChecker {
                 range: range
             )
             sema.bindings.bindExprType(exprID, type: sema.types.errorType)
-            return sema.types.errorType
+            return IncrementDecrementInferenceResult(
+                expressionType: sema.types.errorType,
+                assignedType: sema.types.errorType
+            )
         }
 
         let returnType = driver.callChecker.bindCallAndResolveReturnType(
@@ -215,18 +227,28 @@ extension ExprTypeChecker {
             resolved: resolved,
             sema: sema
         )
-        guard sema.types.isSubtype(returnType, receiverType) else {
+        // Resolve the operator against the flow-refined read type, but check its
+        // result against the type declared for the storage location.
+        guard sema.types.isSubtype(returnType, assignmentType) else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0303",
                 "Operator '\(interner.resolve(operatorName))' result type must be assignable to the left-hand side.",
                 range: range
             )
             sema.bindings.bindExprType(exprID, type: sema.types.errorType)
-            return sema.types.errorType
+            return IncrementDecrementInferenceResult(
+                expressionType: sema.types.errorType,
+                assignedType: sema.types.errorType
+            )
         }
 
-        sema.bindings.bindExprType(exprID, type: sema.types.unitType)
-        return sema.types.unitType
+        let expressionType = ctx.ast.arena.incrementDecrementReturnsValue(exprID)
+            ? returnType : sema.types.unitType
+        sema.bindings.bindExprType(exprID, type: expressionType)
+        return IncrementDecrementInferenceResult(
+            expressionType: expressionType,
+            assignedType: returnType
+        )
     }
 
     func isBuiltinNumericIncrementDecrementTarget(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -263,11 +285,12 @@ extension ExprTypeChecker {
         exprID: ExprID,
         op: CompoundAssignOp,
         receiverType: TypeID,
+        assignmentType: TypeID,
         isMutable: Bool,
         range: SourceRange,
         locals: LocalBindings,
         ctx: TypeInferenceContext
-    ) -> TypeID? {
+    ) -> IncrementDecrementInferenceResult? {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
             return nil
         }
@@ -279,11 +302,12 @@ extension ExprTypeChecker {
             exprID: exprID,
             op: op,
             receiverType: receiverType,
+            assignmentType: assignmentType,
             range: range,
             locals: locals,
             ctx: ctx
         ) {
-            guard resolvedType != ctx.sema.types.errorType else {
+            guard resolvedType.expressionType != ctx.sema.types.errorType else {
                 return resolvedType
             }
             guard isMutable else {
@@ -293,7 +317,10 @@ extension ExprTypeChecker {
                     range: range
                 )
                 ctx.sema.bindings.bindExprType(exprID, type: ctx.sema.types.errorType)
-                return ctx.sema.types.errorType
+                return IncrementDecrementInferenceResult(
+                    expressionType: ctx.sema.types.errorType,
+                    assignedType: ctx.sema.types.errorType
+                )
             }
             return resolvedType
         }
@@ -305,7 +332,10 @@ extension ExprTypeChecker {
                     range: range
                 )
                 ctx.sema.bindings.bindExprType(exprID, type: ctx.sema.types.errorType)
-                return ctx.sema.types.errorType
+                return IncrementDecrementInferenceResult(
+                    expressionType: ctx.sema.types.errorType,
+                    assignedType: ctx.sema.types.errorType
+                )
             }
             guard ctx.ast.arena.incrementDecrementReturnsValue(exprID) else {
                 return nil
@@ -313,12 +343,19 @@ extension ExprTypeChecker {
             // Prefix `++` / `--` evaluates to the updated numeric value. Other
             // synthetic assignments keep compound-assignment's Unit result.
             ctx.sema.bindings.bindExprType(exprID, type: receiverType)
-            return receiverType
+            return IncrementDecrementInferenceResult(
+                expressionType: receiverType,
+                assignedType: receiverType
+            )
         }
         if !isPrimitiveIncrementDecrementTarget(receiverType, sema: ctx.sema),
            receiverType != ctx.sema.types.errorType
         {
-            return reportMissingIncrementDecrementOperator(op, exprID: exprID, range: range, ctx: ctx)
+            let errorType = reportMissingIncrementDecrementOperator(op, exprID: exprID, range: range, ctx: ctx)
+            return IncrementDecrementInferenceResult(
+                expressionType: errorType,
+                assignedType: errorType
+            )
         }
         return nil
     }
@@ -406,12 +443,13 @@ extension ExprTypeChecker {
             exprID: id,
             op: op,
             receiverType: receiverType,
+            assignmentType: receiverType,
             isMutable: false,
             range: range,
             locals: locals,
             ctx: ctx
         ) {
-            return resolvedType
+            return resolvedType.expressionType
         }
 
         if let resolvedType = bindCompoundAssignmentOperatorCall(
@@ -497,15 +535,19 @@ extension ExprTypeChecker {
                 exprID: id,
                 op: op,
                 receiverType: local.type,
+                assignmentType: sema.symbols.propertyType(for: local.symbol) ?? local.type,
                 isMutable: local.isMutable,
                 range: range,
                 locals: locals,
                 ctx: ctx
             ) {
-                if resolvedType != sema.types.errorType {
-                    locals[name] = (local.type, local.symbol, local.isMutable, local.isInitialized)
+                if resolvedType.expressionType != sema.types.errorType {
+                    locals[name] = (
+                        resolvedType.assignedType, local.symbol, local.isMutable, local.isInitialized
+                    )
+                    locals.invalidateMembers(root: local.symbol)
                 }
-                return resolvedType
+                return resolvedType.expressionType
             }
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
@@ -697,12 +739,13 @@ extension ExprTypeChecker {
                 exprID: id,
                 op: op,
                 receiverType: propType,
+                assignmentType: propType,
                 isMutable: isMutable,
                 range: range,
                 locals: locals,
                 ctx: ctx
             ) {
-                return resolvedType
+                return resolvedType.expressionType
             }
             if let resolvedType = bindCompoundAssignmentOperatorCall(
                 exprID: id,
@@ -969,12 +1012,13 @@ extension ExprTypeChecker {
             exprID: id,
             op: op,
             receiverType: propType,
+            assignmentType: propType,
             isMutable: isMutable,
             range: range,
             locals: locals,
             ctx: ctx
         ) {
-            return resolvedType
+            return resolvedType.expressionType
         }
 
         if let resolvedType = bindCompoundAssignmentOperatorCall(

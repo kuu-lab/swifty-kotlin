@@ -33,10 +33,10 @@ extension CallTypeChecker {
                   !requiresInfix || symbol.flags.contains(.infixFunction),
                   let signature = sema.symbols.functionSignature(for: candidate) else { return false }
             guard let recv = signature.receiverType else { return false }
-            guard extensionSyntheticFallbackReceiverMatches(
+            guard extensionReceiverMatchesDuringBuilderInference(
                 callSiteReceiver: nonNullReceiverForScope,
                 declaredReceiver: recv,
-                sema: sema
+                ctx: ctx
             ) else { return false }
             if isSuperCall, !supertypeSymbols.isEmpty {
                 return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
@@ -49,6 +49,17 @@ extension CallTypeChecker {
                     && receiverMatches(candidate)
             })
             if !localFunctionCandidates.isEmpty {
+                if localFunctionCandidates.count == 1,
+                   let candidate = localFunctionCandidates.first,
+                   let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                   let constraints = deferredBuilderReceiverConstraints(
+                       callSiteReceiver: nonNullReceiverForScope,
+                       declaredReceiver: receiver,
+                       ctx: ctx
+                   )
+                {
+                    ctx.builderInference?.constraints.append(contentsOf: constraints)
+                }
                 return localFunctionCandidates
             }
         }
@@ -57,10 +68,17 @@ extension CallTypeChecker {
            !requiresInfix || sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
            callShapeMatches?(local.symbol) != false,
            let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
-           extensionSyntheticFallbackReceiverMatches(
-               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
+           extensionReceiverMatchesDuringBuilderInference(
+               callSiteReceiver: memberLookupType, declaredReceiver: receiver, ctx: ctx
            )
         {
+            if let constraints = deferredBuilderReceiverConstraints(
+                callSiteReceiver: memberLookupType,
+                declaredReceiver: receiver,
+                ctx: ctx
+            ) {
+                ctx.builderInference?.constraints.append(contentsOf: constraints)
+            }
             return [local.symbol]
         }
         var scopeCandidates = ctx.scope.lookup(calleeName, matching: receiverMatches)
@@ -91,8 +109,8 @@ extension CallTypeChecker {
                       let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
                     return false
                 }
-                return extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: nonNullReceiverForScope, declaredReceiver: receiver, sema: sema
+                return extensionReceiverMatchesDuringBuilderInference(
+                    callSiteReceiver: nonNullReceiverForScope, declaredReceiver: receiver, ctx: ctx
                 )
             }
             if !dispatchMembers.isEmpty {
@@ -223,10 +241,10 @@ extension CallTypeChecker {
                 {
                     return false
                 }
-                return extensionSyntheticFallbackReceiverMatches(
+                return extensionReceiverMatchesDuringBuilderInference(
                     callSiteReceiver: nonNullReceiver,
                     declaredReceiver: recvType,
-                    sema: sema
+                    ctx: ctx
                 )
             }
         }
@@ -251,10 +269,10 @@ extension CallTypeChecker {
                 {
                     return false
                 }
-                return extensionSyntheticFallbackReceiverMatches(
+                return extensionReceiverMatchesDuringBuilderInference(
                     callSiteReceiver: nonNullReceiverForChain,
                     declaredReceiver: recv,
-                    sema: sema
+                    ctx: ctx
                 )
             }
         }
@@ -273,6 +291,17 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ).filter { !requiresInfix || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }
+        }
+        if scopeCandidates.count == 1,
+           let candidate = scopeCandidates.first,
+           let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+           let constraints = deferredBuilderReceiverConstraints(
+               callSiteReceiver: nonNullReceiverForScope,
+               declaredReceiver: receiver,
+               ctx: ctx
+           )
+        {
+            ctx.builderInference?.constraints.append(contentsOf: constraints)
         }
         return scopeCandidates
     }

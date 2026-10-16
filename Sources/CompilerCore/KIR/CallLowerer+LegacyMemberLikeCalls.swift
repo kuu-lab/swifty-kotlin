@@ -838,7 +838,7 @@ extension CallLowerer {
         // Sema binds super<T> to the selected direct supertype, not the enclosing class.
         var qualifiedSuperType: SymbolID?
         if isSuperCall,
-           case .superRef(.some, _) = ast.arena.expr(receiverExpr),
+           case .superRef(.some, _, _) = ast.arena.expr(receiverExpr),
            let receiverType = sema.bindings.exprTypes[receiverExpr],
            let classType = resolveClassType(receiverType, sema: sema)
         {

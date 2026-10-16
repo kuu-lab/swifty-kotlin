@@ -77,12 +77,13 @@ extension CallTypeChecker {
             }
             return callableReferenceFunctionType
         }()
+        let resolvedLookupReceiverType = resolvedBuilderInferenceType(lookupReceiverType, ctx: ctx)
         let effectiveReceiverType = companionReceiverType
             ?? mutableMapSuperReceiverType
             ?? rangeSourceMemberLookupType
             ?? rangeExtensionLookupType
             ?? callableReferenceExtensionReceiverType
-            ?? lookupReceiverType
+            ?? resolvedLookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
@@ -376,6 +377,17 @@ extension CallTypeChecker {
         } else {
             resolutionTypeArgs = explicitTypeArgs
         }
+        let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
+            candidates: candidates,
+            args: args,
+            originalArgumentTypes: preparedArgs.argTypes,
+            originalExpectedTypeOverrides: argumentExpectedTypeOverrides,
+            explicitTypeArgs: resolutionTypeArgs,
+            implicitReceiverType: receiverTypeForResolution,
+            lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+            ctx: ctx,
+            locals: locals
+        )
         var resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
             args: args,
@@ -385,6 +397,7 @@ extension CallTypeChecker {
             explicitTypeArgs: resolutionTypeArgs,
             expectedType: resolutionExpectedType,
             implicitReceiverType: receiverTypeForResolution,
+            candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
             lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
             blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -484,6 +497,31 @@ extension CallTypeChecker {
                 if retried.diagnostic == nil {
                     candidates = extensionCandidates
                     resolved = retried
+                }
+            }
+        }
+
+        if resolved.diagnostic == nil,
+           let chosen = resolved.chosenCallee,
+           let expectedTypes = candidateSpecificNestedCallTypes?.expectedTypesByCandidate[chosen]
+        {
+            for (index, expectedArgumentType) in expectedTypes.sorted(by: { $0.key < $1.key }) {
+                let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                let argumentType = driver.inferExpr(
+                    args[index].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: expectedArgumentType
+                )
+                let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
+                    $0.severity == .error
+                }
+                if argumentType != sema.types.errorType,
+                   !typeContainsErrorType(argumentType, sema: sema),
+                   !emittedError,
+                   let argumentRange = ast.arena.exprRange(args[index].expr)
+                {
+                    sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
                 }
             }
         }

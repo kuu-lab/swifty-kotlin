@@ -315,12 +315,14 @@ def main(argv: list[str] | None = None) -> int:
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     compiler = args.compiler.resolve()
-    selected = scenarios()
+    all_scenarios = scenarios()
+    selected = all_scenarios
     if args.case:
         identifiers = {case["id"] for case in selected}
         if len(set(args.case)) != len(args.case) or set(args.case) - identifiers: parser.error("unknown/duplicate case")
         selected = [case for case in selected if case["id"] in args.case]
-    summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected], "lanes": LANES,
+    summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
+               "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
                "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),

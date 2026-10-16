@@ -95,6 +95,7 @@ public func kk_coroutine_call_direct_suspend(
     }
     let childState = runtimeContinuationState(from: childContinuation)
     if let childState {
+        childState.inheritContinuationContext(from: callerContinuationRaw)
         childState.scope = callerState.scope
         childState.jobHandle = callerState.jobHandle
         childState.builderContext = callerState.builderContext
@@ -492,16 +493,21 @@ public func __kk_coroutine_continuation_context(
 
 @_cdecl("kk_coroutine_current_context")
 public func kk_coroutine_current_context() -> Int {
-    // KUU-1387: the current continuation state's context is the canonical one
-    // for its content. With no continuation state (boxed suspend bodies that
-    // install only a scope), the installed scope's own context object is the
-    // ambient context; a shared empty context is the last resort. All three
-    // return a canonical object so repeated reads stay `===`-stable.
+    // KUU-1387: preserve the generated or inherited continuation context
+    // object when the runtime has not added elements to it; otherwise expose
+    // the canonical merged context. With no continuation state (boxed suspend
+    // bodies that install only a scope), the installed scope's context is
+    // ambient and a shared empty context is the last resort. Repeated reads
+    // stay `===`-stable.
     if let state = RuntimeContinuationState.current {
         if let originalContext = state.unmodifiedCoroutineContextRaw() {
             return originalContext
         }
-        return runtimeRegisterObject(runtimeCanonicalCoroutineContext(state.makeContinuationContext()))
+        let context = state.makeContinuationContext()
+        if let sourceContext = state.generatedCoroutineContextIfMatching(context) {
+            return sourceContext
+        }
+        return runtimeRegisterObject(runtimeCanonicalCoroutineContext(context))
     }
     let context = RuntimeCoroutineScope.current?.context ?? RuntimeCoroutineContext()
     return runtimeRegisterObject(runtimeCanonicalCoroutineContext(context))

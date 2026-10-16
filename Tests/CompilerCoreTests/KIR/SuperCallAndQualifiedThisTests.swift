@@ -93,6 +93,20 @@ struct SuperCallAndQualifiedThisTests {
         #expect(qualifier == base)
     }
 
+    @Test func testQualifiedOuterSuperPropertyInInnerClass() throws {
+        let ctx = makeContextFromSource("""
+        open class A { open val foo: String = "OK" }
+        open class B : A()
+        class C : B() {
+            inner class D { val result: String = super<B>@C.foo }
+        }
+        fun probe(): String = C().D().result
+        """)
+        try runToLowering(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+    }
+
     @Test func testQualifiedSuperInNestedMemberExtensionUsesDispatchOwner() throws {
         let source = """
         open class ABase { open fun zzz(): Int = 1 }

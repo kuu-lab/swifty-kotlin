@@ -559,7 +559,7 @@ public final class ASTArena: @unchecked Sendable {
              let .localFunDecl(_, _, _, _, _, _, range, _),
              let .localNominalDecl(_, range),
              let .blockExpr(_, _, range),
-             let .superRef(_, range),
+             let .superRef(_, _, range),
              let .thisRef(_, range),
              let .inExpr(_, _, range),
              let .notInExpr(_, _, range),

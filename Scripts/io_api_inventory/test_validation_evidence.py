@@ -112,6 +112,11 @@ class ValidationEvidenceTests(unittest.TestCase):
             HERE / "api-inventory.tsv", self.generator.LEDGER_COLUMNS, [row]
         )
         self.assertEqual(rendered.splitlines()[1].split("\t")[21], "verified")
+        repeated = self._apply([self._record()])
+        repeated_rendered = self.generator.render_tsv(
+            HERE / "api-inventory.tsv", self.generator.LEDGER_COLUMNS, [repeated]
+        )
+        self.assertEqual(repeated_rendered, rendered)
 
     def test_status_text_without_evidence_does_not_promote(self):
         row = copy.deepcopy(self.row)
@@ -155,6 +160,12 @@ class ValidationEvidenceTests(unittest.TestCase):
             with self.subTest(record=record):
                 with self.assertRaises(SystemExit):
                     self._apply([record])
+
+    def test_suite_reference_does_not_authorize_any_case_in_the_file(self):
+        row = copy.deepcopy(self.row)
+        row["upstream_test_refs"] = "core/common/test/FooTest.kt#suite-reference"
+        with self.assertRaisesRegex(SystemExit, "is not mapped to row"):
+            self._apply([self._record(row)], row)
 
     def test_jvm_abi_requires_only_descriptor_evidence(self):
         row = copy.deepcopy(self.row)

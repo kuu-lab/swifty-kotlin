@@ -487,6 +487,15 @@ public final class CompilerDriver {
                     availableSymbols: availableSymbols,
                     depended: &depended
                 )
+                for initBlock in entry.initBlocks {
+                    collectFunctionBodyDependencies(
+                        initBlock,
+                        ast: ast,
+                        interner: interner,
+                        availableSymbols: availableSymbols,
+                        depended: &depended
+                    )
+                }
                 for memberID in entry.memberFunctions + entry.memberProperties + entry.nestedClasses {
                     collectDeclDependencies(
                         declID: memberID,
@@ -1005,9 +1014,12 @@ public final class CompilerDriver {
             if let trailingExpr {
                 collectExpr(trailingExpr)
             }
-        case let .superRef(interfaceQualifier, _):
+        case let .superRef(interfaceQualifier, label, _):
             if let interfaceQualifier {
                 collectName(interfaceQualifier)
+            }
+            if let label {
+                collectName(label)
             }
         case let .destructuringDecl(_, _, initializer, _):
             collectExpr(initializer)

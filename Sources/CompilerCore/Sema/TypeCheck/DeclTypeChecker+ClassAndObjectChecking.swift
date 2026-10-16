@@ -181,7 +181,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine
     ) {
         for entry in classDecl.enumEntries where !entry.memberFunctions.isEmpty
-            || !entry.memberProperties.isEmpty || !entry.nestedClasses.isEmpty
+            || !entry.memberProperties.isEmpty || !entry.nestedClasses.isEmpty || !entry.initBlocks.isEmpty
         {
             let entryFQName = (ctx.sema.symbols.symbol(enumSymbol)?.fqName ?? []) + [entry.name]
             guard let entrySymbol = ctx.sema.symbols.lookupAll(fqName: entryFQName).first(where: { symbolID in
@@ -217,6 +217,7 @@ extension DeclTypeChecker {
                 solver: solver,
                 diagnostics: diagnostics
             )
+            typeCheckInitBlocks(entry.initBlocks, ctx: entryCtx)
         }
     }
 

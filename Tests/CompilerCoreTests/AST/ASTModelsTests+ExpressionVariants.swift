@@ -487,17 +487,31 @@ extension ASTModelsTests {
     func testExprSuperRefAndThisRef() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 5)
-        let superRef = Expr.superRef(interfaceQualifier: nil, r)
-        if case let .superRef(qualifier, range) = superRef {
+        let superRef = Expr.superRef(interfaceQualifier: nil, label: nil, r)
+        if case let .superRef(qualifier, label, range) = superRef {
             #expect(qualifier == nil)
+            #expect(label == nil)
             #expect(range == r)
         } else { Issue.record("Expected .superRef") }
 
-        let qualifiedSuperRef = Expr.superRef(interfaceQualifier: interner.intern("MyInterface"), r)
-        if case let .superRef(qualifier, range) = qualifiedSuperRef {
+        let qualifiedSuperRef = Expr.superRef(
+            interfaceQualifier: interner.intern("MyInterface"), label: nil, r
+        )
+        if case let .superRef(qualifier, label, range) = qualifiedSuperRef {
             #expect(qualifier == interner.intern("MyInterface"))
+            #expect(label == nil)
             #expect(range == r)
         } else { Issue.record("Expected .superRef with qualifier") }
+
+        let outerQualifiedSuperRef = Expr.superRef(
+            interfaceQualifier: interner.intern("MyInterface"),
+            label: interner.intern("Outer"),
+            r
+        )
+        if case let .superRef(qualifier, label, _) = outerQualifiedSuperRef {
+            #expect(qualifier == interner.intern("MyInterface"))
+            #expect(label == interner.intern("Outer"))
+        } else { Issue.record("Expected labeled .superRef with qualifier") }
 
         let thisRef = Expr.thisRef(label: nil, r)
         if case let .thisRef(label, _) = thisRef {

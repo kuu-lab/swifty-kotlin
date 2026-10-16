@@ -352,6 +352,18 @@ final class LocalDeclTypeChecker {
         var implicitReceiverMember: (lookup: MemberPropertyLookupResult, receiverType: TypeID)?
         for receiverType in ctx.implicitReceiverMemberLookupTypes() {
             let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
+            if let entrySymbol = ctx.currentDeclSymbol,
+               let member = driver.helpers.lookupEnumEntryMemberProperty(
+                   named: name,
+                   entrySymbol: entrySymbol,
+                   receiverType: nonNullReceiverType,
+                   sema: ctx.sema
+               ) {
+                implicitReceiverMember = (MemberPropertyLookupResult(
+                    symbol: member.symbol, type: member.type, writeSymbol: nil
+                ), nonNullReceiverType)
+                break
+            }
             if let member = driver.helpers.lookupMemberPropertyForWrite(
                 named: name,
                 receiverType: nonNullReceiverType,

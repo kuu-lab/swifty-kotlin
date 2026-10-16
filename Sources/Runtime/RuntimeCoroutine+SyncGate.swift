@@ -114,6 +114,10 @@ final class RuntimeContinuationState: @unchecked Sendable {
     var builderContext: RuntimeCoroutineContext?
     private var uninterceptedEntryPointRaw: Int = 0
     private var uninterceptedCompletionContinuation: Int = 0
+    /// Continuation whose context this state delegates to. Direct suspend calls
+    /// use their caller as the completion continuation, while unintercepted
+    /// coroutine builders set the same source explicitly.
+    private var contextContinuationRaw: Int = 0
     private var hasStartedUninterceptedCoroutine = false
     // Cancellation must wake the innermost call and let it unwind before its caller.
     private var suspendedCallChild: RuntimeContinuationState?
@@ -231,6 +235,18 @@ final class RuntimeContinuationState: @unchecked Sendable {
         self.uninterceptedCompletionContinuation = completionContinuation
         self.hasStartedUninterceptedCoroutine = false
         stateLock.unlock()
+
+        interceptionLock.lock()
+        contextContinuationRaw = completionContinuation
+        generatedContextRaw = nil
+        interceptionLock.unlock()
+    }
+
+    func inheritContinuationContext(from completionContinuation: Int) {
+        interceptionLock.lock()
+        contextContinuationRaw = completionContinuation
+        generatedContextRaw = nil
+        interceptionLock.unlock()
     }
 
     func takeUninterceptedCoroutineStart() -> (entryPointRaw: Int, completionContinuation: Int)? {
@@ -249,14 +265,14 @@ final class RuntimeContinuationState: @unchecked Sendable {
     func generatedCoroutineContext(outThrown: UnsafeMutablePointer<Int>?) -> Int? {
         interceptionLock.lock()
         defer { interceptionLock.unlock() }
-        guard uninterceptedCompletionContinuation != 0 else {
+        guard contextContinuationRaw != 0 else {
             return nil
         }
         if let generatedContextRaw {
             return generatedContextRaw
         }
         var thrown = 0
-        let context = __kk_coroutine_continuation_context(uninterceptedCompletionContinuation, &thrown)
+        let context = __kk_coroutine_continuation_context(contextContinuationRaw, &thrown)
         outThrown?.pointee = thrown
         if thrown == 0 {
             generatedContextRaw = context
@@ -285,6 +301,19 @@ final class RuntimeContinuationState: @unchecked Sendable {
         interceptionLock.lock()
         inheritedContextRaw = contextRaw
         interceptionLock.unlock()
+    }
+
+    /// Keep the source continuation's context object when its contents still
+    /// match the ambient context after runtime scope and job elements are merged.
+    func generatedCoroutineContextIfMatching(_ context: RuntimeCoroutineContext) -> Int? {
+        guard let sourceContextRaw = generatedCoroutineContext(outThrown: nil),
+              runtimeCoroutineContextsHaveSameContent(
+                  resolveToCoroutineContext(sourceContextRaw), context
+              )
+        else {
+            return nil
+        }
+        return sourceContextRaw
     }
 
     func intercepted(continuationRaw: Int, interceptorKey: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {

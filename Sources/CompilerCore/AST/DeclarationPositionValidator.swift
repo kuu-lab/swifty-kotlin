@@ -40,6 +40,9 @@ struct DeclarationPositionValidator {
         var kind: Kind
         var isLocal: Bool
         var ownerModifiers: Modifiers
+        /// `true` when the owner has `init` blocks or secondary constructors
+        /// that can assign stored member properties imperatively.
+        var allowsImperativeInit: Bool = false
         /// `true` when member property initialization needs flow analysis,
         /// including initializers that may prevent later declarations from
         /// being reached.
@@ -293,7 +296,7 @@ struct DeclarationPositionValidator {
             }
             // Property initializers, init blocks, and secondary constructors
             // require flow analysis before missing storage can be diagnosed.
-            if nominal.defersPropertyInitialization {
+            if nominal.allowsImperativeInit || nominal.defersPropertyInitialization {
                 return
             }
         }
@@ -641,6 +644,8 @@ struct DeclarationPositionValidator {
             kind: isEnum ? .enum : (isAnnotation ? .annotationClass : .class),
             isLocal: site == .function,
             ownerModifiers: modifiers,
+            allowsImperativeInit: !decl.initBlocks.isEmpty
+                || !decl.secondaryConstructors.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
                 || !decl.secondaryConstructors.isEmpty
                 || hasPropertyInitializationExpression(decl.memberProperties)
@@ -676,7 +681,9 @@ struct DeclarationPositionValidator {
             let entrySite = OwnerSite.nominal(NominalSite(
                 kind: .enumEntry,
                 isLocal: site.isLocal,
-                ownerModifiers: []
+                ownerModifiers: [],
+                allowsImperativeInit: !entry.initBlocks.isEmpty,
+                defersPropertyInitialization: !entry.initBlocks.isEmpty
             ))
             for declID in entry.memberFunctions {
                 validate(declID: declID, site: entrySite)
@@ -791,6 +798,7 @@ struct DeclarationPositionValidator {
             kind: isCompanion ? .companionObject : .object,
             isLocal: site == .function,
             ownerModifiers: modifiers,
+            allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
                 || hasPropertyInitializationExpression(decl.memberProperties)
         )

@@ -3,3 +3,10 @@ present
 Expected value to be null, but was: <value>.
 custom. Expected value to be not null.
 . Expected value to be null, but was: <1>.
+0
+lazy null message. Expected value to be null, but was: <value>.
+1
+block
+1
+deprecated failure. Expected value to be not null.
+1

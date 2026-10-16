@@ -199,7 +199,7 @@ public enum Expr: Equatable, Codable {
     /// after it inside the same block scope, mirroring `localFunDecl`.
     case localNominalDecl(declID: DeclID, range: SourceRange)
     case blockExpr(statements: [ExprID], trailingExpr: ExprID?, range: SourceRange)
-    case superRef(interfaceQualifier: InternedString?, SourceRange)
+    case superRef(interfaceQualifier: InternedString?, label: InternedString?, SourceRange)
     case thisRef(label: InternedString?, SourceRange)
     case inExpr(lhs: ExprID, rhs: ExprID, range: SourceRange)
     case notInExpr(lhs: ExprID, rhs: ExprID, range: SourceRange)

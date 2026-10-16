@@ -159,6 +159,38 @@ struct DataClassComponentNTests {
         }
     }
 
+    @Test
+    func testForLoopDestructuringArrayListPairsFromBundledStdlib() throws {
+        let source = """
+        val alist = arrayListOf(1 to 2, 2 to 3, 3 to 4)
+
+        fun box(): String {
+            var result = 0
+            for ([i: Int, z: Int] in alist) {
+                result += i + z
+            }
+            return if (result == 15) "OK" else "fail: $result"
+        }
+
+        fun withIndexProbe() {
+            val arrayList = ArrayList<Int>()
+            for ((index, value) in arrayList.withIndex()) {
+                println("$index:$value")
+            }
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "ArrayList destructuring with the bundled stdlib should type-check: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
+
 }
 
 #endif
