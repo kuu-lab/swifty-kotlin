@@ -383,7 +383,7 @@ extension ExprTypeChecker {
         var isConstructorReference = false
         var unboundInnerConstructorReceiverType: TypeID?
         var isImplicitlyBoundMember = false
-        var unboundMemberPropertyCandidate: (symbol: SymbolID, ownerType: TypeID, type: TypeID)?
+        var propertyReferenceCandidate: (symbol: SymbolID, ownerType: TypeID?, isUnbound: Bool, type: TypeID)?
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
             // `Any` is represented by a builtin TypeID, while its compiler-provided
@@ -424,16 +424,51 @@ extension ExprTypeChecker {
                 receiverType: nonNullReceiver,
                 sema: sema
             )
+            let companionMemberProperty: (symbol: SymbolID, type: TypeID)? = {
+                guard unboundClassType != nil,
+                      let (_, ownerSymbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
+                else {
+                    return nil
+                }
+                let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol.id)
+                    ?? sema.symbols.actualSymbol(for: ownerSymbol.id).flatMap {
+                        sema.symbols.companionObjectSymbol(for: $0)
+                    }
+                guard let companionSymbol else { return nil }
+                let companionType = sema.symbols.propertyType(for: companionSymbol)
+                    ?? sema.types.make(.classType(ClassType(
+                        classSymbol: companionSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                guard let property = driver.helpers.lookupMemberProperty(
+                    named: member,
+                    receiverType: companionType,
+                    sema: sema
+                ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil
+                else {
+                    return nil
+                }
+                return property
+            }()
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
                 if unboundClassType != nil,
                    let memberProperty,
                    sema.symbols.extensionPropertyReceiverType(for: memberProperty.symbol) == nil
                 {
-                    unboundMemberPropertyCandidate = (
+                    propertyReferenceCandidate = (
                         memberProperty.symbol,
                         nonNullReceiver,
+                        true,
                         memberProperty.type
+                    )
+                } else if let companionMemberProperty {
+                    propertyReferenceCandidate = (
+                        companionMemberProperty.symbol,
+                        nil,
+                        false,
+                        companionMemberProperty.type
                     )
                 }
             } else {
@@ -451,6 +486,20 @@ extension ExprTypeChecker {
                         propertySymbol: property.symbol,
                         ownerType: unboundClassType != nil ? nonNullReceiver : nil,
                         isUnbound: unboundClassType != nil,
+                        expectedType: expectedType,
+                        sema: sema,
+                        interner: interner,
+                        resolvedPropertyType: property.type
+                    )
+                }
+                // A property declared on a companion belongs to the singleton,
+                // so `Type::property` keeps the zero-receiver KProperty0 shape.
+                if let property = companionMemberProperty {
+                    return bindPropertyCallableRef(
+                        id,
+                        propertySymbol: property.symbol,
+                        ownerType: nil,
+                        isUnbound: false,
                         expectedType: expectedType,
                         sema: sema,
                         interner: interner,
@@ -677,22 +726,34 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             }
-            candidates = ctx.cachedScopeLookup(member).filter { symbolID in
-                guard let symbol = ctx.cachedSymbol(symbolID) else {
+            let localFunctionCandidates = ctx.scope.lookup(member, matching: { symbolID in
+                guard let symbol = ctx.cachedSymbol(symbolID),
+                      symbol.flags.contains(.localFunction),
+                      symbol.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
                     return false
                 }
-                // A bare `::name` cannot reference an extension function —
-                // kotlinc reports `unresolved reference`; only `Type::ext`,
-                // `obj::ext`, and the implicit-receiver bound form (handled
-                // via `implicitMemberCandidates`) reach extensions.
-                return symbol.kind == .constructor
-                    || (symbol.kind == .function
-                        && !driver.helpers.declaresExtensionReceiver(
-                            symbolID,
-                            sema: sema,
-                            interner: interner
-                        ))
-            }
+                return signature.receiverType == nil
+            })
+            candidates = localFunctionCandidates.isEmpty
+                ? ctx.cachedScopeLookup(member).filter { symbolID in
+                    guard let symbol = ctx.cachedSymbol(symbolID) else {
+                        return false
+                    }
+                    // A bare `::name` cannot reference an extension function —
+                    // kotlinc reports `unresolved reference`; only `Type::ext`,
+                    // `obj::ext`, and the implicit-receiver bound form (handled
+                    // via `implicitMemberCandidates`) reach extensions.
+                    return symbol.kind == .constructor
+                        || (symbol.kind == .function
+                            && !driver.helpers.declaresExtensionReceiver(
+                                symbolID,
+                                sema: sema,
+                                interner: interner
+                            ))
+                }
+                : localFunctionCandidates
             if candidates.isEmpty,
                let local = locals[member],
                let localSymbol = ctx.cachedSymbol(local.symbol),
@@ -817,7 +878,7 @@ extension ExprTypeChecker {
             driver.helpers.reflectiveCallableReferenceReturnType(from: $0, sema: sema)
         }
 
-        let unboundMemberPropertyReferenceType: TypeID? = if let candidate = unboundMemberPropertyCandidate {
+        let propertyReferenceCandidateType: TypeID? = if let candidate = propertyReferenceCandidate {
             kPropertyReferenceType(
                 ownerType: candidate.ownerType,
                 valueType: candidate.type,
@@ -828,27 +889,27 @@ extension ExprTypeChecker {
         } else {
             nil
         }
-        if let candidate = unboundMemberPropertyCandidate,
+        if let candidate = propertyReferenceCandidate,
            let expectedType,
            isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner),
-           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           let propertyReferenceType = propertyReferenceCandidateType,
            sema.types.isSubtype(propertyReferenceType, expectedType)
         {
             return bindPropertyCallableRef(
                 id,
                 propertySymbol: candidate.symbol,
                 ownerType: candidate.ownerType,
-                isUnbound: true,
+                isUnbound: candidate.isUnbound,
                 expectedType: expectedType,
                 sema: sema,
                 interner: interner,
                 resolvedPropertyType: candidate.type
             )
         }
-        if let candidate = unboundMemberPropertyCandidate,
+        if let candidate = propertyReferenceCandidate,
            let expectedFunctionType,
            !sema.types.typeContainsAnyTypeParam(expectedFunctionType),
-           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           let propertyReferenceType = propertyReferenceCandidateType,
            sema.types.isSubtype(propertyReferenceType, expectedFunctionType),
            !candidates.contains(where: { driver.inferredReturnFunctions[$0] != nil })
         {
@@ -867,7 +928,7 @@ extension ExprTypeChecker {
                     id,
                     propertySymbol: candidate.symbol,
                     ownerType: candidate.ownerType,
-                    isUnbound: true,
+                    isUnbound: candidate.isUnbound,
                     expectedType: expectedType,
                     sema: sema,
                     interner: interner,
@@ -981,16 +1042,16 @@ extension ExprTypeChecker {
             sema: sema
         )
         if chosen == nil,
-           let candidate = unboundMemberPropertyCandidate,
+           let candidate = propertyReferenceCandidate,
            let expectedFunctionType,
-           let propertyReferenceType = unboundMemberPropertyReferenceType,
+           let propertyReferenceType = propertyReferenceCandidateType,
            sema.types.isSubtype(propertyReferenceType, expectedFunctionType)
         {
             return bindPropertyCallableRef(
                 id,
                 propertySymbol: candidate.symbol,
                 ownerType: candidate.ownerType,
-                isUnbound: true,
+                isUnbound: candidate.isUnbound,
                 expectedType: expectedType,
                 sema: sema,
                 interner: interner,

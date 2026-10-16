@@ -276,6 +276,29 @@ struct PropertyAccessorParsingTests {
     }
 
     @Test
+    func extensionGetterKeepsUnqualifiedGetCall() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        val Array<String>.minimalFirstElement: String get() = get(0)
+        """)
+
+        let initializationErrors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0424"
+        }
+        #expect(initializationErrors.isEmpty, "The expression body must not be mistaken for an accessor: \(initializationErrors)")
+
+        let property = try #require(topLevelProperty(named: "minimalFirstElement", in: ast, interner: ctx.interner))
+        guard case let .expr(exprID, _) = property.getter?.body,
+              case let .call(calleeID, _, arguments, _) = ast.arena.expr(exprID),
+              case let .nameRef(callee, _) = ast.arena.expr(calleeID)
+        else {
+            Issue.record("The extension getter body must retain the unqualified get(0) call")
+            return
+        }
+        #expect(callee == KnownCompilerNames(interner: ctx.interner).get)
+        #expect(arguments.count == 1)
+    }
+
+    @Test
     func expressionGetterKeepsMemberGetCall() throws {
         // KUU-1363: `this.get()` inside an expression-bodied getter is a member
         // call, not a second accessor header. The body-extent scan must not
@@ -346,6 +369,48 @@ struct PropertyAccessorParsingTests {
             return
         }
         #expect(callee == KnownCompilerNames(interner: ctx.interner).sbSet)
+    }
+
+    @Test
+    func bareDefaultSetterDoesNotConsumeLateinitPropertyType() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Holder {
+            lateinit var instance: Holder set
+        }
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let property = try #require(memberProperty(named: "instance", ofClass: "Holder", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .named(path, _, nullable) = typeRef else {
+            Issue.record("The property's explicit Holder type must remain intact")
+            return
+        }
+        #expect(path.map(ctx.interner.resolve) == ["Holder"])
+        #expect(!nullable)
+        #expect(property.modifiers.contains(.lateinit))
+        #expect(property.setter?.kind == .setter)
+        #expect(property.setter?.visibility == nil)
+        #expect(property.setter?.parameterName == nil)
+        #expect(property.setter?.body == .unit)
+    }
+
+    @Test
+    func bareDefaultSetterKeepsPrimitiveLateinitType() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Holder {
+            lateinit var number: Int set
+        }
+        """, includeStdlib: false)
+
+        let property = try #require(memberProperty(named: "number", ofClass: "Holder", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .named(path, _, nullable) = typeRef else {
+            Issue.record("The property's explicit Int type must remain intact")
+            return
+        }
+        #expect(path.map(ctx.interner.resolve) == ["Int"])
+        #expect(!nullable)
     }
 
     @Test(arguments: ["\n", " ", "; "])

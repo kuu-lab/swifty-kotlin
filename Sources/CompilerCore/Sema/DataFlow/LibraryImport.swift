@@ -165,6 +165,10 @@ extension DataFlowSemaPhase {
                 == URL(fileURLWithPath: stdlibLibraryPath).standardizedFileURL.path
         }
 
+        var seenLibraryMetadataPaths: Set<String> = []
+        var activeLibraryMetadataPath: String?
+        var activePathHasCrossLibraryOwners = false
+        var originByModuleFQName: [InternedString: String] = [:]
         @discardableResult
         func appendImportedBinding(
             _ record: ImportedLibrarySymbolRecord,
@@ -176,9 +180,27 @@ extension DataFlowSemaPhase {
             moduleFQN: InternedString?
         ) -> SymbolID? {
             guard !record.fqName.isEmpty else { return nil }
-            let origin = moduleFQN.map { "module '\(interner.resolve($0))'" }
-                ?? "'\(metadataPath)'"
-            if let winner = shadowedOwnerOrigin(for: record, metadataPath: metadataPath) {
+            if activeLibraryMetadataPath != metadataPath {
+                activeLibraryMetadataPath = metadataPath
+                activePathHasCrossLibraryOwners = seenLibraryMetadataPaths.count > 1
+                    || seenLibraryMetadataPaths.first.map { $0 != metadataPath } == true
+                seenLibraryMetadataPaths.insert(metadataPath)
+            }
+            let origin: String
+            if let moduleFQN {
+                if let cached = originByModuleFQName[moduleFQN] {
+                    origin = cached
+                } else {
+                    let resolved = "module '\(interner.resolve(moduleFQN))'"
+                    originByModuleFQName[moduleFQN] = resolved
+                    origin = resolved
+                }
+            } else {
+                origin = "'\(metadataPath)'"
+            }
+            if activePathHasCrossLibraryOwners,
+               let winner = shadowedOwnerOrigin(for: record, metadataPath: metadataPath)
+            {
                 if !isShadowedMemberMachinery(record.kind) {
                     diagnostics.warning(
                         "KSWIFTK-LIB-0031",
@@ -672,10 +694,18 @@ extension DataFlowSemaPhase {
             // `symbols` is weak: this closure is stored on the symbol table
             // itself, so a strong capture would be a retain cycle leaking the
             // table (and every captured import structure) past compilation end.
-            symbols.setLazyImportedMetadataLoader(alreadyLoaded: preloadedGetterBindingSymbols) { [self, weak symbols] symbol in
+            symbols.setLazyImportedMetadataLoader(
+                alreadyLoaded: preloadedGetterBindingSymbols,
+                indexedNominals: Set(importedBindings.filter {
+                    !$0.isMaterialized && isNominalLayoutTargetSymbol($0.record.kind)
+                }.map(\.symbol))
+            ) { [self, weak symbols] symbol in
                 guard let symbols else { return }
                 guard let binding = bindingsBySymbol[symbol] else { return }
-                withSubPhaseTiming("imports.lazyMaterialize", timer: phaseTimer, accumulating: true) {
+                withSubPhaseTiming(
+                    "imports.lazyMaterialize", timer: phaseTimer, accumulating: true,
+                    attributingAccumulationToCurrentSubPhase: true
+                ) {
                     var bindingEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
                     self.applyImportedBinding(
                         binding,
@@ -1370,10 +1400,19 @@ extension DataFlowSemaPhase {
     ) {
         switch binding.record.kind {
         case .function, .constructor:
-            guard let signature = symbols.functionSignature(for: binding.symbol) else {
+            // This pass only receives materialized bindings. Read the stored
+            // signature directly so normalizing a binding never invokes its
+            // lazy loader a second time.
+            guard let signature = symbols.functionSignatureIfKnown(for: binding.symbol) else {
                 return
             }
-            if let parentSymbol = symbols.parentSymbol(for: binding.symbol),
+            guard binding.record.ownerNominalTypeParametersSignature != nil
+                    || signature.classTypeParameterCount > 0
+            else {
+                return
+            }
+            if signature.classTypeParameterCount > 0,
+               let parentSymbol = symbols.parentSymbol(for: binding.symbol),
                let parent = symbols.symbol(parentSymbol),
                isNominalLayoutTargetSymbol(parent.kind)
             {
@@ -1392,8 +1431,12 @@ extension DataFlowSemaPhase {
                     allowPlaceholders: binding.isStdlibArtifact
                 )
             }
-            let ownerTypeParameters = symbols.parentSymbol(for: binding.symbol)
-                .map { types.nominalTypeParameterSymbols(for: $0) } ?? []
+            let ownerTypeParameters: [SymbolID] = if signature.classTypeParameterCount > 0 {
+                symbols.parentSymbol(for: binding.symbol)
+                    .map { types.allTypeParameterSymbols(for: $0) } ?? []
+            } else {
+                []
+            }
             let ownerCount = min(signature.classTypeParameterCount, ownerTypeParameters.count)
             let normalizedTypeParameterSymbols = ownerCount == 0
                 ? signature.typeParameterSymbols
@@ -1440,7 +1483,8 @@ extension DataFlowSemaPhase {
                 for: binding.symbol
             )
         case .property, .field:
-            if let parentSymbol = symbols.parentSymbol(for: binding.symbol),
+            if binding.record.ownerNominalTypeParametersSignature != nil,
+               let parentSymbol = symbols.parentSymbol(for: binding.symbol),
                let parent = symbols.symbol(parentSymbol),
                isNominalLayoutTargetSymbol(parent.kind)
             {
@@ -1480,7 +1524,9 @@ extension DataFlowSemaPhase {
         cache: LibraryMetadataCache?
     ) {
         guard let owner = symbols.parentSymbol(for: binding.symbol) else { return }
-        let ownerParameters = types.nominalTypeParameterSymbols(for: owner)
+        let ownerParameters = binding.record.ownerNominalTypeParametersSignature == nil
+            ? []
+            : types.nominalTypeParameterSymbols(for: owner)
         let normalize: (TypeID) -> TypeID = {
             self.normalizeImportedOwnerTypeParameters(
                 $0, record: binding.record, symbols: symbols, types: types,

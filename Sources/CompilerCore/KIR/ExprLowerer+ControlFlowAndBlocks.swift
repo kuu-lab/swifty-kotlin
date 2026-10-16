@@ -297,6 +297,20 @@ extension ExprLowerer {
                 instructions: &instructions
             )
 
+        case let .safeMemberAssign(receiverExpr, calleeName, valueExpr, _):
+            return driver.callLowerer.lowerSafeMemberAssignExpr(
+                exprID,
+                receiverExpr: receiverExpr,
+                calleeName: calleeName,
+                valueExpr: valueExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+
         case let .indexedAccess(receiverExpr, indices, _):
             return driver.callLowerer.lowerIndexedAccessExpr(
                 exprID,

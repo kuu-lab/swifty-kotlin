@@ -1,4 +1,5 @@
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
@@ -98,6 +99,50 @@ struct NewlineOperatorTests {
         }
         for expression in ["n", "val n = 1", "fun f() = 1", "fun f() {}"] {
             #expect(!BuildASTPhase.isContinuationBoundary(previousTail: lex(expression).tokens.dropLast(), nextHead: next))
+        }
+    }
+
+    @Test
+    func uninitializedLocalVariableLeavesFollowingBlockSeparate() throws {
+        let declaration = lex("var value: Int").tokens.dropLast()
+        let block = lex("{}").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: declaration, nextHead: block))
+
+        let call = lex("run()").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: call, nextHead: block))
+
+        let source = """
+        fun test(): String {
+            var value: Int
+            {}
+            return "OK"
+        }
+        """
+        let fakePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let context = makeCompilationContext(inputs: [fakePath], includeStdlib: false)
+        _ = context.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
+        try runFrontend(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(context.ast)
+        let function = try #require(ast.arena.declarations().compactMap { declaration -> FunDecl? in
+            guard case let .funDecl(function) = declaration else { return nil }
+            return function
+        }.first)
+        guard case let .block(statements, _) = function.body,
+              statements.count == 3,
+              case .localDecl(_, true, _, nil, _, _, _) = ast.arena.expr(statements[0]),
+              case .lambdaLiteral = ast.arena.expr(statements[1]),
+              case .returnExpr = ast.arena.expr(statements[2])
+        else {
+            let body: String
+            if case let .block(statements, _) = function.body {
+                body = statements.map { String(describing: ast.arena.expr($0)) }.joined(separator: "\n")
+            } else {
+                body = String(describing: function.body)
+            }
+            Issue.record("The uninitialized local declaration and following block must be separate statements: \(body)")
+            return
         }
     }
 

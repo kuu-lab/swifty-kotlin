@@ -24,7 +24,14 @@ extension CallTypeChecker {
             return parameterType
         }
         let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
-        let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+        let typeArgOffset: Int = if isConstructor,
+                                    let owner = sema.symbols.parentSymbol(for: candidate) {
+            sema.types.enclosingTypeParameterSymbols(for: owner).count
+        } else if isConstructor {
+            0
+        } else {
+            signature.classTypeParameterCount
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var substitution: [TypeVarID: TypeID] = [:]
         for (idx, explicitTypeArg) in explicitTypeArgs.enumerated() {
@@ -289,6 +296,7 @@ extension CallTypeChecker {
         receiverType: TypeID? = nil,
         fixesReceiverBoundInputs: Bool = false,
         inferredNonLambdaArgTypes: [Int: TypeID],
+        inferredLambdaInputAnnotations: [Int: [TypeID?]] = [:],
         resolver: OverloadResolver?,
         sema: SemaModule
     ) -> TypeID {
@@ -304,11 +312,12 @@ extension CallTypeChecker {
             }
         } ?? false
         var result = parameterType
-        if !inferredNonLambdaArgTypes.isEmpty {
+        if !inferredNonLambdaArgTypes.isEmpty || !inferredLambdaInputAnnotations.isEmpty {
             let substitution = resolver.probeArgumentTypeSubstitution(
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
                 knownArgumentTypes: inferredNonLambdaArgTypes,
+                knownLambdaInputAnnotations: inferredLambdaInputAnnotations,
                 typeSystem: sema.types
             )
             if !substitution.isEmpty {
@@ -338,6 +347,7 @@ extension CallTypeChecker {
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
                 knownArgumentTypes: inferredNonLambdaArgTypes,
+                knownLambdaInputAnnotations: inferredLambdaInputAnnotations,
                 typeSystem: sema.types,
                 implicitReceiverType: receiverType
             )
@@ -375,6 +385,7 @@ extension CallTypeChecker {
         receiverType: TypeID?,
         fixesReceiverBoundInputs: Bool = false,
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        inferredLambdaInputAnnotations: [Int: [TypeID?]] = [:],
         resolver: OverloadResolver? = nil,
         sema: SemaModule
     ) -> TypeID {
@@ -404,8 +415,110 @@ extension CallTypeChecker {
             receiverType: receiverType,
             fixesReceiverBoundInputs: fixesReceiverBoundInputs,
             inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            inferredLambdaInputAnnotations: inferredLambdaInputAnnotations,
             resolver: resolver,
             sema: sema
+        )
+    }
+
+    /// Maps already-inferred call arguments to declaration parameter positions
+    /// and adds explicit lambda input annotations as candidate-local constraints.
+    /// Flexible constants are left for final call resolution when their parameter
+    /// shares a type variable constrained by the lambda annotation.
+    private func contextualInferenceInputsForLambda(
+        at lambdaArgumentIndex: Int,
+        args: [CallArgument],
+        callRange: SourceRange,
+        signature: FunctionSignature,
+        inferredNonLambdaArgTypes: [Int: TypeID],
+        lambdaInputAnnotations: [TypeID?]?,
+        ctx: TypeInferenceContext
+    ) -> (argumentTypes: [Int: TypeID], lambdaInputAnnotations: [Int: [TypeID?]]) {
+        guard let mapping = parameterMappingForCallArguments(
+            args, in: signature, callRange: callRange, ctx: ctx
+        ) else {
+            return ([:], [:])
+        }
+
+        let lambdaParameterIndex = mapping[lambdaArgumentIndex]
+        let lambdaFunctionType: FunctionType?
+        if let lambdaParameterIndex,
+           signature.parameterTypes.indices.contains(lambdaParameterIndex),
+           case let .functionType(functionType) = ctx.sema.types.kind(
+               of: signature.parameterTypes[lambdaParameterIndex]
+           ) {
+            lambdaFunctionType = functionType
+        } else {
+            lambdaFunctionType = nil
+        }
+        let usableAnnotations: [TypeID?]? = if let lambdaInputAnnotations,
+                                               let lambdaFunctionType,
+                                               lambdaInputAnnotations.count == lambdaFunctionType.params.count,
+                                               lambdaInputAnnotations.contains(where: { $0 != nil }) {
+            lambdaInputAnnotations
+        } else {
+            nil
+        }
+
+        let constrainedTypeParameters = Set(signature.typeParameterSymbols.filter { symbol in
+            guard let usableAnnotations, let lambdaFunctionType else { return false }
+            return zip(lambdaFunctionType.params, usableAnnotations).contains { expectedInput, annotation in
+                annotation != nil && ctx.sema.types.typeContainsTypeParam(expectedInput, symbol: symbol)
+            }
+        })
+
+        var argumentTypes: [Int: TypeID] = [:]
+        for (argumentIndex, type) in inferredNonLambdaArgTypes {
+            guard args.indices.contains(argumentIndex),
+                  let parameterIndex = mapping[argumentIndex],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else { continue }
+            if usableAnnotations != nil,
+               isFlexibleLambdaInferenceArgument(args[argumentIndex].expr, ctx: ctx),
+               constrainedTypeParameters.contains(where: { symbol in
+                   ctx.sema.types.typeContainsTypeParam(
+                       signature.parameterTypes[parameterIndex], symbol: symbol
+                   )
+               }) {
+                continue
+            }
+            argumentTypes[parameterIndex] = type
+        }
+
+        let lambdaAnnotationsByParameter: [Int: [TypeID?]]
+        if let usableAnnotations, let lambdaParameterIndex {
+            lambdaAnnotationsByParameter = [lambdaParameterIndex: usableAnnotations]
+        } else {
+            lambdaAnnotationsByParameter = [:]
+        }
+        return (argumentTypes, lambdaAnnotationsByParameter)
+    }
+
+    private func isFlexibleLambdaInferenceArgument(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        switch ctx.ast.arena.expr(expr) {
+        case .intLiteral, .uintLiteral, .nullLiteral:
+            return true
+        case let .unaryExpr(op, operand, _) where op == .unaryPlus || op == .unaryMinus:
+            switch ctx.ast.arena.expr(operand) {
+            case .intLiteral, .uintLiteral: return true
+            default: return false
+            }
+        default:
+            return false
+        }
+    }
+
+    private func explicitLambdaInputAnnotations(
+        at index: Int,
+        args: [CallArgument],
+        ctx: TypeInferenceContext
+    ) -> [TypeID?]? {
+        guard args.indices.contains(index),
+              case let .lambdaLiteral(parameters, _, _, _) = ctx.ast.arena.expr(args[index].expr),
+              ctx.ast.arena.lambdaParamTypeRefs(for: args[index].expr)?.contains(where: { $0 != nil }) == true
+        else { return nil }
+        return driver.exprChecker.resolveLambdaParamAnnotations(
+            args[index].expr, ctx: ctx, paramCount: parameters.count
         )
     }
 
@@ -520,6 +633,7 @@ extension CallTypeChecker {
         hasAmbiguousImplicitParameterShape: Bool
     ) {
         let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
+        let lambdaInputAnnotations = explicitLambdaInputAnnotations(at: index, args: args, ctx: ctx)
 
         // When all candidates share the same input-only HOF shape, pick the
         // first candidate and treat the lambda as input-only so that its return type is
@@ -558,6 +672,15 @@ extension CallTypeChecker {
                ctx: ctx
            )
         {
+            let inferenceInputs = contextualInferenceInputsForLambda(
+                at: index,
+                args: args,
+                callRange: callRange,
+                signature: signature,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                lambdaInputAnnotations: lambdaInputAnnotations,
+                ctx: ctx
+            )
             let substituted = contextualCallableParameterType(
                 rawType,
                 signature: signature,
@@ -567,7 +690,8 @@ extension CallTypeChecker {
                 fixesReceiverBoundInputs: fixesReceiverBoundLambdaInputs(
                     at: index, args: args, explicitTypeArgs: explicitTypeArgs, ctx: ctx
                 ),
-                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                inferredNonLambdaArgTypes: inferenceInputs.argumentTypes,
+                inferredLambdaInputAnnotations: inferenceInputs.lambdaInputAnnotations,
                 resolver: resolver,
                 sema: sema
             )
@@ -582,6 +706,7 @@ extension CallTypeChecker {
             explicitTypeArgs: explicitTypeArgs,
             receiverType: effectiveReceiverType,
             inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+            lambdaInputAnnotations: lambdaInputAnnotations,
             resolver: resolver,
             sema: sema,
             ctx: ctx
@@ -590,14 +715,32 @@ extension CallTypeChecker {
             return (nil, false, false, false)
         }
 
-        if let first = parameterCandidates.first,
-           parameterCandidates.dropFirst().allSatisfy({ $0.originalType == first.originalType })
+        // An explicitly typed lambda parameter can rule out an overload before
+        // its body is checked. The candidate's input type must be a subtype of
+        // the declared lambda parameter type so it is safe for every call site.
+        let annotationCompatibleCandidates = parameterCandidates.filter { candidate in
+            guard let lambdaInputAnnotations,
+                  lambdaInputAnnotations.count == candidate.functionType.params.count
+            else {
+                return true
+            }
+            return zip(candidate.functionType.params, lambdaInputAnnotations).allSatisfy { expected, annotation in
+                guard let annotation else { return true }
+                return sema.types.isSubtype(expected, annotation)
+            }
+        }
+        let contextualCandidates = annotationCompatibleCandidates.isEmpty
+            ? parameterCandidates
+            : annotationCompatibleCandidates
+
+        if let first = contextualCandidates.first,
+           contextualCandidates.dropFirst().allSatisfy({ $0.originalType == first.originalType })
         {
             return (first.originalType, false, false, false)
         }
 
         guard let sharedType = sharedLambdaInputOnlyType(
-            from: parameterCandidates,
+            from: contextualCandidates,
             types: sema.types
         ) else {
             // Candidates whose parameter type still mentions a type parameter
@@ -606,7 +749,7 @@ extension CallTypeChecker {
             // fully-concrete subset agrees on one shape, use it -- the
             // remaining candidates are infeasible or will unify to the same
             // shape once final resolution binds their type parameters.
-            let concreteCandidates = parameterCandidates.filter {
+            let concreteCandidates = contextualCandidates.filter {
                 !typeMentionsTypeParameter($0.originalType, sema: sema)
             }
             if let firstConcrete = concreteCandidates.first,
@@ -627,7 +770,7 @@ extension CallTypeChecker {
             // the same generic slot, so raw TypeID inequality there reflects how the
             // signatures happened to be built rather than a real shape conflict --
             // unlike concrete types, where inequality always means a real conflict.
-            let isImplicitSingleParameterAmbiguous = parameterCandidates.allSatisfy { candidate in
+            let isImplicitSingleParameterAmbiguous = contextualCandidates.allSatisfy { candidate in
                 guard candidate.functionType.params.count == 1,
                       let onlyParam = candidate.functionType.params.first
                 else {
@@ -635,7 +778,7 @@ extension CallTypeChecker {
                 }
                 return !typeMentionsTypeParameter(onlyParam, sema: sema)
             }
-            return (nil, false, parameterCandidates.count > 1, isImplicitSingleParameterAmbiguous)
+            return (nil, false, contextualCandidates.count > 1, isImplicitSingleParameterAmbiguous)
         }
         return (sharedType, true, false, false)
     }
@@ -677,6 +820,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID] = [],
         receiverType: TypeID? = nil,
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
+        lambdaInputAnnotations: [TypeID?]?,
         resolver: OverloadResolver? = nil,
         sema: SemaModule,
         ctx: TypeInferenceContext
@@ -700,6 +844,15 @@ extension CallTypeChecker {
             let fixesReceiverBoundInputs = fixesReceiverBoundLambdaInputs(
                 at: index, args: args, explicitTypeArgs: explicitTypeArgs, ctx: ctx
             )
+            let inferenceInputs = contextualInferenceInputsForLambda(
+                at: index,
+                args: args,
+                callRange: callRange,
+                signature: signature,
+                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                lambdaInputAnnotations: lambdaInputAnnotations,
+                ctx: ctx
+            )
             let parameterType = contextualCallableParameterType(
                 rawParameterType,
                 signature: signature,
@@ -707,7 +860,8 @@ extension CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 receiverType: receiverType,
                 fixesReceiverBoundInputs: fixesReceiverBoundInputs,
-                inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                inferredNonLambdaArgTypes: inferenceInputs.argumentTypes,
+                inferredLambdaInputAnnotations: inferenceInputs.lambdaInputAnnotations,
                 resolver: resolver,
                 sema: sema
             )

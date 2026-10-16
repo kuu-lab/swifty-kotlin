@@ -1,0 +1,12 @@
+version=2
+nameB64=bWludXNBc3NpZ24=
+params=2
+paramSymbols=-59923,5549
+suspend=false
+body:
+const result=78230 value=symbol:-59923
+const result=78231 value=symbol:5549
+const result=78232 value=unit
+call symbol=5587 calleeB64=cmVtb3ZlQWxsSXRlcmFibGU= args=[78230,78231] result=600481 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ linkB64=a2tfZm5fcmVtb3ZlQWxsSXRlcmFibGVfNTU4N19fMTN4NGI1Mzc3Njk2Njc0NGI1Mzc0NjQ2YzY5NjJfNng2YjZmNzQ2YzY5NmVfMTF4NjM2ZjZjNmM2NTYzNzQ2OTZmNmU3M18xN3g3MjY1NmQ2Zjc2NjU0MTZjNmM0OTc0NjU3MjYxNjI2YzY1 symbolFQNameB64=a290bGluLmNvbGxlY3Rpb25zLnJlbW92ZUFsbEl0ZXJhYmxl
+call symbol=_ calleeB64=a2tfdW5ib3hfYm9vbF9zdGF0aWM= args=[600481] result=78233 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+returnUnit

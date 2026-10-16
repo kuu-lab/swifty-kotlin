@@ -52,12 +52,22 @@ extension CallTypeChecker {
         let callableReferenceExtensionReceiverType: TypeID? = {
             guard let callableReferenceFunctionType,
                   candidates.contains(where: { candidate in
-                      guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                      guard let signature = sema.symbols.functionSignature(for: candidate),
+                            let receiver = signature.receiverType
+                      else {
                           return false
                       }
                       switch sema.types.kind(of: sema.types.makeNonNullable(receiver)) {
-                      case .functionType, .typeParam:
+                      case .functionType:
                           return true
+                      case let .typeParam(parameter):
+                          // A generic extension such as `fun <T> T.let(...)`
+                          // must infer T from the structural function type of a
+                          // bound callable reference. Lookup uses its KFunction
+                          // view for reflection, but that nominal view cannot be
+                          // invoked from the extension's callback parameter.
+                          return signature.typeParameterSymbols.contains(parameter.symbol)
+
                       default:
                           return false
                       }
@@ -435,7 +445,8 @@ extension CallTypeChecker {
                 candidates: extensionCandidates,
                 call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { argument, type in
                     CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
-                }, elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint),
+                }, elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint,
+                   elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
                 ctx: ctx.sema

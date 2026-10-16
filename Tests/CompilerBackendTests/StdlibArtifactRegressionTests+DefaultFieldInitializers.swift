@@ -46,6 +46,7 @@ extension StdlibArtifactRegressionTests {
             var xFloat = 0.0f
             var xDouble = 0.0
             var xRef: Any? = null
+            var xNull: Any? = null
         }
 
         class NonDefaultDerived : Base() {
@@ -64,6 +65,7 @@ extension StdlibArtifactRegressionTests {
             if (d.xFloat != 6.0f) return "fail Float"
             if (d.xDouble != 7.0) return "fail Double"
             if (d.xRef != placeHolder) return "fail Ref"
+            if (d.xNull != null) return "fail nullable reference default"
             return "OK"
         }
 

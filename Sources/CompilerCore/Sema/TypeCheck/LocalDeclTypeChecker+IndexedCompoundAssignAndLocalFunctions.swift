@@ -23,7 +23,7 @@ extension LocalDeclTypeChecker {
         }
         if getCandidates.isEmpty {
             getCandidates = collectIndexedOperatorExtensionCandidates(
-                named: getName, receiverType: receiverType, ctx: ctx
+                named: getName, receiverType: receiverType, locals: locals, ctx: ctx
             )
         }
         var indexTypes: [TypeID] = []
@@ -62,7 +62,7 @@ extension LocalDeclTypeChecker {
             implicitReceiverType: receiverType, ctx: sema
         ).viableCandidates.isEmpty {
             let extensions = collectIndexedOperatorExtensionCandidates(
-                named: getName, receiverType: receiverType, call: getCall, ctx: ctx
+                named: getName, receiverType: receiverType, call: getCall, locals: locals, ctx: ctx
             )
             if !extensions.isEmpty { getCandidates = extensions }
         }
@@ -119,7 +119,7 @@ extension LocalDeclTypeChecker {
         let elementOperator: IndexedCompoundAssignElementOperatorBinding?
         switch resolveIndexedElementOperator(
             id, op: op, receiverType: receiverType, elementType: elementType,
-            valueType: valueType, range: range, ctx: ctx
+            valueType: valueType, range: range, locals: locals, ctx: ctx
         ) {
         case .failed:
             sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -160,7 +160,7 @@ extension LocalDeclTypeChecker {
         {
             let setOperatorBound = bindIndexedCompoundAssignSetOperator(
                 id, receiverType: receiverType, indexExprs: indices, indexTypes: indexTypes, valueType: resultType,
-                elementType: elementType, range: range, ctx: ctx
+                elementType: elementType, range: range, locals: locals, ctx: ctx
             )
             // KSWIFTK-BUG: a get()-only receiver with no matching set() overload
             // (wrong arity, mismatched parameter types, ...) must be rejected here,
@@ -224,6 +224,7 @@ extension LocalDeclTypeChecker {
         elementType: TypeID,
         valueType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> IndexedElementOperatorResolution {
         let sema = ctx.sema
@@ -243,7 +244,7 @@ extension LocalDeclTypeChecker {
         if ctx.ast.arena.isIncrementDecrement(id) {
             let name = interner.intern(op == .plusAssign ? "inc" : "dec")
             guard let (call, returnType) = resolveElementOperatorCall(
-                names: [name], args: [], elementType: elementType, range: range, ctx: ctx
+                names: [name], args: [], elementType: elementType, range: range, locals: locals, ctx: ctx
             ) else {
                 return .builtin
             }
@@ -266,10 +267,10 @@ extension LocalDeclTypeChecker {
         )
         let args = [CallArg(type: valueType)]
         let inPlace = resolveElementOperatorCall(
-            names: assignNames, args: args, elementType: elementType, range: range, ctx: ctx
+            names: assignNames, args: args, elementType: elementType, range: range, locals: locals, ctx: ctx
         )
         let binary = resolveElementOperatorCall(
-            names: binaryNames, args: args, elementType: elementType, range: range, ctx: ctx
+            names: binaryNames, args: args, elementType: elementType, range: range, locals: locals, ctx: ctx
         ).flatMap { call, returnType in
             sema.types.isSubtype(returnType, elementType) ? (call, returnType) : nil
         }
@@ -315,11 +316,13 @@ extension LocalDeclTypeChecker {
         args: [CallArg],
         elementType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> (CallBinding, TypeID)? {
         let sema = ctx.sema
+        let call = CallExpr(range: range, calleeName: names[0], args: args)
         var candidates = driver.exprChecker.collectOperatorCandidates(
-            names: names, receiverType: elementType, ctx: ctx
+            names: names, receiverType: elementType, call: call, locals: locals, ctx: ctx
         )
         if candidates.isEmpty, let valueType = args.first?.type,
            sema.types.makeNonNullable(elementType) == sema.types.charType
@@ -345,8 +348,7 @@ extension LocalDeclTypeChecker {
         }
         guard !candidates.isEmpty else { return nil }
         let resolved = ctx.resolver.resolveCall(
-            candidates: candidates,
-            call: CallExpr(range: range, calleeName: names[0], args: args),
+            candidates: candidates, call: call,
             expectedType: nil, implicitReceiverType: elementType, ctx: ctx.sema
         )
         guard resolved.diagnostic == nil,
@@ -361,13 +363,13 @@ extension LocalDeclTypeChecker {
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
-        let call = CallBinding(
+        let operatorCallBinding = CallBinding(
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { _, value in value },
             parameterMapping: resolved.parameterMapping
         )
-        return (call, returnType)
+        return (operatorCallBinding, returnType)
     }
 
     /// `a[i] += v` is only ambiguous between `plusAssign` and `plus` when the
@@ -434,6 +436,7 @@ extension LocalDeclTypeChecker {
         valueType: TypeID,
         elementType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> Bool {
         let sema = ctx.sema
@@ -453,7 +456,7 @@ extension LocalDeclTypeChecker {
             implicitReceiverType: receiverType, ctx: sema
         ).viableCandidates.isEmpty {
             let extensions = collectIndexedOperatorExtensionCandidates(
-                named: setName, receiverType: receiverType, call: setCall, ctx: ctx
+                named: setName, receiverType: receiverType, call: setCall, locals: locals, ctx: ctx
             )
             if !extensions.isEmpty { setCandidates = extensions }
         }
@@ -778,6 +781,12 @@ extension LocalDeclTypeChecker {
             nullability: .nonNull
         )))
 
+        // Local functions share the lexical call namespace, where same-named
+        // declarations form an overload set. Keep them in scope separately
+        // from local values, which use `LocalBindings` for value-position lookup.
+        ctx.scope.insert(funSymbol)
+        ctx.semaCacheContext?.invalidateScopeLookups()
+
         // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
         let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
         ctx.dataFlow.localStability.currentLocalFunctionScope = id
@@ -915,7 +924,13 @@ extension LocalDeclTypeChecker {
             )
         )
 
-        locals[name] = (finalFunType, funSymbol, false, true)
+        let existingLocalIsValue: Bool = {
+            guard let existingLocal = locals[name] else { return false }
+            return sema.symbols.symbol(existingLocal.symbol)?.flags.contains(.localFunction) != true
+        }()
+        if !existingLocalIsValue {
+            locals[name] = (finalFunType, funSymbol, false, true)
+        }
         sema.bindings.bindIdentifier(id, symbol: funSymbol)
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType

@@ -146,6 +146,21 @@ final class ObjectLiteralLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             )
+            let shared = KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: ownerSymbol, shared: shared, compilationCtx: nil
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: ownerSymbol, shared: shared, compilationCtx: nil
+            )
+            for forwardingDeclID in forwardingDecls {
+                driver.ctx.appendGeneratedCallableDecl(forwardingDeclID)
+            }
             let initName = interner.intern("<init>")
             let ctorFQName = ownerFQName + [initName]
             for ctorSymbol in sema.symbols.lookupAll(fqName: ctorFQName).filter({
@@ -720,6 +735,17 @@ final class ObjectLiteralLowerer {
         sema: SemaModule,
         arena: KIRArena
     ) -> KIRExprID? {
+        // `field` is bound to its backing-field symbol, but its receiver is
+        // the instance whose getter owns that field. Prefer the captured owner
+        // value so a nested lambda's same-typed implicit receiver cannot
+        // redirect the read to another instance.
+        if sema.symbols.symbol(symbol)?.kind == .backingField,
+           let owner = sema.symbols.parentSymbol(for: symbol),
+           let receiver = driver.ctx.localValue(for: owner)
+        {
+            return receiver
+        }
+
         // Once an object literal starts initializing its own properties, the
         // active receiver value is the object, even though the enclosing
         // function signature may still have an extension receiver type.

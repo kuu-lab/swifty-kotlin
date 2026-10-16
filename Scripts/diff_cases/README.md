@@ -45,6 +45,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `nullable_receiver_ext.kt`: nullable receiver 拡張（`fun T?.foo()`）の直接呼び出しと優先順位 parity（出力は `1/0` 比較）
 - `local_var.kt`: block 内 local `val` 宣言と参照
 - `local_assign.kt`: block 内 local `var` 再代入
+- `kuu_2437_uninitialized_local_block.kt`: 未初期化 `var` の次行にある単独ブロックと trailing lambda の境界 parity（KUU-2437）
 - `loop_basic.kt`: `while` / `do-while` の制御フローと `break` の基本実行
 - `array_index.kt`: `IntArray` の index read/write と算術
 - `overload.kt`: overload resolution by parameter type
@@ -108,6 +109,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `custom_getter_setter_var.kt`: KUU-595 の `var` に custom getter と setter を同居させた場合も、読み取りが getter を呼び、setter と対称な計算値を返す parity
 - `custom_getter_field_access.kt`: カスタム getter のみを持つプロパティ（`set(value) {}` ブロック無し）の通常初期化子、および getter 本体内での `field = ...` 書き込み（lazy caching パターン）が実インスタンスストレージに反映される parity
 - `class_body_property_init.kt`: クラス本体で宣言されたストアドプロパティのインライン初期化子（`var a: Int = 10` の形）が実際に per-instance field へ書き込まれ、読み出せることの parity。primary constructor パラメータ併存クラス・型無注釈プロパティ・`object` singleton・`init` ブロックと交互配置された複数プロパティの組み合わせをカバー
+- `unreachable_uninitialized_property.kt`: `TODO()` / `throw` で初期化列が正常終了しない場合に、到達不能な未初期化 property が構築要件として誤拒否されないことを検証（KUU-2439 / KT-44496）
 - `class_property_compound_assign.kt`: クラスインスタンスの自プロパティに対する複合代入（`+=`/`-=`/`*=`/後置`++`）が implicit `this` 経由でメソッド・`init` ブロックから正しくインスタンスフィールドを更新する parity
 - `array_for_loop.kt`: `for (x in array)` による ByteArray / IntArray / `Array<String>` の直接イテレーション（DEBT-KIR-005）、空配列での 0 回実行、`continue`/`break` との組み合わせの parity
 - `class_and_function_same_name.kt`: クラスと同名のトップレベル関数の共存（`class Point` + `fun Point(value: Int)` / `fun Point(pair: Pair<Int, Int>)`、kotlin-stdlib の `Random(seed)` ファクトリ関数と同型パターン）と、コンストラクタ・関数オーバーロードを跨いだ引数型による呼び出し解決の parity（KSP-CAP-006）

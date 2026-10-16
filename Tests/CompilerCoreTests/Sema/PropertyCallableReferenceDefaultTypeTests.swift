@@ -60,6 +60,44 @@ struct PropertyCallableReferenceDefaultTypeTests {
         #expect(args.count == 2, "KProperty1 takes two type arguments (owner, value).")
     }
 
+    @Test func testClassNameCompanionPropertyReferenceInfersKProperty0() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KProperty0
+        class Sample { companion object { const val value = 1 } }
+        fun take(property: KProperty0<Int>): Int = property.get()
+        fun main() { take(Sample::value) }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected clean compile, got: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let (symbol, args) = try classTypeSymbol(for: reference, sema: sema)
+        #expect(
+            symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KProperty0"],
+            "Sample::value is owned by the companion and should infer KProperty0<Int>"
+        )
+        #expect(args == [.invariant(sema.types.intType)])
+        #expect(!sema.bindings.isUnboundCallableRef(reference))
+    }
+
+    @Test func classNameReferenceToMissingCompanionPropertyRemainsUnresolved() throws {
+        let ctx = makeContextFromSource("""
+        class Sample { companion object { const val value = 1 } }
+        fun main() { val ref = Sample::missing }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-0022"
+                && $0.message == "Unresolved reference '::missing'."
+        })
+    }
+
     @Test func testInheritedGenericPropertyReferenceSubstitutesValueType() throws {
         let ctx = makeContextFromSource("""
         open class Parent<T>(val value: T)

@@ -41,6 +41,14 @@ final class SemaCacheContext {
         return result
     }
 
+    /// Scope contents can grow while type checking local declarations. Any
+    /// cached lookup may have walked through a scope whose parent was just
+    /// updated, so discard scope results after such an insertion.
+    func invalidateScopeLookups() {
+        scopeCache.removeAll(keepingCapacity: true)
+        scopeRetainer.removeAll(keepingCapacity: true)
+    }
+
     /// Caches ``SymbolTable.symbol(_:)`` results to avoid repeated bounds checks.
     private var symbolCache: [SymbolID: SemanticSymbol] = [:]
 
@@ -83,6 +91,7 @@ final class SemaCacheContext {
         let explicitTypeArgs: [TypeID]
         let expectedType: TypeID?
         let elvisLhsExpectedTypeHint: Bool
+        let elvisRhsCallResultTypeHint: TypeID?
         let implicitReceiverType: TypeID?
         let dispatchReceiverTypes: [TypeID]
         let boundObjectDispatchReceiverCandidates: Set<SymbolID>
@@ -136,6 +145,7 @@ final class SemaCacheContext {
             explicitTypeArgs: call.explicitTypeArgs,
             expectedType: expectedType,
             elvisLhsExpectedTypeHint: call.elvisLhsExpectedTypeHint,
+            elvisRhsCallResultTypeHint: call.elvisRhsCallResultTypeHint,
             implicitReceiverType: implicitReceiverType,
             dispatchReceiverTypes: call.dispatchReceiverTypes,
             boundObjectDispatchReceiverCandidates: call.boundObjectDispatchReceiverCandidates

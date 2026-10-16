@@ -189,6 +189,38 @@ struct ConstPropertyEvaluationTests {
     }
 
     @Test
+    func foldsMixedTypeStringConcatenationConstInitializers() throws {
+        let ctx = makeContextFromSource("""
+        package mixedStringConstants
+        const val SIGNED_VALUE = 5
+        const val UNSIGNED_VALUE = 5u
+        const val SIGNED_LITERAL = "x" + 5
+        const val UNSIGNED_LITERAL = "x" + 5u
+        const val SIGNED_REFERENCE = "x" + SIGNED_VALUE
+        const val UNSIGNED_REFERENCE = "x" + UNSIGNED_VALUE
+        val RUNTIME_VALUE = 5
+        const val NOT_CONSTANT = "x" + RUNTIME_VALUE
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 1)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0083")
+
+        let sema = try #require(ctx.sema)
+        for name in ["SIGNED_LITERAL", "UNSIGNED_LITERAL", "SIGNED_REFERENCE", "UNSIGNED_REFERENCE"] {
+            let symbol = try #require(sema.symbols.lookup(
+                fqName: ["mixedStringConstants", name].map { ctx.interner.intern($0) }
+            ))
+            #expect(sema.symbols.constValueExprKind(for: symbol) == .stringLiteral(ctx.interner.intern("x5")))
+        }
+        let rejected = try #require(sema.symbols.lookup(
+            fqName: ["mixedStringConstants", "NOT_CONSTANT"].map { ctx.interner.intern($0) }
+        ))
+        #expect(sema.symbols.constValueExprKind(for: rejected) == nil)
+    }
+
+    @Test
     func rejectsNonConstPropertiesUserCallsAndCycles() throws {
         let ctx = makeContextFromSource("""
         package invalidConstants

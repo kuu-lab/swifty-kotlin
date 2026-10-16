@@ -3,6 +3,52 @@ extension TypeCheckHelpers {
     /// Maximum depth for recursive typealias expansion to prevent infinite loops.
     static let maxAliasExpansionDepth = 32
 
+    /// Resolve an expect class or its actual typealias to the nominal type used
+    /// by platform member lookup. The source-facing expression keeps its
+    /// declared expect type; only the lookup view follows the actual link.
+    func actualImplementationType(of typeID: TypeID, sema: SemaModule) -> TypeID? {
+        guard case let .classType(classType) = sema.types.kind(of: typeID),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return nil
+        }
+
+        let implementationID: SymbolID?
+        if symbol.kind == .typeAlias, symbol.flags.contains(.actualDeclaration) {
+            implementationID = symbol.id
+        } else if symbol.flags.contains(.expectDeclaration) {
+            implementationID = sema.symbols.actualSymbol(for: symbol.id)
+        } else {
+            implementationID = nil
+        }
+        guard let implementationID,
+              let implementation = sema.symbols.symbol(implementationID)
+        else {
+            return nil
+        }
+
+        let implementationType: TypeID?
+        if implementation.kind == .typeAlias {
+            implementationType = expandTypeAlias(
+                implementationID,
+                typeArgs: classType.args,
+                sema: sema,
+                visited: [],
+                depth: 0
+            )
+        } else if implementation.kind == .class {
+            implementationType = sema.types.make(.classType(ClassType(
+                classSymbol: implementationID,
+                args: classType.args,
+                nullability: classType.nullability
+            )))
+        } else {
+            implementationType = nil
+        }
+        guard let implementationType else { return nil }
+        return sema.types.withNullability(classType.nullability, for: implementationType)
+    }
+
     /// Expand a typealias symbol to its underlying type, substituting type arguments.
     /// Handles generic aliases, cycle detection, and depth limiting.
     func expandTypeAlias(
@@ -65,6 +111,32 @@ extension TypeCheckHelpers {
             }
             return nil
         }
+        if case let .classType(classType) = sema.types.kind(of: expanded),
+           let expectSymbol = sema.symbols.symbol(classType.classSymbol),
+           expectSymbol.flags.contains(.expectDeclaration),
+           let actualSymbolID = sema.symbols.actualSymbol(for: expectSymbol.id),
+           let actualSymbol = sema.symbols.symbol(actualSymbolID)
+        {
+            if actualSymbol.kind == .class {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: actualSymbolID,
+                    args: classType.args,
+                    nullability: classType.nullability
+                )))
+            }
+            if actualSymbol.kind == .typeAlias,
+               let resolved = expandTypeAlias(
+                   actualSymbolID,
+                   typeArgs: classType.args,
+                   sema: sema,
+                   visited: visited.union([symbolID]),
+                   depth: depth + 1,
+                   diagnostics: diagnostics
+               )
+            {
+                return resolved
+            }
+        }
         return expanded
     }
 
@@ -112,9 +184,15 @@ extension TypeCheckHelpers {
             let newArgs = clsType.args.map { arg -> TypeArg in
                 substituteAliasArg(arg, argSubstitution: argSubstitution, sema: sema)
             }
-            if newArgs == clsType.args { return typeID }
+            let newEnclosingTypeArgs = clsType.enclosingTypeArgs.map { arg in
+                substituteAliasArg(arg, argSubstitution: argSubstitution, sema: sema)
+            }
+            if newArgs == clsType.args && newEnclosingTypeArgs == clsType.enclosingTypeArgs { return typeID }
             return types.make(.classType(ClassType(
-                classSymbol: clsType.classSymbol, args: newArgs, nullability: clsType.nullability
+                classSymbol: clsType.classSymbol,
+                args: newArgs,
+                enclosingTypeArgs: newEnclosingTypeArgs,
+                nullability: clsType.nullability
             )))
         case let .functionType(fnType):
             let newContextReceivers = fnType.contextReceivers.map {

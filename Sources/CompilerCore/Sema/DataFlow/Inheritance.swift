@@ -367,9 +367,11 @@ extension DataFlowSemaPhase {
             // KSP-682 / KSP-CAP-009: a function-type supertype such as
             // `KProperty0<V> : () -> V` resolves to the kotlin.Function{N}
             // nominal interface so property references inherit invoke(...).
-            // Suspend and context-receiver function types have no nominal
-            // Function{N} equivalent here, so they are left unbound.
-            guard !isSuspend, contextReceiverRefIDs.isEmpty else {
+            // Suspend function types use the corresponding
+            // kotlin.coroutines.SuspendFunction{N} interface, whose invoke
+            // signature retains the suspend modifier. Context-receiver
+            // function types still have no nominal equivalent here.
+            guard contextReceiverRefIDs.isEmpty else {
                 return nil
             }
             var paramTypes: [TypeID] = []
@@ -403,13 +405,19 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols, types: types, interner: interner
             ) else { return nil }
-            let functionFQName = [
-                interner.intern("kotlin"), interner.intern("Function"),
-                interner.intern("Function\(paramTypes.count)"),
-            ]
-            guard let functionSymbol = symbols.lookupAll(fqName: functionFQName)
-                .compactMap({ symbols.symbol($0) })
-                .first(where: { isNominalTypeSymbol($0.kind) })?.id
+            let functionSymbol: SymbolID?
+            if isSuspend {
+                functionSymbol = types.suspendFunctionNInterfaceSymbols[paramTypes.count]
+            } else {
+                let functionFQName = [
+                    interner.intern("kotlin"), interner.intern("Function"),
+                    interner.intern("Function\(paramTypes.count)"),
+                ]
+                functionSymbol = symbols.lookupAll(fqName: functionFQName)
+                    .compactMap({ symbols.symbol($0) })
+                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
+            }
+            guard let functionSymbol
             else {
                 return nil
             }
@@ -889,7 +897,7 @@ extension DataFlowSemaPhase {
     ) {
         for file in ast.sortedFiles {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
-                validateInheritedFunInterfaceContract(
+                validateFunInterfaceContract(
                     declID: declID,
                     ast: ast,
                     symbols: symbols,
@@ -908,10 +916,9 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// A `fun interface` with super-interfaces must still end up with exactly one
-    /// effective abstract function once inherited abstract members are counted
-    /// (the no-supertype case is checked earlier by `DeclarationPositionValidator`).
-    private func validateInheritedFunInterfaceContract(
+    /// A `fun interface` must end up with exactly one effective abstract function
+    /// after own and inherited members have been collected.
+    private func validateFunInterfaceContract(
         declID: DeclID,
         ast: ASTModule,
         symbols: SymbolTable,
@@ -921,7 +928,6 @@ extension DataFlowSemaPhase {
         guard let decl = ast.arena.decl(declID),
               case let .interfaceDecl(interfaceDecl) = decl,
               interfaceDecl.isFunInterface,
-              !interfaceDecl.superTypes.isEmpty,
               let symbol = bindings.declSymbols[declID],
               TypeCheckHelpers().effectiveSamAbstractMethod(for: symbol, symbols: symbols) == nil
         else {

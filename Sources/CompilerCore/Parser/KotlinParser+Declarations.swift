@@ -185,7 +185,8 @@ extension KotlinParser {
             range: &range,
             includeBlock: kind == .classDecl || kind == .interfaceDecl || kind == .objectDecl,
             allowsClassHeaderColon: kind == .classDecl,
-            allowsClassDelegation: kind == .classDecl || kind == .objectDecl
+            allowsClassDelegation: kind == .classDecl || kind == .objectDecl,
+            allowsWhereClauseContinuation: supportsTypeParameters
         )
 
         return arena.appendNode(
@@ -353,7 +354,13 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
+            parseTail(
+                inBlock: false,
+                into: &children,
+                range: &range,
+                allowsDeclarationAssignment: true,
+                allowsPropertyDelegation: true
+            )
             // In Kotlin, `get()`/`set()` accessors and explicit backing field
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and
@@ -671,7 +678,8 @@ extension KotlinParser {
     func parsePostDeclarationTail(
         into children: inout [SyntaxChild], range: inout RangeAccumulator,
         includeBlock: Bool, allowsClassHeaderColon: Bool = false,
-        allowsClassDelegation: Bool = false
+        allowsClassDelegation: Bool = false,
+        allowsWhereClauseContinuation: Bool = false
     ) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
@@ -699,7 +707,9 @@ extension KotlinParser {
         }
         parseTail(
             inBlock: false, into: &children, range: &range,
-            allowsClassHeaderColon: allowsClassHeaderColon, allowsClassDelegation: allowsClassDelegation
+            allowsClassHeaderColon: allowsClassHeaderColon,
+            allowsClassDelegation: allowsClassDelegation,
+            allowsWhereClauseContinuation: allowsWhereClauseContinuation
         )
         // Header scanning may stop at a newline after constructor parameters or
         // supertypes. The following brace still belongs to this declaration,

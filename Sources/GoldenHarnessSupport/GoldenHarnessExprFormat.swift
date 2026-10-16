@@ -154,6 +154,8 @@ enum GoldenHarnessExprFormat {
             return "forDestructuring \(renderNameList(names, ctx)) iterable=\(ctx.exprKey(iterable)) body=\(ctx.exprKey(body))"
         case let .memberAssign(receiver, callee, value, _):
             return "memberAssign recv=\(ctx.exprKey(receiver)) callee=\(interner.resolve(callee)) value=\(ctx.exprKey(value))"
+        case let .safeMemberAssign(receiver, callee, value, _):
+            return "safeMemberAssign recv=\(ctx.exprKey(receiver)) callee=\(interner.resolve(callee)) value=\(ctx.exprKey(value))"
         case let .memberCompoundAssign(oper, receiver, callee, value, _):
             return "memberCompoundAssign(\(oper)) recv=\(ctx.exprKey(receiver)) callee=\(interner.resolve(callee)) value=\(ctx.exprKey(value))"
         }

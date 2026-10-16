@@ -140,6 +140,116 @@ struct ExpectActualCompatibilityTests {
         #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
     }
 
+    @Test func testExpectClassCanBeImplementedByActualTypealias() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            try repositoryFileSource("Tests/CompilerCoreTests/Fixtures/KUU-2415/common/Synchronized.kt"),
+            try repositoryFileSource("Tests/CompilerCoreTests/Fixtures/KUU-2415/posix/Synchronized.kt"),
+            """
+            package io.ktor.utils.io.locks
+            fun exerciseLockMembers(lock: ReentrantLock): Boolean {
+                lock.lock()
+                val acquired = lock.tryLock()
+                lock.unlock()
+                return acquired
+            }
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            let sema = try #require(ctx.sema)
+
+            let reentrantLockFQName = [
+                "io", "ktor", "utils", "io", "locks", "ReentrantLock",
+            ].map(ctx.interner.intern)
+            let reentrantLockSymbols = sema.symbols.lookupAll(fqName: reentrantLockFQName)
+                .compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(reentrantLockSymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualAlias = try #require(reentrantLockSymbols.first {
+                $0.kind == .typeAlias && $0.flags.contains(.actualDeclaration)
+            })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualAlias.id)
+
+            let synchronizedObjectFQName = [
+                "io", "ktor", "utils", "io", "locks", "SynchronizedObject",
+            ].map(ctx.interner.intern)
+            let synchronizedObjectSymbol = try #require(
+                sema.symbols.lookupAll(fqName: synchronizedObjectFQName).compactMap { sema.symbols.symbol($0) }
+                    .first { $0.flags.contains(.actualDeclaration) }
+            )
+            #expect(errors.isEmpty, "Expected the actual typealias and its members to resolve, got: \(errors)")
+            let actualMemberIDs = Dictionary(uniqueKeysWithValues: ["lock", "tryLock", "unlock"].compactMap { name in
+                sema.symbols.lookupAll(fqName: synchronizedObjectFQName + [ctx.interner.intern(name)])
+                    .first { sema.symbols.parentSymbol(for: $0) == synchronizedObjectSymbol.id }
+                    .map { (name, $0) }
+            })
+
+            for (name, actualMemberID) in actualMemberIDs {
+                let expectMemberID = try #require(
+                    sema.symbols.lookupAll(fqName: reentrantLockFQName + [ctx.interner.intern(name)])
+                        .first { sema.symbols.parentSymbol(for: $0) == expectSymbol.id }
+                )
+                #expect(sema.symbols.actualSymbol(for: expectMemberID) == actualMemberID)
+            }
+
+            let boundCallees = Set(sema.bindings.callBindings.values.map(\.chosenCallee))
+            #expect(Set(actualMemberIDs.values).isSubset(of: boundCallees))
+        }
+    }
+
+    @Test func testExpectClassActualTypealiasRejectsMissingUnderlyingMembers() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            package sample.kmp
+            expect class ReentrantLock {
+                fun lock()
+                fun unlock()
+            }
+            """,
+            """
+            package sample.kmp
+            class UnderlyingLock {
+                fun lock() {}
+            }
+            actual typealias ReentrantLock = UnderlyingLock
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-MPP-UNRESOLVED" && $0.message.contains("ReentrantLock.unlock") },
+                "Expected a missing actual member diagnostic, got: \(errors)"
+            )
+        }
+    }
+
+    @Test func testExpectClassActualTypealiasRejectsNonClassUnderlyingType() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            package sample.kmp
+            expect class ReentrantLock
+            """,
+            """
+            package sample.kmp
+            actual typealias ReentrantLock = () -> Int
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-MPP-UNRESOLVED" },
+                "Expected an incompatible actual typealias diagnostic, got: \(errors)"
+            )
+        }
+    }
+
+    private func withSemaContextFromSourcesWithoutStdlib(
+        _ sources: [String],
+        body: (CompilationContext) throws -> Void
+    ) throws {
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            try body(ctx)
+        }
+    }
+
     @Test func testCommonModuleFlagAllowsExpectWithoutActual() throws {
         let ctx = makeContextFromSource(
             """

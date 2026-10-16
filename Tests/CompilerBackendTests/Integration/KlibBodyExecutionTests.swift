@@ -97,6 +97,7 @@ struct KlibBodyExecutionTests {
             var xFloat = 0.0f
             var xDouble = 0.0
             var xRef: Any? = null
+            var xNull: Any? = null
         }
 
         class NonDefaultDerived : Base() {
@@ -122,6 +123,7 @@ struct KlibBodyExecutionTests {
                 if (d.xFloat != 6.0f) { println("fail Float"); return }
                 if (d.xDouble != 7.0) { println("fail Double"); return }
                 if (d.xRef != placeHolder) { println("fail Ref"); return }
+                if (d.xNull != null) { println("fail nullable reference default"); return }
                 if (NonDefaultDerived().value != 42) { println("fail non-default initializer"); return }
                 println("OK")
             }

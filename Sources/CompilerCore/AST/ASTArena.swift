@@ -533,6 +533,7 @@ public final class ASTArena: @unchecked Sendable {
              let .localDecl(_, _, _, _, _, _, range),
              let .localAssign(_, _, range),
              let .memberAssign(_, _, _, range),
+             let .safeMemberAssign(_, _, _, range),
              let .indexedAssign(_, _, _, range),
              let .call(_, _, _, range),
              let .memberCall(_, _, _, _, range),

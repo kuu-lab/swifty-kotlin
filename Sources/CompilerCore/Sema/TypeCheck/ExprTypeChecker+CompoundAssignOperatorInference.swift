@@ -11,6 +11,7 @@ extension ExprTypeChecker {
         receiverType: TypeID,
         valueType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext,
         requireUnitReturn: Bool,
         emitDiagnostics: Bool = true,
@@ -38,9 +39,14 @@ extension ExprTypeChecker {
         let operatorNames = requireUnitReturn
             ? operatorFunctionNames(for: op, interner: interner)
             : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
+        let call = CallExpr(
+            range: range, calleeName: operatorNames[0], args: [CallArg(type: valueType)]
+        )
         var operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
             receiverType: receiverType,
+            call: call,
+            locals: locals,
             ctx: ctx
         )
         var usesScopedCharExtensions = false
@@ -69,11 +75,7 @@ extension ExprTypeChecker {
 
         let resolved = ctx.resolver.resolveCall(
             candidates: operatorCandidates,
-            call: CallExpr(
-                range: range,
-                calleeName: operatorNames[0],
-                args: [CallArg(type: valueType)]
-            ),
+            call: call,
             expectedType: nil,
             implicitReceiverType: receiverType,
             ctx: ctx.sema
@@ -161,6 +163,7 @@ extension ExprTypeChecker {
         receiverType: TypeID,
         assignmentType: TypeID,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> IncrementDecrementInferenceResult? {
         let sema = ctx.sema
@@ -174,9 +177,16 @@ extension ExprTypeChecker {
             nil
         }
         guard let operatorName else { return nil }
+        let call = CallExpr(
+            range: range,
+            calleeName: operatorName,
+            args: []
+        )
         let operatorCandidates = collectOperatorCandidates(
             names: [operatorName],
             receiverType: receiverType,
+            call: call,
+            locals: locals,
             ctx: ctx
         )
         guard !operatorCandidates.isEmpty else {
@@ -185,11 +195,7 @@ extension ExprTypeChecker {
 
         let resolved = ctx.resolver.resolveCall(
             candidates: operatorCandidates,
-            call: CallExpr(
-                range: range,
-                calleeName: operatorName,
-                args: []
-            ),
+            call: call,
             expectedType: nil,
             implicitReceiverType: receiverType,
             ctx: ctx.sema
@@ -282,6 +288,7 @@ extension ExprTypeChecker {
         assignmentType: TypeID,
         isMutable: Bool,
         range: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> IncrementDecrementInferenceResult? {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
@@ -297,6 +304,7 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             assignmentType: assignmentType,
             range: range,
+            locals: locals,
             ctx: ctx
         ) {
             guard resolvedType.expressionType != ctx.sema.types.errorType else {
@@ -438,6 +446,7 @@ extension ExprTypeChecker {
             assignmentType: receiverType,
             isMutable: false,
             range: range,
+            locals: locals,
             ctx: ctx
         ) {
             return resolvedType.expressionType
@@ -449,6 +458,7 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: true,
             allowFallbackOnNoViableOverload: true,
@@ -462,6 +472,7 @@ extension ExprTypeChecker {
             receiverType: receiverType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: false,
             inferCandidateReturnTypes: true
@@ -527,6 +538,7 @@ extension ExprTypeChecker {
                 assignmentType: sema.symbols.propertyType(for: local.symbol) ?? local.type,
                 isMutable: local.isMutable,
                 range: range,
+                locals: locals,
                 ctx: ctx
             ) {
                 if resolvedType.expressionType != sema.types.errorType {
@@ -543,6 +555,7 @@ extension ExprTypeChecker {
                 receiverType: local.type,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: true
             ) {
@@ -553,6 +566,7 @@ extension ExprTypeChecker {
                        receiverType: local.type,
                        valueType: valueType,
                        range: range,
+                       locals: locals,
                        ctx: ctx,
                        requireUnitReturn: false,
                        emitDiagnostics: false,
@@ -576,6 +590,7 @@ extension ExprTypeChecker {
                 receiverType: local.type,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: false
             ) {
@@ -645,16 +660,16 @@ extension ExprTypeChecker {
         // `inheritedField += 1` resolves the same member, taking priority
         // over lexically scope-visible candidates just like
         // inferNameRefExpr does for plain reads.
-        var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID)?
+        var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID, isMutable: Bool)?
         for receiverType in ctx.implicitReceiverMemberLookupTypes() {
-            if let member = driver.helpers.lookupMemberProperty(
+            if let member = driver.helpers.lookupMemberPropertyForWrite(
                 named: name,
                 receiverType: sema.types.makeNonNullable(receiverType),
                 sema: sema
             ),
-               let memberSymbol = ctx.cachedSymbol(member.symbol)
+               let memberSymbol = ctx.cachedSymbol(member.writeSymbol ?? member.symbol)
             {
-                implicitReceiverMember = (memberSymbol, member.type)
+                implicitReceiverMember = (memberSymbol, member.type, member.writeSymbol != nil)
                 break
             }
         }
@@ -676,6 +691,8 @@ extension ExprTypeChecker {
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         })
         if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
+            let isMutable = implicitReceiverMember?.isMutable
+                ?? propSymbol.flags.contains(.mutable)
             let (_, invisible) = ctx.filterByVisibility([propSymbol.id])
             if let property = invisible.first {
                 driver.helpers.emitVisibilityError(
@@ -687,6 +704,23 @@ extension ExprTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
+            if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: propSymbol.id) {
+                let setter = SemanticSymbol(
+                    id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
+                    declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
+                )
+                if !ctx.visibilityChecker.isAccessible(
+                    setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+                ) {
+                    driver.helpers.emitVisibilityError(
+                        for: setter,
+                        name: interner.resolve(name),
+                        range: range,
+                        diagnostics: sema.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+            }
             driver.helpers.checkOptIn(
                 for: propSymbol.id, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
             )
@@ -706,8 +740,9 @@ extension ExprTypeChecker {
                 op: op,
                 receiverType: propType,
                 assignmentType: propType,
-                isMutable: propSymbol.flags.contains(.mutable),
+                isMutable: isMutable,
                 range: range,
+                locals: locals,
                 ctx: ctx
             ) {
                 return resolvedType.expressionType
@@ -718,16 +753,18 @@ extension ExprTypeChecker {
                 receiverType: propType,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: true
             ) {
-                if propSymbol.flags.contains(.mutable),
+                if isMutable,
                    let binaryFallback = bindCompoundAssignmentOperatorCall(
                        exprID: id,
                        op: op,
                        receiverType: propType,
                        valueType: valueType,
                        range: range,
+                       locals: locals,
                        ctx: ctx,
                        requireUnitReturn: false,
                        emitDiagnostics: false,
@@ -751,11 +788,12 @@ extension ExprTypeChecker {
                 receiverType: propType,
                 valueType: valueType,
                 range: range,
+                locals: locals,
                 ctx: ctx,
                 requireUnitReturn: false
             ) {
-                if resolvedType == sema.types.errorType || !propSymbol.flags.contains(.mutable) {
-                    if !propSymbol.flags.contains(.mutable), resolvedType != sema.types.errorType {
+                if resolvedType == sema.types.errorType || !isMutable {
+                    if !isMutable, resolvedType != sema.types.errorType {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0014",
                             "Val cannot be reassigned.",
@@ -767,7 +805,7 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
                 return sema.types.unitType
             }
-            if !propSymbol.flags.contains(.mutable) {
+            if !isMutable {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
@@ -853,7 +891,7 @@ extension ExprTypeChecker {
         receiverType: TypeID,
         range: SourceRange,
         ctx: TypeInferenceContext
-    ) -> (symbol: SymbolID, type: TypeID)? {
+    ) -> MemberPropertyLookupResult? {
         let sema = ctx.sema
         guard let propertyType = driver.callChecker.resolveExtensionPropertyGetter(
             id: id,
@@ -866,7 +904,11 @@ extension ExprTypeChecker {
         ), let property = sema.bindings.identifierSymbol(for: id) else {
             return nil
         }
-        return (property, propertyType)
+        return MemberPropertyLookupResult(
+            symbol: property,
+            type: propertyType,
+            writeSymbol: sema.symbols.symbol(property)?.flags.contains(.mutable) == true ? property : nil
+        )
     }
 
     /// Compound assignment through an explicit receiver, e.g. `obj.field += value`
@@ -896,7 +938,7 @@ extension ExprTypeChecker {
         let originalValueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        guard let propResult = driver.helpers.lookupMemberProperty(
+        guard let propResult = driver.helpers.lookupMemberPropertyForWrite(
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
@@ -916,13 +958,15 @@ extension ExprTypeChecker {
             return sema.types.errorType
         }
 
-        sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+        let writeSymbol = propResult.writeSymbol ?? propResult.symbol
+        let isMutable = propResult.writeSymbol != nil
+        sema.bindings.bindIdentifier(id, symbol: writeSymbol)
         let propType = propResult.type
         let valueType = contextualCompoundAssignmentValueType(
             op: op, receiverType: propType, valueExpr: valueExpr,
             originalType: originalValueType, range: range, ctx: ctx, locals: &locals
         )
-        let propSymbol = sema.symbols.symbol(propResult.symbol)
+        let propSymbol = sema.symbols.symbol(writeSymbol)
         if let propSymbol,
            !ctx.visibilityChecker.isAccessible(
                propSymbol,
@@ -938,8 +982,27 @@ extension ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        if isMutable, let setterVisibility = sema.symbols.propertySetterVisibility(for: writeSymbol),
+           let propSymbol
+        {
+            let setter = SemanticSymbol(
+                id: propSymbol.id, kind: propSymbol.kind, name: propSymbol.name, fqName: propSymbol.fqName,
+                declSite: propSymbol.declSite, visibility: setterVisibility, flags: propSymbol.flags
+            )
+            if !ctx.visibilityChecker.isAccessible(
+                setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+            ) {
+                driver.helpers.emitVisibilityError(
+                    for: setter,
+                    name: interner.resolve(calleeName),
+                    range: range,
+                    diagnostics: sema.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
+        }
         driver.helpers.checkOptIn(
-            for: propResult.symbol, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
+            for: writeSymbol, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics
         )
         if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
             _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
@@ -950,8 +1013,9 @@ extension ExprTypeChecker {
             op: op,
             receiverType: propType,
             assignmentType: propType,
-            isMutable: propSymbol?.flags.contains(.mutable) == true,
+            isMutable: isMutable,
             range: range,
+            locals: locals,
             ctx: ctx
         ) {
             return resolvedType.expressionType
@@ -963,16 +1027,18 @@ extension ExprTypeChecker {
             receiverType: propType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: true
         ) {
-            if propSymbol?.flags.contains(.mutable) == true,
+            if isMutable,
                let binaryFallback = bindCompoundAssignmentOperatorCall(
                    exprID: id,
                    op: op,
                    receiverType: propType,
                    valueType: valueType,
                    range: range,
+                   locals: locals,
                    ctx: ctx,
                    requireUnitReturn: false,
                    emitDiagnostics: false,
@@ -997,11 +1063,12 @@ extension ExprTypeChecker {
             receiverType: propType,
             valueType: valueType,
             range: range,
+            locals: locals,
             ctx: ctx,
             requireUnitReturn: false
         ) {
-            if resolvedType == sema.types.errorType || propSymbol?.flags.contains(.mutable) != true {
-                if propSymbol?.flags.contains(.mutable) != true, resolvedType != sema.types.errorType {
+            if resolvedType == sema.types.errorType || !isMutable {
+                if !isMutable, resolvedType != sema.types.errorType {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0014",
                         "Val cannot be reassigned.",
@@ -1023,7 +1090,7 @@ extension ExprTypeChecker {
         ) {
             return sema.types.errorType
         }
-        if propSymbol?.flags.contains(.mutable) != true {
+        if !isMutable {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0014",
                 "Val cannot be reassigned.",

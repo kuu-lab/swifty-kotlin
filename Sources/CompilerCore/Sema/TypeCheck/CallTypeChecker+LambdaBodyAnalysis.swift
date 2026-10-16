@@ -56,7 +56,8 @@ extension CallTypeChecker {
             return initializer.map(visit) ?? false
         case let .localAssign(_, value, _):
             return visit(value)
-        case let .memberAssign(receiver, _, value, _):
+        case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _):
             return visit(receiver) || visit(value)
         case let .indexedAssign(receiver, indices, value, _):
             return visit(receiver) || indices.contains(where: visit) || visit(value)

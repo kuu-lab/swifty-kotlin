@@ -419,6 +419,8 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
+                    // Keep the reference's concrete return type for final call
+                    // inference; the outer result is only an upper constraint.
                     contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
                         at: index,
                         argumentLabel: argument.label,
@@ -429,7 +431,7 @@ extension CallTypeChecker {
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                        callResultType: contextualCallResultType,
+                        callResultType: nil,
                         resolver: ctx.resolver,
                         ctx: ctx
                     )
@@ -486,9 +488,11 @@ extension CallTypeChecker {
                     // the expected call result fixes R before the lambda body is
                     // inferred. Keep the receiver-derived T in the expected lambda
                     // while replacing only its matching return type parameter.
+                    // Use the same narrowed candidates that supplied the lambda shape:
+                    // an inapplicable unqualified extension must not hide this context.
                     let contextualLambdaType = contextualCallableArgumentType(
                         expectation.type, callResultType: contextualCallResultType,
-                        candidates: candidates, sema: sema
+                        candidates: expectedTypeCandidates, sema: sema
                     )
                     contextualArgExpectedTypes[index] = contextualLambdaType
                     if let contextualLambdaType, expectedTypeCandidates.count == 1,
@@ -627,6 +631,8 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
         bindsObjectDispatchReceiver: Bool = false,
+        additionalDispatchReceiverTypes: [TypeID] = [],
+        additionalBoundObjectDispatchReceiverCandidates: Set<SymbolID> = [],
         candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
@@ -647,14 +653,17 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: (bindsObjectDispatchReceiver
+            dispatchReceiverTypes: additionalDispatchReceiverTypes + (bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
                 : []) + ctx.implicitReceiverMemberLookupEntries().map(\.type),
-            boundObjectDispatchReceiverCandidates: bindsObjectDispatchReceiver
+            boundObjectDispatchReceiverCandidates: additionalBoundObjectDispatchReceiverCandidates.union(
+                bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)
-                : [],
+                : []
+            ),
             typeAliasConstructor: typeAliasConstructor,
-            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint
+            elvisLhsExpectedTypeHint: ctx.isElvisLhsExpectedTypeHint,
+            elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint
         )
 
         if candidates.contains(where: {
@@ -872,12 +881,20 @@ extension CallTypeChecker {
                   sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                   let owner = sema.symbols.parentSymbol(for: candidate),
                   let ownerKind = sema.symbols.symbol(owner)?.kind,
-                  ownerKind == .class || ownerKind == .interface || ownerKind == .object,
-                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
-                  case let .classType(receiverClass) = sema.types.kind(of: receiver),
-                  receiverClass.classSymbol == owner
+                  ownerKind == .class || ownerKind == .interface || ownerKind == .object
             else { return nil }
-            return receiver
+            if let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiver),
+               receiverClass.classSymbol == owner
+            {
+                return receiver
+            }
+            guard ownerKind == .object else { return nil }
+            return sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: [],
+                nullability: .nonNull
+            )))
         }
 
         // Except for bound object members, a candidate that declares an

@@ -147,6 +147,132 @@ struct LazySymbolScanTests {
         #expect(entry.record.enumStaticInitLinkName == "enum_init")
     }
 
+    @Test func normalizeImportedNonGenericMemberDoesNotInvokeLazyLoader() throws {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let ownerName = ["scan", "Owner"].map(interner.intern)
+        let owner = symbols.define(
+            kind: .class, name: ownerName.last!, fqName: ownerName,
+            declSite: nil, visibility: .public, flags: [.importedLibrary]
+        )
+        let methodName = interner.intern("method")
+        let methodFQName = ownerName + [methodName]
+        let method = symbols.define(
+            kind: .function, name: methodName, fqName: methodFQName,
+            declSite: nil, visibility: .public, flags: [.importedLibrary]
+        )
+        symbols.setParentSymbol(owner, for: method)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: types.intType), for: method
+        )
+        let record = try #require(DataFlowSemaPhase().makeImportedLibraryRecord(
+            MetadataRecord(
+                kind: .function, mangledName: "_method", fqName: "scan.Owner.method",
+                arity: 0, isSuspend: false, typeSignature: "F0<I>"
+            ),
+            path: "metadata.bin", diagnostics: DiagnosticEngine(), interner: interner,
+            nominalTypeParametersByFQName: [:]
+        ))
+        let binding = DataFlowSemaPhase.ImportedLibraryBinding(
+            record: record, symbol: method, metadataPath: "metadata.bin",
+            inlineKIRDir: nil, isStdlibArtifact: false
+        )
+        let work = DataFlowSemaPhase.LibraryImportDeferredWork(
+            pendingSupertypeEdges: [], importedBindings: [binding], lazyLoaderState: nil,
+            stdlibModuleName: nil, klibModules: []
+        )
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { loaded.append($0) }
+
+        DataFlowSemaPhase().normalizeImportedLibraryMemberSignatures(
+            work, symbols: symbols, types: types, diagnostics: DiagnosticEngine(), interner: interner
+        )
+
+        #expect(loaded.isEmpty)
+        #expect(symbols.functionSignatureIfKnown(for: method)?.returnType == types.intType)
+    }
+
+    @Test func parameterlessImportedOverridesDoNotMaterializeForDefaults() {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let name = interner.intern("toString")
+        let function = symbols.define(
+            kind: .function, name: name, fqName: [name], declSite: nil,
+            visibility: .public, flags: [.synthetic, .importedLibrary, .overrideMember]
+        )
+        symbols.setImportedMemberIndexShape(
+            ImportedMemberIndexShape(arity: 0, receiverOwnerFQName: nil), for: function
+        )
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader { loaded.append($0) }
+
+        DataFlowSemaPhase().inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: TypeSystem())
+
+        #expect(loaded.isEmpty)
+        #expect(symbols.functionSignatureIfKnown(for: function) == nil)
+        #expect(symbols.overrideDefaultsBaseSymbol(for: function) == nil)
+    }
+
+    @Test func importedLayoutsStayLazyAndLateUseSynthesizesAncestors() throws {
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        func nominal(_ name: String) -> SymbolID {
+            let part = interner.intern(name)
+            return symbols.define(
+                kind: .class, name: part, fqName: [part], declSite: nil,
+                visibility: .public, flags: [.synthetic, .importedLibrary]
+            )
+        }
+        let base = nominal("Base")
+        let derived = nominal("Derived")
+        let unused = nominal("Unused")
+        let fieldName = interner.intern("field")
+        let field = symbols.define(
+            kind: .field, name: fieldName, fqName: [interner.intern("Base"), fieldName],
+            declSite: nil, visibility: .public
+        )
+        symbols.setParentSymbol(base, for: field)
+        var loaded: [SymbolID] = []
+        symbols.setLazyImportedMetadataLoader(indexedNominals: [base, derived, unused]) { symbol in
+            loaded.append(symbol)
+            if symbol == base {
+                symbols.setNominalLayoutHint(
+                    NominalLayoutHint(
+                        declaredFieldCount: 1, declaredInstanceSizeWords: 9,
+                        declaredVtableSize: 3, declaredItableSize: 2
+                    ),
+                    for: base
+                )
+            } else if symbol == derived {
+                symbols.setDirectSupertypes([base], for: derived)
+                #expect(symbols.nominalLayout(for: derived) == nil)
+            }
+        }
+
+        DataFlowSemaPhase().synthesizeNominalLayouts(
+            symbols: symbols, types: types, interner: interner, diagnostics: diagnostics
+        )
+        #expect(loaded.isEmpty)
+        let layout = try #require(symbols.nominalLayout(for: derived))
+        #expect(layout.objectHeaderWords == 2)
+        #expect(layout.instanceSizeWords == 9)
+        #expect(layout.instanceFieldCount == 1)
+        #expect(layout.fieldOffsets[field] == 2)
+        #expect(layout.vtableSize == 3)
+        #expect(layout.itableSize == 2)
+        #expect(layout.superClass == base)
+        #expect(loaded.filter { $0 == base || $0 == derived } == [derived, base])
+        #expect(!loaded.contains(unused))
+        let firstLoads = loaded
+        #expect(symbols.nominalLayout(for: derived) == layout)
+        #expect(loaded == firstLoads)
+        #expect(!diagnostics.hasError)
+    }
+
     @Test func defaultArgumentScanLoadsDemandedBaseAndPreservesOriginalOwner() {
         let symbols = SymbolTable()
         let interner = StringInterner()

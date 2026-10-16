@@ -81,15 +81,12 @@ final class ConstPropertyEvaluator {
               evaluating.insert(symbol).inserted
         else { return nil }
         defer { evaluating.remove(symbol) }
-        let collector = ConstantCollector(
-            resolvedConstant: { [self] expr in resolvedConstant(for: expr) },
-            canFoldMemberCall: { [self] expr in canFoldMemberCall(expr) }
-        )
-        guard let value = collector.literalConstantExpr(initializer, ast: ast, interner: interner) else {
+        guard let value = constantExpression(initializer) else {
             failed.insert(symbol)
             return nil
         }
         let type = sema.symbols.propertyType(for: symbol) ?? sema.types.nullableAnyType
+        let collector = ConstantCollector()
         let converted = collector.convertConstant(value, to: type, types: sema.types)
         sema.symbols.setConstValueExprKind(converted, for: symbol)
         sema.bindings.bindConstExprValue(initializer, value: converted)

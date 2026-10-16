@@ -1,6 +1,7 @@
 package java.lang
 
 import java.lang.reflect.Constructor
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import kotlin.internal.KsSymbolName
 
@@ -18,6 +19,11 @@ private external fun <T> __getConstructor(
 @KsSymbolName("__kk_class_declared_constructors")
 private external fun __declaredConstructors(value: Class<*>): Array<Constructor<*>>
 
+@KsSymbolName("__kk_class_declared_constructor")
+private external fun <T> __declaredConstructor(
+    value: Class<T>,
+    parameterTypes: Array<out Class<*>>
+): Constructor<T>
 @KsSymbolName("__kk_java_class_get_declared_methods")
 private external fun __classGetDeclaredMethods(type: Class<*>): Array<Method>
 @KsSymbolName("__kk_class_canonical_name")
@@ -29,6 +35,9 @@ private external fun __classGetDeclaredMethod(
     name: String,
     parameterTypes: Array<out Class<*>>
 ): Method
+
+@KsSymbolName("__kk_java_class_get_declared_field")
+private external fun __classGetDeclaredField(type: Class<*>, name: String): Field
 
 @KsSymbolName("__kk_java_class_get_name")
 private external fun __classGetName(type: Class<*>): String
@@ -61,12 +70,23 @@ public class Class<T> {
     /** Returns the constructors registered for this class token. */
     public fun getDeclaredConstructors(): Array<Constructor<*>> = __declaredConstructors(this)
 
+    /** Returns the declared constructor with the supplied parameter classes. */
+    public fun getDeclaredConstructor(vararg parameterTypes: Class<*>): Constructor<T> =
+        __declaredConstructor(this, parameterTypes)
+
     /** Returns methods declared directly by this class. */
     public fun getDeclaredMethods(): Array<Method> = __classGetDeclaredMethods(this)
 
     /** Returns the method declared by this class with the given parameter types. */
     public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
         __classGetDeclaredMethod(this, name, parameterTypes)
+
+    /**
+     * Returns an enum entry field declared by this class.
+     * The native runtime panics with `java.lang.NoSuchFieldException` when the
+     * name is absent or names a field outside the supported enum-entry surface.
+     */
+    public fun getDeclaredField(name: String): Field = __classGetDeclaredField(this, name)
 
     /** Returns the JVM name of this class. */
     public val name: String
