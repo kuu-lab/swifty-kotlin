@@ -794,7 +794,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
-        // Inject callable value captures for coroutine launcher arguments.
         // When a suspend lambda/closure with captures is passed to a launcher
         // (runBlocking/launch/async), the capture values must be included in
         // the call arguments so the CoroutineLoweringPass can store them in
