@@ -444,6 +444,39 @@ extension ExprTypeChecker {
             }
         }
         if !operatorCandidates.isEmpty {
+            let operatorCall = CallExpr(
+                range: range,
+                calleeName: operatorName,
+                args: [CallArg(type: rhs)]
+            )
+            let isComparisonOperator: Bool = switch op {
+            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+            let hasUninferredOperatorReturn = operatorCandidates.contains { candidate in
+                driver.inferredReturnFunctions[candidate] != nil
+                    && !driver.checkedInferredReturnFunctions.contains(candidate)
+                    && !driver.checkingInferredReturnFunctions.contains(candidate)
+            }
+            if isComparisonOperator, hasUninferredOperatorReturn {
+                // Select by receiver and operand types before inferring a return
+                // type, so an unselected overload cannot create a false cycle.
+                // The final resolution below then enforces compareTo's Int result.
+                let inputSelection = ctx.resolver.resolveCall(
+                    candidates: operatorCandidates,
+                    call: operatorCall,
+                    expectedType: nil,
+                    implicitReceiverType: lhs,
+                    ctx: ctx.sema
+                )
+                if inputSelection.diagnostic == nil,
+                   let chosen = inputSelection.chosenCallee
+                {
+                    driver.inferFunctionReturnTypesIfNeeded(for: [chosen])
+                }
+            }
             // Comparison operators desugar to compareTo(), which always returns Int.
             // The binary expression itself is Boolean, so do not pass that as the
             // call's expected return type; otherwise Int <: Boolean fails.
@@ -456,11 +489,7 @@ extension ExprTypeChecker {
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
-                call: CallExpr(
-                    range: range,
-                    calleeName: operatorName,
-                    args: [CallArg(type: rhs)]
-                ),
+                call: operatorCall,
                 expectedType: operatorExpectedType,
                 implicitReceiverType: lhs,
                 ctx: ctx.sema
