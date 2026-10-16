@@ -841,6 +841,36 @@ extension ExprTypeChecker {
             }
         }
 
+        // A bare `::Alias` inside an enclosing class is bound to that class's
+        // instance when the alias names one of its inner classes.
+        if candidates.isEmpty, receiver == nil {
+            var implicitReceivers = ctx.implicitReceiverStack
+            if let type = ctx.implicitReceiverType,
+               let symbol = locals[interner.intern("this")]?.symbol,
+               implicitReceivers.last?.symbol != symbol
+            {
+                implicitReceivers.append((type, symbol))
+            }
+            for implicitReceiver in implicitReceivers.reversed() {
+                guard let aliasedInner = driver.helpers.collectInnerClassTypeAliasConstructorCandidates(
+                    named: member,
+                    receiverType: implicitReceiver.type,
+                    explicitTypeArgs: [],
+                    ctx: ctx,
+                    interner: interner
+                ) else {
+                    continue
+                }
+                candidates = ctx.filterByVisibility(aliasedInner.candidates).visible
+                if !candidates.isEmpty {
+                    isConstructorReference = true
+                    isImplicitlyBoundMember = true
+                    implicitBoundReceiver = implicitReceiver
+                    break
+                }
+            }
+        }
+
         // Within a class or extension body, `::member` uses the active
         // implicit receiver before a same-named package function. Lexical
         // scope lookup does not walk inherited member scopes. A local
@@ -896,6 +926,21 @@ extension ExprTypeChecker {
                         unboundInnerConstructorReceiverType = unboundClassType
                         break
                     }
+                }
+            }
+            if candidates.isEmpty,
+               let aliasedInner = driver.helpers.collectInnerClassTypeAliasConstructorCandidates(
+                   named: member,
+                   receiverType: unboundClassType,
+                   explicitTypeArgs: [],
+                   ctx: ctx,
+                   interner: interner
+               )
+            {
+                candidates = ctx.filterByVisibility(aliasedInner.candidates).visible
+                if !candidates.isEmpty {
+                    isConstructorReference = true
+                    unboundInnerConstructorReceiverType = unboundClassType
                 }
             }
         }

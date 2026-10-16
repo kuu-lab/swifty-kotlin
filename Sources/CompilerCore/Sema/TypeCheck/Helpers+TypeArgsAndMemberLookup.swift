@@ -895,7 +895,8 @@ extension TypeCheckHelpers {
         named calleeName: InternedString,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        matchingInnerClass: SymbolID? = nil
     ) -> [SymbolID] {
         guard let receiverNominal = nominalSymbol(of: receiverType, types: sema.types) else {
             return []
@@ -915,7 +916,8 @@ extension TypeCheckHelpers {
             for candidate in sema.symbols.lookupAll(fqName: nestedFQName) {
                 guard let sym = sema.symbols.symbol(candidate),
                       sym.kind == .class,
-                      sym.flags.contains(.innerClass)
+                      sym.flags.contains(.innerClass),
+                      matchingInnerClass == nil || matchingInnerClass == candidate
                 else {
                     continue
                 }
@@ -931,6 +933,148 @@ extension TypeCheckHelpers {
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
         return []
+    }
+
+    /// Resolves a visible typealias to an inner class under the supplied
+    /// receiver and carries the alias type parameters into constructor inference.
+    func collectInnerClassTypeAliasConstructorCandidates(
+        named aliasName: InternedString,
+        receiverType: TypeID,
+        explicitTypeArgs: [TypeID],
+        ctx: TypeInferenceContext,
+        interner: StringInterner
+    ) -> (candidates: [SymbolID], typeAliasConstructor: TypeAliasConstructorContext)? {
+        let sema = ctx.sema
+        var aliases = ctx.cachedScopeLookup(aliasName).filter {
+            ctx.cachedSymbol($0)?.kind == .typeAlias
+        }
+        for candidate in ctx.scope.lookupClassifier(aliasName, matching: {
+            ctx.cachedSymbol($0)?.kind == .typeAlias
+        }) where !aliases.contains(candidate) {
+            aliases.append(candidate)
+        }
+
+        for aliasSymbol in ctx.filterByVisibility(aliases).visible {
+            let parameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
+            let typeArgs: [TypeArg] = parameters.enumerated().map { index, parameter in
+                let argument = explicitTypeArgs.indices.contains(index) && explicitTypeArgs[index] != TypeID.invalid
+                    ? explicitTypeArgs[index]
+                    : sema.types.make(.typeParam(TypeParamType(symbol: parameter, nullability: .nonNull)))
+                return .invariant(argument)
+            }
+            guard let expanded = expandTypeAlias(
+                aliasSymbol,
+                typeArgs: typeArgs,
+                sema: sema,
+                visited: [],
+                depth: 0,
+                diagnostics: sema.diagnostics
+            ),
+               case let .classType(classType) = sema.types.kind(of: expanded)
+            else {
+                continue
+            }
+            let classSymbol = sema.symbols.actualSymbol(for: classType.classSymbol) ?? classType.classSymbol
+            guard sema.symbols.symbol(classSymbol)?.flags.contains(.innerClass) == true else {
+                continue
+            }
+            let constructorType = sema.types.make(.classType(ClassType(
+                classSymbol: classSymbol,
+                args: classType.args,
+                enclosingTypeArgs: classType.enclosingTypeArgs,
+                nullability: .nonNull
+            )))
+            guard let outerReceiverType = innerClassOuterReceiverType(
+                for: constructorType,
+                receiverType: receiverType,
+                sema: sema
+            ) else {
+                continue
+            }
+            let className = sema.symbols.symbol(classSymbol)?.name ?? aliasName
+            let constructors = collectInnerClassConstructorCandidates(
+                named: className,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner,
+                matchingInnerClass: classSymbol
+            )
+            guard !constructors.isEmpty else {
+                continue
+            }
+            return (
+                constructors,
+                TypeAliasConstructorContext(
+                    typeParameterSymbols: parameters,
+                    expandedType: constructorType,
+                    typeAliasSymbol: aliasSymbol,
+                    innerOuterReceiverType: outerReceiverType,
+                    outerTypeParameterSymbols: innerTypeAliasOuterTypeParameters(
+                        of: aliasSymbol,
+                        sema: sema
+                    )
+                )
+            )
+        }
+        return nil
+    }
+
+    /// Identifies alias parameters that belong to the inner class's enclosing
+    /// type. The inner class type stores only its own type arguments.
+    func innerTypeAliasOuterTypeParameters(of aliasSymbol: SymbolID, sema: SemaModule) -> [SymbolID] {
+        let parameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
+        guard !parameters.isEmpty else { return [] }
+        let typeArgs = parameters.map { parameter in
+            TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(
+                symbol: parameter,
+                nullability: .nonNull
+            ))))
+        }
+        guard let expanded = expandTypeAlias(
+            aliasSymbol,
+            typeArgs: typeArgs,
+            sema: sema,
+            visited: [],
+            depth: 0
+        ), case let .classType(innerClass) = sema.types.kind(of: expanded) else {
+            return []
+        }
+        // Enclosing arguments lead the combined argument list. Alias
+        // parameters that appear there fill the outer class's parameters;
+        // the remainder belong to the inner class itself. The underlying
+        // type may store them flat in `args` when it was recorded before
+        // enclosing-parameter metadata was available, so classify by
+        // position rather than by which field holds them.
+        let enclosingCount = sema.types.enclosingTypeParameterSymbols(for: innerClass.classSymbol).count
+        let enclosingArguments = Array(sema.types.allTypeArguments(for: innerClass).prefix(enclosingCount))
+        return parameters.filter { parameter in
+            enclosingArguments.contains { argument in
+                switch argument {
+                case let .invariant(type), let .out(type), let .in(type):
+                    sema.types.typeContainsTypeParam(type, symbol: parameter)
+                case .star:
+                    false
+                }
+            }
+        }
+    }
+
+    /// Returns the receiver type only when it can enclose the aliased inner
+    /// class, including when it is a subtype of the declaring outer class.
+    func innerClassOuterReceiverType(
+        for innerClassType: TypeID,
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard case let .classType(innerClass) = sema.types.kind(of: innerClassType),
+              sema.symbols.symbol(innerClass.classSymbol)?.flags.contains(.innerClass) == true,
+              let outerOwner = sema.symbols.parentSymbol(for: innerClass.classSymbol),
+              let receiverSymbol = nominalSymbol(of: receiverType, types: sema.types),
+              sema.types.isNominalSubtypeSymbol(receiverSymbol, of: outerOwner)
+        else {
+            return nil
+        }
+        return sema.types.makeNonNullable(receiverType)
     }
 
     /// Look up a member property (or field) named `calleeName` on the receiver's

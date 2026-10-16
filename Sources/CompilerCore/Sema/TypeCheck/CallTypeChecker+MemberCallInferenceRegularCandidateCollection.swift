@@ -23,7 +23,8 @@ extension CallTypeChecker {
         isULongProgressionFirstLastMember: Bool,
         isLongRangeLiteralContainsCall: Bool,
         callableReferenceFunctionType: TypeID?,
-        locals: LocalBindings
+        locals: LocalBindings,
+        typeAliasConstructor: inout TypeAliasConstructorContext?
     ) -> (allCandidates: [SymbolID], companionReceiverType: TypeID?, earlyReturnType: TypeID?) {
         let id = request.id
         let receiverID = request.receiverID
@@ -560,6 +561,15 @@ extension CallTypeChecker {
                 )
                 if !innerCtorCandidates.isEmpty {
                     allCandidates = innerCtorCandidates
+                } else if let aliasConstructors = driver.helpers.collectInnerClassTypeAliasConstructorCandidates(
+                    named: calleeName,
+                    receiverType: memberLookupType,
+                    explicitTypeArgs: request.explicitTypeArgs,
+                    ctx: ctx,
+                    interner: interner
+                ) {
+                    allCandidates = aliasConstructors.candidates
+                    typeAliasConstructor = aliasConstructors.typeAliasConstructor
                 } else {
                     if let callableReferenceFunctionType {
                         // A callable reference is both a reflective KFunction and an

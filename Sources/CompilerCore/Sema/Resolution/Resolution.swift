@@ -536,6 +536,46 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // An alias may use type parameters from the enclosing class even though
+        // an inner-class type stores only its own arguments. A member-style call
+        // supplies the enclosing instance separately, so use it to infer the
+        // alias parameters for those outer slots.
+        if isConstructor,
+           let aliasConstructor,
+           let outerReceiverType = aliasConstructor.innerOuterReceiverType,
+           case let .classType(aliasTarget) = ctx.types.kind(of: aliasConstructor.expandedType),
+           ctx.symbols.symbol(aliasTarget.classSymbol)?.flags.contains(.innerClass) == true,
+           let outerOwner = ctx.symbols.parentSymbol(for: aliasTarget.classSymbol)
+        {
+            let outerParameterCount = ctx.types.nominalTypeParameterSymbols(for: outerOwner).count
+            if outerParameterCount > 0,
+               case let .classType(receiverClass) = ctx.types.kind(of: ctx.types.makeNonNullable(outerReceiverType)),
+               let receiverOuterArgs = ctx.types.liftedNominalSupertypeArgs(
+                   from: receiverClass.classSymbol,
+                   childArgs: receiverClass.args,
+                   to: outerOwner
+               ),
+               receiverOuterArgs.count >= outerParameterCount
+            {
+                for (index, aliasParameter) in aliasConstructor.outerTypeParameterSymbols
+                    .prefix(outerParameterCount).enumerated()
+                {
+                    guard let aliasVariable = typeVarBySymbol[aliasParameter] else { continue }
+                    let receiverArgument: TypeID
+                    switch receiverOuterArgs[index] {
+                    case let .invariant(type), let .out(type), let .in(type): receiverArgument = type
+                    case .star: continue
+                    }
+                    constraints.append(VariableConstraint(
+                        kind: .equal,
+                        left: .variable(aliasVariable),
+                        right: .type(receiverArgument),
+                        blameRange: call.range
+                    ))
+                }
+            }
+        }
+
         // Member extensions infer class parameters from their dispatch receiver;
         // the extension receiver still constrains the declared receiver type.
         let memberExtensionOwner = ctx.symbols.memberExtensionOwnerSymbol(for: candidate)
