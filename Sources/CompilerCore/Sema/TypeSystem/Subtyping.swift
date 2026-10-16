@@ -922,6 +922,12 @@ extension TypeSystem {
         if let sharedUpperBound = nearestCommonTypeParameterUpperBound(types) {
             return sharedUpperBound
         }
+        if let commonFunction = commonFunctionSupertype(
+            types,
+            retainingCommonIntersection: retainingCommonIntersection
+        ) {
+            return commonFunction
+        }
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
         }
@@ -1026,6 +1032,72 @@ extension TypeSystem {
                 visitedParameters: nextVisited
             )
         }
+    }
+
+    /// Builds a structural common supertype for function types with matching
+    /// callable shape. Function inputs are contravariant, so their common type
+    /// is a greatest lower bound; function results are covariant and use LUB.
+    private func commonFunctionSupertype(
+        _ types: [TypeID],
+        retainingCommonIntersection: Bool
+    ) -> TypeID? {
+        guard types.count > 1 else { return nil }
+        let functions = types.compactMap { type -> FunctionType? in
+            guard case let .functionType(function) = kind(of: type) else { return nil }
+            return function
+        }
+        guard functions.count == types.count, let first = functions.first else {
+            return nil
+        }
+        let effectiveParams = functions.map { function in
+            (function.receiver.map { [$0] } ?? []) + function.params
+        }
+        guard let firstParams = effectiveParams.first else { return nil }
+        guard functions.allSatisfy({ function in
+            function.contextReceivers.count == first.contextReceivers.count
+                && function.isSuspend == first.isSuspend
+                && function.throws == first.throws
+        }), effectiveParams.allSatisfy({ $0.count == firstParams.count }) else {
+            return nil
+        }
+
+        let contextReceivers = first.contextReceivers.indices.map { index in
+            commonFunctionInputType(functions.map { $0.contextReceivers[index] })
+        }
+        let commonParams = firstParams.indices.map { index in
+            commonFunctionInputType(effectiveParams.map { $0[index] })
+        }
+        let returnType = lub(
+            functions.map(\.returnType),
+            retainingCommonIntersection: retainingCommonIntersection
+        )
+        let common = make(.functionType(FunctionType(
+            contextReceivers: contextReceivers,
+            // A function receiver is its leading invocation parameter. Use a
+            // regular function shape so mixed receiver and parameter forms
+            // share the same callable supertype and invocation lowering.
+            receiver: nil,
+            params: commonParams,
+            returnType: returnType,
+            isSuspend: first.isSuspend,
+            isCallableReference: false,
+            nullability: .nonNull,
+            throws: first.throws
+        )))
+        return types.allSatisfy { isSubtype($0, common) } ? common : nil
+    }
+
+    /// Finds a greatest lower bound for a contravariant function input. Reuse
+    /// an existing subtype when one bounds every input; otherwise preserve all
+    /// input constraints in an intersection type.
+    private func commonFunctionInputType(_ types: [TypeID]) -> TypeID {
+        let uniqueTypes = Array(Set(types)).sorted { $0.rawValue < $1.rawValue }
+        if let existingBound = uniqueTypes.first(where: { candidate in
+            uniqueTypes.allSatisfy { isSubtype(candidate, $0) }
+        }) {
+            return existingBound
+        }
+        return make(.intersection(uniqueTypes))
     }
 
     /// Finds the most specific nominal supertype (other than `Any`) shared by

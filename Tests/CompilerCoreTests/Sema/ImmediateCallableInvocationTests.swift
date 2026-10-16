@@ -95,6 +95,23 @@ struct ImmediateCallableInvocationTests {
         #expect(getterContext.sourceManager.slice(range) == "17")
     }
 
+    @Test func explicitlyTypedCallableReferenceJoinRejectsWrongArgument() throws {
+        let ctx = makeContextFromSource("""
+        fun parseIntValue(value: String): Int = 42
+        fun parseBooleanValue(value: String): Boolean = value == "42"
+        fun reject() {
+            val parser: (String) -> Any = when (true) {
+                true -> ::parseIntValue
+                false -> ::parseBooleanValue
+            }
+            parser(42)
+        }
+        """)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+    }
+
     @Test(arguments: [
         "fun main() { val value: Int = with(1) { { 2 } }() }",
         "val value: Int = with(1) { { 2 } }()",
@@ -199,6 +216,26 @@ struct ImmediateCallableInvocationTests {
         ])
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test func callableReferencesInWhenJoinUseTheJoinedFunctionType() throws {
+        let ctx = makeContextFromSources([
+            """
+            fun parseIntValue(value: String): Int = 42
+            fun parseBooleanValue(value: String): Boolean = value == "42"
+            fun joined(): String = when (true) {
+                true -> ::parseIntValue
+                false -> ::parseBooleanValue
+            }("42").toString()
+            """
+        ])
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let callableReferenceBindings = Array(sema.bindings.callableReferenceBindings.values)
+        #expect(callableReferenceBindings.count == 2)
+        let allReferencesAdapted = callableReferenceBindings.allSatisfy { $0.isCallableReferenceAdapter }
+        #expect(allReferencesAdapted)
     }
 
     private func annotatedContextPropertyCompilation(includeWrongArgument: Bool = false) -> CompilationContext {

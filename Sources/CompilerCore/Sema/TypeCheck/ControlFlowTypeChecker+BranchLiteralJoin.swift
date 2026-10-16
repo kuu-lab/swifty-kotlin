@@ -20,6 +20,73 @@ extension ControlFlowTypeChecker {
         return expectedType
     }
 
+    /// Adapts callable references to the function type selected for a `when`
+    /// join. This is needed when the common return type is wider than a branch's
+    /// declared return type, because the branch value must use the joined ABI.
+    func adaptCallableReferenceBranches(
+        expressions: [ExprID],
+        branchTypes: [TypeID],
+        resultType: TypeID,
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        guard case .functionType = sema.types.kind(of: resultType),
+              expressions.count == branchTypes.count
+        else {
+            return
+        }
+
+        for (expression, branchType) in zip(expressions, branchTypes) {
+            guard branchType != resultType,
+                  case .functionType = sema.types.kind(of: branchType),
+                  sema.types.isSubtype(branchType, resultType),
+                  let reference = terminalCallableReference(in: expression, ctx: ctx),
+                  sema.bindings.callableRefKind(for: reference) == .functionRef
+            else {
+                continue
+            }
+
+            let binding = sema.bindings.callableReferenceBinding(for: reference)
+            guard let chosenCallee = binding?.chosenCallee
+                    ?? sema.bindings.identifierSymbol(for: reference)
+            else {
+                continue
+            }
+            sema.bindings.bindCallableReference(reference, binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: binding?.substitutedTypeArguments ?? [],
+                parameterMapping: binding?.parameterMapping ?? [:],
+                defaultArgumentOwner: binding?.defaultArgumentOwner,
+                dispatchReceiverSymbol: binding?.dispatchReceiverSymbol,
+                isCallableReferenceAdapter: true
+            ))
+            sema.bindings.bindExprType(reference, type: resultType)
+            for wrapper in callableReferenceWrappers(in: expression, ctx: ctx) {
+                sema.bindings.bindExprType(wrapper, type: resultType)
+            }
+        }
+    }
+
+    private func terminalCallableReference(in expression: ExprID, ctx: TypeInferenceContext) -> ExprID? {
+        switch ctx.ast.arena.expr(expression) {
+        case .callableRef:
+            return expression
+        case let .blockExpr(_, trailingExpr?, _):
+            return terminalCallableReference(in: trailingExpr, ctx: ctx)
+        default:
+            return nil
+        }
+    }
+
+    private func callableReferenceWrappers(in expression: ExprID, ctx: TypeInferenceContext) -> [ExprID] {
+        switch ctx.ast.arena.expr(expression) {
+        case let .blockExpr(_, trailingExpr?, _):
+            return callableReferenceWrappers(in: trailingExpr, ctx: ctx) + [expression]
+        default:
+            return []
+        }
+    }
+
     /// Resolve unsuffixed integer branch results against Long peers before LUB.
     /// Ordinary Int expressions retain their type; Kotlin has no Int-to-Long widening.
     func contextualizeLongBranchLiterals(
