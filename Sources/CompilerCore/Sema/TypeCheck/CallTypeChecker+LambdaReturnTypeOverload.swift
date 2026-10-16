@@ -419,6 +419,8 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
+                    // Keep the reference's concrete return type for final call
+                    // inference; the outer result is only an upper constraint.
                     contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
                         at: index,
                         argumentLabel: argument.label,
@@ -429,7 +431,7 @@ extension CallTypeChecker {
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                        callResultType: contextualCallResultType,
+                        callResultType: nil,
                         resolver: ctx.resolver,
                         ctx: ctx
                     )
