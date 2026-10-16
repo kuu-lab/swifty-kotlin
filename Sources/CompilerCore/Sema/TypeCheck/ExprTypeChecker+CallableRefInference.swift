@@ -36,7 +36,8 @@ extension ExprTypeChecker {
             chosenCallee: target,
             substitutedTypeArguments: specialization.typeArguments,
             parameterMapping: specialization.parameterMapping,
-            isCallableReferenceAdapter: specialization.requiresAdapter
+            isCallableReferenceAdapter: specialization.requiresAdapter,
+            boundContextParameterTypes: specialization.boundContextParameterTypes
         ))
     }
 
@@ -52,6 +53,10 @@ extension ExprTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let availableContextReceiverTypes = ctx.contextReceiverTypes
+            + ctx.implicitReceiverStack.map(\.type)
+            + ctx.outerReceiverTypes.map(\.type)
+            + (ctx.implicitReceiverType.map { [$0] } ?? [])
         let outerSymbols = Set(locals.values.map(\.symbol))
         sema.bindings.bindCallableReference(id, binding: nil)
 
@@ -944,6 +949,7 @@ extension ExprTypeChecker {
                     bindReceiver: false,
                     expectedFunctionType: expectedFunctionType,
                     interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
                     sema: sema
                 ) != nil
             }
@@ -1044,6 +1050,7 @@ extension ExprTypeChecker {
                     unboundReceiverType: unboundInnerConstructorReceiverType,
                     expectedFunctionType: inputType,
                     interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
                     sema: sema
                 ) != nil
             }
@@ -1063,6 +1070,7 @@ extension ExprTypeChecker {
             expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
             postponedReturnTypeParameter: postponedReturnParameter,
             interner: interner,
+            availableContextReceiverTypes: availableContextReceiverTypes,
             sema: sema
         )
         if chosen == nil,
@@ -1131,6 +1139,7 @@ extension ExprTypeChecker {
                         expectedFunctionType: expectedFunctionType,
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -1149,7 +1158,10 @@ extension ExprTypeChecker {
                               boundReceiver: boundReceiverType.map { (chosen, $0) },
                               unboundReceiverType: unboundInnerConstructorReceiverType,
                               expectedFunctionType: expectedFunctionType,
-                              postponedReturnTypeParameter: postponedReturnParameter, interner: interner, sema: sema
+                              postponedReturnTypeParameter: postponedReturnParameter,
+                              interner: interner,
+                              availableContextReceiverTypes: availableContextReceiverTypes,
+                              sema: sema
                           ) {
                     inferredType = specialization.functionType
                     contextualSpecialization = specialization
@@ -1162,6 +1174,7 @@ extension ExprTypeChecker {
                         unboundReceiverType: unboundInnerConstructorReceiverType,
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -1195,7 +1208,9 @@ extension ExprTypeChecker {
                            unboundReceiverType: unboundInnerConstructorReceiverType,
                            expectedFunctionType: nil,
                            expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
-                           interner: interner, sema: sema
+                           interner: interner,
+                           availableContextReceiverTypes: availableContextReceiverTypes,
+                           sema: sema
                        ) {
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
@@ -1216,6 +1231,7 @@ extension ExprTypeChecker {
                         expectedFunctionType: nil,
                         expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                         interner: interner,
+                        availableContextReceiverTypes: availableContextReceiverTypes,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType

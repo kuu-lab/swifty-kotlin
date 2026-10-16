@@ -6,12 +6,15 @@ struct ContextualCallableReferenceBinding {
     let typeArguments: [TypeID]
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
+    let boundContextParameterTypes: [TypeID]
 }
 
 private struct CallableReferenceFunctionShape {
     let functionType: TypeID
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
+    let contextArgumentTypes: [TypeID]
+    let boundContextParameterTypes: [TypeID]
 }
 
 extension TypeCheckHelpers {
@@ -249,6 +252,7 @@ extension TypeCheckHelpers {
         expectedCallableReferenceReturnType: TypeID? = nil,
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
+        availableContextReceiverTypes: [TypeID] = [],
         sema: SemaModule
     ) -> SymbolID? {
         let sorted = candidates.sorted(by: { $0.rawValue < $1.rawValue })
@@ -278,6 +282,7 @@ extension TypeCheckHelpers {
                     expectedFunctionType: nil,
                     expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                     interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
                     sema: sema
                 ) != nil
             }
@@ -314,6 +319,7 @@ extension TypeCheckHelpers {
                     expectedFunctionType: expected,
                     postponedReturnTypeParameter: postponedReturnTypeParameter,
                     interner: interner,
+                    availableContextReceiverTypes: availableContextReceiverTypes,
                     sema: sema
                 ) != nil
             }
@@ -333,6 +339,7 @@ extension TypeCheckHelpers {
                 expectedFunctionType: expectedFunctionType,
                 postponedReturnTypeParameter: postponedReturnTypeParameter,
                 interner: interner,
+                availableContextReceiverTypes: availableContextReceiverTypes,
                 sema: sema
             )?.requiresAdapter == true
         }
@@ -365,13 +372,15 @@ extension TypeCheckHelpers {
         expectedFunctionType: TypeID,
         interner: StringInterner? = nil,
         allowScalarVarargAdaptation: Bool = true,
+        availableContextReceiverTypes: [TypeID] = [],
         sema: SemaModule
     ) -> TypeID? {
         contextualCallableReferenceBinding(
             for: signature, bindReceiver: bindReceiver, boundReceiver: boundReceiver,
             unboundReceiverType: unboundReceiverType,
             expectedFunctionType: expectedFunctionType, interner: interner,
-            allowScalarVarargAdaptation: allowScalarVarargAdaptation, sema: sema
+            allowScalarVarargAdaptation: allowScalarVarargAdaptation,
+            availableContextReceiverTypes: availableContextReceiverTypes, sema: sema
         )?.functionType
     }
 
@@ -385,6 +394,7 @@ extension TypeCheckHelpers {
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
         allowScalarVarargAdaptation: Bool = true,
+        availableContextReceiverTypes: [TypeID] = [],
         sema: SemaModule
     ) -> ContextualCallableReferenceBinding? {
         func functionShapes() -> [CallableReferenceFunctionShape] {
@@ -415,7 +425,9 @@ extension TypeCheckHelpers {
                 return [CallableReferenceFunctionShape(
                     functionType: packedCallableType,
                     parameterMapping: Dictionary(uniqueKeysWithValues: signature.parameterTypes.indices.map { ($0, $0) }),
-                    requiresAdapter: false
+                    requiresAdapter: false,
+                    contextArgumentTypes: [],
+                    boundContextParameterTypes: []
                 )]
             }
 
@@ -425,6 +437,25 @@ extension TypeCheckHelpers {
             let expectedValueArity = expectedArity - receiverOffset
             guard expectedValueArity >= 0 else { return [] }
             let parameterCount = signature.parameterTypes.count
+            var contextBindingChoices: [[TypeID]] = [[]]
+            if expected.contextReceivers.isEmpty, !base.contextReceivers.isEmpty {
+                for requiredType in base.contextReceivers {
+                    let matchingTypes = availableContextReceiverTypes.filter { availableType in
+                        types.typeContainsAnyTypeParam(requiredType)
+                            || types.isSubtype(
+                                types.makeNonNullable(availableType),
+                                types.makeNonNullable(requiredType)
+                            )
+                    }
+                    if matchingTypes.isEmpty {
+                        contextBindingChoices = []
+                        break
+                    }
+                    contextBindingChoices = contextBindingChoices.flatMap { prefix in
+                        matchingTypes.map { prefix + [$0] }
+                    }
+                }
+            }
             let hasDefaults = OverloadResolver.normalizeFlags(
                 signature.valueParameterHasDefaultValues, count: parameterCount
             )
@@ -435,7 +466,8 @@ extension TypeCheckHelpers {
             }
             func makeShape(
                 sourceParameterCount: Int,
-                scalarVarargCount: Int? = nil
+                scalarVarargCount: Int? = nil,
+                contextArgumentTypes: [TypeID] = []
             ) -> CallableReferenceFunctionShape {
                 var params = Array(base.params.prefix(receiverOffset + sourceParameterCount))
                 var mapping = Dictionary(uniqueKeysWithValues: (0 ..< sourceParameterCount).map { ($0, $0) })
@@ -460,7 +492,7 @@ extension TypeCheckHelpers {
                     }
                 }
                 let functionType = types.make(.functionType(FunctionType(
-                    contextReceivers: base.contextReceivers,
+                    contextReceivers: contextArgumentTypes.isEmpty ? base.contextReceivers : [],
                     receiver: base.receiver,
                     params: params,
                     returnType: base.returnType,
@@ -473,6 +505,9 @@ extension TypeCheckHelpers {
                     functionType: functionType,
                     parameterMapping: mapping,
                     requiresAdapter: scalarVarargCount != nil || sourceParameterCount != parameterCount
+                        || !contextArgumentTypes.isEmpty,
+                    contextArgumentTypes: contextArgumentTypes,
+                    boundContextParameterTypes: contextArgumentTypes.isEmpty ? [] : base.contextReceivers
                 )
             }
 
@@ -480,14 +515,18 @@ extension TypeCheckHelpers {
                 guard expectedValueArity <= parameterCount,
                       canOmitTrailingParameters(from: expectedValueArity)
                 else { return [] }
-                return [makeShape(sourceParameterCount: expectedValueArity)]
+                return contextBindingChoices.map {
+                    makeShape(sourceParameterCount: expectedValueArity, contextArgumentTypes: $0)
+                }
             }
 
             var shapes: [CallableReferenceFunctionShape] = []
             if expectedValueArity <= parameterCount,
                canOmitTrailingParameters(from: expectedValueArity)
             {
-                shapes.append(makeShape(sourceParameterCount: expectedValueArity))
+                shapes.append(contentsOf: contextBindingChoices.map {
+                    makeShape(sourceParameterCount: expectedValueArity, contextArgumentTypes: $0)
+                })
             }
             guard allowScalarVarargAdaptation,
                   expectedValueArity > varargIndex,
@@ -508,10 +547,13 @@ extension TypeCheckHelpers {
                 false
             }
             guard !arrayShapedVarargContext else { return shapes }
-            shapes.append(makeShape(
-                sourceParameterCount: expectedValueArity,
-                scalarVarargCount: expectedValueArity - varargIndex
-            ))
+            shapes.append(contentsOf: contextBindingChoices.map {
+                makeShape(
+                    sourceParameterCount: expectedValueArity,
+                    scalarVarargCount: expectedValueArity - varargIndex,
+                    contextArgumentTypes: $0
+                )
+            })
             return shapes
         }
 
@@ -539,7 +581,8 @@ extension TypeCheckHelpers {
                     functionType: inferredType,
                     typeArguments: [],
                     parameterMapping: shape.parameterMapping,
-                    requiresAdapter: shape.requiresAdapter
+                    requiresAdapter: shape.requiresAdapter,
+                    boundContextParameterTypes: shape.boundContextParameterTypes
                 )
             }
             let resolver = OverloadResolver()
@@ -584,6 +627,17 @@ extension TypeCheckHelpers {
                     blameRange: nil
                 )
             } else { constraints = [] }
+            for (actualType, requiredType) in zip(
+                shape.contextArgumentTypes, shape.boundContextParameterTypes
+            ) {
+                constraints += resolver.decomposeSubtypeConstraint(
+                    subtype: actualType,
+                    supertype: requiredType,
+                    typeVarBySymbol: typeVars,
+                    typeSystem: types,
+                    blameRange: nil
+                )
+            }
             if let boundReceiver, let receiverType = signature.receiverType {
                 constraints += resolver.decomposeSubtypeConstraint(
                     subtype: boundReceiver.receiverType,
@@ -683,6 +737,17 @@ extension TypeCheckHelpers {
             let specializedType = types.substituteTypeParameters(
                 in: inferredType, substitution: solution.substitution, typeVarBySymbol: typeVars
             )
+            let specializedContextTypes = shape.boundContextParameterTypes.map {
+                types.substituteTypeParameters(
+                    in: $0, substitution: solution.substitution, typeVarBySymbol: typeVars
+                )
+            }
+            guard zip(shape.contextArgumentTypes, specializedContextTypes).allSatisfy({ actualType, requiredType in
+                types.isSubtype(
+                    types.makeNonNullable(actualType),
+                    types.makeNonNullable(requiredType)
+                )
+            }) else { return nil }
             guard callableReferenceTypeMatches(
                 specializedType, expected: expectedFunctionType,
                 expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
@@ -697,7 +762,8 @@ extension TypeCheckHelpers {
                 functionType: specializedType,
                 typeArguments: arguments,
                 parameterMapping: shape.parameterMapping,
-                requiresAdapter: shape.requiresAdapter
+                requiresAdapter: shape.requiresAdapter,
+                boundContextParameterTypes: specializedContextTypes
             )
         }
         for shape in functionShapes() {
