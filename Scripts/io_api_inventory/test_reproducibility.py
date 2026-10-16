@@ -48,6 +48,7 @@ class ReproducibilityTests(unittest.TestCase):
             test_inputs = list((REPO / "Tests").rglob("*.swift"))
             test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
             test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
+            test_inputs.extend(REPO / reference for reference in original.BUFFER_ITERATION_CONTEXT_PROBE_REFS)
             inputs.extend(
                 path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
@@ -66,6 +67,22 @@ class ReproducibilityTests(unittest.TestCase):
         references = declaration["local_test_refs"].split(";")
         self.assertIn("Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_sources_surface.kt", references)
         self.assertIn("Scripts/diff_cases/kotlinx_io_sources_arrays.kt", references)
+
+    def test_buffer_iteration_context_probe_is_an_input_for_each_owned_row(self):
+        expected = ";".join(self.generator.BUFFER_ITERATION_CONTEXT_PROBE_REFS)
+        row_ids = {
+            "internal-747d506e06fb783b",
+            "jvm-bffae11933b96d93",
+            "klib-6d326892ba18c23e",
+            "klib-f3f261611e79ec6a",
+        }
+        rows = {row["row_id"]: row for row in self.rows}
+        for row_id in row_ids:
+            with self.subTest(row_id=row_id):
+                row = rows[row_id]
+                self.assertEqual(row["local_test_refs"], expected)
+                hashes = self.generator.validation_input_hashes(row)
+                self.assertRegex(hashes["test_input_sha256"], r"^[0-9a-f]{64}$")
 
     def test_exact_overload_exception_and_abi_mapping(self):
         declaration = self.row("kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}")

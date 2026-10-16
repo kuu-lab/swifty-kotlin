@@ -7,6 +7,7 @@ immutable artifact receipts. A selected passing subset is never issue completion
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
@@ -37,6 +38,24 @@ def sha(path: Path) -> str:
 def snapshot(path: Path) -> dict[str, str]:
     return {str(item.relative_to(path)): sha(item) for item in sorted(path.rglob("*"))
             if item.is_file() and "__pycache__" not in item.parts}
+
+
+def validation_input_hashes_for_rows(row_ids: list[str]) -> dict[str, dict[str, str]]:
+    import generate as inventory_generator
+
+    with (HERE / "api-inventory.tsv").open(encoding="utf-8", newline="") as stream:
+        rows = {row["row_id"]: row for row in csv.DictReader(stream, delimiter="\t")}
+    required_local_refs = set(inventory_generator.BUFFER_ITERATION_CONTEXT_PROBE_REFS)
+    hashes = {}
+    for row_id in row_ids:
+        row = rows.get(row_id)
+        if row is None:
+            raise RuntimeError(f"validation row is missing from the generated inventory: {row_id}")
+        local_refs = set(row["local_test_refs"].split(";"))
+        if not required_local_refs.issubset(local_refs):
+            raise RuntimeError(f"generated validation inputs do not pin the dedicated probe for {row_id}")
+        hashes[row_id] = inventory_generator.validation_input_hashes(row)
+    return hashes
 
 
 def save(path: Path, value: object) -> None:
@@ -108,6 +127,22 @@ def scenarios() -> list[dict]:
                   "entry": "f02corpusconsumer.main", "jvm_class": "f02corpusconsumer.ConsumerKt"})
     base = ROOT / "Tests/CompilerBackendTests/Fixtures"
     cases += [
+        {"id": "buffer-iteration-context-impl",
+         "fixture": base / "IOGate2594/BufferIterationContextImpl.kt",
+         "reference": "jvm",
+         "row_ids": [
+             "internal-747d506e06fb783b",
+             "jvm-bffae11933b96d93",
+             "klib-6d326892ba18c23e",
+             "klib-f3f261611e79ec6a",
+         ],
+         "jvm_abi": {
+             "class": "kotlinx.io.unsafe.UnsafeBufferOperationsKt",
+             "method": "getBufferIterationContextImpl",
+             "descriptor": "()Lkotlinx/io/unsafe/BufferIterationContext;",
+             "required_flags": ["ACC_PUBLIC", "ACC_STATIC", "ACC_FINAL", "ACC_SYNTHETIC"],
+             "annotations": ["kotlinx.io.UnsafeIoApi", "kotlin.PublishedApi"],
+         }},
         {"id": "buffer-boundaries", "producer": [base / "IOBuffer1729/BufferBoundaries.kt"],
          "consumer": base / "IOBuffer1729/Consumer.kt", "entry": "kuu1729consumer.main",
          "expected": base / "IOBuffer1729/reference.stdout", "reference": "pinned-JVM"},
@@ -202,6 +237,111 @@ def check_ledger_events(stdout: bytes, manifest: dict) -> None:
         expected = manifest["required_call_ids"] if marker.startswith(b"CALL") else manifest["paired_source_rows"]
         if observed != expected:
             raise RuntimeError(f"missing, duplicate or reordered ledger {marker!r} events")
+
+
+def check_jvm_abi(output: str, expectation: dict) -> None:
+    lines = output.splitlines()
+
+    def method_block(name: str) -> list[str]:
+        matches = [index for index, line in enumerate(lines)
+                   if line.strip().endswith(f" {name}();")]
+        if len(matches) != 1:
+            raise RuntimeError(f"expected exactly one JVM method {name}(), found {len(matches)}")
+        start = matches[0]
+        stop = next((index for index in range(start + 1, len(lines)) if not lines[index].strip()), len(lines))
+        return lines[start:stop]
+
+    getter = method_block(expectation["method"])
+    descriptors = [line.partition(":")[2].strip() for line in getter if line.strip().startswith("descriptor:")]
+    if descriptors != [expectation["descriptor"]]:
+        raise RuntimeError(f"JVM getter descriptor mismatch: {descriptors}")
+    flags_line = next((line.partition(":")[2] for line in getter if "flags:" in line), "")
+    flags = set(re.findall(r"\bACC_[A-Z0-9_]+\b", flags_line))
+    missing_flags = set(expectation["required_flags"]) - flags
+    if missing_flags:
+        raise RuntimeError(f"JVM getter is missing classfile flags: {sorted(missing_flags)}")
+
+    annotations = method_block(expectation["method"] + "$annotations")
+    absent_annotations = [name for name in expectation["annotations"] if not any(name in line for line in annotations)]
+    if absent_annotations:
+        raise RuntimeError(f"JVM getter annotations are missing: {absent_annotations}")
+
+
+def check_buffer_iteration_context_metadata(metadata: bytes) -> dict:
+    records = [record.decode("ascii") for record in re.findall(rb"[\x20-\x7e]{4,}", metadata)]
+
+    def unique_record(label: str, *needles: str) -> str:
+        matches = [record for record in records if all(needle in record for needle in needles)]
+        if len(matches) != 1:
+            raise RuntimeError(f"expected exactly one KLIB {label} record, found {len(matches)}")
+        return matches[0]
+
+    property_record = unique_record(
+        "BufferIterationContextImpl property",
+        "property ", " fq=kotlinx.io.unsafe.BufferIterationContextImpl schema=v1 ",
+    )
+    if " visibility=internal " not in property_record:
+        raise RuntimeError("KLIB BufferIterationContextImpl property is not internal")
+    if " sig=Lkotlinx.io.unsafe.BufferIterationContext;" not in property_record:
+        raise RuntimeError("KLIB BufferIterationContextImpl property type mismatch")
+    getter_link = next((token.removeprefix("getterLink=") for token in property_record.split()
+                        if token.startswith("getterLink=")), "")
+    if not getter_link:
+        raise RuntimeError("KLIB BufferIterationContextImpl getter link is missing")
+    annotations = next((token.removeprefix("annotations=") for token in property_record.split()
+                        if token.startswith("annotations=")), "")
+    if not annotations:
+        raise RuntimeError("KLIB BufferIterationContextImpl annotations are missing")
+    required_annotations = ("kotlinx.io.UnsafeIoApi", "kotlin.PublishedApi", "kotlin.jvm.JvmSynthetic")
+    missing_annotations = [name for name in required_annotations if name not in annotations]
+    if missing_annotations or "target:get" not in annotations:
+        raise RuntimeError(f"KLIB BufferIterationContextImpl annotations mismatch: {missing_annotations}")
+
+    singleton_record = unique_record(
+        "BufferIterationContextSingleton object",
+        "object ", " fq=kotlinx.io.unsafe.BufferIterationContextSingleton schema=v1 ",
+    )
+    if " visibility=private " not in singleton_record:
+        raise RuntimeError("KLIB BufferIterationContextSingleton is not private")
+    if ("kotlinx.io.unsafe.BufferIterationContextSingleton.next#" not in singleton_record
+            or "kotlinx.io.unsafe.BufferIterationContextSingleton.getUnchecked#" not in singleton_record
+            or "kotlinx.io.unsafe.BufferIterationContext@" not in singleton_record):
+        raise RuntimeError("KLIB BufferIterationContextSingleton interface table is incomplete")
+
+    next_record = unique_record(
+        "BufferIterationContextSingleton.next function",
+        "function ", " fq=kotlinx.io.unsafe.BufferIterationContextSingleton.next schema=v1 ",
+        " arity=1 ", " override=1 ", " default=0 ",
+        " sig=F1<RLkotlinx.io.unsafe.BufferIterationContextSingleton;,Lkotlinx.io.Segment;,Q<Lkotlinx.io.Segment;>>",
+        " receiverFq=kotlinx.io.unsafe.BufferIterationContextSingleton",
+    )
+    get_unchecked_record = unique_record(
+        "BufferIterationContextSingleton.getUnchecked function",
+        "function ", " fq=kotlinx.io.unsafe.BufferIterationContextSingleton.getUnchecked schema=v1 ",
+        " arity=2 ", " override=1 ", " default=00 ",
+        " sig=F2<RLkotlinx.io.unsafe.BufferIterationContextSingleton;,Lkotlinx.io.Segment;,I,B>",
+        " receiverFq=kotlinx.io.unsafe.BufferIterationContextSingleton",
+    )
+    matched_records = {
+        "property": property_record,
+        "singleton": singleton_record,
+        "next": next_record,
+        "get_unchecked": get_unchecked_record,
+    }
+    return {
+        "status": "PASS",
+        "property_visibility": "internal",
+        "property_signature": "Lkotlinx.io.unsafe.BufferIterationContext;",
+        "getter_link": getter_link,
+        "property_annotations": list(required_annotations),
+        "singleton_visibility": "private",
+        "singleton_interface": "kotlinx.io.unsafe.BufferIterationContext",
+        "singleton_functions": ["next(Segment): Segment?", "getUnchecked(Segment, Int): Byte"],
+        "record_sha256": {
+            name: hashlib.sha256(record.encode("ascii")).hexdigest()
+            for name, record in matched_records.items()
+        },
+    }
 
 
 def batch_group_stdout(stdout: bytes, identifier: str) -> bytes:
@@ -323,14 +463,24 @@ def main(argv: list[str] | None = None) -> int:
         selected = [case for case in selected if case["id"] in args.case]
     summary = {"status": "RUNNING", "selected_cases": [case["id"] for case in selected],
                "expected_case_ids": [case["id"] for case in all_scenarios], "lanes": LANES,
-               "subset": bool(args.case), "issue_complete": False, "results": [], "compiler_sha256": sha(compiler),
+               "subset": bool(args.case), "issue_complete": False, "results": [], "reference_abi": {},
+               "row_ids_by_case": {case["id"]: case.get("row_ids", []) for case in selected},
+               "compiler_sha256": sha(compiler),
                "workspace_git_sha": subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip(),
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
-        provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
-                      HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
-                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
+        selected_row_ids = [row_id for case in selected for row_id in case.get("row_ids", [])]
+        if selected_row_ids:
+            summary["validation_input_hashes_by_row"] = validation_input_hashes_for_rows(selected_row_ids)
+        provenance = [Path(__file__), HERE / "generate.py", HERE / "generate_f02_consumers.py",
+                      HERE / "generate_f01_consumers.py", HERE / "api-inventory.tsv",
+                      HERE / "source-declarations.json", HERE / "upstream-lock.json",
+                      HERE / "api-validation-evidence.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/jvm-executions.expected.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/native-executions.expected.json",
+                      ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
@@ -372,6 +522,12 @@ def main(argv: list[str] | None = None) -> int:
                 or manifest.get("kotlinLanguageVersion") != CANDIDATE_KOTLIN_LANGUAGE_VERSION):
             raise RuntimeError("stdlib artifact module/language mismatch")
         summary["stdlib_files_sha256"] = snapshot(stdlib)
+        if any(case["id"] == "buffer-iteration-context-impl" for case in selected):
+            metadata_path = stdlib / "metadata.bin"
+            summary["candidate_klib_contract"] = {
+                "artifact_metadata_sha256": sha(metadata_path),
+                **check_buffer_iteration_context_metadata(metadata_path.read_bytes()),
+            }
         def record_lane(case: dict, expected: bytes, directory: Path, route: str, optimization: str) -> None:
             print(f"RUN {case['id']} {route} {optimization}", flush=True)
             try:
@@ -400,6 +556,18 @@ def main(argv: list[str] | None = None) -> int:
                 require_stage([str((args.kotlin_home / "bin/kotlinc").resolve()), *map(str, producers), str(consumer),
                                "-classpath", classpath, "-include-runtime", "-d", str(jar)], directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
+                if "jvm_abi" in case:
+                    javap = args.java.resolve().with_name("javap")
+                    require_stage([str(javap), "-classpath", classpath, "-p", "-s", "-v", case["jvm_abi"]["class"]],
+                                  directory, "reference-abi", 30)
+                    check_jvm_abi((directory / "reference-abi.stdout").read_text(), case["jvm_abi"])
+                    summary["reference_abi"][case["id"]] = {
+                        "status": "PASS", "class": case["jvm_abi"]["class"],
+                        "method": case["jvm_abi"]["method"],
+                        "descriptor": case["jvm_abi"]["descriptor"],
+                        "javap_sha256": sha(javap),
+                        "classfile_output_sha256": sha(directory / "reference-abi.stdout"),
+                    }
                 require_stage([str(args.java.resolve()), "-Djava.io.tmpdir=" + str(directory / "reference-run-work/tmp"),
                                "-cp", str(jar) + os.pathsep + classpath,
                                case.get("jvm_class", "f02consumer.ConsumerKt")], directory, "reference-run", 30)

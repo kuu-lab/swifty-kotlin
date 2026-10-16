@@ -46,6 +46,77 @@ class F02GateTests(unittest.TestCase):
         self.assertIn('println("committed:"', generated["Consumer.kt"])
         self.assertEqual(generator.expression("Byte", "b3"), "4.toByte()")
 
+    def test_buffer_iteration_context_probe_pins_jvm_getter_descriptor_and_flags(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "buffer-iteration-context-impl")
+        self.assertTrue(case["fixture"].is_file())
+        self.assertNotIn("entry", case)
+        self.assertEqual(case["row_ids"], [
+            "internal-747d506e06fb783b",
+            "jvm-bffae11933b96d93",
+            "klib-6d326892ba18c23e",
+            "klib-f3f261611e79ec6a",
+        ])
+        hashes_by_row = matrix.validation_input_hashes_for_rows(case["row_ids"])
+        self.assertEqual(set(hashes_by_row), set(case["row_ids"]))
+        self.assertTrue(all(set(hashes) == {"implementation_input_sha256", "test_input_sha256"}
+                            for hashes in hashes_by_row.values()))
+        self.assertEqual(case["jvm_abi"]["descriptor"], "()Lkotlinx/io/unsafe/BufferIterationContext;")
+        output = """\
+  public static final kotlinx.io.unsafe.BufferIterationContext getBufferIterationContextImpl();
+    descriptor: ()Lkotlinx/io/unsafe/BufferIterationContext;
+    flags: (0x1019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL, ACC_SYNTHETIC
+
+  public static void getBufferIterationContextImpl$annotations();
+    descriptor: ()V
+    flags: (0x1009) ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC
+    RuntimeInvisibleAnnotations:
+      0: #8()
+        kotlinx.io.UnsafeIoApi
+      1: #59()
+        kotlin.PublishedApi
+"""
+        matrix.check_jvm_abi(output, case["jvm_abi"])
+        with self.assertRaisesRegex(RuntimeError, "descriptor mismatch"):
+            matrix.check_jvm_abi(output.replace("()Lkotlinx/io/unsafe/BufferIterationContext;", "()V", 1), case["jvm_abi"])
+        with self.assertRaisesRegex(RuntimeError, "ACC_SYNTHETIC"):
+            matrix.check_jvm_abi(output.replace(", ACC_SYNTHETIC", "", 1), case["jvm_abi"])
+        with self.assertRaisesRegex(RuntimeError, "annotations are missing"):
+            matrix.check_jvm_abi(output.replace("kotlin.PublishedApi", "kotlin.OtherApi"), case["jvm_abi"])
+
+    def test_buffer_iteration_context_probe_checks_candidate_klib_visibility_and_singleton(self):
+        metadata = b"\x00".join(record.encode("ascii") for record in (
+            "property symbol fq=kotlinx.io.unsafe.BufferIterationContextImpl schema=v1 "
+            "visibility=internal sig=Lkotlinx.io.unsafe.BufferIterationContext; "
+            "getterLink=kk_fn_get_context annotations=kotlinx.io.UnsafeIoApi|retention:BINARY;"
+            "kotlin.PublishedApi|retention:BINARY;kotlin.jvm.JvmSynthetic|target:get",
+            "object symbol fq=kotlinx.io.unsafe.BufferIterationContextSingleton schema=v1 "
+            "visibility=private vtableSlots=kotlinx.io.unsafe.BufferIterationContextSingleton.next#1|"
+            "kotlinx.io.unsafe.BufferIterationContextSingleton.getUnchecked#2 "
+            "itableSlots=kotlinx.io.unsafe.BufferIterationContext@1",
+            "function symbol fq=kotlinx.io.unsafe.BufferIterationContextSingleton.next schema=v1 "
+            "arity=1 override=1 default=0 "
+            "sig=F1<RLkotlinx.io.unsafe.BufferIterationContextSingleton;,Lkotlinx.io.Segment;,"
+            "Q<Lkotlinx.io.Segment;>> receiverFq=kotlinx.io.unsafe.BufferIterationContextSingleton",
+            "function symbol fq=kotlinx.io.unsafe.BufferIterationContextSingleton.getUnchecked schema=v1 "
+            "arity=2 override=1 default=00 "
+            "sig=F2<RLkotlinx.io.unsafe.BufferIterationContextSingleton;,Lkotlinx.io.Segment;,I,B> "
+            "receiverFq=kotlinx.io.unsafe.BufferIterationContextSingleton",
+        ))
+        result = matrix.check_buffer_iteration_context_metadata(metadata)
+        self.assertEqual(result["property_visibility"], "internal")
+        self.assertEqual(result["singleton_visibility"], "private")
+        self.assertIn("get_unchecked", result["record_sha256"])
+
+        invalid_metadata = metadata.replace(b"visibility=internal", b"visibility=public")
+        with self.assertRaisesRegex(RuntimeError, "property is not internal"):
+            matrix.check_buffer_iteration_context_metadata(invalid_metadata)
+        invalid_metadata = metadata.replace(b"kotlin.PublishedApi", b"kotlin.OtherApi")
+        with self.assertRaisesRegex(RuntimeError, "annotations mismatch"):
+            matrix.check_buffer_iteration_context_metadata(invalid_metadata)
+        invalid_metadata = metadata.replace(b"visibility=private", b"visibility=internal")
+        with self.assertRaisesRegex(RuntimeError, "BufferIterationContextSingleton is not private"):
+            matrix.check_buffer_iteration_context_metadata(invalid_metadata)
+
     def test_missing_default_call_and_duplicate_row_cannot_pass(self):
         manifest = {"paired_source_rows": ["a"], "required_call_ids": ["a:0", "a:1"]}
         complete = b"BEGIN:a\nCALL:a:0\nCALL-END:a:0\nCALL:a:1\nCALL-END:a:1\nEND:a\n"

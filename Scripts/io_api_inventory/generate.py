@@ -212,6 +212,21 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
 
+BUFFER_ITERATION_CONTEXT_PROBE_REFS = (
+    "Tests/CompilerBackendTests/Fixtures/IOGate2594/BufferIterationContextImpl.kt",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+    "Scripts/io_api_inventory/test_f02_matrix.py",
+)
+VALIDATION_PROBE_TEST_REFS = {
+    row_id: BUFFER_ITERATION_CONTEXT_PROBE_REFS
+    for row_id in (
+        "internal-747d506e06fb783b",
+        "jvm-bffae11933b96d93",
+        "klib-6d326892ba18c23e",
+        "klib-f3f261611e79ec6a",
+    )
+}
+
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
     "infix|tailrec|open|override|abstract|external|final|data|sealed|const|"
@@ -1928,7 +1943,8 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
             row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
         row["upstream_test_refs"] = ";".join(upstream_test_refs(row, test_index)) or "no upstream test file mapped"
-        row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        test_refs = local_test_refs(row, local_tests) + list(VALIDATION_PROBE_TEST_REFS.get(row["row_id"], ()))
+        row["local_test_refs"] = ";".join(dict.fromkeys(test_refs)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):
