@@ -182,6 +182,7 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        var deferredPropertyReceiverConstraints: [SymbolID: [VariableConstraint]] = [:]
         candidates.removeAll { candidate in
             guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
                 return false
@@ -205,10 +206,28 @@ extension ExprTypeChecker {
                 // a receiver-free context must not bind as a global property.
                 return implicitReceiverLookupEntries.isEmpty
             }
-            return !sema.types.isSubtype(
+            if sema.types.isSubtype(
                 sema.types.makeNonNullable(receiverType),
                 sema.types.makeNonNullable(declaredReceiver)
-            )
+            ) {
+                return false
+            }
+            guard let constraints = driver.callChecker.deferredBuilderReceiverConstraints(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                ctx: ctx,
+                blameRange: nameRange
+            ) else {
+                return true
+            }
+            deferredPropertyReceiverConstraints[candidate.id] = constraints
+            return false
+        }
+        if candidates.count == 1,
+           let candidate = candidates.first,
+           let constraints = deferredPropertyReceiverConstraints[candidate.id]
+        {
+            ctx.builderInference?.constraints.append(contentsOf: constraints)
         }
         if candidates.isEmpty {
             var implicitMemberResult: (symbol: SymbolID, type: TypeID)?
@@ -294,7 +313,9 @@ extension ExprTypeChecker {
         } ?? preferredCandidate0
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
-            if let receiverType = ctx.implicitReceiverType,
+            if let receiverType = ctx.implicitReceiverType.map({
+                driver.callChecker.resolvedBuilderInferenceType($0, ctx: ctx)
+            }),
                let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id),
                sema.types.isSubtype(
                    sema.types.makeNonNullable(receiverType),

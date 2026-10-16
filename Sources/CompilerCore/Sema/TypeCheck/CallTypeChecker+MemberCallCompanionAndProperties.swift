@@ -62,6 +62,7 @@ extension CallTypeChecker {
         let visible = ctx.filterByVisibility(scopedCandidates).visible
         var getterCandidates: [SymbolID] = []
         var propertyForGetter: [SymbolID: SymbolID] = [:]
+        var deferredReceiverConstraints: [SymbolID: [VariableConstraint]] = [:]
         var invisibleProperties: [SymbolID] = []
         func isUserSourceDeclaration(_ candidate: SymbolID) -> Bool {
             guard let sourceFileID = sema.symbols.sourceFileID(for: candidate)
@@ -126,14 +127,28 @@ extension CallTypeChecker {
                   invocationCandidateFilter?(candidate) ?? true,
                   preferredSourcePackage == nil || isUserSourceDeclaration(candidate)
                       || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
-                  let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
-                  extensionSyntheticFallbackReceiverMatches(
-                      callSiteReceiver: receiverType,
-                      declaredReceiver: receiver,
-                      sema: sema
-                  ),
-                  let getterAccessor = sema.symbols.extensionPropertyGetterAccessor(for: candidate)
+                  let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate)
             else {
+                return
+            }
+            let receiverConstraints: [VariableConstraint]?
+            if extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: receiver,
+                sema: sema
+            ) {
+                receiverConstraints = nil
+            } else if let deferred = deferredBuilderReceiverConstraints(
+                callSiteReceiver: receiverType,
+                declaredReceiver: receiver,
+                ctx: ctx,
+                blameRange: range
+            ) {
+                receiverConstraints = deferred
+            } else {
+                return
+            }
+            guard let getterAccessor = sema.symbols.extensionPropertyGetterAccessor(for: candidate) else {
                 return
             }
             guard ctx.visibilityChecker.isAccessible(
@@ -149,6 +164,9 @@ extension CallTypeChecker {
             if !getterCandidates.contains(getterAccessor) {
                 getterCandidates.append(getterAccessor)
                 propertyForGetter[getterAccessor] = candidate
+            }
+            if let receiverConstraints {
+                deferredReceiverConstraints[candidate] = receiverConstraints
             }
         }
         func isUnavailableKotlinMathProperty(_ candidate: SymbolID) -> Bool {
@@ -260,6 +278,14 @@ extension CallTypeChecker {
                 return callableInvocationScopePriority(property, named: calleeName, ctx: ctx) != priority
             }
         }
+        if getterCandidates.count == 1,
+           let getter = getterCandidates.first,
+           let property = propertyForGetter[getter],
+           let constraints = deferredReceiverConstraints[property]
+        {
+            ctx.builderInference?.constraints.append(contentsOf: constraints)
+        }
+        let resolvedReceiverType = resolvedBuilderInferenceType(receiverType, ctx: ctx)
         var resolved = ctx.resolver.resolveCall(
             candidates: getterCandidates,
             call: CallExpr(
@@ -269,7 +295,7 @@ extension CallTypeChecker {
                 dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: expectedType,
-            implicitReceiverType: receiverType,
+            implicitReceiverType: resolvedReceiverType,
             ctx: ctx.sema
         )
         // A property can be used where a contravariant generic type is
@@ -288,7 +314,7 @@ extension CallTypeChecker {
                     dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                 ),
                 expectedType: nil,
-                implicitReceiverType: receiverType,
+                implicitReceiverType: resolvedReceiverType,
                 ctx: ctx.sema
             )
         }

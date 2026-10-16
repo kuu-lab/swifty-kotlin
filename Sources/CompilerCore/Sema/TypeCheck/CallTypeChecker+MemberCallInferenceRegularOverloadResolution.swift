@@ -77,12 +77,13 @@ extension CallTypeChecker {
             }
             return callableReferenceFunctionType
         }()
+        let resolvedLookupReceiverType = resolvedBuilderInferenceType(lookupReceiverType, ctx: ctx)
         let effectiveReceiverType = companionReceiverType
             ?? mutableMapSuperReceiverType
             ?? rangeSourceMemberLookupType
             ?? rangeExtensionLookupType
             ?? callableReferenceExtensionReceiverType
-            ?? lookupReceiverType
+            ?? resolvedLookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
