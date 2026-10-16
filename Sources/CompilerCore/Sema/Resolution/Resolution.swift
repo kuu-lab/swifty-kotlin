@@ -846,6 +846,26 @@ extension OverloadResolver {
         // Unit — the value is simply discarded. Skip the return-type constraint
         // in that case so overload candidates aren't rejected solely because
         // none of them happen to return Unit.
+        func hasInferredNonNullBoundedReturnParameter() -> Bool {
+            guard let expectedType,
+                  expectedType != ctx.types.unitType,
+                  ctx.types.nullability(of: expectedType) != .nonNull,
+                  case let .typeParam(returnParameter) = ctx.types.kind(of: signature.returnType),
+                  let index = signature.typeParameterSymbols.firstIndex(of: returnParameter.symbol),
+                  let typeVariable = typeVarBySymbol[returnParameter.symbol],
+                  explicitTypeSubstitution[typeVariable] == nil
+            else {
+                return false
+            }
+
+            let signatureBounds = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index]
+                : []
+            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: returnParameter.symbol)
+            let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+            return upperBounds.contains(where: ctx.types.isDefinitelyNonNull)
+        }
+
         if let expectedType, expectedType != ctx.types.unitType {
             if call.elvisLhsExpectedTypeHint {
                 let methodTypeParameters = signature.typeParameterSymbols.dropFirst(
@@ -871,6 +891,21 @@ extension OverloadResolver {
                     constraints.append(contentsOf: returnDecomposed)
                     inputConstraints.append(contentsOf: returnDecomposed)
                 }
+            } else if hasInferredNonNullBoundedReturnParameter() {
+                // A non-null upper bound lets a call infer from the non-null
+                // projection of a nullable expected type while preserving the
+                // declared upper-bound check after inference.
+                let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                let expectedTypeHint = ctx.types.makeNonNullable(expectedType)
+                let returnDecomposed = decomposeSubtypeConstraint(
+                    subtype: returnTypeHint,
+                    supertype: expectedTypeHint,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                )
+                constraints.append(contentsOf: returnDecomposed)
+                inputConstraints.append(contentsOf: returnDecomposed)
             } else {
                 let returnDecomposed = decomposeSubtypeConstraint(
                     subtype: signature.returnType,
