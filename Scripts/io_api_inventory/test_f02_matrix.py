@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import generate as inventory
 import generate_f02_consumers as generator
 import run_f02_matrix as matrix
 
@@ -30,6 +31,69 @@ else:
 
 
 class F02GateTests(unittest.TestCase):
+    def test_byte_string_declaration_shape_case_covers_only_the_five_assigned_rows(self):
+        case = next(case for case in matrix.scenarios() if case["id"] == "bytestring-declaration-shape")
+        expected_rows = {
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d",
+            "klib-6ac82acec38abefe",
+            "klib-b3c4163f48365984",
+        }
+        self.assertEqual(set(case["api_row_ids"]), expected_rows)
+        self.assertEqual(set(inventory.ROW_LOCAL_TEST_PATHS), expected_rows)
+        producer = case["producer"][0].read_text()
+        consumer = case["consumer"].read_text()
+        negative = case["negative"].read_text()
+        self.assertIn("Comparable<ByteString>", producer)
+        self.assertIn("ByteString.Companion", producer)
+        self.assertIn("Comparable<ByteString>", consumer)
+        self.assertIn("returnedCompanion === directCompanion", consumer)
+        self.assertIn("ByteStringSubclassProbe : ByteString", negative)
+        self.assertIn("ByteStringCompanionSubclassProbe : ByteString.Companion", negative)
+        self.assertTrue(case["verify_jvm_byte_string_abi"])
+        self.assertTrue(case["verify_native_klib_shape"])
+
+    def test_jvm_shape_checker_requires_exact_class_field_and_companion_flags(self):
+        byte_string = b'''public final class kotlinx.io.bytestring.ByteString implements java.lang.Comparable<kotlinx.io.bytestring.ByteString> {
+  public static final kotlinx.io.bytestring.ByteString$Companion Companion;
+    descriptor: Lkotlinx/io/bytestring/ByteString$Companion;
+    flags: (0x0019) ACC_PUBLIC, ACC_STATIC, ACC_FINAL
+  #41 = Utf8 Ljava/lang/Object;Ljava/lang/Comparable<Lkotlinx/io/bytestring/ByteString;>;
+}'''
+        companion = b'''public final class kotlinx.io.bytestring.ByteString$Companion {
+  flags: (0x0031) ACC_PUBLIC, ACC_FINAL, ACC_SUPER
+}'''
+        result = matrix.check_byte_string_jvm_abi(byte_string, companion)
+        self.assertIn("ACC_PUBLIC|ACC_STATIC|ACC_FINAL", result["companion_field"])
+        invalid_field = byte_string.replace(b"ACC_PUBLIC, ACC_STATIC, ACC_FINAL", b"ACC_PUBLIC, ACC_FINAL")
+        with self.assertRaisesRegex(RuntimeError, "field owner/descriptor/flags"):
+            matrix.check_byte_string_jvm_abi(invalid_field, companion)
+
+    def test_expected_finality_rejection_requires_a_diagnostic_and_nonzero_exit(self):
+        matrix.check_expected_compile_rejection(
+            1,
+            b"error: ByteStringSubclassProbe is final; ByteStringCompanionSubclassProbe is an object",
+            ["final", "ByteStringSubclassProbe", "ByteStringCompanionSubclassProbe"],
+            "fixture",
+        )
+        for exit_code, output in ((0, b""), (1, b"unresolved reference"), (124, b"")):
+            with self.subTest(exit_code=exit_code, output=output):
+                with self.assertRaises(RuntimeError):
+                    matrix.check_expected_compile_rejection(exit_code, output, ["final"], "fixture")
+
+    def test_native_klib_shape_requires_final_comparable_class_and_companion_object_metadata(self):
+        metadata = b'''public final class kotlinx/io/bytestring/ByteString : kotlin/Comparable<kotlinx/io/bytestring/ByteString> {
+public final companion object kotlinx/io/bytestring/ByteString.Companion : kotlin/Any {
+}'''
+        abi = b'''final class kotlinx.io.bytestring/ByteString : kotlin/Comparable<kotlinx.io.bytestring/ByteString> {
+    final object Companion // kotlinx.io.bytestring/ByteString.Companion|null[0]
+}'''
+        result = matrix.check_byte_string_native_klib_shape(metadata, abi)
+        self.assertEqual(result["api_row_ids"], ["klib-6ac82acec38abefe", "klib-b3c4163f48365984"])
+        with self.assertRaisesRegex(RuntimeError, "declaration shape mismatch"):
+            matrix.check_byte_string_native_klib_shape(metadata, abi.replace(b"final object", b"open object"))
+
     def test_generated_public_rows_and_every_full_default_call_are_required(self):
         generated = generator.generate()
         manifest = json.loads(generated["manifest.json"])

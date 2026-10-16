@@ -32,7 +32,60 @@ UPSTREAM_RUNNER_LOCK_PATH = UPSTREAM_RUNNER / "reference-lock.json"
 REFERENCE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "jvm-executions.expected.json"
 CANDIDATE_EXECUTIONS_PATH = UPSTREAM_RUNNER / "native-executions.expected.json"
 EXPECTED_TAG_COMMIT = "362bdc35e159bad6da1e08101c8321792d762281"
-VALIDATION_EVIDENCE_SCHEMA_VERSION = 1
+VALIDATION_EVIDENCE_SCHEMA_VERSION = 2
+KUU2584_CANDIDATE_SHA = "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7"
+BYTESTRING_DECLARATION_SHAPE_CASE = "bytestring-declaration-shape"
+BYTESTRING_DECLARATION_SHAPE_LANES = (
+    "source-O0",
+    "source-O2",
+    "stdlib-library-O0",
+    "stdlib-library-O2",
+    "producer-consumer-O0",
+    "producer-consumer-O2",
+)
+BYTESTRING_DECLARATION_SHAPE_OUTPUT = (
+    "ByteString.compareTo:-1\n"
+    "ByteString.Companion.public-type:true\n"
+    "ByteString.Companion.singleton:true\n"
+)
+BYTESTRING_DECLARATION_SHAPE_ORIGIN_INPUTS = (
+    "bytestring/common/src/ByteString.kt",
+    "bytestring/api/kotlinx-io-bytestring.api",
+    "bytestring/api/kotlinx-io-bytestring.klib.api",
+)
+BYTESTRING_DECLARATION_SHAPE_PROBE_INPUTS = (
+    "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt",
+    "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt",
+    "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt",
+    "Scripts/io_api_inventory/run_f02_matrix.py",
+)
+BYTESTRING_DECLARATION_SHAPE_ASSERTIONS = {
+    "jvm-30aa8296be3c5f34": {
+        "assertion_id": "jvm-bytestring-public-final-comparable",
+        "reference_assertion": "public final ByteString implements Comparable<ByteString> with its generic signature",
+        "candidate_probe": "cross-library Comparable<ByteString> assignment and rejected ByteString subclass",
+    },
+    "jvm-513421237a6901bd": {
+        "assertion_id": "jvm-bytestring-companion-public-final-class",
+        "reference_assertion": "public final ByteString$Companion class",
+        "candidate_probe": "cross-library public ByteString.Companion type and rejected companion subclass",
+    },
+    "jvm-bbea794ad47ba10d": {
+        "assertion_id": "jvm-bytestring-companion-static-final-field",
+        "reference_assertion": "public static final Companion field with the exact ByteString$Companion descriptor",
+        "candidate_probe": "cross-library companion access and singleton identity",
+    },
+    "klib-6ac82acec38abefe": {
+        "assertion_id": "klib-bytestring-final-comparable",
+        "reference_assertion": "final ByteString class with Comparable<ByteString> supertype",
+        "candidate_probe": "cross-library Comparable<ByteString> assignment and rejected ByteString subclass",
+    },
+    "klib-b3c4163f48365984": {
+        "assertion_id": "klib-bytestring-final-companion-object",
+        "reference_assertion": "final ByteString.Companion object in Native metadata and ABI",
+        "candidate_probe": "cross-library public companion type, singleton identity, and rejected companion subclass",
+    },
+}
 VALIDATION_LANES_BY_OBLIGATION = {
     "jvm-descriptor": ("jvm-descriptor",),
     "native-source": (
@@ -211,6 +264,33 @@ LOCAL_IO_TEST_PREFIXES = (
     "Tests/CompilerCoreTests/Sema/KotlinxIO",
     "Tests/RuntimeTests/RuntimeIoFileSystemTests.swift",
 )
+
+ROW_LOCAL_TEST_PATHS = {
+    "jvm-30aa8296be3c5f34": (
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt",
+    ),
+    "jvm-513421237a6901bd": (
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt",
+    ),
+    "jvm-bbea794ad47ba10d": (
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt",
+    ),
+    "klib-6ac82acec38abefe": (
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt",
+    ),
+    "klib-b3c4163f48365984": (
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeProducer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeConsumer.kt",
+        "Scripts/io_api_inventory/probes/ByteStringDeclarationShapeNegative.kt",
+    ),
+}
 
 MODIFIERS = (
     "public|internal|private|protected|actual|expect|inline|suspend|operator|"
@@ -401,6 +481,302 @@ def _case_id_matches_row(row: dict, case_id: str) -> bool:
     return False
 
 
+def validate_declaration_shape_evidence(
+    rows_by_id: dict[str, dict],
+    records: list,
+    lock: dict,
+    repository: Path,
+    upstream: Path,
+) -> None:
+    """Validate KUU-2584 shape receipts without promoting API row status."""
+    if not isinstance(records, list):
+        fail("declaration_shape_records must be an array")
+    if not records:
+        return
+
+    expected_row_ids = set(BYTESTRING_DECLARATION_SHAPE_ASSERTIONS)
+    if len(records) != len(expected_row_ids):
+        fail("ByteString declaration-shape evidence must contain exactly five row records")
+    if (lock.get("tag"), lock.get("commit")) != ("0.9.1", EXPECTED_TAG_COMMIT):
+        fail("ByteString declaration-shape evidence requires the pinned kotlinx-io 0.9.1 reference")
+
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    expected_output = BYTESTRING_DECLARATION_SHAPE_OUTPUT
+    expected_output_sha256 = hashlib.sha256(expected_output.encode("utf-8")).hexdigest()
+    expected_output_bytes = len(expected_output.encode("utf-8"))
+    expected_rejections = ["ByteStringSubclassProbe", "ByteStringCompanionSubclassProbe"]
+
+    try:
+        runner_lock = json.loads(
+            (repository / "Scripts/kotlinx_io_upstream/reference-lock.json").read_text(encoding="utf-8")
+        )
+        jvm_artifact_sha256 = next(
+            artifact["sha256"] for artifact in runner_lock["jvm_artifacts"]
+            if artifact["coordinate"] == "org.jetbrains.kotlinx:kotlinx-io-bytestring-jvm:0.9.1"
+        )
+        native_artifact_sha256 = next(
+            artifact["sha256"] for artifact in runner_lock["native_artifacts"]
+            if artifact["coordinate"] == "org.jetbrains.kotlinx:kotlinx-io-bytestring-macosarm64:0.9.1"
+        )
+        native_archive_sha256 = runner_lock["native_compiler_archives"]["macos_arm64"]["sha256"]
+    except (OSError, KeyError, StopIteration, json.JSONDecodeError) as error:
+        fail(f"cannot load pinned ByteString declaration-shape artifacts: {error}")
+
+    expected_artifacts = {
+        "jvm_artifact_sha256": jvm_artifact_sha256,
+        "native_klib_sha256": native_artifact_sha256,
+        "native_compiler_archive_sha256": native_archive_sha256,
+    }
+    expected_origin_hashes = {}
+    for relative in BYTESTRING_DECLARATION_SHAPE_ORIGIN_INPUTS:
+        path = upstream / relative
+        if not path.is_file():
+            fail(f"missing ByteString declaration-shape origin input: {relative}")
+        expected_origin_hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    expected_probe_hashes = {}
+    for relative in BYTESTRING_DECLARATION_SHAPE_PROBE_INPUTS:
+        path = repository / relative
+        if not path.is_file():
+            fail(f"missing ByteString declaration-shape probe input: {relative}")
+        expected_probe_hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    seen_row_ids = set()
+    shared_values = None
+    for record in records:
+        record_fields = {
+            "row_id",
+            "candidate_sha",
+            "reference_version",
+            "reference_commit",
+            "implementation_input_sha256",
+            "test_input_sha256",
+            "compatibility_obligations",
+            "case_id",
+            "assertion",
+            "assertion_count",
+            "target_row_count",
+            "candidate_lane_count",
+            "expected_output",
+            "expected_output_sha256",
+            "expected_output_bytes",
+            "candidate_compiler_sha256",
+            "matrix_summary_sha256",
+            "matrix_dirty_patch_sha256",
+            "fresh_stdlib_manifest_sha256",
+            "origin_input_sha256",
+            "probe_input_sha256",
+            "reference_artifacts",
+            "reference_checks",
+            "executions",
+            "lane_outputs",
+            "negative_probes",
+        }
+        if not isinstance(record, dict) or set(record) != record_fields:
+            fail("each declaration-shape record must contain exactly the schema v2 fields")
+        row_id = record["row_id"]
+        if not isinstance(row_id, str) or row_id not in expected_row_ids:
+            fail(f"unknown ByteString declaration-shape row_id: {row_id!r}")
+        if row_id in seen_row_ids:
+            fail(f"duplicate ByteString declaration-shape row_id: {row_id}")
+        seen_row_ids.add(row_id)
+        row = rows_by_id.get(row_id)
+        if row is None:
+            fail(f"declaration-shape evidence references unknown row_id: {row_id}")
+
+        candidate_sha = record["candidate_sha"]
+        if candidate_sha != KUU2584_CANDIDATE_SHA:
+            fail(f"declaration-shape candidate SHA mismatch for row {row_id}")
+        if (record["reference_version"], record["reference_commit"]) != (
+            lock.get("tag"), lock.get("commit")
+        ):
+            fail(f"declaration-shape reference version mismatch for row {row_id}")
+        if record["case_id"] != BYTESTRING_DECLARATION_SHAPE_CASE:
+            fail(f"unexpected declaration-shape case ID for row {row_id}")
+
+        hashes = validation_input_hashes(row, repository, upstream)
+        for field in ("implementation_input_sha256", "test_input_sha256"):
+            value = record[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} for declaration-shape row {row_id}")
+            if value != hashes[field]:
+                fail(f"stale {field} for declaration-shape row {row_id}")
+        if record["compatibility_obligations"] != ["declaration-shape"]:
+            fail(f"declaration-shape obligation mismatch for row {row_id}")
+        if record["assertion"] != BYTESTRING_DECLARATION_SHAPE_ASSERTIONS[row_id]:
+            fail(f"declaration-shape assertion mismatch for row {row_id}")
+        if (type(record["assertion_count"]) is not int or record["assertion_count"] != 1
+                or type(record["target_row_count"]) is not int or record["target_row_count"] != 5
+                or type(record["candidate_lane_count"]) is not int
+                or record["candidate_lane_count"] != len(BYTESTRING_DECLARATION_SHAPE_LANES)):
+            fail(f"declaration-shape assertion/lane counts mismatch for row {row_id}")
+        if (record["expected_output"] != expected_output
+                or record["expected_output_sha256"] != expected_output_sha256
+                or type(record["expected_output_bytes"]) is not int
+                or record["expected_output_bytes"] != expected_output_bytes):
+            fail(f"declaration-shape output mismatch for row {row_id}")
+
+        for field in ("candidate_compiler_sha256", "matrix_summary_sha256",
+                      "matrix_dirty_patch_sha256", "fresh_stdlib_manifest_sha256"):
+            value = record[field]
+            if not isinstance(value, str) or not sha256_pattern.fullmatch(value):
+                fail(f"malformed {field} for declaration-shape row {row_id}")
+        if record["origin_input_sha256"] != expected_origin_hashes:
+            fail(f"stale origin input hashes for declaration-shape row {row_id}")
+        if record["probe_input_sha256"] != expected_probe_hashes:
+            fail(f"stale probe input hashes for declaration-shape row {row_id}")
+
+        artifacts = record["reference_artifacts"]
+        if not isinstance(artifacts, dict) or set(artifacts) != {
+            *expected_artifacts, "native_klib_tool_sha256"
+        }:
+            fail(f"malformed reference artifacts for declaration-shape row {row_id}")
+        for field, expected in expected_artifacts.items():
+            if artifacts[field] != expected:
+                fail(f"reference artifact lock mismatch for declaration-shape row {row_id}: {field}")
+        if (not isinstance(artifacts["native_klib_tool_sha256"], str)
+                or not sha256_pattern.fullmatch(artifacts["native_klib_tool_sha256"])):
+            fail(f"malformed Native KLIB tool hash for declaration-shape row {row_id}")
+
+        checks = record["reference_checks"]
+        if not isinstance(checks, dict) or set(checks) != {
+            "jvm_positive", "jvm_negative", "jvm_abi", "native_klib"
+        }:
+            fail(f"malformed reference checks for declaration-shape row {row_id}")
+        positive = checks["jvm_positive"]
+        if not isinstance(positive, dict) or set(positive) != {
+            "execution_id", "result", "exit_code", "stdout_sha256", "stdout_bytes"
+        }:
+            fail(f"malformed JVM positive reference check for row {row_id}")
+        if (not isinstance(positive["execution_id"], str) or not positive["execution_id"]
+                or positive["result"] != "PASS" or type(positive["exit_code"]) is not int
+                or positive["exit_code"] != 0 or positive["stdout_sha256"] != expected_output_sha256
+                or type(positive["stdout_bytes"]) is not int
+                or positive["stdout_bytes"] != expected_output_bytes):
+            fail(f"non-passing JVM positive reference check for row {row_id}")
+
+        negative = checks["jvm_negative"]
+        if not isinstance(negative, dict) or set(negative) != {
+            "execution_id", "result", "exit_code", "source_sha256", "diagnostic_sha256",
+            "rejected_declarations",
+        }:
+            fail(f"malformed JVM negative reference check for row {row_id}")
+        if (not isinstance(negative["execution_id"], str) or not negative["execution_id"]
+                or negative["result"] != "EXPECTED_REJECTION"
+                or type(negative["exit_code"]) is not int or negative["exit_code"] == 0
+                or negative["rejected_declarations"] != expected_rejections):
+            fail(f"JVM negative reference check did not reject both declarations for row {row_id}")
+        for field in ("source_sha256", "diagnostic_sha256"):
+            if not isinstance(negative[field], str) or not sha256_pattern.fullmatch(negative[field]):
+                fail(f"malformed JVM negative reference {field} for row {row_id}")
+
+        jvm_abi = checks["jvm_abi"]
+        jvm_abi_row_ids = ["jvm-30aa8296be3c5f34", "jvm-513421237a6901bd", "jvm-bbea794ad47ba10d"]
+        if not isinstance(jvm_abi, dict) or set(jvm_abi) != {
+            "result", "api_row_ids", "byte_string_stdout_sha256", "companion_stdout_sha256"
+        }:
+            fail(f"malformed JVM ABI reference check for row {row_id}")
+        if jvm_abi["result"] != "PASS" or jvm_abi["api_row_ids"] != jvm_abi_row_ids:
+            fail(f"JVM ABI reference check does not cover the exact ByteString rows for {row_id}")
+        for field in ("byte_string_stdout_sha256", "companion_stdout_sha256"):
+            if not isinstance(jvm_abi[field], str) or not sha256_pattern.fullmatch(jvm_abi[field]):
+                fail(f"malformed JVM ABI reference {field} for row {row_id}")
+
+        native = checks["native_klib"]
+        native_row_ids = ["klib-6ac82acec38abefe", "klib-b3c4163f48365984"]
+        if not isinstance(native, dict) or set(native) != {
+            "result", "api_row_ids", "metadata_stdout_sha256", "abi_stdout_sha256"
+        }:
+            fail(f"malformed Native KLIB reference check for row {row_id}")
+        if native["result"] != "PASS" or native["api_row_ids"] != native_row_ids:
+            fail(f"Native KLIB reference check does not cover the exact ByteString rows for {row_id}")
+        for field in ("metadata_stdout_sha256", "abi_stdout_sha256"):
+            if not isinstance(native[field], str) or not sha256_pattern.fullmatch(native[field]):
+                fail(f"malformed Native KLIB reference {field} for row {row_id}")
+
+        executions = record["executions"]
+        if not isinstance(executions, list) or len(executions) != len(BYTESTRING_DECLARATION_SHAPE_LANES):
+            fail(f"declaration-shape evidence has an incomplete lane set for row {row_id}")
+        by_lane = {}
+        candidate_execution_ids = set()
+        reference_execution_ids = set()
+        for execution in executions:
+            if not isinstance(execution, dict) or set(execution) != {"case_id", "lane", "reference", "candidate"}:
+                fail(f"malformed declaration-shape execution for row {row_id}")
+            lane = execution["lane"]
+            if lane not in BYTESTRING_DECLARATION_SHAPE_LANES or lane in by_lane:
+                fail(f"unexpected or duplicate declaration-shape lane {lane!r} for row {row_id}")
+            if execution["case_id"] != BYTESTRING_DECLARATION_SHAPE_CASE:
+                fail(f"unexpected declaration-shape execution case for row {row_id}")
+            by_lane[lane] = execution
+            for subject in ("reference", "candidate"):
+                result = execution[subject]
+                if not isinstance(result, dict) or set(result) != {"execution_id", "result", "exit_code"}:
+                    fail(f"malformed {subject} result for declaration-shape row {row_id} lane {lane}")
+                execution_id = result["execution_id"]
+                if not isinstance(execution_id, str) or not execution_id.strip():
+                    fail(f"empty {subject} execution ID for declaration-shape row {row_id} lane {lane}")
+                if result["result"] != "PASS" or type(result["exit_code"]) is not int or result["exit_code"] != 0:
+                    fail(f"non-passing {subject} declaration-shape lane {lane} for row {row_id}")
+                (reference_execution_ids if subject == "reference" else candidate_execution_ids).add(execution_id)
+        if set(by_lane) != set(BYTESTRING_DECLARATION_SHAPE_LANES):
+            fail(f"missing declaration-shape lanes for row {row_id}")
+        if len(reference_execution_ids) != 1 or len(candidate_execution_ids) != len(BYTESTRING_DECLARATION_SHAPE_LANES):
+            fail(f"declaration-shape execution IDs are inconsistent for row {row_id}")
+
+        outputs = record["lane_outputs"]
+        if not isinstance(outputs, dict) or set(outputs) != set(BYTESTRING_DECLARATION_SHAPE_LANES):
+            fail(f"declaration-shape output lane set mismatch for row {row_id}")
+        for lane, output in outputs.items():
+            if not isinstance(output, dict) or set(output) != {
+                "stdout_sha256", "normalized_stdout_sha256", "stdout_bytes"
+            }:
+                fail(f"malformed declaration-shape output for row {row_id} lane {lane}")
+            if (output["stdout_sha256"] != expected_output_sha256
+                    or output["normalized_stdout_sha256"] != expected_output_sha256
+                    or type(output["stdout_bytes"]) is not int
+                    or output["stdout_bytes"] != expected_output_bytes):
+                fail(f"declaration-shape output mismatch for row {row_id} lane {lane}")
+
+        negative_probes = record["negative_probes"]
+        if not isinstance(negative_probes, dict) or set(negative_probes) != set(BYTESTRING_DECLARATION_SHAPE_LANES):
+            fail(f"declaration-shape negative lane set mismatch for row {row_id}")
+        negative_source_hashes = set()
+        for lane, negative_probe in negative_probes.items():
+            if not isinstance(negative_probe, dict) or set(negative_probe) != {
+                "result", "exit_code", "source_sha256", "diagnostic_sha256", "rejected_declarations"
+            }:
+                fail(f"malformed declaration-shape negative probe for row {row_id} lane {lane}")
+            if (negative_probe["result"] != "EXPECTED_REJECTION"
+                    or type(negative_probe["exit_code"]) is not int or negative_probe["exit_code"] == 0
+                    or negative_probe["rejected_declarations"] != expected_rejections):
+                fail(f"negative probe did not reject both declarations for row {row_id} lane {lane}")
+            for field in ("source_sha256", "diagnostic_sha256"):
+                if not isinstance(negative_probe[field], str) or not sha256_pattern.fullmatch(negative_probe[field]):
+                    fail(f"malformed negative probe {field} for row {row_id} lane {lane}")
+            negative_source_hashes.add(negative_probe["source_sha256"])
+        if len(negative_source_hashes) != 1:
+            fail(f"staged negative probe inputs differ between declaration-shape lanes for row {row_id}")
+
+        shared = {
+            key: record[key]
+            for key in (
+                "candidate_sha", "reference_version", "reference_commit", "case_id",
+                "target_row_count", "candidate_lane_count", "expected_output", "expected_output_sha256",
+                "expected_output_bytes", "candidate_compiler_sha256", "matrix_summary_sha256",
+                "matrix_dirty_patch_sha256", "fresh_stdlib_manifest_sha256", "origin_input_sha256",
+                "probe_input_sha256", "reference_artifacts", "reference_checks", "executions",
+                "lane_outputs", "negative_probes",
+            )
+        }
+        if shared_values is None:
+            shared_values = shared
+        elif shared != shared_values:
+            fail("ByteString declaration-shape row records do not describe the same matrix run")
+
+    if seen_row_ids != expected_row_ids:
+        fail("ByteString declaration-shape evidence is missing one or more target row IDs")
+
+
 def apply_validation_evidence(
     rows: list[dict],
     lock: dict,
@@ -431,8 +807,10 @@ def apply_validation_evidence(
     except UnicodeDecodeError as error:
         fail(f"validation evidence is not UTF-8: {error}")
 
-    if not isinstance(evidence, dict) or set(evidence) != {"schema_version", "records"}:
-        fail("validation evidence must contain only schema_version and records")
+    if not isinstance(evidence, dict) or set(evidence) != {
+        "schema_version", "records", "declaration_shape_records"
+    }:
+        fail("validation evidence must contain only schema_version, records, and declaration_shape_records")
     if type(evidence["schema_version"]) is not int or evidence["schema_version"] != VALIDATION_EVIDENCE_SCHEMA_VERSION:
         fail("unsupported validation evidence schema_version")
     records = evidence["records"]
@@ -546,6 +924,14 @@ def apply_validation_evidence(
         if missing_lanes:
             fail(f"missing validation lanes for row {row_id}: {', '.join(sorted(missing_lanes))}")
         row["status"] = "verified"
+
+    validate_declaration_shape_evidence(
+        by_id,
+        evidence["declaration_shape_records"],
+        lock,
+        repository,
+        upstream,
+    )
 
 
 def load_inputs() -> tuple[dict, dict, list[dict], list[dict]]:
@@ -1928,7 +2314,9 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
             row["notes"] += "; generated JVM ABI presence cannot be established from Kotlin source-name matching alone"
         row["owner_issue"] = owner_for(row)
         row["upstream_test_refs"] = ";".join(upstream_test_refs(row, test_index)) or "no upstream test file mapped"
-        row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        row_local_tests = local_test_refs(row, local_tests)
+        row_local_tests.extend(ROW_LOCAL_TEST_PATHS.get(row["row_id"], ()))
+        row["local_test_refs"] = ";".join(dict.fromkeys(row_local_tests)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):

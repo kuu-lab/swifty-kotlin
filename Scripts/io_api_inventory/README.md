@@ -114,8 +114,8 @@ imported signatures. The compile-only F01 consumers are not execution evidence.
 ```sh
 python3 Scripts/io_api_inventory/generate_f02_consumers.py --write
 python3 Scripts/io_api_inventory/generate_f02_consumers.py
-python3 Scripts/io_api_inventory/test_f02_matrix.py
-python3 Scripts/io_api_inventory/run_f02_matrix.py \
+python3.12 Scripts/io_api_inventory/test_f02_matrix.py
+python3.12 Scripts/io_api_inventory/run_f02_matrix.py \
   --compiler .build/debug/kswiftc --output /tmp/new-f02-run \
   --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/java21/bin/java \
   --dependencies /path/to/locked-io-jars --compile-timeout 1800
@@ -226,6 +226,42 @@ names or as `kotlinx-io-core-jvm.jar` and `kotlinx-io-bytestring-jvm.jar`.
 `--download-jars` can fetch them from Maven Central where network access is
 available; every downloaded artifact is SHA-256 checked before success.
 
+### ByteString declaration-shape probe
+
+`probes/ByteStringDeclarationShapeProducer.kt` and
+`probes/ByteStringDeclarationShapeConsumer.kt` form a direct external consumer
+for `Comparable<ByteString>` and the public `ByteString.Companion` type. The
+negative consumer attempts to subclass both `ByteString` and its `Companion`,
+which must be rejected because their declaration shapes are final. These probe
+files are included in the affected API rows' validation input hashes when the
+inventory is regenerated.
+
+The focused F02 case runs source, fresh bundled `.kklib`, and independent
+producer-consumer routes at O0 and O2. Its JVM reference also compiles the
+negative consumer against the pinned Kotlin 2.3.10 / kotlinx-io 0.9.1 artifacts,
+and uses JDK `javap -v` to check the public final class, generic
+`Comparable<ByteString>` signature, final companion class, and exact static
+final `Companion` field descriptor. Run the focused checks with:
+
+```sh
+python3.12 Scripts/io_api_inventory/test_f02_matrix.py
+python3.12 Scripts/io_api_inventory/run_f02_matrix.py \
+  --compiler .build/out/Products/Debug/kswiftc --output /private/tmp/kuu2584-f02 \
+  --kotlin-home /path/to/kotlinc-2.3.10 --java /path/to/jdk-21/bin/java \
+  --dependencies /path/to/locked-io-jars \
+  --native-home /path/to/kotlin-native-prebuilt-macos-aarch64-2.3.10 \
+  --native-compiler-archive /path/to/kotlin-native-prebuilt-macos-aarch64-2.3.10.tar.gz \
+  --native-dependencies /path/to/locked-native-io-klibs \
+  --case bytestring-declaration-shape --separate-cases
+```
+
+The F02 summary keeps the exact five API row IDs beside every lane result and
+retains the JVM descriptor, macOS Native KLIB metadata/ABI, and negative-compile
+receipts. The native compiler archive and installed SDK are checked against the
+reference lock before `klib dump-metadata` and `klib dump-abi` inspect the
+macOS arm64 artifact. A selected matrix pass does not by itself complete the
+overall IO gate.
+
 ### Per-row validation evidence
 
 `api-validation-evidence.json` is an independent, versioned input to the
@@ -251,6 +287,21 @@ The native-source obligation covers `source-O0`, `source-O2`,
 covers `producer-consumer-O0` and `producer-consumer-O2`. A paired JVM ABI row
 does not inherit native results, and a source row does not inherit JVM
 descriptor evidence.
+
+Schema version 2 also has a separate `declaration_shape_records` array for the
+fixed KUU-2584 ByteString declaration-shape assertions. These records bind the
+five assigned rows to the pinned JVM and Native artifacts, origin and probe
+hashes, six candidate lanes, and the positive and negative compile receipts.
+They are an audit record only and never promote ledger status; ordinary
+method-specific upstream execution evidence remains necessary for that.
+Capture the records from a successful focused matrix run with:
+
+```sh
+python3.12 Scripts/io_api_inventory/capture_declaration_shape_evidence.py \
+  --summary /private/tmp/kuu2584-f02/summary.json --write
+python3.12 Scripts/io_api_inventory/capture_declaration_shape_evidence.py \
+  --summary /private/tmp/kuu2584-f02/summary.json --check
+```
 
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or

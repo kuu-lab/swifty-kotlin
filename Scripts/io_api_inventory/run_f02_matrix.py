@@ -85,6 +85,164 @@ def require_stage(command: list[str], directory: Path, stage: str, timeout: floa
         raise RuntimeError(f"failed stage: {directory / stage}; raw streams retained")
 
 
+def check_expected_compile_rejection(exit_code: int, output: bytes, markers: list[str], label: str) -> None:
+    if exit_code == 0:
+        raise RuntimeError(f"negative shape probe unexpectedly compiled: {label}")
+    if exit_code == 124:
+        raise RuntimeError(f"negative shape probe timed out: {label}")
+    diagnostic = output.decode("utf-8", errors="replace").lower()
+    if not markers or any(marker.lower() not in diagnostic for marker in markers):
+        raise RuntimeError(f"negative shape probe failed without the expected diagnostic ({markers}): {label}")
+
+
+def check_byte_string_jvm_abi(byte_string_output: bytes, companion_output: bytes) -> dict:
+    byte_string = byte_string_output.decode("utf-8", errors="replace")
+    companion = companion_output.decode("utf-8", errors="replace")
+    if not re.search(
+        r"public final class kotlinx\.io\.bytestring\.ByteString\b.*"
+        r"implements java\.lang\.Comparable<kotlinx\.io\.bytestring\.ByteString>",
+        byte_string,
+    ):
+        raise RuntimeError("pinned JVM ByteString is not public final Comparable<ByteString>")
+    if "Ljava/lang/Comparable<Lkotlinx/io/bytestring/ByteString;>;" not in byte_string:
+        raise RuntimeError("pinned JVM ByteString generic Comparable signature is missing")
+    field = re.search(
+        r"\n  public static final kotlinx\.io\.bytestring\.ByteString\$Companion Companion;\s*"
+        r"\n    descriptor: Lkotlinx/io/bytestring/ByteString\$Companion;\s*"
+        r"\n    flags: \(0x0019\) ACC_PUBLIC, ACC_STATIC, ACC_FINAL",
+        byte_string,
+    )
+    if field is None:
+        raise RuntimeError("pinned JVM ByteString.Companion field owner/descriptor/flags differ")
+    if not re.search(
+        r"public final class kotlinx\.io\.bytestring\.ByteString\$Companion\b", companion
+    ):
+        raise RuntimeError("pinned JVM ByteString.Companion is not public final")
+    if "flags: (0x0031) ACC_PUBLIC, ACC_FINAL, ACC_SUPER" not in companion:
+        raise RuntimeError("pinned JVM ByteString.Companion class flags differ")
+    return {
+        "api_row_ids": [
+            "jvm-30aa8296be3c5f34",
+            "jvm-513421237a6901bd",
+            "jvm-bbea794ad47ba10d",
+        ],
+        "class": "public final ByteString implements Comparable<ByteString>",
+        "companion_class": "public final ByteString$Companion",
+        "companion_field": "ByteString.Companion Lkotlinx/io/bytestring/ByteString$Companion; ACC_PUBLIC|ACC_STATIC|ACC_FINAL",
+    }
+
+
+def check_byte_string_native_klib_shape(metadata_output: bytes, abi_output: bytes) -> dict:
+    metadata = metadata_output.decode("utf-8", errors="replace")
+    abi = abi_output.decode("utf-8", errors="replace")
+    class_declaration = (
+        "public final class kotlinx/io/bytestring/ByteString : "
+        "kotlin/Comparable<kotlinx/io/bytestring/ByteString> {"
+    )
+    companion_metadata = (
+        "public final companion object kotlinx/io/bytestring/ByteString.Companion : kotlin/Any {"
+    )
+    class_abi = (
+        "final class kotlinx.io.bytestring/ByteString : "
+        "kotlin/Comparable<kotlinx.io.bytestring/ByteString> {"
+    )
+    companion_abi = (
+        "final object Companion // "
+        "kotlinx.io.bytestring/ByteString.Companion|null[0]"
+    )
+    checks = {
+        "klib-6ac82acec38abefe": class_declaration in metadata and class_abi in abi,
+        "klib-b3c4163f48365984": companion_metadata in metadata and companion_abi in abi,
+    }
+    failed = [row_id for row_id, passed in checks.items() if not passed]
+    if failed:
+        raise RuntimeError(f"pinned macOS Native KLIB declaration shape mismatch: {failed}")
+    return {
+        "api_row_ids": list(checks),
+        "byte_string": class_abi,
+        "companion": "final object kotlinx.io.bytestring/ByteString.Companion",
+    }
+
+
+def verify_byte_string_jvm_abi(jars: list[Path], java: Path, directory: Path) -> dict:
+    artifact = next((path for path in jars if "kotlinx-io-bytestring-jvm" in path.name), None)
+    if artifact is None:
+        raise RuntimeError("the pinned kotlinx-io-bytestring JVM artifact is missing")
+    javap = java.resolve().parent / "javap"
+    if not javap.is_file():
+        raise RuntimeError(f"JDK javap executable is missing: {javap}")
+    require_stage(
+        [str(javap), "-classpath", str(artifact), "-p", "-s", "-v", "kotlinx.io.bytestring.ByteString"],
+        directory,
+        "jvm-byte-string-class",
+        30,
+    )
+    require_stage(
+        [str(javap), "-classpath", str(artifact), "-p", "-s", "-v", "kotlinx.io.bytestring.ByteString$Companion"],
+        directory,
+        "jvm-byte-string-companion",
+        30,
+    )
+    result = check_byte_string_jvm_abi(
+        (directory / "jvm-byte-string-class.stdout").read_bytes(),
+        (directory / "jvm-byte-string-companion.stdout").read_bytes(),
+    )
+    result["reference_jar_sha256"] = sha(artifact)
+    save(directory / "jvm-byte-string-abi.json", result)
+    return result
+
+
+def verify_byte_string_native_klib(
+    native_home: Path, compiler_archive: Path, dependencies: Path, java: Path, directory: Path
+) -> dict:
+    lock_path = ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    archive_record = lock["native_compiler_archives"]["macos_arm64"]
+    artifact_record = next(
+        record for record in lock["native_artifacts"]
+        if record["coordinate"] == "org.jetbrains.kotlinx:kotlinx-io-bytestring-macosarm64:0.9.1"
+    )
+    artifact = dependencies / artifact_record["url"].rsplit("/", 1)[-1]
+    if sha(compiler_archive) != archive_record["sha256"]:
+        raise RuntimeError("pinned macOS Native compiler archive hash mismatch")
+    if sha(artifact) != artifact_record["sha256"]:
+        raise RuntimeError("pinned macOS Native ByteString KLIB hash mismatch")
+
+    upstream_tools = ROOT / "Scripts/kotlinx_io_upstream"
+    if str(upstream_tools) not in sys.path:
+        sys.path.insert(0, str(upstream_tools))
+    from run_native_reference import verify_native_sdk
+
+    sdk = verify_native_sdk(native_home, compiler_archive, archive_record)
+    save(directory / "native-sdk-verification.json", {
+        "archive_sha256": sdk["archive_sha256"],
+        "verified_file_count": sdk["verified_file_count"],
+    })
+    native_compiler = native_home / "bin/konanc"
+    environment = {"JAVA_HOME": str(java.resolve().parent.parent)}
+    require_stage([str(native_compiler), "-version"], directory, "native-compiler-version", 60, environment)
+    version = ((directory / "native-compiler-version.stdout").read_text(encoding="utf-8")
+               + (directory / "native-compiler-version.stderr").read_text(encoding="utf-8"))
+    if not re.search(r"(?:Kotlin/Native|kotlinc-native)\s+2\.3\.10(?:\s|$)", version):
+        raise RuntimeError("native KLIB inspection requires Kotlin/Native 2.3.10")
+
+    klib_tool = native_home / "bin/klib"
+    require_stage([str(klib_tool), "dump-metadata", str(artifact)], directory, "native-byte-string-metadata", 60, environment)
+    require_stage([str(klib_tool), "dump-abi", str(artifact)], directory, "native-byte-string-abi", 60, environment)
+    metadata = (directory / "native-byte-string-metadata.stdout").read_bytes()
+    abi = (directory / "native-byte-string-abi.stdout").read_bytes()
+    result = check_byte_string_native_klib_shape(metadata, abi)
+    result.update({
+        "reference_klib_sha256": sha(artifact),
+        "native_compiler_archive_sha256": archive_record["sha256"],
+        "klib_tool_sha256": sha(klib_tool),
+        "metadata_sha256": hashlib.sha256(metadata).hexdigest(),
+        "abi_sha256": hashlib.sha256(abi).hexdigest(),
+    })
+    save(directory / "native-byte-string-shape.json", result)
+    return result
+
+
 def packaged(raw: bytes, package: str) -> bytes:
     if re.search(rb"^package\s", raw, re.MULTILINE):
         raise ValueError("only unqualified fixtures may receive a package insertion")
@@ -100,6 +258,22 @@ def scenarios() -> list[dict]:
     cases = [{"id": "ledger-jvm", "producer": [HERE / "f02_consumers/Producer.kt"],
               "consumer": HERE / "f02_consumers/Consumer.kt", "entry": "f02consumer.main",
               "jvm_class": "f02consumer.ConsumerKt", "reference": "jvm", "ledger": True},
+             {"id": "bytestring-declaration-shape",
+              "producer": [HERE / "probes/ByteStringDeclarationShapeProducer.kt"],
+              "consumer": HERE / "probes/ByteStringDeclarationShapeConsumer.kt",
+              "negative": HERE / "probes/ByteStringDeclarationShapeNegative.kt",
+              "entry": "io.bytestring.shape.consumer.main",
+              "negative_entry": "io.bytestring.shape.negative.main",
+              "jvm_class": "io.bytestring.shape.consumer.ConsumerKt",
+              "negative_diagnostic_contains": [
+                  "final", "ByteStringSubclassProbe", "ByteStringCompanionSubclassProbe"
+              ],
+              "verify_jvm_byte_string_abi": True,
+              "api_row_ids": ["jvm-30aa8296be3c5f34", "jvm-513421237a6901bd",
+                              "jvm-bbea794ad47ba10d", "klib-6ac82acec38abefe",
+                              "klib-b3c4163f48365984"],
+              "verify_native_klib_shape": True,
+              "reference": "jvm"},
              {"id": "library-boundary", "producer": [HERE / "f02_boundary/Producer.kt"],
               "consumer": HERE / "f02_boundary/Consumer.kt", "entry": "f02boundaryconsumer.main",
               "jvm_class": "f02boundaryconsumer.ConsumerKt", "reference": "jvm"}]
@@ -193,6 +367,8 @@ def prepare(case: dict, directory: Path) -> tuple[list[Path], Path]:
         producers.append(destination)
     consumer = sources / "Consumer.kt"
     consumer.write_bytes(case["consumer"].read_bytes())
+    if "negative" in case:
+        (sources / "Negative.kt").write_bytes(case["negative"].read_bytes())
     return producers, consumer
 
 
@@ -276,6 +452,29 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
     reject_unhandled_events(observed)
     if stderr or observed != expected:
         raise RuntimeError(f"byte difference or runtime stderr: {directory}")
+    negative_receipt = None
+    if "negative" in case:
+        negative_sources = [str(directory / "inputs/Negative.kt")]
+        if route != "producer-consumer":
+            negative_sources = [*map(str, producers), *negative_sources]
+        negative_binary = directory / "negative-candidate"
+        negative_command = base + imports + [
+            "--entry-point", case["negative_entry"], *negative_sources, "-o", str(negative_binary)
+        ]
+        negative_status = execute(negative_command, directory, "negative-compile", timeout)
+        negative_output = (directory / "negative-compile.stdout").read_bytes()
+        negative_output += (directory / "negative-compile.stderr").read_bytes()
+        check_expected_compile_rejection(
+            negative_status,
+            negative_output,
+            case.get("negative_diagnostic_contains", []),
+            f"candidate {route} {optimization}",
+        )
+        negative_receipt = {
+            "exit_code": negative_status,
+            "source_sha256": sha(directory / "inputs/Negative.kt"),
+            "diagnostic_sha256": hashlib.sha256(negative_output).hexdigest(),
+        }
     if case.get("ledger"):
         check_ledger_events(stdout, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
     for group in case.get("groups", []):
@@ -293,6 +492,7 @@ def run_lane(case: dict, compiler: Path, stdlib: Path, expected: bytes, director
                        for name, digest in inputs_before.items()}
     if snapshot(directory / "inputs") != expected_inputs: raise RuntimeError("staged inputs changed")
     return {"status": "PASS", "route": route, "optimization": optimization,
+            "api_row_ids": case.get("api_row_ids", []), "negative_compile": negative_receipt,
             "stdlib_files_sha256": stdlib_before, "producer_files_sha256": artifact_before,
             "inputs_sha256": inputs_before, "executable_sha256": sha(binary), "stdout_sha256": sha(directory / "run.stdout"),
             "normalized_stdout_sha256": hashlib.sha256(observed).hexdigest(),
@@ -306,6 +506,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--kotlin-home", type=Path, required=True)
     parser.add_argument("--java", type=Path, required=True)
     parser.add_argument("--dependencies", type=Path, required=True)
+    parser.add_argument("--native-home", type=Path)
+    parser.add_argument("--native-compiler-archive", type=Path)
+    parser.add_argument("--native-dependencies", type=Path)
     parser.add_argument("--stdlib-library", type=Path, help="explicit supplied artifact; freshness is not inferred from its path")
     parser.add_argument("--case", action="append", help="explicit subset; default is all dedicated consumers")
     parser.add_argument("--separate-cases", action="store_true", help="compile each case separately; default batches selected cases in every lane")
@@ -328,13 +531,15 @@ def main(argv: list[str] | None = None) -> int:
                "dirty_patch_sha256": hashlib.sha256(subprocess.check_output(["git", "-C", str(ROOT), "diff", "HEAD"])).hexdigest(),
                "runtime_cache_provenance": "source and manifest-validated object hashes; not a clean Runtime rebuild"}
     try:
-        provenance = [Path(__file__), HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
+        provenance = [Path(__file__), HERE / "generate.py", HERE / "generate_f02_consumers.py", HERE / "generate_f01_consumers.py",
                       HERE / "api-inventory.tsv", HERE / "source-declarations.json", HERE / "upstream-lock.json",
-                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json", ROOT / "Package.swift"]
+                      ROOT / "Scripts/kotlinx_io_upstream/reference-lock.json",
+                      ROOT / "Scripts/kotlinx_io_upstream/run_native_reference.py", ROOT / "Package.swift"]
         provenance += sorted((HERE / "f02_consumers").glob("*")) + sorted((HERE / "f02_boundary").glob("*.kt"))
         summary["harness_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in provenance if path.is_file()}
         scenario_inputs = {path for case in selected for path in case.get("producer", []) + case.get("fixtures", [])}
         scenario_inputs |= {case[key] for case in selected for key in ("consumer", "expected", "fixture", "provenance") if key in case}
+        scenario_inputs |= {case["negative"] for case in selected if "negative" in case}
         summary["scenario_files_sha256"] = {str(path.relative_to(ROOT)): sha(path) for path in sorted(scenario_inputs)}
         resources = next((path for path in (
             compiler.parent / "KSwiftK_CompilerCore.bundle/Contents/Resources",
@@ -378,6 +583,7 @@ def main(argv: list[str] | None = None) -> int:
                 result = run_lane(case, compiler, stdlib, expected, directory, route, optimization, args.compile_timeout)
             except Exception as error:
                 result = {"status": "FAIL", "route": route, "optimization": optimization,
+                          "api_row_ids": case.get("api_row_ids", []),
                           "error": str(error), "evidence_directory": str(directory)}
             summary["results"].append({"case": case["id"], **result})
             save(output / "summary.json", summary)
@@ -397,6 +603,21 @@ def main(argv: list[str] | None = None) -> int:
                 producers, consumer = prepare(case, directory)
                 jar = directory / "reference.jar"
                 classpath = os.pathsep.join(map(str, jars))
+                if case.get("verify_native_klib_shape"):
+                    if not args.native_home or not args.native_compiler_archive or not args.native_dependencies:
+                        raise RuntimeError("the ByteString shape case requires the pinned macOS Native SDK and KLIB")
+                if case.get("verify_jvm_byte_string_abi"):
+                    summary.setdefault("reference_shape_checks", {})[case["id"]] = verify_byte_string_jvm_abi(
+                        jars, args.java, directory
+                    )
+                if case.get("verify_native_klib_shape"):
+                    summary["reference_shape_checks"][case["id"]]["native_klib"] = verify_byte_string_native_klib(
+                        args.native_home.resolve(),
+                        args.native_compiler_archive.resolve(),
+                        args.native_dependencies.resolve(),
+                        args.java,
+                        directory,
+                    )
                 require_stage([str((args.kotlin_home / "bin/kotlinc").resolve()), *map(str, producers), str(consumer),
                                "-classpath", classpath, "-include-runtime", "-d", str(jar)], directory, "reference-compile", args.compile_timeout,
                               {"JAVA_HOME": str(args.java.resolve().parent.parent)})
@@ -407,6 +628,31 @@ def main(argv: list[str] | None = None) -> int:
                 reject_unhandled_events(expected)
                 if (directory / "reference-run.stderr").read_bytes(): raise RuntimeError("reference runtime stderr")
                 if case.get("ledger"): check_ledger_events(expected, json.loads((HERE / "f02_consumers/manifest.json").read_text()))
+                if "negative" in case:
+                    negative_jar = directory / "reference-negative.jar"
+                    negative_status = execute(
+                        [str((args.kotlin_home / "bin/kotlinc").resolve()),
+                         *map(str, producers), str(directory / "inputs/Negative.kt"),
+                         "-classpath", classpath, "-d", str(negative_jar)],
+                        directory,
+                        "reference-negative-compile",
+                        args.compile_timeout,
+                        {"JAVA_HOME": str(args.java.resolve().parent.parent)},
+                    )
+                    negative_output = (directory / "reference-negative-compile.stdout").read_bytes()
+                    negative_output += (directory / "reference-negative-compile.stderr").read_bytes()
+                    check_expected_compile_rejection(
+                        negative_status,
+                        negative_output,
+                        case.get("negative_diagnostic_contains", []),
+                        "pinned JVM reference",
+                    )
+                    summary.setdefault("reference_shape_checks", {}).setdefault(case["id"], {})[
+                        "negative_compile"] = {
+                            "exit_code": negative_status,
+                            "source_sha256": sha(directory / "inputs/Negative.kt"),
+                            "diagnostic_sha256": hashlib.sha256(negative_output).hexdigest(),
+                        }
             else:
                 expected = case["expected"].read_bytes()
                 reject_unhandled_events(expected)
