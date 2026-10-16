@@ -170,6 +170,27 @@ struct PhaseTimerTests {
     }
 
     @Test
+    func testAccumulationCanBeAttributedToTheActiveSubPhase() {
+        let timer = PhaseTimer()
+        timer.beginPhase("Sema")
+        withSubPhaseTiming("inheritDefaultArgumentValuesForOverrides", timer: timer) {
+            withSubPhaseTiming(
+                "imports.lazyMaterialize", timer: timer, accumulating: true,
+                attributingAccumulationToCurrentSubPhase: true
+            ) {}
+        }
+        timer.endPhase()
+
+        let records = timer.phaseRecords[0].subRecords
+        #expect(records.map(\.name) == [
+            "inheritDefaultArgumentValuesForOverrides",
+            "imports.lazyMaterialize",
+            "imports.lazyMaterialize.inheritDefaultArgumentValuesForOverrides",
+        ])
+        #expect(records[1].durationNanos == records[2].durationNanos)
+    }
+
+    @Test
     func testFailedSubprocessStillRecordsTiming() {
         let timer = PhaseTimer()
         timer.beginPhase("Link")

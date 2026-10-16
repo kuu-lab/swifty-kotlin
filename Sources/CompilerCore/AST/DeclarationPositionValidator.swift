@@ -693,22 +693,6 @@ struct DeclarationPositionValidator {
         }
 
         if decl.isFunInterface, decl.superTypes.isEmpty {
-            let abstractFunctions = decl.memberFunctions.filter { declID in
-                guard let memberDecl = astArena.decl(declID),
-                      case .funDecl(let fun) = memberDecl
-                else {
-                    return false
-                }
-                return !fun.modifiers.contains(.override)
-                    && (fun.modifiers.contains(.abstract) || fun.body == .unit)
-            }
-            if abstractFunctions.count != 1 {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-0406",
-                    "functional interface must have exactly one abstract function.",
-                    range: decl.range
-                )
-            }
             for declID in decl.memberProperties {
                 guard let memberDecl = astArena.decl(declID),
                       case .propertyDecl(let prop) = memberDecl,

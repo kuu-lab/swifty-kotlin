@@ -721,6 +721,48 @@ extension TypeSystem {
         guard let symbolTable else { return false }
         return symbolTable.actualSymbol(for: lhs) == rhs
             || symbolTable.actualSymbol(for: rhs) == lhs
+            || actualTypeAliasTargetNominalSymbol(for: lhs, symbols: symbolTable) == rhs
+            || actualTypeAliasTargetNominalSymbol(for: rhs, symbols: symbolTable) == lhs
+    }
+
+    private func actualTypeAliasTargetNominalSymbol(
+        for symbolID: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        var currentID = symbolID
+        var visited: Set<SymbolID> = []
+        while visited.insert(currentID).inserted {
+            guard let symbol = symbols.symbol(currentID) else { return nil }
+            let aliasID: SymbolID?
+            if symbol.kind == .typeAlias {
+                aliasID = currentID
+            } else if symbol.flags.contains(.expectDeclaration),
+                      let actualID = symbols.actualSymbol(for: currentID),
+                      symbols.symbol(actualID)?.kind == .typeAlias
+            {
+                aliasID = actualID
+            } else {
+                return nil
+            }
+            guard let aliasID,
+                  let underlying = symbols.typeAliasUnderlyingType(for: aliasID),
+                  case let .classType(classType) = kind(of: underlying),
+                  let target = symbols.symbol(classType.classSymbol)
+            else {
+                return nil
+            }
+            if target.kind == .typeAlias {
+                currentID = target.id
+                continue
+            }
+            if target.flags.contains(.expectDeclaration),
+               let actualTargetID = symbols.actualSymbol(for: target.id)
+            {
+                return actualTargetID
+            }
+            return target.id
+        }
+        return nil
     }
 
     enum Projection {
@@ -859,6 +901,9 @@ extension TypeSystem {
     ///   graphs share a class or interface other than `Any`, e.g.
     ///   `lub(X, Y) == I` for `class X : I` / `class Y : I`
     ///   (see `nearestCommonNominalSupertype`).
+    /// - A type-parameter input declares a bound shared by every input, e.g.
+    ///   `lub(T, Int) == Number` for `T : Number?` after taking the non-null
+    ///   projections used by Elvis.
     ///
     /// Returns `nil` when none of the shapes apply, leaving the caller to fall
     /// back to `Any`.
@@ -866,8 +911,13 @@ extension TypeSystem {
         _ types: [TypeID],
         retainingCommonIntersection: Bool = false
     ) -> TypeID? {
-        if let dominating = types.first(where: { candidate in types.allSatisfy { isSubtype($0, candidate) } }) {
+        if let dominating = types.first(where: { candidate in
+            types.allSatisfy { isNonNullLubSubtype($0, candidate, visitedParameters: []) }
+        }) {
             return dominating
+        }
+        if let sharedUpperBound = nearestCommonTypeParameterUpperBound(types) {
+            return sharedUpperBound
         }
         if let numberSym = numberClassSymbol, types.allSatisfy(isNumericPrimitiveType) {
             return make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: .nonNull)))
@@ -879,6 +929,100 @@ extension TypeSystem {
             return commonNominal
         }
         return nearestCommonNominalSupertype(types, retainingCommonIntersection: retainingCommonIntersection)
+    }
+
+    /// Expands declared upper bounds from type-parameter inputs before falling
+    /// back to `Any`. `nearestCommonSupertype` only receives non-null
+    /// projections, so each bound is narrowed to its non-null view as well.
+    private func nearestCommonTypeParameterUpperBound(_ types: [TypeID]) -> TypeID? {
+        guard types.count > 1 else { return nil }
+
+        var candidates: [TypeID] = []
+        var pending = types
+        var visitedParameters: Set<SymbolID> = []
+        while let input = pending.popLast() {
+            guard case let .typeParam(parameter) = kind(of: input) else {
+                continue
+            }
+            guard visitedParameters.insert(parameter.symbol).inserted else {
+                continue
+            }
+
+            let bounds: [TypeID]
+            if let capture = parameter.capture {
+                bounds = [capture.upper]
+            } else if let symbolTable {
+                bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
+            } else {
+                continue
+            }
+            for bound in bounds {
+                let candidate = makeNonNullable(bound)
+                if !candidates.contains(candidate) {
+                    candidates.append(candidate)
+                }
+                if case .typeParam = kind(of: candidate) {
+                    pending.append(candidate)
+                }
+            }
+        }
+
+        let commonBounds = candidates.filter { candidate in
+            types.allSatisfy { isNonNullLubSubtype($0, candidate, visitedParameters: []) }
+        }
+        guard !commonBounds.isEmpty else { return nil }
+
+        var mostSpecific: [TypeID] = []
+        for candidate in commonBounds {
+            if mostSpecific.contains(where: {
+                isNonNullLubSubtype($0, candidate, visitedParameters: [])
+            }) {
+                continue
+            }
+            mostSpecific.removeAll {
+                isNonNullLubSubtype(candidate, $0, visitedParameters: [])
+            }
+            mostSpecific.append(candidate)
+        }
+        if mostSpecific.count == 1 {
+            return mostSpecific[0]
+        }
+        return make(.intersection(mostSpecific))
+    }
+
+    /// Checks a non-null LUB projection through declared type-parameter bounds
+    /// without changing ordinary subtype rules for nullable receivers.
+    private func isNonNullLubSubtype(
+        _ subtype: TypeID,
+        _ supertype: TypeID,
+        visitedParameters: Set<SymbolID>
+    ) -> Bool {
+        if subtype == supertype { return true }
+        guard case let .typeParam(parameter) = kind(of: subtype) else {
+            return isSubtype(subtype, supertype)
+        }
+        guard !visitedParameters.contains(parameter.symbol) else { return false }
+
+        var nextVisited = visitedParameters
+        nextVisited.insert(parameter.symbol)
+        let bounds: [TypeID]
+        if let capture = parameter.capture {
+            bounds = [capture.upper]
+        } else if let symbolTable {
+            bounds = symbolTable.typeParameterUpperBounds(for: parameter.symbol)
+        } else {
+            return isSubtype(subtype, supertype)
+        }
+        if bounds.isEmpty {
+            return isSubtype(subtype, supertype)
+        }
+        return bounds.contains { bound in
+            isNonNullLubSubtype(
+                makeNonNullable(bound),
+                supertype,
+                visitedParameters: nextVisited
+            )
+        }
     }
 
     /// Finds the most specific nominal supertype (other than `Any`) shared by

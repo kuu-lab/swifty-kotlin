@@ -11,6 +11,12 @@ struct NullableUpperBoundMemberResolutionTests {
         fun <T : Number?> numberToIntAfterNullCheck(value: T): Int? =
             if (value == null) null else value.toInt()
 
+        fun <T : Number?> numberToIntAfterElvis(value: T): Int = (value ?: 42).toInt()
+
+        fun numberToIntAfterNullableElvis(value: Number?): Int = (value ?: 42).toInt()
+
+        fun <T : Number> numberToIntAfterNonNullBoundElvis(value: T): Int = (value ?: 42).toInt()
+
         fun <T : Number?> numberToIntWithoutNullCheck(value: T): Int = value.toInt()
         """
         try withTemporaryFile(contents: source) { path in
@@ -40,12 +46,12 @@ struct NullableUpperBoundMemberResolutionTests {
             }.sorted { left, right in
                 ast.arena.exprRange(left)!.start.offset < ast.arena.exprRange(right)!.start.offset
             }
-            #expect(calls.count == 3)
+            #expect(calls.count == 6)
 
             let resolvedCalls = calls.compactMap { id in
                 sema.bindings.callBinding(for: id).map { (id, $0.chosenCallee) }
             }
-            #expect(resolvedCalls.count == 2, "Only the guarded calls should resolve")
+            #expect(resolvedCalls.count == 5, "Only the unguarded nullable type-parameter call should fail")
             for (_, callee) in resolvedCalls {
                 let symbol = try #require(sema.symbols.symbol(callee))
                 #expect(symbol.fqName.map(ctx.interner.resolve) == ["kotlin", "Number", "toInt"])

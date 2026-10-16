@@ -137,13 +137,14 @@ func isCompatibleExpectActualPair(
         }
         return newKind == existing.kind
             || (newKind == .annotationClass && existing.kind == .typeAlias)
+            || (newKind == .class && existing.kind == .typeAlias)
     }
 
     guard hasExistingExpect else {
         return false
     }
     return newKind == existing.kind
-        || (newKind == .typeAlias && existing.kind == .annotationClass)
+        || (newKind == .typeAlias && (existing.kind == .annotationClass || existing.kind == .class))
 }
 
 public struct FunctionSignature: Hashable, Sendable {

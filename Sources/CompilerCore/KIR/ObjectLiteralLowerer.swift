@@ -146,6 +146,21 @@ final class ObjectLiteralLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             )
+            let shared = KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: ownerSymbol, shared: shared, compilationCtx: nil
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: ownerSymbol, shared: shared, compilationCtx: nil
+            )
+            for forwardingDeclID in forwardingDecls {
+                driver.ctx.appendGeneratedCallableDecl(forwardingDeclID)
+            }
             let initName = interner.intern("<init>")
             let ctorFQName = ownerFQName + [initName]
             for ctorSymbol in sema.symbols.lookupAll(fqName: ctorFQName).filter({

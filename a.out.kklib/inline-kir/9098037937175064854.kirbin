@@ -1,0 +1,9 @@
+version=2
+nameB64=VUxvbmc=
+params=1
+paramSymbols=5239
+suspend=false
+body:
+const result=71575 value=symbol:5239
+call symbol=_ calleeB64=a2tfbG9uZ190b191bG9uZw== args=[71575] result=71576 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+returnValue value=71576

@@ -41,6 +41,14 @@ final class SemaCacheContext {
         return result
     }
 
+    /// Scope contents can grow while type checking local declarations. Any
+    /// cached lookup may have walked through a scope whose parent was just
+    /// updated, so discard scope results after such an insertion.
+    func invalidateScopeLookups() {
+        scopeCache.removeAll(keepingCapacity: true)
+        scopeRetainer.removeAll(keepingCapacity: true)
+    }
+
     /// Caches ``SymbolTable.symbol(_:)`` results to avoid repeated bounds checks.
     private var symbolCache: [SymbolID: SemanticSymbol] = [:]
 

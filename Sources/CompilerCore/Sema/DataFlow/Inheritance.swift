@@ -889,7 +889,7 @@ extension DataFlowSemaPhase {
     ) {
         for file in ast.sortedFiles {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
-                validateInheritedFunInterfaceContract(
+                validateFunInterfaceContract(
                     declID: declID,
                     ast: ast,
                     symbols: symbols,
@@ -908,10 +908,9 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// A `fun interface` with super-interfaces must still end up with exactly one
-    /// effective abstract function once inherited abstract members are counted
-    /// (the no-supertype case is checked earlier by `DeclarationPositionValidator`).
-    private func validateInheritedFunInterfaceContract(
+    /// A `fun interface` must end up with exactly one effective abstract function
+    /// after own and inherited members have been collected.
+    private func validateFunInterfaceContract(
         declID: DeclID,
         ast: ASTModule,
         symbols: SymbolTable,
@@ -921,7 +920,6 @@ extension DataFlowSemaPhase {
         guard let decl = ast.arena.decl(declID),
               case let .interfaceDecl(interfaceDecl) = decl,
               interfaceDecl.isFunInterface,
-              !interfaceDecl.superTypes.isEmpty,
               let symbol = bindings.declSymbols[declID],
               TypeCheckHelpers().effectiveSamAbstractMethod(for: symbol, symbols: symbols) == nil
         else {

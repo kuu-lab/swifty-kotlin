@@ -126,6 +126,7 @@ let package = Package(
                 "Klib/Fixtures",
                 "Fixtures/Atomicfu",
                 "Fixtures/KUU-2210",
+                "Fixtures/KUU-2415",
             ]
         ),
         .testTarget(

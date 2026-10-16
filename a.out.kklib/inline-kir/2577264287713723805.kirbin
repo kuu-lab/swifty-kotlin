@@ -1,0 +1,18 @@
+version=2
+nameB64=dGFrZUlm
+params=2
+paramSymbols=-55657,5075
+suspend=false
+body:
+const result=70197 value=symbol:-55657
+const result=70198 value=symbol:5075
+call symbol=5075 calleeB64=a2tfZnVuY3Rpb25faW52b2tl args=[70198,70197] result=70199 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_ symbolFQNameB64=a290bGluLnRha2VJZi4kNTA3My5wcmVkaWNhdGU=
+const result=70201 value=bool:0
+jumpIfEqual lhs=70199 rhs=70201 target=10000
+copy from=70197 to=70200
+jump target=10001
+label id=10000
+const result=70202 value=null
+copy from=70202 to=70200
+label id=10001
+returnValue value=70200

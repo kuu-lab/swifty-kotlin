@@ -934,6 +934,22 @@ extension DeclTypeChecker {
             locals: &locals,
             expectedType: hasInferredReturnType ? nil : signature.returnType
         )
+        let inferredBodyType: TypeID
+        if hasInferredReturnType,
+           case let .expr(bodyExprID, _) = function.body,
+           let companionValueType = driver.helpers.retypeClassNameAsCompanionValue(
+               bodyExprID,
+               currentType: bodyType,
+               ast: ctx.ast,
+               sema: sema
+           )
+        {
+            // An inferred function returning a bare classifier exposes the
+            // companion value, matching local initializer inference.
+            inferredBodyType = companionValueType
+        } else {
+            inferredBodyType = bodyType
+        }
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
         // skips the nominal subtype check like the equivalent local declaration does —
@@ -966,7 +982,7 @@ extension DeclTypeChecker {
         updateInferredReturnType(
             function: function,
             symbol: symbol,
-            bodyType: bodyType,
+            bodyType: inferredBodyType,
             signature: signature,
             sema: sema
         )

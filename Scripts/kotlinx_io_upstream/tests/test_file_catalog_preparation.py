@@ -77,8 +77,11 @@ class FileCatalogPreparationTests(unittest.TestCase):
         code = execute([sys.executable, "-c", "import os;print(os.getcwd());print(os.environ['TMPDIR'])"],
                        output, "support-control", 10, {"TMPDIR": str(work)}, working_directory=work)
         self.assertEqual(0, code)
-        self.assertEqual(str(work) + "\n" + str(work) + "\n", (output / "support-control.stdout").read_text())
-        self.assertEqual(str(work), json.loads((output / "support-control.cwd.json").read_text()))
+        observed_paths = (output / "support-control.stdout").read_text().splitlines()
+        self.assertEqual(2, len(observed_paths))
+        self.assertTrue(all(Path(path).resolve() == work.resolve() for path in observed_paths))
+        recorded_cwd = Path(json.loads((output / "support-control.cwd.json").read_text()))
+        self.assertEqual(work.resolve(), recorded_cwd.resolve())
 
 
 if __name__ == "__main__": unittest.main()

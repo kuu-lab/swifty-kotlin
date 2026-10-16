@@ -373,6 +373,31 @@ final class TypeCheckDriver {
             }
         }
 
+        // Explicit backing-field initializers can narrow stable `val` reads.
+        // Resolve simple, zero-argument factory initializers before function
+        // bodies are checked so their property accesses see the backing type.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declID in file.topLevelDecls {
+                guard !precheckedPropertyDecls.contains(declID),
+                      case let .propertyDecl(property)? = ast.arena.decl(declID),
+                      declChecker.canSafelyPrecheckExplicitBackingFieldProperty(property, in: inferCtx),
+                      let symbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                declChecker.typeCheckBoundPropertyDecl(
+                    property,
+                    declID: declID,
+                    symbol: symbol,
+                    ctx: inferCtx.with(currentDeclSymbol: symbol),
+                    solver: solver,
+                    diagnostics: diagnostics
+                )
+                precheckedPropertyDecls.insert(declID)
+            }
+        }
+
         // Revisit property initializers until their inferred property
         // dependencies have types. Calls are eligible only when every
         // candidate has a concrete declared return type. Include companion and

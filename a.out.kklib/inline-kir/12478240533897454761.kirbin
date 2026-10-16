@@ -1,0 +1,12 @@
+version=2
+nameB64=aXNOb3RFbXB0eQ==
+params=1
+paramSymbols=-100396
+suspend=false
+body:
+const result=134004 value=symbol:-100396
+call symbol=_ calleeB64=X19ra19hcnJheV9zaXpl args=[134004] result=134005 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+const result=134006 value=int:0
+call symbol=_ calleeB64=a2tfdW5ib3hfaW50X3N0YXRpYw== args=[134005] result=605753 canThrow=0 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+call symbol=_ calleeB64=a2tfb3BfbmU= args=[605753,134006] result=134007 canThrow=1 thrownResult=_ isSuperCall=0 qualifiedSuperType=_
+returnValue value=134007
