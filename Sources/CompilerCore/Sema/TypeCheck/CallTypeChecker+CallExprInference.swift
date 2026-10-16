@@ -76,7 +76,8 @@ extension CallTypeChecker {
         }
         if let memberType = inferPostponedImplicitReceiverMemberCall(
             id, calleeName: calleeName, args: args, range: range,
-            ctx: ctx, locals: &locals, explicitTypeArgs: explicitTypeArgs
+            ctx: ctx, locals: &locals, expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs
         ) {
             return memberType
         }
