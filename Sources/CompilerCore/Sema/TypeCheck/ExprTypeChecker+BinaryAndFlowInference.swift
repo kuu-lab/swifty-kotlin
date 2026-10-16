@@ -1074,6 +1074,10 @@ extension ExprTypeChecker {
         // expression type is the callable reference type (for example,
         // KMutableProperty0<Int>), not the target property's value type.
         guard sema.bindings.callableRefKind(for: expr) == nil else { return inferred }
+        // Receiver-function value invocations retain the callee symbol on the
+        // call expression for capture analysis. Their equality type is the
+        // inferred invocation result, not the function value's declaration type.
+        guard sema.bindings.callableValueCallBinding(for: expr) == nil else { return inferred }
         guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
         if let declared = sema.symbols.propertyType(for: symbol) { return declared }
         if let owner = sema.symbols.valueParameterOwner(for: symbol),
