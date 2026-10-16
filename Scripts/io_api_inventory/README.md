@@ -255,14 +255,28 @@ descriptor evidence.
 The generator rejects unknown or duplicate row IDs, malformed hashes, a
 different reference pin, stale implementation/test inputs, non-passing or
 unrun executions, duplicate cases, and missing or unrelated lanes. The case ID
-must match a method-specific upstream test reference for that row;
+must match a method-specific upstream test reference or an exact case in
+`validation-probe-refs.json` registered to that row. Direct probe source and
+harness inputs are included in the row's test-input hash;
 `#suite-reference` discovery metadata cannot authorize an arbitrary case from
 the same file. Both execution IDs must map to the same case in the locked JVM
-and Native execution catalogs. A manual status edit is discarded when outputs
-are regenerated. `--write` changes only the three generated ledger output files
-and reads the evidence file without rewriting it. `--check` verifies upstream
-snapshots, the test index lock, negative guards, evidence, any execution
-catalogs used by evidence, and byte-for-byte output without modifying files.
+and Native execution catalogs, or to a local probe receipt that also pins the
+lane, raw and normalized output hashes, probe source hash, candidate SHA, and
+upstream commit. A reference-only JVM
+descriptor probe may record candidate `NOT_APPLICABLE` only for a JVM ABI row;
+that result keeps the row `unverified` because the Native backend does not emit
+JVM classfiles. A manual status edit is discarded when outputs are regenerated.
+`--write` changes only the three generated ledger output files and reads the
+evidence file without rewriting it. `--check` verifies upstream snapshots, the
+test index lock, negative guards, evidence, any execution catalogs used by
+evidence, and byte-for-byte output without modifying files.
+
+KUU-2636's `SystemFileSystem` probes are run separately from upstream test
+catalogs. The Kotlin consumer checks the typed public binding, stable property
+identity, and current-directory access in source, fresh stdlib-library, and
+independent producer/consumer O0/O2 lanes. The Java reflection probe checks the
+pinned JVM reference field owner, descriptor, modifiers, type, and value
+identity; it does not make a claim about candidate JVM bytecode emission.
 
 ```sh
 python3 Scripts/io_api_inventory/test_validation_evidence.py

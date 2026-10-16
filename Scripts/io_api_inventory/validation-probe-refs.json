@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "probes": [
+    {
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt#systemFileSystemBinding",
+      "row_ids": [
+        "klib-22e7eedbcb644510",
+        "klib-eb2e0cdf209de26a"
+      ],
+      "input_files": [
+        "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemBindingProbe.kt",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/run_f02_matrix.py",
+        "Scripts/io_api_inventory/test_f02_matrix.py",
+        "Scripts/io_api_inventory/record_systemfilesystem_validation.py",
+        "Scripts/kotlinx_io_upstream/reference-lock.json"
+      ],
+      "kind": "reference-and-candidate",
+      "candidate_not_applicable_reason": null
+    },
+    {
+      "case_id": "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemJvmAbiProbe.java#main",
+      "row_ids": [
+        "jvm-3ecb129cb4283041"
+      ],
+      "input_files": [
+        "Scripts/io_api_inventory/probes/systemfilesystem/SystemFileSystemJvmAbiProbe.java",
+        "Scripts/io_api_inventory/generate.py",
+        "Scripts/io_api_inventory/run_systemfilesystem_jvm_abi_probe.py",
+        "Scripts/io_api_inventory/record_systemfilesystem_validation.py",
+        "Scripts/kotlinx_io_upstream/reference-lock.json"
+      ],
+      "kind": "reference-only-jvm-descriptor",
+      "candidate_not_applicable_reason": "KSwiftK Native backend does not emit JVM classfiles"
+    }
+  ]
+}

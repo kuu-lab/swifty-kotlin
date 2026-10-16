@@ -914,5 +914,7 @@
   ],
   "upstreamTestsIndexSha256": "8b7be63016fee650c4f10d1e20241cf76de1b4100ceff70bae8abfe80967d219",
   "sourceDeclarationsSha256": "73e6b9fd3fe468a0780a21dce18733f910c8f5f1db4bc5cc1c21c37c95db269c",
-  "jvmDeclarationsSha256": "430abec2143506801dde63151b2895b983a6e7fcc80571398b42ebc5af94c64c"
+  "jvmDeclarationsSha256": "430abec2143506801dde63151b2895b983a6e7fcc80571398b42ebc5af94c64c",
+  "validationProbeRefsSha256": "d9e7e7c6060432feeef1414eb1630c83b2c88a0e3e765187d03d00c4a8dcffae",
+  "validationProbeExecutionsSha256": "8243a5c415b2a9e8032a77aa0895857dd17c6946a5f3a475b15f368f28a1b04f"
 }
