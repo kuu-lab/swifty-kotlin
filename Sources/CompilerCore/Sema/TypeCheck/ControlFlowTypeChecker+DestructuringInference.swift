@@ -16,9 +16,6 @@ extension ControlFlowTypeChecker {
         let rhsType = driver.inferExpr(initializer, ctx: ctx, locals: &locals)
 
         for (index, name) in names.enumerated() {
-            guard let name else {
-                continue
-            }
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
@@ -62,9 +59,6 @@ extension ControlFlowTypeChecker {
                         sema: sema
                     )
                     sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
-                } else if isDataClassType(rhsType, sema: sema) {
-                    // Data class componentN() is synthesized during lowering; fall back to Any
-                    componentType = sema.types.anyType
                 } else {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0086",
@@ -73,6 +67,10 @@ extension ControlFlowTypeChecker {
                     )
                     componentType = sema.types.errorType
                 }
+            }
+
+            guard let name else {
+                continue
             }
 
             let flags: SymbolFlags = isMutable ? [.mutable] : []
@@ -120,9 +118,6 @@ extension ControlFlowTypeChecker {
         var bodyLocals = locals
 
         for (index, name) in names.enumerated() {
-            guard let name else {
-                continue
-            }
             let componentIndex = index + 1
             let componentName = interner.intern("component\(componentIndex)")
 
@@ -150,9 +145,6 @@ extension ControlFlowTypeChecker {
                     sema: sema
                 )
                 sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
-            } else if isDataClassType(elementType, sema: sema) {
-                // Data class componentN() is synthesized during lowering; fall back to Any
-                componentType = sema.types.anyType
             } else {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0087",
@@ -160,6 +152,10 @@ extension ControlFlowTypeChecker {
                     range: range
                 )
                 componentType = sema.types.errorType
+            }
+
+            guard let name else {
+                continue
             }
 
             let symbol = sema.symbols.define(
@@ -250,13 +246,6 @@ extension ControlFlowTypeChecker {
         return sema.symbols.lookupByShortName(componentName)
             .filter { matchesReceiver($0, requireOperator: false) }
             .sorted { $0.rawValue < $1.rawValue }
-    }
-
-    private func isDataClassType(_ type: TypeID, sema: SemaModule) -> Bool {
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
-        }
-        return symbol.flags.contains(.dataType)
     }
 
     /// Resolve the effective upper bound for a type parameter, returning `Any?` when
