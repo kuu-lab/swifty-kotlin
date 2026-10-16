@@ -1,4 +1,141 @@
 {
-  "schema_version": 1,
-  "records": []
+  "schema_version": 2,
+  "records": [],
+  "shape_probes": [
+    {
+      "probe_id": "kotlinx-io-segment-write-context-interface-shape",
+      "row_ids": [
+        "jvm-b7a5748618f52f9c",
+        "klib-4ee0099543291bca"
+      ],
+      "candidate_sha": "6513a848ae82f3f63f4c118df5d729f857daada6",
+      "candidate_base_sha": "fd01a5e98145e8295e5b299b0a7190cc8d44e3a7",
+      "upstream_version": "0.9.1",
+      "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+      "reference": {
+        "kotlin_version": "2.3.10",
+        "compiler_jar_sha256": "205abc86c6b0a40bc1a318bb24a062c7eb9a99abb023ee276bf925e3732511c8",
+        "jvm_artifact_coordinate": "org.jetbrains.kotlinx:kotlinx-io-core-jvm:0.9.1",
+        "jvm_artifact_sha256": "765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370",
+        "jvm_api_sha256": "8b48641fa461021fd2e1fd632baaf3eceeb94cbbdf3813e13aab3b02863a8df3",
+        "klib_api_sha256": "667b85c08144ad34edf289c593a55f39b5862623726a8bb23e4f0b7b3b4e2780"
+      },
+      "probe_inputs": {
+        "Scripts/kotlinx_io_upstream/unsafe/segment-write-context-shape.expected.json": "ea82b90133dc1f1212caa16489cadc127f545c09821aae71a9e1e6307ccbc832",
+        "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt": "51e8bb1ba396f6d29904c0c321f213fff0dafcdab0c7d807dbefa8787acc601d",
+        "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt": "4810a7746ef960dec2542cce9804ad91dc1823914b8ae462966e69b61bab81ec",
+        "Tests/CompilerCoreTests/Sema/KotlinxIOSegmentWriteContextShapeTests.swift": "4ae4a331e60e0abd491af798dd2f68134d6baf25bbb8ae52efee527edaac7f72",
+        "Sources/CompilerCore/Stdlib/kotlinx/io/unsafe/UnsafeBufferOperations.kt": "5408178957f740512a095dabab21e44f431bb4fb89999969c35af3a4abecfbd8",
+        "Sources/CompilerCore/Sema/Models/MetadataSerializer+Encoder.swift": "ea12a9991ff414d14f124856523c9226a227739ebb6ab0d83abdc35f3dbaca75",
+        "Scripts/io_api_inventory/source-declarations.json": "5264eb9556713b13ab5d9a27003b9b47d87501d54d6e4bc6ee34e9a1f401fbe8",
+        "Scripts/io_api_inventory/upstream-lock.json": "f27c5e92b752345315e6c90d2135e4ea64c67f3f67941b7f9502c83b996bc66d",
+        "Scripts/io_api_inventory/generate.py": "7c1036037f9c9a860068123b8756c2116763034177f644708d7051eb2db9e6f8",
+        "Scripts/io_api_inventory/test_validation_evidence.py": "efff7f21226bad8b900d94555203b7bee282569ca58e4fc6d3e96067bc2878cf"
+      },
+      "upstream_inputs": {
+        "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.api": "8b48641fa461021fd2e1fd632baaf3eceeb94cbbdf3813e13aab3b02863a8df3",
+        "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/api/kotlinx-io-core.klib.api": "667b85c08144ad34edf289c593a55f39b5862623726a8bb23e4f0b7b3b4e2780",
+        "Scripts/io_api_inventory/upstream/kotlinx-io-0.9.1/core/common/src/unsafe/UnsafeBufferOperations.kt": "62189c1be10f120323fb85d026a38bcbe3e45e0409ca3e90f57dc046c56b157c"
+      },
+      "probe_input_sha256": "5ff572b20bf2daf0a87221702c27d35da2fc8cbbb80f18b351d16cb5c300a58f",
+      "upstream_input_sha256": "f55d07675b8e6e46a9141ea800f85a2797131a08bd17d6a112c4e66c1c0348c9",
+      "candidate_stdlib_manifest_hash": "07190c78b8191ef7",
+      "candidate_stdlib_tree_sha256": "a42c38c8a2c6c12feb3022a67b26d00f2dbd6780e9e85bf5500de263eb551bd4",
+      "candidate_stdlib_build_command": ".build/debug/kswiftc --stdlib-only --emit library -o .artifacts/diff_kotlinc/KSwiftKStdlib.kklib",
+      "ledger_status_reason": "No method-specific upstream test is mapped to either row; this direct shape audit does not promote behavioral status.",
+      "related_findings": [
+        {
+          "issue_id": "KUU-2652",
+          "minimal_reproductions": [
+            "fun main() { Buffer().writeByte(1) }",
+            "fun main() { UnsafeBufferOperations.writeToTail(Buffer(), 1) { _, _ -> 0 } }"
+          ],
+          "observed_failure": "RuntimeStringArray.swift:18: kk_array_get_inbounds precondition failed",
+          "scope": "Buffer writableSegment runtime path; unrelated to SegmentWriteContext overload resolution and tracked by the duplicate issue."
+        }
+      ],
+      "swift_test": {
+        "command": "/opt/homebrew/bin/bash Scripts/swift_test.sh --no-parallel --filter 'CompilerCoreTests.KotlinxIOSegmentWriteContextShapeTests'",
+        "test_count": 4,
+        "passed": 4,
+        "failed": 0,
+        "summary": "sourceInterfaceAndMemberShapeMatchesPinnedViews passed; generatedKlibInterfaceAndMemberShapeMatchesPinnedViews passed; interfaceUseRequiresUnsafeIoApiOptIn passed 2 cases.\nTest run with 3 tests in 1 suite passed after 141.340 seconds.\nAll tests passed.\n",
+        "summary_sha256": "888c959dbc6f21d15384234cb8db49a7031cb21d31feea574539a56e62846096"
+      },
+      "lanes": [
+        {
+          "lane": "source-O0",
+          "case_id": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+          "case_count": 1,
+          "command": "DIFF_KSWIFTC_FLAGS='-O0' /opt/homebrew/bin/bash Scripts/diff_kotlinc.sh --no-parallel --compile-timeout 600 --run-timeout 60 --artifact-root .artifacts/kuu2606/source-o0 Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+          "candidate": {
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "SegmentWriteContext declares four direct setUnchecked overloads\n",
+            "stdout_sha256": "520dd251044351361976f13d79a17c8590fc73106d8874a06b1951f28667de5d"
+          },
+          "reference": {
+            "result": "NOT_APPLICABLE",
+            "reason": "Candidate source lane compiles bundled sources directly; the pinned JVM oracle is exercised in the fresh-KLIB lanes."
+          }
+        },
+        {
+          "lane": "source-O2",
+          "case_id": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+          "case_count": 1,
+          "command": "DIFF_KSWIFTC_FLAGS='-O2' /opt/homebrew/bin/bash Scripts/diff_kotlinc.sh --no-parallel --compile-timeout 600 --run-timeout 60 --artifact-root .artifacts/kuu2606/source-o2 Scripts/diff_cases/kotlinx_io_segment_write_context_shape_source.kt",
+          "candidate": {
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "SegmentWriteContext declares four direct setUnchecked overloads\n",
+            "stdout_sha256": "520dd251044351361976f13d79a17c8590fc73106d8874a06b1951f28667de5d"
+          },
+          "reference": {
+            "result": "NOT_APPLICABLE",
+            "reason": "Candidate source lane compiles bundled sources directly; the pinned JVM oracle is exercised in the fresh-KLIB lanes."
+          }
+        },
+        {
+          "lane": "stdlib-library-O0",
+          "case_id": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+          "case_count": 1,
+          "command": "DIFF_KSWIFTC_FLAGS='-O0' /opt/homebrew/bin/bash Scripts/diff_kotlinc.sh --no-parallel --compile-timeout 180 --run-timeout 30 --kotlinc /private/tmp/kotlin-2.3.10/kotlinc/bin/kotlinc --artifact-root .artifacts/kuu2606/pinned-o0 --stdlib-library .artifacts/diff_kotlinc/KSwiftKStdlib.kklib Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+          "candidate": {
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "SegmentWriteContext declares four direct setUnchecked overloads\n",
+            "stdout_sha256": "520dd251044351361976f13d79a17c8590fc73106d8874a06b1951f28667de5d"
+          },
+          "reference": {
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "SegmentWriteContext declares four direct setUnchecked overloads\n",
+            "stdout_sha256": "520dd251044351361976f13d79a17c8590fc73106d8874a06b1951f28667de5d"
+          }
+        },
+        {
+          "lane": "stdlib-library-O2",
+          "case_id": "Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+          "case_count": 1,
+          "command": "DIFF_KSWIFTC_FLAGS='-O2' /opt/homebrew/bin/bash Scripts/diff_kotlinc.sh --no-parallel --compile-timeout 180 --run-timeout 30 --kotlinc /private/tmp/kotlin-2.3.10/kotlinc/bin/kotlinc --artifact-root .artifacts/kuu2606/pinned-o2 --stdlib-library .artifacts/diff_kotlinc/KSwiftKStdlib.kklib Scripts/diff_cases/kotlinx_io_segment_write_context_shape.kt",
+          "candidate": {
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "SegmentWriteContext declares four direct setUnchecked overloads\n",
+            "stdout_sha256": "520dd251044351361976f13d79a17c8590fc73106d8874a06b1951f28667de5d"
+          },
+          "reference": {
+            "result": "PASS",
+            "exit_code": 0,
+            "stdout": "SegmentWriteContext declares four direct setUnchecked overloads\n",
+            "stdout_sha256": "520dd251044351361976f13d79a17c8590fc73106d8874a06b1951f28667de5d"
+          }
+        }
+      ],
+      "apple_reference": {
+        "result": "NOT_APPLICABLE",
+        "reason": "No Apple-specific API dump applies to this common SegmentWriteContext declaration; the audited pinned representations are the JVM and KLIB API dumps."
+      }
+    }
+  ]
 }
