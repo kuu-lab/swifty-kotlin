@@ -605,8 +605,8 @@ extension MemberLowerer {
             let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
             params.append(KIRParameter(symbol: receiverSymbol, type: ownerType))
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
-            driver.ctx.setLocalValue(receiverExpr, for: ownerSymbol)
-            driver.ctx.setLocalDeclaredType(ownerType, for: ownerSymbol)
+            driver.ctx.setLocalValue(receiverExpr, for: receiverOwnerSymbol)
+            driver.ctx.setLocalDeclaredType(ownerType, for: receiverOwnerSymbol)
             driver.ctx.setImplicitReceiver(
                 symbol: receiverSymbol,
                 exprID: receiverExpr
