@@ -684,7 +684,17 @@ extension KotlinParser {
             return
         }
         let next = stream.peek()
-        if hasLeadingNewline(next), isDeclarationStart(next.kind) {
+        let continuesHeaderAcrossNewline = includeBlock && (
+            next.kind == .symbol(.colon)
+                || next.kind == .symbol(.lessThan)
+                || next.kind == .softKeyword(.where)
+        ) || allowsClassHeaderColon && next.kind == .symbol(.lParen)
+            || allowsClassDelegation && next.kind == .softKeyword(.by)
+        // A body statement after a local class has no class-header role. Stop
+        // before it so the block parser can keep the statement beside the class.
+        let stopsAtNewline = hasLeadingNewline(next)
+            && (includeBlock ? !continuesHeaderAcrossNewline : isDeclarationStart(next.kind))
+        if stopsAtNewline {
             return
         }
         parseTail(
