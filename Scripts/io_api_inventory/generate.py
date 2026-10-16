@@ -77,6 +77,48 @@ LOCAL_PROBE_EVIDENCE_CASES = {
     },
 }
 
+# KUU-2633 isolates the four JVM $default bridges for the common indexOf
+# extensions. These rows have no direct Kotlin metadata declaration, so link
+# each generated JVM entry explicitly to its source/KLIB counterpart.
+INDEX_OF_DEFAULT_BRIDGE_SOURCE_ROWS = {
+    "jvm-29a01d1deaf3b966": "klib-8f2cd67956fefb8b",  # Buffer.indexOf(Byte, ...)
+    "jvm-32ddc189d171b174": "klib-b33ce5b385a93879",  # Buffer.indexOf(ByteString, ...)
+    "jvm-5c5fb6c81ee3a3b9": "klib-001cc19c43da51fc",  # Source.indexOf(Byte, ...)
+    "jvm-b88878973d5558f7": "klib-5864c1c328005421",  # Source.indexOf(ByteString, ...)
+}
+INDEX_OF_DEFAULT_BRIDGE_UPSTREAM_TEST_REFS = {
+    "jvm-29a01d1deaf3b966": (
+        "core/common/test/CommonBufferTest.kt#indexOfWithOffset",
+    ),
+    "jvm-32ddc189d171b174": (
+        "core/common/test/CommonBufferTest.kt#indexOfByteString",
+    ),
+    "jvm-5c5fb6c81ee3a3b9": (
+        "core/common/test/AbstractSourceTest.kt#indexOf",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteWithStartOffset",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteWithIndices",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteInvalidBoundsThrows",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteWithFromIndex",
+        "core/common/test/CommonRealSourceTest.kt#indexOfStopsReadingAtLimit",
+    ),
+    "jvm-b88878973d5558f7": (
+        "core/common/test/AbstractSourceTest.kt#indexOfByteString",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteStringAtSegmentBoundary",
+        "core/common/test/AbstractSourceTest.kt#indexOfDoesNotWrapAround",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteStringWithOffset",
+        "core/common/test/AbstractSourceTest.kt#indexOfEmptyByteString",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteStringAcrossSegmentBoundaries",
+        "core/common/test/AbstractSourceTest.kt#indexOfByteStringSpanningAcrossMultipleSegments",
+    ),
+}
+INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST_REFS = (
+    "Tests/CompilerCoreTests/Sema/JVMInteropNioSourceContractsTests.swift#kuu2633SelectedDefaultBridgeContracts",
+    "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+JVMInteropNio.swift#testKUU2633IndexOfDefaultBridges",
+    "Tests/CompilerBackendTests/Fixtures/IOIndexOfDefault2633/producer.kt",
+    "Tests/CompilerBackendTests/Fixtures/IOIndexOfDefault2633/consumer.kt",
+    "Tests/CompilerBackendTests/Fixtures/IOIndexOfDefault2633/expected.stdout",
+)
+
 LEDGER_COLUMNS = [
     "row_id",
     "module",
@@ -239,6 +281,7 @@ LOCAL_IO_TEST_PREFIXES = (
     "Scripts/io_api_inventory/f02_consumers/SegmentReadContextAbiProbe.java",
     "Scripts/io_api_inventory/probes/",
     "Scripts/diff_cases/kotlinx_io_",
+    "Tests/CompilerBackendTests/Fixtures/IOIndexOfDefault2633/",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
     "Tests/CompilerBackendTests/Fixtures/IOSegmentReadContextImpl2590/",
@@ -1365,6 +1408,8 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
 
 
 def owner_for(row: dict) -> str:
+    if row.get("row_id") in INDEX_OF_DEFAULT_BRIDGE_SOURCE_ROWS:
+        return "KUU-2633"
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
@@ -1667,7 +1712,7 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
 
 
 def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: dict) -> list[str]:
-    key = row.get("_source_key")
+    key = row.get("_implementation_source_key", row.get("_source_key"))
     if key is None:
         return []
     references = []
@@ -2036,6 +2081,30 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(platform_typealiases(index))
     apply_jvm_correspondence(api_rows, index, lock)
 
+    api_rows_by_id = {row["row_id"]: row for row in api_rows}
+    if not set(INDEX_OF_DEFAULT_BRIDGE_SOURCE_ROWS).issubset(api_rows_by_id):
+        fail("KUU-2633 JVM default bridge rows are missing from the pinned API dump")
+    for bridge_id, source_id in INDEX_OF_DEFAULT_BRIDGE_SOURCE_ROWS.items():
+        bridge = api_rows_by_id[bridge_id]
+        source = api_rows_by_id.get(source_id)
+        if source is None or "/ KLIB dump" not in source["representation"]:
+            fail(f"KUU-2633 source/KLIB counterpart is missing for {bridge_id}: {source_id}")
+        if bridge["api_kind"] != "default/synthetic bridge" or bridge["name"] != "indexOf$default":
+            fail(f"KUU-2633 row is not the expected generated indexOf bridge: {bridge_id}")
+        bridge["_typed_local_refs"] = source["_typed_local_refs"]
+        bridge["_implementation_source_key"] = source["_source_key"]
+        bridge["_candidate_name"] = source["_candidate_name"]
+        bridge["_candidate_kind"] = source["_candidate_kind"]
+        bridge["_source_paths"] = source["_source_paths"]
+        bridge["_implementation_source_row_id"] = source_id
+        bridge["upstream_source_refs"] = (
+            f"generated JVM $default bridge -> {source_id}; " + source["upstream_source_refs"]
+        )
+        bridge["notes"] = (
+            f"JVM $default bridge linked to exact source/KLIB row {source_id}; "
+            "Native default-stub metadata and behavior are separate from a physical JVM classfile ABI"
+        )
+
     local_tests = []
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
     local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
@@ -2069,6 +2138,9 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         direct_upstream_tests = upstream_test_refs(row, test_index)
         row["upstream_test_refs"] = ";".join(direct_upstream_tests) or NO_DIRECT_UPSTREAM_ASSERTION
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
+        if row["row_id"] in INDEX_OF_DEFAULT_BRIDGE_SOURCE_ROWS:
+            row["upstream_test_refs"] = ";".join(INDEX_OF_DEFAULT_BRIDGE_UPSTREAM_TEST_REFS[row["row_id"]])
+            row["local_test_refs"] = ";".join(INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST_REFS)
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
         for test_ref in row["upstream_test_refs"].split(";"):

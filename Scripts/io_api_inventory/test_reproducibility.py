@@ -2,6 +2,7 @@
 """Check that the ledger survives relocation and filesystem creation order."""
 
 import importlib.util
+import json
 import shutil
 import tempfile
 import unittest
@@ -129,6 +130,86 @@ class ReproducibilityTests(unittest.TestCase):
                     "core/common/test/files/SmokeFileTest.kt#closeFileSourceTwice",
                 ):
                     self.assertFalse(self.generator._case_id_matches_row(row, unrelated_case))
+    def test_kuu2633_default_bridges_link_exact_source_contracts(self):
+        expected = {
+            "jvm-29a01d1deaf3b966": "klib-8f2cd67956fefb8b",
+            "jvm-32ddc189d171b174": "klib-b33ce5b385a93879",
+            "jvm-5c5fb6c81ee3a3b9": "klib-001cc19c43da51fc",
+            "jvm-b88878973d5558f7": "klib-5864c1c328005421",
+        }
+        self.assertEqual(self.generator.INDEX_OF_DEFAULT_BRIDGE_SOURCE_ROWS, expected)
+        self.assertEqual(set(self.generator.INDEX_OF_DEFAULT_BRIDGE_UPSTREAM_TEST_REFS), set(expected))
+        by_id = {row["row_id"]: row for row in self.rows}
+        self.assertTrue(set(expected).issubset(by_id))
+        test_index = json.loads((HERE / "upstream-tests-index.json").read_text(encoding="utf-8"))
+        indexed_tests = {entry["path"]: set(entry.get("testNames", [])) for entry in test_index["files"]}
+        index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)
+        upstream_obligations = json.loads(
+            (REPO / "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")
+            .read_text(encoding="utf-8")
+        )
+        shapes = {row["rowID"]: row for row in upstream_obligations["rows"] if row["rowID"] in expected}
+
+        for bridge_id, source_id in expected.items():
+            with self.subTest(row_id=bridge_id):
+                bridge = by_id[bridge_id]
+                source = by_id[source_id]
+                self.assertEqual(bridge["owner_issue"], "KUU-2633")
+                self.assertEqual(bridge["status"], "unverified")
+                self.assertEqual(bridge["local_candidate_refs"], source["local_candidate_refs"])
+                self.assertEqual(bridge["local_implementation_refs"], source["local_implementation_refs"])
+                upstream_refs = self.generator.INDEX_OF_DEFAULT_BRIDGE_UPSTREAM_TEST_REFS[bridge_id]
+                self.assertEqual(tuple(bridge["upstream_test_refs"].split(";")), upstream_refs)
+                for reference in upstream_refs:
+                    path, method = reference.split("#", 1)
+                    self.assertIn(method, indexed_tests[path], reference)
+                if expected_shape_receiver := shapes[bridge_id]["extensionReceiverToken"]:
+                    if expected_shape_receiver == "Lkotlinx.io.Buffer;":
+                        self.assertFalse(any("AbstractSourceTest.kt" in ref for ref in upstream_refs))
+                    else:
+                        self.assertFalse(any("CommonBufferTest.kt" in ref for ref in upstream_refs))
+                self.assertEqual(
+                    set(bridge["local_test_refs"].split(";")),
+                    set(self.generator.INDEX_OF_DEFAULT_BRIDGE_LOCAL_TEST_REFS),
+                )
+                self.assertIn(f"generated JVM $default bridge -> {source_id}", bridge["upstream_source_refs"])
+                self.assertIn("separate from a physical JVM classfile ABI", bridge["notes"])
+
+                expected_shape = shapes[bridge_id]
+                upstream = index.match("upstream", source["_source_key"])
+                local = index.match("local", source["_source_key"])
+                self.assertEqual(len(upstream), 1)
+                self.assertEqual(len(local), 1)
+                reference = upstream[0]
+                candidate = local[0]
+                self.assertEqual(reference["visibility"], "public")
+                self.assertEqual(candidate["visibility"], "public")
+                self.assertEqual(
+                    [parameter["default"] is not None for parameter in reference["parameters"]],
+                    expected_shape["defaults"],
+                )
+                self.assertEqual(
+                    [parameter["default"] is not None for parameter in candidate["parameters"]],
+                    expected_shape["defaults"],
+                )
+                def normalized_defaults(declaration):
+                    return {
+                        parameter["name"]: (
+                            parameter["default"][:-1]
+                            if parameter["default"] and parameter["default"].endswith("L")
+                            and parameter["default"][:-1].isdigit()
+                            else parameter["default"]
+                        )
+                        for parameter in declaration["parameters"]
+                        if parameter["default"] is not None
+                    }
+
+                self.assertEqual(normalized_defaults(reference), normalized_defaults(candidate))
+                reference_metadata = self.generator.declaration_metadata(reference)
+                candidate_metadata = self.generator.declaration_metadata(candidate)
+                self.assertEqual(reference_metadata[0], candidate_metadata[0])
+                self.assertEqual(reference_metadata[2], candidate_metadata[2])
+                self.assertEqual(source["local_contract_differences"], "none detected (semantics unverified)")
 
     def test_apple_and_bytebuffer_do_not_match_other_receivers(self):
         index = self.generator.SourceIndex(HERE / "source-declarations.json", REPO, self.generator.UPSTREAM)

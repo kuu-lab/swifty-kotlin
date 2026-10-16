@@ -1,0 +1,12 @@
+buffer-byte-default:1
+buffer-byte-start-default-end:3
+buffer-byte-explicit-range:1
+buffer-byte-invalid:IndexOutOfBoundsException
+buffer-byte-reversed-range:IllegalArgumentException
+buffer-bytestring-default:2
+buffer-bytestring-offset:-1
+source-byte-default:1
+source-byte-start-default-end:3
+source-byte-invalid:IllegalArgumentException
+source-bytestring-default:2
+source-bytestring-offset:-1

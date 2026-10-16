@@ -314,6 +314,61 @@ are sorted. Kotlin golden and diff fixtures participate in the test index,
 alongside Swift tests; references match complete symbol tokens and are candidate
 coverage, not evidence of passing tests or overload-specific assertions.
 
+### KUU-2633 Buffer/Source `indexOf` default bridges
+
+The four `jvm-...` rows are generated JVM `$default` entries. Their ledger links
+point to the exact Buffer/Source KLIB declarations and keep the source contracts
+(receiver, defaults, opt-ins, and KDoc exception contract) separate from JVM
+method flags. The dedicated consumer imports `kotlinx.io.indexOf` as `ioIndexOf`
+so `Buffer.indexOf(Byte)` cannot resolve to the same-named member. It exercises
+all four overloads with omitted defaults, explicit offsets/ranges, and invalid
+Byte bounds.
+
+The JVM reference probe checks the pinned 0.9.1 jar SHA, all four physical
+descriptors and `ACC_PUBLIC | ACC_STATIC | ACC_SYNTHETIC` flags, then compiles
+and runs the same consumer with Kotlin 2.3.10. It also inspects the reference
+consumer bytecode to ensure every call site invokes the matching `$default`
+facade. KSwiftK emits a macOS native executable and Native `.kklib`, not a JVM
+classfile, so these observations do not establish a candidate JVM physical ABI
+and do not promote the JVM inventory rows to `verified`.
+
+Prepare the locked JVM reference inputs and run the pinned reference probe:
+
+```sh
+python3 Scripts/kotlinx_io_upstream/prepare_reference.py \
+  --target jvm --output /tmp/kuu2633-reference
+python3 Scripts/io_api_inventory/probe_kuu2633_jvm_reference.py \
+  --kotlin-home /tmp/kuu2633-reference/installation/kotlinc \
+  --java /path/to/java/bin/java \
+  --dependencies /tmp/kuu2633-reference/dependencies \
+  --output /tmp/kuu2633-jvm-reference.json
+```
+
+On macOS, run the candidate source and newly generated producer `.kklib`
+consumer at O0/O2. In the library lanes, inspect default-stub links in the
+candidate's content-addressed stdlib `.kklib`; the independent fixture producer
+`.kklib` is hashed separately. Then check the selected source/metadata contract
+assertions:
+
+```sh
+KSWIFTK_IO2633_CANDIDATE_SHA=<candidate-sha> \
+KSWIFTK_IO2633_EVIDENCE_DIRECTORY=/tmp/kuu2633-evidence \
+  bash Scripts/swift_test.sh --filter 'CompilerBackendTests.BundledStdlibExecutionTests/testKUU2633IndexOfDefaultBridges'
+bash Scripts/swift_test.sh --filter 'CompilerCoreTests.JVMInteropNioSourceContractsTests/kuu2633SelectedDefaultBridgeContracts'
+python3 Scripts/io_api_inventory/generate.py --check
+python3 Scripts/io_api_inventory/test_reproducibility.py
+python3 Scripts/io_api_inventory/record_kuu2633_evidence.py \
+  --candidate-sha <candidate-sha> \
+  --jvm-reference /tmp/kuu2633-jvm-reference.json \
+  --native-evidence /tmp/kuu2633-evidence \
+  --output /tmp/kuu2633-evidence-receipt.json
+```
+
+The supplemental receipt keeps all four JVM rows `unverified`: it records the
+pinned JVM physical descriptors separately from Native behavior and stdlib
+default-stub links. It does not feed `api-validation-evidence.json` because this
+compiler does not emit candidate JVM classfiles.
+
 Refreshing the declaration catalogs requires the pinned Kotlin 2.3.10 SDK,
 Java and both 0.9.1 jars. Use the final command with `--write` after intentionally
 changing a local source input or extractor. It updates the two catalogs and

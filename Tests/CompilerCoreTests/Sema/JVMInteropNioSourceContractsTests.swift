@@ -145,6 +145,79 @@ struct JVMInteropNioSourceContractsTests {
     }
 
     @Test(arguments: [false, true])
+    func kuu2633SelectedDefaultBridgeContracts(library: Bool) throws {
+        let targetIDs: Set<String> = [
+            "jvm-29a01d1deaf3b966",
+            "jvm-32ddc189d171b174",
+            "jvm-5c5fb6c81ee3a3b9",
+            "jvm-b88878973d5558f7",
+        ]
+        let expectedOptIns: [String: Set<String>] = [
+            "jvm-29a01d1deaf3b966": [],
+            "jvm-32ddc189d171b174": ["UnsafeByteStringApi::class"],
+            "jvm-5c5fb6c81ee3a3b9": ["InternalIoApi::class"],
+            "jvm-b88878973d5558f7": ["InternalIoApi::class", "UnsafeByteStringApi::class"],
+        ]
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { root.deleteLastPathComponent() }
+        let index = try JSONDecoder().decode(DefaultObligations.self, from: Data(contentsOf: root.appendingPathComponent(
+            "Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")))
+        let rows = index.rows.filter { targetIDs.contains($0.rowID) }
+        try #require(rows.count == targetIDs.count && Set(rows.map(\.rowID)) == targetIDs)
+        let (ctx, initial) = try context("fun main() {}", library: library)
+        defer { unchanged(ctx, initial) }
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let encode: (TypeID) -> String = { type in
+            NameMangler().encodeType(type, symbols: sema.symbols, types: sema.types,
+                nameResolver: ctx.interner.resolve, unboxValueClasses: false)
+        }
+        let records: [MetadataRecord]
+        if let path = ctx.options.stdlibLibraryPath {
+            records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin")))
+        } else { records = [] }
+        for row in rows {
+            let matches = sema.symbols.lookupAll(fqName: row.fqName.split(separator: ".").map { ctx.interner.intern(String($0)) })
+                .compactMap { sema.symbols.symbol($0) }.filter { symbol in
+                    guard symbol.kind == .function, !symbol.flags.contains(.extensionMemberAlias),
+                          let fn = sema.symbols.functionSignature(for: symbol.id),
+                          fn.parameterTypes.map(encode) == row.parameterTokens else { return false }
+                    return fn.receiverType.map(encode) == row.extensionReceiverToken
+                }
+            try #require(matches.count == 1, "\(row.rowID): \(row.fqName) \(row.extensionReceiverToken) \(row.parameterTokens)")
+            let symbol = try #require(matches.first)
+            let fn = try #require(sema.symbols.functionSignature(for: symbol.id))
+            #expect(symbol.visibility == .public, "\(row.rowID)")
+            #expect(symbol.flags.contains(.importedLibrary) == library, "\(row.rowID)")
+            #expect(fn.valueParameterHasDefaultValues == row.defaults, "\(row.rowID)")
+            let optIns = sema.symbols.annotations(for: symbol.id).filter { $0.annotationFQName == "kotlin.OptIn" }
+            if library {
+                // kotlin.OptIn is SOURCE-retention and is intentionally omitted from KLIB metadata.
+                #expect(optIns.isEmpty, "\(row.rowID) SOURCE-retention OptIn metadata")
+            } else if let expected = expectedOptIns[row.rowID], !expected.isEmpty {
+                try #require(optIns.count == 1, "\(row.rowID) OptIn metadata")
+                let arguments = Set(try #require(optIns.first).arguments.map {
+                    $0.replacingOccurrences(of: "kotlinx.io.", with: "")
+                })
+                #expect(arguments == expected, "\(row.rowID)")
+            } else {
+                #expect(optIns.isEmpty, "\(row.rowID) must not inherit an OptIn marker")
+            }
+            if library {
+                let signature = normalizeTypeParameterTokens(encodedSignature(symbol, ctx, sema))
+                let matchingRecords = records.filter { $0.kind == .function && $0.fqName == row.fqName
+                    && normalizeTypeParameterTokens($0.typeSignature ?? "") == signature }
+                try #require(matchingRecords.count == 1, "Actual artifact: \(row.rowID)")
+                let record = try #require(matchingRecords.first)
+                #expect(record.valueParameterHasDefaultValues == row.defaults, "\(row.rowID)")
+                #expect(record.defaultStubExternalLinkName?.isEmpty == false, "Native default stub: \(row.rowID)")
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
     func all28OriginalNativeInteropShapesAndActualMetadata(library: Bool) throws {
         let expected = try index()
         let (ctx, initial) = try context("fun main() {}", library: library)

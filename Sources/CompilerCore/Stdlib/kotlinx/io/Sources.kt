@@ -82,6 +82,25 @@ public fun Source.readHexadecimalUnsignedLong(): Long {
     return result
 }
 
+/**
+ * Returns an index of [byte] first occurrence in the range of [startIndex] to [endIndex],
+ * or `-1` when the range doesn't contain [byte].
+ *
+ * The scan terminates at either [endIndex] or source's exhaustion, whichever comes first. The
+ * maximum number of bytes scanned is `toIndex-fromIndex`.
+ * If [byte] not found in buffered data, [endIndex] is yet to be reached and the underlying source is not yet exhausted
+ * then new data will be read from the underlying source into the buffer.
+ *
+ * @param byte the value to find.
+ * @param startIndex the start of the range (inclusive) to find [byte], `0` by default.
+ * @param endIndex the end of the range (exclusive) to find [byte], [Long.MAX_VALUE] by default.
+ *
+ * @throws IllegalStateException when the source is closed.
+ * @throws IllegalArgumentException when `startIndex > endIndex` or either of indices is negative.
+ * @throws IOException when some I/O error occurs.
+ *
+ * @sample kotlinx.io.samples.KotlinxIoCoreCommonSamples.indexOfByteSample
+ */
 @OptIn(InternalIoApi::class)
 public fun Source.indexOf(byte: Byte, startIndex: Long = 0L, endIndex: Long = Long.MAX_VALUE): Long {
     if (startIndex < 0L || startIndex > endIndex) {

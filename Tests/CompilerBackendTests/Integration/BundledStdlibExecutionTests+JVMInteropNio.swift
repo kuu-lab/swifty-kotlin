@@ -19,6 +19,16 @@ extension BundledStdlibExecutionTests {
             fixtureDirectory: "JVMInteropFileChannel")
     }
 
+    @Test(arguments: [false, true], [0, 2])
+    func testKUU2633IndexOfDefaultBridges(useProducerLibrary: Bool, optimization: Int) throws {
+        let level: OptimizationLevel = optimization == 2 ? .O2 : .O0
+        try runJVMInteropNioFixture("kuu2633-indexof-default-bridges", useProducerLibrary: useProducerLibrary, level: level,
+            producerHash: "9384926d7c38a71ca11868fb48613227553b0140d0c8359850b72569408b8bc7",
+            consumerHash: "4e6e51044011e1efad3549f157c81a3b8efb8403348638632af69cd10fd2338c",
+            expectedHash: "2a364984f5665bfb16386f8cfce943d2866a2cf3a2ca584a23fa976085e1fc00",
+            fixtureDirectory: "IOIndexOfDefault2633")
+    }
+
     private func runJVMInteropNioFixture(
         _ fixture: String, useProducerLibrary: Bool, level: OptimizationLevel,
         producerHash: String, consumerHash: String, expectedHash: String, fixtureDirectory: String = "JVMInteropNio"
@@ -35,9 +45,12 @@ extension BundledStdlibExecutionTests {
         defer { stdlib?.expectUnchanged() }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let durableRoot = ProcessInfo.processInfo.environment["KSWIFTK_IO1762_EVIDENCE_DIRECTORY"].map {
+        let durableRoot = (ProcessInfo.processInfo.environment["KSWIFTK_IO2633_EVIDENCE_DIRECTORY"]
+            ?? ProcessInfo.processInfo.environment["KSWIFTK_IO1762_EVIDENCE_DIRECTORY"]).map {
             URL(fileURLWithPath: $0, isDirectory: true)
-        } ?? FileManager.default.temporaryDirectory.appendingPathComponent("kswiftk-kuu1762-evidence", isDirectory: true)
+        } ?? FileManager.default.temporaryDirectory.appendingPathComponent(
+            fixture.hasPrefix("kuu2633-") ? "kswiftk-kuu2633-evidence" : "kswiftk-kuu1762-evidence",
+            isDirectory: true)
         var completedProof = false
         defer {
             if completedProof {
@@ -99,6 +112,10 @@ extension BundledStdlibExecutionTests {
             try jvmInteropNioRequireLibrary(artifact, moduleName: moduleName)
             library = try JVMInteropNioArtifactSnapshot(directory: artifact)
         }
+        var defaultStubLinks: [String: String] = [:]
+        if fixture == "kuu2633-indexof-default-bridges" && useProducerLibrary {
+            defaultStubLinks = try jvmInteropNioIndexOfDefaultStubLinks(try #require(stdlib).directory)
+        }
         let executable = directory.appendingPathComponent("consumer")
         let inputs = useProducerLibrary ? [consumerInput.path] : [producerInput.path, consumerInput.path]
         let searchPaths = library.map { [$0.directory.path] } ?? []
@@ -149,7 +166,9 @@ extension BundledStdlibExecutionTests {
             try bytes.write(to: evidenceDirectory.appendingPathComponent(name))
         }
         let proof: [String: Any] = [
-            "status": "PASS", "fixture": fixture, "expected_rows": expected.split(separator: 10).count,
+            "status": "PASS", "issue": fixture.hasPrefix("kuu2633-") ? "KUU-2633" : "KUU-1762",
+            "candidate_sha": ProcessInfo.processInfo.environment["KSWIFTK_IO2633_CANDIDATE_SHA"] as Any? ?? NSNull(),
+            "fixture": fixture, "expected_rows": expected.split(separator: 10).count,
             "source_or_library": useProducerLibrary ? "producer-library" : "source",
             "optimization": String(describing: level), "command_exit_code": result.exitCode,
             "stdout_exact_match": Data(result.stdout.utf8) == expected,
@@ -162,12 +181,14 @@ extension BundledStdlibExecutionTests {
             "stdlib_library_path": options.stdlibLibraryPath as Any? ?? NSNull(),
             "producer_artifact_path": library?.directory.path as Any? ?? NSNull(),
             "producer_artifact_full_hashes": library?.hashes as Any? ?? NSNull(),
+            "target_default_stub_links": defaultStubLinks,
             "stdlib_artifact_full_hashes": stdlib?.hashes as Any? ?? NSNull(),
             "publication_stdlib_manifest_hash": BundledStdlib.manifestHash(),
         ]
         try JSONSerialization.data(withJSONObject: proof, options: [.sortedKeys, .prettyPrinted])
             .write(to: evidenceDirectory.appendingPathComponent("success-proof.json"))
-        print("Retained KUU1762 success evidence: " + evidenceDirectory.path)
+        let issue = fixture.hasPrefix("kuu2633-") ? "KUU-2633" : "KUU-1762"
+        print("Retained \(issue) success evidence: " + evidenceDirectory.path)
         completedProof = true
     }
 }
@@ -219,6 +240,60 @@ private func jvmInteropNioRequireLibrary(_ directory: URL, moduleName: String) t
     let objects = try #require(manifest["objects"] as? [String])
     try #require(!objects.isEmpty)
     for object in objects { try #require(!(try Data(contentsOf: directory.appendingPathComponent(object))).isEmpty) }
+}
+
+private struct JVMInteropNioIndexOfDefaultObligations: Decodable {
+    struct Row: Decodable {
+        let rowID: String
+        let fqName: String
+        let parameterTokens: [String]
+        let defaults: [Bool]
+        let extensionReceiverToken: String?
+    }
+    let upstreamCommit: String
+    let rows: [Row]
+}
+
+private func jvmInteropNioIndexOfDefaultStubLinks(_ directory: URL) throws -> [String: String] {
+    let root = jvmInteropNioRepositoryRoot()
+    let obligations = try JSONDecoder().decode(JVMInteropNioIndexOfDefaultObligations.self, from: Data(contentsOf: root
+        .appendingPathComponent("Scripts/kotlinx_io_upstream/jvm_interop/native-default-obligations.expected.json")))
+    try #require(obligations.upstreamCommit == "362bdc35e159bad6da1e08101c8321792d762281")
+    let targetRows: [String: JVMInteropNioIndexOfDefaultObligations.Row] = Dictionary(
+        uniqueKeysWithValues: obligations.rows
+            .filter {
+                guard $0.rowID.hasPrefix("jvm-"), $0.fqName == "kotlinx.io.indexOf",
+                      let receiver = $0.extensionReceiverToken,
+                      ["Lkotlinx.io.Buffer;", "Lkotlinx.io.Source;"].contains(receiver) else { return false }
+                return $0.parameterTokens.first.map { $0 == "B" || $0 == "Lkotlinx.io.bytestring.ByteString;" } == true
+            }
+            .map { ($0.rowID, $0) }
+    )
+    let expectedIDs: Set<String> = [
+        "jvm-29a01d1deaf3b966", "jvm-32ddc189d171b174",
+        "jvm-5c5fb6c81ee3a3b9", "jvm-b88878973d5558f7",
+    ]
+    try #require(Set(targetRows.keys) == expectedIDs)
+    let records = MetadataDecoder().decode(try Data(contentsOf: directory.appendingPathComponent("metadata.bin")))
+    var links: [String: String] = [:]
+    for rowID in expectedIDs {
+        let expected = try #require(targetRows[rowID])
+        let receiverToken = try #require(expected.extensionReceiverToken)
+        let matching = records.filter { record in
+            guard record.kind == .function, record.fqName == expected.fqName,
+                  record.valueParameterHasDefaultValues == expected.defaults,
+                  record.valueParameterNames.count == expected.defaults.count,
+                  let signature = record.typeSignature else { return false }
+            return signature.contains(receiverToken)
+                && expected.parameterTokens.allSatisfy { signature.contains($0) }
+        }
+        try #require(matching.count == 1, "Fresh producer artifact metadata for \(rowID)")
+        let record = try #require(matching.first)
+        let link = try #require(record.defaultStubExternalLinkName)
+        try #require(!link.isEmpty, "Fresh Native default-stub link for \(rowID)")
+        links[rowID] = link
+    }
+    return links
 }
 
 private func jvmInteropNioStdlibSnapshot(required: Bool) throws -> JVMInteropNioArtifactSnapshot? {
