@@ -360,6 +360,22 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
+    /// Returns the enum-entry field represented by a qualified enum-entry
+    /// receiver such as `this@X`.
+    func enumEntryReceiverSymbol(forQualifiedThisLabel label: InternedString) -> SymbolID? {
+        guard resolveQualifiedThis(label: label) != nil,
+              let enumSymbol = resolveQualifiedThisReceiverSymbol(label: label),
+              let enumInfo = sema.symbols.symbol(enumSymbol),
+              enumInfo.kind == .enumClass
+        else {
+            return nil
+        }
+        return sema.symbols.lookupAll(fqName: enumInfo.fqName + [label]).first { candidate in
+            sema.symbols.symbol(candidate)?.kind == .field
+                && sema.symbols.parentSymbol(for: candidate) == enumSymbol
+        }
+    }
+
     /// Same tower as `implicitReceiverMemberLookupTypes()` but keeps each
     /// entry's receiver symbol when one exists: the symbol is how capture
     /// analysis and KIR lowering materialize that exact receiver value
