@@ -33,6 +33,28 @@ extension KIRLoweringDriver {
         }
     }
 
+    /// The symbols of ordinary member properties explicitly initialized to
+    /// null. Their storage must receive the null sentinel before super init,
+    /// while the later default initializer remains elided to preserve virtual
+    /// writes made by the superclass constructor.
+    func nullInitializerPropertySymbols(
+        _ memberProperties: [DeclID],
+        shared: KIRLoweringSharedContext
+    ) -> [SymbolID] {
+        memberProperties.compactMap { propDeclID in
+            guard let decl = shared.ast.arena.decl(propDeclID),
+                  case let .propertyDecl(prop) = decl,
+                  let initializer = prop.initializer,
+                  case .nullLiteral = shared.ast.arena.expr(initializer),
+                  prop.delegateExpression == nil,
+                  prop.explicitBackingField == nil
+            else {
+                return nil
+            }
+            return shared.sema.bindings.declSymbols[propDeclID]
+        }
+    }
+
     /// Seeds every `lateinit` member of a named `object` / `companion object`
     /// with the null sentinel. Their storage is the module global named by
     /// the (backing-field) symbol, mirroring the initializer stores emitted
