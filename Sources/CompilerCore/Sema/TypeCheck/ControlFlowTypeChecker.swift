@@ -888,7 +888,18 @@ final class ControlFlowTypeChecker {
                     let thenOK = !thenCompletes || (thenLocals[name]?.isInitialized == true && thenLocals[name]?.symbol == local.symbol)
                     let elseOK = !elseCompletes || (elseLocals[name]?.isInitialized == true && elseLocals[name]?.symbol == local.symbol)
                     if thenOK, elseOK, thenCompletes || elseCompletes {
-                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+                        let reachingBranches = [
+                            thenCompletes ? thenLocals : nil,
+                            elseCompletes ? elseLocals : nil,
+                        ].compactMap { $0 }
+                        let joinedType = joinedInitializedLocalType(
+                            name: name,
+                            symbol: local.symbol,
+                            from: reachingBranches,
+                            fallback: local.type,
+                            sema: sema
+                        )
+                        locals[name] = (joinedType, local.symbol, local.isMutable, true)
                     }
                 }
             }
@@ -924,6 +935,24 @@ final class ControlFlowTypeChecker {
         }
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    func joinedInitializedLocalType(
+        name: InternedString,
+        symbol: SymbolID,
+        from branches: [LocalBindings],
+        fallback: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard !branches.isEmpty else { return fallback }
+        let branchTypes = branches.compactMap { branch -> TypeID? in
+            guard let local = branch[name], local.symbol == symbol, local.isInitialized else {
+                return nil
+            }
+            return local.type
+        }
+        guard branchTypes.count == branches.count else { return fallback }
+        return sema.types.lub(branchTypes)
     }
 
     private func bindJoinedRangeExpressionMetadata(
@@ -1080,10 +1109,17 @@ final class ControlFlowTypeChecker {
                 guard initializedInAllNormalBranches else {
                     continue
                 }
+                let joinedType = joinedInitializedLocalType(
+                    name: name,
+                    symbol: local.symbol,
+                    from: normalCompletionLocals,
+                    fallback: local.type,
+                    sema: sema
+                )
                 if let current = locals[name], current.symbol == local.symbol {
-                    locals[name] = (current.type, current.symbol, current.isMutable, true)
+                    locals[name] = (joinedType, current.symbol, current.isMutable, true)
                 } else {
-                    locals[name] = (local.type, local.symbol, local.isMutable, true)
+                    locals[name] = (joinedType, local.symbol, local.isMutable, true)
                 }
             }
         }
